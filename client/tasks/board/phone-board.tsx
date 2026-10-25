@@ -614,6 +614,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           sessionTokens={sessionTokens}
           unarchive={board.unarchive.available ? board.unarchive : null}
           archive={board.archive}
+          markRead={board.read.available ? board.read : null}
         />
       </ScrollView>
       <DetailActionBar
@@ -627,6 +628,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
         onPermission={onPermission}
         unarchive={board.unarchive.available ? board.unarchive : null}
         archive={board.archive}
+        markRead={board.read.available ? board.read : null}
       />
     </View>
   );

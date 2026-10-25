@@ -2896,6 +2896,39 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["停止", "打开", "已打开"]);
   });
 
+  it("offers the card's Mark read in the details header and the phone's bar", async () => {
+    const tokens = taskTokens(LIGHT);
+    const unread: TaskCard = { ...sample("sample-unread"), readable: true, openTab: false };
+    const markRead = { pending: vi.fn(() => false), press: vi.fn() };
+    const desk = await render(details(unread, { onOpen: vi.fn(), markRead }));
+    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["打开", "标为已读"]);
+    expect(icons(hostByTestId(desk.root, "detail-read"))).toEqual(["CheckCheck"]);
+    // The unread green, as on the card; a failed card's stays plain.
+    expect(flat(hostByTestId(desk.root, "detail-read").props.style)).toMatchObject({ borderColor: tokens.card.readBorder });
+    await act(async () => hostByTestId(desk.root, "detail-read").props.onPress());
+    expect(markRead.press).toHaveBeenCalledWith(unread);
+    const failed: TaskCard = { ...unread, status: "failed" };
+    await act(async () => desk.update(details(failed, { onOpen: vi.fn(), markRead, touch: true })));
+    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["标为已读", "打开"]);
+    expect(flat(hostByTestId(desk.root, "detail-read").props.style)).toMatchObject({ borderColor: tokens.card.buttonBorder });
+    // Not readable, or nothing to mark it with: no button.
+    await act(async () => desk.update(details({ ...unread, readable: false }, { onOpen: vi.fn(), markRead })));
+    expect(desk.root.findAll((node) => node.props.testID === "detail-read")).toEqual([]);
+    await act(async () => desk.unmount());
+    renderer = null;
+    const bar = (card: TaskCard, more: Record<string, unknown> = {}) =>
+      React.createElement(DetailActionBar, { card, theme: LIGHT, language: "zh", strings: BOARD_STRINGS.zh.sidebar, onOpen: vi.fn(), markRead, ...more });
+    const phone = await render(bar(unread));
+    expect(texts(hostByTestId(phone.root, "detail-action-bar"))).toEqual(["标为已读", "打开"]);
+    expect(flat(hostByTestId(phone.root, "detail-bar-read").props.style)).toMatchObject({ flexGrow: 0, borderColor: tokens.card.readBorder });
+    // Working: the same label, dimmed, a spinner where the icon was, no second press.
+    markRead.pending.mockReturnValue(true);
+    await act(async () => phone.update(bar(unread, { markRead: { ...markRead } })));
+    const busy = hostByTestId(phone.root, "detail-bar-read");
+    expect(busy.props.accessibilityState).toEqual({ disabled: true, busy: true });
+    expect(icons(busy)).not.toContain("CheckCheck");
+  });
+
   it("gives a subtask's details the card's Open parent before Open, in the header and the phone's bar", async () => {
     const onOpen = vi.fn();
     const child: TaskCard = { ...sample("sample-child-1"), openTab: false };
