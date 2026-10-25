@@ -105,12 +105,13 @@ import {
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
-import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
+import { CORNER_MARK, OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
 import { SubtaskRow, SubtaskMetadata } from "../../client/tasks/cards/subtask-row";
 import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
+import { withAlpha } from "../../client/components/theme-tokens";
 import { TasksTypography, TasksTypographyScale } from "../../client/tasks/typography";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
@@ -981,6 +982,31 @@ describe("ProjectIcon", () => {
     expect(image.props.source).toEqual({ uri: "data:image/png;base64,AAAA" });
     expect(flat(image.props.style).borderRadius).toBeUndefined();
   });
+
+  it("marks a subtask's top-right corner in its project's colour, faded, and no other card", async () => {
+    const child = sample("sample-child-1");
+    expect(child.parent).not.toBeNull();
+    const marks = (tree: ReactTestRenderer) => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
+    const fill = (tree: ReactTestRenderer) =>
+      marks(tree)[0]!.findAll((node) => typeof node.type === "string" && flat(node.props.style).borderTopColor !== undefined)[0]!;
+    const hue = identityColor(projectViewKey(child.location, "host-1"));
+    const tree = await render(cardElement(child, { hostId: "host-1" }));
+    const mark = marks(tree)[0]!;
+    // Over the corner and out of the way: no layout, no touch, no screen reader.
+    expect(flat(mark.props.style)).toMatchObject({ position: "absolute", top: 0, right: 0, width: CORNER_MARK, height: CORNER_MARK, overflow: "hidden" });
+    expect(mark.props.pointerEvents).toBe("none");
+    expect(mark.props.importantForAccessibility).toBe("no-hide-descendants");
+    // A right triangle: the top border coloured, the left one clear.
+    expect(flat(fill(tree).props.style)).toMatchObject({ width: 0, height: 0, borderTopWidth: CORNER_MARK, borderLeftWidth: CORNER_MARK, borderTopColor: withAlpha(hue, 0.4), borderLeftColor: "transparent" });
+    await act(async () => tree.update(cardElement(child, { hostId: "host-1", theme: DARK })));
+    expect(flat(fill(tree).props.style).borderTopColor).toBe(withAlpha(hue, 0.5));
+    // A top-level card has none, and a provider subagent keeps its dashed border alone.
+    await act(async () => tree.update(cardElement(sample("sample-running"))));
+    expect(marks(tree)).toHaveLength(0);
+    const subagent = { ...child, subagent: { subtitle: "general-purpose · High", type: "general-purpose" } };
+    await act(async () => tree.update(cardElement(subagent)));
+    expect(marks(tree)).toHaveLength(0);
+  });
 });
 
 describe("TaskCardView context ring", () => {
@@ -1229,7 +1255,7 @@ describe("TaskCardView actions", () => {
 
   it("gives a tablet card's buttons a row of their own under the timer, Open at the right", async () => {
     const tree = await render(cardElement(sample("sample-child-1"), { onStop: () => {} }));
-    expect(rows(tree.root, "sample-child-1")).toEqual(["task-card-meta", "task-card-title-row", "task-card-pills", "task-card-footer", "task-card-control-row"]);
+    expect(rows(tree.root, "sample-child-1")).toEqual(["task-card-subtask-mark", "task-card-meta", "task-card-title-row", "task-card-pills", "task-card-footer", "task-card-control-row"]);
     expect(texts(hostByTestId(tree.root, "task-card-footer"))).not.toContain("停止");
     const row = hostByTestId(tree.root, "task-card-control-row");
     expect(flat(row.props.style)).toMatchObject({ flexDirection: "row", justifyContent: "flex-end" });
