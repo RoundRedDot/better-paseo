@@ -67,8 +67,11 @@ it reads the same on any card. The board's card surface is `surface0` on a light
 
 Motion is short and decelerating; nothing bounces or overshoots. `motionDuration(ms, reduced)`
 returns 0 when the system asks for reduced motion (`useReducedMotion`, which follows
-`prefers-reduced-motion` on the web). Under reduced motion each animation snaps, holds still, or
-keeps a short fade, as listed.
+`prefers-reduced-motion` on the web). Reduced motion removes movement, not change: nothing
+slides, flies, drifts, scales or rolls, but a colour, shadow or opacity transition of 160 ms or less may
+stay, as block details already trade their slide for a 120 ms fade. Under reduced motion each
+animation snaps, holds still or keeps a short fade, as listed. A new animation follows the same
+rule: put its movement behind `motionDuration` and keep at most a short fade.
 
 | Motion | Duration (ms) | Easing | Reduced motion |
 | --- | --- | --- | --- |
@@ -76,7 +79,7 @@ keeps a short fade, as listed.
 | Preview entrance: hover previews, tips, a card's hover buttons (`PREVIEW_REVEAL`) | 140, 4 pt drift | `cubic-bezier(.33,1,.68,1)` | shown at once |
 | Board lane motion (`MOTION`, `lane-motion.tsx`) | slide 240, fly 300, leave 160; a new card fades in 120 after 120 | `cubic-bezier(.2,0,0,1)` | settles in place |
 | Count roll (`RollingCount`) | 300, 6 pt | | new value at once |
-| Lane resize, strip swap | 220, 160 | | resize snaps |
+| Lane resize, strip swap | 220, 160 | | resize snaps; the swap's opacity fade stays |
 | Lane flash | two pulses, 600 in and 800 out, accent 7% at peak | cosine | one still beat of 1 s |
 | Phone lane switch | in 200, out 120, 24 pt | | none |
 | Phone search; card subtask panel | 180; open 180, close 140 | `MOTION.ease`; out cubic | snaps |
@@ -86,7 +89,7 @@ keeps a short fade, as listed.
 | Running ring, spinner | 900 per turn on one shared clock (12 steps on native) | linear | still |
 | Running dot | 1200 pulse, opacity 1 ↔ 0.3 (4 steps on native) | | |
 | Breathing skeleton | 1200, opacity 1 → 0.5 → 1 | | held at 1 |
-| Web hover transitions (`webTransition`) | 120 on background, border, shadow, colour, opacity | ease-out | still play (see [Open inconsistencies](#open-inconsistencies)) |
+| Web hover transitions (`webTransition`) | 120 on background, border, shadow, colour, opacity | ease-out | stay: no movement |
 
 ### Focus, selection and scrollbars
 
@@ -960,21 +963,3 @@ from the old host settings; later host updates never override it. Keep the old h
 unchanged when saving unrelated shared settings. Restore defaults resets the four local
 preferences too. A failed local write reports an error and rolls back its value rather than
 claiming it was saved.
-
-## Open inconsistencies
-
-The code disagrees with itself or with its comments in these places. Each needs a decision before
-it is designed against; until then the code's behaviour above is what ships.
-
-- `webTransition` (card and button hover) and the lane strip swap fade (`lane-resize.tsx`) play
-  under reduced motion, while every other animation honours it.
-- `accentRing` (`client/tasks/cards/tokens.ts`) is described as the focus ring but nothing reads
-  it; focus is the neutral 1 px outline.
-- The phone lane switcher computes and animates an underline (`underlineX`, `underlineScale` in
-  `phone-board.tsx`) that is never drawn; the chosen cell is raised instead.
-- `InputCapabilities.touch` documents 32 px targets; the board uses 36 to 44 on touch.
-- `UI_SCALE` says nothing is drawn below 12, but block text may be set down to 9.
-- `ReasoningCard`'s comment gives an expanded thought a 1 px frame and a divider; its styles draw
-  neither ("no box, no rule").
-- The motion module's header lists three kinds of motion; the board keeps its own `MOTION` table
-  beside it.
