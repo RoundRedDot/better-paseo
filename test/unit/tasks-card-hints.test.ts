@@ -31,6 +31,10 @@ describe("placeTip", () => {
     expect(placeTip({ left: 16, top: 60, width: 80, height: 28 }, BOARD)).toEqual({ top: 92, left: 16, maxWidth: 1578 });
     expect(placeTip({ left: 1540, top: 10, width: 28, height: 28 }, BOARD)).toEqual({ top: 42, right: 32, maxWidth: 1562 });
   });
+
+  it("opens above a sidebar action near the board's bottom, outside the scroller", () => {
+    expect(placeTip({ left: 1540, top: 860, width: 24, height: 24 }, BOARD)).toEqual({ bottom: 44, right: 36, maxWidth: 1558 });
+  });
 });
 
 describe("footer time hints", () => {

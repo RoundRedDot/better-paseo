@@ -9,7 +9,7 @@ import { subagentFacts } from "../subagent-type";
 import { useHover } from "../../ui/use-hover";
 import { withAlpha } from "../../components/theme-tokens";
 import { cardStart, cardTimer } from "./card-time";
-import { hintProps } from "./card-hints";
+import { hintProps, tipProps } from "./card-hints";
 import { ChildMark } from "./child-mark";
 import { ContextRing } from "./context-ring";
 import { useTime, type TimeSource } from "./clock";
@@ -34,6 +34,9 @@ export interface SubtaskRowProps extends TimeSource {
   accessibilityLabel?: string;
   statusHint?: string;
   openHint?: string;
+  /** Sidebar actions use the board's tip layer; expanded cards keep their own hints. */
+  pressTip?: string;
+  openTip?: string;
   openLabel: string;
   onPress?(): void;
   onLongPress?(): void;
@@ -56,6 +59,7 @@ export function SubtaskRow(props: SubtaskRowProps) {
     <Pressable
       {...(web ? { role: "group" as const } : { accessibilityRole: "button" as const })}
       accessibilityLabel={props.accessibilityLabel ?? child.title}
+      {...tipProps(props.onPress ? props.pressTip : undefined)}
       disabled={!props.onPress && !props.onOpen}
       onPress={props.onPress}
       onLongPress={props.onLongPress}
@@ -92,6 +96,7 @@ export function SubtaskRow(props: SubtaskRowProps) {
             onPress={props.onOpen}
             testID={child.kind === "provider" ? `${prefix}-parent-tab-${child.id}` : `${prefix}-open-${child.id}`}
             {...hintProps(showOpen ? props.openHint : undefined)}
+            {...tipProps(showOpen ? props.openTip : undefined)}
             style={{
               position: "absolute",
               top: 0,

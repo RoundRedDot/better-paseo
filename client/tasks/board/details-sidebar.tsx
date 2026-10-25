@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
+import { tipProps } from "../cards/card-hints";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { BrandMark, DETAIL_CARD, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
@@ -240,6 +241,7 @@ function StatCell(props: {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${props.label} ${props.count ?? ""}`}
+      {...tipProps(props.label)}
       onPress={props.onPress}
       {...hoverProps}
       testID={`sidebar-stat-${props.lane}`}
@@ -425,6 +427,7 @@ function Segment(props: { id: GroupKind; icon: string; label: string; showLabel:
       accessibilityRole="tab"
       accessibilityState={{ selected: props.on }}
       accessibilityLabel={props.label}
+      {...tipProps(props.label)}
       onPress={props.onPress}
       {...hoverProps}
       testID={`sidebar-group-tab-${props.icon}`}
@@ -483,6 +486,7 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
       accessibilityRole="checkbox"
       accessibilityState={{ checked: row.on }}
       accessibilityLabel={`${row.label}${row.detail ? ` ${row.detail}` : ""} ${row.count}`}
+      {...tipProps(`${row.label}${row.detail ? ` · ${row.detail}` : ""}`)}
       onPress={row.toggle}
       {...hoverProps}
       style={({ pressed }) => ({
