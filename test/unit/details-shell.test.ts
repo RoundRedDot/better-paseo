@@ -139,7 +139,7 @@ import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { DetailsHostSlot } from "../../client/details/shell/details-host-slot";
 import { DetailsShellContext, type DetailsShellValue } from "../../client/details/contracts";
 import { HoverPreviewContext, PreviewActionsContext, PreviewChromeContext, type PreviewActions } from "../../client/ui/hover-preview";
-import { getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { getEnhancerPreferences, resetEnhancerPreferences, subscribeEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { TextZoomContext } from "../../client/ui/text-zoom";
 import { resetSafeInsets } from "../../client/details/shell/safe-area";
 import { resetSideWidth } from "../../client/details/shell/side-panel";
@@ -1352,8 +1352,10 @@ describe("iOS text after the slide in", () => {
 describe("a pinch in the phone drawer", () => {
   type Handlers = Record<string, (...args: unknown[]) => unknown>;
   const zooms: number[] = [];
+  let zoomMounts = 0;
   function ZoomProbe() {
     const zoom = useContext(TextZoomContext);
+    React.useEffect(() => { zoomMounts += 1; }, []);
     zooms.push(zoom);
     return createElement("Text", { testID: "zoom-probe" }, String(zoom));
   }
@@ -1378,32 +1380,73 @@ describe("a pinch in the phone drawer", () => {
 
   beforeEach(() => {
     zooms.length = 0;
+    zoomMounts = 0;
+  });
+
+  it("updates the capsule during repeated long-text steps without remounting text or notifying global readers", () => {
+    vi.useFakeTimers();
+    const { renderer, body, shown } = drawer("step-long");
+    act(() => {
+      body().onContentSizeChange!(390, 9000);
+      const panel = byTestId(renderer, "details-body")!.props;
+      panel.onTouchStart(fingers(500, 600));
+      panel.onTouchEnd(fingers());
+    });
+    const mounts = zoomMounts;
+    const notified = vi.fn();
+    const unsubscribe = subscribeEnhancerPreferences(notified);
+    try {
+      for (let index = 0; index < 7; index++) {
+        act(() => byTestId(renderer, "details-zoom-increase")!.props.onPress());
+        act(() => { vi.advanceTimersByTime(149); });
+      }
+      expect(shown()).toBe("14");
+      expect(zoomMounts).toBe(mounts);
+      expect(notified).not.toHaveBeenCalled();
+      const words = byTestId(renderer, "details-zoom-badge")!.findAll((node) => typeof node.props.children === "string").map((node) => node.props.children);
+      expect(words).toContain("Text size 21");
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(shown()).toBe("21");
+      expect(zoomMounts).toBe(mounts + 1);
+      expect(notified).toHaveBeenCalledTimes(1);
+      act(() => byTestId(renderer, "details-zoom-reset")!.props.onPress());
+      act(() => { vi.advanceTimersByTime(150); });
+      const afterReset = notified.mock.calls.length;
+      act(() => byTestId(renderer, "details-zoom-reset")!.props.onPress());
+      act(() => { vi.advanceTimersByTime(150); });
+      expect(notified).toHaveBeenCalledTimes(afterReset);
+    } finally {
+      unsubscribe();
+    }
   });
 
   it("sets the text size live, keeps the line under the fingers, and saves it as they lift", () => {
+    vi.useFakeTimers();
     const { renderer, body, panel, shown } = drawer("pinch");
     expect(body().scrollEnabled).toBe(true);
     act(() => { panel().onTouchStart!(fingers(500, 600)); });
     // Held still: the fingers moving apart do not scroll the body.
     expect(body().scrollEnabled).toBe(false);
     expect(byTestId(renderer, "details-zoom-badge")).not.toBeNull();
-    // 100 apart to 150: the 16 of the timeline's body to 24.
+    // 100 apart to 150: the independent 14-point size becomes 21.
     act(() => { panel().onTouchMove!(fingers(475, 625)); });
-    expect(shown()).toBe("8");
-    expect(getEnhancerPreferences().detailsTextZoom).toBe(0);
+    expect(shown()).toBe("21");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(14);
     // The midpoint, 150 into the body, was half way down the content: still there at 1350.
     act(() => { body().onContentSizeChange!(390, 1350); });
     expect(web.scrolls.at(-1)).toBe(525);
     act(() => { panel().onTouchEnd!(fingers(475)); });
-    expect(getEnhancerPreferences().detailsTextZoom).toBe(8);
-    expect(shown()).toBe("8");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(21);
+    expect(shown()).toBe("21");
     expect(body().scrollEnabled).toBe(true);
     const words = byTestId(renderer, "details-zoom-badge")!.findAll((node) => typeof node.props.children === "string").map((node) => node.props.children);
-    expect(words).toEqual(expect.arrayContaining(["Text size 24", "Reset"]));
+    expect(words).toEqual(expect.arrayContaining(["Text size 21", "Reset"]));
     act(() => { (byTestId(renderer, "details-zoom-reset")!.props.onPress as () => void)(); });
-    expect(getEnhancerPreferences().detailsTextZoom).toBe(0);
-    expect(shown()).toBe("0");
-    expect(byTestId(renderer, "details-zoom-badge")).toBeNull();
+    act(() => { vi.advanceTimersByTime(150); });
+    expect(getEnhancerPreferences().detailsFontSize).toBe(14);
+    expect(shown()).toBe("14");
+    expect(byTestId(renderer, "details-zoom-badge")).not.toBeNull();
+    expect(byTestId(renderer, "details-zoom-reset")).not.toBeNull();
   });
 
   it("lays a long body out only as the fingers lift", () => {
@@ -1418,30 +1461,30 @@ describe("a pinch in the phone drawer", () => {
     });
     // The badge counts; the text waits.
     const words = () => byTestId(renderer, "details-zoom-badge")!.findAll((node) => typeof node.props.children === "string").map((node) => node.props.children);
-    expect(words()).toContain("Text size 24");
-    expect(shown()).toBe("0");
+    expect(words()).toContain("Text size 21");
+    expect(shown()).toBe("14");
     act(() => { panel().onTouchEnd!(fingers(475)); });
-    expect(shown()).toBe("8");
+    expect(shown()).toBe("21");
     // 3150 of 9000 under the midpoint: at 13500 that is 4725, 150 into the body.
     act(() => { body().onContentSizeChange!(390, 13500); });
     expect(web.scrolls.at(-1)).toBe(4575);
   });
 
-  it("keeps the saved size within -4 and +10 points", () => {
+  it("keeps the saved size within 12 and 26 points", () => {
     const { panel, shown } = drawer("pinch-far");
     act(() => {
       panel().onTouchStart!(fingers(500, 600));
       panel().onTouchMove!(fingers(300, 800));
       panel().onTouchEnd!(fingers());
     });
-    expect(shown()).toBe("10");
+    expect(shown()).toBe("26");
     act(() => {
       panel().onTouchStart!(fingers(500, 600));
       panel().onTouchMove!(fingers(545, 555));
       panel().onTouchEnd!(fingers());
     });
-    expect(getEnhancerPreferences().detailsTextZoom).toBe(-4);
-    expect(shown()).toBe("-4");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(12);
+    expect(shown()).toBe("12");
   });
 
   it("lets go of the drawer's pull once a second finger comes down", () => {
@@ -1469,9 +1512,9 @@ describe("a pinch in the phone drawer", () => {
   });
 
   it("draws the saved size in the drawer, and leaves web unchanged", () => {
-    updateEnhancerPreferences({ detailsTextZoom: 3 });
+    updateEnhancerPreferences({ detailsFontSize: 19 });
     const { panel, shown } = drawer("pinch-saved");
-    expect(shown()).toBe("3");
+    expect(shown()).toBe("19");
     expect(panel().onTouchStart).toBeDefined();
     act(() => mounted.splice(0).forEach((renderer) => renderer.unmount()));
     webDesktop();
@@ -1489,11 +1532,12 @@ describe("a pinch in the phone drawer", () => {
     { os: "android", width: 1194, height: 834, form: "side", hover: false },
     { os: "android", width: 834, height: 1194, form: "floating", hover: false },
   ])("supports saved zoom, pinch and badge controls in $os $form (hover $hover)", ({ os, width, height, form, hover }) => {
+    vi.useFakeTimers();
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     screen.width = width;
     screen.height = height;
     caps.hover = hover;
-    updateEnhancerPreferences({ detailsTextZoom: 3 });
+    updateEnhancerPreferences({ detailsFontSize: 19 });
     const id = `tablet-pinch-${os}-${form}-${hover}`;
     fake.box.blocks = [block(id, 1, { render: zoomed })];
     const renderer = render(slot());
@@ -1502,8 +1546,11 @@ describe("a pinch in the phone drawer", () => {
     const shown = () => byTestId(renderer, "zoom-probe")!.props.children;
     const body = () => byTestId(renderer, "hover-preview-body")!.props;
     const panel = () => byTestId(renderer, "details-body")!.props;
-    const press = (control: string) => act(() => byTestId(renderer, `details-zoom-${control}`)!.props.onPress());
-    expect(shown()).toBe("3");
+    const press = (control: string) => {
+      act(() => byTestId(renderer, `details-zoom-${control}`)!.props.onPress());
+      act(() => { vi.advanceTimersByTime(150); });
+    };
+    expect(shown()).toBe("19");
     act(() => {
       body().onContentSizeChange(420, 900);
       body().onScroll({ nativeEvent: { contentOffset: { y: 100 }, layoutMeasurement: { height: 300 }, contentSize: { height: 900 } } });
@@ -1512,21 +1559,23 @@ describe("a pinch in the phone drawer", () => {
     expect(body().scrollEnabled).toBe(false);
     expect(byTestId(renderer, "details-zoom-badge")).not.toBeNull();
     act(() => panel().onTouchMove(fingers(490, 610)));
-    expect(shown()).toBe("7");
-    expect(getEnhancerPreferences().detailsTextZoom).toBe(3);
+    expect(shown()).toBe("23");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(19);
     act(() => panel().onTouchEnd(fingers()));
     expect(body().scrollEnabled).toBe(true);
-    expect(getEnhancerPreferences().detailsTextZoom).toBe(7);
+    expect(getEnhancerPreferences().detailsFontSize).toBe(23);
     press("increase");
-    expect(shown()).toBe("8");
-    expect(getEnhancerPreferences().detailsTextZoom).toBe(8);
+    expect(shown()).toBe("24");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(24);
     press("decrease");
-    expect(shown()).toBe("7");
-    expect(getEnhancerPreferences().detailsTextZoom).toBe(7);
+    expect(shown()).toBe("23");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(23);
     press("reset");
-    expect(shown()).toBe("0");
-    expect(getEnhancerPreferences().detailsTextZoom).toBe(0);
-    expect(byTestId(renderer, "details-zoom-badge")).toBeNull();
+    expect(shown()).toBe("14");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(14);
+    expect(byTestId(renderer, "details-zoom-badge")).not.toBeNull();
+    press("reset");
+    expect(byTestId(renderer, "details-zoom-reset")).not.toBeNull();
   });
 
   it("keeps tablet zoom across a side-to-floating layout change", () => {
@@ -1547,8 +1596,8 @@ describe("a pinch in the phone drawer", () => {
     act(() => renderer.update(slot()));
     act(() => { vi.advanceTimersByTime(150); });
     expect(byTestId(renderer, "details-floating")).not.toBeNull();
-    expect(byTestId(renderer, "zoom-probe")!.props.children).toBe("1");
+    expect(byTestId(renderer, "zoom-probe")!.props.children).toBe("15");
     expect(byTestId(renderer, "details-body")!.props.onTouchStart).toBeDefined();
-    expect(getEnhancerPreferences().detailsTextZoom).toBe(1);
+    expect(getEnhancerPreferences().detailsFontSize).toBe(15);
   });
 });

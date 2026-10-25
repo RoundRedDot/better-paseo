@@ -30,7 +30,7 @@ import { HoverPreviewContext, PreviewActionsContext, PreviewChromeContext, usePa
 import { PathContext, usePathContextValue } from "../../ui/path-text";
 import { TimelineProseContext } from "../../components/markdown/markdown-view";
 import { TextZoomContext } from "../../ui/text-zoom";
-import { updateEnhancerPreferences, useEnhancerPreferences } from "../../preferences";
+import { getEnhancerPreferences, updateEnhancerPreferences, useEnhancerPreferences } from "../../preferences";
 import { forgetPreview, holdPreview, recallPreview, rememberPreview, PREVIEW_HANDOVER_MS, type PreviewMemory } from "../../ui/preview-memory";
 import { useInputCapabilities } from "../../ui/use-input-capabilities";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -50,6 +50,7 @@ import { BottomDrawer } from "./bottom-drawer";
 import { FloatingPanel } from "./floating-panel";
 import { SidePanel, sideWidth } from "./side-panel";
 import type { Entrance } from "./bottom-panel";
+import { DETAILS_FONT_SIZE_DEFAULT } from "../../../shared/preferences-settings";
 
 /** Where the open block sits among the navigable blocks: 1-based, 0 when it is not one. */
 export function navigationOf(list: readonly BlockEntry[], id: string): { index: number; count: number; first: string | null } {
@@ -308,24 +309,25 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   const bodyScroll = useMemo(() => createBodyScroll(), []);
 
   // Native details text zoom in every form: live while pinching, saved as it ends.
-  const { detailsTextZoom } = useEnhancerPreferences();
+  const { detailsFontSize } = useEnhancerPreferences();
   const [liveZoom, setLiveZoom] = useState<number | null>(null);
   const zooms = Platform.OS !== "web";
-  const textZoom = zooms ? liveZoom ?? detailsTextZoom : 0;
+  const textZoom = zooms ? liveZoom ?? detailsFontSize : 0;
   const zoomRef = useRef(textZoom);
   zoomRef.current = textZoom;
-  const contentSize = tokens.typography.content.size;
-  const codeSize = tokens.typography.mono.size;
   const zoom = useMemo<DetailsZoom | undefined>(() => (zooms ? {
-    base: contentSize,
-    code: codeSize,
+    base: DETAILS_FONT_SIZE_DEFAULT,
     current: () => zoomRef.current,
-    preview: setLiveZoom,
+    preview(next) {
+      zoomRef.current = next;
+      setLiveZoom(next);
+    },
     commit(next) {
-      updateEnhancerPreferences({ detailsTextZoom: next });
+      zoomRef.current = next;
+      if (getEnhancerPreferences().detailsFontSize !== next) updateEnhancerPreferences({ detailsFontSize: next });
       setLiveZoom(null);
     },
-  } : undefined), [zooms, contentSize, codeSize]);
+  } : undefined), [zooms]);
 
   // Web keys while the panel is open (`keyboard.ts`): only this lease holder's
   // layer, and only while its pane is shown. ← → take the panel's own step.

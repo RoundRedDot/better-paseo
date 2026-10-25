@@ -7,6 +7,7 @@ import {
   CODE_FONT_SIZE_MIN,
   clampBlockFontSize,
   clampCodeFontSize,
+  DETAILS_FONT_SIZE_DEFAULT,
   HOVER_DELAY_DEFAULT,
   HOVER_DELAY_MAX,
   HOVER_DELAY_MIN,
@@ -101,10 +102,10 @@ export interface EnhancerPreferences {
   /** Whether a preview panel opens with its lines wrapped; its toolbar button flips it for that panel. */
   previewWrap: boolean;
   /**
-   * Points the phone's details drawer draws its text above or below the
-   * timeline's, -4 to 10. A pinch on the drawer's body sets it.
+   * Independent native details text size, set in settings, by a body pinch,
+   * or by the size badge. Does not change the timeline's typography.
    */
-  detailsTextZoom: number;
+  detailsFontSize: number;
   /**
    * Tap a row to open its details in a drawer or panel (docs/prototypes/block-details-sheet.md).
    * On by default; off brings back the long-press preview and tap-to-expand.
@@ -210,7 +211,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   hoverPreview: true,
   hoverDelaySeconds: HOVER_DELAY_DEFAULT,
   previewWrap: true,
-  detailsTextZoom: 0,
+  detailsFontSize: DETAILS_FONT_SIZE_DEFAULT,
   blockDetails: true,
   previewLineNumbers: true,
   previewStripes: true,

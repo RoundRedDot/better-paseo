@@ -452,7 +452,7 @@ export function useThemeTokens(
 
 function sameButZoom(a: EnhancerPreferences, b: EnhancerPreferences): boolean {
   for (const key of Object.keys(b) as Array<keyof EnhancerPreferences>) {
-    if (key !== "detailsTextZoom" && a[key] !== b[key]) return false;
+    if (key !== "detailsFontSize" && a[key] !== b[key]) return false;
   }
   return Object.keys(a).length === Object.keys(b).length;
 }
