@@ -26,6 +26,7 @@ https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
 - **性能实测。** 对照 Paseo 0.12.0，本轮 Web 与 iOS 共串行回放 220 次（每格 5 次）；长回复的 Web 主线程时间减少 80%。详见[性能对比](#性能对比)。
 
 - **一个工具调用一行。** 调用默认折叠成 26pt 的一行，摘要按类型生成；完成、滚进历史、重新挂载后，展开状态都不会丢。
+- **每个工具都有自己的图标。** Shell 行画出所运行的程序（101 个图标覆盖 209 个程序，从 `python` 到 `kubectl`），MCP 行画出所调用的服务（75 个服务，从 Linear 到飞书），其余调用按类型画。见[工具图标](#工具图标)。
 - **区块详情。** 工具、思考、待办和代码块都能在面板里阅读，在标题栏前后切换本轮的各个区块，流式输出时跟随末尾。见[区块详情](#区块详情)。
 - **逐块呈现流式回复。** Markdown 缓存已完成的块，持续修补增长中的代码和表格。
 - **Tasks 看板。** 按状态（待输入、运行中、待查看、已完成、已归档）铺开主机上的所有 agent，标签颜色和项目图标与 Paseo 一致，卡片上就能停止、标为已读、归档、处理权限请求；详情里有本轮计时和 token、首条消息、最后回复消息、子任务和用量。见 [Tasks 看板](#tasks-看板)。
@@ -272,6 +273,238 @@ Oh My Pi 的 `hub` 工具和它的 GitHub 设备调用按工具名识别，有�
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-thinking-dark.png"><img alt="思考工具调用" src="docs/images/tool-thinking-light.png"></picture>
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-image-dark.png"><img alt="读图" src="docs/images/tool-image-light.png"></picture>
 <picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/syntax-dark.png"><img alt="代码块" src="docs/images/syntax-light.png"></picture>
+
+</details>
+
+### 工具图标
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/tool-icons-zh-dark.png"><img alt="工具行能画出的全部图标：上方是四条真实的 Shell 行和四条 MCP、agent 行，下方按用途分组排出 16 种工具类型、101 个 Shell 程序图标和 75 个 MCP 服务" src="docs/images/tool-icons-zh-light.png"></picture>
+
+<sub>2026-10-25 在离线 Web showcase 中以 2 倍分辨率拍摄，代码为 `2490d376`。图里每个图标都由插件自己的查表逻辑解析，插件不认识的名字会让截图直接失败。</sub>
+
+工具行开头的图标说明这次调用在操作什么，而不只是哪个工具发起的：
+
+- **Shell 命令画出所运行的程序**：101 个图标覆盖 209 个程序，从 `python`、`cargo` 到 `kubectl`、`xcrun simctl`、`ffmpeg`。插件会跳过 Shell 的准备步骤和包装（`cd app &&`、`sudo`、`env`、`FOO=1`），去掉版本后缀和 `.exe`（`python3.12` 即 `python`，`pip3` 即 `pip`）；`npx` 这类启动器如果拉起的程序有图标，就画那个程序（`npx playwright test` 画 Playwright）。从 Shell 启动的编程 agent（`claude`、`codex`、`gemini` 等）画的是和它们 agent 行相同的服务商标识。不认识的程序保留终端图标。
+- **MCP 调用画出所调用的服务**：75 个服务，按服务名忽略大小写和分隔符匹配，所以 Claude 的连接器（`claude_ai_Google_Calendar`）、本地服务（`linear-server`、`mcp-server-git`）以及 Codex、Oh My Pi 的写法都能认出来。Atlassian 的服务里，`confluence_*` 工具画 Confluence，其余画 Jira。不认识的服务保留插头图标。
+- **其余调用按工具类型画**：Shell、读取、编辑与写入、搜索、抓取网页、Git、GitHub、子 agent、MCP、计划、思考、提问、Oh My Pi 的 hub、Paseo、纯文本，其他一律画扳手。
+- 品牌标识是线条图标，用行内图标的颜色绘制，线宽与 Paseo 自己的 Lucide 图标一致（1.5），一轮里混着多种工具也像同一套图标。每个标识在某一行第一次用到时才由 daemon 下发，所以这些标识的图片数据不会进入 Paseo 每次重连都要重发的客户端包。
+- 设置里的「行首标识」可以选择只显示图标、只显示工具名，或两者都显示。
+
+<details>
+<summary>全部 209 个 Shell 程序及其图标</summary>
+
+| 分组 | 图标 | 程序 |
+| --- | --- | --- |
+| 语言与运行时 | Python 标识 | `python` `pip` `uv` `uvx` `poetry` `pytest` `ipython` `conda` `pipx` `ruff` `mypy` |
+|  | Node.js 标识 | `node` |
+|  | Deno 标识 | `deno` |
+|  | Bun 标识 | `bun` `bunx` |
+|  | TypeScript 标识 | `tsc` `tsx` `ts-node` |
+|  | Lucide `Coffee` | `java` `javac` `jar` `mvn` `mvnw` `gradle` `gradlew` |
+|  | Kotlin 标识 | `kotlin` `kotlinc` |
+|  | Go 标识 | `go` `gofmt` |
+|  | Rust 标识 | `cargo` `rustc` `rustup` |
+|  | Lucide `Gem` | `ruby` `gem` `bundle` `bundler` `rake` `rails` `irb` |
+|  | PHP 标识 | `php` `composer` |
+|  | Swift 标识 | `swift` `swiftc` |
+|  | C++ 标识 | `gcc` `g++` `clang` `clang++` `cmake` |
+|  | C# 标识 | `dotnet` |
+|  | Flutter 标识 | `flutter` `dart` |
+|  | PowerShell 标识 | `pwsh` `powershell` |
+| 包管理与构建 | npm 标识 | `npm` `npx` |
+|  | pnpm 标识 | `pnpm` `pnpx` |
+|  | Yarn 标识 | `yarn` |
+|  | Lucide `Beer` | `brew` |
+|  | Lucide `Hammer` | `make` |
+|  | Vite 标识 | `vite` |
+|  | webpack 标识 | `webpack` `webpack-cli` |
+|  | Turborepo 标识 | `turbo` |
+| 前端与框架 | ESLint 标识 | `eslint` |
+|  | Prettier 标识 | `prettier` |
+|  | Next.js 标识 | `next` |
+|  | Nuxt 标识 | `nuxt` `nuxi` |
+|  | Angular 标识 | `ng` |
+|  | Astro 标识 | `astro` |
+|  | Svelte 标识 | `sv` `svelte-kit` |
+|  | Vue 标识 | `vue` |
+|  | Tailwind CSS 标识 | `tailwindcss` |
+|  | React Native 标识 | `react-native` |
+|  | Expo 标识 | `expo` `eas` |
+|  | Lucide `Atom` | `electron` `electron-builder` `electron-forge` |
+|  | Django 标识 | `django-admin` |
+|  | Laravel 标识 | `laravel` |
+|  | Jupyter 标识 | `jupyter` `jupyter-lab` `jupyter-notebook` |
+| 测试与浏览器 | Vitest 标识 | `vitest` |
+|  | Lucide `FlaskConical` | `jest` `mocha` |
+|  | Playwright 标识 | `playwright` |
+|  | Puppeteer 标识 | `puppeteer` |
+|  | Cypress 标识 | `cypress` |
+|  | Storybook 标识 | `storybook` |
+|  | Chrome 标识 | `google-chrome` `google-chrome-stable` `chrome` `chromium` `chromium-browser` |
+|  | Postman 标识 | `postman` `newman` |
+| Apple 与 Android | Apple 标识 | `xcodebuild` `xcrun` `pod` |
+|  | Lucide `Smartphone` | `simctl` `serve-sim` `ios-deploy` |
+|  | Android 标识 | `adb` `emulator` `avdmanager` `sdkmanager` |
+| 云与部署 | AWS 标识 | `aws` |
+|  | Google Cloud 标识 | `gcloud` `gsutil` |
+|  | Azure 标识 | `az` |
+|  | Vercel 标识 | `vercel` |
+|  | Cloudflare 标识 | `wrangler` |
+|  | Supabase 标识 | `supabase` |
+|  | Firebase 标识 | `firebase` |
+|  | Netlify 标识 | `netlify` `ntl` |
+|  | Heroku 标识 | `heroku` |
+|  | Stripe 标识 | `stripe` |
+| 容器与基础设施 | Docker 标识 | `docker` `docker-compose` |
+|  | Lucide `Container` | `podman` `podman-compose` |
+|  | Lucide `ShipWheel` | `kubectl` `helm` `minikube` `kind` `k9s` |
+|  | Terraform 标识 | `terraform` |
+|  | Ansible 标识 | `ansible` `ansible-playbook` `ansible-galaxy` `ansible-vault` `ansible-inventory` |
+|  | Nginx 标识 | `nginx` |
+|  | Lucide `Server` | `ssh` `scp` `sftp` `rsync` `mosh` |
+| 数据库与消息 | PostgreSQL 标识 | `psql` `pg_dump` `pg_restore` |
+|  | MySQL 标识 | `mysql` `mysqldump` |
+|  | MongoDB 标识 | `mongosh` `mongo` |
+|  | Lucide `Feather` | `sqlite` |
+|  | Redis 标识 | `redis-cli` `redis-server` |
+|  | Kafka 标识 | `kcat` `kafkacat` `kafka-topics.sh` `kafka-console-consumer.sh` `kafka-console-producer.sh` |
+|  | Prisma 标识 | `prisma` |
+| CI 与监控 | Jenkins 标识 | `jenkins` `jenkins-cli` |
+|  | CircleCI 标识 | `circleci` |
+|  | SonarQube 标识 | `sonar-scanner` |
+|  | Grafana 标识 | `grafana` `grafana-cli` |
+|  | Prometheus 标识 | `prometheus` `promtool` |
+|  | Lucide `Dog` | `datadog-ci` |
+|  | Jira 标识 | `jira` |
+| 代码托管、agent 与编辑器 | GitHub 标识 | `gh` |
+|  | GitLab 标识 | `glab` |
+|  | Paseo 标识 | `paseo` |
+|  | Claude 服务商标识 | `claude` |
+|  | Codex 服务商标识 | `codex` |
+|  | Gemini 服务商标识 | `gemini` |
+|  | OpenCode 服务商标识 | `opencode` |
+|  | Cursor 服务商标识 | `cursor-agent` |
+|  | Copilot 服务商标识 | `copilot` |
+|  | Ollama 服务商标识 | `ollama` |
+|  | Oh My Pi 服务商标识 | `omp` |
+|  | VS Code 标识 | `code` |
+|  | Vim 标识 | `vim` `vi` `gvim` |
+| 常用工具 | Lucide `Globe` | `curl` `wget` `http` `xh` |
+|  | Lucide `Search` | `rg` `grep` `find` `fd` `ag` |
+|  | Lucide `Braces` | `jq` `yq` |
+|  | Lucide `FileDiff` | `diff` `colordiff` `difft` |
+|  | Lucide `Archive` | `tar` `zip` `unzip` `gzip` `gunzip` `7z` `xz` |
+|  | Lucide `Clapperboard` | `ffmpeg` `ffprobe` |
+|  | Lucide `ExternalLink` | `open` `xdg-open` |
+
+</details>
+
+<details>
+<summary>全部 75 个 MCP 服务及其图标</summary>
+
+匹配前，服务名会转成小写并去掉字母和数字以外的字符，所以 `Google_Calendar`、`google-calendar` 和 `googlecalendar` 是同一个名字。服务名包含表中的词即算匹配；带 `*` 的词只匹配开头，Git 和 Time 只匹配完整的名字，因此 `github`、`timeline` 不会误中。
+
+| 分组 | 服务 | 图标 | 匹配的服务名 |
+| --- | --- | --- | --- |
+| 代码托管与 CI | GitHub | GitHub 标识 | `github` |
+|  | GitLab | GitLab 标识 | `gitlab` |
+|  | Git | Lucide `GitBranch` | `git`, `mcp-server-git`, `git-mcp` |
+|  | Gitee | Gitee 标识 | `gitee` |
+|  | Bitbucket | Bitbucket 标识 | `bitbucket` |
+|  | Jenkins | Jenkins 标识 | `jenkins` |
+|  | CircleCI | CircleCI 标识 | `circleci` |
+|  | SonarQube | SonarQube 标识 | `sonar` |
+|  | Ansible | Ansible 标识 | `ansible` |
+| 项目与文档 | Linear | Linear 标识 | `linear` |
+|  | Jira | Jira 标识 | `jira`, `atlassian` |
+|  | Confluence | Confluence 标识 | `confluence`；Atlassian 服务里 `confluence_*` 开头的工具 |
+|  | Notion | Notion 标识 | `notion` |
+|  | Trello | Trello 标识 | `trello` |
+|  | Asana | Asana 标识 | `asana` |
+|  | Airtable | Airtable 标识 | `airtable` |
+|  | Figma | Figma 标识 | `figma` |
+|  | Sentry | Sentry 标识 | `sentry` |
+| 沟通与邮件 | Slack | Slack 标识 | `slack` |
+|  | 飞书 / Lark | Feishu 标识 | `feishu`, `lark` |
+|  | 钉钉 | DingTalk 标识 | `dingtalk`, `dingding` |
+|  | 企业微信 | WeCom 标识 | `wecom`, `wework`, `wechatwork`, `qywx` |
+|  | Microsoft Teams | Teams 标识 | `teams` |
+|  | Discord | Discord 标识 | `discord` |
+|  | Telegram | Telegram 标识 | `telegram` |
+|  | Gmail | Gmail 标识 | `gmail` |
+|  | Zapier | Zapier 标识 | `zapier` |
+| Google | Google Calendar | Google Calendar 标识 | `googlecalendar`, `gcal` |
+|  | Google Drive | Google Drive 标识 | `googledrive`, `gdrive` |
+|  | Google Maps | Google Maps 标识 | `googlemaps`, `gmaps` |
+|  | YouTube | YouTube 标识 | `youtube` |
+| 浏览器与设备 | Chrome | Chrome 标识 | `chrome` |
+|  | Playwright | Playwright 标识 | `playwright` |
+|  | Puppeteer | Puppeteer 标识 | `puppeteer` |
+|  | Browserbase, browser-use | Lucide `AppWindow` | `browserbase`, `browseruse`, `browsermcp`, `browsertools` |
+|  | iOS 模拟器 | Lucide `Smartphone` | `iossimulator`, `simulator`, `simctl`, `servesim`, `mobile*` |
+|  | Xcode | Apple 标识 | `xcode` |
+|  | Android | Android 标识 | `android`, `adb` |
+|  | Computer use | Lucide `MousePointer2` | `computeruse`, `cuadriver` |
+|  | Desktop Commander | Lucide `SquareTerminal` | `desktopcommander` |
+| 云与数据 | AWS | AWS 标识 | `aws`, `bedrock` |
+|  | Docker | Docker 标识 | `docker` |
+|  | Kubernetes | Lucide `ShipWheel` | `kubernetes`, `k8s`, `kubectl` |
+|  | Terraform | Terraform 标识 | `terraform` |
+|  | Vercel | Vercel 标识 | `vercel` |
+|  | Cloudflare | Cloudflare 标识 | `cloudflare` |
+|  | Supabase | Supabase 标识 | `supabase` |
+|  | Firebase | Firebase 标识 | `firebase` |
+|  | Netlify | Netlify 标识 | `netlify` |
+|  | Heroku | Heroku 标识 | `heroku` |
+|  | Stripe | Stripe 标识 | `stripe` |
+|  | PostgreSQL | PostgreSQL 标识 | `postgres` |
+|  | MySQL | MySQL 标识 | `mysql` |
+|  | MongoDB | MongoDB 标识 | `mongo` |
+|  | SQLite | Lucide `Feather` | `sqlite` |
+|  | Redis | Redis 标识 | `redis` |
+|  | Kafka | Kafka 标识 | `kafka` |
+|  | Elastic | Elastic 标识 | `elastic`, `kibana` |
+| 监控与调试 | Grafana | Grafana 标识 | `grafana` |
+|  | Prometheus | Prometheus 标识 | `prometheus` |
+|  | Datadog | Lucide `Dog` | `datadog` |
+|  | Postman | Postman 标识 | `postman` |
+| 搜索与工具 | Brave Search | Brave 标识 | `brave` |
+|  | Perplexity | Perplexity 标识 | `perplexity` |
+|  | Tavily, Serper, SearXNG, Kagi, Exa | Lucide `Search` | `tavily`, `serper`, `searxng`, `kagi`, `exa*` |
+|  | Fetch, Firecrawl | Lucide `Globe` | `fetch`, `firecrawl` |
+|  | Context7 | Lucide `LibraryBig` | `context7` |
+|  | Memory | Lucide `BrainCircuit` | `memory` |
+|  | Sequential Thinking | Lucide `Lightbulb` | `sequentialthinking` |
+|  | Time | Lucide `Clock` | `time`, `mcp-server-time`, `time-mcp` |
+|  | Filesystem | Lucide `FolderOpen` | `filesystem` |
+|  | EverArt | Lucide `Palette` | `everart` |
+|  | Everything | Lucide `Blocks` | `everything` |
+|  | OpenAI | OpenAI 标识 | `openai` |
+|  | Paseo | Paseo 标识 | `paseo*` |
+
+</details>
+
+<details>
+<summary>16 种工具类型</summary>
+
+| 类型 | 图标 |
+| --- | --- |
+| Shell（`bash`、`shell`） | Lucide `SquareTerminal`，或程序自己的图标 |
+| 读取 | Lucide `FileText` |
+| 编辑、写入 | Lucide `Pencil` |
+| 搜索 | Lucide `Search` |
+| 抓取网页 | Lucide `Globe` |
+| Git、worktree 准备 | Lucide `GitBranch` |
+| GitHub | GitHub 标识 |
+| 子 agent | Lucide `Bot`；agent 行画所属服务商的标识 |
+| MCP | Lucide `Plug`，或服务自己的图标 |
+| 计划 | Lucide `ListChecks` |
+| 思考 | Lucide `Lightbulb` |
+| 提问 | Lucide `MessageCircleQuestion` |
+| Hub（Oh My Pi） | Lucide `Radio` |
+| Paseo | Paseo 标识 |
+| 纯文本 | Lucide `MessageSquare` |
+| 其他 | Lucide `Wrench` |
 
 </details>
 
