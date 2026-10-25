@@ -1,6 +1,6 @@
 # UI 组件复用与设计统一优化方案
 
-日期：2026-10-25，2026-10-26 同步落地状态。原始盘点基线 `9707fc06`，平板适配检查点 `a8689afe`，S0 与首轮重构候选基线 `45064c6b`。本次全局复核固定截止 `08f2bbb3a248a3ab629218dace7a0ebf56c2b287`；`7113c24f` 为前次检查点。新增单行平板工具栏、居中计数、首条消息搜索、Space预览、详情分栏／消息时间与父任务标记均属已提交功能共同基线。并行提示层另列，旧盘点及候选01证明不自动覆盖新版本。第3–8.3节的复核内容仍以 08f2 为准；08f2 之后到 `9376c4da` 的已提交变更见第8.4节。
+日期：2026-10-25，2026-10-26 同步落地状态。原始盘点基线 `9707fc06`，平板适配检查点 `a8689afe`，S0 与首轮重构候选基线 `45064c6b`。本次全局复核固定截止 `08f2bbb3a248a3ab629218dace7a0ebf56c2b287`；`7113c24f` 为前次检查点。新增单行平板工具栏、居中计数、首条消息搜索、Space预览、详情分栏／消息时间与父任务标记均属已提交功能共同基线。并行提示层另列，旧盘点及候选01证明不自动覆盖新版本。第3–8.3节的复核内容仍以 08f2 为准；08f2 之后到 `90828a7e` 的已提交变更见第8.4节。
 
 **状态：S0、S1a、S3a/S3b/S3c 已合入 main（2026-10-25，`957e57e1`、`cb1764ad`、`181455fe`，随 `2e99a328` 推送）；同批合入提示层（`e501ea38`）、F1 开关 Space（`bd9eba9a`）与 F2 平板菜单浮层（`2120e323`）。合入前 Mac Studio candidate02／03 验收见第9.2–9.3节，推送前完整单测 4228/4228、typecheck 与 check:hermes 通过。S1b 不实施，S2/S4 暂缓（第7.2节）。** 新增视觉或产品行为需单独说明，不能混入机械搬迁。
 
@@ -372,7 +372,7 @@ CardHints/BoardTips 已共用 HintLayer；tipProps提供提示不等于AX名称�
 
 整合影响：下一manifest02应包含截止08f2的已提交Markdown交互与平台动画作为共同基线，并明确列入其三个测试文件；它们不属于S1a/S3的15文件。继续整合S1a/S3而不修改此提交，图片格式叶子只改文案，不能改变LocalImage手势边界；披露头提取不能更换Markdown块key、选区容器或复制卸载时序。并行tips及截止点外交互修改按作者归属另审，不自动打包成已接受变更。
 
-### 8.4 08f2 之后已提交的变更（2026-10-26 登记，截至 `9376c4da`）
+### 8.4 08f2 之后已提交的变更（2026-10-26 登记，截至 `90828a7e`）
 
 08f2 之后 main 又合入约 40 个提交，均为已实现功能契约或第7.1节的落地。它们沿用现有 owner，不新增重构切片；运行验收以各提交自己的测试和 QA 为准，本文不追加全局通过结论。
 
@@ -381,7 +381,7 @@ CardHints/BoardTips 已共用 HintLayer；tipProps提供提示不等于AX名称�
 | `957e57e1`、`cb1764ad`、`181455fe` | S1a：CardButton → `cards/action-buttons.tsx`，buttonHue／requestLook／arrowInset／CONFIRM_STOP_ICON／webTransition 与 28／32 → `cards/action-style.ts`；S3a `components/mark-icon.tsx`；S3b `components/image-format.ts`；S3c SwitchTrack reduced-motion | 第7.1节完成；之后的动作按钮颜色只从 action-style 取 |
 | `e501ea38`；card-hints BoardTips／placeTip、details-sidebar、detail-cards、subtask-row pressTip／openTip | 侧栏与详情动作接入看板提示层 | 第8.1节提示行已提交 |
 | `bd9eba9a`；`ui/use-switch-space.ts` | role=switch 的 Toggle、BarSwitch、ToggleRow 在 Web 上 Space 松开时切换一次 | 关闭第9.1节预存问题；新的 switch 必须接入（design.md「Switches」） |
-| `2120e323`、`9376c4da`；TabletToolbar 视图菜单 | 菜单挂在看板等高浮层，按测量锚点右对齐，宽 240–260 | F2 已提交 |
+| `2120e323`、`9376c4da`、`90828a7e`；TabletToolbar 视图菜单 | 菜单挂在看板等高浮层，按测量锚点右对齐，宽 230（更窄时为工具栏宽度减 24） | F2 已提交 |
 | `08c29f56`、`4ddc7580`、`2ae1daa9`、`d939b9a7`；TabletToolbar | 宽度不足 680 时紧凑 28／36；不足 560 时搜索在栏内展开并让出计数、保留操作；子任务开关常驻 | 第3.3节单行工具栏的有限变体仍留在 TabletToolbar，不抽通用 Toolbar |
 | `e435e37d`、`34009c13`、`6d83785d`、`c0498f2d`；phone-board 头部、`board/phone-search.tsx` PhoneSearch、FilterSheetBody `hideSubtasksToggle` | 手机子任务开关移入头部；搜索框自管高度与退出动画，动画期间不重绘 pager | S2 仍暂缓：PhoneSearch 只拥有显隐动画，输入身份契约（第4.4节）不变 |
 | `4d927db9`、`d77004df`、`2e99a328`；SubtaskPanel、`prepareSubtaskToggle` | native 保留常驻 shell，只卸载行；按下时先配置 LayoutAnimation 再更新展开状态 | 第8.1节 `4a0201fe` 行的 native 描述以此为准；Web 不变 |
@@ -498,6 +498,6 @@ CardHints/BoardTips 已共用 HintLayer；tipProps提供提示不等于AX名称�
 
 ### 10.1 截止点与并行修改
 
-第3–8.3节的复核以 `08f2bbb3a248a3ab629218dace7a0ebf56c2b287` 为共同基线，从7113检查点复核其间九次提交；08f2 之后到 `9376c4da` 的提交只在第8.4节登记 owner 与契约，没有重新做全局交互复核。S1a/S3 的15文件与提示层均已提交，第7.1节的作者归属与排除规则仅作历史记录。
+第3–8.3节的复核以 `08f2bbb3a248a3ab629218dace7a0ebf56c2b287` 为共同基线，从7113检查点复核其间九次提交；08f2 之后到 `90828a7e` 的提交只在第8.4节登记 owner 与契约，没有重新做全局交互复核。S1a/S3 的15文件与提示层均已提交，第7.1节的作者归属与排除规则仅作历史记录。
 
 2026-10-26 同步只改文档（本文、design.md、tasks-board.md），未改生产代码、测试与配置。
