@@ -422,6 +422,6 @@ agent 分几路请求，避免一次拉全 340 个 agent 的完整快照；works
 下面的问题已在实现中定下来。
 
 - [x] 放在 Better Paseo 里，还是单独做成 `paseo-tasks` 插件？最初建议单独做（Better Paseo 的定位是重画聊天时间线，而且重连时会重发整个包）。最终放在 Better Paseo 里（`client/tasks/`），复用了品牌图标和主题工具；看板默认开启，可在设置里关闭，关闭时不注册入口、不订阅。包体积的代价已用 Tasks 分包缓解，见「风险与限制」。
-- [x] 「按 tab 过滤」的含义：按「只看开着 tab 的 agent」实现，任一客户端的 label `paseo.open-agent-tab.<clientId>` 为 `true` 即算开着。Paseo 只给子 agent 打这个标记，所以对普通 agent 基本不起作用，过滤项上有提示。后来去掉了这个过滤：它对普通 agent 不起作用。这个标记现在只用在详情头部：tab 已开着时，按钮写「切换到 tab」并带「已打开」提示。
+- [x] 「按 tab 过滤」的含义：按「只看开着 tab 的 agent」实现，任一客户端的 label `paseo.open-agent-tab.<clientId>` 为 `true` 即算开着。Paseo 只给子 agent 打这个标记，所以对普通 agent 基本不起作用，过滤项上有提示。后来去掉了这个过滤：它对普通 agent 不起作用。这个标记现在只用在详情头部：tab 已开着时，按钮带「已打开」提示（按钮文字后来与卡片统一为「打开」）。
 - [x] 「待查看」要不要单独成列：单独成列，跑完未看的和失败的都在这一列。
 - [x] 已完成列默认的时间窗口：做成设置项 `board.doneWindow`，默认 24 小时。

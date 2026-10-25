@@ -16,7 +16,7 @@ import { useCopy } from "../../ui/use-copy";
 import { formatFullStamp } from "../../ui/time";
 import type { TasksLanguage } from "../i18n";
 import type { SessionTokens } from "../../../shared/tasks-rpc";
-import { opensInPaseo, turnRunning, type PermissionKind, type TaskCard, type TaskChild } from "../model";
+import { opensInPaseo, parentOpensInPaseo, turnRunning, type PermissionKind, type TaskCard, type TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
 import type { FirstPrompt } from "../data/first-prompt";
 import type { LastHumanMessage } from "../data/last-human-message";
@@ -135,7 +135,6 @@ export interface DetailCardsStrings {
   back(title: string): string;
   stopRun: string;
   openTab: string;
-  openToAnswer: string;
   property: { project: string; parent: string; branch: string; cwd: string; pr: string; labels: string };
 }
 
@@ -271,12 +270,6 @@ function stopLabel(props: TaskDetailCardsProps): string | null {
   return props.strings.stopRun;
 }
 
-function openLabel(props: TaskDetailCardsProps): string {
-  // A provider subagent opens its parent's tab, where Paseo lists it.
-  if (props.card.subagent) return cardStrings(props.language).openParentTab;
-  if (props.card.lane === "needs_input") return props.strings.openToAnswer;
-  return props.card.openTab ? cardStrings(props.language).details.switchTab : props.strings.openTab;
-}
 
 /** The header: status, title, the agent's chips and labels, the actions, then the block the card needs first. */
 function DetailHeader(props: Inner) {
@@ -294,10 +287,11 @@ function DetailHeader(props: Inner) {
   const archive = archivable(card) ? props.archive ?? null : null;
   const showActions = props.actions !== false && (!!props.onOpen || !!stop || !!unarchive || !!archive);
   // Open tab takes the row's room: first on desktop, last on touch, where the
-  // phone's bar and the cards end with it too.
+  // phone's bar and the cards end with it too. Its label is the card's, a
+  // provider subagent's too: its tab is the parent's, as on the card.
   const openButton = props.onOpen ? (
     <OutlineButton
-      label={openLabel(props)}
+      label={cardText.openTab}
       hint={card.openTab ? <OpenHint tokens={tokens} label={cardText.details.tabOpen} /> : null}
       trailing="ArrowUpRight"
       height={m.button}
@@ -337,7 +331,24 @@ function DetailHeader(props: Inner) {
       testID="detail-archive"
     />
   ) : null;
-  const lead = openButton ?? unarchiveButton;
+  // A subtask's "Open parent" comes before Open tab, as on its card.
+  const openParent = props.onOpen && parentOpensInPaseo(card) ? (
+    <OutlineButton
+      icon="CornerLeftUp"
+      label={cardText.openParent}
+      height={m.button}
+      font={m.font}
+      tokens={tokens}
+      onPress={() => props.onOpen?.(card.parent!.id)}
+      testID="detail-open-parent"
+    />
+  ) : null;
+  const lead = openButton ? (
+    <>
+      {openParent}
+      {openButton}
+    </>
+  ) : unarchiveButton;
   return (
     <View style={{ paddingLeft: m.padH, paddingRight: m.padH - (props.gutter ?? 0), paddingTop: 8, paddingBottom: 12 }} testID="detail-header">
       {props.back ? (
@@ -1550,6 +1561,10 @@ export function DetailActionBar(props: {
   const asking = respond.length > 0 || !!answer;
   if (!onOpen && !stop && !asking && !unarchive && !archive) return null;
   const open = () => onOpen?.(card.id);
+  // The card's buttons, in its words and looks: "Open parent" then "Open tab".
+  const cardText = cardStrings(props.language);
+  const openText = cardText.openTab;
+  const parentOpens = !!onOpen && parentOpensInPaseo(card);
   // Deny first, allow last: the main button sits under the thumb.
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
   return (
@@ -1566,8 +1581,9 @@ export function DetailActionBar(props: {
               onPress={() => props.onPermission?.(button)}
             />
           ))}
+          {/* "Answer" already opens the tab, so, as on the card, Open tab is the square beside Allow and Deny only. */}
           {answer ? <BarButton tokens={tokens} label={answer.label} arrow look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
-          {onOpen ? <BarButton tokens={tokens} arrow label={openLabel(props as TaskDetailCardsProps)} square onPress={open} testID="detail-bar-open" /> : null}
+          {onOpen && !answer ? <BarButton tokens={tokens} arrow label={openText} square onPress={open} testID="detail-bar-open" /> : null}
         </>
       ) : (
         <>
@@ -1588,21 +1604,23 @@ export function DetailActionBar(props: {
               tokens={tokens}
               icon="Archive"
               look="archive"
-              label={cardStrings(props.language).details.archive}
+              label={cardText.details.archive}
               busy={archive.pending(card.id)}
               grow={!onOpen}
               onPress={() => archive.press(card.id)}
               testID="detail-bar-archive"
             />
           ) : null}
-          {onOpen ? <BarButton tokens={tokens} arrow label={openLabel(props as TaskDetailCardsProps)} look="primary" onPress={open} testID="detail-bar-open" /> : null}
+          {parentOpens ? (
+            <BarButton tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
+          ) : null}
+          {onOpen ? <BarButton tokens={tokens} arrow label={openText} onPress={open} testID="detail-bar-open" /> : null}
           {unarchive ? (
             <BarButton
               tokens={tokens}
               icon="ArchiveRestore"
-              label={cardStrings(props.language).details.unarchive}
+              label={cardText.details.unarchive}
               busy={unarchive.pending(card.id)}
-              look="primary"
               onPress={() => unarchive.press(card.id)}
               testID="detail-bar-unarchive"
             />
