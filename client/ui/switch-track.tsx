@@ -1,5 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Platform, StyleSheet, View } from "react-native";
+import { motionDuration } from "./tokens/motion";
+import { useReducedMotion } from "./use-reduced-motion";
 
 /** Switch geometry (S7 3.9): a 40x24 track and an 18pt knob. */
 const TRACK_WIDTH = 40;
@@ -22,17 +24,23 @@ export interface SwitchColors {
  * it inside their pressables.
  */
 export function SwitchTrack({ value, colors }: { value: boolean; colors: SwitchColors }) {
+  const reducedMotion = useReducedMotion();
   const position = useRef(new Animated.Value(value ? 1 : 0)).current;
 
   useEffect(() => {
+    const ms = motionDuration(140, reducedMotion);
+    if (ms === 0) {
+      position.setValue(value ? 1 : 0);
+      return;
+    }
     const animation = Animated.timing(position, {
       toValue: value ? 1 : 0,
-      duration: 140,
+      duration: ms,
       useNativeDriver: Platform.OS !== "web",
     });
     animation.start();
     return () => animation.stop();
-  }, [value, position]);
+  }, [value, position, reducedMotion]);
 
   return (
     <View
