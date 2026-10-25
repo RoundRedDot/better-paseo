@@ -26,7 +26,7 @@ import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLan
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
 import { PhoneSearch } from "./phone-search";
-import { defaultLane, laneAfter, swallowsTap, swipeStep, tabUnderline, tabsOverflow, type TabBox } from "./navigation";
+import { defaultLane, laneAfter, swallowsTap, swipeStep, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
 import { useDetailReads, useParentTitle } from "./details-sidebar";
 import { LANE_EMPTY_ICON, sortLabel } from "./strings";
@@ -37,8 +37,6 @@ const nativeDriver = Platform.OS !== "web";
 /** iOS and Android page the lanes natively; web swipes them with pointer events. */
 const isNative = () => Platform.OS === "ios" || Platform.OS === "android";
 const Separator = () => <View style={{ height: 12 }} />;
-/** The underline is drawn this wide and scaled to its label. */
-const UNDERLINE_BASE = 100;
 
 /** A touch (native) or pointer (web) event; both carry page coordinates. */
 type PointEvent = { nativeEvent: { pageX: number; pageY: number } };
@@ -82,9 +80,7 @@ export function PhoneBoard(props: {
 
   // The tabs: a quarter of the bar each (a fifth with the archived lane), or
   // as wide as their content when a large system font outgrows that share,
-  // the bar then scrolling sideways. The underline is one bar sliding under
-  // the active tab's label and count, measured; the share less 24, centred,
-  // until the tab is laid out.
+  // the bar then scrolling sideways. The active tab is raised as a card.
   const [barWidth, setBarWidth] = useState(0);
   const [boxes, setBoxes] = useState<Partial<Record<LaneId, TabBox>>>({});
   const measureTab = useCallback((id: LaneId, part: keyof TabBox, layout: { x: number; width: number }) => {
@@ -96,28 +92,7 @@ export function PhoneBoard(props: {
     });
   }, []);
   const overflowing = tabsOverflow(boxes, barWidth, laneOrder.length);
-  const span = tabUnderline(boxes[lane], laneIndex, barWidth, laneOrder.length);
-  const underlineX = useRef(new Animated.Value(0)).current;
-  const underlineScale = useRef(new Animated.Value(0)).current;
-  const placed = useRef(false);
   const tabsRef = useRef<NativeScrollView | null>(null);
-  useEffect(() => {
-    if (!span) return;
-    const x = span.center - UNDERLINE_BASE / 2;
-    const scale = span.width / UNDERLINE_BASE;
-    // Jump into place until the first measured placement; slide after it.
-    if (!placed.current || reduced) {
-      placed.current = span.measured;
-      underlineX.setValue(x);
-      underlineScale.setValue(scale);
-      return;
-    }
-    const timing = (value: Animated.Value, toValue: number) =>
-      Animated.timing(value, { toValue, duration: MOTION.laneMs, easing: MOTION.ease, useNativeDriver: nativeDriver });
-    const animation = Animated.parallel([timing(underlineX, x), timing(underlineScale, scale)]);
-    animation.start();
-    return () => animation.stop();
-  }, [span?.center, span?.width, span?.measured, reduced, underlineX, underlineScale]);
   const activeTabX = boxes[lane]?.tab?.x;
   useEffect(() => {
     if (overflowing && activeTabX !== undefined) tabsRef.current?.scrollTo?.({ x: Math.max(0, activeTabX - 16), animated: !reduced });
@@ -423,7 +398,7 @@ export function PhoneBoard(props: {
                   style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
                 >
                   <StatusIcon kind={LANE_STATUS[id]} size={13} theme={theme} animated={board.visible} />
-                  <View onLayout={(event: LayoutChangeEvent) => measureTab(id, "label", event.nativeEvent.layout)} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                     <Text numberOfLines={1} style={{ fontSize: F.base, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
                       {strings.tabs[id]}
                     </Text>
