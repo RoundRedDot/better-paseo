@@ -35,8 +35,8 @@ export function TabletToolbar(props: {
   const strings = board.strings;
   const scale = useTasksFontScale();
   const compact = props.width < 680 * Math.max(1, scale);
-  const target = taskControlHeight(compact ? 32 : 44, scale);
-  const height = taskControlHeight(compact ? 44 : 56, scale);
+  const target = taskControlHeight(compact ? 28 : 44, scale);
+  const height = taskControlHeight(compact ? 36 : 56, scale);
   const labels = props.width >= 1000 * Math.max(1, scale);
   const inlineSearch = props.width >= 560 * Math.max(1, scale);
   const shortcuts = props.width >= 680 * Math.max(1, scale);
@@ -102,7 +102,7 @@ export function TabletToolbar(props: {
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
-        style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.max(16, Math.round(F.base * scale)), color: colors.foreground }}
+        style={{ flex: 1, minWidth: 0, padding: 0, fontSize: compact ? Math.round(F.sm * scale) : Math.max(16, Math.round(F.base * scale)), color: colors.foreground }}
       />
       {board.params.query ? <ToolbarButton compact={compact} icon="X" label={strings.menuSearch.clear} theme={theme} onPress={() => board.setParams((p) => ({ ...p, query: "" }))} testID="tablet-search-clear" /> : null}
     </View>
@@ -147,7 +147,7 @@ export function TabletToolbar(props: {
 
 function ToolbarButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; testID: string; showLabel?: boolean; selected?: boolean; expanded?: boolean; badge?: number; slashed?: boolean; compact?: boolean }) {
   const colors = props.theme.colors;
-  const target = taskControlHeight(props.compact ? 32 : 44, useTasksFontScale());
+  const target = taskControlHeight(props.compact ? 28 : 44, useTasksFontScale());
   const iconSize = props.compact ? 16 : 18;
   return (
     <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered) => ({ minWidth: target, height: target, flexShrink: 0, paddingHorizontal: props.showLabel ? 10 : 0, borderRadius: 7, backgroundColor: hovered || props.expanded || props.selected ? colors.surface1 : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>

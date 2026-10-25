@@ -2535,7 +2535,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostsById("tablet-search-popover")).toHaveLength(0);
     expect(hostParentOf(search())).toBe(hostsById("tablet-toolbar-start")[0]);
     expect(bar().findAll((node) => node === search())).toHaveLength(1);
-    expect(style(search())).toMatchObject({ height: Math.round(32 * base / 14), flex: 1, minWidth: 0 });
+    expect(style(search())).toMatchObject({ height: Math.round(28 * base / 14), flex: 1, minWidth: 0 });
     expect(style(search()).position).toBeUndefined();
     expect(hostsById("tablet-toolbar-total")).toHaveLength(0);
     expect(style(end())).toMatchObject({ flex: 0, flexBasis: "auto" });
@@ -2543,6 +2543,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostsById("tablet-view")).toHaveLength(1);
     const input = () => search().find((node) => (node.type as unknown) === "TextInput");
     expect(input().props.autoFocus).toBe(true);
+    expect(style(input()).fontSize).toBe(Math.round(12 * base / 14));
     act(() => input().props.onChangeText("needle"));
     expect(input().props.value).toBe("needle");
     act(() => hostsById("tablet-search-clear")[0]!.props.onPress());
@@ -2601,11 +2602,11 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById("filter-bar")).toHaveLength(0);
     const bar = hostsById("tablet-toolbar")[0]!;
     const compact = width < 680 * Math.max(1, base / 14);
-    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ height: Math.round((compact ? 44 : 56) * Math.max(1, base / 14)), flexDirection: "row", flexShrink: 0 });
+    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ height: Math.round((compact ? 36 : 56) * Math.max(1, base / 14)), flexDirection: "row", flexShrink: 0 });
     const buttons = bar.findAll((n) => (n.type as unknown) === "Pressable");
     for (const button of buttons) {
       const style = StyleSheet.flatten(button.props.style);
-      expect(style.height).toBe(Math.round((compact ? 32 : 44) * Math.max(1, base / 14)));
+      expect(style.height).toBe(Math.round((compact ? 28 : 44) * Math.max(1, base / 14)));
       expect(style.borderRadius).toBe(7);
       const icon = button.find((node) => (node.type as unknown) === "Icon");
       expect(StyleSheet.flatten(hostParentOf(icon)!.props.style)).toMatchObject({ width: compact ? 16 : 18, height: compact ? 16 : 18 });
