@@ -82,9 +82,10 @@ export const EMBEDDED_FAMILY = {
 } as const;
 
 /**
- * Interface sizes. Nothing in a row, a header or a control is drawn below 12
- * (S7 design spec §2.3): the old 10 and 11 steps read as noise next to the
- * host's own 12 metadata.
+ * Interface sizes. Fixed chrome in a row, a header or a control is never drawn
+ * below 12 (S7 design spec §2.3): the old 10 and 11 steps read as noise next to
+ * the host's own 12 metadata. Block text follows the reader's block text size
+ * (9 to 20), which may go lower by choice.
  */
 export const UI_SCALE = { base: 12, md: 13, lg: 14, xl: 16 } as const;
 
