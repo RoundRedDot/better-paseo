@@ -1773,7 +1773,7 @@ describe("TaskCardView actions", () => {
   it("counts subtasks by status icon in the pill, without words", async () => {
     const tree = await render(cardElement(sample("sample-running")));
     const pill = hostByTestId(tree.root, "pill-subtasks");
-    expect(icons(pill)[0]).toBe("ListTree");
+    expect(icons(pill)[0]).toBe("Network");
     const groups = pill.findAll((node) => typeof node.type === "string" && String(node.props.testID ?? "").startsWith("subtask-count-"));
     expect(groups.map((group) => [group.props.testID, texts(group)])).toEqual([
       ["subtask-count-running", ["2"]],

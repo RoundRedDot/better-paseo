@@ -1012,7 +1012,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     );
   }
   if (layout.subtasks) {
-    // Icons and counts, no words: ListTree, then each status the children are in.
+    // Icons and counts, no words: Network (the subtask toggle's icon), then each status the children are in.
     const counts = new Map<StatusKind, number>();
     for (const child of card.children) counts.set(child.status, (counts.get(child.status) ?? 0) + 1);
     // Tinted by the status most children are in; ties go to the more urgent one.
@@ -1024,7 +1024,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {...pill}
         testID="pill-subtasks"
         tint={dominant ? statusTint(dominant, tokens) : null}
-        icon="ListTree"
+        icon="Network"
         accessibilityLabel={subtaskSummary(card.children, language)}
         hint={hint("subtasks", () => subtaskSummary(card.children, language))}
         expanded={expanded}
