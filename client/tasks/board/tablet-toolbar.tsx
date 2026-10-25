@@ -34,8 +34,9 @@ export function TabletToolbar(props: {
   const colors = theme.colors;
   const strings = board.strings;
   const scale = useTasksFontScale();
-  const target = taskControlHeight(44, scale);
-  const height = taskControlHeight(56, scale);
+  const compact = props.width < 680 * Math.max(1, scale);
+  const target = taskControlHeight(compact ? 32 : 44, scale);
+  const height = taskControlHeight(compact ? 44 : 56, scale);
   const labels = props.width >= 1000 * Math.max(1, scale);
   const inlineSearch = props.width >= 560 * Math.max(1, scale);
   const shortcuts = props.width >= 680 * Math.max(1, scale);
@@ -44,6 +45,7 @@ export function TabletToolbar(props: {
   const [trail, setTrail] = useState<string[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const expandedSearch = searchOpen && !inlineSearch;
   const [toolbarWidth, setToolbarWidth] = useState<number | null>(null);
   const [actionLayout, setActionLayout] = useState<LayoutRectangle | null>(null);
   const [viewLayout, setViewLayout] = useState<LayoutRectangle | null>(null);
@@ -100,17 +102,18 @@ export function TabletToolbar(props: {
         returnKeyType="search"
         style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.max(16, Math.round(F.base * scale)), color: colors.foreground }}
       />
-      {board.params.query ? <ToolbarButton icon="X" label={strings.menuSearch.clear} theme={theme} onPress={() => board.setParams((p) => ({ ...p, query: "" }))} testID="tablet-search-clear" /> : null}
+      {board.params.query ? <ToolbarButton compact={compact} icon="X" label={strings.menuSearch.clear} theme={theme} onPress={() => board.setParams((p) => ({ ...p, query: "" }))} testID="tablet-search-clear" /> : null}
     </View>
   );
   return (
     <>
       {page || (searchOpen && !inlineSearch) ? <Pressable accessibilityLabel={strings.closeMenu} testID="tablet-toolbar-backdrop" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: 9 }} /> : null}
       <View pointerEvents="box-none" testID="tablet-toolbar" onLayout={(event) => setToolbarWidth(event.nativeEvent.layout.width)} style={{ height, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>
-        <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center" }}>
-          {inlineSearch ? search : <ToolbarButton icon="Search" label={strings.searchButton} selected={searchOpen || !!board.params.query} theme={theme} testID="tablet-search-toggle" onPress={() => { setPage(null); setSearchOpen(!searchOpen); }} />}
+        <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {inlineSearch ? search : <ToolbarButton compact={compact} icon="Search" label={strings.searchButton} selected={searchOpen || !!board.params.query} theme={theme} testID="tablet-search-toggle" onPress={() => { setPage(null); setSearchOpen(!searchOpen); }} />}
+          {expandedSearch ? search : null}
         </View>
-        <View accessible accessibilityLabel={strings.total(board.total)} testID="tablet-toolbar-total" style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        {expandedSearch ? null : <View accessible accessibilityLabel={strings.total(board.total)} testID="tablet-toolbar-total" style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
           <View testID="tablet-total-slot" style={{ flexShrink: 0, alignItems: "center", justifyContent: "center" }}>
             {/* Reserve the complete localised phrase, so count changes never move the search. */}
             <Text testID="tablet-total-reserve" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" numberOfLines={1} style={[textStyle, { opacity: 0 }]}>{strings.total(Number("8".repeat(Math.max(3, String(board.total).length))))}</Text>
@@ -118,19 +121,18 @@ export function TabletToolbar(props: {
               <RollingTotal board={board} style={textStyle} />
             </View>
           </View>
-        </View>
-        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
-        {separateFilters ? <ToolbarButton icon="ListFilter" label={strings.filters} showLabel={labels} badge={count} theme={theme} testID="toolbar-filters" onPress={() => { close(); props.onFilters(); }} /> : null}
-        {shortcuts ? <ToolbarButton icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} theme={theme} testID="subtasks-toggle" onPress={() => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks }))} /> : null}
+        </View>}
+        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch ? 0 : 1, flexBasis: expandedSearch ? "auto" : 0, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+        {separateFilters ? <ToolbarButton compact={compact} icon="ListFilter" label={strings.filters} showLabel={labels} badge={count} theme={theme} testID="toolbar-filters" onPress={() => { close(); props.onFilters(); }} /> : null}
+        {shortcuts ? <ToolbarButton compact={compact} icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} theme={theme} testID="subtasks-toggle" onPress={() => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks }))} /> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
-          <ToolbarButton icon="SlidersHorizontal" label={strings.view} showLabel={labels} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { setSearchOpen(false); openPage(page ? null : "view"); }} />
+          <ToolbarButton compact={compact} icon="SlidersHorizontal" label={strings.view} showLabel={labels} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { setSearchOpen(false); openPage(page ? null : "view"); }} />
         </View>
         {shortcuts ? <View style={{ width: HAIRLINE, height: 18, backgroundColor: colors.border, marginHorizontal: 2 }} /> : null}
-        {archivedShortcut ? <ToolbarButton icon="Archive" label={strings.archivedLane.row} selected={board.showArchived} slashed={!board.showArchived} theme={theme} testID="toolbar-archived" onPress={() => board.setShowArchived(!board.showArchived)} /> : null}
-        {shortcuts ? <ToolbarButton icon="PanelRight" label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} theme={theme} testID="sidebar-switch" onPress={props.sidebar.onToggle} /> : null}
+        {archivedShortcut ? <ToolbarButton compact={compact} icon="Archive" label={strings.archivedLane.row} selected={board.showArchived} slashed={!board.showArchived} theme={theme} testID="toolbar-archived" onPress={() => board.setShowArchived(!board.showArchived)} /> : null}
+        {shortcuts ? <ToolbarButton compact={compact} icon="PanelRight" label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} theme={theme} testID="sidebar-switch" onPress={props.sidebar.onToggle} /> : null}
         </View>
       </View>
-      {searchOpen && !inlineSearch ? <View testID="tablet-search-popover" style={{ position: "absolute", top: height, left: 0, right: 0, zIndex: 20, padding: 8, backgroundColor: colors.surface0, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>{search}</View> : null}
       {page && menuAnchor ? (
         // Keep Android AX bounds inside a board-height parent instead of the short toolbar.
         <View pointerEvents="box-none" testID="tablet-view-overlay" style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: menuAnchor.right, zIndex: 30 }}>
@@ -141,14 +143,15 @@ export function TabletToolbar(props: {
   );
 }
 
-function ToolbarButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; testID: string; showLabel?: boolean; selected?: boolean; expanded?: boolean; badge?: number; slashed?: boolean }) {
+function ToolbarButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; testID: string; showLabel?: boolean; selected?: boolean; expanded?: boolean; badge?: number; slashed?: boolean; compact?: boolean }) {
   const colors = props.theme.colors;
-  const target = taskControlHeight(44, useTasksFontScale());
+  const target = taskControlHeight(props.compact ? 32 : 44, useTasksFontScale());
+  const iconSize = props.compact ? 16 : 18;
   return (
     <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered) => ({ minWidth: target, height: target, flexShrink: 0, paddingHorizontal: props.showLabel ? 10 : 0, borderRadius: 7, backgroundColor: hovered || props.expanded || props.selected ? colors.surface1 : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
-      <View style={{ width: 18, height: 18, alignItems: "center", justifyContent: "center" }}>
-        <Icon name={props.icon} size={18} color={colors.foreground} />
-        {props.slashed ? <SlashMark size={18} color={colors.foreground} gap={colors.surface0} /> : null}
+      <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
+        <Icon name={props.icon} size={iconSize} color={colors.foreground} />
+        {props.slashed ? <SlashMark size={iconSize} color={colors.foreground} gap={colors.surface0} /> : null}
       </View>
       {props.showLabel ? <Text numberOfLines={1} style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{props.label}</Text> : null}
       {props.badge ? <Text testID="tablet-filter-count" style={{ fontSize: F.sm, fontVariant: ["tabular-nums"], color: colors.foregroundMuted }}>{props.badge}</Text> : null}
