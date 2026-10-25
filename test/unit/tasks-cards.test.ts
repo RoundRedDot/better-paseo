@@ -2672,6 +2672,22 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["最后回复消息", "agent 还没有回复"]);
   });
 
+  it("draws a breathing skeleton while a timeline read is on its way", async () => {
+    const load = vi.fn();
+    const loading = { prompt: { state: "loading" } as const, load };
+    const tree = await render(details(sample("sample-failed"), { firstPrompt: loading, humanMessage: loading, lastMessage: loading }, "zh"));
+    for (const id of ["detail-prompt", "detail-human", "detail-message"]) {
+      const skeleton = hostByTestId(tree.root, `${id}-skeleton`);
+      expect(skeleton.props.accessibilityLabel).toBe("读取中…");
+      expect(texts(hostByTestId(tree.root, id))).not.toContain("读取中…");
+    }
+    expect(tree.root.findAll((node) => node.props.testID === "detail-message-load")).toEqual([]);
+
+    await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt: loading, humanMessage: loading, lastMessage: { prompt: { state: "ready", text: "Done." }, load } }, "zh")));
+    expect(tree.root.findAll((node) => node.props.testID === "detail-message-skeleton")).toEqual([]);
+    expect(texts(hostByTestId(tree.root, "detail-message"))).toContain("Done.");
+  });
+
   it("shows the last message a person sent between the first prompt and the latest reply", async () => {
     const load = vi.fn();
     const firstPrompt = { prompt: { state: "ready", text: "Fix the board", timestamp: "2026-10-25T08:00:00Z" } as const, load };

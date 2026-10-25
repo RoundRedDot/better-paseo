@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
 import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
@@ -48,6 +48,7 @@ import {
 import { ActionRow, useActionFit } from "./action-row";
 import { arrowInset, buttonHue, CardButton, CONFIRM_STOP_ICON, requestLook, type CardButtonLook } from "./task-card";
 import { buttonOutline } from "../board/board-style";
+import { useBreathing } from "../board/breathing";
 import {
   contextView,
   detailHero,
@@ -1253,13 +1254,17 @@ function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt | LastHum
   const prose = useThemeTokens(props.theme, useEnhancerPreferences());
   const adjustment = useTasksFontAdjustment();
   const first = props.read;
+  const breathing = useBreathing(first?.prompt.state === "loading");
   if (!first) return null;
   const font = Math.round((props.touch ? 15 : 13) * adjustment);
   const small = props.touch ? 14 : 12;
   const prompt = first.prompt;
+  if (prompt.state === "loading") {
+    return <TimelineTextSkeleton tokens={tokens} id={id} font={font} touch={props.touch === true} opacity={breathing} label={words.promptLoading} />;
+  }
   if (prompt.state !== "ready") {
     const retry = prompt.state === "idle" || prompt.state === "error";
-    const note = prompt.state === "loading" ? words.promptLoading : prompt.state === "none" ? props.none : prompt.state === "error" ? props.error : null;
+    const note = prompt.state === "none" ? props.none : prompt.state === "error" ? props.error : null;
     return (
       <View style={{ minHeight: props.touch ? 36 : 28, paddingHorizontal: 6, flexDirection: "row", alignItems: "center", gap: 8 }} testID={`${id}-state`}>
         {note ? <Text style={{ flexShrink: 1, fontSize: small, color: tokens.foregroundMuted }}>{note}</Text> : null}
@@ -1310,6 +1315,26 @@ function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt | LastHum
           <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+const SKELETON_WIDTHS = ["94%", "82%", "58%"] as const;
+
+/** A read on its way: the text's sunk box with three breathing lines where the first lines will land. */
+function TimelineTextSkeleton(props: { tokens: TaskTokens; id: string; font: number; touch: boolean; opacity: Animated.Value; label: string }) {
+  const line = variantMetrics(PROSE, props.font).bodyLineHeight;
+  const colors = detailColors(props.tokens);
+  return (
+    <View style={{ paddingHorizontal: 6, paddingTop: 2 }} testID={`${props.id}-skeleton`} accessible accessibilityRole="progressbar" accessibilityLabel={props.label}>
+      <Animated.View style={{ opacity: props.opacity, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: colors.sunk }}>
+        {SKELETON_WIDTHS.map((width) => (
+          <View key={width} style={{ height: line, justifyContent: "center" }}>
+            <View style={{ width, height: Math.round(props.font * 0.7), borderRadius: 3, backgroundColor: colors.track }} />
+          </View>
+        ))}
+      </Animated.View>
+      <View style={{ minHeight: props.touch ? 36 : 28 }} />
     </View>
   );
 }
