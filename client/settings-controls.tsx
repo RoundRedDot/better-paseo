@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { radiusV2, space, type ExtendedThemeTokens } from "./components/theme-tokens";
 import { TYPE } from "./ui/tokens/typography";
 import { SwitchTrack } from "./ui/switch-track";
+import { useSwitchSpace } from "./ui/use-switch-space";
 import type { SettingsStrings } from "./i18n/settings-strings";
 
 /**
@@ -38,6 +39,8 @@ export function Toggle({
   look: PageLook;
 }) {
   const { tokens } = look;
+  const onPress = () => onChange(!value);
+  const spaceKeys = useSwitchSpace(onPress);
   return (
     <Pressable
       accessibilityRole="switch"
@@ -47,7 +50,8 @@ export function Toggle({
       accessibilityState={{ checked: value }}
       accessibilityLabel={label}
       hitSlop={10}
-      onPress={() => onChange(!value)}
+      onPress={onPress}
+      {...spaceKeys}
     >
       <SwitchTrack
         value={value}

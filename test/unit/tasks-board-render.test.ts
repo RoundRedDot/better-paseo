@@ -382,6 +382,84 @@ describe("Tasks search coverage and centred toolbar", () => {
   });
 });
 
+describe("F1: Web switch Space activation", () => {
+  const key = (extra: Record<string, unknown> = {}) => {
+    const target = {};
+    return { key: " ", target, currentTarget: target, nativeEvent: {}, preventDefault: vi.fn(), ...extra };
+  };
+  const setup = (width: number) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(width);
+    if (width === 600) act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    return () => hostsById(width === 600 ? "filter-sheet-empty-groups" : "empty-groups-toggle")[0]!;
+  };
+
+  it.each([1600, 600])("at %i pt prevents Space scrolling and toggles once on release", (width) => {
+    const toggle = setup(width);
+    expect(toggle().props["aria-checked"]).toBe(true);
+    const down = key();
+    act(() => toggle().props.onKeyDown(down));
+    expect(down.preventDefault).toHaveBeenCalledOnce();
+    const repeat = key({ repeat: true });
+    act(() => toggle().props.onKeyDown(repeat));
+    expect(repeat.preventDefault).toHaveBeenCalledOnce();
+    expect(toggle().props["aria-checked"]).toBe(true);
+    act(() => toggle().props.onKeyUp(key()));
+    expect(toggle().props["aria-checked"]).toBe(false);
+    act(() => toggle().props.onKeyUp(key()));
+    expect(toggle().props["aria-checked"]).toBe(false);
+    for (const flags of [{ metaKey: true }, { ctrlKey: true }, { altKey: true }, { shiftKey: true }, { nativeEvent: { isComposing: true } }]) {
+      const event = key(flags);
+      act(() => { toggle().props.onKeyDown(event); toggle().props.onKeyUp(event); });
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(toggle().props["aria-checked"]).toBe(false);
+    }
+    const enter = key({ key: "Enter" });
+    act(() => { toggle().props.onKeyDown(enter); toggle().props.onKeyUp(enter); });
+    expect(enter.preventDefault).not.toHaveBeenCalled();
+    expect(toggle().props["aria-checked"]).toBe(false);
+    // RNW owns Enter's existing press callback; the Space handlers leave it alone.
+    act(() => toggle().props.onPress());
+    expect(toggle().props["aria-checked"]).toBe(true);
+  });
+
+  it.each(["selected", "virtual"])("gives a focused BarSwitch Space while a card is %s", (mode) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    try {
+      const board = renderFocusBoard();
+      const selected = cards().find((card) => card.props.card.id === "sample-running")!;
+      act(() => selected.props.onSelect(selected.props.card));
+      if (mode === "virtual") board.key("j");
+      board.focus(); // A toolbar control inside the board, with no data-bctaskcard attribute.
+      const title = textOf(hostsById("detail-title")[0]!);
+      const toggle = () => hostsById("empty-groups-toggle")[0]!;
+      const down = board.key(" ");
+      expect(down.preventDefault).not.toHaveBeenCalled();
+      expect(down.stopPropagation).not.toHaveBeenCalled();
+      act(() => toggle().props.onKeyDown(key()));
+      act(() => toggle().props.onKeyUp(key()));
+      expect(toggle().props["aria-checked"]).toBe(false);
+      expect(textOf(hostsById("detail-title")[0]!)).toBe(title);
+      expect(openAgent).not.toHaveBeenCalled();
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each(["ios", "android"])("adds no keyboard props to native bar or sheet switches on %s", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    const switches = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "switch");
+    expect(switches.length).toBeGreaterThan(1);
+    for (const toggle of switches) for (const prop of ["onKeyDown", "onKeyUp", "onBlur"]) expect(toggle.props).not.toHaveProperty(prop);
+  });
+});
+
 describe("Tasks board, desktop", () => {
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
