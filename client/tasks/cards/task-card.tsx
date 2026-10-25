@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -20,7 +20,7 @@ import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } fro
 import { agentPillColors, BrandMark, branchPillColors, neutralPillColors, type AgentPillColors } from "./brand-mark";
 import { THINKING_ICON } from "./mode-icons";
 import { subagentFacts } from "../subagent-type";
-import { ProjectIcon } from "./project-icon";
+import { identityColor, ProjectIcon, projectViewKey } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
 import { SubtaskRow } from "./subtask-row";
 import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
@@ -419,6 +419,43 @@ function statusTint(kind: StatusKind, tokens: TaskTokens): string | null {
  */
 export const OVERLAY_ROW_Z = 2;
 
+/** The card's corner radius (Linear's card). */
+const CARD_RADIUS = 8;
+/**
+ * The subtask mark's side. The context ring keeps its place beside it: on a
+ * desktop card (padding 10 x 12, a 14 pt ring) the triangle's edge clears the
+ * ring by about 8 pt, and by more on a phone's wider padding.
+ */
+export const CORNER_MARK = 16;
+const ariaHidden = (): ViewProps =>
+  Platform.OS === "web" ? ({ "aria-hidden": true } as ViewProps) : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" };
+
+/**
+ * A subtask card's mark: a right triangle over the top-right corner, clipped
+ * to the card's rounded corner inside its hairline. Borders draw it, so it
+ * needs no SVG; it is decoration, so neither touch nor a screen reader finds it.
+ */
+function CornerMark(props: { color: string }) {
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        top: 0,
+        right: 0,
+        width: CORNER_MARK,
+        height: CORNER_MARK,
+        borderTopRightRadius: CARD_RADIUS - StyleSheet.hairlineWidth,
+        overflow: "hidden",
+      }}
+      testID="task-card-subtask-mark"
+      {...ariaHidden()}
+    >
+      <View style={{ width: 0, height: 0, borderTopWidth: CORNER_MARK, borderLeftWidth: CORNER_MARK, borderTopColor: props.color, borderLeftColor: "transparent" }} />
+    </View>
+  );
+}
+
 // --- The card -----------------------------------------------------------------
 
 function TaskCardViewImpl(given: TaskCardViewProps) {
@@ -550,6 +587,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   // A provider subagent's card is drawn dashed and flat at rest: it stands for work inside its parent's session.
   const dashed = !!card.subagent;
+  // A subtask's card (a Paseo agent with a parent) marks its top-right corner in its project's colour, faded.
+  const cornerMark = card.parent !== null && !card.subagent
+    ? withAlpha(identityColor(projectViewKey(card.location, props.hostId)), tokens.isDark ? 0.5 : 0.4)
+    : null;
   const shadows = lit ? [look.shadowHover] : dashed ? [] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
   if (props.focused && !WEB) shadows.push(`0px 0px 0px 1px ${tokens.foregroundMuted}`);
@@ -559,7 +600,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     paddingBottom: m.padBottom,
     // Linear's card: radius 8 (measured: the arc settles 16 device px in at 2x), a hairline,
     // and on hover only the fill and shadow change.
-    borderRadius: 8,
+    borderRadius: CARD_RADIUS,
     // A dashed hairline breaks up into dots: the dashes take a whole point.
     borderWidth: dashed ? 1 : StyleSheet.hairlineWidth,
     borderStyle: dashed ? "dashed" : "solid",
@@ -1269,6 +1310,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         style={cardStyle}
         testID={`task-card-${card.id}`}
       >
+        {cornerMark ? <CornerMark color={cornerMark} /> : null}
         {metaRow}
         {titleRow}
         {pillRow}
