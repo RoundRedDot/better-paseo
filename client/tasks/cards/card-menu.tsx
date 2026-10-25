@@ -59,8 +59,8 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
   // Each row's second line names the value it filters to.
   const filterRows: [CardFilterKind, string, string, string | null][] = [
     ["agent", strings.filterAgent, "Bot", card.providerLabel || card.provider],
-    ["workspace", strings.filterWorkspace, "Folder", location.workspaceTitle ?? location.workspaceName ?? location.branch],
     ["project", strings.filterProject, "Box", location.projectName],
+    ["workspace", strings.filterWorkspace, "Folder", location.workspaceTitle ?? location.workspaceName ?? location.branch],
   ];
   const filterItems = filters
     ? filterRows.flatMap(([by, label, icon, detail]) => {
