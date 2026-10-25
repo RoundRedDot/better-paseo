@@ -2609,8 +2609,8 @@ describe("TaskDetailCards", () => {
     const humanMessage = { prompt: { state: "ready", text: "Retry the failed ones", timestamp: "2026-10-25T09:00:00Z" } as const, load };
     const tree = await render(details(sample("sample-failed"), { firstPrompt, humanMessage, lastMessage }, "en"));
     expect(shown(tree)).toEqual(ids);
-    expect(texts(hostByTestId(tree.root, "detail-human"))).toEqual(expect.arrayContaining(["Latest human message", "Retry the failed ones"]));
-    await act(async () => byLabel(tree.root, "Copy human message").props.onPress());
+    expect(texts(hostByTestId(tree.root, "detail-human"))).toEqual(expect.arrayContaining(["Last sent message", "Retry the failed ones"]));
+    await act(async () => byLabel(tree.root, "Copy sent message").props.onPress());
     expect(clipboard.copyText).toHaveBeenLastCalledWith("Retry the failed ones");
 
     // The first prompt again (one turn so far): its own section shows it.
@@ -2620,7 +2620,7 @@ describe("TaskDetailCards", () => {
     expect(shown(tree)).toEqual(["detail-prompt", "detail-message"]);
 
     await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt, humanMessage: { prompt: { state: "none" }, load }, lastMessage }, "zh")));
-    expect(texts(hostByTestId(tree.root, "detail-human"))).toEqual(["最近一条人类消息", "对话记录里没有找到人类发送的消息"]);
+    expect(texts(hostByTestId(tree.root, "detail-human"))).toEqual(["最后发送消息", "对话记录里没有找到发送的消息"]);
   });
 
   it("leads with the error when a card failed, and with a grey line after a manual stop", async () => {
