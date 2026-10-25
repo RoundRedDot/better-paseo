@@ -81,10 +81,15 @@ Code that works on web can still fail to load there, and when it fails the
 whole plugin is dropped, so web testing will not catch it.
 
 `npm run check:hermes` (`scripts/check-hermes.mjs`) bundles the client with
-the host's options and compiles it with `hermesc` from the `react-native`
-devDependency. Any error is mapped back to its source file and line. The
-script then evaluates the bundle in the bundled `hermes` VM against stub
-modules, calls `contribute`, and checks the host's registration rules. Pass
+the host's options and compiles it twice: with the Hermes V1 `hermesc` of the
+`react-native` devDependency (0.86, Paseo 0.13's), and with React Native
+0.81.5's legacy Hermes, which Paseo 0.12 still runs and which rejects code V1
+accepts, `class` among it. The legacy compiler and `hermes` VM come from
+`npm pack react-native@0.81.5` on the first run, cached in
+`~/.cache/better-paseo/`. Any error is mapped back to its source file and
+line. Hermes V1 publishes no VM, so the script then evaluates the bundle in
+the legacy `hermes` VM against stub modules, calls `contribute`, and checks
+the host's registration rules. Pass
 `--no-run` to compile only. `npm run check:hermes` then runs it again with
 `--built` on the install build: the minified bundle and the Tasks chunk each
 compile on their own, and the VM evaluates the chunk too. esbuild is a root devDependency, pinned to the
