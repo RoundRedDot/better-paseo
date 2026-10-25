@@ -2,6 +2,7 @@ import React, { useCallback, useContext, useMemo, useState } from "react";
 import { View, Text, Pressable, Image, StyleSheet, Platform } from "react-native";
 import { Glyph } from "./glyph";
 import { ImageViewer } from "./image-viewer";
+import { formatImageBytes } from "./image-format";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { unselectable } from "./selection";
@@ -88,16 +89,10 @@ export function thumbnailFrame(width: number, height: number, maxHeight: number)
   };
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function imageChips(file: ImageFile | null): string[] {
   const chips: string[] = [];
   if (file?.width && file.height) chips.push(`${file.width} × ${file.height}`);
-  if (file?.bytes) chips.push(formatBytes(file.bytes));
+  if (file?.bytes) chips.push(formatImageBytes(file.bytes));
   return chips;
 }
 

@@ -10,8 +10,8 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { space } from "../../components/theme-tokens";
 import { unselectable } from "../../components/selection";
-import { BrandMark, Glyph } from "../../components/glyph";
-import { ProviderLogo } from "../../components/provider-logo";
+import { Glyph } from "../../components/glyph";
+import { renderMarkIcon } from "../../components/mark-icon";
 import { RunningDot } from "../../ui/running-dot";
 import { SpokenLabelsContext, ToolbarButton, ToolbarMetricsContext, TooltipAlignContext, type ToolbarMetrics } from "../../ui/toolbar-button";
 import type { BlockEntry, DetailsShellValue } from "../contracts";
@@ -143,9 +143,8 @@ function toneColor(tone: BlockEntry["tone"], tokens: ExtendedThemeTokens): strin
  * bare brand names, and drew a `brand:` one as an unknown Lucide icon: nothing.
  */
 function TileIcon({ name, color }: { name: string; color: string }) {
-  if (name.startsWith("brand:")) return <BrandMark id={name.toLowerCase()} size={TILE_ICON} color={color} />;
-  if (name.startsWith("provider:")) return <ProviderLogo provider={name.slice(9)} size={TILE_ICON} color={color} />;
-  return <Glyph name={name} size={TILE_ICON} color={color} />;
+  return renderMarkIcon({ name, size: TILE_ICON, brandColor: color, providerColor: color })
+    ?? <Glyph name={name} size={TILE_ICON} color={color} />;
 }
 
 const styles = StyleSheet.create({
