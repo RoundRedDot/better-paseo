@@ -331,13 +331,9 @@ describe("Tasks search coverage and centred toolbar", () => {
     act(() => open.props.onPress());
     expect(menuOption(BOARD_STRINGS.en.archivedLane.row)).toBeDefined();
     expect(menuOption(BOARD_STRINGS.en.emptyLanes.collapse)).toBeDefined();
-    if (os === "ios") {
-      expect(hostsById("toolbar-filters")).toHaveLength(0);
-      act(() => menuOption(BOARD_STRINGS.en.filters).props.onPress());
-    } else {
-      expect(menuOption(BOARD_STRINGS.en.sidebar.show)).toBeDefined();
-      act(() => hostsById("toolbar-filters")[0]!.props.onPress());
-    }
+    if (os === "web") expect(menuOption(BOARD_STRINGS.en.sidebar.show)).toBeDefined();
+    expect(hostsById("toolbar-filters")).toHaveLength(1);
+    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     expect(hostsById("filter-sheet-scroll")).toHaveLength(1);
   });
 
@@ -2645,11 +2641,16 @@ describe("Tasks board, tablet filters", () => {
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     expect(order()).toEqual(expected);
     expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
-    // A narrow action slot keeps the two visibility controls; filtering stays in View.
+    // Search relayout must retain every action, including the filter button.
     act(() => end().props.onLayout({ nativeEvent: { layout: { x: 160, y: 6, width: StyleSheet.flatten(end().props.style).minWidth, height: 32 } } }));
-    expect(order()).toEqual(expected.filter((id) => id !== "toolbar-filters"));
-    act(() => hostsById("tablet-view")[0]!.props.onPress());
-    expect(menuOption("Filters")).toBeDefined();
+    expect(order()).toEqual(expected);
+    const field = hostsById("tablet-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput");
+    act(() => field.props.onChangeText("needle"));
+    expect(order()).toEqual(expected);
+    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    expect(order()).toEqual(expected);
+    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    expect(hostsById("filter-sheet-scroll")).toHaveLength(1);
   });
 
   it.each(["en", "zh"] as const)("reserves a complete centred count across count changes in %s", (language) => {
