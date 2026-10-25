@@ -17,6 +17,7 @@ import { CascadeMenu } from "./menu";
 import { LABEL_GAP, nextBarLayout, type BarBoxes, type BarLayout, type Box } from "./label-fit";
 import type { BoardController } from "./use-board";
 import { LaneWidthMark } from "./lane-width-mark";
+import { useSwitchSpace } from "../../ui/use-switch-space";
 
 export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
@@ -217,6 +218,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
  */
 function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: string; hint: string; tip: string; theme: PluginTheme; slashed?: boolean; testID: string }) {
   const colors = props.theme.colors;
+  const spaceKeys = useSwitchSpace(props.onPress);
   const scale = useTasksFontScale();
   const size = toolbarButtonSize(scale);
   const icon = Math.round(size / 2);
@@ -231,6 +233,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
       accessibilityState={{ checked: props.on }}
       {...tipProps(props.tip)}
       onPress={props.onPress}
+      {...spaceKeys}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
       hitSlop={Platform.OS === "web" ? 0 : 4}

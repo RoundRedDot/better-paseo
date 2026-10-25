@@ -8,6 +8,7 @@ import { BrandMark, ProjectIcon, TagMark, taskTokens } from "../cards";
 import { Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { SwitchTrack } from "../../ui/switch-track";
+import { useSwitchSpace } from "../../ui/use-switch-space";
 import { clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, type FilterOption, type FilterOptions } from "./filter-options";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { detailScrollProps } from "../cards/detail-scrollbar";
@@ -317,6 +318,7 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
 /** A filter that is on or off: the whole row is the switch, drawn as the settings page's at its end. */
 function ToggleRow(props: { icon: string; label: string; hint?: string; on: boolean; theme: PluginTheme; onPress(): void; testID?: string }) {
   const colors = props.theme.colors;
+  const spaceKeys = useSwitchSpace(props.onPress);
   return (
     <Pressable
       accessibilityRole="switch"
@@ -324,6 +326,7 @@ function ToggleRow(props: { icon: string; label: string; hint?: string; on: bool
       aria-checked={props.on}
       accessibilityState={{ checked: props.on }}
       onPress={props.onPress}
+      {...spaceKeys}
       testID={props.testID}
       style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 12 }}
     >
