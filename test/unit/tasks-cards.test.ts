@@ -2285,7 +2285,8 @@ describe("TaskDetailCards", () => {
     opened.openLink.mockClear();
     const tree = await render(details(sample("sample-running")));
     const location = hostByTestId(tree.root, "detail-location");
-    expect(texts(location).slice(0, 2)).toEqual(["属性", "feat/tasks-board"]);
+    // The heading carries no summary: the branch row already names the branch.
+    expect(texts(location).slice(0, 2)).toEqual(["属性", "B"]);
     // No label column at the default width; the workspace and its kind are the note line.
     expect(texts(hostByTestId(location, "detail-place"))).toEqual(["B", "better-paseo", "tasks-board · worktree"]);
     expect(texts(hostByTestId(location, "detail-branch"))).toEqual(["feat/tasks-board", "↑3 ↓0 · ● 未提交改动"]);
