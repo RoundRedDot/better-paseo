@@ -2871,6 +2871,19 @@ describe("Tasks board, phone", () => {
     expect(host.save).not.toHaveBeenCalled();
   });
 
+  it.each(["ios", "android"])("%s brings the page beside the shown lane up to date after the subtasks switch", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(true)); });
+    // Needs input is shown; Running, beside it, is mounted and holds a subtask whose parent is in the same lane.
+    expect(pressable("Needs input 1").props.accessibilityState).toEqual({ selected: true });
+    expect(laneCards("running")).toContain("sample-child-1");
+    await act(async () => hostsById("phone-subtasks")[0]!.props.onPress());
+    expect(laneCards("running")).not.toContain("sample-child-1");
+    expect(laneCards("running")).toContain("sample-running");
+    await act(async () => hostsById("phone-subtasks")[0]!.props.onPress());
+    expect(laneCards("running")).toContain("sample-child-1");
+  });
+
   it.each([true, false])("keeps expanded subtasks through refresh, animation copies and lane remounts (compact=%s)", (compact) => {
     if (!compact) (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: import("../../client/tasks/model").TaskCard[] }> } }).__handle;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import React, { memo, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Animated,
   Platform,
@@ -74,7 +74,9 @@ export function PhoneBoard(props: {
   const laneIndex = laneOrder.indexOf(lane);
   const [searchOpen, setSearchOpen] = useState(false);
   const [sheet, setSheet] = useState<Sheet>(null);
-  const options = useMemo(() => buildFilterOptions(tasks, board.params), [tasks, board.params]);
+  // Counted only while the sheet shows them: a filter pressed on the board does not count every card again.
+  const filtersOpen = sheet?.kind === "filters";
+  const options = useMemo(() => (filtersOpen ? buildFilterOptions(tasks, board.params) : null), [filtersOpen, tasks, board.params]);
   const badge = activeFilterCount(board.params, board.defaults);
   const { doneWindow, filters } = resolveBoardParams(board.params, board.defaults);
 
@@ -529,7 +531,7 @@ export function PhoneBoard(props: {
       <Modal title={strings.filters} open={sheet?.kind === "filters"} onOpenChange={(open) => !open && setSheet(null)}>
         <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
-            {sheet?.kind === "filters" ? <FilterSheetBody board={board} theme={theme} options={options} hideSubtasksToggle showEmptyGroupsToggle focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
+            {sheet?.kind === "filters" && options ? <FilterSheetBody board={board} theme={theme} options={options} hideSubtasksToggle showEmptyGroupsToggle focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
           </TasksTypography>
         </Modal.Content>
       </Modal>
@@ -668,6 +670,10 @@ export function LanePager(props: {
   onSettle(lane: LaneId): void;
 }) {
   const { lane, board, theme, onSettle } = props;
+  // The pages beside the shown one take a board update in a later render
+  // that React may split across frames: a filter's new cards there do not
+  // mount in the frame that starts its motion. A page shown is never behind.
+  const besideBoard = useDeferredValue(board);
   const window = useWindowDimensions();
   // Only width affects paging; native layout follows height changes without redrawing every lane.
   const [size, setSize] = useState<{ width: number } | null>(null);
@@ -727,8 +733,8 @@ export function LanePager(props: {
         <View key={id} testID={`phone-lane-${id}`} style={{ width, height: "100%" }}>
           {Math.abs(at - index) <= 1 ? (
             <PhoneLane
-              lane={board.lanes[id]}
-              board={board}
+              lane={(at === index ? board : besideBoard).lanes[id]}
+              board={at === index ? board : besideBoard}
               theme={theme}
               callbacks={props.callbacks}
               listRef={at === index ? props.listRef : undefined}
@@ -742,7 +748,8 @@ export function LanePager(props: {
   );
 }
 
-function PhoneLane(props: {
+// Memoized so a page beside the shown one, given the board it already had, skips the render.
+const PhoneLane = memo(function PhoneLane(props: {
   lane: LaneModel;
   board: BoardController;
   theme: PluginTheme;
@@ -842,4 +849,4 @@ function PhoneLane(props: {
       }
     />
   );
-}
+});

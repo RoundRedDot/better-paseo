@@ -29,6 +29,17 @@ export interface FilterOptions {
   labels: FilterOption[];
 }
 
+let lastOptions: { tasks: TasksHandle; params: BoardParams; options: FilterOptions } | null = null;
+
+/**
+ * `buildFilterOptions` for readers that only read it, shared while the data and
+ * the params hold: every lane's filter hint asks in the same render.
+ */
+export function readFilterOptions(tasks: TasksHandle, params: BoardParams): FilterOptions {
+  if (lastOptions?.tasks !== tasks || lastOptions.params !== params) lastOptions = { tasks, params, options: buildFilterOptions(tasks, params) };
+  return lastOptions.options;
+}
+
 /** The filter menus' options from the data layer, with any selected id that is gone kept so it can be cleared. */
 export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): FilterOptions {
   const byWorkspace = new Map<string, number>();
