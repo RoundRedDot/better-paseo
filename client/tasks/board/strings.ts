@@ -71,7 +71,7 @@ const en = {
   /** The phone sheet folds the workspaces without an active task under this. */
   show: (count: number) => `Show ${count} ${count === 1 ? "task" : "tasks"}`,
   timeRange: "Range",
-  doneRange: "Done time range",
+  doneRange: "Time range",
   clearFilters: "Clear filters",
   hiddenByFilters: "Hidden by the current filters",
   /** Under a lane's cards while the filters leave some of its own out; the filters follow on a second line. */
@@ -229,7 +229,7 @@ const zh: typeof en = {
   reset: "重置",
   show: (count) => `显示 ${count} 个任务`,
   timeRange: "范围",
-  doneRange: "已完成时间范围",
+  doneRange: "时间范围",
   clearFilters: "清除筛选",
   hiddenByFilters: "该任务被当前筛选隐藏",
   laneHidden: (count) => `${count} 个任务被筛选隐藏`,
