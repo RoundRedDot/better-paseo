@@ -268,6 +268,19 @@ describe("daemon-backed store (S5 fix round 1)", () => {
     expect(persist).toHaveBeenCalledWith(expect.objectContaining({ codeFontSize: 16 }));
     expect(persist.mock.calls[0]![0]).not.toHaveProperty("debugPerf");
   });
+  it("stores details size independently, reloads it and resets it to 14", async () => {
+    const { mod, local } = await freshModule();
+    const persist = vi.fn();
+    mod.setPreferencePersister(persist);
+    expect(mod.getEnhancerPreferences().detailsFontSize).toBe(14);
+    mod.updateEnhancerPreferences({ detailsFontSize: 18 });
+    mod.updateEnhancerPreferences({ codeFontSize: 22, blockFontSize: 20 });
+    expect(mod.getEnhancerPreferences().detailsFontSize).toBe(18);
+    expect(readStoredPreferences(local).detailsFontSize).toBe(18);
+    expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ detailsFontSize: 18 }));
+    mod.resetEnhancerPreferences();
+    expect(mod.getEnhancerPreferences().detailsFontSize).toBe(14);
+  });
   it("persists the hover choice to the daemon and reloads it from the cache", async () => {
     const { mod, local } = await freshModule();
     const persist = vi.fn();

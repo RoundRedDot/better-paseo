@@ -1,43 +1,38 @@
 /**
- * The phone drawer's text zoom: a pinch on its body sets the text a few
- * points larger or smaller than the timeline's (`detailsTextZoom`). Prose and
- * monospace move by the same step; the panel's own chrome keeps its size.
+ * Independent text sizing for native details. Prose and monospace use the
+ * chosen size; the timeline and the panel's own chrome keep their sizes.
  *
  * Content inside the drawer reads its sizes from the row's tokens, which the
  * drawer cannot replace. The components that draw text sizes from
  * `typography.content` or `typography.mono` call `useZoomedTokens` instead,
- * which shifts both under `TextZoomContext`.
+ * which sets both under `TextZoomContext`.
  */
 import { createContext, useContext } from "react";
 import { StyleSheet, type StyleProp, type TextStyle } from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import type { Typography } from "./tokens/typography";
-import { clampDetailsTextZoom } from "../../shared/preferences-settings";
-
-/** No size drawn below this, whatever the zoom. */
-const SMALLEST = 9;
+import { clampDetailsFontSize } from "../../shared/preferences-settings";
 
 /**
- * The zoom a pinch has reached: the body size at its start, scaled by how far
- * the fingers moved apart, to whole points. `base` is the unzoomed body size.
+ * The absolute size reached by a pinch, rounded to whole points.
  */
-export function pinchZoom(base: number, startZoom: number, scale: number): number {
-  if (!(scale > 0)) return startZoom;
-  return clampDetailsTextZoom(Math.round((base + startZoom) * scale) - base);
+export function pinchZoom(startSize: number, scale: number): number {
+  if (!(scale > 0)) return startSize;
+  return clampDetailsFontSize(Math.round(startSize * scale));
 }
 
 export function zoomTypography(typography: Typography, zoom: number): Typography {
   if (zoom === 0) return typography;
-  const content = Math.max(SMALLEST, typography.content.size + zoom);
-  const mono = Math.max(SMALLEST, typography.mono.size + zoom);
+  const size = clampDetailsFontSize(zoom);
   return {
     ...typography,
-    content: { size: content, lineHeight: Math.round((typography.content.lineHeight * content) / typography.content.size) },
-    mono: { ...typography.mono, size: mono, lineHeight: Math.round((typography.mono.lineHeight * mono) / typography.mono.size) },
+    content: { size, lineHeight: Math.round(size * 1.5) },
+    mono: { ...typography.mono, size, lineHeight: Math.round(size * 1.5) },
+    block: { ...typography.block, delta: 0 },
   };
 }
 
-/** The drawer's zoom, in points; 0 outside it. */
+/** The native details' absolute size; 0 leaves timeline typography unchanged. */
 export const TextZoomContext = createContext(0);
 
 // One object per tokens and zoom, so memoised children see the same tokens
@@ -73,15 +68,14 @@ export function useZoomedTokens(tokens: ExtendedThemeTokens): ExtendedThemeToken
 }
 
 /**
- * A text style its caller built from unzoomed tokens, moved by `zoom` points:
- * its size by the step, its line height in proportion.
+ * A text style built from timeline tokens, set to the details' absolute size.
  */
 export function zoomTextStyle(style: StyleProp<TextStyle>, zoom: number): StyleProp<TextStyle> {
   if (zoom === 0) return style;
   const flat = StyleSheet.flatten(style);
   const size = flat?.fontSize;
   if (typeof size !== "number" || size <= 0) return style;
-  const next = Math.max(SMALLEST, size + zoom);
-  const lineHeight = typeof flat?.lineHeight === "number" ? Math.round((flat.lineHeight * next) / size) : undefined;
+  const next = clampDetailsFontSize(zoom);
+  const lineHeight = typeof flat?.lineHeight === "number" ? Math.round(next * 1.5) : undefined;
   return [style, lineHeight === undefined ? { fontSize: next } : { fontSize: next, lineHeight }];
 }

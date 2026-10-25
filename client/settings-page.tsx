@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { TextInput } from "@getpaseo/plugin/client/react-native";
+import { DETAILS_FONT_SIZE_DEFAULT, DETAILS_FONT_SIZE_MIN, DETAILS_FONT_SIZE_MAX, clampDetailsFontSize } from "../shared/preferences-settings";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { codeSurface, itemRootFont } from "./components/host-font-escape";
 import { radiusV2, space, buildThemeTokens, inlineCodeColor, type ExtendedThemeTokens } from "./components/theme-tokens";
@@ -304,6 +305,27 @@ function BlockSizeControl({ value, look }: { value: number; look: PageLook }) {
         look={look}
         square
       />
+    </View>
+  );
+}
+
+/** Native details have one absolute reading size, independent of timeline fonts. */
+function DetailsSizeControl({ value, look }: { value: number; look: PageLook }) {
+  const { tokens, t } = look;
+  const set = (next: number) => updateEnhancerPreferences({ detailsFontSize: clampDetailsFontSize(next) });
+  return (
+    <View style={styles.controlLine}>
+      <View style={styles.stepper}>
+        <PlainButton label="−" accessibilityLabel={t.detailsSizeSmaller}
+          disabled={value <= DETAILS_FONT_SIZE_MIN} onPress={() => set(value - 1)} look={look} square />
+        <Text accessibilityLabel={t.detailsSizeValue(value)}
+          style={[styles.stepperValue, { color: tokens.foreground, fontFamily: tokens.fontMono }]}>
+          {`${value}px`}
+        </Text>
+        <PlainButton label="+" accessibilityLabel={t.detailsSizeLarger}
+          disabled={value >= DETAILS_FONT_SIZE_MAX} onPress={() => set(value + 1)} look={look} square />
+      </View>
+      <PlainButton label={t.detailsSizeReset} onPress={() => set(DETAILS_FONT_SIZE_DEFAULT)} look={look} />
     </View>
   );
 }
@@ -869,6 +891,13 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
             />
           }
           look={look}
+        />
+        <SettingRow
+          title={t.detailsSizeTitle}
+          description={t.detailsSizeDescription(DETAILS_FONT_SIZE_MIN, DETAILS_FONT_SIZE_MAX, DETAILS_FONT_SIZE_DEFAULT)}
+          control={<DetailsSizeControl value={preferences.detailsFontSize} look={look} />}
+          look={look}
+          stacked
         />
         {native ? null : (
           <SettingRow

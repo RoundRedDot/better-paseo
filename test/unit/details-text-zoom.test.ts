@@ -65,42 +65,48 @@ function inDrawer(zoom: number, child: React.ReactElement) {
 }
 
 describe("pinchZoom", () => {
-  it("scales the body size to whole points, within -4 and +10", () => {
-    expect(pinchZoom(16, 0, 1)).toBe(0);
-    expect(pinchZoom(16, 0, 1.5)).toBe(8);
-    expect(pinchZoom(16, 2, 0.5)).toBe(-4);
-    expect(pinchZoom(16, 0, 3)).toBe(10);
-    expect(pinchZoom(16, 4, 1.03)).toBe(5);
-    expect(pinchZoom(16, 3, 0)).toBe(3);
+  it("scales an absolute size to whole points within 12–26", () => {
+    expect(pinchZoom(14, 1)).toBe(14);
+    expect(pinchZoom(14, 1.5)).toBe(21);
+    expect(pinchZoom(18, 0.5)).toBe(12);
+    expect(pinchZoom(16, 3)).toBe(26);
+    expect(pinchZoom(20, 1.03)).toBe(21);
+    expect(pinchZoom(19, 0)).toBe(19);
   });
 });
 
 describe("zoomTokens", () => {
-  it("moves the body and code sizes by the step, and the same tokens come back", () => {
-    const up = zoomTokens(tokens, 4);
-    expect(up.typography.content.size).toBe(tokens.typography.content.size + 4);
-    expect(up.typography.mono.size).toBe(tokens.typography.mono.size + 4);
-    expect(up.typography.block).toBe(tokens.typography.block);
-    expect(zoomTokens(tokens, 4)).toBe(up);
+  it("sets body and code to one independent size, and returns stable tokens", () => {
+    const up = zoomTokens(tokens, 18);
+    expect(up.typography.content.size).toBe(18);
+    expect(up.typography.mono.size).toBe(18);
+    expect(up.typography.block.delta).toBe(0);
+    expect(zoomTokens(tokens, 18)).toBe(up);
     expect(zoomTokens(tokens, 0)).toBe(tokens);
     expect(isZoomed(up)).toBe(true);
     expect(isZoomed(tokens)).toBe(false);
   });
 
   it("zooms tokens that are zoomed already from where they started", () => {
-    const up = zoomTokens(tokens, 4);
-    expect(zoomTokens(up, 4)).toBe(up);
-    expect(zoomTokens(up, 2).typography.content.size).toBe(tokens.typography.content.size + 2);
+    const up = zoomTokens(tokens, 18);
+    expect(zoomTokens(up, 18)).toBe(up);
+    expect(zoomTokens(up, 20).typography.content.size).toBe(20);
   });
 
-  it("never draws below 9", () => {
-    expect(zoomTokens(tokens, -4).typography.mono.size).toBeGreaterThanOrEqual(9);
+  it("ignores changes to the timeline's body, code and block sizes", () => {
+    const changed = { ...tokens, typography: { ...tokens.typography,
+      content: { size: 22, lineHeight: 33 }, mono: { ...tokens.typography.mono, size: 20 },
+      block: { ...tokens.typography.block, delta: 5 } } };
+    const fixed = zoomTokens(changed, 14);
+    expect(fixed.typography.content).toEqual({ size: 14, lineHeight: 21 });
+    expect(fixed.typography.mono.size).toBe(14);
+    expect(fixed.typography.block.delta).toBe(0);
   });
 });
 
 describe("zoomTextStyle", () => {
   it("moves the size by the step and the line height in proportion", () => {
-    expect(zoomTextStyle({ fontSize: 12, lineHeight: 18 }, 4)).toEqual([{ fontSize: 12, lineHeight: 18 }, { fontSize: 16, lineHeight: 24 }]);
+    expect(zoomTextStyle({ fontSize: 12, lineHeight: 18 }, 14)).toEqual([{ fontSize: 12, lineHeight: 18 }, { fontSize: 14, lineHeight: 21 }]);
     const style = { color: "red" };
     expect(zoomTextStyle(style, 4)).toBe(style);
     expect(zoomTextStyle({ fontSize: 12 }, 0)).toEqual({ fontSize: 12 });
@@ -113,32 +119,34 @@ describe("in the drawer", () => {
   const style = { fontFamily: tokens.fontMono, fontSize: mono.size, lineHeight: mono.lineHeight };
 
   it("moves a preview's text that its caller built from the row's tokens", () => {
-    const node = inDrawer(3, React.createElement(PreviewLines, { text: lines.join("\n"), lines, tokens, style }));
-    expect(sizes(node)).toContain(mono.size + 3);
-    expect(sizes(node)).not.toContain(mono.size);
+    const node = inDrawer(14, React.createElement(PreviewLines, { text: lines.join("\n"), lines, tokens, style }));
+    expect(sizes(node)).toContain(14);
+    // Line numbers sit two points below the independent body size.
+    expect(sizes(node)).toContain(12);
   });
 
   it("does not move a style built from zoomed tokens again", () => {
-    const up = zoomTokens(tokens, 3);
+    const up = zoomTokens(tokens, 18);
     const built = { fontFamily: up.fontMono, fontSize: up.typography.mono.size, lineHeight: up.typography.mono.lineHeight };
-    const node = inDrawer(3, React.createElement(PreviewLines, { text: lines.join("\n"), lines, tokens: up, style: built }));
-    expect(sizes(node)).toContain(mono.size + 3);
-    expect(sizes(node)).not.toContain(mono.size + 6);
+    const node = inDrawer(18, React.createElement(PreviewLines, { text: lines.join("\n"), lines, tokens: up, style: built }));
+    expect(sizes(node)).toContain(18);
+    expect(sizes(node)).not.toContain(36);
   });
 
   it("draws Markdown prose at the zoomed body size", () => {
-    const node = inDrawer(2, React.createElement(MarkdownView, { text: "A plain reply.", tokens, variant: "document" }));
-    expect(sizes(node)).toEqual([tokens.typography.content.size + 2]);
+    const node = inDrawer(14, React.createElement(MarkdownView, { text: "A plain reply.", tokens, variant: "document" }));
+    expect(sizes(node)).toEqual([14]);
   });
 });
 
-describe("detailsTextZoom", () => {
-  it("is 0 by default, whole and within -4 and +10 when read", () => {
-    expect(DEFAULT_PREFERENCES.detailsTextZoom).toBe(0);
-    expect(parsePreferences({ detailsTextZoom: 3.4 }).detailsTextZoom).toBe(3);
-    expect(parsePreferences({ detailsTextZoom: 40 }).detailsTextZoom).toBe(10);
-    expect(parsePreferences({ detailsTextZoom: -9 }).detailsTextZoom).toBe(-4);
-    expect(parsePreferences({ detailsTextZoom: "big" }).detailsTextZoom).toBe(0);
+describe("detailsFontSize", () => {
+  it("defaults to 14 and stores a whole absolute size within 12–26", () => {
+    expect(DEFAULT_PREFERENCES.detailsFontSize).toBe(14);
+    expect(parsePreferences({ detailsFontSize: 17.4 }).detailsFontSize).toBe(17);
+    expect(parsePreferences({ detailsFontSize: 40 }).detailsFontSize).toBe(26);
+    expect(parsePreferences({ detailsFontSize: -9 }).detailsFontSize).toBe(12);
+    expect(parsePreferences({ detailsFontSize: "big" }).detailsFontSize).toBe(14);
+    expect(parsePreferences({ detailsTextZoom: 3 })).not.toHaveProperty("detailsTextZoom");
   });
 
   it("leaves a row's tokens as they were when it is saved", () => {
@@ -149,9 +157,9 @@ describe("detailsTextZoom", () => {
     }
     let node!: ReturnType<typeof TestRenderer.create>;
     act(() => { node = TestRenderer.create(React.createElement(Row, { preferences: DEFAULT_PREFERENCES })); });
-    act(() => { node.update(React.createElement(Row, { preferences: { ...DEFAULT_PREFERENCES, detailsTextZoom: 5 } })); });
+    act(() => { node.update(React.createElement(Row, { preferences: { ...DEFAULT_PREFERENCES, detailsFontSize: 19 } })); });
     expect(seen[1]).toBe(seen[0]);
-    act(() => { node.update(React.createElement(Row, { preferences: { ...DEFAULT_PREFERENCES, detailsTextZoom: 5, blockFontSize: 15 } })); });
+    act(() => { node.update(React.createElement(Row, { preferences: { ...DEFAULT_PREFERENCES, detailsFontSize: 19, blockFontSize: 15 } })); });
     expect(seen[2]).not.toBe(seen[0]);
   });
 });
@@ -160,11 +168,11 @@ describe("zoomCap", () => {
   it("keeps one tall iOS text under 2^18 pixels, and never forces a smaller size", async () => {
     const { zoomCap } = await import("../../client/details/shell/pinch-zoom");
     // 2,852 output lines at 12/18 (51,336pt) at 3x: up to 19pt, 82,700pt.
-    expect(zoomCap(12, 0, 51336, 3, "ios")).toBe(7);
+    expect(zoomCap(12, 51336, 3, "ios")).toBe(19);
     // Already as tall as it may be: it stays.
-    expect(zoomCap(12, 8, 85560, 3, "ios")).toBe(8);
-    expect(zoomCap(12, 0, 2000, 3, "ios")).toBeGreaterThan(100);
-    expect(zoomCap(12, 0, 51336, 3, "android")).toBe(Infinity);
+    expect(zoomCap(20, 85560, 3, "ios")).toBe(20);
+    expect(zoomCap(12, 2000, 3, "ios")).toBeGreaterThan(100);
+    expect(zoomCap(12, 51336, 3, "android")).toBe(Infinity);
   });
 });
 
@@ -173,7 +181,7 @@ describe("createPinch", () => {
     const { createPinch } = await import("../../client/details/shell/pinch-zoom");
     const calls: string[] = [];
     const pinch = createPinch({
-      zoom: () => ({ base: 16, code: 12, current: () => 0, preview() {}, commit() {} }),
+      zoom: () => ({ base: 14, current: () => 14, preview() {}, commit() {} }),
       scroller: () => null,
       changed() {},
       hold: () => {
@@ -195,21 +203,104 @@ describe("createPinch", () => {
 });
 
 describe("text size step buttons", () => {
-  it("steps and commits by one, respects limits, resets, and renews the badge timer", async () => {
+  it("keeps the pill while touched, then gives a full timeout after release or cancellation", async () => {
     const { usePinchZoom, ZOOM_BADGE_MS } = await import("../../client/details/shell/pinch-zoom");
+    const { ZoomBadge } = await import("../../client/details/chrome/zoom-badge");
+    let controls!: ReturnType<typeof usePinchZoom>;
+    function Harness() {
+      const [value, setValue] = React.useState(14);
+      controls = usePinchZoom({ base: 14, current: () => value, preview: setValue, commit: setValue }, null);
+      return controls.badge === null ? null : React.createElement(ZoomBadge, {
+        size: controls.badge, tokens, onStep: controls.step, onReset: controls.reset,
+        onInteraction: controls.interaction, canDecrease: controls.canDecrease, canIncrease: controls.canIncrease,
+      });
+    }
+    vi.useFakeTimers();
+    let node!: ReturnType<typeof TestRenderer.create>;
+    try {
+      act(() => { node = TestRenderer.create(React.createElement(Harness)); });
+      act(() => controls.reset());
+      const pill = () => node.root.findAll((entry) => typeof entry.type === "string" && entry.props.testID === "details-zoom-badge")[0]!;
+      const event = { stopPropagation: vi.fn(), nativeEvent: { touches: [{}] } };
+      act(() => { vi.advanceTimersByTime(ZOOM_BADGE_MS - 1); });
+      act(() => pill().props.onTouchStart(event));
+      expect(event.stopPropagation).toHaveBeenCalled();
+      act(() => { vi.advanceTimersByTime(ZOOM_BADGE_MS * 2); });
+      expect(pill()).toBeDefined();
+      // One finger still rests on the pill: keep holding it.
+      act(() => pill().props.onTouchEnd(event));
+      act(() => { vi.advanceTimersByTime(ZOOM_BADGE_MS); });
+      expect(pill()).toBeDefined();
+      act(() => pill().props.onTouchCancel(event));
+      act(() => { vi.advanceTimersByTime(ZOOM_BADGE_MS - 1); });
+      expect(pill()).toBeDefined();
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(node.toJSON()).toBeNull();
+
+      act(() => controls.reset());
+      act(() => pill().props.onTouchStart(event));
+      act(() => { vi.advanceTimersByTime(ZOOM_BADGE_MS); });
+      act(() => pill().props.onTouchEnd({ ...event, nativeEvent: { touches: [] } }));
+      act(() => { vi.advanceTimersByTime(ZOOM_BADGE_MS - 1); });
+      expect(pill()).toBeDefined();
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(node.toJSON()).toBeNull();
+    } finally {
+      if (node) act(() => node.unmount());
+      vi.useRealTimers();
+    }
+  });
+
+  it("coalesces repeated steps on long text into one layout and one save", async () => {
+    const { usePinchZoom, LIVE_LIMIT, ZOOM_STEP_MS } = await import("../../client/details/shell/pinch-zoom");
+    const commit = vi.fn();
+    const preview = vi.fn();
+    let controls!: ReturnType<typeof usePinchZoom>;
+    function Harness() {
+      const [value, setValue] = React.useState(14);
+      controls = usePinchZoom({ base: 14, current: () => value, preview,
+        commit(next) { commit(next); setValue(next); } }, null);
+      return null;
+    }
+    vi.useFakeTimers();
+    let node!: ReturnType<typeof TestRenderer.create>;
+    try {
+      act(() => { node = TestRenderer.create(React.createElement(Harness)); });
+      act(() => controls.contentSized(LIVE_LIMIT + 1));
+      for (let index = 0; index < 7; index++) {
+        act(() => controls.step(1));
+        act(() => { vi.advanceTimersByTime(ZOOM_STEP_MS - 1); });
+      }
+      expect(controls.badge).toBe(21);
+      expect(preview).not.toHaveBeenCalled();
+      expect(commit).not.toHaveBeenCalled();
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(commit.mock.calls).toEqual([[21]]);
+      // commit applies the final size; no intermediate preview reflows occurred.
+      expect(preview).not.toHaveBeenCalled();
+      act(() => controls.step(-1));
+    } finally {
+      if (node) act(() => node.unmount());
+      vi.useRealTimers();
+    }
+    expect(commit.mock.calls).toEqual([[21], [20]]);
+  });
+
+  it("steps and commits by one, respects limits, resets, and renews the badge timer", async () => {
+    const { usePinchZoom, ZOOM_BADGE_MS, ZOOM_STEP_MS } = await import("../../client/details/shell/pinch-zoom");
     const { ZoomBadge } = await import("../../client/details/chrome/zoom-badge");
     const commit = vi.fn();
     let controls!: ReturnType<typeof usePinchZoom>;
-    let current = 0;
+    let current = 14;
     function Harness() {
-      const [value, setValue] = React.useState(0);
+      const [value, setValue] = React.useState(14);
       current = value;
-      controls = usePinchZoom({ base: 16, code: 12, current: () => value, preview: setValue,
+      controls = usePinchZoom({ base: 14, current: () => value, preview: setValue,
         commit(next) { commit(next); setValue(next); } }, null);
       return controls.badge === null ? null : React.createElement(ZoomBadge, {
-        size: 16 + controls.badge, zoom: controls.badge, tokens,
+        size: controls.badge, tokens,
         onStep: controls.step, canDecrease: controls.canDecrease, canIncrease: controls.canIncrease,
-        onReset() { commit(0); setValue(0); controls.hide(); },
+        onReset: controls.reset, onInteraction: controls.interaction,
       });
     }
     vi.useFakeTimers();
@@ -225,23 +316,28 @@ describe("text size step buttons", () => {
       });
       expect(button("details-zoom-decrease").props.disabled).toBe(false);
       expect(button("details-zoom-increase").props.disabled).toBe(false);
+      expect(button("details-zoom-reset").props.disabled).not.toBe(true);
       act(() => { vi.advanceTimersByTime(ZOOM_BADGE_MS - 100); });
       press("details-zoom-increase");
-      expect(current).toBe(1);
-      expect(commit).toHaveBeenLastCalledWith(1);
+      expect(current).toBe(15);
+      expect(commit).not.toHaveBeenCalled();
       act(() => { vi.advanceTimersByTime(100); });
       expect(button("details-zoom-increase")).toBeDefined();
-      for (let index = 0; index < 9; index++) press("details-zoom-increase");
-      expect(current).toBe(10);
+      act(() => { vi.advanceTimersByTime(ZOOM_STEP_MS); });
+      expect(commit).toHaveBeenLastCalledWith(15);
+      for (let index = 0; index < 11; index++) press("details-zoom-increase");
+      expect(current).toBe(26);
       expect(button("details-zoom-increase").props.disabled).toBe(true);
       for (let index = 0; index < 14; index++) press("details-zoom-decrease");
-      expect(current).toBe(-4);
+      expect(current).toBe(12);
       expect(button("details-zoom-decrease").props.disabled).toBe(true);
       press("details-zoom-reset");
-      expect(current).toBe(0);
-      expect(commit).toHaveBeenLastCalledWith(0);
-      expect(node.toJSON()).toBeNull();
-      act(() => controls.step(1));
+      expect(current).toBe(14);
+      act(() => { vi.advanceTimersByTime(ZOOM_STEP_MS); });
+      expect(commit).toHaveBeenLastCalledWith(14);
+      expect(button("details-zoom-reset").props.disabled).not.toBe(true);
+      press("details-zoom-reset");
+      expect(node.toJSON()).not.toBeNull();
       act(() => { vi.advanceTimersByTime(ZOOM_BADGE_MS); });
       expect(node.toJSON()).toBeNull();
     } finally {
@@ -258,7 +354,7 @@ describe("text size step buttons", () => {
     let controls!: ReturnType<typeof usePinchZoom>;
     const commit = vi.fn();
     function Harness() {
-      controls = usePinchZoom({ base: 16, code: 12, current: () => 0, preview() {}, commit }, null);
+      controls = usePinchZoom({ base: 14, current: () => 14, preview() {}, commit }, null);
       return null;
     }
     let node!: ReturnType<typeof TestRenderer.create>;
@@ -270,10 +366,11 @@ describe("text size step buttons", () => {
       act(() => controls.step(1));
       expect(commit).not.toHaveBeenCalled();
       act(() => controls.step(-1));
-      expect(commit).toHaveBeenLastCalledWith(-1);
+      // The final pending size is saved even if the panel closes immediately.
     } finally {
       if (node) act(() => node.unmount());
       globals.__rnMockOS = previousOS;
     }
+    expect(commit).toHaveBeenLastCalledWith(13);
   });
 });

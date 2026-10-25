@@ -176,6 +176,13 @@ const en = {
     "Rest the pointer on a collapsed row or a file path on desktop, or long-press a collapsed row on a phone, to see its content.",
   blockDetailsTitle: "Block details panel (preview)",
   blockDetailsDescription: "Tap a row to read it in a drawer or panel; long-press shows actions.",
+  detailsSizeTitle: "Details font size",
+  detailsSizeDescription: (min: number, max: number, initial: number) =>
+    `${min}–${max}px for details on phones and tablets. Independent of timeline text and code sizes. Default: ${initial}px. Pinch and the size pill change this same setting.`,
+  detailsSizeSmaller: "Smaller details text",
+  detailsSizeLarger: "Larger details text",
+  detailsSizeValue: (size: number) => `Details font size ${size} pixels`,
+  detailsSizeReset: "Reset details font size",
   hoverDelayTitle: "Delay",
   hoverDelayDescription: (min: number, max: number) =>
     `Seconds the pointer rests on a row before its preview opens on desktop, ${min}–${max}.`,
@@ -327,6 +334,13 @@ const zh: SettingsStrings = {
   hoverPreviewDescription: "桌面端鼠标停在折叠行或文件路径上、手机上长按折叠行时，弹出内容预览。",
   blockDetailsTitle: "区块详情面板（预览）",
   blockDetailsDescription: "点按行可在抽屉或面板中阅读；长按可显示操作。",
+  detailsSizeTitle: "详情字号",
+  detailsSizeDescription: (min: number, max: number, initial: number) =>
+    `${min}–${max}px，用于手机和平板的详情面板，独立于正文和代码字号。默认为 ${initial}px；双指缩放和字号胶囊也修改这一项。`,
+  detailsSizeSmaller: "减小详情字号",
+  detailsSizeLarger: "增大详情字号",
+  detailsSizeValue: (size: number) => `详情字号 ${size} 像素`,
+  detailsSizeReset: "复原详情字号",
   hoverDelayTitle: "延迟",
   hoverDelayDescription: (min: number, max: number) => `桌面端鼠标在行上停留多少秒后弹出预览，可填 ${min}–${max}。`,
   hoverDelayUnit: "秒",

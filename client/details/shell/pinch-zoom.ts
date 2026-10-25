@@ -1,5 +1,5 @@
 /**
- * A pinch on the phone drawer's body sets its text size (`DetailsZoom`).
+ * A pinch on a native details panel's body sets its absolute text size.
  *
  * It reads the raw touches (`onTouchStart` / `onTouchMove` / `onTouchEnd`),
  * which reach the body whoever holds the responder: the drawer's own drag
@@ -26,10 +26,12 @@ import type { DetailsZoom } from "../contracts";
 import type { PreviewScroller } from "../../ui/preview-scroller";
 import { pinchZoom } from "../../ui/text-zoom";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
-import { clampDetailsTextZoom } from "../../../shared/preferences-settings";
+import { clampDetailsFontSize } from "../../../shared/preferences-settings";
 
 /** How long the size stays up after the fingers lift, with its reset. */
 export const ZOOM_BADGE_MS = 2000;
+/** Coalesce repeated button presses before saving or laying out a long body. */
+export const ZOOM_STEP_MS = 150;
 /** Heights reported this long after the lift are still the pinch's last layout. */
 const SETTLE_MS = 500;
 /** Content taller than this lays out only as the fingers lift. */
@@ -43,13 +45,12 @@ export const LIVE_LIMIT = 4000;
 export const IOS_TEXT_LIMIT_PX = 2 ** 18;
 
 /**
- * The largest zoom that keeps content `height` tall at zoom `from` within the
- * iOS limit. `base` is the smaller of the body and code sizes: the smaller
- * one grows fastest by a point.
+ * The largest absolute size that keeps content `height` tall at size `from`
+ * within the iOS text limit.
  */
-export function zoomCap(base: number, from: number, height: number, scale = PixelRatio.get(), os = Platform.OS): number {
+export function zoomCap(from: number, height: number, scale = PixelRatio.get(), os = Platform.OS): number {
   if (os !== "ios" || height <= 0) return Infinity;
-  const fits = Math.floor(((base + from) * IOS_TEXT_LIMIT_PX * 0.95) / (height * scale)) - base;
+  const fits = Math.floor((from * IOS_TEXT_LIMIT_PX * 0.95) / (height * scale));
   return Math.max(from, fits);
 }
 
@@ -93,7 +94,7 @@ export function createPinch(options: PinchOptions): Pinch {
     const distance = spread(touches);
     if (!zoom || distance <= 0) return;
     const from = zoom.current();
-    gesture = { distance, from, zoom: from, top: 0, live: height <= LIVE_LIMIT, mid: midpoint(touches).y, cap: zoomCap(Math.min(zoom.base, zoom.code), from, height) };
+    gesture = { distance, from, zoom: from, top: 0, live: height <= LIVE_LIMIT, mid: midpoint(touches).y, cap: zoomCap(from, height) };
     anchor = null;
     release = options.hold?.() ?? (() => {});
     const scroller = options.scroller();
@@ -107,7 +108,7 @@ export function createPinch(options: PinchOptions): Pinch {
     const zoom = options.zoom();
     if (!gesture || !zoom || touches.length < 2) return;
     gesture.mid = midpoint(touches).y;
-    const next = Math.min(gesture.cap, pinchZoom(zoom.base, gesture.from, spread(touches) / gesture.distance));
+    const next = Math.min(gesture.cap, pinchZoom(gesture.from, spread(touches) / gesture.distance));
     if (next === gesture.zoom) return;
     gesture.zoom = next;
     if (gesture.live) {
@@ -165,55 +166,104 @@ export function usePinchZoom(zoom: DetailsZoom | undefined, scroller: PreviewScr
   // The size on the badge; null hides it.
   const [badge, setBadge] = useState<number | null>(null);
   const [cap, setCap] = useState(Infinity);
+  const height = useRef(0);
+  const interacting = useRef(false);
+  const pinching = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stepTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pending = useRef<number | null>(null);
+  const cancelHide = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  }, []);
+  const scheduleHide = useCallback(() => {
+    cancelHide();
+    if (!interacting.current && !pinching.current) {
+      timer.current = setTimeout(() => setBadge(null), ZOOM_BADGE_MS);
+    }
+  }, [cancelHide]);
+  const cancelStep = useCallback(() => {
+    if (stepTimer.current) clearTimeout(stepTimer.current);
+    stepTimer.current = null;
+  }, []);
+  const flush = useCallback(() => {
+    cancelStep();
+    const next = pending.current;
+    pending.current = null;
+    if (next !== null) latest.current.zoom?.commit(next);
+  }, [cancelStep]);
+  const scheduleStep = useCallback(() => {
+    cancelStep();
+    if (pending.current !== null && !interacting.current) {
+      stepTimer.current = setTimeout(flush, ZOOM_STEP_MS);
+    }
+  }, [cancelStep, flush]);
   const pinch = useMemo(() => createPinch({
     zoom: () => latest.current.zoom,
     scroller: () => latest.current.scroller,
-    changed(next, pinching) {
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = null;
+    changed(next, active) {
+      pinching.current = active;
       setBadge(next);
-      if (!pinching) timer.current = setTimeout(() => setBadge(null), ZOOM_BADGE_MS);
+      if (active) cancelHide();
+      else scheduleHide();
     },
     hold: () => (Platform.OS === "android" ? holdHostGestures(body.current) : () => {}),
-  }), []);
+  }), [cancelHide, scheduleHide]);
   useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
+    cancelHide();
+    // Closing or switching the block still saves its last requested size.
+    flush();
+  }, [cancelHide, flush]);
   const handlers = useMemo(() => (zoom ? {
-    onTouchStart: pinch.start,
+    onTouchStart(event: GestureResponderEvent) {
+      flush();
+      pinch.start(event);
+    },
     onTouchMove: pinch.move,
     onTouchEnd: pinch.end,
     onTouchCancel: pinch.cancel,
-  } : undefined), [pinch, zoom !== undefined]);
-  const contentSized = useCallback((height: number) => {
-    pinch.contentSized(height);
+  } : undefined), [pinch, flush, zoom !== undefined]);
+  const contentSized = useCallback((nextHeight: number) => {
+    height.current = nextHeight;
+    pinch.contentSized(nextHeight);
     const current = latest.current.zoom;
-    if (current) setCap(zoomCap(Math.min(current.base, current.code), current.current(), height));
+    if (current) setCap(zoomCap(current.current(), nextHeight));
   }, [pinch]);
   const nextStep = (direction: -1 | 1) => {
-    const current = zoom?.current() ?? 0;
+    const current = pending.current ?? zoom?.current() ?? 0;
     // A stale height may still describe the smaller size before its layout.
     // Keep that cap until the new height arrives, but always allow shrinking.
-    return Math.min(Math.max(current, cap), clampDetailsTextZoom(current + direction));
+    return Math.min(Math.max(current, cap), clampDetailsFontSize(current + direction));
+  };
+  const setSize = (next: number) => {
+    if (!zoom) return;
+    pending.current = next;
+    setBadge(next);
+    // Long native text is expensive to remount and reflow. Count the steps
+    // immediately, then apply only the last size once the reader pauses.
+    if (height.current <= LIVE_LIMIT) zoom.preview(next);
+    scheduleStep();
+    scheduleHide();
   };
   const step = (direction: -1 | 1) => {
-    if (!zoom) return;
     const next = nextStep(direction);
-    if (next === zoom.current()) return;
-    zoom.commit(next);
-    setBadge(next);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setBadge(null), ZOOM_BADGE_MS);
+    if (next !== (pending.current ?? zoom?.current() ?? 0)) setSize(next);
+    else scheduleHide();
   };
-  const hide = () => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-    setBadge(null);
+  const interaction = (active: boolean) => {
+    interacting.current = active;
+    if (active) {
+      cancelHide();
+      cancelStep();
+    } else {
+      scheduleStep();
+      scheduleHide();
+    }
   };
-  return { handlers, badge, body, contentSized, hide, step,
-    canDecrease: Boolean(zoom && nextStep(-1) < zoom.current()),
-    canIncrease: Boolean(zoom && nextStep(1) > zoom.current()),
+  const current = pending.current ?? zoom?.current() ?? 0;
+  return { handlers, badge, body, contentSized, reset: () => { if (zoom) setSize(zoom.base); }, step, interaction,
+    canDecrease: Boolean(zoom && nextStep(-1) < current),
+    canIncrease: Boolean(zoom && nextStep(1) > current),
   };
 }
 

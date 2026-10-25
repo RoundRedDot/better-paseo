@@ -115,17 +115,15 @@ export interface BlockPlacement {
 }
 export const BlockPlacementContext = createContext<BlockPlacement | null>(null);
 
-/** Native details text zoom, in points over the timeline's body size (`detailsTextZoom`). */
+/** Independent native details text size, in points (`detailsFontSize`). */
 export interface DetailsZoom {
-  /** The timeline's body size, which the zoom adds to. */
+  /** The fixed default size used by Reset. */
   base: number;
-  /** The code size, which the zoom adds to as well. */
-  code: number;
-  /** The zoom drawn now, mid-pinch included. */
+  /** The size drawn now, mid-pinch included. */
   current(): number;
-  /** Draws `zoom` while the fingers move, without saving it. */
+  /** Draws the absolute size while the fingers move, without saving it. */
   preview(zoom: number): void;
-  /** Saves `zoom` as the reader's, as the pinch ends. */
+  /** Saves the absolute size as the reader's. */
   commit(zoom: number): void;
 }
 

@@ -40,13 +40,14 @@ export function clampCodeFontSize(value: number): number {
   return Math.min(CODE_FONT_SIZE_MAX, Math.max(CODE_FONT_SIZE_MIN, Math.round(value)));
 }
 
-/** Points the phone drawer's text sits above or below the timeline's, set by a pinch. */
-export const DETAILS_TEXT_ZOOM_MIN = -4;
-export const DETAILS_TEXT_ZOOM_MAX = 10;
+/** An independent size for native details; never follows the timeline's size. */
+export const DETAILS_FONT_SIZE_DEFAULT = 14;
+export const DETAILS_FONT_SIZE_MIN = 12;
+export const DETAILS_FONT_SIZE_MAX = 26;
 
-export function clampDetailsTextZoom(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(DETAILS_TEXT_ZOOM_MAX, Math.max(DETAILS_TEXT_ZOOM_MIN, Math.round(value)));
+export function clampDetailsFontSize(value: number): number {
+  if (!Number.isFinite(value)) return DETAILS_FONT_SIZE_DEFAULT;
+  return Math.min(DETAILS_FONT_SIZE_MAX, Math.max(DETAILS_FONT_SIZE_MIN, Math.round(value)));
 }
 
 /**
@@ -119,11 +120,11 @@ export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrate
     .transform(clampHoverDelay)
     .catch(HOVER_DELAY_DEFAULT),
   previewWrap: flag(true),
-  detailsTextZoom: z
+  detailsFontSize: z
     .number()
     .refine((value) => Number.isFinite(value))
-    .transform(clampDetailsTextZoom)
-    .catch(0),
+    .transform(clampDetailsFontSize)
+    .catch(DETAILS_FONT_SIZE_DEFAULT),
   // A stored `rowClick` (what a pointer click on a row did) is dropped like any unknown key.
   blockDetails: flag(true),
   previewLineNumbers: flag(true),

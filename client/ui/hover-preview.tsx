@@ -890,11 +890,9 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
         )}
         {pill}
         {zoom && pinch.badge !== null && wrap ? (
-          <ZoomBadge size={zoom.base + pinch.badge} zoom={pinch.badge} tokens={wrap.tokens}
-            onStep={pinch.step} canDecrease={pinch.canDecrease} canIncrease={pinch.canIncrease} onReset={() => {
-            zoom.commit(0);
-            pinch.hide();
-          }} />
+          <ZoomBadge size={pinch.badge} tokens={wrap.tokens}
+            onStep={pinch.step} onInteraction={pinch.interaction} onReset={pinch.reset}
+            canDecrease={pinch.canDecrease} canIncrease={pinch.canIncrease} />
         ) : null}
       </View>
     );
