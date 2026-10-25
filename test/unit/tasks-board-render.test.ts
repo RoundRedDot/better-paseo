@@ -2453,6 +2453,126 @@ describe("Tasks board, toolbar tips", () => {
   });
 });
 
+describe("F2: tablet overlays outside toolbar AX bounds", () => {
+  const bar = () => hostsById("tablet-toolbar")[0]!;
+  const end = () => hostsById("tablet-toolbar-end")[0]!;
+  const anchor = () => hostParentOf(hostsById("tablet-view")[0]!)!;
+  const style = (node: ReactTestInstance) => StyleSheet.flatten(node.props.style);
+  const layout = (node: ReactTestInstance, box: { x?: number; y?: number; width: number; height?: number }) =>
+    act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, height: 44, ...box } } }));
+  const mount = (os: string, width?: number, base = 14) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
+    if (width !== undefined) layOut(width);
+  };
+  const siblingAfterBar = (overlay: ReactTestInstance) => {
+    const parent = hostParentOf(bar())!;
+    expect(hostParentOf(overlay)).toBe(parent);
+    expect(bar().findAll((node) => node === overlay)).toHaveLength(0);
+    const siblings = parent.findAll((node) => typeof node.type === "string" && hostParentOf(node) === parent);
+    expect(siblings.indexOf(overlay)).toBeGreaterThan(siblings.indexOf(bar()));
+    expect(style(overlay).zIndex).toBeGreaterThan(style(bar()).zIndex);
+    expect(style(overlay).zIndex).toBeGreaterThan(style(hostsById("tablet-toolbar-backdrop")[0]!).zIndex);
+  };
+
+  it.each(["android", "ios"])("%s waits for every anchor layout and mounts only while open", (os) => {
+    mount(os);
+    expect(hostsById("tablet-view-overlay")).toHaveLength(0);
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    expect(hostsById("tablet-view-menu")).toHaveLength(0);
+    layout(bar(), { width: 800 });
+    expect(hostsById("tablet-view-overlay")).toHaveLength(0);
+    layout(anchor(), { x: 200, width: 44 });
+    expect(hostsById("tablet-view-overlay")).toHaveLength(0);
+    layout(end(), { x: 400, y: 6, width: 388 });
+    const overlay = hostsById("tablet-view-overlay")[0]!;
+    siblingAfterBar(overlay);
+    expect(overlay.props.pointerEvents).toBe("box-none");
+    for (const prop of ["accessible", "accessibilityLabel", "aria-label", "aria-hidden", "accessibilityElementsHidden"]) expect(overlay.props).not.toHaveProperty(prop);
+    expect(style(overlay)).toMatchObject({ position: "absolute", top: 0, bottom: 0, left: 0 });
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
+    expect(hostsById("tablet-view-overlay")).toHaveLength(0);
+    expect(hostsById("tablet-view-menu")).toHaveLength(0);
+    expect(hostsById("tablet-toolbar-backdrop")).toHaveLength(0);
+  });
+
+  it.each([
+    ["android", 480, 14], ["android", 834, 21],
+    ["ios", 834, 14], ["ios", 1200, 21],
+  ] as const)("%s at %i pt/UI%i keeps the old right-aligned menu coordinates, including relayout", (os, width, base) => {
+    mount(os, width, base);
+    const target = style(hostsById("tablet-view")[0]!).height as number;
+    const compare = (toolbarWidth: number, endX: number, endY: number, viewX: number, viewY: number, viewWidth: number) => {
+      layout(bar(), { width: toolbarWidth });
+      layout(end(), { x: endX, y: endY, width: toolbarWidth - endX - 12 });
+      layout(anchor(), { x: viewX, y: viewY, width: viewWidth });
+      const overlay = hostsById("tablet-view-overlay")[0]!;
+      const menu = hostsById("tablet-view-menu")[0]!;
+      siblingAfterBar(overlay);
+      expect(hostParentOf(menu)).toBe(overlay);
+      const oldRightEdge = endX + viewX + viewWidth;
+      const oldTop = endY + viewY + target + 6;
+      const menuStyle = style(menu);
+      expect(toolbarWidth - (style(overlay).right as number)).toBe(oldRightEdge);
+      expect(menuStyle).toMatchObject({ position: "absolute", top: oldTop, right: 0, width: Math.min(300, Math.max(240, width - 24)), zIndex: 30 });
+    };
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    compare(width, width / 2, 6, 80, 2, target);
+    compare(width + 24, width / 2 + 10, 8, 70, 1, target + 20);
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    expect(hostsById("tablet-view-overlay")).toHaveLength(0);
+  });
+
+  it.each([["android", 480, 14], ["ios", 600, 21]] as const)("%s at %i pt/UI%i keeps search geometry, autofocus, clear and dismissal", (os, width, base) => {
+    mount(os, width, base);
+    const height = style(bar()).height;
+    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    const popover = () => hostsById("tablet-search-popover")[0]!;
+    siblingAfterBar(popover());
+    const { zIndex, ...geometry } = style(popover());
+    expect(geometry).toEqual({ position: "absolute", top: height, left: 0, right: 0, padding: 8, backgroundColor: "#ffffff", borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#e2e2e6" });
+    const input = () => popover().find((node) => (node.type as unknown) === "TextInput");
+    expect(input().props.autoFocus).toBe(true);
+    act(() => input().props.onChangeText("needle"));
+    expect(input().props.value).toBe("needle");
+    act(() => hostsById("tablet-search-clear")[0]!.props.onPress());
+    expect(input().props.value).toBe("");
+    expect(hostsById("tablet-search-clear")).toHaveLength(0);
+    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    expect(hostsById("tablet-search-popover")).toHaveLength(0);
+    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    expect(hostsById("tablet-search-popover")).toHaveLength(0);
+    expect(hostsById("tablet-view-menu")).toHaveLength(1);
+    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    expect(hostsById("tablet-view-overlay")).toHaveLength(0);
+    expect(hostsById("tablet-search-popover")).toHaveLength(1);
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
+    expect(hostsById("tablet-search-popover")).toHaveLength(0);
+    expect(style(bar()).height).toBe(height);
+  });
+
+  it.each(["android", "ios"])("%s preserves keepOpen, drill-down, Back and selection close", (os) => {
+    mount(os, 1000);
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    act(() => menuOption("Show subtasks").props.onPress());
+    expect(menuOption("Show subtasks").props.accessibilityState.checked).toBe(false);
+    expect(hostsById("tablet-view-overlay")).toHaveLength(1);
+    act(() => menuOption("Lane width").props.onPress());
+    expect(menuOption("Wide")).toBeDefined();
+    act(() => menuOption("Back").props.onPress());
+    expect(menuOption("Sort")).toBeDefined();
+    act(() => menuOption("Sort").props.onPress());
+    act(() => menuOption("Title").props.onPress());
+    expect(menuOption("A→Z")).toBeDefined();
+    expect(hostsById("tablet-view-overlay")).toHaveLength(1);
+    act(() => menuOption("A→Z").props.onPress());
+    expect(lastBoardParams("host-1").sort).toEqual({ key: "title", direction: "asc" });
+    expect(hostsById("tablet-view-menu")).toHaveLength(0);
+    expect(hostsById("tablet-view-overlay")).toHaveLength(0);
+  });
+});
+
 describe("Tasks board, tablet filters", () => {
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
