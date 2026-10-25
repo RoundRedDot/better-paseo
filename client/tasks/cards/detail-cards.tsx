@@ -706,7 +706,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
     prompt: messageTime,
     human: messageTime,
     message: messageTime,
-    properties: card.location.branch ?? (card.location.git === null ? words.notGit : ""),
+    properties: "",
     subtasks: heading && heading.parts.length > 0 ? <SubtaskSummaryText parts={heading.parts} tokens={tokens} /> : "",
     usage: usageSummary(card, props.language),
     activity: created !== null ? words.createdAgo(formatRelative(created, props.language)) : "",
@@ -724,7 +724,6 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
           title={title}
           summary={summary}
           summaryTip={messageTime ? formatFullStamp(new Date(at)) : undefined}
-          summaryStyle={section === "properties" && card.location.branch ? { maxWidth: "60%", fontFamily: MONO } : undefined}
           trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined}
           closed={props.closed}
           language={props.language}
@@ -769,7 +768,7 @@ function SubtaskSummaryText(props: { parts: SubtaskSummaryPart[]; tokens: TaskTo
   );
 }
 
-function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; summary: React.ReactNode; summaryTip?: string; summaryStyle?: TextStyle; trailing?: React.ReactNode; closed: boolean; language: TasksLanguage; onPress(): void }) {
+function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; summary: React.ReactNode; summaryTip?: string; trailing?: React.ReactNode; closed: boolean; language: TasksLanguage; onPress(): void }) {
   const { m, tokens } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
@@ -792,7 +791,7 @@ function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; 
       </View>
       <View style={{ flex: 1 }} />
       {props.summary ? (
-        <Text {...tipProps(props.summaryTip)} numberOfLines={1} style={[{ flexShrink: 1, fontSize: font, color, fontVariant: ["tabular-nums"] }, props.summaryStyle]}>
+        <Text {...tipProps(props.summaryTip)} numberOfLines={1} style={[{ flexShrink: 1, fontSize: font, color, fontVariant: ["tabular-nums"] }]}>
           {props.summary}
         </Text>
       ) : null}
