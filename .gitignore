@@ -21,3 +21,6 @@ docs/bench/
 # Prototypes: the .md specs stay tracked (code cites them); boards, refs and HTML stay local.
 docs/prototypes/*
 !docs/prototypes/*.md
+
+# QA and perf run output: screenshots, logs and patches stay on disk.
+/output/
