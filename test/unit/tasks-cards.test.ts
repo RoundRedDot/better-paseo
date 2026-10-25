@@ -2638,12 +2638,12 @@ describe("TaskDetailCards", () => {
     const tree = await render(details(sample("sample-failed"), { firstPrompt, lastMessage: { prompt: { state: "ready", text: "Four subagents failed." }, load } }, "en"));
     const sections = tree.root.findAll((node) => typeof node.type === "string" && ["detail-prompt", "detail-message", "detail-location"].includes(node.props.testID));
     expect(sections.map((node) => node.props.testID)).toEqual(["detail-location", "detail-prompt", "detail-message"]);
-    expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["Latest message", "Four subagents failed."]);
+    expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["Last reply", "Four subagents failed."]);
     await act(async () => byLabel(tree.root, "Copy message").props.onPress());
     expect(clipboard.copyText).toHaveBeenLastCalledWith("Four subagents failed.");
 
     await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt, lastMessage: { prompt: { state: "none" }, load } }, "zh")));
-    expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["最近一条消息", "agent 还没有回复"]);
+    expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["最后回复消息", "agent 还没有回复"]);
   });
 
   it("shows the last message a person sent between the first prompt and the latest reply", async () => {
