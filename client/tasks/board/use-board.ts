@@ -14,6 +14,7 @@ import { useDeviceTasksPreferences } from "../device-preferences";
 import { MOTION } from "./board-style";
 import { carriedSettings, useCarriedTasks } from "./carry";
 import { lingerBoard } from "./prefetch";
+import { cardFilterState, filterToCard } from "./filter-options";
 import { encodeSort, nameCompare, sortLaneCards } from "./sort";
 import {
   decodeBoardParams,
@@ -415,8 +416,10 @@ export function useBoard(
         );
       },
       onDetails: (card) => handlers.current?.details(card),
+      onFilter: (card, by) => setParams((current) => filterToCard(current, card, latest.current.tasks.workspaces, by)),
+      filterState: (card) => cardFilterState(paramsRef.current, card, latest.current.tasks.workspaces),
     }),
-    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers],
+    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams],
   );
 
   return {

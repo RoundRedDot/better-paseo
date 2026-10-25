@@ -10,6 +10,7 @@ import { getEnhancerPreferences } from "../../preferences";
 import { copiedToast, toolbarLabel } from "../../i18n/toolbar-strings";
 import { COPY_FAILED_MESSAGE } from "../../ui/copy-controller";
 import type { TaskCard } from "../model";
+import type { CardFilterKind, CardFilterState } from "../board/filter-options";
 import type { cardStrings } from "./strings";
 
 export const CARD_MENU_WIDTH = 240;
@@ -22,6 +23,8 @@ export interface CardMenuActions {
   revealParent?(): void;
   /** Copies `text`; `label` is the row's English name, which the toast echoes. */
   copy(text: string, label: string): void;
+  /** The board's Filter rows: which apply to this card and are on, and choosing one. */
+  filters?: { state: CardFilterState; select(by: CardFilterKind): void };
   /** Present only while the card can be stopped. */
   stop?(withChildren: boolean): void;
   /** A parent's running and waiting subtasks: Stop gets "only this / with subtasks". */
@@ -37,8 +40,9 @@ export interface CardMenuActions {
 /**
  * A card's right-click menu: open its tab (a subtask's also opens its
  * parent's, or shows the parent's card); copy its session ID, title,
- * workspace and project; then whatever the card can do right now (Stop,
- * Mark read, Unarchive, Archive). A copy whose value the card lacks is left out, and
+ * workspace and project; filter the board to its agent, workspace or
+ * project; then whatever the card can do right now (Stop, Mark read,
+ * Unarchive, Archive). A copy whose value the card lacks is left out, and
  * so is an empty group.
  */
 export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof cardStrings>, actions: CardMenuActions): MenuSection[] {
@@ -51,6 +55,19 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
     ["copy-project", strings.copyProject, "Copy project name", "Box", location.projectName],
   ];
   const stop = actions.stop;
+  const filters = actions.filters;
+  // Each row's second line names the value it filters to.
+  const filterRows: [CardFilterKind, string, string, string | null][] = [
+    ["agent", strings.filterAgent, "Bot", card.providerLabel || card.provider],
+    ["workspace", strings.filterWorkspace, "Folder", location.workspaceTitle ?? location.workspaceName ?? location.branch],
+    ["project", strings.filterProject, "Box", location.projectName],
+  ];
+  const filterItems = filters
+    ? filterRows.flatMap(([by, label, icon, detail]) => {
+        const on = filters.state[by];
+        return on === null ? [] : [{ key: `filter-${by}`, label, icon, detail: detail ?? undefined, checked: on, onSelect: () => filters.select(by) }];
+      })
+    : [];
   const sections: MenuSection[] = [
     {
       key: "open",
@@ -65,6 +82,12 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
       items: copies
         .filter((entry): entry is [string, string, string, string, string] => !!entry[4])
         .map(([key, label, toast, icon, text]) => ({ key, label, icon, onSelect: () => actions.copy(text, toast) })),
+    },
+    {
+      key: "filter",
+      items: filterItems.length
+        ? [{ key: "filter", label: strings.filter, icon: "ListFilter", submenu: [{ key: "filter", items: filterItems }] }]
+        : [],
     },
     {
       key: "actions",
@@ -161,8 +184,12 @@ export function CardContextMenu(props: {
                         style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 }}
                       >
                         {(typeof item.leading === "function" ? item.leading(color) : item.leading) ?? (item.icon ? <Icon name={item.icon} size={18} color={color} /> : null)}
-                        <Text style={{ flex: 1, fontSize: F.base, lineHeight: HOST_LINE.base, color }}>{item.label}</Text>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color }}>{item.label}</Text>
+                          {item.detail ? <Text numberOfLines={1} style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{item.detail}</Text> : null}
+                        </View>
                         {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{item.hint}</Text> : null}
+                        {item.checked ? <Icon name="Check" size={18} color={colors.accent} /> : null}
                       </Pressable>
                     );
                   })}
@@ -183,7 +210,7 @@ export function CardContextMenu(props: {
         sections={sections}
         theme={props.theme}
         width={CARD_MENU_WIDTH}
-        submenuWidth={STOP_SUBMENU_WIDTH}
+        submenuWidth={SUBMENU_WIDTH}
         top={up ? -height : 0}
         align={right ? "right" : "left"}
         onClose={props.onClose}
@@ -193,4 +220,5 @@ export function CardContextMenu(props: {
   );
 }
 
-const STOP_SUBMENU_WIDTH = 220;
+/** Stop's and Filter's submenus. */
+const SUBMENU_WIDTH = 220;

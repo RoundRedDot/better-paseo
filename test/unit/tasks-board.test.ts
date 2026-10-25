@@ -35,14 +35,14 @@ import {
   laneLayout,
   type LaneShape,
 } from "../../client/tasks/board/navigation";
-import { activeChips, buildFilterOptions, searchWorkspaceGroups, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, projectOptions, shownFilterOptions, toggleProject, type ChipGroup } from "../../client/tasks/board/filter-options";
+import { activeChips, buildFilterOptions, cardFilterState, filterToCard, searchWorkspaceGroups, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, projectOptions, shownFilterOptions, toggleProject, type ChipGroup } from "../../client/tasks/board/filter-options";
 import { boardPalette, buttonOutline, cubicBezier } from "../../client/tasks/board/board-style";
 import { restoredStops, withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { hostLanguage, resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18n";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { sampleCards } from "../../client/tasks/sample-cards";
-import { ACTIVE_LANE_ORDER, LANE_ORDER, type LaneId, type LaneModel } from "../../client/tasks/model";
+import { ACTIVE_LANE_ORDER, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import type { TasksHandle } from "../../client/tasks/data";
 
 const defaults = { hideSubtasks: false, doneWindow: "24h" as const };
@@ -409,6 +409,36 @@ describe("filter options", () => {
     expect(activeChips(picked, defaults, buildFilterOptions(tasks, picked), BOARD_STRINGS.zh).map((chip) => `${chip.kind}|${chip.value}`)).toEqual(["项目|payments-svc", "工作区|wks_gone"]);
     // Picked whole, it drops all its workspaces.
     expect(toggleProject(picked, again[0]!).workspaceIds).toEqual(["wks_gone"]);
+  });
+
+  it("filters the board to a card's agent, workspace or project from its menu", () => {
+    const workspaces = [
+      { id: "wks_p1", name: "main", projectId: "prj_pay", projectName: "payments-svc" },
+      { id: "wks_p2", name: "fix/refund", projectId: "prj_pay", projectName: "payments-svc" },
+      { id: "wks_w1", name: "main", projectId: "prj_web", projectName: "web" },
+    ];
+    const card = (provider: string, workspaceId: string | null, projectId: string | null) =>
+      ({ ...sampleCards()[0]!, provider, location: { ...sampleCards()[0]!.location, workspaceId, projectId } }) as TaskCard;
+    const pay = card("claude", "wks_p2", "prj_pay");
+    const start: BoardParams = { ...EMPTY_PARAMS, query: "refund", labels: ["bug"], providers: ["codex"], workspaceIds: ["wks_w1"] };
+    expect(cardFilterState(start, pay, workspaces)).toEqual({ agent: false, workspace: false, project: false });
+    // One filter becomes the card's; search and labels stay.
+    const agent = filterToCard(start, pay, workspaces, "agent");
+    expect(agent).toEqual({ ...start, providers: ["claude"] });
+    expect(cardFilterState(agent, pay, workspaces).agent).toBe(true);
+    // Workspace and project share the workspace filter: each replaces the other.
+    const workspace = filterToCard(agent, pay, workspaces, "workspace");
+    expect(workspace.workspaceIds).toEqual(["wks_p2"]);
+    const project = filterToCard(workspace, pay, workspaces, "project");
+    expect(project.workspaceIds).toEqual(["wks_p1", "wks_p2"]);
+    expect(cardFilterState(project, pay, workspaces)).toEqual({ agent: true, workspace: false, project: true });
+    // Chosen again while on, it clears that filter only.
+    expect(filterToCard(project, pay, workspaces, "project")).toEqual({ ...project, workspaceIds: [] });
+    expect(filterToCard(project, pay, workspaces, "agent")).toEqual({ ...project, providers: [] });
+    // A card without a workspace, or of a project Paseo does not list, has no such row and changes nothing.
+    const loose = card("claude", null, "prj_gone");
+    expect(cardFilterState(start, loose, workspaces)).toEqual({ agent: false, workspace: null, project: null });
+    expect(filterToCard(start, loose, workspaces, "project")).toBe(start);
   });
 
   it("folds several chips of one filter into a group where its first chip stood", () => {

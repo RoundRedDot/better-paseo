@@ -1635,6 +1635,28 @@ describe("TaskCardView actions", () => {
     expect(open).toEqual(["打开", "打开父任务", "显示父任务卡片"]);
   });
 
+  it("lists the board filters a card can apply under Filter, each naming its value", () => {
+    const card = sample("sample-running");
+    const select = vi.fn();
+    const sections = cardMenuSections(card, cardStrings("zh"), {
+      copy: () => {},
+      children: 0,
+      filters: { state: { agent: true, workspace: false, project: null }, select },
+    });
+    const filter = sections.find((section) => section.key === "filter")!.items[0]!;
+    expect(filter).toMatchObject({ label: "筛选", icon: "ListFilter" });
+    const rows = filter.submenu![0]!.items;
+    // The project row is left out: the card's project lists no workspaces.
+    expect(rows.map((item) => [item.label, item.detail, item.checked])).toEqual([
+      ["只看此 Agent", card.providerLabel, true],
+      ["只看此工作区", card.location.workspaceTitle ?? card.location.workspaceName ?? card.location.branch, false],
+    ]);
+    rows[1]!.onSelect!();
+    expect(select).toHaveBeenCalledWith("workspace");
+    // Without the board's filters (a static preview), no Filter group.
+    expect(cardMenuSections(card, cardStrings("zh"), { copy: () => {}, children: 0 }).some((section) => section.key === "filter")).toBe(false);
+  });
+
   it("draws a provider subagent's pill as an agent's when its line names an effort but no model", async () => {
     const base = sample("sample-running");
     const card: TaskCard = {
