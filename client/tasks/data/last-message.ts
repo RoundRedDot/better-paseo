@@ -16,56 +16,66 @@ import { turnRunning, type LaneId } from "../model";
 export type LastMessage = FirstPrompt;
 
 type Api = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "refetch"> } } };
+type Timeline = Pick<PaseoAgentTimelineHandle, "refetch">;
+/** How a versioned store reads its value off an agent's timeline. */
+export type TimelineRead<V extends Value = LastMessage> = (timeline: Timeline) => Promise<V>;
+/** What a versioned store holds: a read's states, plus whatever its reader adds. */
+type Value = LastMessage | { state: string };
 
 /** The tail rows read: tool rows can follow the last reply, the projection folding each call into one. */
 const TAIL_LIMIT = 40;
 
 const IDLE: LastMessage = { state: "idle" };
 const LOADING: LastMessage = { state: "loading" };
+/** Read once for its version: asked again only when the version moves. */
+const SETTLED = new Set(["ready", "loading", "first"]);
 
-interface Entry {
+interface Entry<V> {
   version: string;
-  value: LastMessage;
+  value: V;
   /** Bumped on each read, so a slower stale read cannot land over a newer one. */
   ticket: number;
 }
 
-interface Store {
-  read(agentId: string): LastMessage;
+interface Store<V extends Value = LastMessage> {
+  read(agentId: string): V;
   request(agentId: string, version: string): void;
   subscribe(listener: () => void): () => void;
 }
 
-export function createLastMessageStore(api: Api): Store {
-  const entries = new Map<string, Entry>();
+/** The latest reply: the last assistant message among the tail rows. */
+const readLastReply: TimelineRead = (timeline) =>
+  timeline.refetch({ direction: "tail", projection: "projected", limit: TAIL_LIMIT }).then((page) => {
+    if (page.error) return { state: "error" };
+    return lastReplyMessage(page.entries) ?? { state: "none" };
+  });
+
+/** A value read off a timeline once per version; `readValue` is the latest reply unless given another. */
+export function createLastMessageStore<V extends Value = LastMessage>(api: Api, readValue: TimelineRead<V> = readLastReply as TimelineRead<V>): Store<V> {
+  const entries = new Map<string, Entry<V>>();
   const listeners = new Set<() => void>();
   let tickets = 0;
   const notify = () => {
     for (const listener of [...listeners]) listener();
   };
   return {
-    read: (agentId) => entries.get(agentId)?.value ?? IDLE,
+    read: (agentId) => entries.get(agentId)?.value ?? (IDLE as V),
     request(agentId, version) {
       const known = entries.get(agentId);
-      if (known && known.version === version && (known.value.state === "ready" || known.value.state === "loading")) return;
+      if (known && known.version === version && SETTLED.has(known.value.state)) return;
       const ticket = ++tickets;
       // A newer version keeps showing the older reply until the tail answers.
-      const value = known?.value.state === "ready" ? known.value : LOADING;
+      const value = known?.value.state === "ready" ? known.value : (LOADING as V);
       entries.set(agentId, { version, value, ticket });
       if (value !== known?.value) notify();
-      const land = (next: LastMessage) => {
+      const land = (next: V) => {
         if (entries.get(agentId)?.ticket !== ticket) return;
         entries.set(agentId, { version, value: next, ticket });
         notify();
       };
-      api.agents
-        .ref(agentId)
-        .timeline.refetch({ direction: "tail", projection: "projected", limit: TAIL_LIMIT })
-        .then((page) => {
-          if (page.error) return land({ state: "error" });
-          land(lastReplyMessage(page.entries) ?? { state: "none" });
-        })
-        .catch(() => land({ state: "error" }));
+      readValue(api.agents.ref(agentId).timeline)
+        .then(land)
+        .catch(() => land({ state: "error" } as V));
     },
     subscribe(listener) {
       listeners.add(listener);

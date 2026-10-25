@@ -7,6 +7,7 @@ import { useHover } from "../../ui/use-hover";
 import { BrandMark, DETAIL_CARD, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { useFirstPrompt } from "../data/first-prompt";
+import { lastHumanMessageVersion, useLastHumanMessage } from "../data/last-human-message";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
 import { useSubagentTimeline } from "../data/subagent-timeline";
@@ -65,7 +66,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
     dispatch({ type: "jump", id: agentId });
     props.onReveal(agentId);
   };
-  const { firstPrompt, lastMessage, sessionTokens } = useDetailReads(board, card);
+  const { firstPrompt, humanMessage, lastMessage, sessionTokens } = useDetailReads(board, card);
   const stopAvailable = !!board.callbacks.onStop && card?.stoppable === true;
   const detailProps = card
     ? {
@@ -85,6 +86,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
         onJump: jump,
         firstPrompt,
         sessionTokens,
+        humanMessage,
         lastMessage,
         unarchive: board.unarchive.available ? board.unarchive : null,
         archive: board.archive,
@@ -131,15 +133,17 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
 }
 
 /**
- * What the details read from a task's timeline: its first prompt, latest
- * reply and running session's tokens. A provider subagent's come from the
- * plugin server, which reads its timeline off the daemon; it has no session
- * of its own to count.
+ * What the details read from a task's timeline: its first prompt, the last
+ * message a person sent, its latest reply and running session's tokens. A
+ * provider subagent's come from the plugin server, which reads its timeline
+ * off the daemon; it has no session of its own to count, and no person
+ * writes to it (its prompts are the parent's).
  */
 export function useDetailReads(board: BoardController, card: TaskCard | undefined) {
   const subagent = card?.subagent ? card : undefined;
   const agent = card && !card.subagent ? card : undefined;
   const firstPrompt = useFirstPrompt(board.paseo, agent?.id ?? "", agent !== undefined && agent.closed !== true);
+  const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? lastHumanMessageVersion(agent) : "", agent !== undefined && agent.closed !== true);
   const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", agent !== undefined && agent.closed !== true);
   const sessionTokens = useSessionTokens(agent?.id ?? "", agent !== undefined && turnRunning(agent) && agent.closed !== true);
   const subagentReads = useSubagentTimeline(
@@ -151,7 +155,7 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
     },
     subagent !== undefined,
   );
-  return subagent ? { ...subagentReads, sessionTokens: null } : { firstPrompt, lastMessage, sessionTokens };
+  return subagent ? { ...subagentReads, humanMessage: null, sessionTokens: null } : { firstPrompt, humanMessage, lastMessage, sessionTokens };
 }
 
 /**
