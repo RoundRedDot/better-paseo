@@ -2514,7 +2514,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
       const oldTop = endY + viewY + target + 6;
       const menuStyle = style(menu);
       expect(toolbarWidth - (style(overlay).right as number)).toBe(oldRightEdge);
-      expect(menuStyle).toMatchObject({ position: "absolute", top: oldTop, right: 0, width: 260, zIndex: 30 });
+      expect(menuStyle).toMatchObject({ position: "absolute", top: oldTop, right: 0, width: 230, zIndex: 30 });
     };
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     compare(width, width / 2, 6, 80, 2, target);
