@@ -1658,10 +1658,14 @@ describe("TaskCardView actions", () => {
     // Chosen for the details as any card; Open goes through the board, which opens the parent's.
     expect(onSelect).toHaveBeenCalledWith(card);
     expect(onOpen).not.toHaveBeenCalled();
-    // As any subtask: Open, and Open parent before it, both opening the parent's tab, since a subagent has none of its own.
-    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["打开父任务", "打开"]);
+    // A subagent has no tab of its own, so its Open would be its parent's: Open parent alone.
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["打开父任务"]);
     await act(async () => byLabel(tree.root, "打开父任务").props.onPress());
     expect(onOpen).toHaveBeenCalledWith(base.id);
+    // The phone's row too.
+    await act(async () => tree.update(cardElement(card, { onOpen, onSelect, onDetails, onStop, compact: true })));
+    expect(texts(hostByTestId(tree.root, "task-card-actions"))).toEqual(["打开父任务"]);
+    await act(async () => tree.update(cardElement(card, { onOpen, onSelect, onDetails, onStop })));
     expect(texts(hostByTestId(tree.root, "task-card-meta-parent"))).toEqual([base.title]);
     // Its id is a tool call's: the menu copies no session ID.
     const keys = cardMenuSections(card, cardStrings("en"), { copy: () => {}, open: () => {}, children: 0 }).flatMap((section) => section.items.map((item) => item.key));
@@ -2940,10 +2944,14 @@ describe("TaskDetailCards", () => {
     expect(onOpen).toHaveBeenLastCalledWith(parentId);
     await act(async () => desk.update(details(child, { onOpen, touch: true, stop: { phase: "idle", onPress: vi.fn() } })));
     expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["停止", "打开父任务", "打开"]);
-    // A provider subagent says "Open" too, as its card does: its tab is the parent's.
+    // A provider subagent's own tab is the parent's: "Open parent" alone, taking the row, as on its card.
     const subagent: TaskCard = { ...child, subagent: { subtitle: "Explore" } };
     await act(async () => desk.update(details(subagent, { onOpen })));
-    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["打开父任务", "打开"]);
+    expect(texts(hostByTestId(desk.root, "detail-actions"))).toEqual(["打开父任务"]);
+    expect(flat(hostByTestId(desk.root, "detail-open-parent").props.style)).toMatchObject({ flexGrow: 1 });
+    // Its parent archived, it has nothing to open.
+    await act(async () => desk.update(details({ ...subagent, parent: { ...child.parent!, archived: true } }, { onOpen })));
+    expect(desk.root.findAll((node) => node.props.testID === "detail-actions")).toEqual([]);
     // An archived parent's tab would not stay: no Open parent, as on the card.
     const archivedParent: TaskCard = { ...child, parent: { ...child.parent!, archived: true } };
     await act(async () => desk.update(details(archivedParent, { onOpen })));
@@ -2951,7 +2959,7 @@ describe("TaskDetailCards", () => {
     await act(async () => desk.unmount());
     renderer = null;
     const bar = await render(React.createElement(DetailActionBar, { card: subagent, theme: LIGHT, language: "zh", strings: BOARD_STRINGS.zh.sidebar, onOpen }));
-    expect(texts(hostByTestId(bar.root, "detail-action-bar"))).toEqual(["打开父任务", "打开"]);
+    expect(texts(hostByTestId(bar.root, "detail-action-bar"))).toEqual(["打开父任务"]);
     expect(flat(hostByTestId(bar.root, "detail-bar-open-parent").props.style)).toMatchObject({ borderColor: taskTokens(LIGHT).card.buttonBorder });
     await act(async () => hostByTestId(bar.root, "detail-bar-open-parent").props.onPress());
     expect(onOpen).toHaveBeenLastCalledWith(parentId);

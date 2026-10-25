@@ -605,10 +605,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const showRead = canRead && !compact && (TOUCH || hovered || readPending);
   // "Open tab" comes with them on a desktop card, or alone on one with neither;
   // a question's "Answer" already opens the tab.
-  const canOpen = !compact && !!props.onOpen && !(layout.permission && props.permissionButtons.some((button) => button.kind === "open"));
-  const showOpen = canOpen && (TOUCH || hovered || showStop || showRead);
   // A subtask's card adds "Open parent" before it, unless the parent is archived (Paseo would show another tab).
   const parentOpens = !!props.onOpen && parentOpensInPaseo(card);
+  // A provider subagent has no tab of its own: its Open would open the parent's, so "Open parent" is its only one.
+  const ownTab = !card.subagent;
+  const canOpen = !compact && !!props.onOpen && (ownTab || parentOpens) && !(layout.permission && props.permissionButtons.some((button) => button.kind === "open"));
+  const showOpen = canOpen && (TOUCH || hovered || showStop || showRead);
   // An archived task has Unarchive where Open tab was: Paseo opens it only once it is back.
   const canUnarchive = card.archived === "agent" && !!props.onUnarchive;
   const unarchivePending = props.unarchivePending === true;
@@ -1100,11 +1102,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       testID="task-card-archive"
     />
   );
-  const openParentButton = (onPhone: boolean) => (
+  const openParentButton = (onPhone: boolean, square = false) => (
     <CardButton
       label={strings.openParent}
       look="plain"
       icon="CornerLeftUp"
+      square={square}
       tokens={tokens}
       compact={onPhone}
       onPress={() => props.onOpen?.(card.parent!.id)}
@@ -1117,7 +1120,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       {footStop ? <StopControl {...stop} compact={false} line={buttonHeight} menuLeft={canOpen} /> : canRead ? <ReadControl {...read} compact={false} line={buttonHeight} /> : null}
       {canArchive ? archiveButton(false) : null}
       {canOpen && parentOpens ? openParentButton(false) : null}
-      {canOpen ? (
+      {canOpen && ownTab ? (
         <CardButton
           label={strings.openTab}
           look="plain"
@@ -1299,7 +1302,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // "Answer" already opens the tab, so it stands in for "Open tab". As in the
   // details sheet's bar, "Open tab" sits last, at the right, taking the room
   // Stop or Mark read leaves, and beside Allow and Deny it is a square icon.
-  const openTab = compact && !!props.onOpen && !buttons.some((button) => button.kind === "open");
+  const openTab = compact && !!props.onOpen && (ownTab || parentOpens) && !buttons.some((button) => button.kind === "open");
   const openSquare = openTab && buttons.length > 0;
   // Stop is as wide as its label beside a button that opens the tab ("Open tab" or "Answer").
   const stopHugs = (openTab && !openSquare) || buttons.some((button) => button.kind === "open");
@@ -1320,9 +1323,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {canStop ? <StopControl {...stop} compact hug={stopHugs} line={buttonHeight} menuLeft={openTab && buttons.length === 0} /> : null}
         {canRead ? <ReadControl {...read} compact hug={openTab} line={buttonHeight} /> : null}
         {canArchive ? archiveButton(true, openTab) : null}
-        {/* Beside Allow and Deny, where Open tab is a square, there is no room for it. */}
-        {openTab && !openSquare && parentOpens ? openParentButton(true) : null}
-        {openTab ? (
+        {/* Beside Allow and Deny, where Open tab is a square, there is no room for it; a subagent's, its only one, is the square. */}
+        {openTab && parentOpens && (!openSquare || !ownTab) ? openParentButton(true, openSquare) : null}
+        {openTab && ownTab ? (
           <CardButton
             label={strings.openTab}
             look="plain"
@@ -1386,7 +1389,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           strings={strings}
           theme={theme}
           actions={{
-            open: props.onOpen ? () => props.onOpen?.(card.id) : undefined,
+            open: props.onOpen && ownTab ? () => props.onOpen?.(card.id) : undefined,
             openParent: parentOpens ? () => props.onOpen?.(card.parent!.id) : undefined,
             revealParent: card.parent ? () => props.onReveal(card.parent!.id) : undefined,
             // Stop asks in a dialog first (unless confirm before stopping is off): there is no button to arm.

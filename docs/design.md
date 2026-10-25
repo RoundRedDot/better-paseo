@@ -506,8 +506,9 @@ A new action button takes a look from the table rather than its own colours.
 
 The details sidebar's header and the phone sheet's bar offer the card's buttons, with its labels
 and looks. A subtask whose parent's tab opens (`parentOpensInPaseo`) has "Open parent" right
-before Open tab, and Open tab reads "Open" on every card, a provider subagent's included (its
-tab is the parent's). Mark read takes Stop's place for a card in review, in the unread green
+before Open tab, and Open tab reads "Open". A provider subagent has no tab of its own (its Open
+would open the parent's), so "Open parent" is its only open button, taking Open tab's room, in its
+context menu too. Mark read takes Stop's place for a card in review, in the unread green
 (plain on a failed card). "Answer" stands in for Open tab, which then is not drawn beside it.
 The details may add only status hints such as "Already open".
 
