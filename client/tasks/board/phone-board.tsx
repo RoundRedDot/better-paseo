@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Animated,
+  LayoutAnimation,
   Platform,
   Pressable,
   View,
@@ -343,7 +344,18 @@ export function PhoneBoard(props: {
           label={strings.searchButton}
           active={searchOpen || board.params.query !== ""}
           theme={theme}
-          onPress={() => setSearchOpen((open) => !open)}
+          onPress={() => {
+            // A query keeps the field visible; animate only an actual visibility change.
+            if (!reduced && !board.params.query) {
+              LayoutAnimation.configureNext({
+                duration: 180,
+                create: { type: "easeOut", property: "opacity" },
+                update: { type: "easeInEaseOut" },
+                delete: { type: "easeOut", property: "opacity" },
+              });
+            }
+            setSearchOpen((open) => !open);
+          }}
         />
         <RoundButton
           icon={filters.hideSubtasks ? "List" : "Network"}
