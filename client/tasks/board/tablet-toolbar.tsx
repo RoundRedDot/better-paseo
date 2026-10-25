@@ -52,7 +52,7 @@ export function TabletToolbar(props: {
   const actionWidth = actionLayout?.width ?? 0;
   const compactActions = archivedShortcut ? 3 : 2;
   const minimumActionsWidth = compactActions * target + (compactActions - 1) * 6;
-  const separateFilters = actionWidth === 0 || actionWidth >= (compact ? minimumActionsWidth + target + 6 : 2 * target + 6);
+  const separateFilters = compact || actionWidth === 0 || actionWidth >= 2 * target + 6;
   const menuAnchor = toolbarWidth !== null && actionLayout && viewLayout ? {
     right: toolbarWidth - actionLayout.x - viewLayout.x - viewLayout.width,
     top: actionLayout.y + viewLayout.y + target + 6,
@@ -124,7 +124,7 @@ export function TabletToolbar(props: {
             </View>
           </View>
         </View>}
-        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch ? 0 : 1, flexBasis: expandedSearch ? "auto" : 0, minWidth: compact ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch ? 0 : 1, flexBasis: expandedSearch ? "auto" : 0, minWidth: compact ? minimumActionsWidth + target + 6 : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
         {archivedShortcut ? <ToolbarButton compact={compact} icon="Archive" label={strings.archivedLane.row} selected={board.showArchived} slashed={!board.showArchived} theme={theme} testID="toolbar-archived" onPress={() => board.setShowArchived(!board.showArchived)} /> : null}
         <ToolbarButton compact={compact} icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} theme={theme} testID="subtasks-toggle" onPress={() => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks }))} />
         {separateFilters ? <ToolbarButton compact={compact} icon="ListFilter" label={strings.filters} showLabel={labels} badge={count} theme={theme} testID="toolbar-filters" onPress={() => { close(); props.onFilters(); }} /> : null}
