@@ -344,6 +344,7 @@ function DetailHeader(props: Inner) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={props.strings.back(props.back.title)}
+          {...tipProps(props.strings.back(props.back.title))}
           onPress={props.back.onPress}
           testID="detail-back"
           style={{ minHeight: touch ? 36 : 24, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}
@@ -362,7 +363,7 @@ function DetailHeader(props: Inner) {
             {props.notice.text}
           </Text>
           {props.notice.action ? (
-            <Pressable accessibilityRole="button" onPress={props.notice.action.onPress} hitSlop={6}>
+            <Pressable accessibilityRole="button" {...tipProps(props.notice.action.label)} onPress={props.notice.action.onPress} hitSlop={6}>
               <Text style={{ fontSize: small, fontWeight: "500", color: tokens.accentText }}>{props.notice.action.label}</Text>
             </Pressable>
           ) : null}
@@ -564,6 +565,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={button.label}
+      {...tipProps(button.label)}
       onPress={props.onPress}
       {...hoverProps}
       style={{
@@ -620,6 +622,7 @@ function ErrorBlock(props: Inner) {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={words.copyError}
+            {...tipProps(words.copyError)}
             onPress={() => void copy(text, { label: "Copy error" })}
             hitSlop={6}
             style={{ width: 24, height: 24, marginRight: -6, alignItems: "center", justifyContent: "center", borderRadius: 6 }}
@@ -634,7 +637,7 @@ function ErrorBlock(props: Inner) {
             {body}
           </Text>
           {long ? (
-            <Pressable accessibilityRole="button" onPress={() => setOpen((was) => !was)} hitSlop={4} style={{ marginTop: 6, alignSelf: "flex-start" }}>
+            <Pressable accessibilityRole="button" {...tipProps(open ? words.showLess : words.showAll(lines.length))} onPress={() => setOpen((was) => !was)} hitSlop={4} style={{ marginTop: 6, alignSelf: "flex-start" }}>
               <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{open ? words.showLess : words.showAll(lines.length)}</Text>
             </Pressable>
           ) : null}
@@ -916,6 +919,8 @@ function Properties(props: Inner) {
           ) : undefined
         }
         onPress={jump}
+        tip={offBoard ? cardText.openParent : cardText.revealParent}
+        buttonTip={details.unarchive}
         accessibilityLabel={`${words.parent}: ${title}`}
         testID="detail-parent"
       />,
@@ -966,10 +971,12 @@ function PropertyRow(props: {
   tag?: string;
   /** A button at the row's end, in the card's style: an archived parent's Unarchive. */
   button?: React.ReactNode;
+  buttonTip?: string;
   action?: { icon: string; label: string; onPress(): void };
   copy?: { text: string; toast: string; label: string };
   link?: string;
   onPress?(): void;
+  tip?: string;
   accessibilityLabel?: string;
   testID?: string;
 }) {
@@ -1079,7 +1086,7 @@ function PropertyRow(props: {
         </View>
       ) : null}
       {trailing ? <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>{trailing}</View> : null}
-      {props.button ? <View style={{ alignSelf: "center" }}>{props.button}</View> : null}
+      {props.button ? <View {...tipProps(props.buttonTip)} style={{ alignSelf: "center" }}>{props.button}</View> : null}
     </>
   );
   const style: ViewStyle = {
@@ -1102,6 +1109,7 @@ function PropertyRow(props: {
     <Pressable
       {...(props.copy || props.link ? ROW_ROLE : { accessibilityRole: "button" as const })}
       accessibilityLabel={props.accessibilityLabel ?? (props.copy ? `${props.copy.label}: ${props.copy.text}` : props.label)}
+      {...tipProps(props.tip ?? (props.link ? words.openLink : props.copy?.label))}
       onPress={press}
       onLongPress={touch && props.link ? doCopy : undefined}
       delayLongPress={450}
@@ -1121,6 +1129,7 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
+      {...tipProps(props.label)}
       onPress={(event) => {
         event.stopPropagation();
         props.onPress();
@@ -1169,6 +1178,8 @@ function Subtasks(props: Inner) {
           {...time}
           accessibilityLabel={`${child.title} ${cardText.status[child.status]}`}
           openLabel={child.kind === "provider" ? cardText.openParentTab : props.strings.openTab}
+          pressTip={child.kind === "provider" ? cardText.openParentTab : words.locate}
+          openTip={child.kind === "provider" ? cardText.openParentTab : props.strings.openTab}
           onPress={subtaskPress(props, child)}
           onLongPress={touch && props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
           onOpen={props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
@@ -1203,6 +1214,7 @@ function MoreRow(props: { tokens: TaskTokens; label: string; note: string | null
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.note ? `${props.label} ${props.note}` : props.label}
+      {...tipProps(props.label)}
       accessibilityState={{ expanded: props.open }}
       onPress={props.onPress}
       {...hoverProps}
@@ -1270,7 +1282,7 @@ function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt | LastHum
       <View style={{ minHeight: props.touch ? 36 : 28, paddingHorizontal: 6, flexDirection: "row", alignItems: "center", gap: 8 }} testID={`${id}-state`}>
         {note ? <Text style={{ flexShrink: 1, fontSize: small, color: tokens.foregroundMuted }}>{note}</Text> : null}
         {retry ? (
-          <Pressable accessibilityRole="button" onPress={first.load} hitSlop={6} testID={`${id}-load`}>
+          <Pressable accessibilityRole="button" {...tipProps(words.promptLoad)} onPress={first.load} hitSlop={6} testID={`${id}-load`}>
             <Text style={{ fontSize: small, fontWeight: "500", color: tokens.accentText }}>{words.promptLoad}</Text>
           </Pressable>
         ) : null}
@@ -1300,7 +1312,7 @@ function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt | LastHum
       </View>
       <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
         {long ? (
-          <Pressable accessibilityRole="button" onPress={() => setOpen((was) => !was)} hitSlop={4} testID={`${id}-more`}>
+          <Pressable accessibilityRole="button" {...tipProps(open ? words.showLess : words.showAll(lines.length))} onPress={() => setOpen((was) => !was)} hitSlop={4} testID={`${id}-more`}>
             <Text style={{ fontSize: small, color: tokens.foregroundMuted }}>{open ? words.showLess : words.showAll(lines.length)}</Text>
           </Pressable>
         ) : null}
@@ -1308,6 +1320,7 @@ function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt | LastHum
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={props.copyLabel}
+          {...tipProps(props.copyLabel)}
           onPress={() => void copy(text, { label: props.copyToast })}
           hitSlop={6}
           testID={`${id}-copy`}
@@ -1398,6 +1411,7 @@ export function RoundIcon(props: { icon: string; label: string; size: number; to
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
+      {...tipProps(props.label)}
       accessibilityState={props.active === undefined ? undefined : { selected: props.active }}
       onPress={props.onPress}
       {...hoverProps}
@@ -1461,6 +1475,7 @@ function OutlineButton(props: {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
+      {...tipProps(props.label)}
       accessibilityState={props.busy ? { disabled: true, busy: true } : undefined}
       disabled={props.busy}
       onPress={props.onPress}

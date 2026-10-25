@@ -34,7 +34,7 @@ export function hintProps(key: string | undefined): ViewProps {
 }
 
 /**
- * A board toolbar control's hover tip: the text itself, on its own
+ * A board control's hover tip: the text itself, on its own
  * attribute, so the board's layer (`BoardTips`) never answers a card's marks.
  */
 export function tipProps(text: string | undefined): ViewProps {
@@ -69,11 +69,15 @@ export function placeHint(anchor: HintBox, card: { width: number; height: number
 }
 
 /**
- * Where a toolbar control's tip sits on the board: always below it, as the
- * bars are the board's top edge, and lined up with it as a card's hint is.
+ * A board control's tip opens below it, or above when the board's bottom
+ * leaves too little room. The board owns the layer, outside sidebar scrollers.
  */
 export function placeTip(anchor: HintBox, board: { width: number; height: number }): HintPlace {
-  return { top: anchor.top + anchor.height + GAP, ...alongside(anchor, board.width) };
+  const below = anchor.top + anchor.height + GAP;
+  const vertical = below + ROOM + EDGE > board.height && anchor.top >= ROOM + GAP + EDGE
+    ? { bottom: board.height - anchor.top + GAP }
+    : { top: below };
+  return { ...vertical, ...alongside(anchor, board.width) };
 }
 
 /** From the mark's left edge in the left half of `width`, else ending at its right edge. */
@@ -108,7 +112,7 @@ export function CardHints(props: { root: RefObject<View | null>; texts: RefObjec
 }
 
 /**
- * The desktop board's tips for its two bars' controls (`tipProps`): render
+ * The desktop board's tips for its toolbar and sidebar controls (`tipProps`): render
  * it last in the board, with the board's root, so a tip paints over the lanes.
  */
 export function BoardTips(props: { root: RefObject<View | null>; theme: PluginTheme; color: string }) {
@@ -176,12 +180,14 @@ function HintLayer(props: {
     card.addEventListener("pointerleave", leave);
     card.addEventListener("pointerdown", close);
     card.addEventListener("wheel", close, { passive: true });
+    card.addEventListener("scroll", close, true);
     return () => {
       clearTimeout(timer.current);
       card.removeEventListener("pointerover", over);
       card.removeEventListener("pointerleave", leave);
       card.removeEventListener("pointerdown", close);
       card.removeEventListener("wheel", close);
+      card.removeEventListener("scroll", close, true);
     };
   }, [root, attribute, place]);
   if (!shown) return null;
