@@ -288,11 +288,14 @@ function DetailHeader(props: Inner) {
   const unarchive = card.archived === "agent" ? props.unarchive ?? null : null;
   const archive = archivable(card) ? props.archive ?? null : null;
   const read = readable(card, stop, props.markRead);
-  const showActions = props.actions !== false && (!!props.onOpen || !!stop || !!read || !!unarchive || !!archive);
+  // A provider subagent has no tab of its own (its Open would open the
+  // parent's), so, as on its card, "Open parent" is its only open button.
+  const parentOpens = !!props.onOpen && parentOpensInPaseo(card);
+  const ownOpen = !!props.onOpen && !card.subagent;
+  const showActions = props.actions !== false && (ownOpen || parentOpens || !!stop || !!read || !!unarchive || !!archive);
   // Open tab takes the row's room: first on desktop, last on touch, where the
-  // phone's bar and the cards end with it too. Its label is the card's, a
-  // provider subagent's too: its tab is the parent's, as on the card.
-  const openButton = props.onOpen ? (
+  // phone's bar and the cards end with it too. Its label is the card's.
+  const openButton = ownOpen ? (
     <OutlineButton
       label={cardText.openTab}
       hint={card.openTab ? <OpenHint tokens={tokens} label={cardText.details.tabOpen} /> : null}
@@ -314,7 +317,7 @@ function DetailHeader(props: Inner) {
       height={m.button}
       font={m.font}
       tokens={tokens}
-      grow={!openButton}
+      grow={!openButton && !parentOpens}
       onPress={() => unarchive.press(card.id)}
       testID="detail-unarchive"
     />
@@ -329,24 +332,27 @@ function DetailHeader(props: Inner) {
       height={m.button}
       font={m.font}
       tokens={tokens}
-      grow={!openButton}
+      grow={!openButton && !parentOpens}
       onPress={() => archive.press(card.id)}
       testID="detail-archive"
     />
   ) : null;
   // A subtask's "Open parent" comes before Open tab, as on its card.
-  const openParent = props.onOpen && parentOpensInPaseo(card) ? (
+  const openParent = parentOpens ? (
     <OutlineButton
       icon="CornerLeftUp"
       label={cardText.openParent}
       height={m.button}
       font={m.font}
       tokens={tokens}
+      // A subagent's only open button takes the row's room, as Open tab does.
+      grow={!openButton}
       onPress={() => props.onOpen?.(card.parent!.id)}
       testID="detail-open-parent"
     />
   ) : null;
-  const lead = openButton ? (
+  const opens = !!openButton || !!openParent;
+  const lead = opens ? (
     <>
       {openParent}
       {openButton}
@@ -466,7 +472,7 @@ function DetailHeader(props: Inner) {
             />
           ) : null}
           {archiveButton}
-          {openButton ? unarchiveButton : null}
+          {opens ? unarchiveButton : null}
           {touch ? lead : null}
         </ActionRow>
       ) : null}
@@ -1578,12 +1584,14 @@ export function DetailActionBar(props: {
   const respond = buttons.filter((button) => button.kind === "respond");
   const answer = buttons.find((button) => button.kind === "open");
   const asking = respond.length > 0 || !!answer;
-  if (!onOpen && !stop && !read && !asking && !unarchive && !archive) return null;
+  // The card's buttons, in its words and looks: "Open parent" then "Open tab",
+  // a provider subagent's "Open parent" alone (its own tab is the parent's).
+  const parentOpens = !!onOpen && parentOpensInPaseo(card);
+  const ownOpen = !!onOpen && !card.subagent;
+  if (!ownOpen && !parentOpens && !stop && !read && !asking && !unarchive && !archive) return null;
   const open = () => onOpen?.(card.id);
-  // The card's buttons, in its words and looks: "Open parent" then "Open tab".
   const cardText = cardStrings(props.language);
   const openText = cardText.openTab;
-  const parentOpens = !!onOpen && parentOpensInPaseo(card);
   // Deny first, allow last: the main button sits under the thumb.
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
   return (
@@ -1602,7 +1610,10 @@ export function DetailActionBar(props: {
           ))}
           {/* "Answer" already opens the tab, so, as on the card, Open tab is the square beside Allow and Deny only. */}
           {answer ? <BarButton tokens={tokens} label={answer.label} arrow look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
-          {onOpen && !answer ? <BarButton tokens={tokens} arrow label={openText} square onPress={open} testID="detail-bar-open" /> : null}
+          {ownOpen && !answer ? <BarButton tokens={tokens} arrow label={openText} square onPress={open} testID="detail-bar-open" /> : null}
+          {!ownOpen && parentOpens && !answer ? (
+            <BarButton tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} square onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
+          ) : null}
         </>
       ) : (
         <>
@@ -1625,7 +1636,7 @@ export function DetailActionBar(props: {
               look={card.status === "failed" ? "plain" : "read"}
               label={cardText.markRead}
               busy={read.pending(card.id)}
-              grow={!onOpen}
+              grow={!ownOpen && !parentOpens}
               onPress={() => read.press(card)}
               testID="detail-bar-read"
             />
@@ -1637,7 +1648,7 @@ export function DetailActionBar(props: {
               look="archive"
               label={cardText.details.archive}
               busy={archive.pending(card.id)}
-              grow={!onOpen}
+              grow={!ownOpen && !parentOpens}
               onPress={() => archive.press(card.id)}
               testID="detail-bar-archive"
             />
@@ -1645,7 +1656,7 @@ export function DetailActionBar(props: {
           {parentOpens ? (
             <BarButton tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
           ) : null}
-          {onOpen ? <BarButton tokens={tokens} arrow label={openText} onPress={open} testID="detail-bar-open" /> : null}
+          {ownOpen ? <BarButton tokens={tokens} arrow label={openText} onPress={open} testID="detail-bar-open" /> : null}
           {unarchive ? (
             <BarButton
               tokens={tokens}
