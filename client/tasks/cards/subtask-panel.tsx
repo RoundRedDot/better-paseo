@@ -59,16 +59,20 @@ function NativeSubtaskPanel({ expanded, still, children }: PanelProps) {
     };
   }, [expanded, still, opacity]);
 
-  if (!expanded && !present) return null;
+  // The committed shell gives LayoutAnimation an existing view to resize on
+  // every expansion. Only the rows unmount, so no measurement commit is needed.
   return (
     <Animated.View
       testID="task-card-subtasks-panel"
+      collapsable={false}
       pointerEvents={expanded ? "auto" : "none"}
       accessibilityElementsHidden={!expanded}
       importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
       style={{ flexShrink: 0, overflow: "hidden", height: open ? undefined : 0, opacity }}
     >
-      <View style={{ flexShrink: 0 }}>{children}</View>
+      {expanded || present ? (
+        <View style={{ flexShrink: 0 }}>{children}</View>
+      ) : null}
     </Animated.View>
   );
 }

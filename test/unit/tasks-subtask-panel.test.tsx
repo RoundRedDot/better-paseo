@@ -77,8 +77,12 @@ describe.each(["ios", "android"])("native subtask panel motion (%s)", (os) => {
 
   it("animates layout and opacity on native without measurement and retains rows through collapse", async () => {
     await render();
+    const shell = panel();
+    expect(shell.props.collapsable).toBe(false);
+    expect(shell.props.style.height).toBe(0);
     expect(nodes("rows")).toHaveLength(0);
     await update(true);
+    expect(panel()).toBe(shell);
     expect(panel().props.style.height).toBeUndefined();
     expect(panel().props.style.opacity.__value).toBe(0);
     expect(nodes("task-card-subtasks-measure")).toHaveLength(0);
@@ -97,6 +101,11 @@ describe.each(["ios", "android"])("native subtask panel motion (%s)", (os) => {
     expect(nodes("rows")).toHaveLength(1);
     await act(async () => last().finish());
     expect(nodes("rows")).toHaveLength(0);
+    expect(panel()).toBe(shell);
+    expect(panel().props.style.height).toBe(0);
+    await update(true);
+    expect(panel()).toBe(shell);
+    expect(last()).toMatchObject({ to: 1, native: true });
   });
 
   it("reverses an unfinished collapse from its current progress and ignores the old completion", async () => {
