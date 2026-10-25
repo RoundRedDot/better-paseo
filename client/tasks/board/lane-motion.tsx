@@ -32,15 +32,21 @@
  * slide down into the gap instead of the whole list dropping as it shows
  * again. The browser scrolls back during layout, so the web measures it.
  */
-import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import React, { createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Animated, Platform, View } from "react-native";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { MOTION } from "./board-style";
 import { inView, planLaneMotion, sameCards, sameOrder, scrollBack, type LaneMove, type MotionFrame, type Rect } from "./lane-motion-plan";
 
-/** JS-driven: the cover's copies and the web's offsets are set from JS in the frame they belong to. */
-const nativeDriver = false;
 const COVER = Platform.OS !== "web";
+/** JS-driven: the web's offsets are set from JS in the frame they belong to. */
+const nativeDriver = false;
+/**
+ * A copy starts at rest, where render drew it, so nothing has to land in a
+ * particular frame: native copies move on the UI thread, and the lists
+ * mounting the new cards under the cover do not stall them.
+ */
+const ghostDriver = COVER;
 /** A cover outlives no animation by more than this, whatever happens to the callbacks. */
 const COVER_LIMIT_MS = 1200;
 
@@ -368,8 +374,9 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
       });
       const { byId, laneOf } = index(next);
       const origin = { x: viewport.x, y: viewport.y };
+      // The same objects, so a fade under way goes on rather than starting over.
       const kept = ghostList.filter((ghost) => ghost.fade === "out" && Number.isFinite(ghost.start));
-      const copies: Ghost[] = kept.map((ghost) => ({ ...ghost }));
+      const copies: Ghost[] = [...kept];
       const taken = new Set(kept.map((ghost) => ghost.key));
       for (const [id, rect] of before.frame.cards) {
         const lane = before.frame.laneOf.get(id);
@@ -531,59 +538,58 @@ export function LaneMotionLayer(props: { store: LaneMotionStore; renderCard(card
   return (
     <View ref={ref} collapsable={false} pointerEvents="none" style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, overflow: "hidden" }}>
       {ghosts.map((ghost) => (
-        <GhostCard key={ghost.key} ghost={ghost} onDone={store.finish}>
-          {props.renderCard(ghost.card)}
-        </GhostCard>
+        <GhostCard key={ghost.key} ghost={ghost} onDone={store.finish} renderCard={props.renderCard} />
       ))}
     </View>
   );
 }
 
-function GhostCard(props: { ghost: Ghost; onDone(key: string): void; children: ReactNode }) {
+/** Drawn again only when its own ghost changes: another copy landing or fading out leaves it, and its animation, alone. */
+const GhostCard = memo(function GhostCard(props: { ghost: Ghost; onDone(key: string): void; renderCard(card: TaskCard): ReactNode }) {
   const { ghost, onDone } = props;
-  const { origin } = ghost;
-  const [t] = useState(() => new Animated.Value(0));
+  // A value per ghost: a copy sent on from where it is starts at 0 in the
+  // draw that moves it, with no reset from an effect, which on the native
+  // driver would reach the screen before that draw.
+  const t = useMemo(() => new Animated.Value(0), [ghost]);
   useLayoutEffect(() => {
-    t.setValue(0);
     // A cover's copy waits, drawn where its card was, until it knows where to go.
     if (!Number.isFinite(ghost.start)) return;
     // Drawn a little after the move was planned: pick up where the card should be by now.
     const wait = Math.max(0, ghost.start - now());
     const elapsed = Math.min(ghost.duration, Math.max(0, now() - ghost.start));
-    const animation = Animated.timing(t, { toValue: 1, delay: wait, duration: ghost.duration - elapsed, easing: MOTION.ease, useNativeDriver: nativeDriver });
+    const animation = Animated.timing(t, { toValue: 1, delay: wait, duration: ghost.duration - elapsed, easing: MOTION.ease, useNativeDriver: ghostDriver });
     animation.start(({ finished }) => {
       if (finished) onDone(ghost.key);
     });
     return () => animation.stop();
   }, [ghost, t, onDone]);
-  const dx = ghost.to.x - ghost.from.x;
-  const dy = ghost.to.y - ghost.from.y;
-  const opacity =
-    ghost.fade === "out"
-      ? t.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })
-      : ghost.fade === "in"
-        ? t.interpolate({ inputRange: [0, 1], outputRange: [0, 1] })
-        : 1;
-  const scale = ghost.fade === "out" ? t.interpolate({ inputRange: [0, 1], outputRange: [1, 0.96] }) : 1;
-  return (
-    <Animated.View
-      style={{
-        position: "absolute",
-        left: ghost.from.x - origin.x,
-        top: ghost.from.y - origin.y,
-        width: ghost.to.width,
-        opacity,
-        transform: [
-          { translateX: t.interpolate({ inputRange: [0, 1], outputRange: [0, dx] }) },
-          { translateY: t.interpolate({ inputRange: [0, 1], outputRange: [0, dy] }) },
-          { scale },
-        ],
-      }}
-    >
-      {props.children}
-    </Animated.View>
-  );
-}
+  // One set of animated nodes per ghost: new ones on every draw would be attached to the native value again mid-flight.
+  const style = useMemo(() => {
+    const { origin } = ghost;
+    const dx = ghost.to.x - ghost.from.x;
+    const dy = ghost.to.y - ghost.from.y;
+    const opacity =
+      ghost.fade === "out"
+        ? t.interpolate({ inputRange: [0, 1], outputRange: [1, 0] })
+        : ghost.fade === "in"
+          ? t.interpolate({ inputRange: [0, 1], outputRange: [0, 1] })
+          : 1;
+    const scale = ghost.fade === "out" ? t.interpolate({ inputRange: [0, 1], outputRange: [1, 0.96] }) : 1;
+    return {
+      position: "absolute" as const,
+      left: ghost.from.x - origin.x,
+      top: ghost.from.y - origin.y,
+      width: ghost.to.width,
+      opacity,
+      transform: [
+        { translateX: t.interpolate({ inputRange: [0, 1], outputRange: [0, dx] }) },
+        { translateY: t.interpolate({ inputRange: [0, 1], outputRange: [0, dy] }) },
+        { scale },
+      ],
+    };
+  }, [ghost, t]);
+  return <Animated.View style={style}>{props.renderCard(ghost.card)}</Animated.View>;
+});
 
 /**
  * Where a lane's cards show, for the cards that fly to it: `node` answers the

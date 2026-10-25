@@ -11,7 +11,7 @@ import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
 import { tipProps } from "../cards/card-hints";
 import type { LaneId, TaskCard } from "../model";
 import { GLYPH_LINE, HAIRLINE, MOTION } from "./board-style";
-import { buildFilterOptions, filterSummary } from "./filter-options";
+import { filterSummary, readFilterOptions } from "./filter-options";
 import type { BoardStrings } from "./strings";
 import type { BoardController } from "./use-board";
 import { useCardMotion } from "./lane-motion";
@@ -211,7 +211,7 @@ export function SkeletonCard({ theme, opacity, index }: { theme: PluginTheme; op
  */
 export function LaneFilterHint({ board, lane, count, theme }: { board: BoardController; lane: LaneId; count: number; theme: PluginTheme }) {
   const { tasks, params, defaults, strings } = board;
-  const summary = useMemo(() => (count > 0 ? filterSummary(params, defaults, buildFilterOptions(tasks, params), strings) : ""), [count, tasks, params, defaults, strings]);
+  const summary = useMemo(() => (count > 0 ? filterSummary(params, defaults, readFilterOptions(tasks, params), strings) : ""), [count, tasks, params, defaults, strings]);
   if (count === 0) return null;
   const muted = theme.colors.foregroundMuted;
   return (
