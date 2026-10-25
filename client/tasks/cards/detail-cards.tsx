@@ -174,6 +174,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   unarchive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   /** Archive for a done task; absent where the board has none (the settings preview). */
   archive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
+  /** Mark read for a card in review, as on its card; absent where this host cannot. */
+  markRead?: DetailRead | null;
   /** The sections scroll under the fixed header (the sidebar); else the card grows with them (the sheet). */
   scrollBody?: boolean;
   /**
@@ -285,7 +287,8 @@ function DetailHeader(props: Inner) {
   // An archived task can be brought back; one of an archived workspace has nothing of its own to unarchive.
   const unarchive = card.archived === "agent" ? props.unarchive ?? null : null;
   const archive = archivable(card) ? props.archive ?? null : null;
-  const showActions = props.actions !== false && (!!props.onOpen || !!stop || !!unarchive || !!archive);
+  const read = readable(card, stop, props.markRead);
+  const showActions = props.actions !== false && (!!props.onOpen || !!stop || !!read || !!unarchive || !!archive);
   // Open tab takes the row's room: first on desktop, last on touch, where the
   // phone's bar and the cards end with it too. Its label is the card's, a
   // provider subagent's too: its tab is the parent's, as on the card.
@@ -446,6 +449,20 @@ function DetailHeader(props: Inner) {
               tokens={tokens}
               onPress={props.stop.onPress}
               testID="detail-stop"
+            />
+          ) : null}
+          {read ? (
+            <OutlineButton
+              icon="CheckCheck"
+              // An unread card's green; a failed card's stays plain, as on the card.
+              look={card.status === "failed" ? "plain" : "read"}
+              label={cardText.markRead}
+              busy={read.pending(card.id)}
+              height={m.button}
+              font={m.font}
+              tokens={tokens}
+              onPress={() => read.press(card)}
+              testID="detail-read"
             />
           ) : null}
           {archiveButton}
@@ -1547,6 +1564,7 @@ export function DetailActionBar(props: {
   onPermission?(button: PermissionButton): void;
   unarchive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   archive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
+  markRead?: DetailRead | null;
 }) {
   const { card } = props;
   const onOpen = opensInPaseo(card) ? props.onOpen : undefined;
@@ -1555,11 +1573,12 @@ export function DetailActionBar(props: {
   const archive = archivable(card) ? props.archive ?? null : null;
   const tokens = taskTokens(props.theme);
   const stop = stopLabel(props as TaskDetailCardsProps);
+  const read = readable(card, stop, props.markRead);
   const buttons = card.lane === "needs_input" && props.onPermission ? (props.permissionButtons ?? []) : [];
   const respond = buttons.filter((button) => button.kind === "respond");
   const answer = buttons.find((button) => button.kind === "open");
   const asking = respond.length > 0 || !!answer;
-  if (!onOpen && !stop && !asking && !unarchive && !archive) return null;
+  if (!onOpen && !stop && !read && !asking && !unarchive && !archive) return null;
   const open = () => onOpen?.(card.id);
   // The card's buttons, in its words and looks: "Open parent" then "Open tab".
   const cardText = cardStrings(props.language);
@@ -1599,6 +1618,18 @@ export function DetailActionBar(props: {
               testID="detail-bar-stop"
             />
           ) : null}
+          {read ? (
+            <BarButton
+              tokens={tokens}
+              icon="CheckCheck"
+              look={card.status === "failed" ? "plain" : "read"}
+              label={cardText.markRead}
+              busy={read.pending(card.id)}
+              grow={!onOpen}
+              onPress={() => read.press(card)}
+              testID="detail-bar-read"
+            />
+          ) : null}
           {archive ? (
             <BarButton
               tokens={tokens}
@@ -1629,6 +1660,13 @@ export function DetailActionBar(props: {
       )}
     </ActionRow>
   );
+}
+
+export type DetailRead = { pending(agentId: string): boolean; press(card: TaskCard): void };
+
+/** Mark read takes Stop's place, as on the card: a card in review is never stoppable. */
+function readable(card: TaskCard, stop: string | null, read: DetailRead | null | undefined): DetailRead | null {
+  return !stop && card.readable === true ? read ?? null : null;
 }
 
 /** A done task, not archived: Archive is offered for it. */

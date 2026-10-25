@@ -91,6 +91,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
         lastMessage,
         unarchive: board.unarchive.available ? board.unarchive : null,
         archive: board.archive,
+        markRead: board.read.available ? board.read : null,
       }
     : null;
 
