@@ -652,8 +652,7 @@ function SheetStep(props: { icon: string; label: string; disabled: boolean; onPr
  * not to intercept, which cancels Gesture Handler's pans). Only the lane
  * shown and its neighbours mount; a tab more than one lane away jumps.
  */
-// Sheet state belongs to PhoneBoard; opening it must not redraw the pages behind it.
-export const LanePager = React.memo(function LanePager(props: {
+export function LanePager(props: {
   lane: LaneId;
   board: BoardController;
   theme: PluginTheme;
@@ -740,10 +739,9 @@ export const LanePager = React.memo(function LanePager(props: {
       ))}
     </ScrollView>
   );
-});
+}
 
-// Also covers the web's single lane and pager layout changes with unchanged lane props.
-const PhoneLane = React.memo(function PhoneLane(props: {
+function PhoneLane(props: {
   lane: LaneModel;
   board: BoardController;
   theme: PluginTheme;
@@ -843,4 +841,4 @@ const PhoneLane = React.memo(function PhoneLane(props: {
       }
     />
   );
-});
+}

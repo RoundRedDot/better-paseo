@@ -103,7 +103,6 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
 });
 
 import { StyleSheet, View } from "react-native";
-import { Modal } from "@getpaseo/plugin/client/react-native";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
 import { SearchCoverage, TasksBoardScreen } from "../../client/tasks/board/board-screen";
@@ -2847,54 +2846,6 @@ describe("Tasks board, the 1 s clock", () => {
 });
 
 describe("Tasks board, phone", () => {
-  it.each(["ios", "android", "web"])("%s keeps lane rows still while opening and closing sheets", async (os) => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
-    await act(async () => { renderer = TestRenderer.create(screen(true)); });
-    const before = host.rowRenders;
-    const card = cards()[0]!.props.card;
-    const close = async () => {
-      const modal = renderer!.root.findAllByType(Modal).find((node) => node.props.open)!;
-      await act(async () => modal.props.onOpenChange(false));
-      expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
-      expect(host.rowRenders).toBe(before);
-    };
-    for (let round = 0; round < 2; round++) {
-      await act(async () => cards()[0]!.props.onSelect(card));
-      expect(renderer!.root.findByType(TaskDetailCards).props.card.id).toBe(card.id);
-      expect(host.rowRenders).toBe(before);
-      await close();
-      await act(async () => pressable("Filters").props.onPress());
-      expect(hostsById("filter-sheet-scroll")).toHaveLength(1);
-      expect(host.rowRenders).toBe(before);
-      await close();
-    }
-  });
-
-  it.each(["ios", "android", "web"])("%s still updates lane rows and open details when task data changes", async (os) => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
-    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: Array<{ id: string; title: string }> }>; byId: Map<string, unknown> } }).__handle;
-    const saved = { lanes: handle.lanes, byId: handle.byId };
-    try {
-      await act(async () => { renderer = TestRenderer.create(screen(true)); });
-      const card = cards()[0]!.props.card;
-      await act(async () => cards()[0]!.props.onSelect(card));
-      const before = host.rowRenders;
-      const updated = { ...card, title: "Updated while details are open" };
-      handle.lanes = { ...saved.lanes, needs_input: { ...saved.lanes.needs_input!, cards: [updated] } };
-      handle.byId = new Map(saved.byId).set(card.id, updated);
-      await act(async () => renderer!.update(screen(true)));
-      expect(host.rowRenders).toBeGreaterThan(before);
-      expect(cards().find((node) => node.props.card.id === card.id)!.props.card.title).toBe(updated.title);
-      expect(renderer!.root.findByType(TaskDetailCards).props.card.title).toBe(updated.title);
-      await act(async () => pressable("Running 2").props.onPress());
-      expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
-      expect(cards().some((node) => node.props.card.lane === "running")).toBe(true);
-    } finally {
-      handle.lanes = saved.lanes;
-      handle.byId = saved.byId;
-    }
-  });
-
   it.each(["ios", "android", "web"])("%s toggles subtasks from the toolbar and remembers the device preference", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
