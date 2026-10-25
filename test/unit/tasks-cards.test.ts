@@ -1641,18 +1641,22 @@ describe("TaskCardView actions", () => {
     const sections = cardMenuSections(card, cardStrings("zh"), {
       copy: () => {},
       children: 0,
-      filters: { state: { agent: true, workspace: false, project: null }, select },
+      filters: { state: { agent: true, workspace: false, project: false }, select },
     });
     const filter = sections.find((section) => section.key === "filter")!.items[0]!;
     expect(filter).toMatchObject({ label: "筛选", icon: "ListFilter" });
     const rows = filter.submenu![0]!.items;
-    // The project row is left out: the card's project lists no workspaces.
+    // Agent, project, then workspace: from the widest scope to the narrowest.
     expect(rows.map((item) => [item.label, item.detail, item.checked])).toEqual([
       ["只看此 Agent", card.providerLabel, true],
+      ["只看此项目", card.location.projectName, false],
       ["只看此工作区", card.location.workspaceTitle ?? card.location.workspaceName ?? card.location.branch, false],
     ]);
-    rows[1]!.onSelect!();
+    rows[2]!.onSelect!();
     expect(select).toHaveBeenCalledWith("workspace");
+    // A row whose value the card lacks is left out.
+    const noProject = cardMenuSections(card, cardStrings("zh"), { copy: () => {}, children: 0, filters: { state: { agent: false, workspace: false, project: null }, select } });
+    expect(noProject.find((section) => section.key === "filter")!.items[0]!.submenu![0]!.items.map((item) => item.key)).toEqual(["filter-agent", "filter-workspace"]);
     // Without the board's filters (a static preview), no Filter group.
     expect(cardMenuSections(card, cardStrings("zh"), { copy: () => {}, children: 0 }).some((section) => section.key === "filter")).toBe(false);
   });
