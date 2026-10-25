@@ -1,5 +1,124 @@
 # Design notes
 
+The design rules for everything the plugin draws: the chat timeline, block details, the Tasks board and the settings page. Numbers are points at the default text size and come from the code they name; when one changes, change it here in the same commit. What the board does and why lives in [tasks-board.md](tasks-board.md).
+
+## Foundations
+
+The plugin draws two families of surface: the chat timeline with its block details and settings
+(`client/components`, `client/ui`, `client/details`) and the Tasks board (`client/tasks`). They
+share the host theme, the motion tokens and the input model; each keeps its own type ramp and size
+constants. Moving a constant from one family to the other is a design change, not a cleanup.
+
+### Type
+
+| Family | Source | Steps (size/line) | Scaling |
+| --- | --- | --- | --- |
+| Chat chrome | `TYPE`, `UI_SCALE` (`client/ui/tokens/typography.ts`) | label 13/18; target 12/18 mono; meta 12/16 mono, tabular; caption 12/16; button 13/18; setting 15/22 touch, 14/20 desktop; settingNote 13/18; title 16/22 | fixed |
+| Chat prose | `proseScale(b)` | body b / even(1.5b); h1 ⌊1.5b⌋ and h2 ⌊1.25b⌋ (line +6); h3 b+1; secondary b−1; small and code b−2 | b is the host content size, else 15 web, 16 native |
+| Block rows | `blockMetrics` (`shared/preferences-settings.ts`) | the reader's block text size, 9–20, default 13 | row = label line +8 desktop, +10 touch (26/28 at 13) |
+| Tasks | `HOST_FONT`, `HOST_LINE` (`client/tasks/type-ramp.ts`), `TaskText` (`client/tasks/typography.tsx`) | sm 12/16 (`smRead` 12/18 for wrapping text), base 14/20, lg 16/22, xl 18/26, 2xl 20/28, 3xl 22/30 | × host UI size / 14 (default 14 web, 15 native), rounded, no clamp |
+
+- Draw board text through `TaskText` so it follows the host interface size. Grow a board control
+  with `taskControlHeight(h, scale)`, `round(h × max(1, scale))`: controls grow with large text and
+  never shrink below their authored size.
+- Chat chrome is never drawn below 12. Only block text that the reader sets below 12 goes lower.
+- The iPad floating sidebar is the one place the board scales type down (×0.9 through
+  `TasksTypographyScale`); its targets still use `max(1, scale)`.
+- Lane titles are base 14/20 on the web and sm 12/18 on native (`laneTitle`). Board monospace is
+  `TASK_MONO`: Menlo on iOS, `monospace` on Android, a `ui-monospace` stack on the web.
+
+### Space, radius and lines
+
+- Chat, details and settings space on `space` (4, 8, 12, 16; 24 only between settings sections)
+  and round on `radiusV2`: chip 4, block 6, card 8, overlay 12, bubble 16 with a 2 tail, pill full
+  (`client/components/theme-tokens.ts`).
+- The board keeps its own constants and does not read `space` or `radiusV2`: card 8
+  (`CARD_RADIUS`), lane panel 5 (`PANEL_RADIUS`), detail card 12 (`DETAIL_CARD`), menu 12
+  (`MENU.radius`), control rows 6, tablet toolbar buttons 7.
+- Lines: borders, dividers and pills are a hairline (`HAIRLINE`); action buttons are 0.5
+  (`BUTTON_LINE`, see [Buttons](#look)); a dashed subagent card and a card's inner block divider
+  are 1. `devicePixel()` gives one device pixel on the web.
+
+### Surfaces and states
+
+A state is a mix into the surface under it (`mix(from, to, t)`), never a translucent overlay, so
+it reads the same on any card. The board's card surface is `surface0` on a light theme and
+`surface2` on a dark one (`cardTokens`, `client/tasks/cards/tokens.ts`).
+
+| Token | Mix | Light / dark | Used for |
+| --- | --- | --- | --- |
+| `hoverBackground` | card → foreground | 4% | a hovered card, or one whose menu is open |
+| `controlHover` | card → foreground | 7% / 10% | round icons, a plain button's hover |
+| `current`, `currentBorder` | card → accent; border → accent | 7% / 10%; 45% | the card shown in the details |
+| `highlight` | card → accent | 8% / 12% | a card the board just pointed at, for 1 s, with an accent border |
+| `failed`, `failedHover`, `failedBorder` | card → danger; border → danger | 5% / 8%; 8% / 12%; 35% / 40% | a failed card |
+| `pillFill`, `pillBorder`, `buttonBorder` | card → foreground; border → foreground | 3.5% / 6%; 5% / 8%; 5% / 20% | neutral pills, outlines |
+| `rowHover`, `rowPress`, `sunk`, `track` (`detailColors`) | card → foreground | 5%, 8%, 2.5%, 9% | detail rows, hero blocks, bars |
+| Lane panel (`boardPalette`) | `surface1` dark; halfway `surface1` → `surface2` light | hover `surface2` | lanes |
+
+- When states stack on a card, the first applies: highlighted, current, failed, hovered, rest.
+- Card shadow: `0 1 2` at 6% (18% dark) at rest, `0 2 6` at 7% (26% dark) hovered.
+- Menu chrome (`menuChrome`): `surface0`, hairline border, hover foreground 5.5% (8% dark),
+  shadow `0 4 24` and `0 1 3` at 8% and 4% (45% and 30% dark). `panelChrome` reuses it.
+- Chat rows have no surface at rest: `surface1` hovered, `surface2` pressed or held. The chat's
+  `surface1` and `surface2` are the foreground at 2.5% and 4.5% (3% and 6% dark) over the page.
+
+### Motion
+
+Motion is short and decelerating; nothing bounces or overshoots. `motionDuration(ms, reduced)`
+returns 0 when the system asks for reduced motion (`useReducedMotion`, which follows
+`prefers-reduced-motion` on the web). Under reduced motion each animation snaps, holds still, or
+keeps a short fade, as listed.
+
+| Motion | Duration (ms) | Easing | Reduced motion |
+| --- | --- | --- | --- |
+| Chat expand (`FadeIn`) | 120 fade; height never animates, collapse unmounts | out cubic | none |
+| Preview entrance: hover previews, tips, a card's hover buttons (`PREVIEW_REVEAL`) | 140, 4 pt drift | `cubic-bezier(.33,1,.68,1)` | shown at once |
+| Board lane motion (`MOTION`, `lane-motion.tsx`) | slide 240, fly 300, leave 160; a new card fades in 120 after 120 | `cubic-bezier(.2,0,0,1)` | settles in place |
+| Count roll (`RollingCount`) | 300, 6 pt | | new value at once |
+| Lane resize, strip swap | 220, 160 | | resize snaps |
+| Lane flash | two pulses, 600 in and 800 out, accent 7% at peak | cosine | one still beat of 1 s |
+| Phone lane switch | in 200, out 120, 24 pt | | none |
+| Phone search; card subtask panel | 180; open 180, close 140 | `MOTION.ease`; out cubic | snaps |
+| Board sheet | open 280, detent 240, settle and close 200 | | 0 |
+| Block details (`DETAILS_MOTION`) | open 280, scrim 200, detent 240, close 200; side 240 in, 160 out, 24 pt; swipe 220 | `cubic-bezier(.2,0,0,1)` | a 120 fade |
+| Switch knob | 140 | | snaps |
+| Running ring, spinner | 900 per turn on one shared clock (12 steps on native) | linear | still |
+| Running dot | 1200 pulse, opacity 1 ↔ 0.3 (4 steps on native) | | |
+| Breathing skeleton | 1200, opacity 1 → 0.5 → 1 | | held at 1 |
+| Web hover transitions (`webTransition`) | 120 on background, border, shadow, colour, opacity | ease-out | still play (see [Open inconsistencies](#open-inconsistencies)) |
+
+### Focus, selection and scrollbars
+
+- Keyboard focus is neutral and outside the element. A card draws a 1 px `foregroundMuted`
+  outline 2 pt out on the web (a 1 px ring shadow on native), switched without a transition;
+  selection keeps the accent fill and border. A search field hides its input's outline and turns
+  its own hairline `foregroundMuted` while focused.
+- A pointer press never leaves a focus ring: `installPointerFocusRing` hides the outline for focus
+  that came from a press inside the plugin's root, keyboard focus keeps it, and text inputs are
+  exempt.
+- Reading content is selectable (`selectableSurface` overrides the host timeline's
+  `user-select: none`); chrome is not: icons, control labels and row verbs use `unselectable`.
+  Native has no inheritance, so each text there takes `selectableTextStyle`.
+- On the web a scroller hides its scrollbar while idle. A lane or details column shows a 6 pt
+  thumb (radius 3) while it scrolls and fades it out 800 ms after the last scroll (in 100, out
+  400); its gutter stays reserved so nothing shifts. A horizontal track (`h-scroll.tsx`) is 2 pt
+  and holds for 1 s. Native draws the platform indicator.
+
+### Input and touch targets
+
+- Hover comes from capability, not screen size: `useInputCapabilities` reports hover from
+  `(hover: hover) and (pointer: fine)` on the web and from a real hover on native (an iPad
+  pointer); touch is a coarse pointer or no hover. Every hover affordance has a touch equivalent:
+  a persistent button, a long press or a tap.
+- The board picks its touch sizes by platform: any native client is touch (`TOUCH`,
+  `Platform.OS !== "web"`), so an iPad draws desktop lanes with touch targets. The phone layout
+  (`compact`) is a separate switch.
+- Targets: chat rows reach 44 through hit slop; board toolbar buttons are 28 on the web and 36 on
+  native; detail rows, headings and buttons 32, 44 on touch; round icons 28, 36; chips 22, 28;
+  sidebar group rows 36, 44; card buttons 28, at least 32 on a phone; copy buttons 24 with a 32
+  hit area. A long press is 450 ms on a card and 500 ms on a chat row.
+
 ## Icons
 
 Every icon in the timeline is one line family: the host's Lucide set, drawn at the host's stroke.
@@ -123,6 +242,116 @@ hairline orbits) gives way to a Lucide icon. Decide it by the check below.
   Dropped and longest frames did not change.
 - The first row that shows a new mark draws an empty slot of the same size until the RPC answers,
   once per app launch.
+
+## Chat timeline
+
+### Rows
+
+Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEADER`,
+`client/ui/disclosure-header.tsx`).
+
+| Part | Rule |
+| --- | --- |
+| Height | 26 desktop, 28 touch; a 44 hit area on touch |
+| Bleed | 8 into the gutter on each side, padded 8 back; radius 6 |
+| Icon slot | 16 wide plus a 2 trailing pad around a 14 icon; text starts at 24 (`textColumn`) |
+| Verb | 13/18, weight 500 |
+| Target | 12/18 mono, cut in the middle at 72 characters (40 compact) |
+| Meta | 12/16 mono, tabular, at most 45% of the row, entries two spaces apart |
+| Group count | a 22 circle on `surface2`, 11/14 |
+
+- **Tone** (`rowPalette`): a finished row is quiet, its target muted and its meta and icon pulled
+  toward the page; a running row's target sits halfway to `foreground`; a row waiting on the
+  reader, and any hovered, pressed, open or current row, is full contrast.
+- **Status in the slot**: a running row draws the accent running dot; a failed row draws its icon
+  and its failure meta (`exit N`, `failed`, `timed out`) in `danger`, and while collapsed adds one
+  selectable error line under the text. Exit 0 reads `✓`, any other exit `✗ N`.
+- **States**: no frame or fill at rest, `surface1` hovered, `surface2` pressed or held. With a
+  pointer the chevron replaces the icon while the row is hovered; an open row keeps a down chevron
+  unless its icon reports status. A row with nothing to open is inert: it does not light up and
+  its text is selectable. `rowLabelStyle` may hide the verb or the icon; the slot stays, so the
+  text column never moves.
+- **Expanding**: tools start collapsed. A failure opens when the reader chose to expand failures,
+  and a child agent that needs permission always opens. The body is a `surface1` slab, radius 6,
+  padded 8 × 12, 2 above and 6 below, with no frame; a permission or warning body adds a 1 pt
+  border mixed 45% toward warning (`permissionBorder`). The body fades in and the row keeps its
+  place in the inverted native list (`useScrollAnchor`). A card taller than 60% of the viewport
+  pins its header on `surface0`, with a hairline once the header moves.
+- **Row actions**: with a pointer, copy buttons overlay the end of the target on the row's hover
+  fill, so the meta never moves, and their tips open above. On touch the actions show at the row's
+  end only while it is open; a collapsed row opens its menu on a long press (500 ms; a 10 pt move
+  cancels), which the web's context menu also opens.
+
+### Thoughts, todos and messages
+
+- **Thought** (`ReasoningCard`): a row, collapsed by default, with `Lightbulb` (the accent dot
+  while streaming). Streaming it reads `Thinking · <current section or last sentence>`, updated per
+  sentence, not per chunk; done, `Thought · N steps · 12s`. The body sits in the text column with
+  no box or rule; sections are 12 apart, titles 13/18 weight 500, and a paragraph over 600
+  characters clamps to 4 lines with Show more. A one-sentence thought that fits the row is inert.
+- **Todo list** (`client/components/task-list.tsx`): `ListChecks`, "Tasks", `n/m` mono and a 14
+  progress ring (accent on `surface2`); when all are done the ring becomes a success
+  `CircleCheck`. Items: the running dot in progress, a success `Check` when done, a warning
+  `TriangleAlert` when blocked, a 10 pt `foregroundSubtle` ring when pending. A done item is
+  muted, never struck through.
+- **User message**: a right-aligned `surface2` bubble, radius 16 with a 2 tail at the top right,
+  padded 16, at the content size with a 1.4 line height, at most 560 wide (86% on a phone). Its
+  trailing line holds Copy, the rewind menu, the time and the usage.
+- **Notice**: a row. Info is a muted `Info`, warning `TriangleAlert`, error `CircleX`, fatal
+  `OctagonX` at weight 500; error and fatal add a 2 pt left rule. Long or technical text opens in
+  a mono block on `surfaceCode`.
+- **Turn footer**: one line 24 high, 8 above and 16 below: Copy, the model with its provider logo,
+  the clock, the duration. On a phone it drops the clock, then the model, rather than wrap.
+- Rows take back 12 of the host's 16 between timeline items (`ROW_GAP_COMPENSATION`).
+
+### Markdown
+
+| Variant (`variantMetrics`) | Block gap | List indent | Tables |
+| --- | --- | --- | --- |
+| Document | 12 desktop, 16 touch | 20 | body − 1 |
+| Compact | 8 | 16 | body − 1 |
+| Terminal | 8 | 16 | mono, body − 2 |
+
+- Headings are weight 600; bullets are `•`, `◦`, `‣` by level; links are the accent, underlined;
+  quotes have a 2 pt left border and muted text, never italic.
+- Inline code is a `surface2` chip, radius 4, on the web. Native cannot pad inline text, so it
+  draws the code colour at weight 600 instead.
+- Code blocks: `surfaceCode`, radius 6, no border. A 30 header (32 native) carries the language,
+  Wrap and Copy (24 buttons; Copy shows a check for 1.2 s). Blocks start wrapped and fold after 12
+  lines; the document variant numbers blocks of 4 or more lines.
+- Tables: a 1 pt frame, radius 6; the header row on `surface2` with muted weight-500 text;
+  all-numeric columns right-aligned; sideways scroll with the indicator shown only while
+  scrolling. The copy control is a 30 square at the top left (radius 12); on the web it opens to
+  Copy as Markdown and Copy as image.
+- Paths (`PathText`): a pointer press reveals the file, and hovering shows the full path after
+  400 ms with an underline; a tap copies the absolute path with a toast.
+- Images: a `surfaceCode` card with a 28 header and a show/hide toggle, the canvas on `surface0`,
+  at most 480 tall inline; chips give the dimensions and size. The viewer is a 90% black backdrop,
+  zoom 0.25 to 8; a double tap resets, and a 96 pt drag, a flick, Escape or back closes it.
+- Selected text on the web raises a floating Copy / Add to chat bar; native uses the platform
+  menu.
+
+### Block details and previews
+
+| Form (`client/details/layout-model.ts`) | When | Width |
+| --- | --- | --- |
+| Drawer | narrower than 600 | full width, over a scrim |
+| Floating | 600 to 960, or no room beside the timeline | min(W − 32, 760) |
+| Side | 960 and wider, with room | clamp(0.36 W, 420, 640) |
+
+- Each breakpoint keeps 16 pt of hysteresis. A pointer click expands a row in place; the panel
+  opens from Open in panel or Open details. A tap opens the details, or the viewer for an image.
+- Header 44 pointer, 52 touch: a 28 `surface1` icon tile (radius 7, 16 icon), the title 14/20
+  weight 600, a subtitle with `i / n`, then previous, next and close. Toolbar 36, 44 on touch. The
+  current row in the timeline takes an `accentSoft` fill and a 2 pt accent bar.
+- Text size: on native a pinch sets an absolute size from 12 to 26 (default 14), and the Text size
+  badge, with − / + and Reset, stays 2 s after the fingers lift. The web has no pinch.
+- Hover preview: on the web it opens after the reader's hover delay (default 1 s) and closes
+  150 ms after the pointer leaves; it spans the content column 6 below the row, above it when
+  below has no room, at most 360 tall. Native opens it pinned on a long press. Its toolbar ends
+  with Maximize and Open in panel.
+- Copy buttons are a 24 box with a 14 icon and a 32 hit area, and show a plain check for 1.2 s.
+  Toolbar buttons are 24 with 14 icons and a tip after 400 ms.
 
 ## Colour
 
@@ -516,6 +745,149 @@ button, avoiding nested button markup.
   Browser fixtures and static/native-mock tests do not establish real-device
   acceptance; report device verification separately.
 
+## Board surfaces
+
+Three layouts share one card and one set of tokens. The desktop board is the web with a pointer.
+A tablet is any native client wide enough for two lanes: desktop lanes with touch rules and no
+hover. The phone layout (`compact`) shows one lane at a time. The colours, tints and buttons above
+apply to all three.
+
+### Card
+
+| Metric (`DESKTOP`, `PHONE` in `task-card.tsx`) | Desktop and tablet | Phone |
+| --- | --- | --- |
+| Padding (sides / top / bottom) | 12 / 10 / 12 | 14 / 12 / 14 |
+| Meta row to title; between rows | 5; 10 | 6; 12 |
+| Status icon slot / box | 14 / 16 | 18 / 20 |
+| Icons in the card | 12 | 14 |
+| Title | `laneTitle()`, weight 500, at most 2 lines | base 14/20, weight 500, at most 2 lines |
+| Meta and footer text | `sm` | `sm` |
+
+- Radius 8, a hairline border, the card shadow; fill, border and shadow follow
+  [Surfaces and states](#surfaces-and-states). Archiving changes only the status mark and the
+  actions, not the fill or the border.
+- The meta row is one muted line, segments joined by a spaced `›`; the context ring ends it, or
+  ends the title row when there is no meta row. On a phone the ring shows only above 80%.
+- A provider subagent's card is dashed (1 pt), with no shadow at rest; a subtask card carries the
+  [corner arc](#data-colours).
+- A new card fades in (120 after 120); a highlighted one keeps its accent fill and border for 1 s.
+- Actions by layout: on the desktop board they fade in on hover with the preview entrance, as an
+  overlay on the footer backed by the card's fill, and the footer keeps the buttons' height, so
+  nothing moves; on a tablet they always show, in their own right-aligned row under the timer; on
+  a phone they fill a row at the card's bottom with Open tab last. A desktop permission card puts
+  its answer buttons and footer on one row.
+
+### Lanes
+
+- Widths follow the lane width presets in [tasks-board.md](tasks-board.md) (`LANE_SIZES`), with 8 between lanes and 12 at
+  the board's edges (`LANES`). On touch the gap between lanes is itself a target.
+- A lane is a panel of radius 5 on the lane fill. Its header is 40 high, padded 14 left and 8
+  right: the status icon (14), the name (`laneTitle`, weight 500), a muted rolling count, and a
+  24 collapse button (radius 6, `FoldHorizontal`). A history lane names its time range at `sm`.
+  While loading, the count is a 14 × 10 `surface2` bar.
+- A collapsed lane is a 40 strip: the status icon, the name set vertically (Chinese stacked
+  upright, Latin turned 90° with 1 of letter spacing) and the count.
+- Cards are 12 apart. Loading draws three breathing skeleton cards (radius 6, `surface2` bars).
+- An empty lane draws `BoardEmptyState`: a dashed hairline box, radius 8, padded 28 × 20 (16 when
+  narrow), a 20 muted icon, the title at weight 600 and a centred `sm` hint; a phone adds a 36
+  Clear filters pill. A filter-hidden count sits under the cards as a `ListFilter` note in `sm`.
+- Load more is a 26 pill (36 on a phone) with a hairline border, `surface1` hovered.
+
+### Toolbars
+
+| Toolbar | Height | Targets | Contents |
+| --- | --- | --- | --- |
+| Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 220 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
+| Tablet (`TabletToolbar`) | 56, 36 when narrower than 680 | 44, 28 when narrow | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when on or hovered |
+| Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
+
+- Round buttons (`RoundButton`) are a 36 circle in a 44 target with a hairline, an accent border
+  when active, and a badge at least 20 high on the accent with a 2 pt `surface0` ring.
+- An on/off switch in a toolbar is a round button whose icon tells the state; Archived is struck
+  through while the lane is hidden. Segmented controls (`Segments`) are 28 high on the desktop
+  (radius 6, inner 4), 32 and fully round on a phone, the chosen cell on `surface2`.
+- The phone's search is a 36 pill under the header; the lane switcher is a segmented bar on the
+  lane fill whose chosen cell is raised as a card (card fill, border and shadow, weight 600), with
+  the needs-input count in the warning colour.
+
+### Menus and sheets
+
+- `CascadeMenu` (`board/menu.tsx`, `MENU`): menu chrome, radius 12, rows 32 (44 with a detail
+  line) of radius 6 with 16 icons, at most 420 tall, 8 from the screen's edge. A submenu opens
+  after 150 ms of hover or on a click, aligned to its row's top and overlapping the parent by 4,
+  toward the side with room. Arrow keys, Enter and Escape work; a press outside closes it. Danger
+  rows take the danger colour; a check is the accent.
+- On touch every row is at least 44 and submenus become a drill-down in the same panel, with a
+  `›` hint and a Back row (`touchSections`).
+- The card menu opens at the pointer on the web (240 wide, submenus 220), flipping at the edges.
+  On touch a long press opens it in the host `Modal` titled with the card, its submenus flattened,
+  rows at least 44 with 18 icons.
+- The filter sheet opens in the host `Modal` on phones, tablets and narrow web boards: sections
+  padded 16 with muted `sm` titles, chips 32 high (radius 4, accent border and `accentSoft` when
+  on), toggle rows 48, sort rows 44, and a pinned footer of Reset and an accent Show pill, both 44.
+
+### Details
+
+- The sidebar (`sidebar-model.ts`) is inline from 1020, floating below 996 down to 784 and a bottom
+  sheet below 760; between those pairs it keeps its current form. Inline it is 380 wide (340 to
+  520, a double click restores 380) and slides 12 in over 180; floating it is a radius-16 panel on
+  the lane fill with the menu shadow, entering with a 24 slide over 220. The iPad floating panel
+  is 340 (320 to 480) with a 24 grab strip.
+- The web resize handle is a 1 px line that shows after 100 ms of hover and follows the pointer.
+- The board sheet has a 58% half detent; full height leaves 8 of the lanes showing; radius 16 on
+  top, a 36 × 5 handle.
+
+| Metric (`DETAIL_CARD`, `TOUCH_CARD`) | Pointer | Touch |
+| --- | --- | --- |
+| Row, heading, button | 32 | 44 |
+| List row | 30 | 44 |
+| Icon | 16 | 18 |
+| Chip | 22 | 28 |
+| Round icon | 28 | 36 |
+
+- A detail card is the card fill with a hairline border, radius 12, the rest shadow, 8 between
+  cards and 12 × 6 inside. The header is padded 12: the status row (icon 14, the status, close),
+  the title at base weight 600, chips and labels, and the actions 12 below. Open tab leads on the
+  desktop and comes last on touch.
+- Hero blocks (the running turn, a permission request, an error, the last turn's summary) are
+  `sunk` boxes of radius 10 with a 1 pt border; an error box is the danger at 6% with a border at
+  28%. Values are 2xl in the turn hero and lg in summary tiles.
+- Sections are divided by a hairline inset 12; a heading is a radius-6 row whose chevron turns −90°
+  when closed and whose muted text turns `foreground` on hover. A message heading ends with the
+  message's own time, and its tip gives the full timestamp.
+- Message bodies sit in a `sunk` box of radius 8 and fold after 4 lines or 240 characters under a
+  fade; while the timeline is read they breathe as a skeleton instead of saying Loading.
+- Charts: the context bar is 6 high (radius 3) with ticks at 75% and 90%; the token bar is 8-high
+  segments 2 apart (cached accent 32%, input accent, output foreground 45%). On touch their tips
+  show on tap and hide after 3 s.
+- With no card chosen, the sidebar shows stat cells (at least 56, 64 on touch, radius 8, the count
+  at xl; needs input with a warning border and count) and the group card: round 28 segments (36 on
+  touch) over group rows of 36 (44), radius 6, `surface2` when on.
+- A phone's details sheet has a 40 stepper and an action bar of 48 buttons (radius 12) over a
+  hairline.
+
+### Status marks
+
+`StatusIcon` (`cards/status-icon.tsx`) draws the same marks in lane headers, cards, the phone's
+lane switcher, the sidebar entry and subtask rows:
+
+| State | Mark |
+| --- | --- |
+| Running | a 1.5 ring, track 30%, a 90° head at 90%, a 6 centre dot; 900 ms a turn on one shared clock |
+| Needs input | a hollow amber ring |
+| Unread | a 6 green dot |
+| Failed | an 8 danger dot |
+| Done | a green `CircleCheck` |
+| Stopped from the board | a muted square, 0.75 of the mark |
+| Archived | a muted `Archive` |
+
+- The mark is 12 in a 16 box, ×0.75 below 16, and 12 plus half the extra above it.
+- `SpinnerRing` is the running ring without its dot, for working buttons.
+- `ContextRing` draws from tinted sprites (14 on cards, 12 in subtask rows): muted, warning from
+  70% on cards (75% in subtask rows), danger above 90%.
+- `RollingCount` rolls a changed number 6 pt over 300 ms, up when it grows and down when it
+  shrinks; `RollingTotal` rolls only on the web.
+
 ## Hover tips
 
 On a web pointer layout a control names its action in a tip: the board toolbar, the details
@@ -546,6 +918,27 @@ and toggles once on keyup; repeats, modified or composing keys and a blur in bet
 nothing, and Enter stays with RNW's own press. `SwitchTrack` slides its knob in 140 ms and
 snaps when the system asks for reduced motion.
 
+## Settings
+
+The settings page (`client/settings-page.tsx`, `client/settings-controls.tsx`) is one screen
+with a Chat and a Tasks tab.
+
+| Control | Rule |
+| --- | --- |
+| `Toggle` | the 40 × 24 `SwitchTrack` with an 18 knob, a 10 hit slop; see [Switches](#switches) |
+| `Segmented` | a `surface2` track padded 2, radius 6, 28 high (32 on touch, equal widths); the chosen segment on `surface0` with a border, weight 500 |
+| `PlainButton` | at least 32 high, 1 pt border, radius 6, 13 weight 500 muted; `surface2` pressed, 0.4 opacity disabled |
+| Section | a muted 13 weight-500 title over a `surface1` card of radius 8, bordered on the desktop, a grouped list on touch |
+| Setting row | at least 44 on touch, padded 11, rules inset 16; padded 14 × 16 on the desktop, its control wrapping under the text when narrow; 0.45 opacity disabled |
+
+- From 960 wide the page has two columns: the preview takes 44% (380 to 640) and stays in view on
+  the web. The preview card has a `surface1` header with a Desktop / Mobile control; Mobile draws a
+  390-wide phone frame of radius 16.
+- Accent swatches are 22 in 44 targets. Tasks field chips are pills at least 28 high (34 compact),
+  with the accent border and a 10% (20% dark) accent fill when on.
+- Resetting asks twice: Reset needs a second press within 4 s and its note turns warning while
+  armed; the Tasks Restore asks again in place with Cancel.
+
 ## Device board preferences
 
 Show subtasks, Show archived lane, Show groups with no active tasks, and Lane width are
@@ -557,3 +950,21 @@ from the old host settings; later host updates never override it. Keep the old h
 unchanged when saving unrelated shared settings. Restore defaults resets the four local
 preferences too. A failed local write reports an error and rolls back its value rather than
 claiming it was saved.
+
+## Open inconsistencies
+
+The code disagrees with itself or with its comments in these places. Each needs a decision before
+it is designed against; until then the code's behaviour above is what ships.
+
+- `webTransition` (card and button hover) and the lane strip swap fade (`lane-resize.tsx`) play
+  under reduced motion, while every other animation honours it.
+- `accentRing` (`client/tasks/cards/tokens.ts`) is described as the focus ring but nothing reads
+  it; focus is the neutral 1 px outline.
+- The phone lane switcher computes and animates an underline (`underlineX`, `underlineScale` in
+  `phone-board.tsx`) that is never drawn; the chosen cell is raised instead.
+- `InputCapabilities.touch` documents 32 px targets; the board uses 36 to 44 on touch.
+- `UI_SCALE` says nothing is drawn below 12, but block text may be set down to 9.
+- `ReasoningCard`'s comment gives an expanded thought a 1 px frame and a divider; its styles draw
+  neither ("no box, no rule").
+- The motion module's header lists three kinds of motion; the board keeps its own `MOTION` table
+  beside it.
