@@ -35,7 +35,7 @@ import { BUTTON_LINE, buttonOutline } from "../board/board-style";
 import { panelChrome } from "./panel";
 import { cardStrings, subtaskSummary } from "./strings";
 import { TagMark } from "./tag-mark";
-import { pillTint, taskTokens, type TaskTokens } from "./tokens";
+import { pillTint, readableOn, taskTokens, type TaskTokens } from "./tokens";
 import { mix, withAlpha } from "../../components/theme-tokens";
 
 export interface CardCallbacks {
@@ -427,6 +427,19 @@ const CARD_RADIUS = 8;
  * ring by about 8 pt, and by more on a phone's wider padding.
  */
 export const CORNER_MARK = 16;
+/** The mark's hue reads at least this far from the card before it is faded (a black logo on a dark card). */
+const MARK_CONTRAST = 3;
+
+/**
+ * The subtask mark's hue: an uploaded icon's theme colour (worked out by the
+ * server; grey until then, or when it cannot be read), or the generated
+ * square's identity colour, so it matches the avatar beside it. Pulled toward
+ * the foreground until it stands off the card.
+ */
+export function markHue(location: TaskCard["location"], hostId: string | null | undefined, tokens: TaskTokens): string {
+  const hue = location.projectIcon ? location.projectIconColor ?? tokens.foregroundMuted : identityColor(projectViewKey(location, hostId));
+  return readableOn(hue, [tokens.card.background], tokens.foreground, MARK_CONTRAST);
+}
 const ariaHidden = (): ViewProps =>
   Platform.OS === "web" ? ({ "aria-hidden": true } as ViewProps) : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" };
 
@@ -588,9 +601,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A provider subagent's card is drawn dashed and flat at rest: it stands for work inside its parent's session.
   const dashed = !!card.subagent;
   // A subtask's card (a Paseo agent with a parent) marks its top-right corner in its project's colour, faded.
-  const cornerMark = card.parent !== null && !card.subagent
-    ? withAlpha(identityColor(projectViewKey(card.location, props.hostId)), tokens.isDark ? 0.5 : 0.4)
-    : null;
+  const cornerMark = card.parent !== null && !card.subagent ? withAlpha(markHue(card.location, props.hostId, tokens), tokens.isDark ? 0.5 : 0.4) : null;
   const shadows = lit ? [look.shadowHover] : dashed ? [] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
   if (props.focused && !WEB) shadows.push(`0px 0px 0px 1px ${tokens.foregroundMuted}`);

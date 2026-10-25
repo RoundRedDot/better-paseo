@@ -203,6 +203,14 @@ export const tasksProjectIconsRpc = defineRpc({
   name: "tasks.project-icons",
   input: z.object({ projectIds: z.array(z.string().min(1)).min(1).max(200) }),
   output: z.object({
-    icons: z.array(z.object({ projectId: z.string(), icon: z.object({ data: z.string(), mimeType: z.string() }).nullable() })).nullable(),
+    icons: z
+      .array(
+        z.object({
+          projectId: z.string(),
+          // `color`: the icon's theme colour (`#rrggbb`) for the subtask mark, null when it cannot be read.
+          icon: z.object({ data: z.string(), mimeType: z.string(), color: z.string().nullable().optional() }).nullable(),
+        }),
+      )
+      .nullable(),
   }),
 });

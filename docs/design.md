@@ -150,7 +150,7 @@ teal, red, amber, blue). Each set has its own job; taking the wrong one is the m
 | Label | Paseo's bright identity set, by the label's colour name; the daemon's definitions come through `tasks.labels` | as listed in `LABEL_COLORS` | same |
 | Label the daemon gives no colour | a Linear label colour, picked by name, distinct until the 10 run out (`client/tasks/label-colors.ts`) | | |
 | Project icon | Paseo's base identity set, hashed from the project key as Paseo does | | |
-| Subtask corner mark | the card's project icon colour, faded; a 16 pt triangle over a subtask card's top-right corner (`CornerMark` in `task-card.tsx`). The context ring keeps its place; a provider subagent's card is dashed instead | 40% | 50% |
+| Subtask corner mark | the project icon's theme colour, faded: an uploaded icon's most common lively colour (else its most common colour that is not white), read by the server in `tasks.project-icons` (`server/tasks/icon-color.ts`); a generated square's identity colour. Pulled to 3:1 against the card first, so a black logo shows on a dark card. A 16 pt triangle over a subtask card's top-right corner (`CornerMark` in `task-card.tsx`); the context ring keeps its place, and a provider subagent's card is dashed instead | 40% | 50% |
 | Provider | the vendor's brand colour (`client/components/provider-logo.tsx`); a monochrome mark takes `foreground` | | |
 | Branch | the plugin's own (GitHub's link blue); Paseo has none | `#0969da` | `#4493f8` |
 | Archive | the plugin's own (Tailwind yellow), kept clear of the warning orange | `#eab308` | `#facc15` |

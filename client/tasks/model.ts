@@ -62,6 +62,8 @@ export interface TaskLocation {
   projectName: string | null;
   /** A `data:` URI of the project's icon, or null for the letter avatar. */
   projectIcon: string | null;
+  /** The icon's theme colour (`#rrggbb`) when the server could read it; absent or null otherwise. */
+  projectIconColor?: string | null;
   workspaceId: string | null;
   /** Null when equal to the project name or the task title (spec: 去重). */
   workspaceName: string | null;

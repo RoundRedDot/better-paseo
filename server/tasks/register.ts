@@ -5,6 +5,7 @@ import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
+import { iconThemeColor } from "./icon-color";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
 import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
@@ -138,7 +139,7 @@ async function directoryExists(path: string): Promise<boolean> {
   }
 }
 
-type ProjectIconEntry = { projectId: string; icon: { data: string; mimeType: string } | null };
+type ProjectIconEntry = { projectId: string; icon: { data: string; mimeType: string; color: string | null } | null };
 
 /**
  * The projects' icons over one daemon connection; null when it cannot be
@@ -159,7 +160,7 @@ async function readProjectIcons(host: HostDaemonAccess, projectIds: readonly str
       [...new Set(projectIds)].map(async (projectId): Promise<ProjectIconEntry> => {
         const result = await getProjectIcon(projectId).catch(() => null);
         const icon = result?.icon;
-        return { projectId, icon: icon ? { data: icon.data, mimeType: icon.mimeType } : null };
+        return { projectId, icon: icon ? { data: icon.data, mimeType: icon.mimeType, color: iconThemeColor(icon.data, icon.mimeType) } : null };
       }),
     );
     return await Promise.race([read, timeout]);
