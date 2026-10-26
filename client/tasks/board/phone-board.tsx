@@ -25,7 +25,7 @@ import { BoardEmptyState } from "./empty-state";
 import { CardCell, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { buildFilterOptions, clearedParams } from "./filter-options";
-import { FilterSheetBody } from "./filter-sheet";
+import { FilterSheetBody, FilterSheetHeaderActions } from "./filter-sheet";
 import { PhoneSearch } from "./phone-search";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
@@ -509,7 +509,7 @@ export function PhoneBoard(props: {
         </View>
       ) : null}
       {/* The host draws a sheet in its own portal, outside the board's type scale: each sheet carries its own. */}
-      <Modal title={strings.filters} open={sheet?.kind === "filters"} onOpenChange={(open) => !open && setSheet(null)}>
+      <Modal title={strings.filters} headerActions={<FilterSheetHeaderActions board={board} theme={theme} />} open={sheet?.kind === "filters"} onOpenChange={(open) => !open && setSheet(null)}>
         <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
             {sheet?.kind === "filters" && options ? <FilterSheetBody board={board} theme={theme} options={options} hideSubtasksToggle showEmptyGroupsToggle focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
