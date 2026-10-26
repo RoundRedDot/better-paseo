@@ -120,6 +120,7 @@ export function SidePanel(props: {
             width,
             backgroundColor: tokens.surface0,
             borderLeftColor: palette.border,
+            boxShadow: `-12px 0px 24px -12px rgba(0, 0, 0, ${tokens.isDark ? 0.5 : 0.12})`,
             opacity,
             transform: [{ translateX: shift }],
           },
