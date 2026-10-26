@@ -231,7 +231,7 @@ export interface TaskCard {
   waitingOnSubtasks?: boolean;
   /** Some client reports an open tab for it (`paseo.open-agent-tab.*` is "true"). */
   openTab: boolean;
-  /** False when the agent is idle or closed; Stop shows only when true. */
+  /** Whether this agent itself can be stopped; active descendants have their own stop targets. */
   stoppable: boolean;
   /**
    * In the review lane, so Mark read shows: it clears the daemon's attention

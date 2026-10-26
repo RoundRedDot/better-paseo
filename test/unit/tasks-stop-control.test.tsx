@@ -139,4 +139,21 @@ describe("split Stop button", () => {
     expect(flat(button(root, "Stop"))).toMatchObject({ borderWidth: 0.5, borderColor: THEME.colors.statusDanger });
     expect(root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-divider")).toHaveLength(0);
   });
+
+  it.each(["ios", "android", "web"])("offers a single children-only stop for an idle parent on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const card = { ...CARD, stoppable: false, waitingOnSubtasks: true };
+    const onStop = vi.fn();
+    const root = await render({ card, onStop });
+    expect(button(root, "Stop subtasks")).toBeTruthy();
+    expect(root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-divider")).toHaveLength(0);
+    expect(root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Stop options")).toHaveLength(0);
+    await act(async () => button(root, "Stop subtasks").props.onPress());
+    expect(onStop).toHaveBeenCalledWith(card, { withChildren: true });
+  });
+
+  it("offers no stop for an idle parent with only provider subagents", async () => {
+    const root = await render({ card: { ...CARD, stoppable: false, children: [{ id: "provider", title: "Provider", kind: "provider", status: "running" }] } });
+    expect(root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toHaveLength(0);
+  });
 });

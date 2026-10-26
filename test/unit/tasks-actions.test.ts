@@ -19,6 +19,7 @@ import {
   type UnarchiveControl,
 } from "../../client/tasks/actions";
 import type { TaskCard, TaskPermission, TaskPermissionAction } from "../../client/tasks/model";
+import { stopTargets } from "../../client/tasks/actions/stop-targets";
 import { createFakePaseo, makeAgent } from "./helpers/fake-paseo";
 
 const mocks = vi.hoisted(() => ({
@@ -150,14 +151,21 @@ describe("Tasks permission actions", () => {
 let latestControl: StopControl | undefined;
 
 const activeAgents = new Set<string>();
+const cards = new Map<string, TaskCard>();
 
 function StopProbe({ confirmStop, verify = false }: { confirmStop: boolean; verify?: boolean }) {
-  latestControl = useStopControl({ confirmStop, isActive: verify ? (agentId) => activeAgents.has(agentId) : undefined });
+  latestControl = useStopControl({ confirmStop, cardById: (id) => cards.get(id), isActive: verify ? (agentId) => activeAgents.has(agentId) : undefined });
   return React.createElement("probe");
 }
 
 function taskCard(id: string, children: TaskCard["children"] = []): TaskCard {
-  return { id, title: `Task ${id}`, stoppable: true, children } as unknown as TaskCard;
+  const card = { id, title: `Task ${id}`, stoppable: true, children } as unknown as TaskCard;
+  cards.set(id, card);
+  for (const child of children) {
+    if (child.kind === "provider" || cards.has(child.id)) continue;
+    taskCard(child.id).stoppable = child.status === "running" || child.status === "needs_input";
+  }
+  return card;
 }
 
 function deferred<T>() {
@@ -180,6 +188,7 @@ describe("Tasks stop control", () => {
     mocks.platform.OS = "web";
     mocks.alert.mockReset();
     activeAgents.clear();
+    cards.clear();
   });
 
   afterEach(() => {
@@ -331,6 +340,152 @@ describe("Tasks stop control", () => {
     expect(mounted.control().phase("parent")).toBe("idle");
   });
 
+  it("resolves real running descendants through idle and failed parents, skipping provider agents", () => {
+    const grandchild = taskCard("grandchild");
+    const middle = taskCard("middle", [
+      { id: grandchild.id, title: "Grandchild", status: "running" },
+      { id: "provider", title: "Provider", kind: "provider", status: "running" },
+    ]);
+    middle.stoppable = false;
+    middle.waitingOnSubtasks = true;
+    const failed = taskCard("failed", [{ id: "waiting", title: "Waiting", status: "needs_input" }]);
+    failed.stoppable = false;
+    const parent = taskCard("parent", [
+      { id: middle.id, title: "Middle", status: "running", waitingOnSubtasks: true },
+      { id: failed.id, title: "Failed", status: "failed" },
+      { id: grandchild.id, title: "Duplicate", status: "running" },
+    ]);
+    const lookup = (id: string) => cards.get(id);
+    expect(stopTargets(parent, false, lookup)).toEqual(["parent"]);
+    expect(stopTargets(parent, true, lookup)).toEqual(["parent", "grandchild", "waiting"]);
+    parent.stoppable = false;
+    expect(stopTargets(parent, false, lookup)).toEqual([]);
+    expect(stopTargets(parent, true, lookup)).toEqual(["grandchild", "waiting"]);
+    grandchild.stoppable = false;
+    expect(stopTargets(parent, true, lookup)).toEqual(["waiting"]);
+    cards.delete("waiting");
+    expect(stopTargets(parent, true, lookup)).toEqual([]);
+  });
+
+  it("stops descendants from an explicit children-only action and verifies only those targets", async () => {
+    mocks.stop.mockResolvedValue({ results: [{ agentId: "grandchild", ok: true, error: null }] });
+    activeAgents.add("grandchild");
+    const middle = taskCard("middle", [{ id: "grandchild", title: "Grandchild", status: "running" }]);
+    middle.stoppable = false;
+    const parent = taskCard("parent", [{ id: middle.id, title: "Middle", status: "running" }]);
+    parent.stoppable = false;
+    const mounted = await mount(false, true);
+    await act(async () => mounted.control().press(parent, { withChildren: true }));
+    expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["grandchild"] });
+    expect(mounted.control().phase("parent")).toBe("stopping");
+    expect([...mounted.control().stoppedManually]).toEqual(["grandchild"]);
+    activeAgents.delete("grandchild");
+    act(() => mounted.control().reconcile());
+    expect(mounted.control().phase("parent")).toBe("idle");
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it("uses the latest cards when a web stop is confirmed", async () => {
+    const parent = taskCard("parent", [
+      { id: "child", title: "Child", status: "running" },
+      { id: "remaining", title: "Remaining", status: "needs_input" },
+    ]);
+    parent.stoppable = false;
+    const mounted = await mount(true);
+    act(() => mounted.control().press(parent, { withChildren: true }));
+    cards.set("child", { ...cards.get("child")!, stoppable: false });
+    await act(async () => mounted.control().press(parent, { withChildren: true }));
+    expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["remaining"] });
+  });
+
+  it.each(["en", "zh"] as const)("names only descendants in a native confirmation in %s", async (language) => {
+    mocks.platform.OS = "ios";
+    mocks.language.mockReturnValue(language);
+    const parent = taskCard("parent", [{ id: "child", title: "Child", status: "needs_input" }]);
+    parent.stoppable = false;
+    const mounted = await mount(true);
+    act(() => mounted.control().press(parent, { withChildren: true }));
+    expect(lastAlert().title).toBe(language === "zh" ? "停止 1 个子任务？" : "Stop 1 subtask?");
+    await act(async () => lastAlert().confirm.onPress());
+    expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["child"] });
+  });
+
+  it("does not arm or send an empty stop when only provider work remains", async () => {
+    const parent = taskCard("parent", [{ id: "provider", title: "Provider", kind: "provider", status: "running" }]);
+    parent.stoppable = false;
+    const mounted = await mount(true);
+    act(() => mounted.control().press(parent, { withChildren: true }));
+    expect(mounted.control().phase("parent")).toBe("idle");
+    expect(mocks.stop).not.toHaveBeenCalled();
+    expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it("cancels a self-only confirmation when the parent ends, even if the next caller requests children", async () => {
+    const parent = taskCard("parent", [{ id: "child", title: "Child", status: "running" }]);
+    const mounted = await mount(true);
+    act(() => mounted.control().press(parent, { withChildren: false }));
+    expect(mounted.control().phase("parent")).toBe("confirming");
+    cards.set(parent.id, { ...parent, stoppable: false, waitingOnSubtasks: true });
+    await act(async () => mounted.control().press(parent, { withChildren: true }));
+    expect(mocks.stop).not.toHaveBeenCalled();
+    expect(mounted.control().phase("parent")).toBe("idle");
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    // The cancelled confirmation must not leak its scope into a new explicit action.
+    act(() => mounted.control().press(parent, { withChildren: true }));
+    await act(async () => mounted.control().press(parent, { withChildren: true }));
+    expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["child"] });
+  });
+
+  it("keeps a children-only confirmation from stopping a parent that resumes meanwhile", async () => {
+    const parent = taskCard("parent", [{ id: "child", title: "Child", status: "running" }]);
+    parent.stoppable = false;
+    const mounted = await mount(true);
+    act(() => mounted.control().press(parent, { withChildren: true }));
+    expect(mounted.control().phase(parent.id)).toBe("confirming");
+    cards.set(parent.id, { ...parent, stoppable: true, waitingOnSubtasks: false });
+    await act(async () => mounted.control().press(parent, { withChildren: false }));
+    expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["child"] });
+  });
+
+  it("quietly ignores a self-only stop when the agent has just finished", async () => {
+    const parent = taskCard("parent");
+    parent.stoppable = false;
+    const mounted = await mount(true);
+    act(() => mounted.control().press(parent));
+    expect(mocks.stop).not.toHaveBeenCalled();
+    expect(mocks.toastError).not.toHaveBeenCalled();
+    expect(mounted.control().phase(parent.id)).toBe("idle");
+  });
+
+  it("reports an empty children-only stop when an aggregate child contains only provider work", async () => {
+    const middle = taskCard("middle", [{ id: "provider", title: "Provider", kind: "provider", status: "running" }]);
+    middle.stoppable = false;
+    const parent = taskCard("parent", [{ id: middle.id, title: "Middle", status: "running" }]);
+    parent.stoppable = false;
+    const mounted = await mount(true);
+    act(() => mounted.control().press(parent, { withChildren: true }));
+    expect(mocks.stop).not.toHaveBeenCalled();
+    expect(mocks.toastError).toHaveBeenCalledWith("No stoppable tasks or subtasks");
+    expect(mounted.control().phase(parent.id)).toBe("idle");
+  });
+
+  it("splits more than 50 targets and retains successful markers if another batch rejects", async () => {
+    const parent = taskCard("parent", Array.from({ length: 51 }, (_, index) => ({ id: `child-${index}`, title: "Child", status: "running" })));
+    parent.stoppable = false;
+    mocks.stop.mockImplementation(async ({ agentIds }: { agentIds: string[] }) => {
+      if (agentIds.includes("child-50")) throw new Error("RPC unavailable");
+      return { results: agentIds.map((agentId) => ({ agentId, ok: true, error: null })) };
+    });
+    const mounted = await mount(false);
+    await act(async () => mounted.control().press(parent, { withChildren: true }));
+    expect(mocks.stop.mock.calls.map(([input]) => input.agentIds.length)).toEqual([50, 1]);
+    expect(mounted.control().stoppedManually.size).toBe(50);
+    expect(mounted.control().stoppedManually.has("parent")).toBe(false);
+    expect(mounted.control().stoppedManually.has("child-50")).toBe(false);
+    expect(mocks.toastError).toHaveBeenCalledWith("Could not stop task: RPC unavailable");
+    expect(mounted.control().phase("parent")).toBe("idle");
+  });
+
   type AlertButton = { text: string; style: string; onPress(): void };
   const lastAlert = () => {
     const [title, message, buttons, options] = mocks.alert.mock.lastCall as [string, string, AlertButton[], { onDismiss(): void }];
@@ -409,10 +564,12 @@ describe("Tasks stop control", () => {
 
   it("heads the dialog with the stop and gives the task's name, cut when long", () => {
     const card = taskCard("agent-a");
-    expect(stopDialogText(card, 0, "zh")).toEqual({ title: "停止任务？", message: "Task agent-a", cancel: "取消", confirm: "停止" });
-    expect(stopDialogText(card, 1, "en")).toMatchObject({ title: "Stop this task and 1 subtask?", message: "Task agent-a", confirm: "Stop all" });
-    expect(stopDialogText(card, 3, "en").title).toBe("Stop this task and 3 subtasks?");
-    expect(stopDialogText({ ...card, title: ` ${"x".repeat(150)} ` }, 0, "en").message).toBe(`${"x".repeat(119)}\u2026`);
+    expect(stopDialogText(card, { self: true, children: 0 }, "zh")).toEqual({ title: "停止任务？", message: "Task agent-a", cancel: "取消", confirm: "停止" });
+    expect(stopDialogText(card, { self: true, children: 1 }, "en")).toMatchObject({ title: "Stop this task and 1 subtask?", message: "Task agent-a", confirm: "Stop all" });
+    expect(stopDialogText(card, { self: true, children: 3 }, "en").title).toBe("Stop this task and 3 subtasks?");
+    expect(stopDialogText({ ...card, title: ` ${"x".repeat(150)} ` }, { self: true, children: 0 }, "en").message).toBe(`${"x".repeat(119)}\u2026`);
+    expect(stopDialogText(card, { self: false, children: 2 }, "zh").title).toBe("停止 2 个子任务？");
+    expect(stopDialogText(card, { self: false, children: 1 }, "en").title).toBe("Stop 1 subtask?");
   });
 
   it("disarms every armed stop at once (Esc), and says when none was armed", async () => {

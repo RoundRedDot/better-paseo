@@ -10,6 +10,7 @@ import { toolbarLabel } from "../../i18n/toolbar-strings";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { duration, PREVIEW_REVEAL } from "../../ui/tokens/motion";
 import type { PermissionButton, StopPhase } from "../actions";
+import { activeStopChildren } from "../actions/stop-targets";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { opensInPaseo, parentOpensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
 import { contextRatio, tildePath } from "./format";
@@ -393,11 +394,6 @@ function summaryBeyondTitle(title: string, summary: string | null): string | nul
   return words(title).includes(words(summary)) ? null : summary;
 }
 
-/** Children that Stop with subtasks would reach. */
-function activeChildren(card: TaskCard): number {
-  return card.children.filter((child) => child.kind !== "provider" && (child.status === "running" || child.status === "needs_input")).length;
-}
-
 /** The subtasks pill's groups, most urgent first. */
 const SUBTASK_ORDER: readonly StatusKind[] = ["needs_input", "running", "failed", "unread", "done", "archived"];
 
@@ -609,8 +605,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       : failed
         ? lit ? look.failedHover : look.failed
         : lit ? look.hoverBackground : look.background;
-  const canStop = card.stoppable && !!props.onStop;
-  const parentStop = canStop && activeChildren(card) > 0;
+  const activeChildren = activeStopChildren(card).length;
+  const canStop = (card.stoppable || activeChildren > 0) && !!props.onStop;
+  const childrenOnly = !card.stoppable;
+  const parentStop = canStop && !childrenOnly && activeChildren > 0;
   // A waiting card's hover buttons share the row with its answer buttons, so
   // Stop stays in the menu and the sidebar there and Open tab floats alone.
   const footStop = canStop && (TOUCH || card.lane !== "needs_input");
@@ -649,11 +647,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     tokens,
     strings,
     phase: props.stopPhase,
-    all: stopAll,
+    all: props.stopPhase === "confirming" ? stopAll : childrenOnly,
+    childrenOnly,
     parent: parentStop,
-    count: activeChildren(card),
+    count: activeChildren,
     menuOpen,
-    onPress: () => pressStop(props.stopPhase === "confirming" ? stopAll : false),
+    onPress: () => pressStop(props.stopPhase === "confirming" ? stopAll : childrenOnly),
     onToggleMenu: () => setMenuOpen((open) => !open),
     onCloseMenu: () => setMenuOpen(false),
     closeMenuLabel: toolbarLabel("Close menu", language),
@@ -1447,7 +1446,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                   props.onStop?.(card, { withChildren, dialog: true });
                 }
               : undefined,
-            children: parentStop ? activeChildren(card) : 0,
+            children: parentStop ? activeChildren : 0,
+            childrenOnly,
             stopAllLeading: <StopTreeGlyph tokens={tokens} color={tokens.danger} />,
             read: canRead && !readPending ? () => props.onRead?.(card) : undefined,
             unarchive: canUnarchive ? () => props.onUnarchive?.(card.id) : undefined,
@@ -1831,6 +1831,7 @@ interface StopControlProps {
   phase: StopPhase;
   /** The armed stop includes the children. */
   all: boolean;
+  childrenOnly: boolean;
   parent: boolean;
   count: number;
   menuOpen: boolean;
@@ -1894,7 +1895,7 @@ function StopControl(props: StopControlProps) {
   // A card button's: 7 at a phone's 32, 6 at the desktop's 28, as "Answer" is.
   const round = compact ? 7 : 6;
   const iconSize = compact ? 14 : 13;
-  const label = confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : strings.stop;
+  const label = confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : props.childrenOnly ? strings.stopChildren : strings.stop;
   const chevronWidth = props.parent ? (compact ? 36 : 26) : 0;
   const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, (compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT) + chevronWidth, 2 * (compact ? (confirming ? 10 : 12) : 10) + iconSize + 6 + chevronWidth);
   const segment: ViewStyle = {

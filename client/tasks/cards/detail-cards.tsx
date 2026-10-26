@@ -268,8 +268,8 @@ function stopLabel(props: TaskDetailCardsProps): string | null {
   if (!props.stop) return null;
   const cardText = cardStrings(props.language);
   // Stopping keeps the rest label; the button's spinner says it is working.
-  if (props.stop.phase === "confirming") return cardText.confirmStop;
-  return props.strings.stopRun;
+  if (props.stop.phase === "confirming") return props.card.stoppable ? cardText.confirmStop : cardText.confirmStopAll;
+  return props.card.stoppable ? props.strings.stopRun : cardText.stopChildren;
 }
 
 

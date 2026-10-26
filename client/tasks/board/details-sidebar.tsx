@@ -7,6 +7,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskCon
 import { useHover } from "../../ui/use-hover";
 import { BrandMark, DETAIL_CARD, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
+import { activeStopChildren } from "../actions/stop-targets";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastHumanMessageVersion, useLastHumanMessage } from "../data/last-human-message";
 import { lastMessageVersion, useLastMessage, useLiveReplyCount } from "../data/last-message";
@@ -68,7 +69,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
     props.onReveal(agentId);
   };
   const { firstPrompt, humanMessage, lastMessage, sessionTokens } = useDetailReads(board, card);
-  const stopAvailable = !!board.callbacks.onStop && card?.stoppable === true;
+  const stopAvailable = !!board.callbacks.onStop && !!card && (card.stoppable || activeStopChildren(card).length > 0);
   const detailProps = card
     ? {
         card,
@@ -81,7 +82,7 @@ export function DetailsSidebar(props: DetailsSidebarProps) {
         back: backId ? { title: backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null,
         notice,
         onOpen: board.callbacks.onOpen,
-        stop: stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card) } : null,
+        stop: stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null,
         permissionButtons: board.buttonsFor(card),
         onPermission: (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button),
         onJump: jump,
