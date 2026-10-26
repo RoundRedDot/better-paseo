@@ -658,8 +658,8 @@ export function DesktopBoard(props: {
           </LaneMotionProvider>
           {unfilteredEmpty ? <BoardEmpty board={board} theme={theme} /> : null}
         </View>
-        {inline ? (
-          <SidebarColumn width={panelWidth} theme={theme} onDrag={setDragWidth} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
+        {mode === "inline" && !floating ? (
+          <SidebarColumn open={inline} width={panelWidth} theme={theme} onDrag={setDragWidth} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
             {sidebar}
           </SidebarColumn>
         ) : null}
@@ -744,23 +744,28 @@ function LaneGap(props: { onPress(): void }) {
 
 /**
  * The inline sidebar: a column at the board's right, 12 from its edge, its
- * left gap a drag handle on web drawn as Linear's split line. A drag
+ * left inset holding the drag handle on web. A drag
  * resizes the column and the lanes as it goes, at most once a frame; the
  * release keeps the width. A double click puts 380 back.
  */
-function SidebarColumn(props: { width: number; theme: PluginTheme; onDrag(width: number | null): void; onResize(width: number): void; children: React.ReactNode }) {
+function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme; onDrag(width: number | null): void; onResize(width: number): void; children: React.ReactNode }) {
   const reduced = useReducedMotion();
-  const x = useRef(new Animated.Value(reduced ? 0 : 12)).current;
-  const opacity = useRef(new Animated.Value(reduced ? 1 : 0)).current;
+  const [mounted, setMounted] = useState(props.open);
+  const progress = useRef(new Animated.Value(reduced && props.open ? 1 : 0)).current;
+  if (props.open && !mounted) setMounted(true);
   useEffect(() => {
-    if (reduced) return;
-    const animation = Animated.parallel([
-      Animated.timing(x, { toValue: 0, duration: 180, easing: MOTION.ease, useNativeDriver: nativeDriver }),
-      Animated.timing(opacity, { toValue: 1, duration: 180, easing: MOTION.ease, useNativeDriver: nativeDriver }),
-    ]);
-    animation.start();
+    if (reduced) {
+      progress.setValue(props.open ? 1 : 0);
+      if (!props.open) setMounted(false);
+      return;
+    }
+    // Reuse the current progress when reversed; never reset a half-open panel.
+    const animation = Animated.timing(progress, { toValue: props.open ? 1 : 0, duration: props.open ? 240 : 180, easing: MOTION.ease, useNativeDriver: false });
+    animation.start(({ finished }) => {
+      if (finished && !props.open) setMounted(false);
+    });
     return () => animation.stop();
-  }, [x, opacity, reduced]);
+  }, [progress, props.open, reduced]);
   const lastDown = useRef(0);
   const handleRef = useRef<View>(null);
   const indicatorRef = useRef<View>(null);
@@ -812,37 +817,51 @@ function SidebarColumn(props: { width: number; theme: PluginTheme; onDrag(width:
       ref={handleRef}
       {...resizeHandleProps}
       {...({ onPointerDown: start, onPointerMove: (event: { nativeEvent: { clientY: number } }) => follow(event.nativeEvent.clientY) } as object)}
-      style={{ position: "absolute", left: -SIDEBAR.gap, top: 4, bottom: 12, width: SIDEBAR.gap, zIndex: 5, ...({ cursor: "col-resize", touchAction: "none" } as object) }}
+      style={{ position: "absolute", left: 0, top: 4, bottom: 12, width: 8, zIndex: 5, ...({ cursor: "col-resize", touchAction: "none" } as object) }}
       testID="sidebar-resize"
     >
       <View pointerEvents="none" style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <View testID="sidebar-resize-grabber" style={{ width: 3, height: 40, borderRadius: 2, backgroundColor: props.theme.colors.foregroundMuted, opacity: 0.5 }} />
       </View>
-      <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, left: SIDEBAR.gap / 2 - 0.5, width: 1, overflow: "hidden" }}>
+      <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, left: 3.5, width: 1, overflow: "hidden" }}>
         <View ref={indicatorRef} {...resizeIndicatorProps} style={{ position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 }} />
       </View>
     </View>
   ) : null;
+  if (!props.open && (!mounted || reduced)) return null;
   return (
+    // Animate only the slot and surface: fixed-width cards do not reflow on every frame.
     <Animated.View
-      testID="sidebar-inline"
-      style={{
-        width: props.width,
-        marginRight: SIDEBAR.gap,
-        // Include the outer margin in the right inset to match the toolbar's 16 pt.
-        ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingHorizontal: 10 }),
-        paddingTop: 4,
-        paddingBottom: 12,
-        minHeight: 0,
-        backgroundColor: props.theme.colors.surface0,
-        boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
-        zIndex: 1,
-        opacity,
-        transform: [{ translateX: x }],
-      }}
+      testID="sidebar-slot"
+      pointerEvents={props.open ? "auto" : "none"}
+      aria-hidden={!props.open}
+      accessibilityElementsHidden={!props.open}
+      importantForAccessibility={props.open ? "auto" : "no-hide-descendants"}
+      style={{ width: reduced ? props.width + SIDEBAR.gap : progress.interpolate({ inputRange: [0, 1], outputRange: [0, props.width + SIDEBAR.gap] }), flexShrink: 0, minHeight: 0 }}
     >
-      {handle}
-      {props.children}
+      <Animated.View
+        testID="sidebar-inline"
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          right: SIDEBAR.gap,
+          width: props.width,
+          // Include the outer margin in the right inset to match the toolbar's 16 pt.
+          ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingHorizontal: 10 }),
+          paddingTop: 4,
+          paddingBottom: 12,
+          minHeight: 0,
+          backgroundColor: props.theme.colors.surface0,
+          boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
+          zIndex: 1,
+          opacity: reduced ? 1 : progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 1] }),
+          transform: [{ translateX: reduced ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+        }}
+      >
+        {handle}
+        {props.children}
+      </Animated.View>
     </Animated.View>
   );
 }
