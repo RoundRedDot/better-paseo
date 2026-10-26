@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -639,6 +639,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     onPress: () => pressStop(props.stopPhase === "confirming" ? stopAll : false),
     onToggleMenu: () => setMenuOpen((open) => !open),
     onCloseMenu: () => setMenuOpen(false),
+    closeMenuLabel: toolbarLabel("Close menu", language),
     theme,
     onPick: pressStop,
   };
@@ -1785,6 +1786,7 @@ interface StopControlProps {
   onToggleMenu(): void;
   onPick(withChildren: boolean): void;
   onCloseMenu(): void;
+  closeMenuLabel: string;
   theme: PluginTheme;
 }
 
@@ -1803,6 +1805,9 @@ function StopControl(props: StopControlProps) {
   const stopping = phase === "stopping";
   const stopHover = useHover();
   const chevronHover = useHover();
+  const anchorRef = useRef<View>(null);
+  const stageRef = useRef<View>(null);
+  const [menuOrigin, setMenuOrigin] = useState<{ left: number; top: number } | null>(null);
   const stopSections: MenuSection[] = [
     {
       key: "stop",
@@ -1840,8 +1845,35 @@ function StopControl(props: StopControlProps) {
     justifyContent: "center",
     ...webTransition,
   };
+  const menuHeight = layoutMenu(stopSections, scale).height + 2 * StyleSheet.hairlineWidth;
+  const measureMenu = () => {
+    stageRef.current?.measureInWindow((sx, sy, sw, sh) => {
+      anchorRef.current?.measureInWindow((x, y, width, anchorHeight) => {
+        const below = y - sy + anchorHeight + 4;
+        const above = y - sy - menuHeight - 6;
+        const preferred = compact || below + menuHeight > sh - 8 ? above : below;
+        setMenuOrigin({
+          left: Math.max(8, Math.min(x - sx + (props.menuLeft ? 0 : width - STOP_MENU_WIDTH), sw - STOP_MENU_WIDTH - 8)),
+          top: Math.max(8, Math.min(preferred, sh - menuHeight - 8)),
+        });
+      });
+    });
+  };
+  const menu = (
+    <CascadeMenu
+      sections={stopSections}
+      theme={props.theme}
+      width={STOP_MENU_WIDTH}
+      top={Platform.OS === "web" ? (compact ? -(menuHeight + 6) : height + 4) : 0}
+      align={Platform.OS === "web" && !props.menuLeft ? "right" : "left"}
+      onClose={props.onCloseMenu}
+      testID="task-card-stop-menu"
+    />
+  );
   return (
     <View
+      ref={anchorRef}
+      collapsable={false}
       style={{
         flexDirection: "row",
         // On a phone the pill shares the action bar like the buttons, as wide
@@ -1924,18 +1956,17 @@ function StopControl(props: StopControlProps) {
           style={[StyleSheet.absoluteFill, buttonOutline(tokens.danger), { borderRadius: round, opacity: stopping ? 0.6 : 1 }]}
         />
       ) : null}
-      {props.parent && props.menuOpen ? (
-        // The board's Linear menu (radius 12, hairline, soft shadow, 32 pt
-        // rows): below the pill on desktop, above the action bar on a phone.
-        <CascadeMenu
-          sections={stopSections}
-          theme={props.theme}
-          width={STOP_MENU_WIDTH}
-          top={compact ? -(layoutMenu(stopSections, scale).height + 2 * StyleSheet.hairlineWidth + 6) : height + 4}
-          align={props.menuLeft ? "left" : "right"}
-          onClose={props.onCloseMenu}
-          testID="task-card-stop-menu"
-        />
+      {props.parent && props.menuOpen ? Platform.OS === "web" ? menu : (
+        // A card's zIndex cannot escape the native FlatList cell above it.
+        <Modal visible transparent animationType="none" statusBarTranslucent onShow={measureMenu} onRequestClose={props.onCloseMenu}>
+          <View ref={stageRef} collapsable={false} testID="task-card-stop-menu-stage" onLayout={measureMenu} style={{ flex: 1 }}>
+            <Pressable accessibilityLabel={props.closeMenuLabel} testID="task-card-stop-menu-backdrop" onPress={props.onCloseMenu} style={StyleSheet.absoluteFill} />
+            <View accessibilityViewIsModal pointerEvents={menuOrigin ? "box-none" : "none"} testID="task-card-stop-menu-anchor"
+              style={{ position: "absolute", left: menuOrigin?.left ?? 0, top: menuOrigin?.top ?? 0, width: STOP_MENU_WIDTH, opacity: menuOrigin ? 1 : 0 }}>
+              {menu}
+            </View>
+          </View>
+        </Modal>
       ) : null}
     </View>
   );

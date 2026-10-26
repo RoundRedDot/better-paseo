@@ -15,7 +15,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   };
 });
 import "./helpers/quiet-renderer";
-import { StyleSheet } from "react-native";
+import { Platform, StyleSheet } from "react-native";
 import { TaskCardView, type TaskCardViewProps } from "../../client/tasks/cards/task-card";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { CARD_PRESETS } from "../../shared/tasks-settings";
@@ -52,7 +52,14 @@ async function render(overrides: Partial<TaskCardViewProps> = {}) {
     focused: false, highlighted: false, now: NOW, language: "en", animated: false,
     onReveal() {}, onStop: vi.fn(), ...overrides,
   };
-  await act(async () => { renderer = TestRenderer.create(<TaskCardView {...props} />); });
+  await act(async () => { renderer = TestRenderer.create(<TaskCardView {...props} />, {
+    createNodeMock: (element) => Platform.OS === "web" || !["task-card-stop", "task-card-stop-menu-stage"].includes((element.props as { testID: string }).testID) ? null : ({
+      measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) =>
+        (element.props as { testID: string }).testID === "task-card-stop-menu-stage"
+          ? callback(0, 24, 390, 800)
+          : callback(100, 300, 120, 32),
+    }),
+  }); });
   return renderer!.root;
 }
 
@@ -83,11 +90,41 @@ describe("split Stop button", () => {
     expect(flat(button(root, "Stop options")).backgroundColor).not.toBe("transparent");
     expect(flat(button(root, "Stop")).backgroundColor).toBe("transparent");
     const menu = host(root, "task-card-stop-menu");
-    expect(flat(menu).top).toBeLessThan(0);
+    expect(flat(menu).top).toBe(0);
     expect(host(root, "task-card-stop-outline").findAll((node) => node.props.testID === "task-card-stop-menu")).toHaveLength(0);
     expect(flat(host(root, "task-card-stop")).overflow).toBeUndefined();
     await act(async () => button(root, "Stop").props.onHoverIn());
     expect(flat(button(root, "Stop")).backgroundColor).not.toBe("transparent");
+  });
+
+  it.each(["ios", "android"])("shows an anchored modal above sibling cards and closes it on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const onStop = vi.fn();
+    const root = await render({ compact: false, onStop });
+    await act(async () => button(root, "Stop options").props.onPress());
+    const modal = root.find((node) => (node.type as unknown) === "Modal");
+    expect(modal.props).toMatchObject({ transparent: true, animationType: "none" });
+    expect(modal.findAll((node) => node.props.testID === "task-card-stop-menu").length).toBeGreaterThan(0);
+    await act(async () => modal.props.onShow());
+    expect(flat(host(root, "task-card-stop-menu-anchor"))).toMatchObject({ left: 8, top: 312, opacity: 1 });
+    const rows = root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
+    await act(async () => rows[1]!.props.onPress());
+    expect(onStop).toHaveBeenCalledWith(CARD, { withChildren: true });
+    expect(root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
+
+    await act(async () => button(root, "Stop options").props.onPress());
+    await act(async () => host(root, "task-card-stop-menu-backdrop").props.onPress());
+    expect(root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
+    await act(async () => button(root, "Stop options").props.onPress());
+    await act(async () => root.find((node) => (node.type as unknown) === "Modal").props.onRequestClose());
+    expect(root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
+  });
+
+  it("positions a compact menu above its button in modal coordinates", async () => {
+    const root = await render();
+    await act(async () => button(root, "Stop options").props.onPress());
+    await act(async () => root.find((node) => (node.type as unknown) === "Modal").props.onShow());
+    expect(flat(host(root, "task-card-stop-menu-anchor"))).toMatchObject({ left: 8, top: 192, opacity: 1 });
   });
 
   it("dims the shared outline and disables both actions while stopping", async () => {
