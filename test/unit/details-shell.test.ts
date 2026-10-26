@@ -1464,10 +1464,11 @@ describe("a pinch in the phone drawer", () => {
   }
   const zoomed = () => createElement(HoverPreviewBody, null, createElement(ZoomProbe));
   it.each([
-    { width: 390, height: 844 },
-    { width: 834, height: 1194 },
-    { width: 1194, height: 834 },
-  ])("sizes panel prose and code relative to the timeline at $width×$height", ({ width, height }) => {
+    { width: 390, height: 844, sizes: [16, 24, 36, 12] },
+    { width: 844, height: 390, sizes: [16, 24, 36, 12] },
+    { width: 834, height: 1194, sizes: [14, 21, 32, 11] },
+    { width: 1194, height: 834, sizes: [14, 21, 32, 11] },
+  ])("sizes panel prose and code relative to the timeline at $width×$height", ({ width, height, sizes }) => {
     screen.width = width;
     screen.height = height;
     const prose = "Panel prose follows the timeline";
@@ -1485,16 +1486,16 @@ describe("a pinch in the phone drawer", () => {
     open("relative-prose");
     const shown = () => renderer.root.findAll((node) => typeof node.type === "string" && flat(node.props.style).fontSize !== undefined)
       .map((node) => flat(node.props.style).fontSize);
-    expect(shown()).toContain(14);
+    expect(shown()).toContain(sizes[0]);
     act(() => renderer.update(element(24)));
-    expect(shown()).toContain(21);
-    expect(shown()).not.toContain(14);
+    expect(shown()).toContain(sizes[1]);
+    expect(shown()).not.toContain(sizes[0]);
     act(() => updateEnhancerPreferences({ detailsFontSize: 21 }));
-    expect(shown()).toContain(32);
+    expect(shown()).toContain(sizes[2]);
     expect(getEnhancerPreferences().detailsFontSize).toBe(21);
     act(() => updateEnhancerPreferences({ detailsFontSize: 14 }));
     act(() => renderer.update(element(12)));
-    expect(shown()).toContain(11);
+    expect(shown()).toContain(sizes[3]);
   });
   const fingers = (...ys: number[]) => ({ nativeEvent: { pageX: 100, pageY: ys[0], timestamp: 0, touches: ys.map((pageY) => ({ pageX: 100, pageY })) } });
   /** A drawer whose body is 300 tall from 400 down, over 900 of content scrolled to `offset`. */
@@ -1536,13 +1537,13 @@ describe("a pinch in the phone drawer", () => {
         act(() => byTestId(renderer, "details-zoom-increase")!.props.onPress());
         act(() => { vi.advanceTimersByTime(149); });
       }
-      expect(shown()).toBe("14");
+      expect(shown()).toBe("16");
       expect(zoomMounts).toBe(mounts);
       expect(notified).not.toHaveBeenCalled();
       const words = byTestId(renderer, "details-zoom-badge")!.findAll((node) => typeof node.props.children === "string").map((node) => node.props.children);
       expect(words).toContain("Text size 21");
       act(() => { vi.advanceTimersByTime(1); });
-      expect(shown()).toBe("21");
+      expect(shown()).toBe("24");
       expect(zoomMounts).toBe(mounts + 1);
       expect(notified).toHaveBeenCalledTimes(1);
       act(() => byTestId(renderer, "details-zoom-reset")!.props.onPress());
@@ -1564,23 +1565,23 @@ describe("a pinch in the phone drawer", () => {
     // Held still: the fingers moving apart do not scroll the body.
     expect(body().scrollEnabled).toBe(false);
     expect(byTestId(renderer, "details-zoom-badge")).not.toBeNull();
-    // 100 apart to 150: the independent 14-point size becomes 21.
+    // 100 apart to 150: the relative zoom grows by 1.5, from 16 to 24.
     act(() => { panel().onTouchMove!(fingers(475, 625)); });
-    expect(shown()).toBe("21");
+    expect(shown()).toBe("24");
     expect(getEnhancerPreferences().detailsFontSize).toBe(14);
     // The midpoint, 150 into the body, was half way down the content: still there at 1350.
     act(() => { body().onContentSizeChange!(390, 1350); });
     expect(web.scrolls.at(-1)).toBe(525);
     act(() => { panel().onTouchEnd!(fingers(475)); });
     expect(getEnhancerPreferences().detailsFontSize).toBe(21);
-    expect(shown()).toBe("21");
+    expect(shown()).toBe("24");
     expect(body().scrollEnabled).toBe(true);
     const words = byTestId(renderer, "details-zoom-badge")!.findAll((node) => typeof node.props.children === "string").map((node) => node.props.children);
     expect(words).toEqual(expect.arrayContaining(["Text size 21", "Reset"]));
     act(() => { (byTestId(renderer, "details-zoom-reset")!.props.onPress as () => void)(); });
     act(() => { vi.advanceTimersByTime(150); });
     expect(getEnhancerPreferences().detailsFontSize).toBe(14);
-    expect(shown()).toBe("14");
+    expect(shown()).toBe("16");
     expect(byTestId(renderer, "details-zoom-badge")).not.toBeNull();
     expect(byTestId(renderer, "details-zoom-reset")).not.toBeNull();
   });
@@ -1598,9 +1599,9 @@ describe("a pinch in the phone drawer", () => {
     // The badge counts; the text waits.
     const words = () => byTestId(renderer, "details-zoom-badge")!.findAll((node) => typeof node.props.children === "string").map((node) => node.props.children);
     expect(words()).toContain("Text size 21");
-    expect(shown()).toBe("14");
+    expect(shown()).toBe("16");
     act(() => { panel().onTouchEnd!(fingers(475)); });
-    expect(shown()).toBe("21");
+    expect(shown()).toBe("24");
     // 3150 of 9000 under the midpoint: at 13500 that is 4725, 150 into the body.
     act(() => { body().onContentSizeChange!(390, 13500); });
     expect(web.scrolls.at(-1)).toBe(4575);
@@ -1613,14 +1614,14 @@ describe("a pinch in the phone drawer", () => {
       panel().onTouchMove!(fingers(300, 800));
       panel().onTouchEnd!(fingers());
     });
-    expect(shown()).toBe("26");
+    expect(shown()).toBe("30");
     act(() => {
       panel().onTouchStart!(fingers(500, 600));
       panel().onTouchMove!(fingers(545, 555));
       panel().onTouchEnd!(fingers());
     });
     expect(getEnhancerPreferences().detailsFontSize).toBe(12);
-    expect(shown()).toBe("12");
+    expect(shown()).toBe("14");
   });
 
   it("lets go of the drawer's pull once a second finger comes down", () => {
@@ -1650,7 +1651,7 @@ describe("a pinch in the phone drawer", () => {
   it("draws the saved size in the drawer, and leaves web unchanged", () => {
     updateEnhancerPreferences({ detailsFontSize: 19 });
     const { panel, shown } = drawer("pinch-saved");
-    expect(shown()).toBe("19");
+    expect(shown()).toBe("22");
     expect(panel().onTouchStart).toBeDefined();
     act(() => mounted.splice(0).forEach((renderer) => renderer.unmount()));
     webDesktop();

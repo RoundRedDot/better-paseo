@@ -18,13 +18,13 @@
  * was, without an entrance.
  */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Animated, Modal, Platform, StyleSheet, View, type ViewStyle } from "react-native";
+import { Animated, Modal, Platform, StyleSheet, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { useRpc } from "@getpaseo/plugin/client";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { DetailsShellContext, type BlockEntry, type Detent, type DetailsForm, type DetailsShellValue, type DetailsZoom } from "../contracts";
 import { useBlock, useBlockList } from "../block-registry";
 import { detailsApi, useDetails } from "../details-store";
-import { floatingWidth } from "../layout-model";
+import { DETAILS_BREAKPOINTS, floatingWidth } from "../layout-model";
 import { swipeDecision } from "../gesture-model";
 import { HoverPreviewContext, PreviewActionsContext, PreviewChromeContext, usePanelWrap, type PreviewActions } from "../../ui/hover-preview";
 import { PathContext, usePathContextValue } from "../../ui/path-text";
@@ -309,13 +309,15 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
 
   const bodyScroll = useMemo(() => createBodyScroll(), []);
 
-  // Native prose is 7/8 of the timeline body; the saved pinch value scales
-  // that ratio, so changing the host's content size also changes the panel.
+  // Phones keep the timeline's body size; tablets use a denser 7/8 ratio.
+  // The saved pinch value scales either relative to the host's content size.
   const { detailsFontSize } = useEnhancerPreferences();
   const [liveZoom, setLiveZoom] = useState<number | null>(null);
   const zooms = Platform.OS !== "web";
+  const window = useWindowDimensions();
+  const proseScale = Math.min(window.width, window.height) < DETAILS_BREAKPOINTS.drawerEnter ? 1 : 7 / 8;
   const textSize = liveZoom ?? detailsFontSize;
-  const textZoom = zooms ? Math.round(tokens.typography.content.size * 7 / 8 * textSize / DETAILS_FONT_SIZE_DEFAULT) : 0;
+  const textZoom = zooms ? Math.round(tokens.typography.content.size * proseScale * textSize / DETAILS_FONT_SIZE_DEFAULT) : 0;
   const zoomRef = useRef(textSize);
   zoomRef.current = textSize;
   const zoom = useMemo<DetailsZoom | undefined>(() => (zooms ? {
