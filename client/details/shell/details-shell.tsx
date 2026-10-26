@@ -113,10 +113,11 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   const pointer = capabilities.hover;
   const reduced = useReducedMotion();
   const layerRef = useRef<View>(null);
-  const anchor = useCallback(() => layerRef.current, []);
-  const layout = useDetailsLayout(pointer, anchor);
+  const paneRef = useRef<View>(null);
+  const anchor = useCallback(() => paneRef.current, []);
+  const host = useHostList(agentId, anchor);
+  const layout = useDetailsLayout(pointer, host);
   const [insets, insetProbe] = useSafeInsets();
-  useHostList(agentId, anchor);
   const lockList = useListScrollLock();
   const revealPath = useRpc(revealPathRpc);
   const cwd = useRef<string | undefined>(undefined);
@@ -308,13 +309,15 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
 
   const bodyScroll = useMemo(() => createBodyScroll(), []);
 
-  // Native details text zoom in every form: live while pinching, saved as it ends.
+  // Native prose is 7/8 of the timeline body; the saved pinch value scales
+  // that ratio, so changing the host's content size also changes the panel.
   const { detailsFontSize } = useEnhancerPreferences();
   const [liveZoom, setLiveZoom] = useState<number | null>(null);
   const zooms = Platform.OS !== "web";
-  const textZoom = zooms ? liveZoom ?? detailsFontSize : 0;
-  const zoomRef = useRef(textZoom);
-  zoomRef.current = textZoom;
+  const textSize = liveZoom ?? detailsFontSize;
+  const textZoom = zooms ? Math.round(tokens.typography.content.size * 7 / 8 * textSize / DETAILS_FONT_SIZE_DEFAULT) : 0;
+  const zoomRef = useRef(textSize);
+  zoomRef.current = textSize;
   const zoom = useMemo<DetailsZoom | undefined>(() => (zooms ? {
     base: DETAILS_FONT_SIZE_DEFAULT,
     current: () => zoomRef.current,
@@ -388,7 +391,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
           <PathContext.Provider value={paths}>
             <PreviewActionsContext.Provider value={actions}>
               <DetailsBodyContext.Provider value={bodyScroll}>
-                <TimelineProseContext.Provider value={form === "drawer"}>
+                <TimelineProseContext.Provider value={zooms || form === "drawer"}>
                   <TextZoomContext.Provider value={textZoom}>
                     <Animated.View testID="details-content" style={[styles.content, { opacity: slideOpacity, transform: [{ translateX: slide }] }] as never}>
                       {entry.render()}
@@ -442,20 +445,26 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   });
 
   const stage = (
-    <Animated.View pointerEvents="box-none" style={[StyleSheet.absoluteFill, { opacity: formFade }] as never}>
+    <Animated.View testID="details-stage" pointerEvents="box-none" style={[StyleSheet.absoluteFill, { left: layout.left, width: layout.stage.width, opacity: formFade }] as never}>
       {frame}
     </Animated.View>
   );
   if (Platform.OS === "web") {
-    return <WebLayer layerRef={layerRef} catches={form === "drawer"}>{stage}</WebLayer>;
+    return <>
+      <View ref={paneRef} testID="details-pane-probe" onLayout={layout.measure} style={styles.paneProbe} />
+      <WebLayer layerRef={layerRef} catches={form === "drawer"}>{stage}</WebLayer>
+    </>;
   }
   return (
-    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={close}>
-      <View ref={layerRef} testID="details-layer" pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-        {insetProbe}
-        {stage}
-      </View>
-    </Modal>
+    <>
+      <View ref={paneRef} testID="details-pane-probe" onLayout={layout.measure} style={styles.paneProbe} />
+      <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={close}>
+        <View ref={layerRef} testID="details-layer" pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+          {insetProbe}
+          {stage}
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -479,6 +488,7 @@ function WebLayer({ layerRef, catches, children }: {
 }
 
 const styles = StyleSheet.create({
+  paneProbe: { width: "100%", height: 0 },
   content: { flexGrow: 1, flexShrink: 1, minHeight: 0 },
   // The popover's own UA box (margin, border, padding, background) cleared, over the whole window.
   webLayer: {

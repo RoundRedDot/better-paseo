@@ -4,38 +4,47 @@
  * the form is chosen again only once the window has held its size for
  * 150 ms, so dragging a window's edge does not flip it between forms.
  *
- * The host's left sidebar narrows the room beside a side panel. A plugin
- * cannot read its width; on web the timeline's own scroller starts where it
- * ends, so its left edge stands in for it. Elsewhere it counts as 0.
+ * The host list's horizontal bounds keep the panel inside its timeline pane.
+ * A probe in the timeline remeasures when the pane changes independently of
+ * the window (for example when the host sidebar opens).
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Platform, useWindowDimensions } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useWindowDimensions } from "react-native";
 import type { DetailsForm } from "../contracts";
 import { detailsForm } from "../layout-model";
 import { DETAILS_MOTION } from "./motion";
-import { nearestScroller } from "./web-layer";
+import type { HostList } from "./timeline-sync";
 
 export interface DetailsLayout {
   stage: { width: number; height: number };
   form: DetailsForm;
+  left: number;
+  measure(): void;
 }
 
-export function useDetailsLayout(pointer: boolean, anchor: () => unknown): DetailsLayout {
+export function useDetailsLayout(pointer: boolean, host: HostList | null): DetailsLayout {
   const { width, height } = useWindowDimensions();
   const [settled, setSettled] = useState({ width, height });
-  const [sidebar, setSidebar] = useState(0);
+  const [bounds, setBounds] = useState<{ left: number; right: number } | null>(null);
+  const measure = useCallback(() => {
+    if (!host) return;
+    void host.viewport().then((box) => {
+      if (box?.left === undefined || box.right === undefined) return;
+      const left = Math.max(0, Math.round(box.left));
+      const right = Math.min(width, Math.round(box.right));
+      if (right <= left) return;
+      setBounds((current) => current?.left === left && current.right === right ? current : { left, right });
+    });
+  }, [host, width]);
+  useEffect(measure, [measure, height]);
   useEffect(() => {
     if (settled.width === width && settled.height === height) return;
     const timer = setTimeout(() => setSettled({ width, height }), DETAILS_MOTION.resizeSettleMs);
     return () => clearTimeout(timer);
   }, [width, height, settled.width, settled.height]);
-  const anchorRef = useRef(anchor);
-  anchorRef.current = anchor;
-  useEffect(() => {
-    if (Platform.OS !== "web") return;
-    const left = nearestScroller(anchorRef.current())?.getBoundingClientRect().left;
-    setSidebar(typeof left === "number" && Number.isFinite(left) ? Math.max(0, Math.round(left)) : 0);
-  }, [settled.width, settled.height]);
+  const left = Math.min(bounds?.left ?? 0, width);
+  const paneWidth = Math.max(0, Math.min(bounds?.right ?? width, width) - left);
+  const sidebar = width - paneWidth;
   // The current form widens each boundary by the 16 band, so it is the previous choice's input.
   const current = useRef<DetailsForm | null>(null);
   const form = useMemo(() => {
@@ -43,5 +52,5 @@ export function useDetailsLayout(pointer: boolean, anchor: () => unknown): Detai
     current.current = next;
     return next;
   }, [settled.width, settled.height, sidebar, pointer]);
-  return { stage: { width, height }, form };
+  return { stage: { width: paneWidth, height }, left, form, measure };
 }
