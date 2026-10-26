@@ -41,7 +41,7 @@ import { DETAILS_MOTION, animate } from "./motion";
 import { OVERDRAG, panelResponder, type DragTarget } from "./gestures";
 import { useSafeInsets } from "./safe-area";
 import { useDetailsLayout } from "./use-details-layout";
-import { bindDetailsLayer, layerTakesKey, webBodyAtTop } from "./web-layer";
+import { bindDetailsLayer, keepOffWindowDrag, layerTakesKey, webBodyAtTop } from "./web-layer";
 import { bindDetailsKeys, registerDetailsKeyboardActions } from "../keyboard";
 import { useCopy } from "../../ui/use-copy";
 import { canProbeOlder, noteNavigation, stepDetails, syncTimeline, useHostList } from "./timeline-sync";
@@ -469,6 +469,8 @@ function WebLayer({ layerRef, catches, children }: {
   children: React.ReactNode;
 }) {
   useLayoutEffect(() => bindDetailsLayer(layerRef.current), [layerRef]);
+  // The drawer's scrim catches the whole window, title bar included; the other forms let it through.
+  useLayoutEffect(() => (catches ? keepOffWindowDrag(layerRef.current) : undefined), [layerRef, catches]);
   return (
     <View ref={layerRef} testID="details-layer" pointerEvents={catches ? "auto" : "box-none"} style={styles.webLayer}>
       {children}

@@ -15,6 +15,7 @@ import { DETAILS_MOTION, animate } from "./motion";
 import { OutsideCatcher, detailsPalette } from "./scrim";
 import type { Entrance } from "./bottom-panel";
 import type { Insets } from "./safe-area";
+import { keepOffWindowDrag } from "./web-layer";
 
 export const SIDE = {
   /** A phone in landscape (height under 500). */
@@ -97,6 +98,10 @@ export function SidePanel(props: {
     animate(opacity, 0, DETAILS_MOTION.sideCloseMs, done);
   }, [props.leaving, shift, opacity]);
 
+  // Full height: its top lies over the host's title bar drag (`keepOffWindowDrag`).
+  const panel = useRef<View>(null);
+  useLayoutEffect(() => keepOffWindowDrag(panel.current), []);
+
   const edge = useRef<View>(null);
   useLayoutEffect(() => {
     if (!props.resizable || Platform.OS !== "web") return;
@@ -111,6 +116,7 @@ export function SidePanel(props: {
     <>
       {Platform.OS === "web" ? null : <OutsideCatcher onPress={props.onOutside} />}
       <Animated.View
+        ref={panel}
         testID="details-side"
         accessibilityViewIsModal={Platform.OS !== "web"}
         style={[

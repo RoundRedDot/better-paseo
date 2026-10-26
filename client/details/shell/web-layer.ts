@@ -60,6 +60,24 @@ export function bindDetailsLayer(node: unknown): () => void {
 }
 
 /**
+ * Keeps the window's title bar drag off `node`; returns what gives it back.
+ * Paseo desktop sets `-webkit-app-region: initial !important` on everything
+ * inside the timeline (`[data-window-content] *`), and the panel's DOM is
+ * there, so it emits no region of its own. Where it covers the pane header or
+ * the tab row, their drag regions stay, and Electron takes a press there as a
+ * window drag before the page sees it: the toolbar's copy and width buttons
+ * did nothing. An inline `!important` outranks the host's sheet. Only for
+ * what catches the pointer: the panel, not the stage around it.
+ */
+export function keepOffWindowDrag(node: unknown): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const style = (node as HTMLElement | null)?.style;
+  if (!style || typeof style.setProperty !== "function") return () => {};
+  style.setProperty("-webkit-app-region", "no-drag", "important");
+  return () => style.removeProperty("-webkit-app-region");
+}
+
+/**
  * Whether the panel's keys are this layer's: it is shown (Paseo keeps hidden
  * panes mounted, and a layer in one must not react), and for Escape no hover
  * preview or the panel's copy menu is open over it. Those take the key
