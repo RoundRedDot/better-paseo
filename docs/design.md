@@ -783,7 +783,7 @@ apply to all three.
   actions, not the fill or the border.
 - The meta row is one muted line, segments joined by a spaced `›`; the context ring ends it, or
   ends the title row when there is no meta row. On a phone the ring shows only above 80%.
-- A provider subagent's card is dashed (1 pt), with no shadow at rest; a subtask card carries the
+- A provider subagent's card is dashed (1 pt) and keeps the resting shadow; a subtask card carries the
   [corner arc](#data-colours).
 - A new card fades in (120 after 120); a highlighted one keeps its accent fill and border for 1 s.
 - Actions by layout: on the desktop board they fade in on hover with the preview entrance, as an
