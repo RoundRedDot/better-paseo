@@ -18,9 +18,9 @@ https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
 
 <sub>No player in the GitHub app? [Open the tasks video](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v13/better-paseo-promo-v13-tasks-web.mp4).</sub>
 
-<img alt="Better Paseo, a Paseo plugin: a clear, fast chat timeline on a desktop window and a phone" src="images/hero-cover.png">
+<img alt="Better Paseo, a Paseo plugin: the Tasks board on a desktop window, with a failed subtask card, a parent card with its subtasks expanded and a dashed read-only subagent card, beside a chat timeline on an iPhone" src="images/hero-cover.png">
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="images/tasks-board-dark.png"><img alt="The Tasks board: every agent in lanes by state, with a card's subtasks, properties and usage in the details sidebar" src="images/tasks-board-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="images/tasks-board-dark.png"><img alt="The Tasks board: every agent in lanes by state, including a failed subtask card with its error, a parent card with its subtasks expanded and a dashed read-only subagent card, and the sidebar's counts by state and groups by agent" src="images/tasks-board-light.png"></picture>
 <picture><source media="(prefers-color-scheme: dark)" srcset="images/timeline-dark.png"><img alt="A chat timeline of compact tool rows and a checklist, with an edit's diff open in the block details side panel" src="images/timeline-light.png"></picture>
 
 > Better Paseo is a fork of [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat),

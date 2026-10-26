@@ -12,9 +12,9 @@ https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
 
 <sub>GitHub App 里看不到播放器？[打开Tasks视频](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v13/better-paseo-promo-v13-tasks-web.mp4)。</sub>
 
-<img alt="Better Paseo，一个 Paseo 插件：聊天时间线，清爽又飞快。桌面窗口和手机上的时间线" src="images/hero-cover-zh.png">
+<img alt="Better Paseo，一个 Paseo 插件：桌面窗口里的 Tasks 看板，有出错的子任务卡片、展开子任务的父卡片和虚线框的只读子代理卡片，旁边是 iPhone 上的聊天时间线" src="images/hero-cover-zh.png">
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="images/tasks-board-zh-dark.png"><img alt="Tasks 看板：所有 agent 按状态分列排开，详情侧栏显示一张卡片的子任务、属性和用量" src="images/tasks-board-zh-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="images/tasks-board-zh-dark.png"><img alt="Tasks 看板：所有 agent 按状态分列排开，包括带错误信息的出错子任务卡片、展开子任务的父卡片和虚线框的只读子代理卡片，侧栏显示各状态数量和按 agent 的分组" src="images/tasks-board-zh-light.png"></picture>
 <picture><source media="(prefers-color-scheme: dark)" srcset="images/timeline-zh-dark.png"><img alt="由紧凑工具行和待办组成的聊天时间线，区块详情侧边面板里打开了一次编辑的 diff" src="images/timeline-zh-light.png"></picture>
 
 > Better Paseo fork 自 [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat)，从 `42b61d8`（2026-09-23）接着开发。除 Eval、Ask、Task 和审批卡片外，Beautiful Chat 原有的卡片都还在；当前的 Paseo 不会把这几类内容交给插件（见[兼容性](#兼容性)）。本文介绍这个 fork 新增的功能和它的性能表现。
