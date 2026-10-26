@@ -1196,7 +1196,7 @@ function Subtasks(props: Inner) {
   const time = props.time;
   const touch = m === TOUCH_CARD;
   return (
-    <View>
+    <View style={{ marginRight: props.gutter }}>
       {shown.map((child) => (
         <SubtaskRow
           key={child.id}
