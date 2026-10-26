@@ -3,7 +3,7 @@ import { Platform, Pressable, View, type LayoutChangeEvent, type ScrollView as N
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
-import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { BrandMark, ProjectIcon, TagMark, taskTokens } from "../cards";
 import { Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
@@ -18,23 +18,6 @@ import { SORT_GROUPS, SORT_ICONS, sortDirectionIcon, sortDirections } from "./bo
 import { sameSort, type BoardSort, type SortKey } from "./sort";
 import { sortOrderLabel } from "./strings";
 import type { BoardController } from "./use-board";
-
-export function FilterSheetHeaderActions({ board, theme }: { board: BoardController; theme: PluginTheme }) {
-  if (activeFilterCount(board.params, board.defaults) === 0) return null;
-  return (
-    <TasksTypography theme={theme}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={board.strings.clearAll}
-        testID="filter-sheet-clear-all"
-        onPress={() => board.setParams(clearedParams)}
-        style={{ minHeight: 36, paddingHorizontal: 8, justifyContent: "center" }}
-      >
-        <Text style={{ fontSize: F.base, color: theme.colors.foreground }}>{board.strings.clearAll}</Text>
-      </Pressable>
-    </TasksTypography>
-  );
-}
 
 /**
  * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
@@ -91,6 +74,19 @@ export function FilterSheetBody(props: {
   );
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
+      {activeFilterCount(board.params, defaults) > 0 ? (
+        <View testID="filter-sheet-clear-row" style={{ paddingHorizontal: 16, paddingBottom: 8, alignItems: "flex-end" }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={strings.clearAll}
+            testID="filter-sheet-clear-all"
+            onPress={() => setParams(clearedParams)}
+            style={{ minHeight: 36, paddingHorizontal: 12, justifyContent: "center" }}
+          >
+            <Text style={{ fontSize: F.base, color: colors.foreground }}>{strings.clearAll}</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <ScrollView
         ref={scrollRef}
         {...detailScrollProps("inset")}

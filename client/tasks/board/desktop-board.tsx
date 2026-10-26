@@ -44,7 +44,7 @@ import {
 } from "./sidebar-model";
 import { BoardSheet } from "./board-sheet";
 import { activeFilterCount, rememberCollapsed, rememberedCollapsed } from "./params";
-import { FilterSheetBody, FilterSheetHeaderActions } from "./filter-sheet";
+import { FilterSheetBody } from "./filter-sheet";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 import { focusedTaskCardId, focusTaskBoard } from "../../web";
@@ -597,7 +597,7 @@ export function DesktopBoard(props: {
         />
       )}
       {/* Narrow boards and tablet toolbars share the host's filter panel. */}
-      <Modal title={strings.filters} headerActions={<FilterSheetHeaderActions board={live} theme={theme} />} open={(touch || sheetMode) && filtersOpen} onOpenChange={(open) => !open && setFiltersOpen(false)}>
+      <Modal title={strings.filters} open={(touch || sheetMode) && filtersOpen} onOpenChange={(open) => !open && setFiltersOpen(false)}>
         <Modal.Content contentContainerStyle={FILTER_SHEET_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
             {(touch || sheetMode) && filtersOpen && options ? (
