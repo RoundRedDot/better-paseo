@@ -1872,7 +1872,7 @@ describe("Tasks board, desktop", () => {
     const group = () => hostParentOf(controls())!;
     const words = () => controls().findAll((node) => (node.type as unknown) === "Text").map(textOf);
     expect(words()).toEqual(["Agent", "Project", "Workspace", "Labels"]);
-    const dividers = () => ["lane-width-divider", "done-window-divider", "filter-sort-divider"].flatMap(hostsById);
+    const dividers = () => ["board-switches-divider", "lane-width-divider", "done-window-divider"].flatMap(hostsById);
     expect(dividers()).toHaveLength(3);
 
     // The buttons need 700 of the group's 500: they drop their words, and read them out.
@@ -2127,7 +2127,7 @@ describe("Tasks board, lane widths", () => {
     const lay = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 28 } } }));
     expect(inline()).toHaveLength(0);
     expect(hostsById("lane-width-label")).toHaveLength(0);
-    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end())[0]).toBe(laneControl());
+    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end()).indexOf(laneControl())).toBe(5);
     lay(controls(), 500);
     lay(group(), 1000);
     lay(end(), 650);
@@ -2151,9 +2151,10 @@ describe("Tasks board, lane widths", () => {
     expect(laneChildren.indexOf(label())).toBeLessThan(laneChildren.indexOf(inline()[0]!));
     const endGroups = () => end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end());
     expect(endGroups().filter((node) => node.props.testID).map((node) => node.props.testID)).toEqual([
-      "lane-width-control", "lane-width-divider", "done-window", "done-window-divider", "subtasks-toggle", "empty-groups-toggle", "filter-sort-divider",
+      "archived-lane-toggle", "empty-lanes-toggle", "subtasks-toggle", "empty-groups-toggle", "board-switches-divider",
+      "lane-width-control", "lane-width-divider", "done-window", "done-window-divider",
     ]);
-    for (const id of ["lane-width-divider", "done-window-divider"]) {
+    for (const id of ["board-switches-divider", "lane-width-divider", "done-window-divider"]) {
       expect(StyleSheet.flatten(hostsById(id)[0]!.props.style)).toMatchObject({ height: 16, marginHorizontal: 4, backgroundColor: "#e2e2e6" });
     }
     const choices = () => inline()[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio");
@@ -2161,7 +2162,7 @@ describe("Tasks board, lane widths", () => {
     expect(choices().map((node) => node.props.accessibilityLabel)).toEqual([strings.laneWidth.names.narrow, strings.laneWidth.names.default, strings.laneWidth.names.wide]);
     expect(choices().map((node) => node.findByType(LaneWidthMark).props.laneWidth)).toEqual(["narrow", "default", "wide"]);
     expect(choices().map((node) => node.props.accessibilityState.selected)).toEqual([false, true, false]);
-    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end())[0]).toBe(laneControl());
+    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end()).indexOf(laneControl())).toBe(5);
     expect(StyleSheet.flatten(inline()[0]!.props.style).height).toBe(Math.round(28 * Math.max(1, base / 14)));
     await act(async () => choices()[2]!.props.onPress());
     expect(deviceTasksStore().snapshot().values?.laneWidth).toBe("wide");
@@ -2302,30 +2303,31 @@ describe("Tasks board, archived lane switch", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   });
 
-  const toggle = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived")[0]!;
+  const toggle = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "archived-lane-toggle")[0]!;
 
-  it("shows the archived lane from the top toolbar's switch, and saves it", async () => {
+  it("shows the archived lane from the filter bar's switch, and saves it", async () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
     layOut(2400);
-    // The phone's round Archive button: no word, struck through while the lane hides.
+    // A round Archive switch: no word, struck through while the lane hides.
     const slashed = () => toggle().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
     expect(textOf(toggle())).toBe("");
-    expect(toggle().props).toMatchObject({ accessibilityLabel: "Show the archived lane", accessibilityState: { selected: false } });
+    expect(toggle().props).toMatchObject({ accessibilityRole: "switch", accessibilityLabel: "Show the archived lane", accessibilityState: { checked: false } });
     expect(slashed()).toBe(true);
-    const outline = () => toggle().find((node) => (node.type as unknown) === "View" && StyleSheet.flatten(node.props.style)?.borderWidth !== undefined).props.style.borderColor;
+    const outline = () => StyleSheet.flatten(toggle().props.style).borderColor;
     const offOutline = outline();
     expect(hostsById("lane-archived")).toHaveLength(0);
-    // Alongside the empty-lane and sidebar controls, as on iPad.
+    // The top toolbar keeps only the sidebar's switch; the board's switches sit left of the lane width.
     const toolbar = renderer!.root.findByType(DesktopToolbar);
-    const order = toolbar.findAll((node) => (node.type as unknown) === "Pressable");
-    expect(order.map((node) => node.props.testID)).toEqual(["toolbar-archived", "empty-lanes-toggle", "sidebar-switch"]);
-    expect(hostsById("archived-lane-toggle")).toHaveLength(0);
+    expect(toolbar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(["sidebar-switch"]);
+    const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
+    expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["archived-lane-toggle", "empty-lanes-toggle", "subtasks-toggle", "empty-groups-toggle"]);
+    expect(hostsById("toolbar-archived")).toHaveLength(0);
     await act(async () => toggle().props.onPress());
     layOut(2400);
     // Drawn at once, before the record catches up.
-    expect(toggle().props.accessibilityState).toEqual({ selected: true });
+    expect(toggle().props.accessibilityState).toEqual({ checked: true });
     expect(slashed()).toBe(false);
     // Only the icon changes: the outline stays.
     expect(outline()).toBe(offOutline);
@@ -2341,7 +2343,7 @@ describe("Tasks board, archived lane switch", () => {
     layOut(2400);
     failDeviceWrite();
     await act(async () => toggle().props.onPress());
-    expect(toggle().props.accessibilityState).toEqual({ selected: false });
+    expect(toggle().props.accessibilityState).toEqual({ checked: false });
     // The optimistic lane leaves through its normal collapse animation after rollback.
     act(() => { vi.advanceTimersByTime(300); });
     expect(hostsById("lane-archived")).toHaveLength(0);
@@ -2378,7 +2380,7 @@ describe("Tasks board, toolbar tips", () => {
         "Lanes · Default",
       ]),
     );
-    const toggle = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived")[0]!;
+    const toggle = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "archived-lane-toggle")[0]!;
     await act(async () => toggle.props.onPress());
     expect(tips()).toContain("Hide the archived lane");
     expect(tips()).not.toContain("Show the archived lane");
@@ -2812,9 +2814,9 @@ describe("Tasks board, tablet filters", () => {
       const rows = () => groups().findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);
       expect(toggle().props).toMatchObject({ accessibilityLabel: "Show groups with no active tasks", accessibilityState: { checked: true } });
       expect(icon()).toBe("List");
-      // After the subtasks switch, in the bar's end.
+      // Last of the board's switches, in the bar's end.
       const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-      expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["subtasks-toggle", "empty-groups-toggle"]);
+      expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["archived-lane-toggle", "empty-lanes-toggle", "subtasks-toggle", "empty-groups-toggle"]);
       // Busy first, the empty ones after them.
       expect(rows().at(-1)).toBe("Pi 0");
       await act(async () => toggle().props.onPress());
@@ -2853,7 +2855,7 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById(target)[0]!.props.accessibilityState).toEqual({ checked: false });
   });
 
-  it.each([["web", 600], ["web", 800], ["web", 1200], ["web", 2400], ["ios", 600], ["ios", 800], ["ios", 1200]] as const)("%s at %i pt keeps the archived lane's icon button in the toolbar", async (os, width) => {
+  it.each([["web", 600], ["ios", 600], ["ios", 800], ["ios", 1200]] as const)("%s at %i pt keeps the archived lane's icon button in the toolbar", async (os, width) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -2861,7 +2863,7 @@ describe("Tasks board, tablet filters", () => {
     layOut(width);
     const archived = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived");
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && (node.props.testID === "toolbar-archived" || node.props.testID === "toolbar-filters"));
-    expect(buttons.map((node) => node.props.testID)).toEqual(os !== "web" ? ["toolbar-archived", "toolbar-filters"] : width === 600 ? ["toolbar-archived", "toolbar-filters"] : ["toolbar-archived"]);
+    expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-filters"]);
     expect(textOf(archived())).toBe("");
     expect(archived().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Archive");
     expect(hostsById("archived-lane-toggle")).toHaveLength(0);
@@ -2886,11 +2888,16 @@ describe("Tasks board, tablet filters", () => {
       expect(hostsById("filter-sheet-lane-width")).toHaveLength(1);
       if (os === "web") expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
     }
-    // The toolbar button and its state survive a resize on both platforms.
+    // The state survives a resize: native keeps the toolbar button, a wide web board moves it to the filter bar.
     layOut(1600);
-    expect(hostsById("toolbar-archived")).toHaveLength(1);
-    expect(archived().props.accessibilityState).toEqual({ selected: true });
-    expect(hostsById("archived-lane-toggle")).toHaveLength(0);
+    if (os === "web") {
+      expect(hostsById("toolbar-archived")).toHaveLength(0);
+      expect(hostsById("archived-lane-toggle")[0]!.props.accessibilityState).toEqual({ checked: true });
+    } else {
+      expect(hostsById("toolbar-archived")).toHaveLength(1);
+      expect(archived().props.accessibilityState).toEqual({ selected: true });
+      expect(hostsById("archived-lane-toggle")).toHaveLength(0);
+    }
   });
 
   it("web switches between hierarchy and flat list icons for subtask visibility", () => {
@@ -2904,8 +2911,8 @@ describe("Tasks board, tablet filters", () => {
     const look = () => toggle().props.style as { borderColor: string; backgroundColor: string };
     expect(textOf(renderer!.root)).not.toContain("Open tabs only");
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more")).toHaveLength(0);
-    // Every switch on the bar is a round one by the done window.
-    const barSwitches = new Set(["subtasks-toggle", "empty-groups-toggle"]);
+    // Every switch on the bar is a round one left of the lane width.
+    const barSwitches = new Set(["archived-lane-toggle", "subtasks-toggle", "empty-groups-toggle"]);
     const switches = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
     expect(switches.filter((node) => !barSwitches.has(node.props.testID))).toHaveLength(0);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
