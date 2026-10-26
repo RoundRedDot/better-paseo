@@ -1021,9 +1021,10 @@ describe("ProjectIcon", () => {
     const light = taskTokens(LIGHT);
     const tree = await render(cardElement(child, { hostId: "host-1" }));
     const mark = marks(tree)[0]!;
-    // A 3.5 pt dot centred 7 pt in from the top and right: no layout, no touch, no screen reader.
+    // A 3.5 pt dot, its edge 7 pt clear of the top and right: no layout, no touch, no screen reader.
     const { size, inset } = MARK_DOT;
-    expect(MARK_DOT).toEqual({ size: 3.5, inset: 7 });
+    expect(MARK_DOT).toEqual({ size: 3.5, inset: 8.75 });
+    expect(inset - size / 2).toBe(7);
     expect(flat(mark.props.style)).toMatchObject({ position: "absolute", top: inset - size / 2, right: inset - size / 2, width: size, height: size, borderRadius: size / 2 });
     expect(mark.props.pointerEvents).toBe("none");
     expect(mark.props.importantForAccessibility).toBe("no-hide-descendants");

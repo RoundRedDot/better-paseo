@@ -425,10 +425,12 @@ export const OVERLAY_ROW_Z = 2;
 const CARD_RADIUS = 8;
 /**
  * The subtask mark: a small dot by the top-right corner, this wide, its
- * centre this far in from both edges. The context ring sits on the same
- * diagonal (`ringNudge`), about 7 pt beyond it on a desktop card.
+ * centre this far in from both edges. Past the corner's 8 pt curve, so the
+ * top and right edges are nearest: its edge keeps 7 pt clear of both (7.5
+ * along the diagonal). The context ring sits on the same diagonal
+ * (`ringNudge`), about 4 pt beyond it on a desktop card.
  */
-export const MARK_DOT = { size: 3.5, inset: 7 } as const;
+export const MARK_DOT = { size: 3.5, inset: 8.75 } as const;
 /** The mark's hue reads at least this far from the card (a black logo on a dark card). */
 const MARK_CONTRAST = 3;
 /** The mark at rest: this much of the muted foreground, mixed into the card. */
