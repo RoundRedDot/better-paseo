@@ -6,7 +6,7 @@ import { LANE_WIDTHS } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { TagMark, taskTokens } from "../cards";
 import { tipProps } from "../cards/card-hints";
-import { HoverPressable, RollingTotal, WindowSegments, RoundButton, Segments, SlashMark } from "./board-parts";
+import { CornerBadge, HoverPressable, RollingTotal, WindowSegments, RoundButton, Segments, SlashMark } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { FILTER_ICONS, activeChips, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, shownFilterOptions, toggleProject, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
@@ -234,7 +234,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
  * the archived lane's Archive is struck through while the lane is hidden,
  * the subtasks switch between a network and a flat list.
  */
-function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: string; hint: string; tip: string; theme: PluginTheme; slashed?: boolean; testID: string }) {
+function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: string; hint: string; tip: string; theme: PluginTheme; slashed?: boolean; badge?: number; testID: string }) {
   const colors = props.theme.colors;
   const spaceKeys = useSwitchSpace(props.onPress);
   const scale = useTasksFontScale();
@@ -270,6 +270,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
     >
       <Icon name={props.icon} size={icon} color={colors.foreground} />
       {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={background} /> : null}
+      <CornerBadge count={props.badge ?? 0} theme={props.theme} style={{ bottom: -1, right: -1 }} testID={`${props.testID}-count`} />
     </Pressable>
   );
 }
@@ -399,6 +400,7 @@ export function DesktopFilterBar(props: {
     <BarSwitch
       icon={resolved.filters.hideSubtasks ? "List" : "Network"}
       on={!resolved.filters.hideSubtasks}
+      badge={board.hiddenSubtasks}
       onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
       label={strings.showSubtasks}
       hint={strings.showSubtasksHint}
