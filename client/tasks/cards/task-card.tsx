@@ -728,8 +728,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       testID="task-card-meta"
     >
       {avatar ? (
-        <View {...hintProps(location.projectName ? hint("project", () => pair(strings.hint.project, location.projectName!)) : undefined)}>
-          <ProjectIcon location={location} size={12} hostId={props.hostId} />
+        // Centred in the status icon's slot, so the meta and title text start together.
+        <View
+          style={{ width: m.iconSlot, alignItems: "center" }}
+          {...hintProps(location.projectName ? hint("project", () => pair(strings.hint.project, location.projectName!)) : undefined)}
+        >
+          <ProjectIcon location={location} size={m.icon} hostId={props.hostId} />
         </View>
       ) : null}
       <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center" }}>
@@ -1146,7 +1150,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                 testID="task-card-started"
                 {...hintProps(hint("started", () => startHint(card, language)))}
               >
-                <Icon name="Clock" size={m.icon} color={muted} />
+                <View style={{ width: m.iconSlot, alignItems: "center" }}>
+                  <Icon name="Clock" size={m.icon} color={muted} />
+                </View>
                 <StartText card={card} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, muted), tabular]} />
               </View>
             ) : null}
