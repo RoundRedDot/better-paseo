@@ -20,6 +20,7 @@ import { TaskCardView, type TaskCardViewProps } from "../../client/tasks/cards/t
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { withAlpha } from "../../client/components/theme-tokens";
+import { taskTokens } from "../../client/tasks/cards/tokens";
 
 const NOW = Date.parse("2026-10-20T09:00:00.000Z");
 const THEME = {
@@ -64,6 +65,23 @@ async function render(overrides: Partial<TaskCardViewProps> = {}) {
 }
 
 describe("split Stop button", () => {
+  it.each(["ios", "android", "web"])("uses danger colors for both stop menu labels and icons on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const root = await render();
+    await act(async () => button(root, "Stop options").props.onPress());
+    const rows = root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      const label = row.findAll((node) => node.type === "Text")[0]!;
+      const icon = row.find((node) => node.type === "Icon");
+      expect(flat(label).color).toBe(taskTokens(THEME).danger);
+      expect(icon.props.color).toBe(taskTokens(THEME).danger);
+      await act(async () => row.props.onHoverIn());
+      expect(flat(label).color).toBe(taskTokens(THEME).danger);
+      expect(icon.props.color).toBe(taskTokens(THEME).danger);
+    }
+  });
+
   it.each(["ios", "android", "web"])("draws one outline and a separate thin divider on %s", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const root = await render();
