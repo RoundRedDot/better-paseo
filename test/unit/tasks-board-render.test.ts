@@ -123,7 +123,7 @@ import { LaneWidthMark } from "../../client/tasks/board/lane-width-mark";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
-import { ACTIVE_LANE_ORDER as LANE_ORDER } from "../../client/tasks/model";
+import { ACTIVE_LANE_ORDER as LANE_ORDER, type TaskCard } from "../../client/tasks/model";
 import { BrandMark, DetailActionBar, PiMark, TagMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
 import { deviceTasksStore } from "../../client/tasks/device-preferences";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
@@ -3829,6 +3829,35 @@ describe("Tasks board, phone", () => {
     act(() => cards()[0]!.props.onSelect(cards()[0]!.props.card));
     expect(sheet().findByType(TaskDetailCards).props.card.id).toBe("sample-input");
     expect(openAgent).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { compact: false, canStop: true, provider: false },
+    { compact: true, canStop: true, provider: false },
+    { compact: false, canStop: false, provider: false },
+    { compact: true, canStop: false, provider: false },
+    { compact: false, canStop: true, provider: true },
+    { compact: true, canStop: true, provider: true },
+  ])("aligns idle-parent stop availability in cards and details: %j", async ({ compact, canStop, provider }) => {
+    host.canStop = canStop;
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }>; byId: Map<string, TaskCard> } }).__handle;
+    const saved = { lanes: handle.lanes, byId: handle.byId };
+    const base = saved.byId.get("sample-running")!;
+    const parent: TaskCard = { ...base, stoppable: false, waitingOnSubtasks: true, children: [{ id: "child", title: "Child", status: "running", ...(provider ? { kind: "provider" as const } : {}) }] };
+    try {
+      handle.lanes = { ...saved.lanes, running: { ...saved.lanes.running!, cards: [parent] } };
+      handle.byId = new Map(saved.byId).set(parent.id, parent);
+      await act(async () => { renderer = TestRenderer.create(screen(compact)); });
+      if (!compact) layOut(1400);
+      const card = cards().find((node) => node.props.card.id === parent.id)!;
+      await act(async () => card.props.onSelect(parent));
+      const detail = renderer!.root.findByType(TaskDetailCards);
+      expect(!!detail.props.stop).toBe(canStop && !provider);
+      if (compact) expect(!!renderer!.root.findByType(DetailActionBar).props.stop).toBe(canStop && !provider);
+    } finally {
+      handle.lanes = saved.lanes;
+      handle.byId = saved.byId;
+    }
   });
 
   it.each([false, true])("offers Stop on a phone card exactly when its details sheet does (host CLI: %s)", async (canStop) => {

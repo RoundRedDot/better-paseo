@@ -293,7 +293,7 @@ export function useBoard(
     const card = byIdRef.current.get(agentId);
     return card !== undefined && (turnRunning(card) || card.lane === "needs_input");
   }, []);
-  const stop = useStopControl({ confirmStop: settings.board.confirmStop, isActive, toast });
+  const stop = useStopControl({ confirmStop: settings.board.confirmStop, cardById: (id) => byIdRef.current.get(id), isActive, toast });
   const isReadable = useCallback((agentId: string) => byIdRef.current.get(agentId)?.readable === true, []);
   const afterRead = useCallback(() => latest.current.tasks.refreshReads(), []);
   const read = useReadControl({ isReadable, onRead: afterRead, toast });

@@ -568,8 +568,8 @@ export function withReadMark(card: TaskCard, readAt: number | undefined, failedA
  * A finished parent whose subtasks still run or wait for input is not done:
  * it moves to the running lane with the running ring, so the board does not
  * read it as finished while its work goes on. Its own turn has ended
- * (`waitingOnSubtasks`), so it gets no Stop of its own, and its timer counts
- * its subtasks' work instead of a turn. A failed parent stays in review: its
+ * (`waitingOnSubtasks`), so Stop targets its active Paseo descendants, and its
+ * timer counts its subtasks' work instead of a turn. A failed parent stays in review: its
  * failure needs a person first.
  */
 export function withActiveSubtasks(card: TaskCard): TaskCard {

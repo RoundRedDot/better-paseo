@@ -1762,6 +1762,18 @@ describe("TaskCardView actions", () => {
     expect(open).toEqual(["打开", "打开父任务", "显示父任务卡片"]);
   });
 
+  it("offers a single children-only menu action instead of an invalid self-stop", () => {
+    const card = { ...sample("sample-running"), stoppable: false, waitingOnSubtasks: true };
+    const stop = vi.fn();
+    const sections = cardMenuSections(card, cardStrings("zh"), { copy() {}, stop, children: 2, childrenOnly: true });
+    const items = sections.find((section) => section.key === "actions")!.items;
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ label: "停止子任务", danger: true });
+    expect(items[0]!.submenu).toBeUndefined();
+    items[0]!.onSelect?.();
+    expect(stop).toHaveBeenCalledWith(true);
+  });
+
   it("lists the board filters a card can apply under Filter, each naming its value", () => {
     const card = sample("sample-running");
     const select = vi.fn();
@@ -3007,6 +3019,29 @@ describe("TaskDetailCards", () => {
     expect(flat(hostByTestId(done.root, "detail-bar-archive").props.style)).toMatchObject({ flexGrow: 0, backgroundColor: taskTokens(LIGHT).card.background, borderColor: taskTokens(LIGHT).card.archiveBorder });
     await act(async () => hostByTestId(done.root, "detail-bar-archive").props.onPress());
     expect(archive.press).toHaveBeenCalledWith("sample-done");
+  });
+
+  it.each(["zh", "en"] as const)("names children-only stops consistently in the details and phone bar in %s", async (language) => {
+    const card = { ...sample("sample-running"), stoppable: false, waitingOnSubtasks: true };
+    const onPress = vi.fn();
+    const label = language === "zh" ? "停止子任务" : "Stop subtasks";
+    for (const surface of ["header", "bar"] as const) {
+      const element = (phase: StopPhase) => surface === "header"
+        ? details(card, { stop: { phase, onPress } }, language)
+        : React.createElement(DetailActionBar, { card, theme: LIGHT, language, strings: BOARD_STRINGS[language].sidebar, stop: { phase, onPress } });
+      const tree = await render(element("idle"));
+      const id = surface === "header" ? "detail-stop" : "detail-bar-stop";
+      expect(texts(hostByTestId(tree.root, id))).toEqual([label]);
+      await act(async () => hostByTestId(tree.root, id).props.onPress());
+      expect(onPress).toHaveBeenCalled();
+      await act(async () => tree.update(element("confirming")));
+      expect(texts(hostByTestId(tree.root, id))).toEqual([cardStrings(language).confirmStopAll]);
+      await act(async () => tree.update(element("stopping")));
+      expect(texts(hostByTestId(tree.root, id))).toEqual([label]);
+      expect(hostByTestId(tree.root, id).props.disabled).toBe(true);
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
   });
 
   it("names the stop button by its phase", async () => {

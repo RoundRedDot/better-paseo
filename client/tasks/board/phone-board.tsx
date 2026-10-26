@@ -16,6 +16,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, taskContr
 import { DetailActionBar, StatusIcon, TaskDetailCards, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
 import { LANE_STATUS, isHistoryLane, turnRunning, type LaneId, type LaneModel, type TaskCard } from "../model";
+import { activeStopChildren } from "../actions/stop-targets";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
@@ -556,8 +557,8 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
     const next = list[index + delta];
     if (next) props.onShow(next.id);
   };
-  const stopAvailable = !!board.callbacks.onStop && card.stoppable;
-  const stop = stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card) } : null;
+  const stopAvailable = !!board.callbacks.onStop && (card.stoppable || activeStopChildren(card).length > 0);
+  const stop = stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null;
   const onPermission = (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>

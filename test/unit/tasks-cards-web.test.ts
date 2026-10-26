@@ -324,6 +324,43 @@ describe("TaskCardView on web", () => {
     await act(async () => renderer.unmount());
   });
 
+  it("reveals an idle parent's children-only stop on hover and preserves its scope on confirmation", async () => {
+    const card = { ...sampleCards(NOW).find((candidate) => candidate.id === "sample-running")!, stoppable: false, waitingOnSubtasks: true };
+    const onStop = vi.fn();
+    const element = (stopPhase: TaskCardViewProps["stopPhase"]) => React.createElement(TaskCardView, props(card.id, { card, onStop, stopPhase }));
+    const renderer = await render(element("idle"));
+    const controls = () => renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop");
+    expect(controls()).toHaveLength(0);
+    await act(async () => hovers.get(`task-card-${card.id}`)!.enter());
+    expect(controls()).toHaveLength(1);
+    const stop = renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止子任务");
+    await act(async () => stop.props.onPress());
+    expect(onStop).toHaveBeenLastCalledWith(card, { withChildren: true });
+    await act(async () => renderer.update(element("confirming")));
+    const confirm = renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认停止全部");
+    await act(async () => confirm.props.onPress());
+    expect(onStop).toHaveBeenLastCalledWith(card, { withChildren: true });
+    expect(renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-divider")).toHaveLength(0);
+    await act(async () => renderer.unmount());
+  });
+
+  it("keeps a self-only confirmation's scope and label when the parent becomes idle", async () => {
+    const card = sampleCards(NOW).find((candidate) => candidate.id === "sample-running")!;
+    const onStop = vi.fn();
+    const element = (current: TaskCard, stopPhase: TaskCardViewProps["stopPhase"]) => React.createElement(TaskCardView, props(card.id, { card: current, onStop, stopPhase }));
+    const renderer = await render(element(card, "idle"));
+    await act(async () => hovers.get(`task-card-${card.id}`)!.enter());
+    const stop = renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止");
+    await act(async () => stop.props.onPress());
+    expect(onStop).toHaveBeenLastCalledWith(card, { withChildren: false });
+    const idle = { ...card, stoppable: false, waitingOnSubtasks: true };
+    await act(async () => renderer.update(element(idle, "confirming")));
+    const confirm = renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认停止");
+    await act(async () => confirm.props.onPress());
+    expect(onStop).toHaveBeenLastCalledWith(idle, { withChildren: false });
+    await act(async () => renderer.unmount());
+  });
+
   it("keeps Stop while the pointer moves from the card onto it, and cancels on leaving the card", async () => {
     const onStop = vi.fn();
     const onCancelStop = vi.fn();

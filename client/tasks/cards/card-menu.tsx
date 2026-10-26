@@ -29,6 +29,7 @@ export interface CardMenuActions {
   stop?(withChildren: boolean): void;
   /** A parent's running and waiting subtasks: Stop gets "only this / with subtasks". */
   children: number;
+  childrenOnly?: boolean;
   /** "Stop with subtasks"'s mark, as the card's own stop menu draws it, in the danger colour. */
   stopAllLeading?: ReactNode;
   read?(): void;
@@ -94,7 +95,7 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
       items: [
         ...(stop
           ? [
-              actions.children > 0
+              !actions.childrenOnly && actions.children > 0
                 ? {
                     key: "stop",
                     label: strings.stop,
@@ -110,7 +111,7 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
                       },
                     ],
                   }
-                : { key: "stop", label: strings.stop, icon: "Power", danger: true, onSelect: () => stop(false) },
+                : { key: "stop", label: actions.childrenOnly ? strings.stopChildren : strings.stop, icon: "Power", danger: true, onSelect: () => stop(actions.childrenOnly === true) },
             ]
           : []),
         ...(actions.read ? [{ key: "read", label: strings.markRead, icon: "CheckCheck", onSelect: actions.read }] : []),

@@ -7,6 +7,7 @@ import { tasksCapabilitiesRpc, tasksReadRpc, tasksStopRpc, tasksStoppedRpc, task
 import type { TaskCard, TaskPermission, TaskPermissionAction } from "../model";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { confirmDialog } from "../../components/confirm-dialog";
+import { activeStopChildren, stopTargets } from "./stop-targets";
 
 /** One permission button the card draws. `open` jumps to the tab instead of answering. */
 export interface PermissionButton {
@@ -137,18 +138,6 @@ function shortError(error: unknown): string {
   return message.trim().slice(0, 180) || "Unknown error.";
 }
 
-function stopIds(card: TaskCard, withChildren: boolean): string[] {
-  const ids = [card.id];
-  if (withChildren) {
-    for (const child of card.children) {
-      // A provider subagent is no Paseo agent: stopping the parent ends its turn, and the provider decides the rest.
-      if (child.kind === "provider") continue;
-      if (child.status === "running" || child.status === "needs_input") ids.push(child.id);
-    }
-  }
-  return [...new Set(ids)];
-}
-
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(message)), ms);
@@ -168,20 +157,21 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 /** Longest task name the dialog's message carries before it is cut. */
 const DIALOG_NAME_MAX = 120;
 
-/** The system dialog's words for one stop: a fixed heading, then the task's name; `children` counts the subtasks it stops too. */
-export function stopDialogText(card: TaskCard, children: number, language: TasksLanguage) {
+/** The dialog names the actual targets, including a children-only stop from an idle parent. */
+export function stopDialogText(card: TaskCard, targets: { self: boolean; children: number }, language: TasksLanguage) {
+  const { self, children } = targets;
   const trimmed = card.title.trim();
   const message = trimmed.length > DIALOG_NAME_MAX ? `${trimmed.slice(0, DIALOG_NAME_MAX - 1).trimEnd()}…` : trimmed;
   if (language === "zh") {
     return {
-      title: children > 0 ? `停止任务和 ${children} 个子任务？` : "停止任务？",
+      title: !self ? `停止 ${children} 个子任务？` : children > 0 ? `停止任务和 ${children} 个子任务？` : "停止任务？",
       message,
       cancel: "取消",
       confirm: children > 0 ? "全部停止" : "停止",
     };
   }
   return {
-    title: children > 0 ? `Stop this task and ${children} ${children === 1 ? "subtask" : "subtasks"}?` : "Stop this task?",
+    title: !self ? `Stop ${children} ${children === 1 ? "subtask" : "subtasks"}?` : children > 0 ? `Stop this task and ${children} ${children === 1 ? "subtask" : "subtasks"}?` : "Stop this task?",
     message,
     cancel: "Cancel",
     confirm: children > 0 ? "Stop all" : "Stop",
@@ -206,6 +196,7 @@ function stillRunningMessage(count: number, language: TasksLanguage): string {
  */
 export function useStopControl(options: {
   confirmStop: boolean;
+  cardById(agentId: string): TaskCard | undefined;
   isActive?: (agentId: string) => boolean;
   /** Where the failures are said; the host's toast unless given (the phone board says them at its bottom). */
   toast?: Pick<ReturnType<typeof useToast>, "error">;
@@ -224,7 +215,7 @@ export function useStopControl(options: {
   const stoppedRpcRef = useRef(stoppedRpc);
   stoppedRpcRef.current = stoppedRpc;
   const phasesRef = useRef<Record<string, StopPhase>>({});
-  const timersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const timersRef = useRef(new Map<string, { timer: ReturnType<typeof setTimeout>; withChildren: boolean; self: boolean }>());
   const stoppedRef = useRef(new Set<string>());
   const mountedRef = useRef(false);
   const capabilitiesRef = useRef(capabilitiesRpc);
@@ -234,6 +225,8 @@ export function useStopControl(options: {
   const languageRef = useRef(language);
   const isActiveRef = useRef(options.isActive);
   isActiveRef.current = options.isActive;
+  const cardByIdRef = useRef(options.cardById);
+  cardByIdRef.current = options.cardById;
   /** A system stop dialog is open: presses until it closes are ignored. */
   const askingRef = useRef(false);
   /** Stops the daemon accepted, by the pressed card, until their agents settle. */
@@ -253,7 +246,7 @@ export function useStopControl(options: {
 
   const clearTimer = useCallback((agentId: string) => {
     const timer = timersRef.current.get(agentId);
-    if (timer !== undefined) clearTimeout(timer);
+    if (timer !== undefined) clearTimeout(timer.timer);
     timersRef.current.delete(agentId);
   }, []);
 
@@ -261,7 +254,7 @@ export function useStopControl(options: {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      for (const timer of timersRef.current.values()) clearTimeout(timer);
+      for (const entry of timersRef.current.values()) clearTimeout(entry.timer);
       timersRef.current.clear();
       for (const entry of verifyingRef.current.values()) clearTimeout(entry.timer);
       verifyingRef.current.clear();
@@ -364,19 +357,23 @@ export function useStopControl(options: {
   }, [settle]);
 
   /** Sends the stop and checks it took. */
-  const run = useCallback((card: TaskCard, withChildren: boolean) => {
-    const agentId = card.id;
+  const run = useCallback((agentId: string, agentIds: string[]) => {
     if ((phasesRef.current[agentId] ?? "idle") === "stopping") return;
     clearTimer(agentId);
     updatePhase(agentId, "stopping");
-    const agentIds = stopIds(card, withChildren);
-
     const timeoutMessage = languageRef.current === "zh" ? "停止请求没有响应。" : "The stop request did not answer.";
-    void withTimeout(Promise.resolve().then(() => stopRpcRef.current({ agentIds })), STOP_RPC_TIMEOUT_MS, timeoutMessage).then((result) => {
+    // The RPC accepts at most 50 IDs. Keep each batch's successes even if another request fails.
+    const batches = Array.from({ length: Math.ceil(agentIds.length / 50) }, (_, index) => agentIds.slice(index * 50, (index + 1) * 50));
+    void Promise.all(batches.map((ids) =>
+      withTimeout(Promise.resolve().then(() => stopRpcRef.current({ agentIds: ids })), STOP_RPC_TIMEOUT_MS, timeoutMessage)
+        .then((result) => result.results)
+        .catch((error: unknown) => ids.map((id) => ({ agentId: id, ok: false, error: shortError(error) }))),
+    )).then((batches) => {
       if (!mountedRef.current) return;
-      const accepted = result.results.filter((item) => item.ok).map((item) => item.agentId);
+      const results = batches.flat();
+      const accepted = results.filter((item) => item.ok).map((item) => item.agentId);
       addStoppedIds(accepted);
-      const failures = result.results.filter((item) => !item.ok);
+      const failures = results.filter((item) => !item.ok);
       if (failures.length > 0) {
         const detail = failures[0]?.error ?? (languageRef.current === "zh" ? "未知错误。" : "Unknown error.");
         const message = languageRef.current === "zh"
@@ -399,26 +396,39 @@ export function useStopControl(options: {
     });
   }, [addStoppedIds, clearTimer, settle, updatePhase]);
 
-  const press = useCallback((card: TaskCard, stopOptions?: { withChildren?: boolean; dialog?: boolean }) => {
-    if (!available || !card.stoppable) return;
+  const press = useCallback((given: TaskCard, stopOptions?: { withChildren?: boolean; dialog?: boolean }) => {
+    if (!available) return;
+    const card = cardByIdRef.current(given.id);
+    if (!card) return;
     const agentId = card.id;
     const currentPhase = phasesRef.current[agentId] ?? "idle";
     if (currentPhase === "stopping" || askingRef.current) return;
-    const withChildren = stopOptions?.withChildren === true;
+    // A second press confirms the original scope, even if the card's own turn ended meanwhile.
+    const confirmation = currentPhase === "confirming" && stopOptions?.dialog !== true ? timersRef.current.get(agentId) : undefined;
+    const withChildren = confirmation ? confirmation.withChildren : stopOptions?.withChildren === true;
+    const agentIds = stopTargets(card, withChildren, cardByIdRef.current).filter((id) => confirmation?.self !== false || id !== agentId);
+    if (agentIds.length === 0) {
+      cancel(agentId);
+      if (withChildren && activeStopChildren(card).length > 0) {
+        toastRef.current.error(languageRef.current === "zh" ? "没有可停止的任务或子任务" : "No stoppable tasks or subtasks");
+      }
+      return;
+    }
 
     if (options.confirmStop && (Platform.OS !== "web" || stopOptions?.dialog === true)) {
       askingRef.current = true;
       const close = () => {
         askingRef.current = false;
       };
-      const text = stopDialogText(card, stopIds(card, withChildren).length - 1, languageRef.current);
+      const self = agentIds.includes(agentId);
+      const text = stopDialogText(card, { self, children: agentIds.length - Number(self) }, languageRef.current);
       if (Platform.OS === "web") {
         // Electron's native dialog, else the browser's confirm: as Paseo asks before it archives.
         void confirmDialog({ title: text.title, message: text.message, confirmLabel: text.confirm, cancelLabel: text.cancel, destructive: true })
           .catch(() => false)
           .then((yes) => {
             close();
-            if (yes && mountedRef.current) run(card, withChildren);
+            if (yes && mountedRef.current) run(agentId, agentIds);
           });
         return;
       }
@@ -426,7 +436,7 @@ export function useStopControl(options: {
         { text: text.cancel, style: "cancel", onPress: close },
         { text: text.confirm, style: "destructive", onPress: () => {
           close();
-          if (mountedRef.current) run(card, withChildren);
+          if (mountedRef.current) run(agentId, agentIds);
         } },
       ], { cancelable: true, onDismiss: close });
       return;
@@ -439,12 +449,12 @@ export function useStopControl(options: {
         timersRef.current.delete(agentId);
         if (phasesRef.current[agentId] === "confirming") updatePhase(agentId, "idle");
       }, CONFIRMATION_MS);
-      timersRef.current.set(agentId, timer);
+      timersRef.current.set(agentId, { timer, withChildren, self: card.stoppable });
       return;
     }
 
-    run(card, withChildren);
-  }, [available, clearTimer, options.confirmStop, run, updatePhase]);
+    run(agentId, agentIds);
+  }, [available, cancel, clearTimer, options.confirmStop, run, updatePhase]);
 
   // One object until something in it changes: the lanes' lists take it as `extraData`.
   return useMemo(
