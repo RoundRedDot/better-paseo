@@ -3119,17 +3119,17 @@ describe("overlays in the board's menu chrome", () => {
     }
     // The card itself keeps its own radius.
     const card = await render(cardElement(sample("sample-done")));
-    expect(flat(hostByTestId(card.root, "task-card-sample-done").props.style).borderRadius).toBe(8);
+    expect(flat(hostByTestId(card.root, "task-card-sample-done").props.style).borderRadius).toBe(14);
   });
 });
 
 describe("TaskCardView chrome", () => {
-  it("is Linear's card: radius 8, a hairline, and on hover only the fill and shadow change", async () => {
+  it.each([false, true])("uses radius 14 and a hairline, with only fill and shadow changing on hover (compact=%s)", async (compact) => {
     const tokens = buildTaskTokens(LIGHT.colors);
-    const tree = await render(cardElement(sample("sample-done")));
+    const tree = await render(cardElement(sample("sample-done"), { compact }));
     const surface = () => flat(hostByTestId(tree.root, "task-card-sample-done").props.style);
     const rest = surface();
-    expect(rest).toMatchObject({ borderRadius: 8, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background });
+    expect(rest).toMatchObject({ borderRadius: 14, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background });
     expect(rest.boxShadow).toBe(tokens.card.shadow);
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onHoverIn());
     const hovered = surface();
