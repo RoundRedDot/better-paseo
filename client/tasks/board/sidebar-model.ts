@@ -11,7 +11,7 @@ import { Platform } from "react-native";
 export const SIDEBAR = {
   /** The width it opens at, and where a double click on its edge puts it back. */
   width: 380,
-  min: 340,
+  min: 300,
   max: 520,
   /** Between the lanes and the sidebar, and its margin at the board's right. */
   gap: 12,
