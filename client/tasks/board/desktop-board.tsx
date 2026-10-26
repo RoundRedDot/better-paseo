@@ -603,7 +603,7 @@ export function DesktopBoard(props: {
         </Modal.Content>
       </Modal>
       <View
-        style={{ flex: 1, minHeight: 0, flexDirection: "row" }}
+        style={{ flex: 1, minHeight: 0, flexDirection: "row", overflow: "hidden" }}
         onLayout={(event) => {
           setBoardWidth(Math.floor(event.nativeEvent.layout.width));
           setBoardHeight(Math.floor(event.nativeEvent.layout.height));
