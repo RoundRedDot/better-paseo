@@ -814,6 +814,7 @@ function SidebarColumn(props: { width: number; theme: PluginTheme; onDrag(width:
       style={{
         width: props.width,
         marginRight: SIDEBAR.gap,
+        paddingLeft: 12,
         paddingTop: 4,
         paddingBottom: 12,
         minHeight: 0,
