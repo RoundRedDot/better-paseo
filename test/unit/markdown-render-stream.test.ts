@@ -5,6 +5,8 @@
  * with the perf probes on. A block that finished never renders again
  * (`md.finalRerender`), and no block changes kind while it streams
  * (format flips). Both are counted by the same probes the replay reports.
+ * On iOS a settling reply redraws once on purpose, moving its prose from plain
+ * text to native Markdown views; only re-renders while it streams count.
  */
 import { describe, expect, it, vi } from "vitest";
 import React from "react";
@@ -60,6 +62,8 @@ describe("MarkdownView while a reply streams", () => {
       enablePerf();
       resetPerf();
       let replies = 0;
+      let streamedRerenders = 0;
+      const rerenders = () => perfSnapshot().counters["md.finalRerender"] ?? 0;
       for (const fixture of fixtureNames()) {
         for (const item of streamTexts(fixture)) {
           if (item.text.trim() === "") continue;
@@ -69,6 +73,7 @@ describe("MarkdownView while a reply streams", () => {
             React.createElement(MarkdownView, { text, tokens, variant, streaming, probeId, compact: true });
           let renderer: ReturnType<typeof TestRenderer.create> | undefined;
           let text = "";
+          const before = rerenders();
           for (const delta of item.deltas) {
             text += delta;
             act(() => {
@@ -76,6 +81,7 @@ describe("MarkdownView while a reply streams", () => {
               else renderer = TestRenderer.create(view(text, true));
             });
           }
+          streamedRerenders += rerenders() - before;
           act(() => renderer!.update(view(item.text, false)));
           act(() => renderer!.unmount());
         }
@@ -85,7 +91,7 @@ describe("MarkdownView while a reply streams", () => {
       expect(replies).toBeGreaterThan(5);
       // The probes ran: every streamed state rendered at least its tail.
       expect(snapshot.counters["md.blockRender"] ?? 0).toBeGreaterThan(replies);
-      expect(snapshot.counters["md.finalRerender"] ?? 0).toBe(0);
+      expect(streamedRerenders).toBe(0);
       expect(snapshot.markdown.formatFlips).toBe(0);
     }, 120_000);
   }

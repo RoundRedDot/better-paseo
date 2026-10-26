@@ -13,6 +13,12 @@ export interface RenderContext {
   variant: MarkdownVariant;
   /** Compact only: fenced code starts folded to a one-line summary. */
   collapseCode: boolean;
+  /**
+   * iOS draws prose as plain `Text` while the reply streams: every native
+   * Markdown view is a UITextView, and each streamed commit that moves the
+   * list notifies all of them (see `prose.tsx`). Settled prose goes native.
+   */
+  plainProse?: boolean;
   /** Press on a path in the prose; absent: `PathText` falls back to its context. */
   onRevealPath?: (path: string) => void;
 }
