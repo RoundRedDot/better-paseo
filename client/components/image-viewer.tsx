@@ -482,13 +482,20 @@ function ToolbarButton({ action, tokens }: { action: ToolbarAction; tokens: Exte
   );
 }
 
+/**
+ * The edges spelled out: React Native 0.81's types call `StyleSheet.absoluteFill`
+ * a registered style, which cannot be spread, though it is a plain object on
+ * 0.81, 0.86 and the web.
+ */
+const FILL = { position: "absolute", top: 0, right: 0, bottom: 0, left: 0 } as const;
+
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0, 0, 0, 0.9)" },
+  backdrop: { ...FILL, backgroundColor: "rgba(0, 0, 0, 0.9)" },
   safe: { flex: 1 },
   stage: { flex: 1 },
   canvas: {
-    ...StyleSheet.absoluteFill,
+    ...FILL,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
