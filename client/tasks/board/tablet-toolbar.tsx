@@ -145,7 +145,7 @@ function ToolbarButton(props: { icon: string; label: string; theme: PluginTheme;
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const target = taskControlHeight(props.compact ? 28 : 44, scale);
-  const badgeSize = taskControlHeight(14, scale);
+  const badgeSize = taskControlHeight(12, scale);
   const iconSize = props.compact ? 16 : 18;
   return (
     <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered) => ({ minWidth: target, height: target, flexShrink: 0, paddingHorizontal: props.showLabel ? 10 : 0, borderRadius: 7, backgroundColor: hovered || props.expanded || props.selected ? colors.surface1 : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
@@ -153,8 +153,8 @@ function ToolbarButton(props: { icon: string; label: string; theme: PluginTheme;
         <Icon name={props.icon} size={iconSize} color={colors.foreground} />
         {props.slashed ? <SlashMark size={iconSize} color={colors.foreground} gap={colors.surface0} /> : null}
         {props.badge ? (
-          <View pointerEvents="none" style={{ position: "absolute", bottom: -5, right: -5, width: badgeSize, height: badgeSize, borderRadius: badgeSize / 2, backgroundColor: colors.accent, borderWidth: 1, borderColor: colors.surface0, alignItems: "center", justifyContent: "center" }}>
-            <Text testID="tablet-filter-count" style={{ fontSize: 9, lineHeight: 10, includeFontPadding: false, fontWeight: "600", fontVariant: ["tabular-nums"], color: colors.accentForeground }}>{props.badge}</Text>
+          <View pointerEvents="none" style={{ position: "absolute", bottom: -4, right: -4, width: badgeSize, height: badgeSize, borderRadius: badgeSize / 2, backgroundColor: colors.foregroundMuted, borderWidth: 1, borderColor: colors.surface0, alignItems: "center", justifyContent: "center" }}>
+            <Text testID="tablet-filter-count" style={{ fontSize: 8, lineHeight: 10, includeFontPadding: false, fontWeight: "600", fontVariant: ["tabular-nums"], color: colors.surface0 }}>{props.badge}</Text>
           </View>
         ) : null}
       </View>
