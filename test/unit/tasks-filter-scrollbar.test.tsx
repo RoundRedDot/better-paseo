@@ -10,7 +10,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 });
 vi.mock("@getpaseo/plugin/client", () => ({ usePaseo: () => ({}), useRpc: () => vi.fn() }));
 
-import { FilterSheetBody, FilterSheetHeaderActions } from "../../client/tasks/board/filter-sheet";
+import { FilterSheetBody } from "../../client/tasks/board/filter-sheet";
 import { EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import type { BoardController } from "../../client/tasks/board/use-board";
@@ -38,7 +38,7 @@ afterEach(() => {
 function render(controller = board) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   act(() => {
-    renderer = TestRenderer.create(<><FilterSheetHeaderActions board={controller} theme={theme} /><FilterSheetBody board={controller} theme={theme} options={{ agents: [], labels: [], workspaceGroups: [] }} onDone={() => {}} /></>);
+    renderer = TestRenderer.create(<FilterSheetBody board={controller} theme={theme} options={{ agents: [], labels: [], workspaceGroups: [] }} onDone={() => {}} />);
   });
   return renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-scroll");
 }
@@ -54,12 +54,16 @@ describe("filter sheet clear all", () => {
     const scroll = render({ ...board, params, setParams });
     const clear = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-clear-all");
     expect(scroll.findAll((node) => node === clear)).toHaveLength(0);
-    expect(renderer!.root.findByType(FilterSheetBody).findAll((node) => node === clear)).toHaveLength(0);
+    expect(renderer!.toJSON()).toMatchObject({ children: [
+      { props: { testID: "filter-sheet-clear-row" } },
+      { props: { testID: "filter-sheet-scroll" } },
+      { props: { testID: "filter-sheet-footer" } },
+    ] });
     expect(clear.props.accessibilityLabel).toBe(board.strings.clearAll);
     act(() => clear.props.onPress());
     expect(setParams).toHaveBeenCalledOnce();
     expect(setParams.mock.calls[0]![0](params)).toEqual({ ...EMPTY_PARAMS, sort: params.sort });
-    act(() => renderer!.update(<><FilterSheetHeaderActions board={board} theme={theme} /><FilterSheetBody board={board} theme={theme} options={{ agents: [], labels: [], workspaceGroups: [] }} onDone={() => {}} /></>));
+    act(() => renderer!.update(<FilterSheetBody board={board} theme={theme} options={{ agents: [], labels: [], workspaceGroups: [] }} onDone={() => {}} />));
     expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-clear-all")).toHaveLength(0);
   });
 
