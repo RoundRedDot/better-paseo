@@ -95,7 +95,14 @@ describe("board params", () => {
     const params: BoardParams = { ...EMPTY_PARAMS, workspaceIds: ["a", "b"], providers: ["claude"], query: "x", doneWindow: "7d" };
     expect(activeFilterCount(params, defaults)).toBe(5);
     expect(activeFilterCount({ ...EMPTY_PARAMS, doneWindow: "24h" }, defaults)).toBe(0);
-    expect(activeFilterCount(EMPTY_PARAMS, { ...defaults, hideSubtasks: true })).toBe(1);
+  });
+
+  it.each([null, false, true])("keeps the filter badge independent of hideSubtasks=%s", (hideSubtasks) => {
+    for (const hiddenByDefault of [false, true]) {
+      const settings = { ...defaults, hideSubtasks: hiddenByDefault };
+      expect(activeFilterCount({ ...EMPTY_PARAMS, hideSubtasks }, settings)).toBe(0);
+      expect(activeFilterCount({ ...EMPTY_PARAMS, hideSubtasks, providers: ["claude"], labels: ["docs"] }, settings)).toBe(2);
+    }
   });
 
   it("keeps the last board state per host for the session", () => {

@@ -116,9 +116,9 @@ export function resolveBoardParams(params: BoardParams, defaults: BoardDefaults)
 }
 
 /**
- * The phone's filter badge: one per selected workspace, agent and label, one
- * per switch that is on, one for a search, one for a done window off its
- * setting (prototype 6.6).
+ * The filter badge: one per selected workspace, agent and label, one for a
+ * search, one for a done window off its setting. Subtask visibility has its
+ * own toolbar button and does not contribute to this count.
  */
 export function activeFilterCount(params: BoardParams, defaults: BoardDefaults): number {
   const { filters, doneWindow } = resolveBoardParams(params, defaults);
@@ -126,7 +126,6 @@ export function activeFilterCount(params: BoardParams, defaults: BoardDefaults):
     filters.workspaceIds.length +
     filters.providers.length +
     filters.labels.length +
-    (filters.hideSubtasks ? 1 : 0) +
     (filters.query.trim() ? 1 : 0) +
     (doneWindow !== defaults.doneWindow ? 1 : 0)
   );
