@@ -97,7 +97,7 @@ describe("split Stop button", () => {
     expect(flat(button(root, "Stop")).backgroundColor).not.toBe("transparent");
   });
 
-  it.each(["ios", "android", "web"])("shows an anchored modal above sibling cards and closes it on %s", async (os) => {
+  it.each(["ios", "android"])("shows an anchored modal above sibling cards and closes it on %s", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const onStop = vi.fn();
     const root = await render({ compact: false, onStop });
@@ -120,12 +120,22 @@ describe("split Stop button", () => {
     expect(root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
   });
 
-  it.each(["ios", "android", "web"])("positions a compact menu above its button in modal coordinates on %s", async (os) => {
+  it.each(["ios", "android"])("positions a compact menu above its button in modal coordinates on %s", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const root = await render();
     await act(async () => button(root, "Stop options").props.onPress());
     await act(async () => root.find((node) => (node.type as unknown) === "Modal").props.onShow());
     expect(flat(host(root, "task-card-stop-menu-anchor"))).toMatchObject({ left: 8, top: 192, opacity: 1 });
+  });
+
+  it("keeps the web menu inside its trigger boundary without a modal backdrop", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const root = await render();
+    await act(async () => button(root, "Stop options").props.onPress());
+    expect(host(root, "task-card-stop-menu-layer")).toBeTruthy();
+    expect(root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
+    await act(async () => button(root, "Stop options").props.onPress());
+    expect(root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-menu")).toHaveLength(0);
   });
 
   it("keeps the modal open when the pointer leaves the card for the menu", async () => {

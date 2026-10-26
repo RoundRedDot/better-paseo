@@ -44,6 +44,8 @@ export interface CascadeMenuProps {
   top: number;
   align: "left" | "right";
   onClose(): void;
+  /** The trigger and menu share this boundary for outside-pointer dismissal. */
+  anchorRef?: RefObject<View | null>;
   testID?: string;
   /**
    * A search field atop the rows (the project and workspace filters, often
@@ -179,7 +181,8 @@ export function CascadeMenu(props: CascadeMenuProps) {
       const menu = containerRef.current as unknown as HTMLElement | null;
       // The parent holds the trigger as well as both panels. Leave its press
       // to the trigger's toggle, otherwise it would close and immediately reopen.
-      if (menu && !menu.parentElement?.contains(event.target as Node)) latest.current.onClose();
+      const anchor = props.anchorRef?.current as unknown as HTMLElement | null;
+      if (menu && !(anchor ?? menu.parentElement)?.contains(event.target as Node)) latest.current.onClose();
     };
     // Capture, ahead of the board's own keys.
     const doc = document;
@@ -189,7 +192,7 @@ export function CascadeMenu(props: CascadeMenuProps) {
       doc.removeEventListener("keydown", onKey, true);
       doc.removeEventListener("pointerdown", onPointerDown, true);
     };
-  }, [choose, changeQuery]);
+  }, [choose, changeQuery, props.anchorRef]);
 
   const openRow = focus.open !== null ? layout.rows[focus.open] : undefined;
   const subHeight = subSections ? layoutMenu(subSections, scale).height : 0;
