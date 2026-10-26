@@ -65,12 +65,12 @@ describe("bottom sheet", () => {
 });
 
 describe("sidebar width", () => {
-  it.each(["inline", "floating"] as const)("allows a 300 px desktop sidebar in %s mode and clamps smaller widths", (mode) => {
-    expect(sidebarWidth(2000, 300, mode)).toBe(300);
-    expect(sidebarWidth(2000, 320, mode)).toBe(320);
-    expect(sidebarWidth(2000, 299, mode)).toBe(300);
-    expect(clampWidth(299)).toBe(300);
-    expect(clampWidth(320)).toBe(320);
+  it.each(["inline", "floating"] as const)("allows a 260 px desktop sidebar in %s mode and clamps smaller widths", (mode) => {
+    expect(sidebarWidth(2000, 260, mode)).toBe(260);
+    expect(sidebarWidth(2000, 280, mode)).toBe(280);
+    expect(sidebarWidth(2000, 259, mode)).toBe(260);
+    expect(clampWidth(259)).toBe(260);
+    expect(clampWidth(280)).toBe(280);
   });
 
   it("uses a separate compact tablet floating width and clamps its drag range", () => {
@@ -91,7 +91,8 @@ describe("sidebar width", () => {
     expect(sidebarWidth(1024, 380, "inline")).toBe(380);
     expect(sidebarWidth(1000, 380, "inline")).toBe(376);
     expect(sidebarWidth(SIDEBAR.inlineFrom, 520, "inline")).toBe(SIDEBAR.inlineFrom - SIDEBAR.gap - SIDEBAR.lanesMin);
-    expect(sidebarWidth(900, 380, "inline")).toBe(SIDEBAR.min);
+    expect(sidebarWidth(900, 380, "inline")).toBe(276);
+    expect(sidebarWidth(860, 380, "inline")).toBe(260);
   });
 
   it("floats at the user's width, inside the board", () => {
