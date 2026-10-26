@@ -4,7 +4,7 @@ import { FlatList, Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, laneTitle, TasksTypography, TasksTypographyScale, useTasksFontScale, taskControlHeight } from "../typography";
-import { StatusIcon, type CardCallbacks } from "../cards";
+import { StatusIcon, taskTokens, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, isHistoryLane, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
@@ -809,7 +809,19 @@ function SidebarColumn(props: { width: number; theme: PluginTheme; onDrag(width:
     </View>
   ) : null;
   return (
-    <View style={{ width: props.width, marginRight: SIDEBAR.gap, paddingTop: 4, paddingBottom: 12, minHeight: 0 }} testID="sidebar-inline">
+    <View
+      testID="sidebar-inline"
+      style={{
+        width: props.width,
+        marginRight: SIDEBAR.gap,
+        paddingTop: 4,
+        paddingBottom: 12,
+        minHeight: 0,
+        backgroundColor: props.theme.colors.surface0,
+        boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
+        zIndex: 1,
+      }}
+    >
       {handle}
       <FadeIn>{props.children}</FadeIn>
     </View>
@@ -886,7 +898,7 @@ function FloatingSidebar(props: {
         borderWidth: HAIRLINE,
         borderColor: chrome.border,
         backgroundColor: boardPalette(props.theme).panel,
-        boxShadow: chrome.shadow,
+        boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
         zIndex: 20,
         opacity,
         transform: [{ translateX: x }],
