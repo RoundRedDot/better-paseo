@@ -2410,6 +2410,16 @@ export function useTasks(paseo: PaseoApi, options: TasksOptions, beforeRelease?:
 }
 
 /**
+ * Turn the archived lane on or off from the switch itself, ahead of the
+ * setting it saves: the store's change and the switch's then draw in one
+ * render, where the board's layout effect (`useTasks`) would draw the board
+ * a second time in the same frame.
+ */
+export function setTasksArchivedLane(paseo: PaseoApi, on: boolean): void {
+  getStore(paseo).setArchivedLane(on);
+}
+
+/**
  * Open the board's subscriptions ahead of a board, or keep them after one:
  * a warm hold for `reason`, released `ms` from now (null: no deadline until
  * the next call). Taking a held reason again moves its deadline and sends

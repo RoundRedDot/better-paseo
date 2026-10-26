@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -47,7 +47,9 @@ export interface DetailsSidebarProps {
  * is chosen, or the chosen card's details as one card, its header pinned and
  * the sections under it scrolling.
  */
-export function DetailsSidebar(props: DetailsSidebarProps) {
+export const DetailsSidebar = memo(DetailsSidebarView);
+
+function DetailsSidebarView(props: DetailsSidebarProps) {
   const { board, theme, selection, dispatch } = props;
   const tokens = taskTokens(theme);
   const [height, setHeight] = useState(0);
