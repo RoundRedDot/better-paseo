@@ -31,7 +31,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 });
 vi.mock("../../client/components/markdown/markdown-view", () => ({ MarkdownView: () => null }));
 vi.mock("../../client/tasks/data/first-prompt", () => ({ useFirstPrompt: () => null }));
-vi.mock("../../client/tasks/data/last-message", () => ({ useLastMessage: () => null, lastMessageVersion: () => "" }));
+vi.mock("../../client/tasks/data/last-message", () => ({ useLastMessage: () => null, lastMessageVersion: () => "", useLiveReplyCount: () => 0 }));
 vi.mock("../../client/tasks/data/last-human-message", () => ({ useLastHumanMessage: () => ({ prompt: { state: "idle" }, load() {} }), lastHumanMessageVersion: () => "" }));
 vi.mock("../../client/tasks/data/session-tokens", () => ({ useSessionTokens: () => null }));
 vi.mock("../../client/tasks/data/subagent-timeline", () => ({ useSubagentTimeline: () => ({ firstPrompt: null, lastMessage: null }) }));
