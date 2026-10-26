@@ -749,6 +749,18 @@ function LaneGap(props: { onPress(): void }) {
  * release keeps the width. A double click puts 380 back.
  */
 function SidebarColumn(props: { width: number; theme: PluginTheme; onDrag(width: number | null): void; onResize(width: number): void; children: React.ReactNode }) {
+  const reduced = useReducedMotion();
+  const x = useRef(new Animated.Value(reduced ? 0 : 12)).current;
+  const opacity = useRef(new Animated.Value(reduced ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduced) return;
+    const animation = Animated.parallel([
+      Animated.timing(x, { toValue: 0, duration: 180, easing: MOTION.ease, useNativeDriver: nativeDriver }),
+      Animated.timing(opacity, { toValue: 1, duration: 180, easing: MOTION.ease, useNativeDriver: nativeDriver }),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [x, opacity, reduced]);
   const lastDown = useRef(0);
   const handleRef = useRef<View>(null);
   const indicatorRef = useRef<View>(null);
@@ -803,30 +815,35 @@ function SidebarColumn(props: { width: number; theme: PluginTheme; onDrag(width:
       style={{ position: "absolute", left: -SIDEBAR.gap, top: 4, bottom: 12, width: SIDEBAR.gap, zIndex: 5, ...({ cursor: "col-resize", touchAction: "none" } as object) }}
       testID="sidebar-resize"
     >
+      <View pointerEvents="none" style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+        <View testID="sidebar-resize-grabber" style={{ width: 3, height: 40, borderRadius: 2, backgroundColor: props.theme.colors.foregroundMuted, opacity: 0.5 }} />
+      </View>
       <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, left: SIDEBAR.gap / 2 - 0.5, width: 1, overflow: "hidden" }}>
         <View ref={indicatorRef} {...resizeIndicatorProps} style={{ position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 }} />
       </View>
     </View>
   ) : null;
   return (
-    <View
+    <Animated.View
       testID="sidebar-inline"
       style={{
         width: props.width,
         marginRight: SIDEBAR.gap,
         // Include the outer margin in the right inset to match the toolbar's 16 pt.
-        ...(Platform.OS === "web" ? { paddingLeft: 16, paddingRight: 16 - SIDEBAR.gap } : { paddingHorizontal: 10 }),
+        ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingHorizontal: 10 }),
         paddingTop: 4,
         paddingBottom: 12,
         minHeight: 0,
         backgroundColor: props.theme.colors.surface0,
         boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
         zIndex: 1,
+        opacity,
+        transform: [{ translateX: x }],
       }}
     >
       {handle}
-      <FadeIn>{props.children}</FadeIn>
-    </View>
+      {props.children}
+    </Animated.View>
   );
 }
 
@@ -929,23 +946,6 @@ function FloatingSidebar(props: {
       {props.children}
     </Animated.View>
   );
-}
-
-/** The inline sidebar comes in over 180 ms, 12 from the right; the lanes take their width at once. */
-function FadeIn(props: { children: React.ReactNode }) {
-  const reduced = useReducedMotion();
-  const x = useRef(new Animated.Value(reduced ? 0 : 12)).current;
-  const opacity = useRef(new Animated.Value(reduced ? 1 : 0)).current;
-  useEffect(() => {
-    if (reduced) return;
-    const animation = Animated.parallel([
-      Animated.timing(x, { toValue: 0, duration: 180, easing: MOTION.ease, useNativeDriver: nativeDriver }),
-      Animated.timing(opacity, { toValue: 1, duration: 180, easing: MOTION.ease, useNativeDriver: nativeDriver }),
-    ]);
-    animation.start();
-    return () => animation.stop();
-  }, [x, opacity, reduced]);
-  return <Animated.View style={{ flex: 1, minHeight: 0, opacity, transform: [{ translateX: x }] }}>{props.children}</Animated.View>;
 }
 
 function BoardEmpty({ board, theme }: { board: BoardController; theme: PluginTheme }) {

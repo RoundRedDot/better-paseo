@@ -972,16 +972,73 @@ describe("Tasks board, desktop", () => {
     expect(mark()).toMatchObject({ width: 1.5, height: 7 });
   });
 
-  it("aligns the desktop sidebar cards with the filter bar and keeps equal side insets", () => {
+  it("aligns the desktop sidebar cards with the filter bar and uses a smaller left inset", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(2000);
     const sidebar = StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style);
     const filters = StyleSheet.flatten(hostsById("filter-bar")[0]!.props.style);
-    expect(sidebar.paddingLeft).toBe(filters.paddingHorizontal);
+    expect(sidebar.paddingLeft).toBe(10);
     expect(sidebar.paddingRight + sidebar.marginRight).toBe(filters.paddingHorizontal);
-    expect(sidebar.width - sidebar.paddingLeft - sidebar.paddingRight).toBe(360);
+    expect(sidebar.width - sidebar.paddingLeft - sidebar.paddingRight).toBe(366);
     expect(lanesScroll().props.contentContainerStyle.width).toBe(2000 - 380 - 12);
+  });
+
+  it("animates the inline sidebar surface and cards together on each opening", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const timing = vi.spyOn(Animated, "timing");
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(2000);
+      for (let round = 0; round < 2; round++) {
+        const panel = hostsById("sidebar-inline")[0]!;
+        const style = StyleSheet.flatten(panel.props.style);
+        expect(panel.type).toBe("Animated.View");
+        expect(style.opacity).toBeDefined();
+        expect(timing).toHaveBeenCalledWith(style.opacity, expect.objectContaining({ toValue: 1, duration: 180 }));
+        expect(timing).toHaveBeenCalledWith(style.transform[0].translateX, expect.objectContaining({ toValue: 0, duration: 180 }));
+        expect(panel.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-stats")).toHaveLength(1);
+        expect(panel.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-groups")).toHaveLength(1);
+        act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+        expect(hostsById("sidebar-inline")).toHaveLength(0);
+        expect(hostsById("sidebar-stats")).toHaveLength(0);
+        expect(hostsById("sidebar-groups")).toHaveLength(0);
+        act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+      }
+    } finally {
+      timing.mockRestore();
+    }
+  });
+
+  it("shows a grabber in the desktop sidebar's existing width drag handle", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const listeners = new Map<string, (event: { pageX: number; clientY: number }) => void>();
+    vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
+    vi.stubGlobal("document", {
+      body: { style: {} },
+      addEventListener: (name: string, handler: (event: { pageX: number; clientY: number }) => void) => listeners.set(name, handler),
+      removeEventListener: (name: string) => listeners.delete(name),
+    });
+    vi.stubGlobal("requestAnimationFrame", (callback: () => void) => setTimeout(callback, 16));
+    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(2000);
+      const handle = hostsById("sidebar-resize")[0]!;
+      expect(handle.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-resize-grabber")).toHaveLength(1);
+      act(() => handle.props.onPointerDown({ nativeEvent: { pageX: 1000, clientY: 200 } }));
+      act(() => listeners.get("pointermove")!({ pageX: 950, clientY: 200 }));
+      act(() => { vi.advanceTimersByTime(16); });
+      expect(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).width).toBe(430);
+      act(() => listeners.get("pointerup")!({ pageX: 950, clientY: 200 }));
+      expect(readSidebarPreference().width).toBe(430);
+      expect(listeners.has("pointermove")).toBe(false);
+      expect(listeners.has("pointerup")).toBe(false);
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
   });
 
   it.each([2000, 600])("preserves the panel silhouette and selected styling at %i pt", (width) => {
