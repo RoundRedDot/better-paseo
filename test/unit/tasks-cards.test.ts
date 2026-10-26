@@ -967,7 +967,9 @@ describe("ProjectIcon", () => {
     // The sample's projectKey wins over the host pair.
     const tree = await render(cardElement(sample("sample-running"), { compact, hostId: "host-1" }));
     const square = hostByTestId(tree.root, "project-icon-generated");
-    expect(flat(square.props.style)).toMatchObject({ width: 12, height: 12, borderRadius: 3, backgroundColor: "#3d7ea6" });
+    // The card's icon size: 12 on desktop, 14 on a phone.
+    const size = compact ? 14 : 12;
+    expect(flat(square.props.style)).toMatchObject({ width: size, height: size, borderRadius: compact ? 4 : 3, backgroundColor: "#3d7ea6" });
     const keyless = { ...sample("sample-running"), location: { ...sample("sample-running").location, projectKey: null } };
     await act(async () => tree.update(cardElement(keyless, { compact, hostId: "host-1" })));
     expect(flat(hostByTestId(tree.root, "project-icon-generated").props.style).backgroundColor).toBe("#5179b0");
@@ -980,6 +982,27 @@ describe("ProjectIcon", () => {
     const image = hostByTestId(tree.root, "project-icon-image");
     expect(image.props.source).toEqual({ uri: "data:image/png;base64,AAAA" });
     expect(flat(image.props.style).borderRadius).toBeUndefined();
+  });
+
+  it.each([false, true])("centres the project icon, status mark and start clock in one column (compact=%s)", async (compact) => {
+    const tree = await render(cardElement(sample("sample-running"), { compact }));
+    // The nearest host View around a node that sets a width: the column cell it is centred in.
+    const cell = (node: ReactTestInstance) => {
+      for (let parent = node.parent; parent; parent = parent.parent) {
+        const style = typeof parent.type === "string" ? flat(parent.props.style) : {};
+        if (style.width !== undefined) return style;
+      }
+      throw new Error("no cell");
+    };
+    const slot = compact ? 18 : 14;
+    const column = { width: slot, alignItems: "center" };
+    expect(cell(hostByTestId(tree.root, "project-icon-generated"))).toMatchObject(column);
+    const titleRow = hostByTestId(tree.root, "task-card-title-row");
+    const statusSlot = titleRow.find((node) => node !== titleRow && typeof node.type === "string" && flat(node.props.style).width !== undefined);
+    expect(flat(statusSlot.props.style)).toMatchObject(column);
+    const clock = hostByTestId(tree.root, "task-card-started").find((node) => (node.type as unknown) === "Icon");
+    expect(cell(clock)).toMatchObject(column);
+    expect(clock.props.size).toBe(compact ? 14 : 12);
   });
 
   it.each([
