@@ -517,7 +517,7 @@ export function DesktopBoard(props: {
   const breathing = useBreathing(!tasks.ready && board.visible);
   const reduced = useReducedMotion();
   // Filters, sort and search are the user's: lanes that change with them take their new order at once.
-  const motion = useLaneMotion(lanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: true });
+  const motion = useLaneMotion(lanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: true, churnLimit: LANE_CHURN_LIMIT });
   const renderCopy = useCallback(
     (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact={false} fresh={false} copy callbacks={callbacks} />,
     [board, theme, callbacks],
@@ -978,6 +978,21 @@ function useDrawnOnce(inView: boolean): boolean {
 
 /** A list under copies of its cards while they move (native lane motion). */
 const HIDDEN = { opacity: 0 };
+/**
+ * Native: more cards than this coming into the lanes or leaving them show at
+ * once, without lane motion (`useLaneMotion`). A card that changes lanes
+ * counts twice, so up to three cards still travel. The web moves the cards
+ * themselves and copies none, so every change there keeps its motion.
+ */
+const LANE_CHURN_LIMIT = Platform.OS === "web" ? undefined : 6;
+/**
+ * Native: how long a lane waits before it renders more of its cards out of
+ * view. A filter that adds cards (the subtasks switch) grows every list at
+ * once, and their next batches of cards no one could see yet landed while the
+ * new cards faded in and the counts rolled. A list short of cards on screen
+ * still fills at once (`VirtualizedList`'s high-priority update).
+ */
+const LANE_FILL_MS = Platform.OS === "web" ? undefined : MOTION.slideMs + MOTION.fadeDelayMs;
 
 interface LaneFlash {
   lane: LaneId;
@@ -1232,6 +1247,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
           initialNumToRender={8}
           maxToRenderPerBatch={8}
           windowSize={7}
+          updateCellsBatchingPeriod={LANE_FILL_MS}
           onScrollToIndexFailed={({ index, averageItemLength }) => {
             // Variable heights: jump near it, then try again once laid out.
             listRef.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });

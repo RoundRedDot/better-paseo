@@ -118,6 +118,34 @@ describe("native lane motion (cover)", () => {
     store.settle();
   });
 
+  it.each([[3, true], [6, false]] as const)("covers a change of %i cards past a churn limit of 4: %s", async (added, covers) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.resetModules();
+    const { useLaneMotion } = await import("../../client/tasks/board/lane-motion");
+    type Store = ReturnType<typeof useLaneMotion>;
+    let store: Store | undefined;
+    const coveredInRender: boolean[] = [];
+    function Board(props: { lanes: Record<LaneId, LaneModel> }) {
+      store = useLaneMotion(props.lanes, { enabled: true, scope: null, flights: true, churnLimit: 4 });
+      coveredInRender.push(store.covered().has("running"));
+      return null;
+    }
+    const at: Record<string, Box> = { a: { x: 0, y: 140, width: 300, height: 100 }, b: { x: 0, y: 260, width: 300, height: 100 } };
+    let renderer: TestRenderer.ReactTestRenderer | undefined;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(Board, { lanes: lanes(["a", "b"]) }));
+    });
+    store!.layer = node(() => ({ x: 0, y: 100, width: 300, height: 400 }));
+    store!.setLane("running", () => ({ ...node(() => ({ x: 0, y: 100, width: 300, height: 400 })), getInnerViewRef: () => node(() => ({ x: 0, y: 100, width: 300, height: 400 })) }));
+    for (const id of ["a", "b"]) store!.attach(id, node(() => at[id]!), null);
+    const subtasks = Array.from({ length: added }, (_, index) => `s${index}`);
+    act(() => renderer!.update(React.createElement(Board, { lanes: lanes(["a", ...subtasks, "b"]) })));
+    // The render that carries the new lanes is the one that decides the cover.
+    expect(coveredInRender.at(-1)).toBe(covers);
+    act(() => renderer!.unmount());
+  });
+
   it.each([["ios", true], ["web", false]] as const)("%s moves the copies with useNativeDriver %s, from a fresh value per flight", async (os, native) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
