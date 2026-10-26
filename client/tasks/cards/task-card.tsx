@@ -420,8 +420,8 @@ function statusTint(kind: StatusKind, tokens: TaskTokens): string | null {
  */
 export const OVERLAY_ROW_Z = 2;
 
-/** The card's corner radius (Linear's card). */
-const CARD_RADIUS = 8;
+/** The card's corner radius follows the inset subtask arc. */
+const CARD_RADIUS = 14;
 /**
  * The subtask mark: a short arc around the top-right corner, like the resize
  * grip on an iPad window: its centre line has this radius, this stroke, and
@@ -657,8 +657,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     paddingHorizontal: m.padH,
     paddingTop: m.padTop,
     paddingBottom: m.padBottom,
-    // Linear's card: radius 8 (measured: the arc settles 16 device px in at 2x), a hairline,
-    // and on hover only the fill and shadow change.
+    // A hairline frame; on hover only the fill and shadow change.
     borderRadius: CARD_RADIUS,
     // A dashed hairline breaks up into dots: the dashes take a whole point.
     borderWidth: dashed ? 1 : StyleSheet.hairlineWidth,
