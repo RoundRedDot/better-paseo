@@ -1072,6 +1072,9 @@ describe("Tasks board, desktop", () => {
       expect(handleStyle.width).toBeLessThanOrEqual(panel.paddingLeft);
       expect(handle.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-resize-grabber")).toHaveLength(1);
       const grabberOpacity = () => StyleSheet.flatten(hostsById("sidebar-resize-grabber")[0]!.props.style).opacity;
+      expect(StyleSheet.flatten(hostsById("sidebar-resize-grabber")[0]!.props.style)).toMatchObject({
+        transitionProperty: "opacity", transitionDuration: "150ms", transitionTimingFunction: "ease-out",
+      });
       expect(grabberOpacity()).toBe(0);
       act(() => hostsById("sidebar-inline")[0]!.props.onPointerEnter());
       expect(grabberOpacity()).toBe(0.5);

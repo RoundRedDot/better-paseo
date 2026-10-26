@@ -827,7 +827,14 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
       testID="sidebar-resize"
     >
       <View pointerEvents="none" style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <View testID="sidebar-resize-grabber" style={{ width: 3, height: 40, borderRadius: 2, backgroundColor: props.theme.colors.foregroundMuted, opacity: hovered || dragging ? 0.5 : 0 }} />
+        <View testID="sidebar-resize-grabber" style={{
+          width: 3,
+          height: 40,
+          borderRadius: 2,
+          backgroundColor: props.theme.colors.foregroundMuted,
+          opacity: hovered || dragging ? 0.5 : 0,
+          ...({ transitionProperty: "opacity", transitionDuration: reduced ? "0ms" : "150ms", transitionTimingFunction: "ease-out" } as object),
+        }} />
       </View>
       <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, left: 3.5, width: 1, overflow: "hidden" }}>
         <View ref={indicatorRef} {...resizeIndicatorProps} style={{ position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 }} />
