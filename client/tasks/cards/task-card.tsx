@@ -582,16 +582,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const lines = (...parts: (string | null | false | undefined)[]) => parts.filter(Boolean).join("\n");
   const { pair } = strings.hint;
 
-  // Leaving the card closes the menu and cancels an armed stop.
+  // The modal owns dismissal while open; moving into its portal leaves the card.
   const wasHovered = useRef(false);
   useEffect(() => {
     if (hovered === wasHovered.current) return;
     wasHovered.current = hovered;
-    if (hovered) return;
+    if (hovered || menuOpen) return;
     const current = latest.current;
-    setMenuOpen(false);
     if (current.stopPhase === "confirming") current.onCancelStop?.(current.card.id);
-  }, [hovered]);
+  }, [hovered, menuOpen]);
 
   // A failed card stands out in danger red; the highlight and the sidebar's card still win.
   const failed = card.status === "failed";
@@ -1924,8 +1923,8 @@ function StopControl(props: StopControlProps) {
       sections={stopSections}
       theme={props.theme}
       width={STOP_MENU_WIDTH}
-      top={Platform.OS === "web" ? (compact ? -(menuHeight + 6) : height + 4) : 0}
-      align={Platform.OS === "web" && !props.menuLeft ? "right" : "left"}
+      top={0}
+      align="left"
       onClose={props.onCloseMenu}
       testID="task-card-stop-menu"
     />
@@ -2016,8 +2015,8 @@ function StopControl(props: StopControlProps) {
           style={[StyleSheet.absoluteFill, buttonOutline(tokens.danger), { borderRadius: round, opacity: stopping ? 0.6 : 1 }]}
         />
       ) : null}
-      {props.parent && props.menuOpen ? Platform.OS === "web" ? menu : (
-        // A card's zIndex cannot escape the native FlatList cell above it.
+      {props.parent && props.menuOpen ? (
+        // Escape list cells and stacking contexts on every platform.
         <Modal visible transparent animationType="none" statusBarTranslucent onShow={measureMenu} onRequestClose={props.onCloseMenu}>
           <View ref={stageRef} collapsable={false} testID="task-card-stop-menu-stage" onLayout={measureMenu} style={{ flex: 1 }}>
             <Pressable accessibilityLabel={props.closeMenuLabel} testID="task-card-stop-menu-backdrop" onPress={props.onCloseMenu} style={StyleSheet.absoluteFill} />

@@ -15,7 +15,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   };
 });
 import "./helpers/quiet-renderer";
-import { Platform, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
 import { TaskCardView, type TaskCardViewProps } from "../../client/tasks/cards/task-card";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { CARD_PRESETS } from "../../shared/tasks-settings";
@@ -53,7 +53,7 @@ async function render(overrides: Partial<TaskCardViewProps> = {}) {
     onReveal() {}, onStop: vi.fn(), ...overrides,
   };
   await act(async () => { renderer = TestRenderer.create(<TaskCardView {...props} />, {
-    createNodeMock: (element) => Platform.OS === "web" || !["task-card-stop", "task-card-stop-menu-stage"].includes((element.props as { testID: string }).testID) ? null : ({
+    createNodeMock: (element) => !["task-card-stop", "task-card-stop-menu-stage"].includes((element.props as { testID: string }).testID) ? null : ({
       measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) =>
         (element.props as { testID: string }).testID === "task-card-stop-menu-stage"
           ? callback(0, 24, 390, 800)
@@ -97,7 +97,7 @@ describe("split Stop button", () => {
     expect(flat(button(root, "Stop")).backgroundColor).not.toBe("transparent");
   });
 
-  it.each(["ios", "android"])("shows an anchored modal above sibling cards and closes it on %s", async (os) => {
+  it.each(["ios", "android", "web"])("shows an anchored modal above sibling cards and closes it on %s", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const onStop = vi.fn();
     const root = await render({ compact: false, onStop });
@@ -120,11 +120,21 @@ describe("split Stop button", () => {
     expect(root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
   });
 
-  it("positions a compact menu above its button in modal coordinates", async () => {
+  it.each(["ios", "android", "web"])("positions a compact menu above its button in modal coordinates on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const root = await render();
     await act(async () => button(root, "Stop options").props.onPress());
     await act(async () => root.find((node) => (node.type as unknown) === "Modal").props.onShow());
     expect(flat(host(root, "task-card-stop-menu-anchor"))).toMatchObject({ left: 8, top: 192, opacity: 1 });
+  });
+
+  it("keeps the modal open when the pointer leaves the card for the menu", async () => {
+    const root = await render();
+    const card = host(root, `task-card-${CARD.id}`);
+    await act(async () => card.props.onHoverIn());
+    await act(async () => button(root, "Stop options").props.onPress());
+    await act(async () => card.props.onHoverOut());
+    expect(host(root, "task-card-stop-menu")).toBeTruthy();
   });
 
   it("dims the shared outline and disables both actions while stopping", async () => {
