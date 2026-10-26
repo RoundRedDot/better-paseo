@@ -118,7 +118,7 @@ import { menuChrome } from "../../client/tasks/board/menu";
 import { cardMenuSections } from "../../client/tasks/cards/card-menu";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
-import { PiMark, agentPillColors, contrastRatio, tintedPillColors } from "../../client/tasks/cards/brand-mark";
+import { BrandMark, PiMark, agentPillColors, contrastRatio, tintedPillColors } from "../../client/tasks/cards/brand-mark";
 import { permissionButtons } from "../../client/tasks/actions";
 import { providerBrand } from "../../client/components/provider-logo";
 import { seedMarkBitmaps } from "../../client/components/marks";
@@ -1650,8 +1650,8 @@ describe("TaskCardView actions", () => {
     // Provider facts and timing use the same secondary component as ordinary subtasks.
     const facts = hostByTestId(list, "subtask-meta-sub-1");
     expect(texts(facts)[0]).toBe("Opus 5.5 · High · 132.8k tokens");
-    expect(icons(facts)).toEqual(["Clock", "Hourglass"]);
-    expect(icons(hostByTestId(list, "subtask-status-sub-1"))).toContain("Shapes");
+    expect(icons(facts)).toEqual(["Shapes", "Clock", "Hourglass"]);
+    expect(hostByTestId(list, "subtask-status-sub-1").findByType(BrandMark).props.provider).toBe("claude");
     expect(texts(hostByTestId(list, "subtask-time-sub-1"))).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
     for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-parent-tab-${child.id}`)).toHaveLength(0);
     // The row reveals the subagent's card, naming the parent for the board's fallback; the button opens the parent's tab.
@@ -1686,6 +1686,7 @@ describe("TaskCardView actions", () => {
     // The type as the timeline's icon in place of its name; the screen reader still hears it.
     expect(texts(hostByTestId(tree.root, "pill-model"))).toContain("Opus 5.5 · High · 12.4k tokens");
     expect(icons(hostByTestId(tree.root, "pill-model"))).toEqual(["Shapes"]);
+    expect(hostByTestId(tree.root, "pill-model").findByType(BrandMark).props.provider).toBe(card.provider);
     expect(hostByTestId(tree.root, "pill-model").props.accessibilityLabel).toBe(`${base.providerLabel} general-purpose · Opus 5.5 · High · 12.4k tokens`);
     // The facts line is not a model name to copy.
     expect(hostByTestId(tree.root, "pill-model").props.accessibilityRole).not.toBe("button");
@@ -1918,7 +1919,7 @@ describe("TaskDetailCards", () => {
     React.createElement(TaskDetailCards, { card, theme: LIGHT, now: NOW, language, strings: BOARD_STRINGS[language].sidebar, ...more });
 
   it("uses identical shared rows in expanded cards, the sidebar and the mobile sheet", async () => {
-    seedMarkBitmaps({ "lobe:codex": MARK_BITMAPS["lobe:codex"]!, "lobe:claude": MARK_BITMAPS["lobe:claude"]! });
+    await act(async () => seedMarkBitmaps({ "lobe:codex": MARK_BITMAPS["lobe:codex"]!, "lobe:claude": MARK_BITMAPS["lobe:claude"]! }));
     const base = sample("sample-running");
     const provider: TaskChild = { ...base.children[0]!, id: "provider", kind: "provider", subtitle: "general-purpose · High · 132.8k tokens", subagentType: "general-purpose", modelLabel: null, thinkingLabel: null, modeLabel: null, context: null };
     const card = { ...base, children: [...base.children, provider] };
@@ -1940,14 +1941,9 @@ describe("TaskDetailCards", () => {
         expect(row.findAllByType(SubtaskMetadata)).toHaveLength(1);
         const mark = row.findByType(ChildMark);
         expect(mark.props.child.provider).toBe(child.provider);
-        if (child.kind === "provider") {
-          expect(mark.findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
-          expect(icons(mark)).toContain("Shapes");
-        } else {
-          const brand = mark.find((node) => (node.type as unknown) === "Image");
-          expect(brand.props.source.uri).toBe(MARK_BITMAPS[`lobe:${child.provider}`]);
-          expect(flat(brand.props.style)).toMatchObject({ width: 14, height: 14 });
-        }
+        const brand = mark.find((node) => (node.type as unknown) === "Image");
+        expect(brand.props.source.uri).toBe(MARK_BITMAPS[`lobe:${child.provider}`]);
+        expect(flat(brand.props.style)).toMatchObject({ width: 14, height: 14 });
         // The status shares the identity mark's frame, overlapping its bottom-right corner.
         expect(mark.findAll((node) => typeof node.type === "string" && flat(node.props.style).position === "absolute" && flat(node.props.style).right === -5 && flat(node.props.style).bottom === -5)).toHaveLength(1);
         return row.findAll((node) => typeof node.type === "string").map((node) => ({
@@ -1965,22 +1961,25 @@ describe("TaskDetailCards", () => {
   });
 
   it.each([
-    { type: "Explore", icon: "Search" },
-    { type: "Plan", icon: "ListChecks" },
-    { type: "general-purpose", icon: "Shapes" },
-  ])("combines the provider subagent's $type icon with its status in every surface", async ({ type, icon }) => {
+    { type: "Explore", icon: "Search", provider: "claude" },
+    { type: "Plan", icon: "ListChecks", provider: "claude" },
+    { type: "general-purpose", icon: "Shapes", provider: "claude" },
+    { type: "custom-reviewer", icon: "Bot", provider: "codex" },
+  ])("keeps the provider subagent's $type tool icon below its agent mark in every surface", async ({ type, icon, provider }) => {
     const base = sample("sample-running");
     for (const status of ["running", "failed"] as const) {
-      const child: TaskChild = { ...base.children[0]!, kind: "provider", subagentType: type, subtitle: null, status, lane: status === "running" ? "running" : "review", modelLabel: null, thinkingLabel: null, modeLabel: null, context: null };
+      const child: TaskChild = { ...base.children[0]!, provider, kind: "provider", subagentType: type, subtitle: null, status, lane: status === "running" ? "running" : "review", modelLabel: null, thinkingLabel: null, modeLabel: null, context: null };
       const card = { ...base, children: [child] };
       for (const element of [cardElement(card, { subtasksExpanded: true }), details(card, { touch: false }), details(card, { touch: true })]) {
         const tree = await render(element);
         const row = tree.root.findByType(SubtaskRow);
         const mark = row.findByType(ChildMark);
-        expect(icons(mark)).toContain(icon);
-        expect(mark.findAll((node) => (node.type as unknown) === "Image")).toHaveLength(0);
+        expect(mark.findByType(BrandMark).props).toMatchObject({ provider: child.provider, size: 14, mono: taskTokens(LIGHT).foregroundMuted });
+        expect(icons(mark)).not.toContain(icon);
         expect(hostByTestId(mark, `status-${status}`)).toBeDefined();
-        expect(icons(row.findByType(SubtaskMetadata))).not.toContain(icon);
+        expect(icons(row.findByType(SubtaskMetadata))).toContain(icon);
+        await act(async () => row.findByType(SubtaskMetadata).find((node) => typeof node.type === "string" && !!node.props.onLayout).props.onLayout({ nativeEvent: { layout: { width: 180 } } }));
+        expect(icons(row.findByType(SubtaskMetadata))).toContain(icon);
         await act(async () => tree.unmount());
       }
     }
@@ -2701,11 +2700,11 @@ describe("TaskDetailCards", () => {
     const tree = await render(details({ ...base, children: [subagent] }, { onOpen }));
     const meta = hostByTestId(tree.root, "detail-subtask-meta-sub-1");
     expect(texts(meta)[0]).toBe("Opus 5.5 · High · 189.7k tokens");
-    expect(icons(meta)).toEqual(["Hourglass"]);
+    expect(icons(meta)).toEqual(["Shapes", "Hourglass"]);
     expect(meta.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(0);
     const mark = hostByTestId(tree.root, "detail-subtask-status-sub-1");
-    expect(mark.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(0);
-    expect(icons(mark)).toContain("Shapes");
+    expect(mark.findByType(BrandMark).props.provider).toBe("claude");
+    expect(icons(mark)).not.toContain("Shapes");
     expect(mark.findAll((node) => typeof node.type === "string" && node.props.testID === "status-failed")).toHaveLength(1);
     const jump = hostByTestId(tree.root, "detail-subtask-parent-tab-sub-1");
     expect(icons(jump)).toEqual(["CornerLeftUp"]);
