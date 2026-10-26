@@ -192,6 +192,13 @@ function layOut(width: number) {
 }
 
 /** Host nodes with a test id (composites carry the same props). */
+/** Past the wait of the lanes behind an open filter panel (`useLaggedWhile` in the desktop board). */
+async function panelLag() {
+  await act(async () => {
+    vi.advanceTimersByTime(260);
+  });
+}
+
 function hostsById(testID: string): ReactTestInstance[] {
   return renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === testID);
 }
@@ -496,7 +503,7 @@ describe("Tasks board, desktop", () => {
     }
   });
 
-  it("rolls the counts and moves the cards through a filter, a done window or the subtasks switch, never through a search or a sort", () => {
+  it("rolls the counts and moves the cards through a filter, a done window or the subtasks switch, never through a search or a sort", async () => {
     const scopes = () => renderer!.root.findAll((node) => node.type === RollingCount).map((node) => node.props.scope as unknown);
     const pick = (window: "24h" | "7d" | "all") => act(() => renderer!.root.findAll((node) => node.type === WindowSegments)[0]!.props.onChange(window));
     const subtasks = () => act(() => pressable("Show subtasks").props.onPress());
@@ -527,6 +534,8 @@ describe("Tasks board, desktop", () => {
     pick("24h");
     expect(scopes()).toEqual(tablet);
     act(() => renderer!.root.findByType(TabletToolbar).props.board.setParams((params: BoardParams) => ({ ...params, sort: { key: "title", direction: "asc" } })));
+    // With the filter panel open, the lanes behind it take the change once its switch has slid.
+    await panelLag();
     expect(scopes().every((scope, index) => scope !== tablet[index])).toBe(true);
   });
 
@@ -2248,6 +2257,7 @@ describe("Tasks board, lane widths", () => {
     const choices = () => hostsById("filter-sheet-lane-width")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio");
     for (const [index, width, value] of [[0, 220, "narrow"], [1, 260, "default"], [2, 300, "wide"], [0, 220, "narrow"]] as const) {
       await act(async () => choices()[index]!.props.onPress());
+      await panelLag();
       expect(lanesScroll().props.contentContainerStyle.width).toBe(48 + 4 * width);
       expect(deviceTasksStore().snapshot().values?.laneWidth).toBe(value);
       expect(host.save).not.toHaveBeenCalled();
