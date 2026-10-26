@@ -5,7 +5,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import type { TasksLanguage } from "../i18n";
 import type { TaskChild } from "../model";
-import { subagentFacts } from "../subagent-type";
+import { subagentFacts, subagentTypeIcon } from "../subagent-type";
 import { useHover } from "../../ui/use-hover";
 import { withAlpha } from "../../components/theme-tokens";
 import { cardStart, cardTimer } from "./card-time";
@@ -164,8 +164,7 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
   // The provider and status are already combined in the row's ChildMark.
   if (child.kind === "provider") {
     const facts = subagentFacts(child.subtitle, child.subagentType);
-    // ChildMark already carries the type icon; keep only the supplied facts here.
-    if (facts.text) parts.push(part("facts", facts.text));
+    parts.push(part("facts", facts.text ?? "", icon(subagentTypeIcon(child.subagentType))));
   }
   if (child.modelLabel) parts.push(part("model", child.modelLabel));
   if (child.thinkingLabel) {
