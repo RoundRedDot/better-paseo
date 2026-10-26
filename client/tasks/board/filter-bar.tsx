@@ -61,7 +61,8 @@ export function DesktopToolbar(props: {
    * so the lanes keep the height two more rows took. The empty lanes' fold
    * and the archived lane's switch, no filters, stay out as round buttons
    * on its left, in the filter bar's order. A wide board keeps both in the
-   * filter bar, beside the lane width.
+   * filter bar, beside the lane width, and shows the empty-groups switch
+   * here instead, left of the sidebar's.
    */
   filters?: { count: number; onPress(): void };
 }) {
@@ -72,7 +73,8 @@ export function DesktopToolbar(props: {
   const [searchFocused, setSearchFocused] = useState(false);
   const [actionWidth, setActionWidth] = useState(0);
   const [viewOpen, setViewOpen] = useState(false);
-  const actionCount = 3 * Number(!!props.filters) + Number(!!props.sidebar);
+  // A wide board's top row: the empty-groups switch and the sidebar's; a folded one's: empty lanes, archived, filters and the sidebar's.
+  const actionCount = (props.filters ? 3 : 1) + Number(!!props.sidebar);
   const compactActions = actionWidth > 0 && actionWidth < actionCount * toolbarButtonSize(scale) + (actionCount - 1) * TOOLBAR_GAP;
   return (
     <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
@@ -126,6 +128,7 @@ export function DesktopToolbar(props: {
                 { key: "empty", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, disabled: props.emptyLanes.disabled, onSelect: props.emptyLanes.onToggle },
                 { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
               ] : []),
+              ...(props.filters ? [] : [{ key: "empty-groups", label: strings.emptyGroups.row, checked: board.showEmptyGroups, onSelect: () => board.setShowEmptyGroups(!board.showEmptyGroups) }]),
               ...(props.sidebar ? [{ key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, onSelect: props.sidebar.onToggle }] : []),
             ] }]} /> : null}
           </View>
@@ -170,6 +173,18 @@ export function DesktopToolbar(props: {
           <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} tip={strings.filters} testID="toolbar-filters" />
         </>
       ) : null}
+      {props.filters ? null : (
+        <BarSwitch
+          icon={emptyGroupsIcon(board.showEmptyGroups)}
+          on={board.showEmptyGroups}
+          onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
+          label={strings.emptyGroups.row}
+          hint={strings.emptyGroups.hint(board.showEmptyGroups)}
+          tip={board.showEmptyGroups ? strings.tips.hideEmptyGroups : strings.emptyGroups.row}
+          theme={theme}
+          testID="empty-groups-toggle"
+        />
+      )}
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
       </>}
       </View>
@@ -391,7 +406,7 @@ export function DesktopFilterBar(props: {
       testID="archived-lane-toggle"
     />
   );
-  // At most three switches beside the lane width: the empty groups' sits at the foot of the menus it trims.
+  // At most three switches beside the lane width: the empty groups' sits in the top row, and at the foot of the menus it trims.
   const withEmptyGroups = (sections: MenuSection[]): MenuSection[] => [
     ...sections,
     { key: "empty-groups", items: [{ key: "empty-groups", label: strings.emptyGroups.row, icon: emptyGroupsIcon(board.showEmptyGroups), checked: board.showEmptyGroups, keepOpen: true, onSelect: () => board.setShowEmptyGroups(!board.showEmptyGroups) }] },
