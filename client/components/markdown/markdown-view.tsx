@@ -17,7 +17,7 @@ import { dismissBlockSelection } from "./render/block-selection";
 export { MARKDOWN_VARIANTS, type MarkdownVariant } from "./render/styles";
 
 /**
- * True inside the phone's details drawer: block prose (a view given `size`)
+ * True inside native details panels and the web drawer: block prose (a view given `size`)
  * reads at the timeline's body size there, the reply's content size without
  * the block size setting or `quiet`'s step down. `quiet` still mutes it.
  */

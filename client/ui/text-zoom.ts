@@ -1,6 +1,6 @@
 /**
- * Independent text sizing for native details. Prose and monospace use the
- * chosen size; the timeline and the panel's own chrome keep their sizes.
+ * Text sizing for native details, resolved by the shell relative to the
+ * timeline body size. Prose and monospace use that resolved size.
  *
  * Content inside the drawer reads its sizes from the row's tokens, which the
  * drawer cannot replace. The components that draw text sizes from
@@ -23,7 +23,7 @@ export function pinchZoom(startSize: number, scale: number): number {
 
 export function zoomTypography(typography: Typography, zoom: number): Typography {
   if (zoom === 0) return typography;
-  const size = clampDetailsFontSize(zoom);
+  const size = Math.round(zoom);
   return {
     ...typography,
     content: { size, lineHeight: Math.round(size * 1.5) },
@@ -32,7 +32,7 @@ export function zoomTypography(typography: Typography, zoom: number): Typography
   };
 }
 
-/** The native details' absolute size; 0 leaves timeline typography unchanged. */
+/** The native details' resolved size; 0 leaves timeline typography unchanged. */
 export const TextZoomContext = createContext(0);
 
 // One object per tokens and zoom, so memoised children see the same tokens
@@ -75,7 +75,7 @@ export function zoomTextStyle(style: StyleProp<TextStyle>, zoom: number): StyleP
   const flat = StyleSheet.flatten(style);
   const size = flat?.fontSize;
   if (typeof size !== "number" || size <= 0) return style;
-  const next = clampDetailsFontSize(zoom);
+  const next = Math.round(zoom);
   const lineHeight = typeof flat?.lineHeight === "number" ? Math.round(next * 1.5) : undefined;
   return [style, lineHeight === undefined ? { fontSize: next } : { fontSize: next, lineHeight }];
 }

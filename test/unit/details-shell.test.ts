@@ -1,6 +1,7 @@
 import React, { createElement, useContext, useRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
+import { VirtualizedList } from "react-native";
 import "./helpers/quiet-renderer";
 
 // The block details shell (client/details/shell): the open block drawn as a
@@ -15,8 +16,10 @@ const timings = vi.hoisted(() => [] as { toValue: number; duration: number; nati
 
 vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
+  const { createContext } = await import("react");
   return {
     ...rn,
+    VirtualizedList: { contextType: createContext(null) },
     UIManager: { hasViewManagerConfig: () => false },
     useWindowDimensions: () => ({ width: screen.width, height: screen.height, scale: 3, fontScale: 1 }),
     // Every animation lands at once, so a close or a switch completes inside `act`.
@@ -151,6 +154,7 @@ import { CONTENT_HOLD_MS } from "../../client/details/shell/gestures";
 import { HoverPreviewBody } from "../../client/ui/hover-preview";
 import { useLineSelection } from "../../client/ui/line-selection";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
+import { PreviewLines } from "../../client/ui/preview-lines";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -403,6 +407,44 @@ describe("DetailsHostSlot", () => {
 });
 
 describe("form", () => {
+  it.each(["ios", "android"])("keeps the panel inside the timeline as its sidebar and window change on %s", async (os) => {
+    vi.useFakeTimers();
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    screen.width = 834;
+    screen.height = 1194;
+    const pane = { left: 260, width: 574 };
+    const context = (VirtualizedList as unknown as { contextType: React.Context<unknown> }).contextType;
+    const list = {
+      getOutermostParentListRef: () => ({
+        getScrollRef: () => ({ measureInWindow: (done: (x: number, y: number, width: number, height: number) => void) => done(pane.left, 140, pane.width, 1000) }),
+      }),
+    };
+    const element = () => createElement(context.Provider, { value: list }, slot());
+    const renderer = render(element());
+    await act(async () => fake.api.open(AGENT, "a"));
+    const stage = () => flat(byTestId(renderer, "details-stage")!.props.style);
+    const frame = () => flat(byTestId(renderer, "details-floating-frame")!.props.style);
+    expect(stage()).toMatchObject({ left: 260, width: 574 });
+    expect(frame()).toMatchObject({ left: 16, width: 542 });
+    act(() => seen.shell!.toggleFullscreen!());
+    expect(stage()).toMatchObject({ left: 260, width: 574 });
+    expect(frame()).toMatchObject({ left: 16, width: 542 });
+    pane.left = 0;
+    pane.width = 834;
+    await act(async () => byTestId(renderer, "details-pane-probe")!.props.onLayout());
+    expect(stage()).toMatchObject({ left: 0, width: 834 });
+    expect(frame()).toMatchObject({ left: 37, width: 760 });
+    screen.width = 1194;
+    screen.height = 834;
+    pane.left = 260;
+    pane.width = 934;
+    await act(async () => renderer.update(element()));
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(stage()).toMatchObject({ left: 260, width: 934 });
+    const panel = flat(byTestId(renderer, "details-side")!.props.style);
+    expect(Number(panel.width)).toBeLessThanOrEqual(934);
+  });
+
   it.each([
     { os: "ios", width: 390, height: 844, hover: false, form: "drawer" },
     { os: "ios", width: 834, height: 1194, hover: false, form: "floating" },
@@ -1421,6 +1463,39 @@ describe("a pinch in the phone drawer", () => {
     return createElement("Text", { testID: "zoom-probe" }, String(zoom));
   }
   const zoomed = () => createElement(HoverPreviewBody, null, createElement(ZoomProbe));
+  it.each([
+    { width: 390, height: 844 },
+    { width: 834, height: 1194 },
+    { width: 1194, height: 834 },
+  ])("sizes panel prose and code relative to the timeline at $width×$height", ({ width, height }) => {
+    screen.width = width;
+    screen.height = height;
+    const prose = "Panel prose follows the timeline";
+    fake.box.blocks = [block("relative-prose", 1, {
+      render: () => createElement("View", null,
+        createElement(MarkdownView, { text: prose, tokens, variant: "compact", size: 30 }),
+        createElement(PreviewLines, { text: "command output", lines: ["command output"], tokens,
+          style: { fontSize: tokens.typography.mono.size, lineHeight: tokens.typography.mono.lineHeight } })),
+    })];
+    const element = (size: number) => createElement(DetailsHostSlot, {
+      agentId: AGENT, itemKey: "relative-size", compact: true,
+      tokens: { ...tokens, typography: { ...tokens.typography, content: { size, lineHeight: Math.round(size * 1.5) } } },
+    });
+    const renderer = render(element(16));
+    open("relative-prose");
+    const shown = () => renderer.root.findAll((node) => typeof node.type === "string" && flat(node.props.style).fontSize !== undefined)
+      .map((node) => flat(node.props.style).fontSize);
+    expect(shown()).toContain(14);
+    act(() => renderer.update(element(24)));
+    expect(shown()).toContain(21);
+    expect(shown()).not.toContain(14);
+    act(() => updateEnhancerPreferences({ detailsFontSize: 21 }));
+    expect(shown()).toContain(32);
+    expect(getEnhancerPreferences().detailsFontSize).toBe(21);
+    act(() => updateEnhancerPreferences({ detailsFontSize: 14 }));
+    act(() => renderer.update(element(12)));
+    expect(shown()).toContain(11);
+  });
   const fingers = (...ys: number[]) => ({ nativeEvent: { pageX: 100, pageY: ys[0], timestamp: 0, touches: ys.map((pageY) => ({ pageX: 100, pageY })) } });
   /** A drawer whose body is 300 tall from 400 down, over 900 of content scrolled to `offset`. */
   function drawer(id: string, offset = 300) {
