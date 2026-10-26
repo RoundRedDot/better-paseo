@@ -148,6 +148,13 @@ export const tasksUnarchiveRpc = defineRpc({
   output: z.object({ ok: z.boolean(), error: z.string().nullable() }),
 });
 
+/** Updates the agent's persisted title through the host daemon; PaseoApi has no agent metadata setter. */
+export const tasksRenameRpc = defineRpc({
+  name: "tasks.rename",
+  input: z.object({ agentId: z.string().min(1), title: z.string().trim().min(1) }),
+  output: z.object({ ok: z.boolean(), error: z.string().nullable() }),
+});
+
 export const sessionTokensSchema = z.object({
   /** Every token the session used: input, cache writes and reads, output. */
   total: z.number(),

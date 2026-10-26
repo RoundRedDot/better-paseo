@@ -615,7 +615,7 @@ describe("TaskCardView right-click menu", () => {
     const root = renderer.root;
     expect(root.findAll((node) => node.props.testID === "task-card-menu")).toHaveLength(0);
     await act(async () => contextMenus.get("task-card-sample-running")!({ x: 40, y: 60 }, null));
-    expect(rows(root)).toEqual(["打开", "复制会话 ID", "复制标题", "复制工作区名称", "复制项目名称", "停止"]);
+    expect(rows(root)).toEqual(["打开", "修改标题", "复制会话 ID", "复制标题", "复制工作区名称", "复制项目名称", "停止"]);
 
     copies.length = 0;
     await choose(root, "复制会话 ID");
