@@ -288,6 +288,13 @@ export function PhoneBoard(props: {
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0 }}>
       <View style={{ minHeight: 52, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 16, paddingRight: 6 }}>
+        <RoundButton
+          icon="Search"
+          label={strings.searchButton}
+          active={searchOpen || board.params.query !== ""}
+          theme={theme}
+          onPress={() => setSearchOpen((open) => !open)}
+        />
         <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.lg, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>
           {strings.total(board.total)}
         </Text>
@@ -318,13 +325,6 @@ export function PhoneBoard(props: {
           </Pressable>
         ) : null}
         <View style={{ flex: 1 }} />
-        <RoundButton
-          icon="Search"
-          label={strings.searchButton}
-          active={searchOpen || board.params.query !== ""}
-          theme={theme}
-          onPress={() => setSearchOpen((open) => !open)}
-        />
         <RoundButton
           icon={filters.hideSubtasks ? "List" : "Network"}
           label={strings.showSubtasks}
