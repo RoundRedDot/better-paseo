@@ -37,6 +37,7 @@ const copies = vi.hoisted(() => [] as string[]);
 
 vi.mock("../../client/web", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
+  openToolbarDetailsLayer: () => () => {},
   bindContextMenu: (node: { props?: Record<string, unknown> } | null, open: (point: { x: number; y: number }, target: unknown) => void) => {
     const key = String(node?.props?.testID ?? "?");
     contextMenus.set(key, open);

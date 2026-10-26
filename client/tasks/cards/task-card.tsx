@@ -31,7 +31,7 @@ import { ActionRow, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
 import { buttonHue, CARD_BUTTON_HEIGHT, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_ICON, requestLook, webTransition } from "./action-style";
 import { CardContextMenu } from "./card-menu";
-import { bindContextMenu } from "../../web";
+import { bindContextMenu, openToolbarDetailsLayer } from "../../web";
 import { ArchivedTag } from "./archived-tag";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import type { CardFilterKind, CardFilterState } from "../board/filter-options";
@@ -582,7 +582,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const lines = (...parts: (string | null | false | undefined)[]) => parts.filter(Boolean).join("\n");
   const { pair } = strings.hint;
 
-  // The modal owns dismissal while open; moving into its portal leaves the card.
+  // The menu owns dismissal while open.
   const wasHovered = useRef(false);
   useEffect(() => {
     if (hovered === wasHovered.current) return;
@@ -1865,6 +1865,7 @@ function StopControl(props: StopControlProps) {
   const stopHover = useHover();
   const chevronHover = useHover();
   const anchorRef = useRef<View>(null);
+  const menuRef = useRef<View>(null);
   const stageRef = useRef<View>(null);
   const [menuOrigin, setMenuOrigin] = useState<{ left: number; top: number } | null>(null);
   const stopSections: MenuSection[] = [
@@ -1905,6 +1906,11 @@ function StopControl(props: StopControlProps) {
     ...webTransition,
   };
   const menuHeight = layoutMenu(stopSections, scale).height + 2 * StyleSheet.hairlineWidth;
+  useLayoutEffect(() => {
+    if (Platform.OS === "web" && props.menuOpen) {
+      return openToolbarDetailsLayer(menuRef.current, anchorRef.current, compact ? "above" : "below");
+    }
+  }, [props.menuOpen, compact, props.menuLeft, menuHeight]);
   const measureMenu = () => {
     stageRef.current?.measureInWindow((sx, sy, sw, sh) => {
       anchorRef.current?.measureInWindow((x, y, width, anchorHeight) => {
@@ -1923,8 +1929,9 @@ function StopControl(props: StopControlProps) {
       sections={stopSections}
       theme={props.theme}
       width={STOP_MENU_WIDTH}
-      top={0}
+      top={Platform.OS === "web" && !compact ? 4 : 0}
       align="left"
+      anchorRef={anchorRef}
       onClose={props.onCloseMenu}
       testID="task-card-stop-menu"
     />
@@ -2015,8 +2022,16 @@ function StopControl(props: StopControlProps) {
           style={[StyleSheet.absoluteFill, buttonOutline(tokens.danger), { borderRadius: round, opacity: stopping ? 0.6 : 1 }]}
         />
       ) : null}
-      {props.parent && props.menuOpen ? (
-        // Escape list cells and stacking contexts on every platform.
+      {props.parent && props.menuOpen ? Platform.OS === "web" ? (
+        // The top layer preserves DOM hover and lets the trigger toggle the menu.
+        <View ref={menuRef} collapsable={false} testID="task-card-stop-menu-layer"
+          style={{ position: "absolute", top: compact ? -(menuHeight + 6) : height,
+            ...(props.menuLeft ? { left: 0 } : { right: 0 }), width: STOP_MENU_WIDTH,
+            height: menuHeight + (compact ? 6 : 4), padding: 0 }}>
+          {menu}
+        </View>
+      ) : (
+        // Escape native list cells.
         <Modal visible transparent animationType="none" statusBarTranslucent onShow={measureMenu} onRequestClose={props.onCloseMenu}>
           <View ref={stageRef} collapsable={false} testID="task-card-stop-menu-stage" onLayout={measureMenu} style={{ flex: 1 }}>
             <Pressable accessibilityLabel={props.closeMenuLabel} testID="task-card-stop-menu-backdrop" onPress={props.onCloseMenu} style={StyleSheet.absoluteFill} />
