@@ -392,7 +392,7 @@ describe("F1: Web switch Space activation", () => {
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(width);
     if (width === 600) act(() => hostsById("toolbar-filters")[0]!.props.onPress());
-    return () => hostsById(width === 600 ? "filter-sheet-empty-groups" : "empty-groups-toggle")[0]!;
+    return () => hostsById(width === 600 ? "filter-sheet-empty-groups" : "subtasks-toggle")[0]!;
   };
 
   it.each([1600, 600])("at %i pt prevents Space scrolling and toggles once on release", (width) => {
@@ -433,7 +433,7 @@ describe("F1: Web switch Space activation", () => {
       if (mode === "virtual") board.key("j");
       board.focus(); // A toolbar control inside the board, with no data-bctaskcard attribute.
       const title = textOf(hostsById("detail-title")[0]!);
-      const toggle = () => hostsById("empty-groups-toggle")[0]!;
+      const toggle = () => hostsById("subtasks-toggle")[0]!;
       const down = board.key(" ");
       expect(down.preventDefault).not.toHaveBeenCalled();
       expect(down.stopPropagation).not.toHaveBeenCalled();
@@ -2127,7 +2127,7 @@ describe("Tasks board, lane widths", () => {
     const lay = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 28 } } }));
     expect(inline()).toHaveLength(0);
     expect(hostsById("lane-width-label")).toHaveLength(0);
-    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end()).indexOf(laneControl())).toBe(5);
+    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end()).indexOf(laneControl())).toBe(4);
     lay(controls(), 500);
     lay(group(), 1000);
     lay(end(), 650);
@@ -2151,7 +2151,7 @@ describe("Tasks board, lane widths", () => {
     expect(laneChildren.indexOf(label())).toBeLessThan(laneChildren.indexOf(inline()[0]!));
     const endGroups = () => end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end());
     expect(endGroups().filter((node) => node.props.testID).map((node) => node.props.testID)).toEqual([
-      "empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle", "board-switches-divider",
+      "empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle", "board-switches-divider",
       "lane-width-control", "lane-width-divider", "done-window", "done-window-divider",
     ]);
     for (const id of ["board-switches-divider", "lane-width-divider", "done-window-divider"]) {
@@ -2162,7 +2162,7 @@ describe("Tasks board, lane widths", () => {
     expect(choices().map((node) => node.props.accessibilityLabel)).toEqual([strings.laneWidth.names.narrow, strings.laneWidth.names.default, strings.laneWidth.names.wide]);
     expect(choices().map((node) => node.findByType(LaneWidthMark).props.laneWidth)).toEqual(["narrow", "default", "wide"]);
     expect(choices().map((node) => node.props.accessibilityState.selected)).toEqual([false, true, false]);
-    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end()).indexOf(laneControl())).toBe(5);
+    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end()).indexOf(laneControl())).toBe(4);
     expect(StyleSheet.flatten(inline()[0]!.props.style).height).toBe(Math.round(28 * Math.max(1, base / 14)));
     await act(async () => choices()[2]!.props.onPress());
     expect(deviceTasksStore().snapshot().values?.laneWidth).toBe("wide");
@@ -2322,7 +2322,7 @@ describe("Tasks board, archived lane switch", () => {
     const toolbar = renderer!.root.findByType(DesktopToolbar);
     expect(toolbar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(["sidebar-switch"]);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-    expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle"]);
+    expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle"]);
     expect(hostsById("toolbar-archived")).toHaveLength(0);
     await act(async () => toggle().props.onPress());
     layOut(2400);
@@ -2375,7 +2375,6 @@ describe("Tasks board, toolbar tips", () => {
         "Hide subtasks",
         "How far back Done and Archived reach",
         "Show the archived lane",
-        "Hide groups with no active tasks",
         "Order the cards in each lane",
         "Lanes · Default",
       ]),
@@ -2811,7 +2810,7 @@ describe("Tasks board, tablet filters", () => {
     expect(lastBoardParams("host-1").doneWindow).toBe("all");
   });
 
-  it("lists the sidebar's groups with no active task until the bar's switch hides them, and saves it", async () => {
+  it.each(["agent", "project", "workspace"])("lists the sidebar's groups with no active task until the %s menu's switch hides them, and saves it", async (menu) => {
     const handle = (data as unknown as { __handle: { providers: object[] } }).__handle;
     const saved = handle.providers;
     handle.providers = [...saved, { id: "pi", label: "Pi" }];
@@ -2821,21 +2820,24 @@ describe("Tasks board, tablet filters", () => {
         renderer = TestRenderer.create(screen(false));
       });
       layOut(2400);
-      const toggle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "empty-groups-toggle");
-      const icon = () => toggle().find((node) => (node.type as unknown) === "Icon").props.name;
+      // Not among the bar's switches: at the foot of the menus whose groups it trims.
+      expect(hostsById("empty-groups-toggle")).toHaveLength(0);
+      act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === `Filter by ${menu}`).props.onPress());
+      const rowsOf = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
+      const toggle = () => rowsOf().find((node) => textOf(node).startsWith("Show groups with no active tasks"))!;
+      const icon = () => toggle().findAll((node) => (node.type as unknown) === "Icon")[0]!.props.name;
       const groups = () => renderer!.root.findByProps({ testID: "sidebar-groups" });
       const rows = () => groups().findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);
-      expect(toggle().props).toMatchObject({ accessibilityLabel: "Show groups with no active tasks", accessibilityState: { checked: true } });
+      expect(rowsOf().at(-1)).toBe(toggle());
+      expect(toggle().props.accessibilityState).toMatchObject({ checked: true });
       expect(icon()).toBe("List");
-      // Last of the board's switches, in the bar's end.
-      const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-      expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle"]);
       // Busy first, the empty ones after them.
       expect(rows().at(-1)).toBe("Pi 0");
       await act(async () => toggle().props.onPress());
       expect(host.save).not.toHaveBeenCalled();
-    expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
-      expect(toggle().props.accessibilityState).toEqual({ checked: false });
+      expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
+      // The menu stays open on its new state.
+      expect(toggle().props.accessibilityState).toMatchObject({ checked: false });
       expect(icon()).toBe("ListFilter");
       expect(rows()).not.toContain("Pi 0");
       expect(rows().length).toBeGreaterThan(0);
@@ -2862,10 +2864,16 @@ describe("Tasks board, tablet filters", () => {
     expect(host.save).not.toHaveBeenCalled();
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
     expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
-    // Native keeps the open panel and its value while resizing; web restores the bar switch.
+    // Native keeps the open panel and its value while resizing; a wide web board has it in its filter menus.
     layOut(1600);
-    const target = os === "web" ? "empty-groups-toggle" : "filter-sheet-empty-groups";
-    expect(hostsById(target)[0]!.props.accessibilityState).toEqual({ checked: false });
+    if (os === "web") {
+      expect(hostsById("empty-groups-toggle")).toHaveLength(0);
+      act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === "Filter by project").props.onPress());
+      const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith("Show groups with no active tasks"));
+      expect(row[0]!.props.accessibilityState).toMatchObject({ checked: false });
+    } else {
+      expect(hostsById("filter-sheet-empty-groups")[0]!.props.accessibilityState).toEqual({ checked: false });
+    }
   });
 
   it("web at 600 pt keeps the archived lane's icon button in the folded header", async () => {
