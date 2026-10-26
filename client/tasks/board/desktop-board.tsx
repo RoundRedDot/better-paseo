@@ -16,6 +16,7 @@ import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, RollingCount, Sk
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type FilterMenu } from "./filter-bar";
 import { TabletToolbar } from "./tablet-toolbar";
 import { buildFilterOptions } from "./filter-options";
+import { SWITCH_MS } from "../../ui/switch-track";
 import { LANES, boardKeyReducer, clampFocus, boardLaneLayout, type BoardFocus, type LaneShape } from "./navigation";
 import { menuChrome } from "./menu-model";
 import { DetailsSidebar } from "./details-sidebar";
@@ -124,7 +125,15 @@ export function DesktopBoard(props: {
   rootRef: RefObject<View | null>;
   handlers: RefObject<BoardLayoutHandlers | null>;
 }) {
-  const { screen, board, rootRef } = props;
+  const { screen, rootRef } = props;
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  // The controls (toolbar, filter bar, filter panel) follow the board at once.
+  // While the filter panel is open, the lanes, their motion and the sidebar
+  // behind it take a change once its switch has slid: a switch that adds or
+  // hides cards in every lane (the subtasks switch) held the knob for as long
+  // as the new cards took to mount, or stalled it half way.
+  const live = props.board;
+  const board = useLaggedWhile(live, filtersOpen, FILTER_PANEL_LAG_MS);
   const scale = useTasksFontScale();
   const theme = screen.theme;
   const colors = theme.colors;
@@ -161,8 +170,6 @@ export function DesktopBoard(props: {
   };
   const focus = clampFocus(focusState, shapes);
   const [menu, setMenu] = useState<FilterMenu | null>(null);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const options = useMemo(() => buildFilterOptions(tasks, board.params), [tasks, board.params]);
 
   const listRefs = useRef<Partial<Record<LaneId, NativeFlatList<TaskCard> | null>>>({});
   // One stable ref callback per lane, so a lane's list is not re-attached on every render.
@@ -279,6 +286,9 @@ export function DesktopBoard(props: {
   const sheetMode = mode === "sheet";
   const sheetModeRef = useRef(sheetMode);
   sheetModeRef.current = sheetMode;
+  // Built only where they show: the wide filter bar, or the panel while open.
+  const optionsShown = !(touch || sheetMode) || filtersOpen;
+  const options = useMemo(() => (optionsShown ? buildFilterOptions(live.tasks, live.params) : null), [optionsShown, live.tasks, live.params]);
   const rowScrollX = useRef(0);
   // The lanes the row shows now: one out of view waits to draw its cards (`DesktopLane`'s `inView`).
   const viewWidth = lanesWidth - coverRoom;
@@ -542,7 +552,7 @@ export function DesktopBoard(props: {
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }} {...claimKeys(rootRef, () => setFocus(null), activeCardId)}>
       {touch ? <TabletToolbar
-        board={board}
+        board={live}
         theme={theme}
         width={boardWidth}
         searchRef={searchRef}
@@ -550,17 +560,17 @@ export function DesktopBoard(props: {
         sidebar={sidebarToggle}
         emptyLanes={{ collapsed: emptyLanesCollapsed, disabled: emptyLanes.length === 0, onToggle: toggleEmptyLanes }}
       /> : <DesktopToolbar
-        board={board}
+        board={live}
         theme={theme}
         searchRef={searchRef}
         keyHints={boardWidth === 0 || boardWidth >= KEY_HINTS_MIN_WIDTH * Math.max(1, scale)}
         sidebar={sidebarToggle}
         emptyLanes={{ collapsed: emptyLanesCollapsed, disabled: emptyLanes.length === 0, onToggle: toggleEmptyLanes }}
-        filters={sheetMode ? { count: activeFilterCount(board.params, board.defaults), onPress: () => setFiltersOpen(true) } : undefined}
+        filters={sheetMode ? { count: activeFilterCount(live.params, live.defaults), onPress: () => setFiltersOpen(true) } : undefined}
       />}
-      {touch || sheetMode ? null : (
+      {touch || sheetMode || !options ? null : (
         <DesktopFilterBar
-          board={board}
+          board={live}
           theme={theme}
           options={options}
           menu={menu}
@@ -576,14 +586,14 @@ export function DesktopBoard(props: {
       <Modal title={strings.filters} open={(touch || sheetMode) && filtersOpen} onOpenChange={(open) => !open && setFiltersOpen(false)}>
         <Modal.Content contentContainerStyle={FILTER_SHEET_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
-            {(touch || sheetMode) && filtersOpen ? (
+            {(touch || sheetMode) && filtersOpen && options ? (
               <FilterSheetBody
-                board={board}
+                board={live}
                 theme={theme}
                 options={options}
                 showEmptyGroupsToggle
                 showArchivedToggle={touch}
-                laneWidth={{ value: board.laneWidth, onChange: board.setLaneWidth }}
+                laneWidth={{ value: live.laneWidth, onChange: live.setLaneWidth }}
                 onDone={() => setFiltersOpen(false)}
               />
             ) : null}
@@ -692,6 +702,38 @@ export function DesktopBoard(props: {
       <BoardTips root={rootRef} theme={theme} color={colors.foreground} />
     </View>
   );
+}
+
+/** The filter panel's switches slide for `SWITCH_MS`; the lanes behind wait a frame past that. */
+const FILTER_PANEL_LAG_MS = SWITCH_MS + 40;
+
+/**
+ * `value` as it was up to `ms` ago while `lag` holds, the latest one as soon
+ * as it does not. Changes that come in while one waits go out with it.
+ */
+export function useLaggedWhile<T>(value: T, lag: boolean, ms: number): T {
+  const [, wake] = useReducer((count: number) => count + 1, 0);
+  const shown = useRef(value);
+  const latest = useRef(value);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  latest.current = value;
+  if (!lag) shown.current = value;
+  useEffect(() => {
+    if (!lag && timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+    if (!lag || timer.current || shown.current === value) return;
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      shown.current = latest.current;
+      wake();
+    }, ms);
+  });
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  return shown.current;
 }
 
 /** The gap between two lanes on touch: a blank to tap, as the lanes' headers and empty space are. */

@@ -8,6 +8,8 @@ const TRACK_WIDTH = 40;
 const TRACK_HEIGHT = 24;
 const KNOB = 18;
 const KNOB_INSET = (TRACK_HEIGHT - KNOB) / 2;
+/** How long the knob slides. */
+export const SWITCH_MS = 140;
 
 export interface SwitchColors {
   accent: string;
@@ -28,7 +30,7 @@ export function SwitchTrack({ value, colors }: { value: boolean; colors: SwitchC
   const position = useRef(new Animated.Value(value ? 1 : 0)).current;
 
   useEffect(() => {
-    const ms = motionDuration(140, reducedMotion);
+    const ms = motionDuration(SWITCH_MS, reducedMotion);
     if (ms === 0) {
       position.setValue(value ? 1 : 0);
       return;
