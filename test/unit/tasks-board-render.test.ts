@@ -119,7 +119,7 @@ import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
 import { ACTIVE_LANE_ORDER as LANE_ORDER } from "../../client/tasks/model";
-import { BrandMark, PiMark, TagMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
+import { BrandMark, DetailActionBar, PiMark, TagMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
 import { deviceTasksStore } from "../../client/tasks/device-preferences";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled } from "../../client/tasks/board/enabled";
@@ -3600,6 +3600,21 @@ describe("Tasks board, phone", () => {
     act(() => cards()[0]!.props.onSelect(cards()[0]!.props.card));
     expect(sheet().findByType(TaskDetailCards).props.card.id).toBe("sample-input");
     expect(openAgent).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("offers Stop on a phone card exactly when its details sheet does (host CLI: %s)", async (canStop) => {
+    host.canStop = canStop;
+    await act(async () => {
+      renderer = TestRenderer.create(screen(true));
+      await Promise.resolve();
+    });
+    const running = cards().find((card) => card.props.card.lane === "running" && card.props.card.stoppable)!;
+    // Without the CLI a card's Stop would do nothing: the press ends in `stop.press`'s early return.
+    expect(typeof running.props.onStop).toBe(canStop ? "function" : "undefined");
+    await act(async () => running.props.onSelect(running.props.card));
+    const bar = renderer!.root.findByType(DetailActionBar);
+    expect(bar.props.card.id).toBe(running.props.card.id);
+    expect(bar.props.stop ? "stop" : null).toBe(canStop ? "stop" : null);
   });
 });
 
