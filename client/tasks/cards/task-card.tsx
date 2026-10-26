@@ -663,9 +663,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   // A provider subagent's card is drawn dashed: it stands for work inside its parent's session.
   const dashed = !!card.subagent;
-  // A subtask's card (a Paseo agent with a parent) marks its top-right corner in its project's colour.
-  // Grey at rest; the project's colour while the card is hovered, chosen in the sidebar or focused.
-  const cornerMark = card.parent !== null && !card.subagent
+  // A subtask's card (a Paseo agent with a parent, or a provider subagent's dashed card) marks its
+  // top-right corner in its project's colour. Grey at rest; the project's colour while the card is
+  // hovered, chosen in the sidebar or focused.
+  const cornerMark = card.parent !== null
     ? lit || props.current || props.focused ? markHue(card.location, props.hostId, tokens) : markRest(tokens, background)
     : null;
   const shadows = lit ? [look.shadowHover] : [look.shadow];
