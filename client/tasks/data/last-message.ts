@@ -1,5 +1,5 @@
-import { useEffect, useSyncExternalStore } from "react";
-import type { PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import type { FirstPrompt } from "./first-prompt";
 import { turnRunning, type LaneId } from "../model";
 
@@ -124,4 +124,52 @@ export function useLastMessage(api: PaseoApi, agentId: string, version: string, 
     if (auto) store.request(agentId, version);
   }, [store, agentId, version, auto]);
   return { prompt, load: () => store.request(agentId, version) };
+}
+
+type LiveApi = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "subscribe"> } } };
+
+/** A live reply's chunks read the tail again at most this often. */
+export const LIVE_READ_MS = 1_500;
+
+/** Whether a live event can have moved the latest reply: a reply's chunk, or a reconnect that may have missed some. */
+function movesReply(event: PaseoAgentTimelineEvent): boolean {
+  const kind = event.event.type;
+  if (kind === "subscription_restored") return true;
+  return kind === "timeline" && "item" in event.event && event.event.item.type === "assistant_message";
+}
+
+/**
+ * While `live` (the details show a running turn), a count that moves as the
+ * agent's live timeline brings reply chunks, at most once per
+ * `LIVE_READ_MS`: added to the reply's version, it reads the tail again
+ * mid-turn instead of only at the turn's start and end.
+ */
+export function useLiveReplyCount(api: PaseoApi | LiveApi, agentId: string, live: boolean): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!live || !agentId) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastAt = 0;
+    const bump = () => {
+      timer = null;
+      lastAt = Date.now();
+      setCount((was) => was + 1);
+    };
+    let subscription: (() => void) & { ready?: Promise<void> };
+    try {
+      subscription = (api as LiveApi).agents.ref(agentId).timeline.subscribe((event) => {
+        if (timer !== null || !movesReply(event)) return;
+        timer = setTimeout(bump, Math.max(0, lastAt + LIVE_READ_MS - Date.now()));
+      });
+    } catch {
+      // A host without live timelines: the reply moves on the turn's start and end only.
+      return;
+    }
+    subscription.ready?.catch(() => {});
+    return () => {
+      if (timer !== null) clearTimeout(timer);
+      subscription();
+    };
+  }, [api, agentId, live]);
+  return count;
 }

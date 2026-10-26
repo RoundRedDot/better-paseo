@@ -1,5 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
-import { createLastMessageStore, lastMessageVersion, lastReplyMessage } from "../../client/tasks/data/last-message";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import React from "react";
+import "./helpers/quiet-renderer";
+import TestRenderer, { act, type ReactTestRenderer } from "react-test-renderer";
+import { LIVE_READ_MS, createLastMessageStore, lastMessageVersion, lastReplyMessage, useLiveReplyCount } from "../../client/tasks/data/last-message";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 type Page = { error: string | null; entries: { timestamp?: string; item: { type: string; text?: string } }[] };
 
@@ -75,5 +80,69 @@ describe("last message", () => {
     expect(lastMessageVersion({ lane: "running", timing })).toBe(lastMessageVersion({ lane: "running", timing: { ...timing, updatedAt: "2026-10-22T10:00:05Z" } }));
     expect(lastMessageVersion({ lane: "running", timing })).not.toBe(lastMessageVersion({ lane: "running", timing: { ...timing, turnStartedAt: "2026-10-22T10:01:00Z" } }));
     expect(lastMessageVersion({ lane: "done", timing })).not.toBe(lastMessageVersion({ lane: "done", timing: { ...timing, updatedAt: "2026-10-22T10:05:00Z" } }));
+  });
+});
+
+describe("live reply count", () => {
+  let renderer: ReactTestRenderer | null = null;
+  afterEach(() => {
+    act(() => renderer?.unmount());
+    renderer = null;
+    vi.useRealTimers();
+  });
+
+  function liveApi() {
+    let handler: ((event: unknown) => void) | null = null;
+    const unsubscribe = vi.fn(() => {
+      handler = null;
+    });
+    const subscribe = vi.fn((next: (event: unknown) => void) => {
+      handler = next;
+      return Object.assign(unsubscribe, { ready: Promise.resolve() });
+    });
+    const emit = (event: Record<string, unknown>) => act(() => handler?.({ agentId: "a", event }));
+    return { api: { agents: { ref: () => ({ timeline: { subscribe } }) } }, subscribe, unsubscribe, emit };
+  }
+
+  function Probe(props: { api: unknown; agentId: string; live: boolean; seen: number[] }) {
+    props.seen.push(useLiveReplyCount(props.api as never, props.agentId, props.live));
+    return null;
+  }
+
+  it("counts a running turn's reply chunks at most once per interval and lets go when not live", () => {
+    vi.useFakeTimers();
+    const { api, subscribe, unsubscribe, emit } = liveApi();
+    const seen: number[] = [];
+    const probe = (live: boolean) => React.createElement(Probe, { api, agentId: "a", live, seen });
+    act(() => {
+      renderer = TestRenderer.create(probe(false));
+    });
+    expect(subscribe).not.toHaveBeenCalled();
+
+    act(() => renderer!.update(probe(true)));
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    const reply = { type: "timeline", provider: "codex", item: { type: "assistant_message", text: "Rea" } };
+    // A tool call does not move the reply.
+    emit({ type: "timeline", provider: "codex", item: { type: "tool_call" } });
+    act(() => { vi.advanceTimersByTime(LIVE_READ_MS); });
+    expect(seen.at(-1)).toBe(0);
+
+    emit(reply);
+    act(() => { vi.advanceTimersByTime(0); });
+    expect(seen.at(-1)).toBe(1);
+    // Chunks right after wait out the interval, then count once.
+    emit(reply);
+    emit(reply);
+    act(() => { vi.advanceTimersByTime(LIVE_READ_MS - 1); });
+    expect(seen.at(-1)).toBe(1);
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(seen.at(-1)).toBe(2);
+    // A reconnect may have missed chunks.
+    emit({ type: "subscription_restored" });
+    act(() => { vi.advanceTimersByTime(LIVE_READ_MS); });
+    expect(seen.at(-1)).toBe(3);
+
+    act(() => renderer!.update(probe(false)));
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
   });
 });

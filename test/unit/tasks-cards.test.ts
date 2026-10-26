@@ -105,6 +105,7 @@ import {
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
+import { FLASH } from "../../client/tasks/board/breathing";
 import { MARK_DOT, markHue, markRest, OVERLAY_ROW_Z, ringNudge } from "../../client/tasks/cards/task-card";
 import { SubtaskRow, SubtaskMetadata } from "../../client/tasks/cards/subtask-row";
 import { ChildMark } from "../../client/tasks/cards/child-mark";
@@ -2820,6 +2821,30 @@ describe("TaskDetailCards", () => {
 
     await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt, lastMessage: { prompt: { state: "none" }, load } }, "zh")));
     expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["最后回复消息", "任务暂无回复"]);
+  });
+
+  it("flashes the reply's box once each time the shown card's reply moves", async () => {
+    const { Animated } = await import("react-native");
+    const timing = vi.spyOn(Animated, "timing");
+    const swells = () => timing.mock.calls.filter(([, config]) => (config as { toValue: number }).toValue === FLASH.peak).length;
+    const load = vi.fn();
+    const reply = (text: string) => ({ prompt: { state: "ready", text } as const, load });
+    const tree = await render(details(sample("sample-failed"), { lastMessage: reply("Reading the board") }, "en"));
+    expect(hostByTestId(tree.root, "detail-message-flash").props.pointerEvents).toBe("none");
+    // The first read draws without a flash.
+    expect(swells()).toBe(0);
+
+    await act(async () => tree.update(details(sample("sample-failed"), { lastMessage: reply("Reading the board, then the lanes") }, "en")));
+    expect(swells()).toBe(1);
+    await act(async () => tree.update(details(sample("sample-failed"), { lastMessage: reply("Reading the board, then the lanes") }, "en")));
+    expect(swells()).toBe(1);
+    // A re-read on its way keeps the reply; another card's reply is a first read.
+    await act(async () => tree.update(details(sample("sample-failed"), { lastMessage: { prompt: { state: "loading" }, load } }, "en")));
+    await act(async () => tree.update(details(sample("sample-running"), { lastMessage: reply("Another task") }, "en")));
+    expect(swells()).toBe(1);
+    // The prompt does not flash.
+    expect(tree.root.findAll((node) => node.props.testID === "detail-prompt-flash")).toEqual([]);
+    timing.mockRestore();
   });
 
   it("draws a breathing skeleton while a timeline read is on its way", async () => {

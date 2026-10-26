@@ -13,6 +13,7 @@ import { LANE_EMPTY_ICON } from "./strings";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, RollingCount, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
+import { useFlash } from "./breathing";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type FilterMenu } from "./filter-bar";
 import { TabletToolbar } from "./tablet-toolbar";
 import { buildFilterOptions } from "./filter-options";
@@ -1078,38 +1079,9 @@ interface LaneFlash {
 }
 
 const LANE_FLASH = {
-  /** The accent's strength over the lane's fill at a pulse's peak: a pale tint. */
-  peak: 0.07,
-  /** Each of the two pulses swells this long, */
-  inMs: 600,
-  /** then fades this long. */
-  outMs: 800,
   /** The row's animated scroll comes first. */
   afterScrollMs: 300,
 } as const;
-
-/** A breath: slow at both ends, with no edge to the swell or the fade. */
-const breathe = (t: number) => (1 - Math.cos(Math.PI * t)) / 2;
-
-/** The flash's opacity: two slow pulses of a pale accent, or one still beat under reduced motion. */
-function useLaneFlash(flash: LaneFlash | null): Animated.Value {
-  const reduced = useReducedMotion();
-  const value = useRef(new Animated.Value(0)).current;
-  const key = flash?.key ?? 0;
-  const delay = flash?.delay ?? 0;
-  useEffect(() => {
-    value.setValue(0);
-    if (key === 0) return;
-    const to = (toValue: number, duration: number, wait = 0) => Animated.timing(value, { toValue, duration, delay: wait, easing: breathe, useNativeDriver: nativeDriver });
-    const { peak, inMs, outMs } = LANE_FLASH;
-    const animation = Animated.sequence(
-      reduced ? [to(peak, 0, delay), to(0, 0, MOTION.highlightMs)] : [to(peak, inMs, delay), to(0, outMs), to(peak, inMs), to(0, outMs)],
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [key, delay, reduced, value]);
-  return value;
-}
 
 interface DesktopLaneProps {
   lane: LaneModel;
@@ -1170,7 +1142,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
   const { lane, board, theme } = props;
   const scale = useTasksFontScale();
   const colors = theme.colors;
-  const flashOpacity = useLaneFlash(props.flash);
+  const flashOpacity = useFlash(props.flash?.key ?? 0, props.flash?.delay ?? 0);
   const palette = boardPalette(theme);
   const strings = board.strings;
   const ready = board.tasks.ready;

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
@@ -49,7 +49,7 @@ import { ActionRow, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
 import { arrowInset, buttonHue, CONFIRM_STOP_ICON, requestLook, type CardButtonLook } from "./action-style";
 import { buttonOutline } from "../board/board-style";
-import { useBreathing } from "../board/breathing";
+import { useBreathing, useFlash } from "../board/breathing";
 import {
   contextView,
   detailHero,
@@ -734,7 +734,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
         ) : section === "human" ? (
           <TimelineTextBody {...props} read={props.humanMessage} id="detail-human" none={words.humanNone} error={words.humanError} copyLabel={words.copyHuman} copyToast="Copy sent message" />
         ) : section === "message" ? (
-          <TimelineTextBody {...props} read={props.lastMessage} id="detail-message" none={words.messageNone} error={words.messageError} copyLabel={words.copyMessage} copyToast="Copy message" />
+          <TimelineTextBody {...props} read={props.lastMessage} id="detail-message" none={words.messageNone} error={words.messageError} copyLabel={words.copyMessage} copyToast="Copy message" flash />
         ) : section === "properties" ? (
           <Properties {...props} />
         ) : section === "subtasks" ? (
@@ -1292,7 +1292,16 @@ const FADE_STEPS = 6;
  * "show all"; drawn as Markdown, copyable as written. A closed agent waits for
  * "Load", since reading its timeline resumes it.
  */
-function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt | LastHumanMessage; load(): void } | null | undefined; id: string; none: string; error: string; copyLabel: string; copyToast: string }) {
+function TimelineTextBody(props: Inner & {
+  read: { prompt: FirstPrompt | LastHumanMessage; load(): void } | null | undefined;
+  id: string;
+  none: string;
+  error: string;
+  copyLabel: string;
+  copyToast: string;
+  /** The text box's fill flashes once each time the card's text changes (the latest reply moving). */
+  flash?: boolean;
+}) {
   const { tokens, id } = props;
   const words = cardStrings(props.language).details;
   const [open, setOpen] = useState(false);
@@ -1301,6 +1310,8 @@ function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt | LastHum
   const adjustment = useTasksFontAdjustment();
   const first = props.read;
   const breathing = useBreathing(first?.prompt.state === "loading");
+  const changes = useTextChanges(props.card.id, props.flash === true && first?.prompt.state === "ready" ? first.prompt.text : null);
+  const flashOpacity = useFlash(changes, 0, 1);
   if (!first) return null;
   const font = Math.round((props.touch ? 15 : 13) * adjustment);
   const small = props.touch ? 14 : 12;
@@ -1331,6 +1342,9 @@ function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt | LastHum
   return (
     <View style={{ paddingHorizontal: 6, paddingTop: 2 }}>
       <View style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: sunk }}>
+        {props.flash ? (
+          <Animated.View pointerEvents="none" testID={`${id}-flash`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }} />
+        ) : null}
         <View style={folded ? { maxHeight: PROMPT_LINES * line, overflow: "hidden" } : null} testID={`${id}-text`}>
           <MarkdownView text={text} tokens={prose} variant={PROSE} size={font} />
           {folded ? (
@@ -1364,6 +1378,23 @@ function TimelineTextBody(props: Inner & { read: { prompt: FirstPrompt | LastHum
       </View>
     </View>
   );
+}
+
+/**
+ * A count that moves each time a card's text turns into another: not on its
+ * first read, a skeleton or another card, so only a reply that moved under
+ * the reader flashes.
+ */
+function useTextChanges(owner: string, text: string | null): number {
+  const seen = useRef({ owner, text });
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const was = seen.current;
+    const same = was.owner === owner;
+    seen.current = { owner, text: text ?? (same ? was.text : null) };
+    if (same && was.text !== null && text !== null && text !== was.text) setCount((value) => value + 1);
+  }, [owner, text]);
+  return count;
 }
 
 const SKELETON_WIDTHS = ["94%", "82%", "58%"] as const;
