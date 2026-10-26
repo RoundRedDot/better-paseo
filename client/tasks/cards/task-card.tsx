@@ -17,6 +17,7 @@ import { cardStart, cardTimer, startHint, timerHint } from "./card-time";
 import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
+import { CONTEXT_RING_BITMAPS } from "./context-ring-bitmaps";
 import { agentPillColors, BrandMark, branchPillColors, neutralPillColors, type AgentPillColors } from "./brand-mark";
 import { THINKING_ICON } from "./mode-icons";
 import { subagentFacts } from "../subagent-type";
@@ -425,10 +426,10 @@ const CARD_RADIUS = 14;
 /**
  * The subtask mark: a short arc around the top-right corner, like the resize
  * grip on an iPad window: its centre line has this radius, this stroke, and
- * sits this far in from both edges. The context ring keeps its place beside
- * it: on a desktop card (padding 10 x 12, a 14 pt ring) the arc runs from
- * straight up to straight right of its centre, away from the ring, and its
- * nearer end clears it by about 7 pt.
+ * sits this far in from both edges. The context ring sits on the same
+ * diagonal (`ringNudge`): on a desktop card (padding 10 x 12, a 14 pt ring)
+ * the arc runs from straight up to straight right of its centre, away from
+ * the ring, and both ends clear it by about 7 pt.
  */
 export const MARK_ARC = { radius: 10, stroke: 2.5, inset: 3.5 } as const;
 /** The mark's hue reads at least this far from the card (a black logo on a dark card). */
@@ -705,6 +706,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         strings={strings}
         compact={compact}
         line={line}
+        nudge={ringNudge(m, line, scale)}
         context={card.context}
         ratio={ratio}
         cost={card.usage?.totalCostUsd ?? null}
@@ -1609,6 +1611,16 @@ function GitStatus(props: {
 // --- Context ------------------------------------------------------------------
 
 /**
+ * How far the context ring moves right of the padding, so its centre is as
+ * far in from the card's right edge as down from its top: on the corner's
+ * diagonal, where the subtask arc is centred (`MARK_ARC`). The padding alone
+ * leaves a meta-row ring 1 pt left of it at the default size.
+ */
+export function ringNudge(m: Pick<Metrics, "padH" | "padTop">, line: number, scale: number): number {
+  return m.padH + CONTEXT_RING_BITMAPS.card.size / 2 - (m.padTop + Math.round(line * scale) / 2);
+}
+
+/**
  * The host composer's context ring, at the card's top right; on desktop a
  * hover shows the host's context details in a small card below it. The card floats
  * (absolutely positioned), so showing it moves nothing.
@@ -1618,6 +1630,7 @@ function ContextMeter(props: {
   strings: ReturnType<typeof cardStrings>;
   compact: boolean;
   line: number;
+  nudge: number;
   context: NonNullable<TaskCard["context"]>;
   ratio: number;
   cost: number | null;
@@ -1643,7 +1656,7 @@ function ContextMeter(props: {
       accessibilityLabel={`${strings.contextWindow} ${strings.contextUsed(percent)}`}
       focusable={false}
       {...hoverProps}
-      style={{ height: Math.round(props.line * scale), justifyContent: "center" }}
+      style={{ height: Math.round(props.line * scale), justifyContent: "center", marginRight: -props.nudge }}
       testID="task-card-context"
     >
       <ContextRing ratio={props.ratio} color={color} track={withAlpha(tokens.foregroundMuted, 0.25)} />

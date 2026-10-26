@@ -105,7 +105,7 @@ import {
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
-import { MARK_ARC, markHue, markRest, OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
+import { MARK_ARC, markHue, markRest, OVERLAY_ROW_Z, ringNudge } from "../../client/tasks/cards/task-card";
 import { SubtaskRow, SubtaskMetadata } from "../../client/tasks/cards/subtask-row";
 import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
@@ -1119,6 +1119,21 @@ describe("TaskCardView context ring", () => {
       await act(async () => tree.unmount());
       renderer = null;
     }
+  });
+
+  it("centres on the card corner's diagonal, like the subtask arc", async () => {
+    // Desktop (padding 10 x 12) and phone (12 x 14): a 16 pt meta row leaves the ring 1 pt left of the diagonal.
+    expect(ringNudge({ padH: 12, padTop: 10 }, 16, 1)).toBe(1);
+    expect(ringNudge({ padH: 14, padTop: 12 }, 16, 1)).toBe(1);
+    // A larger interface size makes the row taller, so the ring moves left instead.
+    expect(ringNudge({ padH: 12, padTop: 10 }, 16, 1.25)).toBe(-1);
+    const tree = await render(cardElement(withContext(46)));
+    const meter = hostByTestId(hostByTestId(tree.root, "task-card-meta"), "task-card-context");
+    expect(flat(meter.props.style)).toMatchObject({ height: 16, marginRight: -1 });
+    // Its centre: 18 pt in from the right and 18 down from the top, on the line through the arc's centre.
+    const { radius, stroke, inset } = MARK_ARC;
+    const arcCentre = inset - stroke / 2 + radius + stroke / 2;
+    expect(12 + 7 - 1 - arcCentre).toBe(10 + 16 / 2 - arcCentre);
   });
 
   it.each([
