@@ -14,6 +14,7 @@ import { activeFilterCount, resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
 import { PROJECT_MENU_WIDTH, agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
 import { CascadeMenu } from "./menu";
+import type { MenuSection } from "./menu-model";
 import { LABEL_GAP, nextBarLayout, type BarBoxes, type BarLayout, type Box } from "./label-fit";
 import type { BoardController } from "./use-board";
 import { LaneWidthMark } from "./lane-width-mark";
@@ -27,6 +28,8 @@ const MENU_PADDING = 10;
 const MENU_ICON = 13;
 const MENU_CHEVRON = 12;
 const TOOLBAR_GAP = 10;
+/** Wide enough for the empty-groups switch at a filter menu's foot, in English and Chinese. */
+const EMPTY_GROUPS_MENU_WIDTH = 300;
 const DIVIDER_MARGIN = 4;
 
 /** Round and menu buttons share the same height on each platform. */
@@ -229,8 +232,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
  * A board-wide switch in the filter bar: the headers' round button at the
  * bar's size. Only the icon tells on from off, the outline stays the same:
  * the archived lane's Archive is struck through while the lane is hidden,
- * the subtasks switch between a network and a flat list,
- * the empty groups' trades its icon (`EMPTY_GROUPS_ICONS`).
+ * the subtasks switch between a network and a flat list.
  */
 function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: string; hint: string; tip: string; theme: PluginTheme; slashed?: boolean; testID: string }) {
   const colors = props.theme.colors;
@@ -388,6 +390,11 @@ export function DesktopFilterBar(props: {
       testID="archived-lane-toggle"
     />
   );
+  // At most three switches beside the lane width: the empty groups' sits at the foot of the menus it trims.
+  const withEmptyGroups = (sections: MenuSection[]): MenuSection[] => [
+    ...sections,
+    { key: "empty-groups", items: [{ key: "empty-groups", label: strings.emptyGroups.row, icon: emptyGroupsIcon(board.showEmptyGroups), checked: board.showEmptyGroups, keepOpen: true, onSelect: () => board.setShowEmptyGroups(!board.showEmptyGroups) }] },
+  ];
   const subtasksSwitch = (
     <BarSwitch
       icon={resolved.filters.hideSubtasks ? "List" : "Network"}
@@ -426,9 +433,9 @@ export function DesktopFilterBar(props: {
         <View testID="filter-bar-controls" pointerEvents="box-none" onLayout={fit.box("controls")} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: 1 }}>
           <MenuButton icon={FILTER_ICONS.agent} label={words.agent} compact={compact} tip={tip(words.agent, strings.tips.agent)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
             <CascadeMenu
-              sections={agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) })))}
+              sections={withEmptyGroups(agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) }))))}
               theme={theme}
-              width={200}
+              width={EMPTY_GROUPS_MENU_WIDTH}
               top={toolbarButtonSize(scale) + 6}
               align="left"
               onClose={() => setMenu(null)}
@@ -436,7 +443,7 @@ export function DesktopFilterBar(props: {
           </MenuButton>
           <MenuButton icon={FILTER_ICONS.project} label={words.project} compact={compact} tip={tip(words.project, strings.tips.project)} open={menu === "project"} onPress={() => toggle("project")} theme={theme}>
             <CascadeMenu
-              sections={projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project)))}
+              sections={withEmptyGroups(projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project))))}
               theme={theme}
               width={PROJECT_MENU_WIDTH}
               top={toolbarButtonSize(scale) + 6}
@@ -447,7 +454,7 @@ export function DesktopFilterBar(props: {
           </MenuButton>
           <MenuButton icon={FILTER_ICONS.workspace} label={words.workspace} compact={compact} tip={tip(words.workspace, strings.tips.workspace)} open={menu === "workspace"} onPress={() => toggle("workspace")} theme={theme}>
             <CascadeMenu
-              sections={workspaceMenuSections(shown, theme, strings, board.hostId, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) })))}
+              sections={withEmptyGroups(workspaceMenuSections(shown, theme, strings, board.hostId, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) }))))}
               theme={theme}
               width={300}
               top={toolbarButtonSize(scale) + 6}
@@ -510,16 +517,6 @@ export function DesktopFilterBar(props: {
             {props.emptyLanes ? <EmptyLanesButton emptyLanes={props.emptyLanes} strings={strings} theme={theme} /> : null}
             {subtasksSwitch}
             {archivedSwitch}
-            <BarSwitch
-              icon={emptyGroupsIcon(board.showEmptyGroups)}
-              on={board.showEmptyGroups}
-              onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
-              label={strings.emptyGroups.row}
-              hint={strings.emptyGroups.hint(board.showEmptyGroups)}
-              tip={board.showEmptyGroups ? strings.tips.hideEmptyGroups : strings.emptyGroups.row}
-              theme={theme}
-              testID="empty-groups-toggle"
-            />
             {compact ? null : <Divider theme={theme} testID="board-switches-divider" />}
             <View testID="lane-width-control" pointerEvents="box-none" onLayout={fit.measureLaneControl} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "laneWidth" ? 1 : 0 }}>
               {fit.inlineLaneWidth ? (
