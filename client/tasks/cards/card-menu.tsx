@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, type ReactNode } from "react";
+import React, { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { Icon, Modal, copyText, useToast } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -12,11 +12,13 @@ import { COPY_FAILED_MESSAGE } from "../../ui/copy-controller";
 import type { TaskCard } from "../model";
 import type { CardFilterKind, CardFilterState } from "../board/filter-options";
 import type { cardStrings } from "./strings";
+import { TaskRenameDialog } from "./rename-dialog";
 
 export const CARD_MENU_WIDTH = 240;
 
 export interface CardMenuActions {
   open?(): void;
+  rename?(): void;
   /** A subtask's card: its parent task's tab, unless the parent is archived. */
   openParent?(): void;
   /** A subtask's card: scrolls the board to its parent's card, as the parent link does. */
@@ -74,6 +76,7 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
       key: "open",
       items: [
         ...(actions.open ? [{ key: "open", label: strings.openTab, icon: "ArrowUpRight", onSelect: actions.open }] : []),
+        ...(!card.subagent && actions.rename ? [{ key: "rename", label: strings.renameTitle, icon: "Pencil", keepOpen: true, onSelect: actions.rename }] : []),
         ...(actions.openParent ? [{ key: "open-parent", label: strings.openParent, icon: "CornerLeftUp", onSelect: actions.openParent }] : []),
         ...(actions.revealParent ? [{ key: "reveal-parent", label: strings.revealParentCard, icon: "LocateFixed", onSelect: actions.revealParent }] : []),
       ],
@@ -157,11 +160,15 @@ export function CardContextMenu(props: {
 }) {
   const { point } = props;
   const copy = useMenuCopy();
-  const sections = cardMenuSections(props.card, props.strings, { ...props.actions, copy });
+  const [editing, setEditing] = useState(false);
+  const sections = cardMenuSections(props.card, props.strings, { ...props.actions, copy, rename: () => setEditing(true) });
   const scale = useTasksFontScale();
   const window = useWindowDimensions();
   const anchorRef = useRef<View>(null);
-  useLayoutEffect(() => point ? openPointLayer(anchorRef.current, point) : undefined, [point?.x, point?.y]);
+  useLayoutEffect(() => point && !editing ? openPointLayer(anchorRef.current, point) : undefined, [point?.x, point?.y, editing]);
+  if (editing) {
+    return <TaskRenameDialog agentId={props.card.id} title={props.card.title} strings={props.strings} theme={props.theme} onClose={props.onClose} />;
+  }
   if (!point) {
     const colors = props.theme.colors;
     return (
@@ -179,8 +186,8 @@ export function CardContextMenu(props: {
                         accessibilityRole="menuitem"
                         accessibilityLabel={item.label}
                         onPress={() => {
-                          props.onClose();
                           item.onSelect?.();
+                          if (!item.keepOpen) props.onClose();
                         }}
                         style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 }}
                       >

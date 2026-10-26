@@ -8,7 +8,7 @@ import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
 import { iconThemeColor } from "./icon-color";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
-import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
@@ -18,6 +18,7 @@ const UNARCHIVE_TIMEOUT_MS = 60_000;
 /** The daemon loads an agent from storage before clearing it; one it cannot find gets no answer at all. */
 const READ_TIMEOUT_MS = 10_000;
 const LABELS_TIMEOUT_MS = 10_000;
+const RENAME_TIMEOUT_MS = 10_000;
 
 type CliStopOutput = { stoppedCount: number; agentIds: string[] };
 
@@ -191,6 +192,24 @@ export interface HostDaemonAccess {
 
 const hostDaemon: HostDaemonAccess = { available: hasHostDaemon, connect: connectHostDaemon };
 
+async function renameAgent(host: HostDaemonAccess, agentId: string, title: string): Promise<{ ok: boolean; error: string | null }> {
+  const daemon = await host.connect();
+  if (!daemon) return { ok: false, error: "Could not reach the Paseo daemon." };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("The Paseo daemon did not answer.")), RENAME_TIMEOUT_MS);
+    });
+    await Promise.race([daemon.updateAgent(agentId, { name: title }), timeout]);
+    return { ok: true, error: null };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  } finally {
+    clearTimeout(timer);
+    await daemon.close().catch(() => {});
+  }
+}
+
 async function directoryExists(path: string): Promise<boolean> {
   try {
     return (await stat(path)).isDirectory();
@@ -359,6 +378,7 @@ export function registerTasksServer(
     return result;
   });
   server.handle(tasksLabelsRpc, async () => ({ labels: await readLabels(host) }));
+  server.handle(tasksRenameRpc, ({ agentId, title }) => renameAgent(host, agentId, title));
   server.handle(tasksProjectIconsRpc, async ({ projectIds }) => ({ icons: await readProjectIcons(host, projectIds) }));
   server.handle(tasksReadsRpc, async () => ({
     reads: (await reads.list()).map(({ agentId, stoppedAt }) => ({ agentId, readAt: stoppedAt })),

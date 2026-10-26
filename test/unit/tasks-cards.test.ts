@@ -3579,7 +3579,7 @@ describe("TaskCardView long-press menu", () => {
     expect(onSelect).not.toHaveBeenCalled();
     expect(onDetails).not.toHaveBeenCalled();
     expect(rows(tree.root).map((row) => row.props.accessibilityLabel)).toEqual([
-      "打开", "复制会话 ID", "复制标题", "复制工作区名称", "复制项目名称", "仅停止此任务", "连同子任务一起停止",
+      "打开", "修改标题", "复制会话 ID", "复制标题", "复制工作区名称", "复制项目名称", "仅停止此任务", "连同子任务一起停止",
     ]);
     expect(rows(tree.root).every((row) => Number(flat(row.props.style).minHeight) >= 44)).toBe(true);
     await choose(tree.root, "连同子任务一起停止");
