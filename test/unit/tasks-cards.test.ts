@@ -3084,7 +3084,7 @@ describe("overlays in the board's menu chrome", () => {
       const tree = await render(cardElement(card, { theme, onStop }));
       await act(async () => byLabel(tree.root, "停止选项").props.onPress());
       const menu = hostByTestId(tree.root, "task-card-stop-menu");
-      expect(flat(menu.props.style)).toMatchObject({ position: "absolute", left: 0, top: 32, width: 220 });
+      expect(flat(menu.props.style)).toMatchObject({ position: "absolute", left: 0, top: 0, width: 220 });
       const panel = hostByTestId(menu, "menu-panel");
       expect(flat(panel.props.style)).toMatchObject(chromeOf(theme));
       const rows = menu.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
@@ -3101,12 +3101,12 @@ describe("overlays in the board's menu chrome", () => {
     }
   });
 
-  it("opens the phone's stop menu above the action bar", async () => {
+  it("opens the phone's stop menu in a native modal", async () => {
     const tree = await render(cardElement(sample("sample-running"), { compact: true, onStop: () => {} }));
     await act(async () => byLabel(tree.root, "停止选项").props.onPress());
     const menu = hostByTestId(tree.root, "task-card-stop-menu");
-    // Two 32 rows and 6 above and below, plus the hairlines and a 6 gap.
-    expect(flat(menu.props.style).top).toBe(-(6 + 32 * 2 + 6 + 2 + 6));
+    expect(flat(menu.props.style).top).toBe(0);
+    expect(tree.root.find((node) => (node.type as unknown) === "Modal").props.transparent).toBe(true);
   });
 
   it("frames the context tooltip in the menu chrome", async () => {
