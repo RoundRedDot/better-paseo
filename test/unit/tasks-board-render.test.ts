@@ -2343,9 +2343,9 @@ describe("Tasks board, archived lane switch", () => {
     const outline = () => StyleSheet.flatten(toggle().props.style).borderColor;
     const offOutline = outline();
     expect(hostsById("lane-archived")).toHaveLength(0);
-    // The top toolbar keeps only the sidebar's switch; the board's switches sit left of the lane width.
+    // The top toolbar keeps the empty-groups and sidebar switches; the board's other switches sit left of the lane width.
     const toolbar = renderer!.root.findByType(DesktopToolbar);
-    expect(toolbar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(["sidebar-switch"]);
+    expect(toolbar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(["empty-groups-toggle", "sidebar-switch"]);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
     expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle"]);
     expect(hostsById("toolbar-archived")).toHaveLength(0);
@@ -2845,8 +2845,8 @@ describe("Tasks board, tablet filters", () => {
         renderer = TestRenderer.create(screen(false));
       });
       layOut(2400);
-      // Not among the bar's switches: at the foot of the menus whose groups it trims.
-      expect(hostsById("empty-groups-toggle")).toHaveLength(0);
+      // Not among the filter bar's switches: at the foot of the menus whose groups it trims, and in the top row.
+      expect(hostsById("filter-bar-end")[0]!.findAll((node) => node.props.testID === "empty-groups-toggle")).toHaveLength(0);
       act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === `Filter by ${menu}`).props.onPress());
       const rowsOf = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
       const toggle = () => rowsOf().find((node) => textOf(node).startsWith("Show groups with no active tasks"))!;
@@ -2871,6 +2871,39 @@ describe("Tasks board, tablet filters", () => {
     }
   });
 
+  it("flips the groups at 0 from the top row's switch, left of the sidebar's, and saves it", async () => {
+    const handle = (data as unknown as { __handle: { providers: object[] } }).__handle;
+    const saved = handle.providers;
+    handle.providers = [...saved, { id: "pi", label: "Pi" }];
+    try {
+      (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+      act(() => {
+        renderer = TestRenderer.create(screen(false));
+      });
+      layOut(2400);
+      const toggle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "empty-groups-toggle");
+      const icon = () => toggle().find((node) => (node.type as unknown) === "Icon").props.name;
+      const rows = () => renderer!.root.findByProps({ testID: "sidebar-groups" }).findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);
+      const toolbar = renderer!.root.findByType(DesktopToolbar);
+      expect(toolbar.findAll((node) => node === toggle())).toHaveLength(1);
+      expect(toggle().props).toMatchObject({ accessibilityRole: "switch", accessibilityLabel: "Show groups with no active tasks", accessibilityState: { checked: true } });
+      expect(toggle().props.dataSet?.bctip).toBe("Hide groups with no active tasks");
+      // The same round size as the sidebar switch beside it.
+      const size = (testID: string) => StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID).props.style).width;
+      expect(size("empty-groups-toggle")).toBe(size("sidebar-switch"));
+      expect(icon()).toBe("List");
+      expect(rows().at(-1)).toBe("Pi 0");
+      await act(async () => toggle().props.onPress());
+      expect(host.save).not.toHaveBeenCalled();
+      expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
+      expect(toggle().props.accessibilityState).toEqual({ checked: false });
+      expect(icon()).toBe("ListFilter");
+      expect(rows()).not.toContain("Pi 0");
+    } finally {
+      handle.providers = saved;
+    }
+  });
+
   it.each([["ios", 480], ["ios", 600], ["android", 600], ["web", 600]] as const)("%s at %i pt keeps empty groups in the filter sheet and saves the switch", async (os, width) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => {
@@ -2889,10 +2922,10 @@ describe("Tasks board, tablet filters", () => {
     expect(host.save).not.toHaveBeenCalled();
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
     expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
-    // Native keeps the open panel and its value while resizing; a wide web board has it in its filter menus.
+    // Native keeps the open panel and its value while resizing; a wide web board has it in its top row and filter menus.
     layOut(1600);
     if (os === "web") {
-      expect(hostsById("empty-groups-toggle")).toHaveLength(0);
+      expect(hostsById("empty-groups-toggle")[0]!.props.accessibilityState).toEqual({ checked: false });
       act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === "Filter by project").props.onPress());
       const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith("Show groups with no active tasks"));
       expect(row[0]!.props.accessibilityState).toMatchObject({ checked: false });
