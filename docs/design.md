@@ -520,8 +520,10 @@ The details may add only status hints such as "Already open".
 The same rule applies to card actions (desktop hover, tablet and phone), the details sidebar,
 and the mobile details sheet's action bar. Keep the existing action order and a single row.
 Measure the available content width and the complete label at the current language, host type
-size and system font scale. When the buttons do not fit, fold labels **from left to right**:
-each affected button becomes an icon-only control before the next button gives up its label.
+size and system font scale. When the buttons do not fit, fold labels **from left to right**,
+except the row's main answer (Allow, the `primary` look), which keeps its label until every
+other button has folded: each affected button becomes an icon-only control before the next
+button gives up its label.
 Never truncate a label, wrap it, or reduce its font to squeeze it in. Restore complete labels
 when the row has room again. A narrow default tablet lane is normally at least 260 pt; it may
 show part of the next lane rather than force two complete lanes into the viewport. On the same

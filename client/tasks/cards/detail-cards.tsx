@@ -593,7 +593,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
   const hue = buttonHue(tokens, requestLook(button));
   const scale = useTasksFontScale();
   const height = taskControlHeight(props.height, scale);
-  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + 13 + 6 + 1);
+  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + 13 + 6 + 1, false, requestLook(button) === "primary");
   const icon = button.kind === "open" ? "ArrowUpRight" : button.action.behavior === "allow" ? "Check" : "X";
   return (
     <Pressable
@@ -1694,7 +1694,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const hue = buttonHue(tokens, look);
   const text = hue.color;
   const iconColor = look === "plain" ? tokens.foregroundMuted : text;
-  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, 48, 32 + ((props.icon || props.busy) ? 26 : 0) + (props.arrow ? 26 : 0) + 1, props.square);
+  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, 48, 32 + ((props.icon || props.busy) ? 26 : 0) + (props.arrow ? 26 : 0) + 1, props.square, look === "primary");
   const square = fit.iconOnly;
   return (
     <Pressable

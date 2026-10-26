@@ -3301,6 +3301,42 @@ describe("responsive task actions", () => {
     expect(actionIconOnly(316, sizes, 8)).toEqual([false, false, false]);
   });
 
+  it("folds the main answer's label last, wherever it sits in the row", () => {
+    const sizes = [{ full: 80, icon: 32, keep: true }, { full: 80, icon: 32 }, { full: 80, icon: 32 }];
+    expect(actionIconOnly(250, sizes, 8)).toEqual([false, true, false]);
+    expect(actionIconOnly(200, sizes, 8)).toEqual([false, true, true]);
+    expect(actionIconOnly(120, sizes, 8)).toEqual([true, true, true]);
+  });
+
+  // Allow leads the card's and the details' row but trails the phone sheet's
+  // (Deny, Allow): a narrow row gives up Deny's words first in all three.
+  it.each(["card", "phone card", "sidebar", "sheet"] as const)("keeps Allow's label after Deny folds on the %s", async (surface) => {
+    const card = sample("sample-input");
+    const buttons = permissionButtons(card.permission!, "en");
+    const shared = { card, theme: LIGHT, language: "en" as const, strings: BOARD_STRINGS.en.sidebar, permissionButtons: buttons, onPermission() {} };
+    const element = surface === "card" || surface === "phone card"
+      ? cardElement(card, { compact: surface === "phone card", language: "en", permissionButtons: buttons, onPermission() {} })
+      : surface === "sidebar" ? React.createElement(TaskDetailCards, { ...shared, now: NOW, touch: true }) : React.createElement(DetailActionBar, shared);
+    const tree = await render(element);
+    const rowId = { card: "task-card-answer-actions", "phone card": "task-card-actions", sidebar: "detail-permission-actions", sheet: "detail-action-bar" }[surface];
+    const row = () => hostByTestId(tree.root, rowId);
+    const labels = () => row().findAll((node) => (node.type as unknown) === "Text" && typeof node.props.onLayout === "function");
+    await act(async () => {
+      row().props.onLayout({ nativeEvent: { layout: { width: 2000 } } });
+      for (const label of labels()) label.props.onLayout({ nativeEvent: { layout: { width: 40 } } });
+    });
+    // Deny's and Allow's labels measure the same: narrow the row until the first one has to go.
+    const folded = () => texts(byLabel(row(), "Allow")).length + texts(byLabel(row(), "Deny")).length < 2;
+    let width = 600;
+    while (!folded() && width > 0) {
+      width -= 4;
+      await act(async () => row().props.onLayout({ nativeEvent: { layout: { width } } }));
+    }
+    expect(texts(byLabel(row(), "Allow"))).toEqual(["Allow"]);
+    expect(texts(byLabel(row(), "Deny"))).toEqual([]);
+    expect(icons(byLabel(row(), "Deny"))).toEqual(["X"]);
+  });
+
   it.each([false, true])("folds a child card's actions and restores them after resizing (compact=%s)", async (compact) => {
     const card = sample("sample-child-1");
     const onOpen = vi.fn();
