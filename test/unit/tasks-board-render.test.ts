@@ -2629,10 +2629,19 @@ describe("Tasks board, tablet filters", () => {
     const end = () => hostsById("tablet-toolbar-end")[0]!;
     const order = () => end().findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
     const expected = [
+      "subtasks-toggle",
       ...(width >= 440 * Math.max(1, base / 14) ? ["toolbar-archived"] : []),
-      "subtasks-toggle", "toolbar-filters", "tablet-view",
+      "toolbar-filters", "tablet-view",
     ];
     expect(order()).toEqual(expected);
+    // The view menu's switches follow the desktop filter bar's order.
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    const strings = BOARD_STRINGS.en;
+    const switches = [strings.emptyLanes.collapse, strings.emptyLanes.expand, strings.showSubtasks, strings.archivedLane.row, strings.emptyGroups.row];
+    const items = hostsById("tablet-view-menu")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem").map(textOf);
+    expect(items.filter((text) => switches.some((label) => text.startsWith(label)))).toHaveLength(4);
+    expect(items.map((text) => switches.findIndex((label) => text.startsWith(label))).filter((index) => index >= 0).map((index) => Math.max(1, index))).toEqual([1, 2, 3, 4]);
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     const subtasks = () => hostsById("subtasks-toggle")[0]!;
     expect(subtasks().props.accessibilityState.selected).toBe(true);
     await act(async () => subtasks().props.onPress());
