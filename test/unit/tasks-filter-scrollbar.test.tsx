@@ -11,7 +11,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 vi.mock("@getpaseo/plugin/client", () => ({ usePaseo: () => ({}), useRpc: () => vi.fn() }));
 
 import { FilterSheetBody } from "../../client/tasks/board/filter-sheet";
-import { EMPTY_PARAMS } from "../../client/tasks/board/params";
+import { EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import type { BoardController } from "../../client/tasks/board/use-board";
 
@@ -35,13 +35,45 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function render() {
+function render(controller = board) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   act(() => {
-    renderer = TestRenderer.create(<FilterSheetBody board={board} theme={theme} options={{ agents: [], labels: [], workspaceGroups: [] }} onDone={() => {}} />);
+    renderer = TestRenderer.create(<FilterSheetBody board={controller} theme={theme} options={{ agents: [], labels: [], workspaceGroups: [] }} onDone={() => {}} />);
   });
   return renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-scroll");
 }
+
+describe("filter sheet clear all", () => {
+  it.each(["ios", "android", "web"])("clears active filters and keeps sorting on %s", (os) => {
+    vi.stubGlobal("__rnMockOS", os);
+    const params: BoardParams = {
+      ...EMPTY_PARAMS, query: "监控", providers: ["codex"], labels: ["linear"], workspaceIds: ["workspace"],
+      doneWindow: "7d", sort: { key: "title", direction: "asc" },
+    };
+    const setParams = vi.fn();
+    const scroll = render({ ...board, params, setParams });
+    const clear = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-clear-all");
+    expect(scroll.findAll((node) => node === clear)).toHaveLength(0);
+    expect(clear.props.accessibilityLabel).toBe(board.strings.clearAll);
+    act(() => clear.props.onPress());
+    expect(setParams).toHaveBeenCalledOnce();
+    expect(setParams.mock.calls[0]![0](params)).toEqual({ ...EMPTY_PARAMS, sort: params.sort });
+    act(() => renderer!.update(<FilterSheetBody board={board} theme={theme} options={{ agents: [], labels: [], workspaceGroups: [] }} onDone={() => {}} />));
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-clear-all")).toHaveLength(0);
+  });
+
+  it.each([
+    { query: "search" }, { providers: ["codex"] }, { labels: ["linear"] }, { workspaceIds: ["workspace"] }, { doneWindow: "7d" as const },
+  ])("offers clear all for an individual filter: %j", (filter) => {
+    render({ ...board, params: { ...EMPTY_PARAMS, ...filter } });
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-clear-all")).toHaveLength(1);
+  });
+
+  it("does not offer clear all for sorting alone", () => {
+    render({ ...board, params: { ...EMPTY_PARAMS, sort: { key: "title", direction: "asc" } } });
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-clear-all")).toHaveLength(0);
+  });
+});
 
 describe("filter sheet scrollbar", () => {
   it("starts hidden on web, stays visible through scrolling, and hides after the last scroll", () => {

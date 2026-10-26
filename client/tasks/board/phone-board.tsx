@@ -353,6 +353,7 @@ export function PhoneBoard(props: {
         query={board.params.query}
         onChange={(query) => board.setParams((params) => ({ ...params, query }))}
         placeholder={strings.search}
+        clear={strings.menuSearch.clear}
         theme={theme}
       />
       <View
