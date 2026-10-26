@@ -2750,7 +2750,7 @@ describe("TaskDetailCards", () => {
     expect(clipboard.copyText).toHaveBeenLastCalledWith("Four subagents failed.");
 
     await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt, lastMessage: { prompt: { state: "none" }, load } }, "zh")));
-    expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["最后回复消息", "agent 还没有回复"]);
+    expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["最后回复消息", "任务暂无回复"]);
   });
 
   it("draws a breathing skeleton while a timeline read is on its way", async () => {

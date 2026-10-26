@@ -2030,7 +2030,7 @@ describe("Tasks board, sorting", () => {
 
     // The folded chip draws the agent icon and the count; the sentence is read out.
     const chip = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "chip-group-agent");
-    expect(chip.props.accessibilityLabel).toBe("2 agents selected");
+    expect(chip.props.accessibilityLabel).toBe("2 Agents selected");
     expect(textOf(chip)).toBe("2");
     expect(chip.findAll((node) => node.props.name === "Bot")).not.toHaveLength(0);
     act(() => chip.props.onPress());
@@ -2370,7 +2370,7 @@ describe("Tasks board, toolbar tips", () => {
         "Search tasks (/)",
         "Filter by project",
         "Filter by workspace",
-        "Filter by agent",
+        "Filter by Agent",
         "Filter by label",
         "Hide subtasks",
         "How far back Done and Archived reach",
@@ -2400,13 +2400,13 @@ describe("Tasks board, toolbar tips", () => {
     layOut(1440);
     const view = (testID: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === testID);
     const lay = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, height: 28, width } } }));
-    expect(tips()).toContain("Filter by agent");
+    expect(tips()).toContain("Filter by Agent");
     lay(hostParentOf(view("filter-bar-controls"))!, 500);
     lay(view("filter-bar-end"), 420);
     lay(view("filter-bar-controls"), 700);
     expect(tips()).toEqual(
       expect.arrayContaining([
-        "Agent · 1\nFilter by agent",
+        "Agent · 1\nFilter by Agent",
         "Project\nFilter by project",
         "Sort\nOrder the cards in each lane",
         "Lanes · Default",
@@ -2810,7 +2810,7 @@ describe("Tasks board, tablet filters", () => {
     expect(lastBoardParams("host-1").doneWindow).toBe("all");
   });
 
-  it.each(["agent", "project", "workspace"])("lists the sidebar's groups with no active task until the %s menu's switch hides them, and saves it", async (menu) => {
+  it.each(["Agent", "project", "workspace"])("lists the sidebar's groups with no active task until the %s menu's switch hides them, and saves it", async (menu) => {
     const handle = (data as unknown as { __handle: { providers: object[] } }).__handle;
     const saved = handle.providers;
     handle.providers = [...saved, { id: "pi", label: "Pi" }];
@@ -3402,7 +3402,7 @@ describe("Tasks board, phone", () => {
       renderer = TestRenderer.create(screen(true, { q: "nothing matches" }));
     });
     const text = textOf(renderer!.root);
-    expect(text).toContain("No agents running");
+    expect(text).toContain("No tasks running");
     expect(text).toContain("Clear filters");
   });
 
