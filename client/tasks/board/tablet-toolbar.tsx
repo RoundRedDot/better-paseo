@@ -10,7 +10,6 @@ import { HAIRLINE } from "./board-style";
 import { laneWidthMenuSections, sortMenuSections } from "./board-menus";
 import { CascadeMenu, type MenuSection } from "./menu";
 import { activeFilterCount, resolveBoardParams } from "./params";
-import { emptyGroupsIcon } from "./filter-options";
 import type { BoardController } from "./use-board";
 
 type ViewPage = "view" | "sort";
@@ -76,8 +75,6 @@ export function TabletToolbar(props: {
       { key: "empty-lanes", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, icon: props.emptyLanes.collapsed ? "UnfoldHorizontal" : "FoldHorizontal", checked: props.emptyLanes.collapsed, disabled: props.emptyLanes.disabled, keepOpen: true, onSelect: props.emptyLanes.onToggle },
       { key: "subtasks", label: strings.showSubtasks, icon: resolved.filters.hideSubtasks ? "List" : "Network", checked: !resolved.filters.hideSubtasks, keepOpen: true, onSelect: () => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })) },
       { key: "archived", label: strings.archivedLane.row, icon: "Archive", checked: board.showArchived, keepOpen: true, onSelect: () => board.setShowArchived(!board.showArchived) },
-      // A narrow board keeps it in the filter panel instead.
-      ...(compact ? [] : [{ key: "empty-groups", label: strings.emptyGroups.row, icon: emptyGroupsIcon(board.showEmptyGroups), checked: board.showEmptyGroups, keepOpen: true, onSelect: () => board.setShowEmptyGroups(!board.showEmptyGroups) }]),
       { key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, icon: "PanelRight", checked: props.sidebar.open, onSelect: props.sidebar.onToggle },
     ] },
   ];

@@ -2616,9 +2616,9 @@ describe("Tasks board, tablet filters", () => {
     expect(textOf(view).includes(BOARD_STRINGS[language].view)).toBe(labels);
     act(() => view.props.onPress());
     expect(hostsById("tablet-view-menu")).toHaveLength(1);
-    // A narrow board leaves the empty-groups switch to the filter panel.
+    // Tablets leave the empty-groups switch to the filter panel.
     const items = hostsById("tablet-view-menu")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem").map(textOf);
-    expect(items.some((text) => text.startsWith(BOARD_STRINGS[language].emptyGroups.row))).toBe(!compact);
+    expect(items.some((text) => text.startsWith(BOARD_STRINGS[language].emptyGroups.row))).toBe(false);
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     expect(hostsById("tablet-view-menu")).toHaveLength(0);
   });
@@ -2637,7 +2637,7 @@ describe("Tasks board, tablet filters", () => {
       "toolbar-filters", "tablet-view",
     ];
     expect(order()).toEqual(expected);
-    // The view menu's switches follow the desktop filter bar's order; a narrow board leaves empty groups to the filter panel.
+    // The view menu's switches follow the desktop filter bar's order; empty groups stay in the filter panel.
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     const strings = BOARD_STRINGS.en;
     const switches = [strings.emptyLanes.collapse, strings.emptyLanes.expand, strings.showSubtasks, strings.archivedLane.row, strings.emptyGroups.row];

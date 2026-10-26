@@ -34,7 +34,7 @@ export function FilterSheetBody(props: {
   onDone(): void;
   /** Phones keep the subtasks switch in their toolbar. */
   hideSubtasksToggle?: boolean;
-  /** Phones and narrow tablet boards keep the empty-groups switch here instead of the toolbar. */
+  /** Phones and tablets keep the empty-groups switch here instead of the toolbar. */
   showEmptyGroupsToggle?: boolean;
   /** Tablet toolbars keep the archived-lane control in this panel. */
   showArchivedToggle?: boolean;
