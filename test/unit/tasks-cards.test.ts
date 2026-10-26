@@ -1652,8 +1652,10 @@ describe("TaskCardView actions", () => {
     // The facts line is not a model name to copy.
     expect(hostByTestId(tree.root, "pill-model").props.accessibilityRole).not.toBe("button");
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toHaveLength(0);
-    // Dashed and flat at rest: work inside its parent's session, not a task of its own.
-    expect(flat(hostByTestId(tree.root, "task-card-sub-1").props.style)).toMatchObject({ borderStyle: "dashed", borderWidth: 1, boxShadow: "none" });
+    // Dashed: work inside its parent's session, not a task of its own; it keeps the resting shadow.
+    const subStyle = flat(hostByTestId(tree.root, "task-card-sub-1").props.style);
+    expect(subStyle).toMatchObject({ borderStyle: "dashed", borderWidth: 1 });
+    expect(subStyle.boxShadow).not.toBe("none");
     await act(async () => byLabel(tree.root, "mac studio run check").props.onPress());
     // Chosen for the details as any card; Open goes through the board, which opens the parent's.
     expect(onSelect).toHaveBeenCalledWith(card);
