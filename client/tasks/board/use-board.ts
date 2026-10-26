@@ -6,7 +6,7 @@ import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
 import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
-import { filterLanes, useTasks, withSubagentCards, type TasksHandle } from "../data";
+import { filterLanes, setTasksArchivedLane, useTasks, withSubagentCards, type TasksHandle } from "../data";
 import { useSearchFirstPrompts, type SearchCoverage } from "../data/search-first-prompts";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { LANE_ORDER, boardLaneOrder, opensInPaseo, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
@@ -362,7 +362,13 @@ export function useBoard(
     void updateDevice({ laneWidth: width }).catch(() => latest.current.toast.error(latest.current.strings.laneWidth.saveFailed));
   }, [updateDevice]);
   const setShowArchived = useCallback((on: boolean) => {
-    void updateDevice({ showArchived: on }).catch(() => latest.current.toast.error(latest.current.strings.archivedLane.saveFailed));
+    // `useTasks` follows the setting afterwards and finds the lane already switched.
+    setTasksArchivedLane(latest.current.paseo, on);
+    void updateDevice({ showArchived: on }).catch(() => {
+      // The setting kept its old value, which the switch showed: the lane goes back to it.
+      setTasksArchivedLane(latest.current.paseo, !on);
+      latest.current.toast.error(latest.current.strings.archivedLane.saveFailed);
+    });
   }, [updateDevice]);
   const setShowEmptyGroups = useCallback((on: boolean) => {
     void updateDevice({ showEmptyGroups: on }).catch(() => latest.current.toast.error(latest.current.strings.emptyGroups.saveFailed));

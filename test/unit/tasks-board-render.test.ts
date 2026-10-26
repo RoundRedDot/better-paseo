@@ -118,7 +118,7 @@ import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, rememberedCollapsed, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import { TabletToolbar } from "../../client/tasks/board/tablet-toolbar";
-import { DesktopFilterBar, DesktopToolbar } from "../../client/tasks/board/filter-bar";
+import { DesktopFilterBar as DesktopFilterBarMemo, DesktopToolbar as DesktopToolbarMemo } from "../../client/tasks/board/filter-bar";
 import { LaneWidthMark } from "../../client/tasks/board/lane-width-mark";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
@@ -134,6 +134,10 @@ import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderF
 // (tasks-board-enabled.test.ts covers the board off).
 const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: true, board: { ...STOCK_SETTINGS.board, showArchived: false } };
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+
+// The bars are memoized: a rendered instance's type is the component inside the memo.
+const DesktopFilterBar = (DesktopFilterBarMemo as unknown as { type: React.ComponentType }).type;
+const DesktopToolbar = (DesktopToolbarMemo as unknown as { type: React.ComponentType }).type;
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import React, { memo, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { Platform, Pressable, View, type LayoutChangeEvent, type TextInput as NativeTextInput } from "react-native";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -36,7 +36,7 @@ const DIVIDER_MARGIN = 4;
 const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
 const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale));
 
-type EmptyLanes = { collapsed: boolean; disabled: boolean; onToggle(): void };
+export type EmptyLanes = { collapsed: boolean; disabled: boolean; onToggle(): void };
 
 /** The narrowest board whose toolbar shows the key hints beside the count and the search. */
 export const KEY_HINTS_MIN_WIDTH = 1200;
@@ -47,7 +47,9 @@ export const KEY_HINTS_MIN_WIDTH = 1200;
  * filters, applied-filter chips and done window. Equal side slots keep
  * the count centred regardless of the search and actions' actual widths.
  */
-export function DesktopToolbar(props: {
+export const DesktopToolbar = memo(DesktopToolbarView);
+
+function DesktopToolbarView(props: {
   board: BoardController;
   theme: PluginTheme;
   searchRef: Ref<NativeTextInput>;
@@ -343,7 +345,9 @@ const BAR_OWN_CONTROLS = new Set(["sub", "win"]);
 /** A long sort ("Duration shortest first") ends in an ellipsis past this. */
 const SORT_LABEL_MAX_WIDTH = 160;
 
-export function DesktopFilterBar(props: {
+export const DesktopFilterBar = memo(DesktopFilterBarView);
+
+function DesktopFilterBarView(props: {
   board: BoardController;
   theme: PluginTheme;
   options: FilterOptions;

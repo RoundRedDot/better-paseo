@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
+import React, { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
 import { Animated, PanResponder, Platform, Pressable, ScrollView, View, type GestureResponderEvent, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
 import { FlatList, Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
@@ -15,7 +15,7 @@ import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, RollingCount, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
 import { useFlash } from "./breathing";
-import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type FilterMenu } from "./filter-bar";
+import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type EmptyLanes, type FilterMenu } from "./filter-bar";
 import { TabletToolbar } from "./tablet-toolbar";
 import { buildFilterOptions } from "./filter-options";
 import { SWITCH_MS } from "../../ui/switch-track";
@@ -135,7 +135,9 @@ export function DesktopBoard(props: {
   // hides cards in every lane (the subtasks switch) held the knob for as long
   // as the new cards took to mount, or stalled it half way.
   const live = props.board;
-  const board = useLaggedWhile(live, filtersOpen, FILTER_PANEL_LAG_MS);
+  // Web: the bars show a switch's new state in the frame it is pressed; the
+  // lanes and the sidebar take it in a render React can pause (`DEFER_LANES`).
+  const board = useDeferredWithin(useLaggedWhile(live, filtersOpen, FILTER_PANEL_LAG_MS), DEFER_LANES, DEFER_LANES_MAX_MS);
   const scale = useTasksFontScale();
   const theme = screen.theme;
   const colors = theme.colors;
@@ -164,12 +166,19 @@ export function DesktopBoard(props: {
   // Use displayed counts; loading history lanes are not known to be empty yet.
   const emptyLanes = laneOrder.filter((id) => tasks.ready && !lanes[id].loading && lanes[id].cards.length === 0);
   const emptyLanesCollapsed = emptyLanes.length > 0 && emptyLanes.every((id) => collapsed.includes(id));
-  const toggleEmptyLanes = () => {
-    if (emptyLanes.length === 0) return;
-    setCollapsed((current) => emptyLanes.every((id) => current.includes(id))
-      ? current.filter((id) => !emptyLanes.includes(id))
-      : [...current, ...emptyLanes.filter((id) => !current.includes(id))]);
-  };
+  const emptyKey = emptyLanes.join();
+  const toggleEmptyLanes = useCallback(() => {
+    const empty = emptyKey ? (emptyKey.split(",") as LaneId[]) : [];
+    if (empty.length === 0) return;
+    setCollapsed((current) => empty.every((id) => current.includes(id))
+      ? current.filter((id) => !empty.includes(id))
+      : [...current, ...empty.filter((id) => !current.includes(id))]);
+  }, [emptyKey, setCollapsed]);
+  // Stable while nothing in it changes, so the memoized bars skip the board's own renders.
+  const emptyLanesSwitch = useMemo<EmptyLanes>(
+    () => ({ collapsed: emptyLanesCollapsed, disabled: emptyKey === "", onToggle: toggleEmptyLanes }),
+    [emptyLanesCollapsed, emptyKey, toggleEmptyLanes],
+  );
   const focus = clampFocus(focusState, shapes);
   const [menu, setMenu] = useState<FilterMenu | null>(null);
 
@@ -346,12 +355,12 @@ export function DesktopBoard(props: {
         else current.tasks.resolveParent(agentId);
         return;
       }
-      const wasCollapsed = collapsed.includes(location.lane);
+      const wasCollapsed = latest.current.collapsed.includes(location.lane);
       if (wasCollapsed) setCollapsed((lanesNow) => lanesNow.filter((id) => id !== location.lane));
       setTimeout(() => scrollTo(location.lane, location.index), wasCollapsed ? 50 : 0);
       current.highlight(agentId);
     },
-    [collapsed, setCollapsed, scrollTo],
+    [setCollapsed, scrollTo],
   );
 
   props.handlers.current = {
@@ -535,7 +544,13 @@ export function DesktopBoard(props: {
     [board, theme, callbacks],
   );
   const unfilteredEmpty = tasks.ready && LANE_ORDER.every((id) => tasks.lanes[id].cards.length === 0);
-  const sidebarToggle = { open, onToggle: toggleSidebar, floating, sheet: mode === "sheet" };
+  const sidebarToggle = useMemo(() => ({ open, onToggle: toggleSidebar, floating, sheet: mode === "sheet" }), [open, toggleSidebar, floating, mode]);
+  const filterCount = sheetMode ? activeFilterCount(live.params, live.defaults) : 0;
+  const sheetFilters = useMemo(() => (sheetMode ? { count: filterCount, onPress: () => setFiltersOpen(true) } : undefined), [sheetMode, filterCount]);
+  const openFilterPanel = useCallback(() => {
+    setMenu(null);
+    setFiltersOpen(true);
+  }, []);
   const sidebar = (
     <DetailsSidebar
       board={board}
@@ -560,15 +575,15 @@ export function DesktopBoard(props: {
         searchRef={searchRef}
         onFilters={() => setFiltersOpen(true)}
         sidebar={sidebarToggle}
-        emptyLanes={{ collapsed: emptyLanesCollapsed, disabled: emptyLanes.length === 0, onToggle: toggleEmptyLanes }}
+        emptyLanes={emptyLanesSwitch}
       /> : <DesktopToolbar
         board={live}
         theme={theme}
         searchRef={searchRef}
         keyHints={boardWidth === 0 || boardWidth >= KEY_HINTS_MIN_WIDTH * Math.max(1, scale)}
         sidebar={sidebarToggle}
-        emptyLanes={{ collapsed: emptyLanesCollapsed, disabled: emptyLanes.length === 0, onToggle: toggleEmptyLanes }}
-        filters={sheetMode ? { count: activeFilterCount(live.params, live.defaults), onPress: () => setFiltersOpen(true) } : undefined}
+        emptyLanes={emptyLanesSwitch}
+        filters={sheetFilters}
       />}
       {touch || sheetMode || !options ? null : (
         <DesktopFilterBar
@@ -577,11 +592,8 @@ export function DesktopBoard(props: {
           options={options}
           menu={menu}
           setMenu={setMenu}
-          emptyLanes={{ collapsed: emptyLanesCollapsed, disabled: emptyLanes.length === 0, onToggle: toggleEmptyLanes }}
-          onMore={() => {
-            setMenu(null);
-            setFiltersOpen(true);
-          }}
+          emptyLanes={emptyLanesSwitch}
+          onMore={openFilterPanel}
         />
       )}
       {/* Narrow boards and tablet toolbars share the host's filter panel. */}
@@ -704,6 +716,46 @@ export function DesktopBoard(props: {
       <BoardTips root={rootRef} theme={theme} color={colors.foreground} />
     </View>
   );
+}
+
+/**
+ * Web: a board switch (subtasks, archived, empty lanes) redraws every lane
+ * and the sidebar, mounting cards by the dozen, in one 50-80 ms frame. Behind
+ * `useDeferredValue` the bars still answer in the frame of the press, and the
+ * lanes render in slices between frames; only the commit is one piece. Native
+ * keeps its own timing (`useLaggedWhile` above, the lane motion's cover).
+ */
+const DEFER_LANES = Platform.OS === "web";
+
+/**
+ * A deferred render starts over whenever the board changes again, and the
+ * daemon can send a change every few milliseconds (git status across many
+ * workspaces, streaming agents): after this long the lanes take the board at
+ * once, as they would without `DEFER_LANES`.
+ */
+const DEFER_LANES_MAX_MS = 120;
+
+/**
+ * `useDeferredValue(value)` while `on`, but never more than `maxMs` behind:
+ * a value still not shown after that renders at once. `value` itself when off.
+ */
+export function useDeferredWithin<T>(value: T, on: boolean, maxMs: number): T {
+  const deferred = useDeferredValue(on ? value : null);
+  const [, wake] = useReducer((count: number) => count + 1, 0);
+  const behind = on && deferred !== value;
+  // When the shown board first fell behind, as committed: a render React drops leaves it alone.
+  const since = useRef<number | null>(null);
+  const late = behind && since.current !== null && Date.now() - since.current >= maxMs;
+  useLayoutEffect(() => {
+    if (!behind) since.current = null;
+    else if (since.current === null) since.current = Date.now();
+  });
+  useEffect(() => {
+    if (!behind || late || since.current === null) return;
+    const timer = setTimeout(wake, Math.max(0, maxMs - (Date.now() - since.current)));
+    return () => clearTimeout(timer);
+  });
+  return on && !late ? (deferred as T) : value;
 }
 
 /** The filter panel's switches slide for `SWITCH_MS`; the lanes behind wait a frame past that. */
@@ -1083,6 +1135,14 @@ const LANE_CHURN_LIMIT = Platform.OS === "web" ? undefined : 6;
  */
 const LANE_FILL_MS = Platform.OS === "web" ? undefined : MOTION.slideMs + MOTION.fadeDelayMs;
 
+/**
+ * Web: how many cards a lane adds to its list at a time, out of view. The
+ * lanes fill together, in one render: after the subtasks switch showed
+ * their cards, eight a lane mounted some twenty cards no one could see yet
+ * in a single frame, just as the cards' slides ended.
+ */
+const LANE_BATCH = Platform.OS === "web" ? 4 : 8;
+
 interface LaneFlash {
   lane: LaneId;
   /** A new key flashes again. */
@@ -1305,7 +1365,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
           ItemSeparatorComponent={Separator}
           contentContainerStyle={{ ...LANE_PAD, paddingTop: Platform.OS === "web" ? 4 : 2, paddingBottom: 8 + props.bottomRoom, ...(props.onBlank ? { flexGrow: 1 } : null) }}
           initialNumToRender={8}
-          maxToRenderPerBatch={8}
+          maxToRenderPerBatch={LANE_BATCH}
           windowSize={7}
           updateCellsBatchingPeriod={LANE_FILL_MS}
           onScrollToIndexFailed={({ index, averageItemLength }) => {

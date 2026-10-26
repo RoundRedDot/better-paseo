@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { filterLanes, setLabelDefinitionsLoader, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -1802,6 +1802,50 @@ describe("Tasks data store, archived lane", () => {
       expect(ids(off.current.lanes.done)).toEqual(["done"]);
     } finally {
       off.unmount();
+    }
+  });
+
+  it("draws a switch that turns the lane on ahead of its setting in one render, and the lane once its list lands", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("done", { status: "idle", updatedAt: recentIso(1_000) }),
+        activeAgent("archived", { status: "closed", updatedAt: recentIso(2_000), archivedAt: recentIso(2_000) }),
+      ],
+      workspaces: [workspace()],
+    });
+    let renders = 0;
+    let current!: TasksHandle;
+    let setArchived!: (on: boolean) => void;
+    function Probe() {
+      const [archived, set] = React.useState(false);
+      setArchived = set;
+      renders += 1;
+      current = useTasks(fake.paseo, React.useMemo(() => ({ doneWindow: "24h" as const, includeDone: true, includeArchived: archived }), [archived]));
+      return null;
+    }
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Probe));
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    });
+    try {
+      const before = renders;
+      const doneLists = () => fake.calls.filter((call) => call.method === "agents.list" && (call.input as { filter?: { statuses?: string[] } }).filter?.statuses?.includes("idle"));
+      const listsBefore = doneLists().length;
+      act(() => {
+        setTasksArchivedLane(fake.paseo, true);
+        setArchived(true);
+      });
+      // The store's switch and the setting's in one render: the layout effect finds the lane already on.
+      expect(renders - before).toBe(1);
+      expect(doneLists()).toHaveLength(listsBefore + 1);
+      expect(current.lanes.archived.initialLoading).toBe(true);
+      await act(async () => {
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      expect(ids(current.lanes.archived)).toEqual(["archived"]);
+    } finally {
+      act(() => renderer.unmount());
     }
   });
 
