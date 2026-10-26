@@ -196,6 +196,8 @@ const web = {
   /** Where it was sent gliding. */
   glides: [] as number[],
   row: 0,
+  /** Each node's inline `-webkit-app-region`, by test ID. */
+  appRegion: new Map<string, string>(),
 };
 const fakeDocument = {
   addEventListener: (type: string, listener: (event: unknown) => void) => {
@@ -208,7 +210,7 @@ const fakeDocument = {
   defaultView: { getComputedStyle: () => ({ overflowX: "visible", overflowY: "visible" }) },
   querySelectorAll: () => web.openPreviews,
 };
-function fakeElement(): unknown {
+function fakeElement(testID?: string): unknown {
   const view = {
     addEventListener: (type: string, listener: (event: unknown) => void) => {
       if (type === "keydown") web.keydown.push(listener);
@@ -220,7 +222,15 @@ function fakeElement(): unknown {
   };
   const doc = { defaultView: view, querySelectorAll: () => web.openPreviews, addEventListener() {}, removeEventListener() {} };
   return {
-    setAttribute() {}, style: {}, ownerDocument: doc, parentElement: null,
+    setAttribute() {}, ownerDocument: doc, parentElement: null,
+    style: {
+      setProperty(name: string, value: string, priority?: string) {
+        if (name === "-webkit-app-region" && testID) web.appRegion.set(testID, `${value} ${priority ?? ""}`.trim());
+      },
+      removeProperty(name: string) {
+        if (name === "-webkit-app-region" && testID) web.appRegion.delete(testID);
+      },
+    },
     showPopover() {}, hidePopover() {}, getClientRects: () => (web.hidden ? [] : [1]), contains: () => false,
     querySelector: () => null, addEventListener() {}, removeEventListener() {},
     measureInWindow: (done: (...box: number[]) => void) => done(0, 300, 390, 28),
@@ -237,7 +247,7 @@ const mounted: ReactTestRenderer[] = [];
 function render(element: React.ReactElement): ReactTestRenderer {
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(element, { createNodeMock: () => fakeElement() });
+    renderer = TestRenderer.create(element, { createNodeMock: (node) => fakeElement((node.props as { testID?: string }).testID) });
   });
   mounted.push(renderer);
   return renderer;
@@ -332,6 +342,7 @@ beforeEach(() => {
   web.keydown = [];
   web.openPreviews = [];
   web.hidden = false;
+  web.appRegion.clear();
   web.scrolls = [];
   web.glides = [];
   resetContentTouches();
@@ -815,6 +826,56 @@ describe("closing", () => {
     layOut(renderer, "details-drawer", 266);
     act(() => byTestId(renderer, "details-scrim")!.props.onPress());
     expect(fake.api.close).toHaveBeenCalledWith(AGENT);
+  });
+});
+
+// Paseo desktop takes everything in the timeline out of the window's
+// regions (`[data-window-content] * { -webkit-app-region: initial !important }`)
+// and the panel's DOM sits there, so over the pane header and the tab row a
+// press went to the title bar drag: the toolbar's copy and width buttons did
+// nothing in Electron.
+describe("title bar drag on desktop web", () => {
+  it("keeps the side panel out of it, not the stage the timeline shows through", () => {
+    webDesktop();
+    render(slot());
+    open("a");
+    expect(web.appRegion.get("details-side")).toBe("no-drag important");
+    expect(web.appRegion.has("details-layer")).toBe(false);
+  });
+
+  it("keeps the floating panel out of it", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    screen.width = 834;
+    screen.height = 1194;
+    render(slot());
+    open("a");
+    expect(web.appRegion.get("details-floating")).toBe("no-drag important");
+    expect(web.appRegion.has("details-layer")).toBe(false);
+  });
+
+  it("keeps the drawer's whole scrim out of it, and gives it back when the drawer turns into the side panel", () => {
+    vi.useFakeTimers();
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const renderer = render(slot());
+    open("a");
+    expect(web.appRegion.get("details-layer")).toBe("no-drag important");
+    expect(web.appRegion.get("details-drawer")).toBe("no-drag important");
+    screen.width = 1440;
+    screen.height = 900;
+    act(() => renderer.update(slot()));
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(byTestId(renderer, "details-side")).not.toBeNull();
+    expect(web.appRegion.has("details-layer")).toBe(false);
+    expect(web.appRegion.get("details-side")).toBe("no-drag important");
+  });
+
+  it("sets nothing on native", () => {
+    screen.width = 1194;
+    screen.height = 834;
+    const renderer = render(slot());
+    open("a");
+    expect(byTestId(renderer, "details-side")).not.toBeNull();
+    expect(web.appRegion.size).toBe(0);
   });
 });
 

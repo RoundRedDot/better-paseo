@@ -24,6 +24,7 @@ import { OVERDRAG, panelResponder, type DragTarget } from "./gestures";
 import { detailsPalette } from "./scrim";
 import type { Insets } from "./safe-area";
 import type { BodyWatch } from "./body-handover";
+import { keepOffWindowDrag } from "./web-layer";
 
 /** The handle's strip: a 36 × 5 grabber 8 below the panel's top, in a row a finger can take. */
 export const HANDLE = 28;
@@ -231,6 +232,8 @@ export function BottomPanel(props: BottomPanelProps) {
 
   // Another block at fit: hold the height it had, measure the new content inside it, and move there.
   const panelRef = useRef<View>(null);
+  // Grown full, it reaches the host's title bar drag (`keepOffWindowDrag`).
+  useLayoutEffect(() => keepOffWindowDrag(panelRef.current), []);
   const shownBlock = useRef(props.blockId);
   useLayoutEffect(() => {
     if (props.blockId === shownBlock.current) return;
