@@ -105,7 +105,7 @@ import {
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
-import { MARK_ARC, markHue, markRest, OVERLAY_ROW_Z, ringNudge } from "../../client/tasks/cards/task-card";
+import { MARK_DOT, markHue, markRest, OVERLAY_ROW_Z, ringNudge } from "../../client/tasks/cards/task-card";
 import { SubtaskRow, SubtaskMetadata } from "../../client/tasks/cards/subtask-row";
 import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
@@ -1013,31 +1013,23 @@ describe("ProjectIcon", () => {
     expect(tree.root.findAll((node) => typeof node.type === "string" && String(node.props.testID).startsWith("project-icon-"))).toHaveLength(0);
   });
 
-  it("marks a subtask's top-right corner with an arc, grey at rest and in its project's colour when active", async () => {
+  it("marks a subtask's top-right corner with a dot, grey at rest and in its project's colour when active", async () => {
     const child = sample("sample-child-1");
     expect(child.parent).not.toBeNull();
     const marks = (tree: ReactTestRenderer) => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
-    const arc = (tree: ReactTestRenderer) => hostByTestId(marks(tree)[0]!, "task-card-subtask-mark-arc");
-    const color = (tree: ReactTestRenderer) => flat(arc(tree).props.style).borderColor;
-    const ends = (tree: ReactTestRenderer) =>
-      marks(tree)[0]!.findAll((node) => typeof node.type === "string" && flat(node.props.style).borderRadius === MARK_ARC.stroke / 2);
+    const color = (tree: ReactTestRenderer) => flat(marks(tree)[0]!.props.style).backgroundColor;
     const light = taskTokens(LIGHT);
     const tree = await render(cardElement(child, { hostId: "host-1" }));
     const mark = marks(tree)[0]!;
-    // Over the corner and out of the way: no layout, no touch, no screen reader.
-    const { radius, stroke, inset } = MARK_ARC;
-    const side = radius + stroke / 2;
-    expect(MARK_ARC).toEqual({ radius: 10, stroke: 2.5, inset: 3.5 });
-    expect(flat(mark.props.style)).toMatchObject({ position: "absolute", top: inset - stroke / 2, right: inset - stroke / 2, width: side, height: side });
+    // A 2.5 pt dot centred 7 pt in from the top and right: no layout, no touch, no screen reader.
+    const { size, inset } = MARK_DOT;
+    expect(MARK_DOT).toEqual({ size: 2.5, inset: 7 });
+    expect(flat(mark.props.style)).toMatchObject({ position: "absolute", top: inset - size / 2, right: inset - size / 2, width: size, height: size, borderRadius: size / 2 });
     expect(mark.props.pointerEvents).toBe("none");
     expect(mark.props.importantForAccessibility).toBe("no-hide-descendants");
-    // A quarter circle: the box's top and right borders, rounded by the whole box, with a dot on each end.
-    expect(flat(arc(tree).props.style)).toMatchObject({ width: side, height: side, borderTopWidth: stroke, borderRightWidth: stroke, borderTopRightRadius: side });
-    expect(ends(tree)).toHaveLength(2);
-    // At rest: grey, arc and ends alike, and opaque: the ends overlap the arc, where a translucent grey would add up.
+    // At rest: an opaque grey.
     expect(markRest(light, light.card.background)).toMatch(/^#[0-9a-f]{6}$/);
     expect(color(tree)).toBe(markRest(light, light.card.background));
-    expect(ends(tree).map((end) => flat(end.props.style).backgroundColor)).toEqual([markRest(light, light.card.background), markRest(light, light.card.background)]);
     // Hovered: a generated square's identity colour, so the mark matches the avatar beside it.
     const hue = identityColor(projectViewKey(child.location, "host-1"));
     expect(markHue(child.location, "host-1", light)).toBe(hue);
@@ -1121,7 +1113,7 @@ describe("TaskCardView context ring", () => {
     }
   });
 
-  it("centres on the card corner's diagonal, like the subtask arc", async () => {
+  it("centres on the card corner's diagonal, like the subtask dot", async () => {
     // Desktop (padding 10 x 12) and phone (12 x 14): a 16 pt meta row leaves the ring 1 pt left of the diagonal.
     expect(ringNudge({ padH: 12, padTop: 10 }, 16, 1)).toBe(1);
     expect(ringNudge({ padH: 14, padTop: 12 }, 16, 1)).toBe(1);
@@ -1130,10 +1122,8 @@ describe("TaskCardView context ring", () => {
     const tree = await render(cardElement(withContext(46)));
     const meter = hostByTestId(hostByTestId(tree.root, "task-card-meta"), "task-card-context");
     expect(flat(meter.props.style)).toMatchObject({ height: 16, marginRight: -1 });
-    // Its centre: 18 pt in from the right and 18 down from the top, on the line through the arc's centre.
-    const { radius, stroke, inset } = MARK_ARC;
-    const arcCentre = inset - stroke / 2 + radius + stroke / 2;
-    expect(12 + 7 - 1 - arcCentre).toBe(10 + 16 / 2 - arcCentre);
+    // Its centre: 18 pt in from the right and 18 down from the top, on the diagonal through the dot.
+    expect(12 + 7 - 1 - MARK_DOT.inset).toBe(10 + 16 / 2 - MARK_DOT.inset);
   });
 
   it.each([
@@ -3158,17 +3148,17 @@ describe("overlays in the board's menu chrome", () => {
     }
     // The card itself keeps its own radius.
     const card = await render(cardElement(sample("sample-done")));
-    expect(flat(hostByTestId(card.root, "task-card-sample-done").props.style).borderRadius).toBe(14);
+    expect(flat(hostByTestId(card.root, "task-card-sample-done").props.style).borderRadius).toBe(8);
   });
 });
 
 describe("TaskCardView chrome", () => {
-  it.each([false, true])("uses radius 14 and a hairline, with only fill and shadow changing on hover (compact=%s)", async (compact) => {
+  it.each([false, true])("is Linear's card: radius 8 and a hairline, with only fill and shadow changing on hover (compact=%s)", async (compact) => {
     const tokens = buildTaskTokens(LIGHT.colors);
     const tree = await render(cardElement(sample("sample-done"), { compact }));
     const surface = () => flat(hostByTestId(tree.root, "task-card-sample-done").props.style);
     const rest = surface();
-    expect(rest).toMatchObject({ borderRadius: 14, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background });
+    expect(rest).toMatchObject({ borderRadius: 8, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background });
     expect(rest.boxShadow).toBe(tokens.card.shadow);
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onHoverIn());
     const hovered = surface();

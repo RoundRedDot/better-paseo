@@ -421,17 +421,14 @@ function statusTint(kind: StatusKind, tokens: TaskTokens): string | null {
  */
 export const OVERLAY_ROW_Z = 2;
 
-/** The card's corner radius follows the inset subtask arc. */
-const CARD_RADIUS = 14;
+/** The card's corner radius (Linear's card). */
+const CARD_RADIUS = 8;
 /**
- * The subtask mark: a short arc around the top-right corner, like the resize
- * grip on an iPad window: its centre line has this radius, this stroke, and
- * sits this far in from both edges. The context ring sits on the same
- * diagonal (`ringNudge`): on a desktop card (padding 10 x 12, a 14 pt ring)
- * the arc runs from straight up to straight right of its centre, away from
- * the ring, and both ends clear it by about 7 pt.
+ * The subtask mark: a small dot by the top-right corner, this wide, its
+ * centre this far in from both edges. The context ring sits on the same
+ * diagonal (`ringNudge`), about 7 pt beyond it on a desktop card.
  */
-export const MARK_ARC = { radius: 10, stroke: 2.5, inset: 3.5 } as const;
+export const MARK_DOT = { size: 2.5, inset: 7 } as const;
 /** The mark's hue reads at least this far from the card (a black logo on a dark card). */
 const MARK_CONTRAST = 3;
 /** The mark at rest: this much of the muted foreground, mixed into the card. */
@@ -465,8 +462,7 @@ export function markHue(location: TaskCard["location"], hostId: string | null | 
 
 /**
  * The subtask mark's grey while the card is at rest: the muted foreground
- * mixed into the card's fill, opaque, because the arc's round ends overlap it
- * and a translucent grey would show brighter there.
+ * mixed into the card's fill, opaque.
  */
 export function markRest(tokens: TaskTokens, fill: string): string {
   return mix(fill, tokens.foregroundMuted, MARK_REST_ALPHA);
@@ -476,39 +472,27 @@ const ariaHidden = (): ViewProps =>
   Platform.OS === "web" ? ({ "aria-hidden": true } as ViewProps) : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" };
 
 /**
- * A subtask card's mark (`MARK_ARC`). A box's rounded top-right border is a
- * quarter circle when the radius is the whole box, so borders draw the arc
- * with no SVG; two dots round its ends. It is decoration, so neither touch
- * nor a screen reader finds it.
+ * A subtask card's mark (`MARK_DOT`). It is decoration, so neither touch nor
+ * a screen reader finds it.
  */
 function CornerMark(props: { color: string }) {
-  const { radius, stroke, inset } = MARK_ARC;
-  const side = radius + stroke / 2;
-  const end = (left: number, top: number) => (
-    <View style={{ position: "absolute", left, top, width: stroke, height: stroke, borderRadius: stroke / 2, backgroundColor: props.color, ...webTransition }} />
-  );
+  const { size, inset } = MARK_DOT;
   return (
     <View
       pointerEvents="none"
-      style={{ position: "absolute", top: inset - stroke / 2, right: inset - stroke / 2, width: side, height: side }}
+      style={{
+        position: "absolute",
+        top: inset - size / 2,
+        right: inset - size / 2,
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: props.color,
+        ...webTransition,
+      }}
       testID="task-card-subtask-mark"
       {...ariaHidden()}
-    >
-      <View
-        style={{
-          width: side,
-          height: side,
-          borderTopWidth: stroke,
-          borderRightWidth: stroke,
-          borderTopRightRadius: side,
-          borderColor: props.color,
-          ...webTransition,
-        }}
-        testID="task-card-subtask-mark-arc"
-      />
-      {end(-stroke / 2, 0)}
-      {end(side - stroke, side - stroke / 2)}
-    </View>
+    />
   );
 }
 
@@ -659,7 +643,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     paddingHorizontal: m.padH,
     paddingTop: m.padTop,
     paddingBottom: m.padBottom,
-    // A hairline frame; on hover only the fill and shadow change.
+    // Linear's card: radius 8 (measured: the arc settles 16 device px in at 2x), a hairline,
+    // and on hover only the fill and shadow change.
     borderRadius: CARD_RADIUS,
     // A dashed hairline breaks up into dots: the dashes take a whole point.
     borderWidth: dashed ? 1 : StyleSheet.hairlineWidth,
@@ -1613,7 +1598,7 @@ function GitStatus(props: {
 /**
  * How far the context ring moves right of the padding, so its centre is as
  * far in from the card's right edge as down from its top: on the corner's
- * diagonal, where the subtask arc is centred (`MARK_ARC`). The padding alone
+ * diagonal, where the subtask dot sits (`MARK_DOT`). The padding alone
  * leaves a meta-row ring 1 pt left of it at the default size.
  */
 export function ringNudge(m: Pick<Metrics, "padH" | "padTop">, line: number, scale: number): number {
