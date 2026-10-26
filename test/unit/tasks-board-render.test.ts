@@ -2625,17 +2625,14 @@ describe("Tasks board, tablet filters", () => {
 
   it.each([
     ["ios", 320, 14], ["ios", 480, 14], ["android", 480, 14], ["android", 600, 21],
-  ] as const)("%s at %i pt/UI%i keeps subtasks visible and archive before filtering and view", async (os, width, base) => {
+  ] as const)("%s at %i pt/UI%i keeps filtering and view at the right, and the board's switches in View", async (os, width, base) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
     layOut(width);
     const end = () => hostsById("tablet-toolbar-end")[0]!;
     const order = () => end().findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
-    const expected = [
-      "subtasks-toggle",
-      ...(width >= 440 * Math.max(1, base / 14) ? ["toolbar-archived"] : []),
-      "toolbar-filters", "tablet-view",
-    ];
+    // At most three buttons at the right; a narrow board has no sidebar switch, so two.
+    const expected = ["toolbar-filters", "tablet-view"];
     expect(order()).toEqual(expected);
     // The view menu's switches follow the desktop filter bar's order; empty groups stay in the filter panel.
     act(() => hostsById("tablet-view")[0]!.props.onPress());
@@ -2644,14 +2641,13 @@ describe("Tasks board, tablet filters", () => {
     const items = hostsById("tablet-view-menu")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem").map(textOf);
     expect(items.filter((text) => switches.some((label) => text.startsWith(label)))).toHaveLength(3);
     expect(items.map((text) => switches.findIndex((label) => text.startsWith(label))).filter((index) => index >= 0).map((index) => Math.max(1, index))).toEqual([1, 2, 3]);
-    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
-    const subtasks = () => hostsById("subtasks-toggle")[0]!;
-    expect(subtasks().props.accessibilityState.selected).toBe(true);
+    // The subtasks switch stays in the menu while it flips.
+    const subtasks = () => hostsById("tablet-view-menu")[0]!.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith(strings.showSubtasks));
     await act(async () => subtasks().props.onPress());
-    expect(subtasks().props.accessibilityState.selected).toBe(false);
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
     await act(async () => subtasks().props.onPress());
-    expect(subtasks().props.accessibilityState.selected).toBe(true);
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: false });
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     expect(order()).toEqual(expected);
     expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
@@ -2695,11 +2691,16 @@ describe("Tasks board, tablet filters", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(false)); });
     layOut(1200);
-    const toggle = () => hostsById("subtasks-toggle")[0]!;
-    expect(toggle().find((n) => (n.type as unknown) === "Icon").props.name).toBe("Network");
-    await act(async () => toggle().props.onPress());
+    // Filters, View and the sidebar: the board's switches live in View.
+    expect(hostsById("tablet-toolbar-end")[0]!.findAll((n) => (n.type as unknown) === "Pressable").map((n) => n.props.testID)).toEqual(["toolbar-filters", "tablet-view", "sidebar-switch"]);
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    const item = (label: string) => hostsById("tablet-view-menu")[0]!.find((n) => (n.type as unknown) === "Pressable" && n.props.accessibilityRole === "menuitem" && textOf(n).startsWith(label));
+    const icon = () => item("Show subtasks").findAll((n) => (n.type as unknown) === "Icon")[0]!.props.name;
+    expect(icon()).toBe("Network");
+    await act(async () => item("Show subtasks").props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
-    expect(toggle().find((n) => (n.type as unknown) === "Icon").props.name).toBe("List");
+    expect(icon()).toBe("List");
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     const sheet = hostsById("filter-sheet-scroll")[0]!;
     const pick = (value: string) => sheet.find((n) => (n.type as unknown) === "Pressable" && n.props.accessibilityRole === "checkbox" && textOf(n).startsWith(value));
@@ -2709,7 +2710,7 @@ describe("Tasks board, tablet filters", () => {
     expect(lastBoardParams("host-1")).toMatchObject({ providers: ["codex"], labels: ["frontend"], workspaceIds: ["wks_sample"] });
     expect(textOf(hostsById("tablet-filter-count")[0]!)).toBe("4");
     await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
-    await act(async () => hostsById("toolbar-archived")[0]!.props.onPress());
+    await act(async () => hostsById("filter-sheet-archived")[0]!.props.onPress());
     expect(hostsById("filter-sheet-archived")[0]!.props.accessibilityState.checked).toBe(true);
     expect(host.save).not.toHaveBeenCalled();
     act(() => hostsById("filter-sheet-reset")[0]!.props.onPress());
@@ -2850,7 +2851,7 @@ describe("Tasks board, tablet filters", () => {
     });
     layOut(width);
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && /^toolbar-/.test(node.props.testID ?? ""));
-    expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-filters"]);
+    expect(buttons.map((node) => node.props.testID)).toEqual(os === "web" ? ["toolbar-archived", "toolbar-filters"] : ["toolbar-filters"]);
     expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
     expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
@@ -2867,54 +2868,65 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById(target)[0]!.props.accessibilityState).toEqual({ checked: false });
   });
 
-  it.each([["web", 600], ["ios", 600], ["ios", 800], ["ios", 1200]] as const)("%s at %i pt keeps the archived lane's icon button in the toolbar", async (os, width) => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+  it("web at 600 pt keeps the archived lane's icon button in the folded header", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
-    layOut(width);
+    layOut(600);
     const archived = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived");
-    const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && (node.props.testID === "toolbar-archived" || node.props.testID === "toolbar-filters"));
-    expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-filters"]);
     // The folded web header keeps the filter bar's order: empty lanes, then the archived lane, then the filters.
-    if (os === "web") {
-      const header = renderer!.root.findByType(DesktopToolbar).findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID !== "sidebar-switch");
-      expect(header.map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "toolbar-archived", "toolbar-filters"]);
-    }
+    const header = renderer!.root.findByType(DesktopToolbar).findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID !== "sidebar-switch");
+    expect(header.map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "toolbar-archived", "toolbar-filters"]);
     expect(textOf(archived())).toBe("");
     expect(archived().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Archive");
     expect(hostsById("archived-lane-toggle")).toHaveLength(0);
     // The same size as the sidebar switch they sit beside.
     const size = (testID: string) => StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID).props.style).width;
     if (hostsById("sidebar-switch").length) expect(size("toolbar-archived")).toBe(size("sidebar-switch"));
-    if (width === 600 && os === "web") expect(size("toolbar-filters")).toBe(size("sidebar-switch"));
+    expect(size("toolbar-filters")).toBe(size("sidebar-switch"));
     expect(archived().props).toMatchObject({ accessibilityLabel: "Show the archived lane", accessibilityState: { selected: false } });
     // Struck through while off.
     const slashed = () => archived().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
     expect(slashed()).toBe(true);
     expect(hostsById("lane-archived")).toHaveLength(0);
     await act(async () => archived().props.onPress());
-    layOut(width);
+    layOut(600);
     expect(archived().props.accessibilityState).toEqual({ selected: true });
     expect(slashed()).toBe(false);
     expect(hostsById("lane-archived")).toHaveLength(1);
     expect(host.save).not.toHaveBeenCalled();
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
-    if (width === 600 || os === "ios") {
-      act(() => hostsById("toolbar-filters")[0]!.props.onPress());
-      expect(hostsById("filter-sheet-lane-width")).toHaveLength(1);
-      if (os === "web") expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
-    }
-    // The state survives a resize: native keeps the toolbar button, a wide web board moves it to the filter bar.
+    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    expect(hostsById("filter-sheet-lane-width")).toHaveLength(1);
+    expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
+    // The state survives a resize: a wide web board moves the switch to the filter bar.
     layOut(1600);
-    if (os === "web") {
-      expect(hostsById("toolbar-archived")).toHaveLength(0);
-      expect(hostsById("archived-lane-toggle")[0]!.props.accessibilityState).toEqual({ checked: true });
-    } else {
-      expect(hostsById("toolbar-archived")).toHaveLength(1);
-      expect(archived().props.accessibilityState).toEqual({ selected: true });
-      expect(hostsById("archived-lane-toggle")).toHaveLength(0);
-    }
+    expect(hostsById("toolbar-archived")).toHaveLength(0);
+    expect(hostsById("archived-lane-toggle")[0]!.props.accessibilityState).toEqual({ checked: true });
+  });
+
+  it.each([["ios", 600], ["ios", 800], ["ios", 1200], ["android", 1200]] as const)("%s at %i pt keeps the archived lane in View and the filter panel, not the toolbar", async (os, width) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(width);
+    const end = hostsById("tablet-toolbar-end")[0]!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
+    expect(end.length).toBeLessThanOrEqual(3);
+    expect(end).toEqual(["toolbar-filters", "tablet-view", ...(width >= 680 ? ["sidebar-switch"] : [])]);
+    expect(hostsById("toolbar-archived")).toHaveLength(0);
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    const item = () => hostsById("tablet-view-menu")[0]!.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith("Show the archived lane"));
+    expect(hostsById("lane-archived")).toHaveLength(0);
+    await act(async () => item().props.onPress());
+    layOut(width);
+    expect(hostsById("lane-archived")).toHaveLength(1);
+    expect(host.save).not.toHaveBeenCalled();
+    expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
+    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    expect(hostsById("filter-sheet-archived")[0]!.props.accessibilityState.checked).toBe(true);
   });
 
   it("web switches between hierarchy and flat list icons for subtask visibility", () => {
