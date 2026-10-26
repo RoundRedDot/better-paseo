@@ -5,7 +5,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, useTasksFontScale, taskControlHeight } from "../typography";
 import { tipProps } from "../cards/card-hints";
-import { HoverPressable, RollingTotal, SlashMark } from "./board-parts";
+import { CornerBadge, HoverPressable, RollingTotal, SlashMark } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { laneWidthMenuSections, sortMenuSections } from "./board-menus";
 import { CascadeMenu, type MenuSection } from "./menu";
@@ -122,7 +122,7 @@ export function TabletToolbar(props: {
           </View>
         </View>}
         <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch ? 0 : 1, flexBasis: expandedSearch ? "auto" : 0, minWidth: compact ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
-        {shortcuts ? null : <ToolbarButton compact={compact} icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} theme={theme} testID="subtasks-toggle" onPress={() => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks }))} />}
+        {shortcuts ? null : <ToolbarButton compact={compact} icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks }))} />}
         {separateFilters ? <ToolbarButton compact={compact} icon="ListFilter" label={strings.filters} showLabel={labels} badge={count} theme={theme} testID="toolbar-filters" onPress={() => { close(); props.onFilters(); }} /> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
           <ToolbarButton compact={compact} icon="SlidersHorizontal" label={strings.view} showLabel={labels} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { setSearchOpen(false); openPage(page ? null : "view"); }} />
@@ -141,22 +141,17 @@ export function TabletToolbar(props: {
   );
 }
 
-function ToolbarButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; testID: string; showLabel?: boolean; selected?: boolean; expanded?: boolean; badge?: number; slashed?: boolean; compact?: boolean }) {
+function ToolbarButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; testID: string; showLabel?: boolean; selected?: boolean; expanded?: boolean; badge?: number; badgeTestID?: string; slashed?: boolean; compact?: boolean }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const target = taskControlHeight(props.compact ? 28 : 44, scale);
-  const badgeSize = taskControlHeight(12, scale);
   const iconSize = props.compact ? 16 : 18;
   return (
     <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered) => ({ minWidth: target, height: target, flexShrink: 0, paddingHorizontal: props.showLabel ? 10 : 0, borderRadius: 7, backgroundColor: hovered || props.expanded || props.selected ? colors.surface1 : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
       <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
         <Icon name={props.icon} size={iconSize} color={colors.foreground} />
         {props.slashed ? <SlashMark size={iconSize} color={colors.foreground} gap={colors.surface0} /> : null}
-        {props.badge ? (
-          <View pointerEvents="none" style={{ position: "absolute", bottom: -4, right: -4, width: badgeSize, height: badgeSize, borderRadius: badgeSize / 2, backgroundColor: colors.foregroundMuted, borderWidth: 1, borderColor: colors.surface0, alignItems: "center", justifyContent: "center" }}>
-            <Text testID="tablet-filter-count" style={{ fontSize: 8, lineHeight: 10, includeFontPadding: false, fontWeight: "600", fontVariant: ["tabular-nums"], color: colors.surface0 }}>{props.badge}</Text>
-          </View>
-        ) : null}
+        <CornerBadge count={props.badge ?? 0} theme={props.theme} style={{ bottom: -4, right: -4 }} testID={props.badgeTestID ?? "tablet-filter-count"} />
       </View>
       {props.showLabel ? <Text numberOfLines={1} style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{props.label}</Text> : null}
     </HoverPressable>

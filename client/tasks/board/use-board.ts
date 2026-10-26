@@ -72,6 +72,8 @@ export interface BoardController {
   cardById(id: string): TaskCard | undefined;
   /** Per lane, the cards the filters leave out, so the lane can say why its count is below the sidebar's. */
   hidden: Record<LaneId, number>;
+  /** While subtasks are hidden: the waiting, running and review cards that leaves out, for the subtasks switch's badge. */
+  hiddenSubtasks: number;
   /** The lanes the board draws, left to right: the four, and archived after done when `board.showArchived` is on. */
   laneOrder: readonly LaneId[];
   total: number;
@@ -319,6 +321,10 @@ export function useBoard(
   const hiddenRef = useRef<Record<LaneId, number> | null>(null);
   const hidden = useMemo(() => keepSameCounts(hiddenRef.current, hiddenCounts(unfiltered, filtered)), [unfiltered, filtered]);
   hiddenRef.current = hidden;
+  const hiddenSubtasks = useMemo(
+    () => (filters.hideSubtasks ? hiddenSubtaskCount(unfiltered, filtered, filters, firstPrompts.messages) : 0),
+    [unfiltered, filtered, filters, firstPrompts.messages],
+  );
   const total = laneOrder.reduce((sum, id) => sum + lanes[id].cards.length, 0);
   // Switching the archived lane rearranges the lanes as a filter does, twice when it turns on: at once, and when the list with archived agents lands.
   const archivedSettling = showArchived && lanes.archived.initialLoading === true && lanes.archived.cards.length === 0;
@@ -444,6 +450,7 @@ export function useBoard(
     searchCoverage: firstPrompts.coverage,
     cardById,
     hidden,
+    hiddenSubtasks,
     laneOrder,
     total,
     fields,
@@ -471,6 +478,21 @@ export function hiddenCounts(all: Record<LaneId, LaneModel>, shown: Record<LaneI
   const out = {} as Record<LaneId, number>;
   for (const id of LANE_ORDER) out[id] = Math.max(0, all[id].cards.length - shown[id].cards.length);
   return out;
+}
+
+/** The lanes still waiting on someone: the sidebar's counts. */
+const PENDING_LANES: readonly LaneId[] = ["needs_input", "running", "review"];
+
+/**
+ * The pending cards hiding subtasks leaves out of `shown`: the same filters
+ * with subtasks shown, less what shows. The gap between the sidebar's
+ * numbers and the lanes' while the switch is off.
+ */
+export function hiddenSubtaskCount(all: Record<LaneId, LaneModel>, shown: Record<LaneId, LaneModel>, filters: BoardFilters, firstMessages?: ReadonlyMap<string, string>): number {
+  const pending = {} as Record<LaneId, LaneModel>;
+  for (const id of LANE_ORDER) pending[id] = PENDING_LANES.includes(id) ? all[id] : { ...all[id], cards: [] };
+  const withSubtasks = filterLanes(pending, { ...filters, hideSubtasks: false }, firstMessages);
+  return PENDING_LANES.reduce((sum, id) => sum + Math.max(0, withSubtasks[id].cards.length - shown[id].cards.length), 0);
 }
 
 function keepSameCounts(last: Record<LaneId, number> | null, next: Record<LaneId, number>): Record<LaneId, number> {

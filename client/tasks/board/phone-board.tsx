@@ -330,6 +330,7 @@ export function PhoneBoard(props: {
           icon={filters.hideSubtasks ? "List" : "Network"}
           label={strings.showSubtasks}
           selected={!filters.hideSubtasks}
+          cornerBadge={board.hiddenSubtasks}
           theme={theme}
           onPress={() => board.setParams((params) => ({ ...params, hideSubtasks: !(params.hideSubtasks ?? board.defaults.hideSubtasks) }))}
           testID="phone-subtasks"

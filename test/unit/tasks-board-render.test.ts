@@ -436,6 +436,16 @@ describe("F1: Web switch Space activation", () => {
     expect(toggle().props["aria-checked"]).toBe(true);
   });
 
+  it("badges the subtasks switch with the pending cards hiding subtasks leaves out", () => {
+    setup(1600);
+    expect(hostsById("subtasks-toggle-count")).toHaveLength(0);
+    act(() => hostsById("subtasks-toggle")[0]!.props.onPress());
+    // The running child shows on its running parent's card, so the sidebar counts one card more than the lane.
+    expect(textOf(hostsById("subtasks-toggle-count")[0]!)).toBe("1");
+    act(() => hostsById("subtasks-toggle")[0]!.props.onPress());
+    expect(hostsById("subtasks-toggle-count")).toHaveLength(0);
+  });
+
   it.each(["selected", "virtual"])("gives a focused BarSwitch Space while a card is %s", (mode) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     try {

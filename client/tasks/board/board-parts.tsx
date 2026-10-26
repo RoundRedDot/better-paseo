@@ -518,6 +518,8 @@ export function RoundButton(props: {
   onPress(): void;
   active?: boolean;
   badge?: number;
+  /** A grey count at the circle's bottom right (`CornerBadge`). */
+  cornerBadge?: number;
   testID?: string;
   /** A toggle's state, read out as selected. */
   selected?: boolean;
@@ -559,6 +561,7 @@ export function RoundButton(props: {
       >
         <Icon name={props.icon} size={icon} color={colors.foreground} />
         {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={colors.surface0} /> : null}
+        <CornerBadge count={props.cornerBadge ?? 0} theme={props.theme} style={{ bottom: 0, right: 0 }} testID={props.testID ? `${props.testID}-count` : undefined} />
       </View>
       {props.badge ? (
         <View
@@ -582,6 +585,28 @@ export function RoundButton(props: {
         </View>
       ) : null}
     </Pressable>
+  );
+}
+
+/**
+ * A small grey count at an icon's bottom right: the tablet toolbar's
+ * filter count, and the cards a switch leaves off the board. Placed by
+ * its parent (`style`), in a 1 px ring of the surface. Nothing at zero.
+ */
+export function CornerBadge(props: { count: number; theme: PluginTheme; style: { top?: number; right?: number; bottom?: number; left?: number }; testID?: string }) {
+  const colors = props.theme.colors;
+  const scale = useTasksFontScale();
+  if (props.count <= 0) return null;
+  const size = taskControlHeight(12, scale);
+  return (
+    <View
+      pointerEvents="none"
+      style={{ position: "absolute", ...props.style, minWidth: size, height: size, paddingHorizontal: 2, borderRadius: size / 2, backgroundColor: colors.foregroundMuted, borderWidth: 1, borderColor: colors.surface0, alignItems: "center", justifyContent: "center" }}
+    >
+      <Text testID={props.testID} style={{ fontSize: 8, lineHeight: 10, includeFontPadding: false, fontWeight: "600", fontVariant: ["tabular-nums"], color: colors.surface0 }}>
+        {props.count > 99 ? "99+" : props.count}
+      </Text>
+    </View>
   );
 }
 

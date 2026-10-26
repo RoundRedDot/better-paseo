@@ -36,13 +36,13 @@ import {
 } from "../../client/tasks/board/navigation";
 import { activeChips, buildFilterOptions, cardFilterState, filterToCard, searchWorkspaceGroups, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, projectOptions, shownFilterOptions, toggleProject, type ChipGroup } from "../../client/tasks/board/filter-options";
 import { boardPalette, buttonOutline, cubicBezier } from "../../client/tasks/board/board-style";
-import { restoredStops, withStopReasons } from "../../client/tasks/board/use-board";
+import { hiddenSubtaskCount, restoredStops, withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { hostLanguage, resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18n";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { sampleCards } from "../../client/tasks/sample-cards";
-import { ACTIVE_LANE_ORDER, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
-import type { TasksHandle } from "../../client/tasks/data";
+import { ACTIVE_LANE_ORDER, EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
+import { filterLanes, type TasksHandle } from "../../client/tasks/data";
 
 const defaults = { hideSubtasks: false, doneWindow: "24h" as const };
 
@@ -798,5 +798,23 @@ describe("tasks language", () => {
     expect(BOARD_STRINGS.zh.name).toBe("任务");
     expect(BOARD_STRINGS.zh.openBoard).toBe("打开任务");
     expect(BOARD_STRINGS.en.name).toBe("Tasks");
+  });
+});
+
+describe("hiddenSubtaskCount", () => {
+  const cards = sampleCards(Date.parse("2026-10-22T10:00:00.000Z"));
+  const lanes = () => {
+    const out = {} as Record<LaneId, LaneModel>;
+    for (const id of LANE_ORDER) out[id] = { id, cards: cards.filter((card) => card.lane === id), hasMore: false, loading: false };
+    return out;
+  };
+
+  it("counts the waiting, running and review cards hidden subtasks leave out, under the other filters", () => {
+    const all = lanes();
+    const hidden = { ...EMPTY_FILTERS, hideSubtasks: true };
+    expect(hiddenSubtaskCount(all, filterLanes(all, hidden), hidden)).toBe(1);
+    // A filter that already hides the child leaves nothing for the switch to hide.
+    const codex = { ...hidden, providers: ["codex"] };
+    expect(hiddenSubtaskCount(all, filterLanes(all, codex), codex)).toBe(0);
   });
 });
