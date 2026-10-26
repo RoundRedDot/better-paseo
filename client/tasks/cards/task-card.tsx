@@ -428,7 +428,7 @@ const CARD_RADIUS = 8;
  * centre this far in from both edges. The context ring sits on the same
  * diagonal (`ringNudge`), about 7 pt beyond it on a desktop card.
  */
-export const MARK_DOT = { size: 2.5, inset: 7 } as const;
+export const MARK_DOT = { size: 3.5, inset: 7 } as const;
 /** The mark's hue reads at least this far from the card (a black logo on a dark card). */
 const MARK_CONTRAST = 3;
 /** The mark at rest: this much of the muted foreground, mixed into the card. */
