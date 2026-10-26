@@ -72,8 +72,8 @@ describe("split Stop button", () => {
     const rows = root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
     expect(rows).toHaveLength(2);
     for (const row of rows) {
-      const label = row.findAll((node) => node.type === "Text")[0]!;
-      const icon = row.find((node) => node.type === "Icon");
+      const label = row.findAll((node) => (node.type as unknown) === "Text")[0]!;
+      const icon = row.find((node) => (node.type as unknown) === "Icon");
       expect(flat(label).color).toBe(taskTokens(THEME).danger);
       expect(icon.props.color).toBe(taskTokens(THEME).danger);
       await act(async () => row.props.onHoverIn());
