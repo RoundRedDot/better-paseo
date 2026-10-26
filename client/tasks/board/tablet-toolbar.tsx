@@ -143,16 +143,22 @@ export function TabletToolbar(props: {
 
 function ToolbarButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; testID: string; showLabel?: boolean; selected?: boolean; expanded?: boolean; badge?: number; slashed?: boolean; compact?: boolean }) {
   const colors = props.theme.colors;
-  const target = taskControlHeight(props.compact ? 28 : 44, useTasksFontScale());
+  const scale = useTasksFontScale();
+  const target = taskControlHeight(props.compact ? 28 : 44, scale);
+  const badgeSize = taskControlHeight(18, scale);
   const iconSize = props.compact ? 16 : 18;
   return (
     <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered) => ({ minWidth: target, height: target, flexShrink: 0, paddingHorizontal: props.showLabel ? 10 : 0, borderRadius: 7, backgroundColor: hovered || props.expanded || props.selected ? colors.surface1 : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
       <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
         <Icon name={props.icon} size={iconSize} color={colors.foreground} />
         {props.slashed ? <SlashMark size={iconSize} color={colors.foreground} gap={colors.surface0} /> : null}
+        {props.badge ? (
+          <View pointerEvents="none" style={{ position: "absolute", bottom: -7, right: -7, width: badgeSize, height: badgeSize, borderRadius: badgeSize / 2, backgroundColor: colors.accent, borderWidth: 1, borderColor: colors.surface0, alignItems: "center", justifyContent: "center" }}>
+            <Text testID="tablet-filter-count" style={{ fontSize: F.sm, lineHeight: 14, fontWeight: "600", fontVariant: ["tabular-nums"], color: colors.accentForeground }}>{props.badge}</Text>
+          </View>
+        ) : null}
       </View>
       {props.showLabel ? <Text numberOfLines={1} style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{props.label}</Text> : null}
-      {props.badge ? <Text testID="tablet-filter-count" style={{ fontSize: F.sm, fontVariant: ["tabular-nums"], color: colors.foregroundMuted }}>{props.badge}</Text> : null}
     </HoverPressable>
   );
 }
