@@ -33,6 +33,8 @@ const DIVIDER_MARGIN = 4;
 const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
 const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale));
 
+type EmptyLanes = { collapsed: boolean; disabled: boolean; onToggle(): void };
+
 /** The narrowest board whose toolbar shows the key hints beside the count and the search. */
 export const KEY_HINTS_MIN_WIDTH = 1200;
 
@@ -49,12 +51,14 @@ export function DesktopToolbar(props: {
   keyHints: boolean;
   /** The details sidebar's switch at the bar's right end; `sheet` when the details rise from the bottom. */
   sidebar?: { open: boolean; onToggle(): void; sheet?: boolean };
-  emptyLanes: { collapsed: boolean; disabled: boolean; onToggle(): void };
+  emptyLanes: EmptyLanes;
   /**
    * A narrow board's one-row header: the filter bar folds into this button
    * (its count of active filters on a badge), which opens the filter sheet,
    * so the lanes keep the height two more rows took. The archived lane's
-   * switch, no filter, stays out as a round button on its left.
+   * switch, no filter, stays out as a round button on its left, and the
+   * empty lanes' fold on its right. A wide board keeps both in the filter
+   * bar, beside the lane width.
    */
   filters?: { count: number; onPress(): void };
 }) {
@@ -65,7 +69,7 @@ export function DesktopToolbar(props: {
   const [searchFocused, setSearchFocused] = useState(false);
   const [actionWidth, setActionWidth] = useState(0);
   const [viewOpen, setViewOpen] = useState(false);
-  const actionCount = 1 + Number(!!props.filters) + Number(!!props.sidebar) + Number(!!props.filters || Platform.OS === "ios" || Platform.OS === "web");
+  const actionCount = 3 * Number(!!props.filters) + Number(!!props.sidebar);
   const compactActions = actionWidth > 0 && actionWidth < actionCount * toolbarButtonSize(scale) + (actionCount - 1) * TOOLBAR_GAP;
   return (
     <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
@@ -115,8 +119,10 @@ export function DesktopToolbar(props: {
           <View style={{ zIndex: 20 }}>
             <RoundButton icon="SlidersHorizontal" label={strings.view} selected={viewOpen} theme={theme} onPress={() => setViewOpen(!viewOpen)} size={toolbarButtonSize(scale)} testID="desktop-toolbar-view" />
             {viewOpen ? <CascadeMenu theme={theme} width={260} top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setViewOpen(false)} sections={[{ key: "view", items: [
-              { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
-              { key: "empty", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, disabled: props.emptyLanes.disabled, onSelect: props.emptyLanes.onToggle },
+              ...(props.filters ? [
+                { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
+                { key: "empty", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, disabled: props.emptyLanes.disabled, onSelect: props.emptyLanes.onToggle },
+              ] : []),
               ...(props.sidebar ? [{ key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, onSelect: props.sidebar.onToggle }] : []),
             ] }]} /> : null}
           </View>
@@ -144,35 +150,45 @@ export function DesktopToolbar(props: {
           ) : null}
         </View>
       ) : null}
-      {props.filters || Platform.OS === "ios" || Platform.OS === "web" ? (
-        <RoundButton
-          icon="Archive"
-          label={strings.archivedLane.row}
-          selected={board.showArchived}
-          slashed={!board.showArchived}
-          theme={theme}
-          onPress={() => board.setShowArchived(!board.showArchived)}
-          size={toolbarButtonSize(scale)}
-          tip={board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row}
-          testID="toolbar-archived"
-        />
+      {props.filters ? (
+        <>
+          <RoundButton
+            icon="Archive"
+            label={strings.archivedLane.row}
+            selected={board.showArchived}
+            slashed={!board.showArchived}
+            theme={theme}
+            onPress={() => board.setShowArchived(!board.showArchived)}
+            size={toolbarButtonSize(scale)}
+            tip={board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row}
+            testID="toolbar-archived"
+          />
+          <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} tip={strings.filters} testID="toolbar-filters" />
+          <EmptyLanesButton emptyLanes={props.emptyLanes} strings={strings} theme={theme} />
+        </>
       ) : null}
-      {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} tip={strings.filters} testID="toolbar-filters" /> : null}
-      <RoundButton
-        icon={props.emptyLanes.collapsed ? "UnfoldHorizontal" : "FoldHorizontal"}
-        label={props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse}
-        selected={props.emptyLanes.collapsed}
-        disabled={props.emptyLanes.disabled}
-        theme={theme}
-        onPress={props.emptyLanes.onToggle}
-        size={toolbarButtonSize(scale)}
-        tip={props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse}
-        testID="empty-lanes-toggle"
-      />
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
       </>}
       </View>
     </View>
+  );
+}
+
+/** Folds the empty lanes to slim strips, or opens them again. */
+function EmptyLanesButton({ emptyLanes, strings, theme }: { emptyLanes: EmptyLanes; strings: BoardController["strings"]; theme: PluginTheme }) {
+  const label = emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse;
+  return (
+    <RoundButton
+      icon={emptyLanes.collapsed ? "UnfoldHorizontal" : "FoldHorizontal"}
+      label={label}
+      selected={emptyLanes.collapsed}
+      disabled={emptyLanes.disabled}
+      theme={theme}
+      onPress={emptyLanes.onToggle}
+      size={toolbarButtonSize(useTasksFontScale())}
+      tip={label}
+      testID="empty-lanes-toggle"
+    />
   );
 }
 
@@ -316,6 +332,8 @@ export function DesktopFilterBar(props: {
   menu: FilterMenu | null;
   setMenu(menu: FilterMenu | null): void;
   onMore(): void;
+  /** The empty lanes' fold; the desktop bar keeps it beside the board's other switches. */
+  emptyLanes?: EmptyLanes;
 }) {
   const { board, theme, options, menu, setMenu } = props;
   const tablet = Platform.OS !== "web";
@@ -357,6 +375,31 @@ export function DesktopFilterBar(props: {
   }, [fit.inlineLaneWidth, menu, setMenu]);
   // An icon-only button's tip leads with the words it dropped: its picks, the sort, the width.
   const tip = (dropped: string, what: string) => (compact ? `${dropped}\n${what}` : what);
+  const archivedSwitch = (
+    <BarSwitch
+      icon="Archive"
+      on={board.showArchived}
+      slashed={!board.showArchived}
+      onPress={() => board.setShowArchived(!board.showArchived)}
+      label={strings.archivedLane.row}
+      hint={strings.archivedLane.hint}
+      tip={board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row}
+      theme={theme}
+      testID="archived-lane-toggle"
+    />
+  );
+  const subtasksSwitch = (
+    <BarSwitch
+      icon={resolved.filters.hideSubtasks ? "List" : "Network"}
+      on={!resolved.filters.hideSubtasks}
+      onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
+      label={strings.showSubtasks}
+      hint={strings.showSubtasksHint}
+      tip={resolved.filters.hideSubtasks ? strings.showSubtasks : strings.tips.hideSubtasks}
+      theme={theme}
+      testID="subtasks-toggle"
+    />
+  );
   return (
     <View
       testID="filter-bar"
@@ -464,6 +507,20 @@ export function DesktopFilterBar(props: {
       <View testID="filter-bar-end" pointerEvents="box-none" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
         {tablet ? null : (
           <>
+            {archivedSwitch}
+            {props.emptyLanes ? <EmptyLanesButton emptyLanes={props.emptyLanes} strings={strings} theme={theme} /> : null}
+            {subtasksSwitch}
+            <BarSwitch
+              icon={emptyGroupsIcon(board.showEmptyGroups)}
+              on={board.showEmptyGroups}
+              onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
+              label={strings.emptyGroups.row}
+              hint={strings.emptyGroups.hint(board.showEmptyGroups)}
+              tip={board.showEmptyGroups ? strings.tips.hideEmptyGroups : strings.emptyGroups.row}
+              theme={theme}
+              testID="empty-groups-toggle"
+            />
+            {compact ? null : <Divider theme={theme} testID="board-switches-divider" />}
             <View testID="lane-width-control" pointerEvents="box-none" onLayout={fit.measureLaneControl} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "laneWidth" ? 1 : 0 }}>
               {fit.inlineLaneWidth ? (
                 <>
@@ -516,31 +573,7 @@ export function DesktopFilterBar(props: {
             {compact ? null : <Divider theme={theme} testID="done-window-divider" />}
           </>
         )}
-        <BarSwitch
-          icon={resolved.filters.hideSubtasks ? "List" : "Network"}
-          on={!resolved.filters.hideSubtasks}
-          onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
-          label={strings.showSubtasks}
-          hint={strings.showSubtasksHint}
-          tip={resolved.filters.hideSubtasks ? strings.showSubtasks : strings.tips.hideSubtasks}
-          theme={theme}
-          testID="subtasks-toggle"
-        />
-        {tablet ? null : (
-          <>
-            <BarSwitch
-              icon={emptyGroupsIcon(board.showEmptyGroups)}
-              on={board.showEmptyGroups}
-              onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
-              label={strings.emptyGroups.row}
-              hint={strings.emptyGroups.hint(board.showEmptyGroups)}
-              tip={board.showEmptyGroups ? strings.tips.hideEmptyGroups : strings.emptyGroups.row}
-              theme={theme}
-              testID="empty-groups-toggle"
-            />
-            {compact ? null : <Divider theme={theme} testID="filter-sort-divider" />}
-          </>
-        )}
+        {tablet ? subtasksSwitch : null}
         <MenuButton
           icon="ArrowUpDown"
           label={words.sort}
@@ -564,17 +597,7 @@ export function DesktopFilterBar(props: {
         </MenuButton>
         {tablet ? (
           <>
-            {Platform.OS === "ios" ? null : <BarSwitch
-              icon="Archive"
-              on={board.showArchived}
-              slashed={!board.showArchived}
-              onPress={() => board.setShowArchived(!board.showArchived)}
-              label={strings.archivedLane.row}
-              hint={strings.archivedLane.hint}
-              tip={board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row}
-              theme={theme}
-              testID="archived-lane-toggle"
-            />}
+            {Platform.OS === "ios" ? null : archivedSwitch}
             <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={activeFilterCount(params, defaults)} onPress={props.onMore} size={toolbarButtonSize(scale)} tip={strings.filters} testID="filter-bar-more" />
           </>
         ) : null}

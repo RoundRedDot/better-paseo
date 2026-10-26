@@ -565,6 +565,7 @@ export function DesktopBoard(props: {
           options={options}
           menu={menu}
           setMenu={setMenu}
+          emptyLanes={{ collapsed: emptyLanesCollapsed, disabled: emptyLanes.length === 0, onToggle: toggleEmptyLanes }}
           onMore={() => {
             setMenu(null);
             setFiltersOpen(true);
