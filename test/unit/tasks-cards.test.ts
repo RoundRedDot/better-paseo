@@ -122,7 +122,7 @@ import { BrandMark, PiMark, agentPillColors, contrastRatio, tintedPillColors } f
 import { permissionButtons } from "../../client/tasks/actions";
 import { providerBrand } from "../../client/components/provider-logo";
 import { seedMarkBitmaps } from "../../client/components/marks";
-import { mix } from "../../client/components/theme-tokens";
+import { mix, withAlpha } from "../../client/components/theme-tokens";
 import { identityColor, projectIconRadius, projectInitial, projectViewKey } from "../../client/tasks/cards/project-icon";
 
 const LIGHT = {
@@ -1112,6 +1112,44 @@ describe("TaskCardView context ring", () => {
       await act(async () => tree.unmount());
       renderer = null;
     }
+  });
+
+  it("fades the meta text out before it instead of overlapping it or ending in an ellipsis", async () => {
+    const layout = (node: ReactTestInstance, width: number) =>
+      act(async () => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 16 } } }));
+    const fades = (tree: ReactTestRenderer) => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-meta-fade");
+    const tree = await render(cardElement(withContext(46)));
+    const meta = hostByTestId(tree.root, "task-card-meta");
+    const row = hostByTestId(meta, "task-card-meta-body");
+    const textBox = hostByTestId(meta, "task-card-meta-text");
+    // Clipped, never an ellipsis, while the ring shares the row: it keeps its own slot after the text.
+    expect(hostByTestId(meta, "task-card-meta-location").props.ellipsizeMode).toBe("clip");
+    const hosts = (node: ReactTestInstance): ReactTestInstance[] =>
+      node.children.flatMap((child) => (typeof child === "string" ? [] : typeof child.type === "string" ? [child] : hosts(child)));
+    expect(hosts(meta).at(-1)).toBe(hostByTestId(meta, "task-card-context"));
+    // Text that fits shows whole.
+    await layout(row, 200);
+    await layout(textBox, 120);
+    expect(fades(tree)).toHaveLength(0);
+    // Text cut off by the ring fades out over its last 20 pt in bands of the card's fill.
+    await layout(textBox, 200);
+    const fade = fades(tree)[0]!;
+    expect(flat(fade.props.style)).toMatchObject({ position: "absolute", right: 0, width: 20 });
+    expect(fade.props.pointerEvents).toBe("none");
+    const bands = fade.children.filter((child): child is ReactTestInstance => typeof child !== "string");
+    expect(bands).toHaveLength(10);
+    const fill = String(flat(hostByTestId(tree.root, "task-card-sample-running").props.style).backgroundColor);
+    expect(flat(bands[9]!.props.style).backgroundColor).toBe(withAlpha(fill, 1));
+    expect(flat(bands[0]!.props.style).backgroundColor).toBe(withAlpha(fill, 0.1));
+    // Hovered, the fade follows the card's fill.
+    await act(async () => hostByTestId(tree.root, "task-card-sample-running").props.onHoverIn());
+    const hovered = String(flat(hostByTestId(tree.root, "task-card-sample-running").props.style).backgroundColor);
+    expect(hovered).not.toBe(fill);
+    expect(flat(fades(tree)[0]!.children.filter((child): child is ReactTestInstance => typeof child !== "string")[9]!.props.style).backgroundColor).toBe(withAlpha(hovered, 1));
+    // Without a ring the text ends in an ellipsis as before.
+    await act(async () => tree.update(cardElement({ ...sample("sample-running"), context: null })));
+    expect(hostByTestId(tree.root, "task-card-meta-location").props.ellipsizeMode).toBe("tail");
+    expect(fades(tree)).toHaveLength(0);
   });
 
   it("centres on the card corner's diagonal, like the subtask dot", async () => {

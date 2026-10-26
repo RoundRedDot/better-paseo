@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -498,6 +498,34 @@ function CornerMark(props: { color: string }) {
   );
 }
 
+/** The archived tag's space after the parent link. */
+const ARCHIVED_TAG_GAP = 6;
+/** Where the meta text fades out before the context ring: this wide, in this many bands of the card's fill. */
+const META_FADE = { width: 20, steps: 10 } as const;
+/** A clipped line on web: RNW draws one-line text with an ellipsis and ignores `ellipsizeMode`. */
+const CLIP_TEXT = (Platform.OS === "web" ? { textOverflow: "clip" } : {}) as TextStyle;
+
+/**
+ * The end of a clipped line fading into the card (`META_FADE`): bands of the
+ * card's fill, each more opaque, over the text's last points. It follows the
+ * fill's hover transition, so nothing lags behind it.
+ */
+function EdgeFade(props: { color: string }) {
+  const { width, steps } = META_FADE;
+  return (
+    <View
+      pointerEvents="none"
+      style={{ position: "absolute", top: 0, bottom: 0, right: 0, width, flexDirection: "row" }}
+      testID="task-card-meta-fade"
+      {...ariaHidden()}
+    >
+      {Array.from({ length: steps }, (_, step) => (
+        <View key={step} style={{ flex: 1, backgroundColor: withAlpha(props.color, (step + 1) / steps), ...webTransition }} />
+      ))}
+    </View>
+  );
+}
+
 // --- The card -----------------------------------------------------------------
 
 function TaskCardViewImpl(given: TaskCardViewProps) {
@@ -529,6 +557,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const [localExpanded, setLocalExpanded] = useState(false);
   const expanded = props.subtasksExpanded ?? localExpanded;
   const [ringOpen, setRingOpen] = useState(false);
+  // The meta row's widths while a context ring shares it: the row, its text, and the archived tag.
+  const [metaFit, setMetaFit] = useState({ row: 0, text: 0, tag: 0 });
   // Right click keeps its window point; long press uses the host's modal.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | "touch" | null>(null);
   useLayoutEffect(
@@ -711,6 +741,20 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   let parentTag: string | null = null;
   if (card.parent?.archivedAs === "workspace") parentTag = strings.workspaceArchived;
   else if (card.parent?.archivedAs === "agent" || (card.parent?.missing && card.parent.archived === true)) parentTag = strings.archived;
+  // Beside a context ring the text fades out before it instead of ending in
+  // an ellipsis: clipped, with the fade only once the text no longer fits.
+  const metaRing = hasMeta ? ringFor(m.metaLine) : null;
+  const clip = metaRing !== null;
+  const fit = (key: keyof typeof metaFit) =>
+    clip
+      ? (event: LayoutChangeEvent) => {
+          const width = event.nativeEvent.layout.width;
+          setMetaFit((was) => (was[key] === width ? was : { ...was, [key]: width }));
+        }
+      : undefined;
+  const tagSpace = parentTag !== null ? metaFit.tag + ARCHIVED_TAG_GAP : 0;
+  const metaCut = clip && metaFit.row > 0 && metaFit.text + tagSpace >= metaFit.row - 0.5;
+  const clipText = clip ? CLIP_TEXT : null;
   const metaRow = hasMeta ? (
     <View
       style={{ flexDirection: "row", alignItems: "center", gap: GAP, minHeight: Math.round(m.metaLine * scale), zIndex: ringZ }}
@@ -725,54 +769,62 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           <ProjectIcon location={location} size={m.icon} hostId={props.hostId} />
         </View>
       ) : null}
-      <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center" }}>
-        {metaText ? (
-          <Text
-            numberOfLines={1}
-            style={[metaStyle, { flexShrink: 1, minWidth: 0 }]}
-            testID="task-card-meta-location"
-            {...hintProps(
-              hint("location", () =>
-                lines(
-                  layout.project && location.projectName && pair(strings.hint.project, location.projectName),
-                  layout.workspace && location.workspaceName && pair(strings.hint.workspace, location.workspaceName),
+      <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center" }} onLayout={fit("row")} testID="task-card-meta-body">
+        <View style={{ flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center" }} onLayout={fit("text")} testID="task-card-meta-text">
+          {metaText ? (
+            <Text
+              numberOfLines={1}
+              ellipsizeMode={clip ? "clip" : "tail"}
+              style={[metaStyle, { flexShrink: 1, minWidth: 0 }, clipText]}
+              testID="task-card-meta-location"
+              {...hintProps(
+                hint("location", () =>
+                  lines(
+                    layout.project && location.projectName && pair(strings.hint.project, location.projectName),
+                    layout.workspace && location.workspaceName && pair(strings.hint.workspace, location.workspaceName),
+                  ),
                 ),
-              ),
-            )}
-          >
-            {metaText}
-          </Text>
-        ) : null}
-        {metaText && parentLabel !== null ? (
-          <Text style={[metaStyle, { flexShrink: 0 }]}>{SEPARATOR}</Text>
-        ) : null}
-        {parentLabel !== null ? (
-          // The parent link gives way first: it shrinks a thousand times faster
-          // than "project > workspace", which only truncates once the link is gone.
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={strings.revealParent}
-            onPress={() => props.onReveal(card.parent!.id)}
-            {...parentHover.hoverProps}
-            style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: PARENT_SHRINK, minWidth: 0, overflow: "hidden" }}
-            testID="task-card-meta-parent"
-            {...hintProps(hint("parent", () => pair(strings.details.parent, parentLabel)))}
-          >
-            <View style={{ flexShrink: 0 }}>
-              <Icon name="CornerLeftUp" size={Math.round(m.metaSize * scale)} color={parentHover.hovered ? tokens.foreground : muted} />
-            </View>
-            <Text numberOfLines={1} style={[metaStyle, { flexShrink: 1, minWidth: 0 }, parentHover.hovered ? { color: tokens.foreground } : null]}>
-              {parentLabel}
+              )}
+            >
+              {metaText}
             </Text>
-          </Pressable>
-        ) : null}
+          ) : null}
+          {metaText && parentLabel !== null ? (
+            <Text style={[metaStyle, { flexShrink: 0 }]}>{SEPARATOR}</Text>
+          ) : null}
+          {parentLabel !== null ? (
+            // The parent link gives way first: it shrinks a thousand times faster
+            // than "project > workspace", which only truncates once the link is gone.
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={strings.revealParent}
+              onPress={() => props.onReveal(card.parent!.id)}
+              {...parentHover.hoverProps}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: PARENT_SHRINK, minWidth: 0, overflow: "hidden" }}
+              testID="task-card-meta-parent"
+              {...hintProps(hint("parent", () => pair(strings.details.parent, parentLabel)))}
+            >
+              <View style={{ flexShrink: 0 }}>
+                <Icon name="CornerLeftUp" size={Math.round(m.metaSize * scale)} color={parentHover.hovered ? tokens.foreground : muted} />
+              </View>
+              <Text
+                numberOfLines={1}
+                ellipsizeMode={clip ? "clip" : "tail"}
+                style={[metaStyle, { flexShrink: 1, minWidth: 0 }, clipText, parentHover.hovered ? { color: tokens.foreground } : null]}
+              >
+                {parentLabel}
+              </Text>
+            </Pressable>
+          ) : null}
+          {metaCut ? <EdgeFade color={background} /> : null}
+        </View>
         {parentTag !== null ? (
-          <View style={{ marginLeft: 6, flexShrink: 0 }}>
+          <View style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("tag")}>
             <ArchivedTag tokens={tokens} label={parentTag} testID="task-card-meta-archived" />
           </View>
         ) : null}
       </View>
-      {ringFor(m.metaLine)}
+      {metaRing}
     </View>
   ) : null;
 
