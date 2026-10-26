@@ -7,6 +7,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, laneTitle, TasksTypography
 import { StatusIcon, taskTokens, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, isHistoryLane, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { useHover } from "../../ui/use-hover";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
 import { BoardEmptyState } from "./empty-state";
 import { LANE_EMPTY_ICON } from "./strings";
@@ -751,6 +752,8 @@ function LaneGap(props: { onPress(): void }) {
  */
 function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme; onDrag(width: number | null): void; onResize(width: number): void; children: React.ReactNode }) {
   const reduced = useReducedMotion();
+  const { hovered, hoverProps } = useHover();
+  const [dragging, setDragging] = useState(false);
   const [mounted, setMounted] = useState(props.open);
   const progress = useRef(new Animated.Value(reduced && props.open ? 1 : 0)).current;
   if (props.open && !mounted) setMounted(true);
@@ -790,6 +793,7 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
     body.cursor = "col-resize";
     body.userSelect = "none";
     setResizing(handle, true);
+    setDragging(true);
     let frame = 0;
     const move = (moved: PointerEvent) => {
       width = clampWidth(width0 + (x0 - moved.pageX));
@@ -807,6 +811,7 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
       document.removeEventListener("pointerup", up);
       Object.assign(body, restore);
       setResizing(handle, false);
+      setDragging(false);
       props.onDrag(null);
       if (width !== width0) props.onResize(width);
     };
@@ -822,7 +827,7 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
       testID="sidebar-resize"
     >
       <View pointerEvents="none" style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <View testID="sidebar-resize-grabber" style={{ width: 3, height: 40, borderRadius: 2, backgroundColor: props.theme.colors.foregroundMuted, opacity: 0.5 }} />
+        <View testID="sidebar-resize-grabber" style={{ width: 3, height: 40, borderRadius: 2, backgroundColor: props.theme.colors.foregroundMuted, opacity: hovered || dragging ? 0.5 : 0 }} />
       </View>
       <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, left: 3.5, width: 1, overflow: "hidden" }}>
         <View ref={indicatorRef} {...resizeIndicatorProps} style={{ position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 }} />
@@ -842,6 +847,7 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
     >
       <Animated.View
         testID="sidebar-inline"
+        {...(Platform.OS === "web" ? { onPointerEnter: hoverProps.onHoverIn, onPointerLeave: hoverProps.onHoverOut } : {})}
         style={{
           position: "absolute",
           top: 0,

@@ -1051,7 +1051,7 @@ describe("Tasks board, desktop", () => {
     }
   });
 
-  it("shows a grabber in the desktop sidebar's existing width drag handle", () => {
+  it("shows the desktop sidebar grabber only while the panel is hovered or dragged", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const listeners = new Map<string, (event: { pageX: number; clientY: number }) => void>();
     vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
@@ -1071,11 +1071,21 @@ describe("Tasks board, desktop", () => {
       expect(handleStyle.left).toBe(0);
       expect(handleStyle.width).toBeLessThanOrEqual(panel.paddingLeft);
       expect(handle.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-resize-grabber")).toHaveLength(1);
+      const grabberOpacity = () => StyleSheet.flatten(hostsById("sidebar-resize-grabber")[0]!.props.style).opacity;
+      expect(grabberOpacity()).toBe(0);
+      act(() => hostsById("sidebar-inline")[0]!.props.onPointerEnter());
+      expect(grabberOpacity()).toBe(0.5);
+      act(() => hostsById("sidebar-inline")[0]!.props.onPointerLeave());
+      expect(grabberOpacity()).toBe(0);
+      act(() => hostsById("sidebar-inline")[0]!.props.onPointerEnter());
       act(() => handle.props.onPointerDown({ nativeEvent: { pageX: 1000, clientY: 200 } }));
+      act(() => hostsById("sidebar-inline")[0]!.props.onPointerLeave());
+      expect(grabberOpacity()).toBe(0.5);
       act(() => listeners.get("pointermove")!({ pageX: 950, clientY: 200 }));
       act(() => { vi.advanceTimersByTime(16); });
       expect(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).width).toBe(430);
       act(() => listeners.get("pointerup")!({ pageX: 950, clientY: 200 }));
+      expect(grabberOpacity()).toBe(0);
       expect(readSidebarPreference().width).toBe(430);
       expect(listeners.has("pointermove")).toBe(false);
       expect(listeners.has("pointerup")).toBe(false);
