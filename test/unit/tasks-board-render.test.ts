@@ -2151,7 +2151,7 @@ describe("Tasks board, lane widths", () => {
     expect(laneChildren.indexOf(label())).toBeLessThan(laneChildren.indexOf(inline()[0]!));
     const endGroups = () => end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end());
     expect(endGroups().filter((node) => node.props.testID).map((node) => node.props.testID)).toEqual([
-      "archived-lane-toggle", "empty-lanes-toggle", "subtasks-toggle", "empty-groups-toggle", "board-switches-divider",
+      "empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle", "board-switches-divider",
       "lane-width-control", "lane-width-divider", "done-window", "done-window-divider",
     ]);
     for (const id of ["board-switches-divider", "lane-width-divider", "done-window-divider"]) {
@@ -2322,7 +2322,7 @@ describe("Tasks board, archived lane switch", () => {
     const toolbar = renderer!.root.findByType(DesktopToolbar);
     expect(toolbar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(["sidebar-switch"]);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-    expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["archived-lane-toggle", "empty-lanes-toggle", "subtasks-toggle", "empty-groups-toggle"]);
+    expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle"]);
     expect(hostsById("toolbar-archived")).toHaveLength(0);
     await act(async () => toggle().props.onPress());
     layOut(2400);
@@ -2816,7 +2816,7 @@ describe("Tasks board, tablet filters", () => {
       expect(icon()).toBe("List");
       // Last of the board's switches, in the bar's end.
       const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-      expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["archived-lane-toggle", "empty-lanes-toggle", "subtasks-toggle", "empty-groups-toggle"]);
+      expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle"]);
       // Busy first, the empty ones after them.
       expect(rows().at(-1)).toBe("Pi 0");
       await act(async () => toggle().props.onPress());

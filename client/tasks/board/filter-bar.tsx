@@ -507,9 +507,9 @@ export function DesktopFilterBar(props: {
       <View testID="filter-bar-end" pointerEvents="box-none" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
         {tablet ? null : (
           <>
-            {archivedSwitch}
             {props.emptyLanes ? <EmptyLanesButton emptyLanes={props.emptyLanes} strings={strings} theme={theme} /> : null}
             {subtasksSwitch}
+            {archivedSwitch}
             <BarSwitch
               icon={emptyGroupsIcon(board.showEmptyGroups)}
               on={board.showEmptyGroups}
