@@ -219,7 +219,8 @@ export function PhoneBoard(props: {
     return {
       onOpen: base.onOpen ? guard(base.onOpen) : undefined,
       onReveal: guard(base.onReveal),
-      onStop: guard(base.onStop),
+      // Absent without the host's CLI: a guarded no-op would still draw Stop on every card.
+      onStop: base.onStop ? guard(base.onStop) : undefined,
       onCancelStop: base.onCancelStop,
       onRead: base.onRead ? guard(base.onRead) : undefined,
       onUnarchive: base.onUnarchive ? guard(base.onUnarchive) : undefined,

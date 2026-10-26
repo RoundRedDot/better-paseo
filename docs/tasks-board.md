@@ -250,7 +250,7 @@ provider 内部的 subagent（Claude Code 的 Agent 工具、Codex 和 Pi 自己
 | 复制 | 点按模型、分支、文件夹、路径 pill；右键菜单复制会话 ID、标题、workspace 名、项目名 | 宿主的 `copyText` | 所有卡片 | 已做 |
 | 追加一条指令 | 卡片更多菜单里的输入框 | `agents.ref(id).send(text)` | 待查看、已完成 | 未做 |
 
-停止、标为已读和取消归档在插件服务端做不到时隐藏（`tasks.capabilities`）：停止和取消归档要找得到 CLI，标为已读要插件进程能加载宿主自带的 daemon 客户端。
+停止、标为已读和取消归档在插件服务端做不到时隐藏（`tasks.capabilities`）：停止和取消归档要找得到 CLI，标为已读要插件进程能加载宿主自带的 daemon 客户端。CLI 先看插件进程环境里的 `PASEO_CLI`（Paseo 桌面版会设置），再到 `PATH` 里找 `paseo`。用 npm 装的 `@getpaseo/cli` 起 daemon 时，如果 `paseo` 不在 `PATH` 上，两个变量都没有，所以卡片、详情和手机 sheet 上都不会出现停止和取消归档。隐藏范围包括所有平台的卡片：2026-10-26 之前，手机卡片把缺失的停止回调包成了空操作，结果仍然画出一个按了没反应的停止按钮。
 
 停止的含义是「中断当前这一轮」，和 CLI 说明一致：agent 回到空闲，会话保留，之后还能继续发消息。它不是删除或归档。
 
