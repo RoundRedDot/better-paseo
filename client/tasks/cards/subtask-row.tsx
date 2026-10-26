@@ -70,7 +70,7 @@ export function SubtaskRow(props: SubtaskRowProps) {
       style={{
         minHeight: taskControlHeight(touch ? 44 : 32, scale),
         paddingVertical: touch ? 10 : 7,
-        paddingHorizontal: 6,
+        paddingHorizontal: 0,
         borderRadius: 6,
         flexDirection: "row",
         alignItems: "flex-start",
