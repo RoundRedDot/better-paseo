@@ -78,10 +78,10 @@ describe("native prose source", () => {
   });
 });
 
-async function render(source: string) {
+async function render(source: string, streaming = false) {
   let renderer!: ReturnType<typeof TestRenderer.create>;
   await act(async () => { renderer = TestRenderer.create(React.createElement(MarkdownView, {
-    text: source, tokens, variant: "document", streaming: true,
+    text: source, tokens, variant: "document", streaming,
   })); });
   return renderer;
 }
@@ -106,16 +106,25 @@ describe("iOS Markdown prose", () => {
     expect(renderer.root.findAll((node) => String(node.type) === "Text" && node.props.testID === "markdown-table-cell")).toHaveLength(2);
     await act(async () => renderer.unmount());
   });
-  it("keeps paragraphs separate for block selection and reuses finished native views while the tail grows", async () => {
+  it("keeps paragraphs separate for block selection and reuses finished native views on a settled update", async () => {
     const finished = Array.from({ length: 8 }, (_, index) => `Finished **paragraph ${index}**.\n\n`).join("");
     const renderer = await render(finished + "Tail");
     expect(native(renderer)).toHaveLength(9);
     const first = native(renderer)[0]!.props;
     await act(async () => renderer.update(React.createElement(MarkdownView, {
-      text: finished + "Tail grows", tokens, variant: "document", streaming: true,
+      text: finished + "Tail grows", tokens, variant: "document",
     })));
     expect(native(renderer)[0]!.props).toBe(first);
     expect(native(renderer)[8]!.props.markdown).toBe("Tail grows");
+    await act(async () => renderer.unmount());
+  });
+  it("draws a streaming reply as plain text and moves it to native views once it settles", async () => {
+    const source = "First **paragraph**.\n\n# Heading\n\n- item\n\nTail";
+    const renderer = await render(source, true);
+    expect(native(renderer)).toHaveLength(0);
+    expect(renderer.root.findAll((node) => String(node.type) === "Text").length).toBeGreaterThan(0);
+    await act(async () => renderer.update(React.createElement(MarkdownView, { text: source, tokens, variant: "document" })));
+    expect(native(renderer).map((node) => node.props.markdown)).toEqual(["First **paragraph**\\.", "Heading", "- item", "Tail"]);
     await act(async () => renderer.unmount());
   });
   for (const variant of ["document", "compact", "terminal"] as const) it(`${variant}: streamed groups match fresh renders across block boundaries`, async () => {
@@ -159,6 +168,16 @@ describe("iOS Markdown prose", () => {
     const renderer = await render("See **bold**.");
     expect(native(renderer)).toHaveLength(0);
     expect(renderer.root.findAll((node) => String(node.type) === "Text").length).toBeGreaterThan(1);
+    await act(async () => renderer.unmount());
+  });
+  for (const platform of ["web", "android"]) it(`keeps ${platform} finished blocks as drawn when a streamed reply settles`, async () => {
+    os.__rnMockOS = platform;
+    const source = "First **paragraph**.\n\nTail";
+    const renderer = await render(source, true);
+    const first = renderer.root.findAll((node) => String(node.type) === "Text")[0]!.props;
+    await act(async () => renderer.update(React.createElement(MarkdownView, { text: source, tokens, variant: "document" })));
+    expect(native(renderer)).toHaveLength(0);
+    expect(renderer.root.findAll((node) => String(node.type) === "Text")[0]!.props).toBe(first);
     await act(async () => renderer.unmount());
   });
 });

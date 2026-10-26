@@ -48,7 +48,7 @@ export function renderBlocks(
   keyPrefix: string,
   options: BlockOptions,
 ): React.ReactNode[] {
-  if (Platform.OS === "ios") {
+  if (Platform.OS === "ios" && !context.plainProse) {
     const list = tokens.find((token) => token.type !== "space");
     if (nativeParagraphs(tokens) ||
       (list && nativeList(list) && tokens.every((token) => token === list || token.type === "space"))) {

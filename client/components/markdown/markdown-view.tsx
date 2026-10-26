@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo, useRef } from "react";
-import { View } from "react-native";
+import { Platform, View } from "react-native";
 import type { ExtendedThemeTokens } from "../theme-tokens";
 import { selectionSurface } from "../selection-actions";
 import { codeSurface } from "../host-font-escape";
@@ -138,6 +138,9 @@ export function MarkdownView({
     ? variantMetrics(variant, tokens.typography.content.size, compact)
     : variantMetrics(variant, size ?? tokens.typography.content.size, compact, quiet);
   const styles = useMemo(() => buildStyles(tokens, variant, metrics, quiet), [tokens, variant, metrics, quiet]);
+  // iOS only: elsewhere prose is the same `Text` either way, and the context
+  // must stay put when the reply settles so finished blocks are not redrawn.
+  const plainProse = Platform.OS === "ios" && streaming;
   const context = useMemo<RenderContext>(
     () => ({
       styles,
@@ -145,9 +148,10 @@ export function MarkdownView({
       metrics,
       variant,
       collapseCode,
+      plainProse,
       onRevealPath,
     }),
-    [styles, tokens, metrics, variant, collapseCode, onRevealPath],
+    [styles, tokens, metrics, variant, collapseCode, plainProse, onRevealPath],
   );
 
   // A streamed chunk changes the tail and leaves every block before it as it
