@@ -13,7 +13,7 @@ import { clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptio
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { detailScrollProps } from "../cards/detail-scrollbar";
 import { useLaneScrollbar } from "./lane-scrollbar";
-import { resolveBoardParams, toggleItem } from "./params";
+import { activeFilterCount, resolveBoardParams, toggleItem } from "./params";
 import { SORT_GROUPS, SORT_ICONS, sortDirectionIcon, sortDirections } from "./board-menus";
 import { sameSort, type BoardSort, type SortKey } from "./sort";
 import { sortOrderLabel } from "./strings";
@@ -74,6 +74,20 @@ export function FilterSheetBody(props: {
   );
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
+      {activeFilterCount(board.params, defaults) > 0 ? (
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8, alignItems: "flex-end" }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={strings.clearAll}
+            testID="filter-sheet-clear-all"
+            onPress={() => setParams(clearedParams)}
+            style={{ minHeight: 36, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 6 }}
+          >
+            <Icon name="X" size={15} color={colors.foregroundMuted} />
+            <Text style={{ fontSize: F.base, color: colors.foreground }}>{strings.clearAll}</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <ScrollView
         ref={scrollRef}
         {...detailScrollProps("inset")}

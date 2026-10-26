@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
-import { Animated, View } from "react-native";
+import { Animated, Pressable, View } from "react-native";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { HOST_FONT as F, useTasksFontScale } from "../typography";
@@ -13,6 +13,7 @@ export function PhoneSearch(props: {
   query: string;
   onChange(query: string): void;
   placeholder: string;
+  clear: string;
   theme: PluginTheme;
 }) {
   const { visible, theme } = props;
@@ -87,6 +88,11 @@ export function PhoneSearch(props: {
               returnKeyType="search"
               style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground }}
             />
+            {props.query ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={props.clear} testID="phone-search-clear" hitSlop={10} onPress={() => props.onChange("")}>
+                <Icon name="X" size={15} color={colors.foregroundMuted} />
+              </Pressable>
+            ) : null}
           </View>
         </View>
       ) : null}

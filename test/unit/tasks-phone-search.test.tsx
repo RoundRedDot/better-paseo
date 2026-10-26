@@ -35,7 +35,7 @@ import { PhoneSearch } from "../../client/tasks/board/phone-search";
 
 let renderer: TestRenderer.ReactTestRenderer;
 const onChange = vi.fn();
-const element = (visible: boolean) => <PhoneSearch visible={visible} autoFocus={visible} query="" onChange={onChange} placeholder="Search tasks" theme={{ colors: {} } as never} />;
+const element = (visible: boolean, query = "") => <PhoneSearch visible={visible} autoFocus={visible} query={query} onChange={onChange} placeholder="Search tasks" clear="Clear search" theme={{ colors: {} } as never} />;
 const nodes = (id: string) => renderer.root.findAll(node => typeof node.type === "string" && node.props.testID === id);
 const panel = () => nodes("phone-search-reveal")[0]!;
 const last = () => motion.runs.at(-1)!;
@@ -47,12 +47,24 @@ beforeEach(() => {
   motion.reduced = false;
   motion.runs.length = 0;
   motion.layouts.mockClear();
+  onChange.mockClear();
 });
 afterEach(() => { act(() => renderer?.unmount()); });
 
 describe.each(["ios", "android", "web"])("phone search reveal (%s)", os => {
   beforeEach(() => { (globalThis as { __rnMockOS?: string }).__rnMockOS = os; });
   afterEach(() => { delete (globalThis as { __rnMockOS?: string }).__rnMockOS; });
+
+  it("shows a clear action only while the query has text", () => {
+    act(() => { renderer = TestRenderer.create(element(true)); });
+    expect(nodes("phone-search-clear")).toHaveLength(0);
+    act(() => renderer.update(element(true, "监控")));
+    expect(nodes("phone-search-clear")[0]!.props.accessibilityLabel).toBe("Clear search");
+    act(() => nodes("phone-search-clear")[0]!.props.onPress());
+    expect(onChange).toHaveBeenCalledExactlyOnceWith("");
+    act(() => renderer.update(element(true)));
+    expect(nodes("phone-search-clear")).toHaveLength(0);
+  });
 
   it("starts collapsed, measures before opening, and keeps the input through its exit", () => {
     act(() => { renderer = TestRenderer.create(element(false)); });
