@@ -36,7 +36,7 @@ import React, { createContext, memo, useContext, useEffect, useLayoutEffect, use
 import { Animated, Platform, View } from "react-native";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { MOTION } from "./board-style";
-import { inView, planLaneMotion, sameCards, sameOrder, scrollBack, type LaneMove, type MotionFrame, type Rect } from "./lane-motion-plan";
+import { inView, laneChurn, planLaneMotion, sameCards, sameOrder, scrollBack, type LaneMove, type MotionFrame, type Rect } from "./lane-motion-plan";
 
 const COVER = Platform.OS !== "web";
 /** JS-driven: the web's offsets are set from JS in the frame they belong to. */
@@ -466,24 +466,39 @@ function index(lanes: Record<LaneId, LaneModel>): { laneOf: Map<string, LaneId>;
  * once (search, sort): lanes that change with it take their new order without
  * motion, as a search would be slow to read if every keystroke slid the
  * cards. A filter is outside it, so its cards slide and fade.
+ *
+ * `churnLimit`: a change that brings more cards into lanes or takes more out
+ * than this shows at once, as a new scope does. Native covers every card on
+ * screen in the lanes that change with a copy, mounted with the new lanes and
+ * gone after them; with several lanes on screen (a tablet), a switch that
+ * adds or hides a card in every lane (the subtasks switch) doubled the cards
+ * that render and stalled the motion it was for.
  */
-export function useLaneMotion(lanes: Record<LaneId, LaneModel>, options: { enabled: boolean; scope: unknown; flights: boolean }): LaneMotionStore {
+export function useLaneMotion(lanes: Record<LaneId, LaneModel>, options: { enabled: boolean; scope: unknown; flights: boolean; churnLimit?: number }): LaneMotionStore {
   const [store] = useState(() => createLaneMotionStore(options.flights));
   const committed = useRef<{ lanes: Record<LaneId, LaneModel>; scope: unknown } | null>(null);
   const pending = useRef<{ lanes: Record<LaneId, LaneModel>; before: Snapshot } | null>(null);
-  const { enabled, scope } = options;
+  const skipped = useRef(false);
+  const { enabled, scope, churnLimit } = options;
   const last = committed.current;
   // While the new lanes render, the screen still shows the old ones: measure them now.
   if (enabled && last && last.lanes !== lanes && last.scope === scope && pending.current?.lanes !== lanes && !sameOrder(last.lanes, lanes, LANE_ORDER)) {
-    const before = store.snapshot(last.lanes);
-    store.freeze(before, last.lanes, lanes);
-    pending.current = { lanes, before };
+    if (churnLimit !== undefined && laneChurn(last.lanes, lanes, LANE_ORDER, churnLimit) > churnLimit) {
+      skipped.current = true;
+    } else {
+      const before = store.snapshot(last.lanes);
+      store.freeze(before, last.lanes, lanes);
+      pending.current = { lanes, before };
+    }
   }
   useLayoutEffect(() => {
     committed.current = { lanes, scope };
     const before = pending.current;
     pending.current = null;
     if (enabled && before && before.lanes === lanes) store.play(before.before, lanes);
+    // A motion still under way when a large change shows at once ends with it.
+    else if (skipped.current) store.settle();
+    skipped.current = false;
   }, [store, lanes, scope, enabled]);
   useEffect(() => {
     if (!enabled) store.settle();

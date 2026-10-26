@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inView, planLaneMotion, sameOrder, scrollBack, toward, type MotionFrame, type Rect } from "../../client/tasks/board/lane-motion-plan";
+import { inView, laneChurn, planLaneMotion, sameOrder, scrollBack, toward, type MotionFrame, type Rect } from "../../client/tasks/board/lane-motion-plan";
 import type { LaneId } from "../../client/tasks/model";
 
 const rect = (x: number, y: number, width = 300, height = 80): Rect => ({ x, y, width, height });
@@ -134,5 +134,26 @@ describe("sameOrder", () => {
     expect(sameOrder(lanes(["a", "b"], []), lanes(["a", "b"], []), order)).toBe(true);
     expect(sameOrder(lanes(["a", "b"], []), lanes(["b"], ["a"]), order)).toBe(false);
     expect(sameOrder(lanes(["a", "b"], []), lanes(["b", "a"], []), order)).toBe(false);
+  });
+});
+
+describe("laneChurn", () => {
+  const lanes = (running: string[], review: string[]) =>
+    ({
+      needs_input: { cards: [] },
+      running: { cards: running.map((id) => ({ id })) },
+      review: { cards: review.map((id) => ({ id })) },
+      done: { cards: [] },
+      archived: { cards: [] },
+    }) as Record<LaneId, { cards: { id: string }[] }>;
+  const order: LaneId[] = ["needs_input", "running", "review", "done"];
+  it("counts the cards that came into a lane or left it, a reorder as none", () => {
+    expect(laneChurn(lanes(["a", "b"], []), lanes(["b", "a"], []), order, 10)).toBe(0);
+    expect(laneChurn(lanes(["a", "b"], []), lanes(["b"], ["a"]), order, 10)).toBe(2);
+    expect(laneChurn(lanes(["a"], ["b"]), lanes(["a", "s1", "s2"], ["s3", "b"]), order, 10)).toBe(3);
+  });
+  it("stops counting past the limit", () => {
+    const many = Array.from({ length: 50 }, (_, index) => `s${index}`);
+    expect(laneChurn(lanes([], []), lanes(many, many.map((id) => `r${id}`)), order, 6)).toBe(50);
   });
 });

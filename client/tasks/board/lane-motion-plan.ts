@@ -143,6 +143,25 @@ export function sameOrder<Lane extends { cards: readonly { id: string }[] }>(lef
   return lanes.every((lane) => sameCards(left[lane].cards, right[lane].cards));
 }
 
+/**
+ * How many cards came into or left a lane between two boards: a card that
+ * changed lanes counts twice. Counting stops once it passes `limit`.
+ */
+export function laneChurn<Lane extends { cards: readonly { id: string }[] }>(left: Record<LaneId, Lane>, right: Record<LaneId, Lane>, lanes: readonly LaneId[], limit: number): number {
+  let churn = 0;
+  for (const lane of lanes) {
+    const before = left[lane].cards;
+    const after = right[lane].cards;
+    if (sameCards(before, after)) continue;
+    const was = new Set(before.map((card) => card.id));
+    const now = new Set(after.map((card) => card.id));
+    for (const id of now) if (!was.has(id)) churn++;
+    for (const id of was) if (!now.has(id)) churn++;
+    if (churn > limit) return churn;
+  }
+  return churn;
+}
+
 export function sameCards(a: readonly { id: string }[], b: readonly { id: string }[]): boolean {
   if (a === b) return true;
   if (a.length !== b.length) return false;
