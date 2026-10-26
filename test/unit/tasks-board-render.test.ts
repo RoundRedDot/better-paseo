@@ -107,7 +107,7 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
   };
 });
 
-import { Animated, StyleSheet, View } from "react-native";
+import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
 import { Modal } from "@getpaseo/plugin/client/react-native";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
@@ -964,9 +964,9 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("sidebar-groups").length).toBeGreaterThan(0);
     const mark = () => StyleSheet.flatten(hostsById("panel-mark-fill")[0]!.props.style);
     expect(mark()).toMatchObject({ width: 3.5, height: 7 });
-    // The switch hides it, and the lanes take the whole board.
+    // Closing disables the sidebar while its surface finishes fading out.
     act(() => renderer!.root.findByProps({ testID: "sidebar-switch" }).props.onPress());
-    expect(hostsById("sidebar-inline")).toHaveLength(0);
+    expect(hostsById("sidebar-slot")[0]!.props.pointerEvents).toBe("none");
     expect(lanesScroll().props.contentContainerStyle).toMatchObject({ width: 2000 });
     expect(readSidebarPreference().open).toBe(false);
     expect(mark()).toMatchObject({ width: 1.5, height: 7 });
@@ -979,34 +979,75 @@ describe("Tasks board, desktop", () => {
     const sidebar = StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style);
     const filters = StyleSheet.flatten(hostsById("filter-bar")[0]!.props.style);
     expect(sidebar.paddingLeft).toBe(10);
-    expect(sidebar.paddingRight + sidebar.marginRight).toBe(filters.paddingHorizontal);
+    expect(sidebar.paddingRight + sidebar.right).toBe(filters.paddingHorizontal);
     expect(sidebar.width - sidebar.paddingLeft - sidebar.paddingRight).toBe(366);
     expect(lanesScroll().props.contentContainerStyle.width).toBe(2000 - 380 - 12);
   });
 
-  it("animates the inline sidebar surface and cards together on each opening", () => {
+  it("keeps the whole sidebar mounted through closing and reverses an interrupted transition", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
-    const timing = vi.spyOn(Animated, "timing");
+    const timing = vi.spyOn(Animated, "timing").mockImplementation((value, config) => {
+      let timer: ReturnType<typeof setTimeout>;
+      return {
+        start: (done) => { timer = setTimeout(() => { (value as Animated.Value).setValue(config.toValue as number); done?.({ finished: true }); }, config.duration); },
+        stop: () => clearTimeout(timer),
+        reset: () => clearTimeout(timer),
+      };
+    });
     try {
       act(() => { renderer = TestRenderer.create(screen(false)); });
       layOut(2000);
-      for (let round = 0; round < 2; round++) {
-        const panel = hostsById("sidebar-inline")[0]!;
-        const style = StyleSheet.flatten(panel.props.style);
-        expect(panel.type).toBe("Animated.View");
-        expect(style.opacity).toBeDefined();
-        expect(timing).toHaveBeenCalledWith(style.opacity, expect.objectContaining({ toValue: 1, duration: 180 }));
-        expect(timing).toHaveBeenCalledWith(style.transform[0].translateX, expect.objectContaining({ toValue: 0, duration: 180 }));
-        expect(panel.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-stats")).toHaveLength(1);
-        expect(panel.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-groups")).toHaveLength(1);
-        act(() => hostsById("sidebar-switch")[0]!.props.onPress());
-        expect(hostsById("sidebar-inline")).toHaveLength(0);
-        expect(hostsById("sidebar-stats")).toHaveLength(0);
-        expect(hostsById("sidebar-groups")).toHaveLength(0);
-        act(() => hostsById("sidebar-switch")[0]!.props.onPress());
-      }
+      const panel = hostsById("sidebar-inline")[0]!;
+      const stats = hostsById("sidebar-stats")[0]!;
+      const progress = timing.mock.calls.find(([, config]) => config.toValue === 1 && config.duration === 240)![0] as Animated.Value;
+      act(() => { vi.advanceTimersByTime(240); });
+      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+      expect(hostsById("sidebar-inline")[0]).toBe(panel);
+      expect(hostsById("sidebar-stats")[0]).toBe(stats);
+      expect(hostsById("sidebar-slot")[0]!.props).toMatchObject({ pointerEvents: "none", "aria-hidden": true });
+      expect(timing).toHaveBeenCalledWith(progress, expect.objectContaining({ toValue: 0, duration: 180 }));
+      act(() => { vi.advanceTimersByTime(90); progress.setValue(0.5); });
+      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+      expect(hostsById("sidebar-inline")[0]).toBe(panel);
+      expect(hostsById("sidebar-stats")[0]).toBe(stats);
+      expect(hostsById("sidebar-slot")[0]!.props.pointerEvents).toBe("auto");
+      expect((progress as unknown as { __value: number }).__value).toBe(0.5);
+      expect(timing).toHaveBeenCalledWith(progress, expect.objectContaining({ toValue: 1, duration: 240 }));
+      act(() => { vi.advanceTimersByTime(240); });
+      expect(hostsById("sidebar-inline")[0]).toBe(panel);
+      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+      act(() => { vi.advanceTimersByTime(179); });
+      expect(hostsById("sidebar-inline")).toHaveLength(1);
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(hostsById("sidebar-slot")).toHaveLength(0);
+      expect(hostsById("sidebar-stats")).toHaveLength(0);
+      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+      expect(hostsById("sidebar-inline")).toHaveLength(1);
     } finally {
       timing.mockRestore();
+    }
+  });
+
+  it("finishes the sidebar transition immediately when reduced motion is enabled", async () => {
+    let onReduce: (enabled: boolean) => void = () => {};
+    const addListener = AccessibilityInfo.addEventListener;
+    const subscription = vi.spyOn(AccessibilityInfo, "addEventListener").mockImplementation(((name: string, listener: (enabled: boolean) => void) => {
+      if (name === "reduceMotionChanged") onReduce = listener;
+      return addListener("reduceMotionChanged", listener);
+    }) as typeof AccessibilityInfo.addEventListener);
+    try {
+      await act(async () => { renderer = TestRenderer.create(screen(false)); });
+      layOut(2000);
+      act(() => onReduce(true));
+      expect(StyleSheet.flatten(hostsById("sidebar-slot")[0]!.props.style).width).toBe(392);
+      expect(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style)).toMatchObject({ opacity: 1, transform: [{ translateX: 0 }] });
+      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+      expect(hostsById("sidebar-slot")).toHaveLength(0);
+      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+      expect(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).opacity).toBe(1);
+    } finally {
+      act(() => onReduce(false));
+      subscription.mockRestore();
     }
   });
 
@@ -1025,6 +1066,10 @@ describe("Tasks board, desktop", () => {
       act(() => { renderer = TestRenderer.create(screen(false)); });
       layOut(2000);
       const handle = hostsById("sidebar-resize")[0]!;
+      const panel = StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style);
+      const handleStyle = StyleSheet.flatten(handle.props.style);
+      expect(handleStyle.left).toBe(0);
+      expect(handleStyle.width).toBeLessThanOrEqual(panel.paddingLeft);
       expect(handle.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-resize-grabber")).toHaveLength(1);
       act(() => handle.props.onPointerDown({ nativeEvent: { pageX: 1000, clientY: 200 } }));
       act(() => listeners.get("pointermove")!({ pageX: 950, clientY: 200 }));
