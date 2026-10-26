@@ -70,10 +70,10 @@ function NativeSubtaskPanel({ expanded, still, children }: PanelProps) {
       pointerEvents={expanded ? "auto" : "none"}
       accessibilityElementsHidden={!expanded}
       importantForAccessibility={expanded ? "auto" : "no-hide-descendants"}
-      style={{ flexShrink: 0, overflow: "hidden", height: expanded ? undefined : 0, opacity }}
+      style={{ flexShrink: 0, marginHorizontal: -6, overflow: "hidden", height: expanded ? undefined : 0, opacity }}
     >
       {expanded || present ? (
-        <View style={{ flexShrink: 0 }}>{children}</View>
+        <View style={{ flexShrink: 0, marginHorizontal: 6 }}>{children}</View>
       ) : null}
     </Animated.View>
   );
@@ -104,6 +104,7 @@ function WebSubtaskPanel({ expanded, still, children }: PanelProps) {
       aria-hidden={!expanded || undefined}
       style={{
         flexShrink: 0,
+        marginHorizontal: -6,
         overflow: "hidden",
         height: expanded && natural ? undefined : visible ? height! : 0,
         opacity: visible ? 1 : 0,
@@ -116,7 +117,7 @@ function WebSubtaskPanel({ expanded, still, children }: PanelProps) {
         <View
           testID="task-card-subtasks-measure"
           onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
-          style={natural ? undefined : { position: "absolute", top: 0, left: 0, right: 0 }}
+          style={[{ marginHorizontal: 6 }, natural ? undefined : { position: "absolute", top: 0, left: 0, right: 0 }]}
         >
           {children}
         </View>
