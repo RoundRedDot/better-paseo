@@ -51,6 +51,19 @@ vi.mock("@getpaseo/plugin/client", async (original) => ({
   useRpc: () => folder.reveal,
 }));
 
+// A test can stand in for a desktop's fine pointer, which hovers.
+const pointer = vi.hoisted(() => ({ hover: false }));
+vi.mock("../../client/ui/use-input-capabilities", async (original) => {
+  const actual = await original<typeof import("../../client/ui/use-input-capabilities")>();
+  return {
+    ...actual,
+    useInputCapabilities: (compact?: boolean) => {
+      const capabilities = actual.useInputCapabilities(compact);
+      return pointer.hover ? { ...capabilities, hover: true } : capabilities;
+    },
+  };
+});
+
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}), show: vi.fn(), error: vi.fn() }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const react = await import("react");
@@ -262,6 +275,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  pointer.hover = false;
   if (renderer) {
     const current = renderer;
     await act(async () => current.unmount());
@@ -2821,6 +2835,32 @@ describe("TaskDetailCards", () => {
 
     await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt, lastMessage: { prompt: { state: "none" }, load } }, "zh")));
     expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["最后回复消息", "任务暂无回复"]);
+  });
+
+  it("opens a file link in the first prompt, sent message and reply on the daemon instead of copying its path", async () => {
+    pointer.hover = true;
+    const card = sample("sample-failed");
+    const load = vi.fn();
+    const read = (text: string) => ({ prompt: { state: "ready", text } as const, load });
+    const tree = await render(details(card, {
+      firstPrompt: read("Plan in [the spec](/repo/docs/spec.md)"),
+      humanMessage: read("See [notes](/repo/notes.md)"),
+      lastMessage: read("[判断依据与交付记录](/repo/docs/delivery.md) and [the PR](https://example.com/pr/1)"),
+    }, "zh"));
+    // The prose's links, in order, as its native text reports a press.
+    const press = (id: string, index: number) => act(async () => hostByTestId(tree.root, id).findByType("EnrichedMarkdownText" as never).props.onLinkPress({ nativeEvent: { url: `bc-prose://${index}` } }));
+    for (const [id, path] of [["detail-prompt", "/repo/docs/spec.md"], ["detail-human", "/repo/notes.md"], ["detail-message", "/repo/docs/delivery.md"]] as const) {
+      await press(id, 0);
+      expect(folder.reveal).toHaveBeenLastCalledWith({ cwd: card.location.cwd, path });
+    }
+    expect(clipboard.copyText).not.toHaveBeenCalled();
+    // A web link still opens in the browser.
+    await press("detail-message", 1);
+    expect(opened.openLink).toHaveBeenLastCalledWith("https://example.com/pr/1");
+
+    folder.reveal.mockResolvedValueOnce({ revealed: null, error: "not found" });
+    await press("detail-message", 0);
+    expect(clipboard.error).toHaveBeenLastCalledWith("打开链接失败：not found");
   });
 
   it("flashes the reply's box once each time the shown card's reply moves", async () => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
@@ -1312,6 +1312,22 @@ function TimelineTextBody(props: Inner & {
   const breathing = useBreathing(first?.prompt.state === "loading");
   const changes = useTextChanges(props.card.id, props.flash === true && first?.prompt.state === "ready" ? first.prompt.text : null);
   const flashOpacity = useFlash(changes, 0, 1);
+  // A file link opens in its default app (a folder in Finder) on the daemon's
+  // machine, as the chat's do, instead of copying its path.
+  const revealPath = useRpc(revealPathRpc);
+  const toast = useToast();
+  // Kept the same across renders: a new one would draw the prose again.
+  const reveal = useRef({ revealPath, toast, words, cwd: props.card.location.cwd });
+  reveal.current = { revealPath, toast, words, cwd: props.card.location.cwd };
+  const onRevealPath = useCallback((path: string) => {
+    const { revealPath: open, toast: notice, words: text, cwd } = reveal.current;
+    const fail = (error: string) => notice.error(text.openLinkError(error));
+    open({ cwd, path })
+      .then((result) => {
+        if (result.error) fail(result.error);
+      })
+      .catch((error: unknown) => fail(error instanceof Error ? error.message : String(error)));
+  }, []);
   if (!first) return null;
   const font = Math.round((props.touch ? 15 : 13) * adjustment);
   const small = props.touch ? 14 : 12;
@@ -1346,7 +1362,7 @@ function TimelineTextBody(props: Inner & {
           <Animated.View pointerEvents="none" testID={`${id}-flash`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }} />
         ) : null}
         <View style={folded ? { maxHeight: PROMPT_LINES * line, overflow: "hidden" } : null} testID={`${id}-text`}>
-          <MarkdownView text={text} tokens={prose} variant={PROSE} size={font} />
+          <MarkdownView text={text} tokens={prose} variant={PROSE} size={font} onRevealPath={onRevealPath} />
           {folded ? (
             // A heading or code block cuts the last line anywhere: fade it out.
             <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: line, flexDirection: "column" }}>
