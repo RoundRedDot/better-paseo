@@ -4,16 +4,26 @@ import { StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyl
 interface ActionSize {
   full: number;
   icon: number;
+  /** The row's main answer (Allow): its label goes only after every other one. */
+  keep?: boolean;
 }
 
-/** Drop whole labels from left to right; never truncate a word or shrink an icon. */
+/**
+ * Drop whole labels from left to right, the main answer's last; never truncate
+ * a word or shrink an icon.
+ */
 export function actionIconOnly(width: number, sizes: readonly ActionSize[], gap: number): boolean[] {
   let total = sizes.reduce((sum, size) => sum + size.full, 0) + Math.max(0, sizes.length - 1) * gap;
-  return sizes.map((size) => {
-    if (total <= width + 0.5 || size.full <= size.icon) return false;
-    total -= size.full - size.icon;
-    return true;
-  });
+  const folded = sizes.map(() => false);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let index = 0; index < sizes.length; index++) {
+      const size = sizes[index]!;
+      if ((size.keep === true) !== (pass === 1) || total <= width + 0.5 || size.full <= size.icon) continue;
+      total -= size.full - size.icon;
+      folded[index] = true;
+    }
+  }
+  return folded;
 }
 
 type Entry = ActionSize & { id: string; index: number };
@@ -49,8 +59,11 @@ export function ActionRow(props: { children: ReactNode; gap?: number; style?: St
   );
 }
 
-/** Measure the untruncated label once per text/typography change, retaining it while icon-only. */
-export function useActionFit(label: string, typography: string, iconWidth: number, chromeWidth: number, square = false) {
+/**
+ * Measure the untruncated label once per text/typography change, retaining it
+ * while icon-only. `keep` marks the row's main answer, folded last.
+ */
+export function useActionFit(label: string, typography: string, iconWidth: number, chromeWidth: number, square = false, keep = false) {
   const context = useContext(ActionContext);
   const id = useId();
   const key = `${label}|${typography}`;
@@ -60,8 +73,8 @@ export function useActionFit(label: string, typography: string, iconWidth: numbe
   const register = context?.register;
   const index = context?.index ?? 0;
   useLayoutEffect(() => {
-    if (register && full !== null) return register({ id, index, full, icon: iconWidth });
-  }, [register, id, index, full, iconWidth]);
+    if (register && full !== null) return register({ id, index, full, icon: iconWidth, keep });
+  }, [register, id, index, full, iconWidth, keep]);
   const iconOnly = square || (full !== null && context?.folded.has(id) === true);
   const labelLayout = context ? (event: LayoutChangeEvent) => {
     const width = Math.ceil(event.nativeEvent.layout.width);
