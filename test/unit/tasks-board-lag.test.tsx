@@ -27,9 +27,9 @@ describe("useLaggedWhile", () => {
     act(() => renderer!.update(<Probe value={3} lag />));
     act(() => renderer!.update(<Probe value={4} lag />));
     expect(seen.at(-1)).toBe(2);
-    act(() => vi.advanceTimersByTime(179));
+    act(() => { vi.advanceTimersByTime(179); });
     expect(seen.at(-1)).toBe(2);
-    act(() => vi.advanceTimersByTime(1));
+    act(() => { vi.advanceTimersByTime(1); });
     expect(seen.at(-1)).toBe(4);
 
     // Closing the panel shows the latest at once, and the wait it cut short sends nothing later.
@@ -37,7 +37,7 @@ describe("useLaggedWhile", () => {
     act(() => renderer!.update(<Probe value={6} lag={false} />));
     expect(seen.at(-1)).toBe(6);
     const renders = seen.length;
-    act(() => vi.advanceTimersByTime(500));
+    act(() => { vi.advanceTimersByTime(500); });
     expect(seen.length).toBe(renders);
     act(() => renderer!.unmount());
   });
