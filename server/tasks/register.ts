@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
-import { access, stat } from "node:fs/promises";
-import { delimiter, join } from "node:path";
+import { access, readFile, realpath, stat } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { delimiter, dirname, join } from "node:path";
 import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
@@ -20,7 +21,13 @@ const LABELS_TIMEOUT_MS = 10_000;
 
 type CliStopOutput = { stoppedCount: number; agentIds: string[] };
 
-let cliPathPromise: Promise<string | null> | null = null;
+/** How to run the Paseo CLI: an executable, or this process's Node with the CLI's script. */
+interface CliCommand {
+  command: string;
+  args: string[];
+}
+
+let cliPromise: Promise<CliCommand | null> | null = null;
 
 async function isExecutableFile(path: string): Promise<boolean> {
   try {
@@ -33,21 +40,83 @@ async function isExecutableFile(path: string): Promise<boolean> {
   }
 }
 
-async function findCliPath(): Promise<string | null> {
+async function packageVersion(path: string): Promise<string | null> {
+  try {
+    const version = (JSON.parse(await readFile(path, "utf8")) as { version?: unknown }).version;
+    return typeof version === "string" ? version : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The version of the `@getpaseo/server` package holding `file`, read from the nearest such package.json above it. */
+async function serverVersion(file: string): Promise<string | null> {
+  let directory = dirname(await realpath(file).catch(() => file));
+  for (;;) {
+    try {
+      const manifest = JSON.parse(await readFile(join(directory, "package.json"), "utf8")) as { name?: unknown; version?: unknown };
+      if (manifest.name === "@getpaseo/server") return typeof manifest.version === "string" ? manifest.version : null;
+    } catch {
+      // No package.json here, or not one we can read: keep climbing.
+    }
+    const parent = dirname(directory);
+    if (parent === directory) return null;
+    directory = parent;
+  }
+}
+
+/**
+ * The CLI installed with the daemon running this plugin, found as the daemon
+ * finds its own (`resolvePaseoCliExecutablePath` in `@getpaseo/server`'s
+ * terminal.js): the plugin process runs from `@getpaseo/server`'s
+ * `plugin-process.js` (`process.argv[1]`), so `@getpaseo/cli` resolves from
+ * there in an npm prefix or global install. A daemon started from such a CLI
+ * sets no `PASEO_CLI`, and its bin is often not on `PATH`. A CLI of another
+ * version than the daemon's belongs to some other install and is left alone.
+ * The bin is a Node script: it runs with this process's Node, as its shebang
+ * would run it with whichever `node` is first on `PATH`.
+ */
+async function hostCli(entry: string | undefined): Promise<CliCommand | null> {
+  if (!entry) return null;
+  let bin: string;
+  try {
+    bin = createRequire(entry).resolve("@getpaseo/cli/bin/paseo");
+  } catch {
+    return null;
+  }
+  try {
+    if (!(await stat(bin)).isFile()) return null;
+  } catch {
+    return null;
+  }
+  const cli = await packageVersion(join(dirname(bin), "..", "package.json"));
+  const daemon = await serverVersion(entry);
+  if (!cli || !daemon || cli !== daemon) return null;
+  // The bin's own shebang flag, where this Node knows it.
+  const quiet = process.allowedNodeEnvironmentFlags.has("--disable-warning") ? ["--disable-warning=DEP0040"] : [];
+  return { command: process.execPath, args: [...quiet, bin] };
+}
+
+/** `PASEO_CLI` (Paseo desktop sets it), then `paseo` on `PATH`, then the CLI installed with this daemon. */
+async function findCli(): Promise<CliCommand | null> {
   const configured = process.env.PASEO_CLI;
-  if (configured && (await isExecutableFile(configured))) return configured;
+  if (configured && (await isExecutableFile(configured))) return { command: configured, args: [] };
 
   for (const entry of (process.env.PATH ?? "").split(delimiter)) {
     const candidate = join(entry || process.cwd(), "paseo");
-    if (await isExecutableFile(candidate)) return candidate;
+    if (await isExecutableFile(candidate)) return { command: candidate, args: [] };
   }
 
-  return null;
+  return await hostCli(process.argv[1]);
 }
 
-function resolveCliPath(): Promise<string | null> {
-  if (!cliPathPromise) cliPathPromise = findCliPath().catch(() => null);
-  return cliPathPromise;
+function resolveCli(): Promise<CliCommand | null> {
+  if (!cliPromise) cliPromise = findCli().catch(() => null);
+  return cliPromise;
+}
+
+function runCli(cli: CliCommand, args: string[], timeout: number) {
+  return execCommand(cli.command, [...cli.args, ...args], { timeout, env: process.env });
 }
 
 function isCliStopOutput(value: unknown): value is CliStopOutput {
@@ -72,14 +141,11 @@ function cliErrorMessage(error: unknown, doing = "stopping", verb = "stop"): str
   return `Paseo CLI failed to ${verb} the agent.`;
 }
 
-async function stopAgent(cli: string, agentId: string): Promise<{ ok: boolean; error: string | null }> {
+async function stopAgent(cli: CliCommand, agentId: string): Promise<{ ok: boolean; error: string | null }> {
   if (!AGENT_ID_PATTERN.test(agentId)) return { ok: false, error: "Invalid agent ID." };
 
   try {
-    const { stdout } = await execCommand(cli, ["agent", "stop", agentId, "--json"], {
-      timeout: STOP_TIMEOUT_MS,
-      env: process.env,
-    });
+    const { stdout } = await runCli(cli, ["agent", "stop", agentId, "--json"], STOP_TIMEOUT_MS);
 
     let output: unknown;
     try {
@@ -94,15 +160,12 @@ async function stopAgent(cli: string, agentId: string): Promise<{ ok: boolean; e
   }
 }
 
-async function unarchiveAgent(cli: string, agentId: string): Promise<{ ok: boolean; error: string | null }> {
+async function unarchiveAgent(cli: CliCommand, agentId: string): Promise<{ ok: boolean; error: string | null }> {
   if (!AGENT_ID_PATTERN.test(agentId)) return { ok: false, error: "Invalid agent ID." };
 
   try {
     // A reload interrupts a live agent: only an archived one is reloaded.
-    const { stdout } = await execCommand(cli, ["agent", "inspect", agentId, "--json"], {
-      timeout: STOP_TIMEOUT_MS,
-      env: process.env,
-    });
+    const { stdout } = await runCli(cli, ["agent", "inspect", agentId, "--json"], STOP_TIMEOUT_MS);
     let inspected: unknown;
     try {
       inspected = JSON.parse(stdout);
@@ -113,10 +176,7 @@ async function unarchiveAgent(cli: string, agentId: string): Promise<{ ok: boole
     if (typeof archived !== "boolean") return { ok: false, error: "Paseo CLI returned an unexpected response." };
     if (!archived) return { ok: true, error: null };
 
-    await execCommand(cli, ["agent", "reload", agentId, "--json"], {
-      timeout: UNARCHIVE_TIMEOUT_MS,
-      env: process.env,
-    });
+    await runCli(cli, ["agent", "reload", agentId, "--json"], UNARCHIVE_TIMEOUT_MS);
     return { ok: true, error: null };
   } catch (error) {
     return { ok: false, error: cliErrorMessage(error, "unarchiving", "unarchive") };
@@ -292,7 +352,7 @@ export function registerTasksServer(
   server.handle(tasksSubagentsRpc, async ({ since }, context) => subagents.read(context?.paseo, since));
   server.handle(tasksSubagentTimelineRpc, (input) => readSubagentTimeline(host, input));
   server.handle(tasksChunkRpc, ({ id }) => ({ code: TASKS_CHUNK?.id === id ? TASKS_CHUNK.code : null }));
-  server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCliPath()) !== null, read: host.available() }));
+  server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCli()) !== null, read: host.available() }));
   server.handle(tasksReadRpc, async ({ agentIds }) => {
     const result = await markRead(host, agentIds);
     if (result.ok) for (const agentId of agentIds) await reads.mark(agentId);
@@ -304,7 +364,7 @@ export function registerTasksServer(
     reads: (await reads.list()).map(({ agentId, stoppedAt }) => ({ agentId, readAt: stoppedAt })),
   }));
   server.handle(tasksStopRpc, async ({ agentIds }) => {
-    const cli = await resolveCliPath();
+    const cli = await resolveCli();
     const results: Array<{ agentId: string; ok: boolean; error: string | null }> = [];
 
     for (const agentId of agentIds) {
@@ -321,7 +381,7 @@ export function registerTasksServer(
     return { results };
   });
   server.handle(tasksUnarchiveRpc, async ({ agentId }) => {
-    const cli = await resolveCliPath();
+    const cli = await resolveCli();
     if (!cli) return { ok: false, error: "Paseo CLI is unavailable." };
     return await unarchiveAgent(cli, agentId);
   });
