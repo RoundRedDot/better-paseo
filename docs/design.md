@@ -2,6 +2,8 @@
 
 The design rules for everything the plugin draws: the chat timeline, block details, the Tasks board and the settings page. Numbers are points at the default text size and come from the code they name; when one changes, change it here in the same commit. What the board does and why lives in [tasks-board.md](tasks-board.md).
 
+UI and interaction rules last reconciled with the code on 2026-10-26, through `589ead2b`.
+
 ## Foundations
 
 The plugin draws two families of surface: the chat timeline with its block details and settings
@@ -22,6 +24,7 @@ constants. Moving a constant from one family to the other is a design change, no
   with `taskControlHeight(h, scale)`, `round(h × max(1, scale))`: controls grow with large text and
   never shrink below their authored size.
 - Chat chrome is never drawn below 12. Only block text that the reader sets below 12 goes lower.
+  The board's small count badges are a separate exception: see [Toolbars](#toolbars).
 - The iPad floating sidebar is the one place the board scales type down (×0.9 through
   `TasksTypographyScale`); its targets still use `max(1, scale)`.
 - Lane titles are base 14/20 on the web and sm 12/18 on native (`laneTitle`). Board monospace is
@@ -41,8 +44,9 @@ constants. Moving a constant from one family to the other is a design change, no
 
 ### Surfaces and states
 
-A state is a mix into the surface under it (`mix(from, to, t)`), never a translucent overlay, so
-it reads the same on any card. The board's card surface is `surface0` on a light theme and
+A resting, hover or selection state is a mix into the surface under it (`mix(from, to, t)`),
+so it reads the same on any card. The transient lane/reply flash uses an animated accent overlay
+(`useFlash`), and text-edge fades use bands of the underlying fill. The board's card surface is `surface0` on a light theme and
 `surface2` on a dark one (`cardTokens`, `client/tasks/cards/tokens.ts`).
 
 | Token | Mix | Light / dark | Used for |
@@ -81,6 +85,8 @@ rule: put its movement behind `motionDuration` and keep at most a short fade.
 | Count roll (`RollingCount`) | 300, 6 pt | | new value at once |
 | Lane resize, strip swap | 220, 160 | | resize snaps; the swap's opacity fade stays |
 | Lane flash | two pulses, 600 in and 800 out, accent 7% at peak | cosine | one still beat of 1 s |
+| Latest reply changed (`useFlash`) | one pulse, 600 in and 800 out, accent 7% at peak | cosine | one still beat of 1 s |
+| Inline Tasks sidebar | open 240, close 180; slot width, opacity and 8 pt slide together | `MOTION.ease` | snaps |
 | Phone lane switch | in 200, out 120, 24 pt | | none |
 | Phone search; card subtask panel | 180; open 180, close 140 | `MOTION.ease`; out cubic | snaps |
 | Board sheet | open 280, detent 240, settle and close 200 | | 0 |
@@ -382,7 +388,7 @@ teal, red, amber, blue). Each set has its own job; taking the wrong one is the m
 | Label | Paseo's bright identity set, by the label's colour name; the daemon's definitions come through `tasks.labels` | as listed in `LABEL_COLORS` | same |
 | Label the daemon gives no colour | a Linear label colour, picked by name, distinct until the 10 run out (`client/tasks/label-colors.ts`) | | |
 | Project icon | Paseo's base identity set, hashed from the project key as Paseo does | | |
-| Subtask corner mark | grey at rest (`foregroundMuted` 50%); while the card is hovered, chosen in the sidebar or focused, the project icon's theme colour: an uploaded icon's most common lively colour (else its most common colour that is not white), read by the server in `tasks.project-icons` (`server/tasks/icon-color.ts`), or a generated square's identity colour, pulled to 3:1 against the card so a black logo shows on a dark card, and a grey hue on to 3.5:1 against the resting grey so turning active shows (a black logo is near white on a dark card). A short arc around a subtask card's top-right corner like an iPad window's resize grip: centre-line radius 10 pt, stroke 2.5 pt with round ends, 3.5 pt in from both edges (`CornerMark` and `MARK_ARC` in `task-card.tsx`); the context ring keeps its place, and a provider subagent's card is dashed instead | full | full |
+| Subtask corner mark | grey at rest (`foregroundMuted` mixed 50% into the card); while the card is hovered, chosen in the sidebar or focused, the project icon's theme colour: an uploaded icon's most common lively colour (else its most common colour that is not white), read by the server in `tasks.project-icons` (`server/tasks/icon-color.ts`), or a generated square's identity colour, pulled to 3:1 against the card so a black logo shows on a dark card, and a grey hue on to 3.5:1 against the resting grey so turning active shows (a black logo is near white on a dark card). Geometry follows [Card](#card); provider subagent cards carry the dot as well as their dashed frame | full | full |
 | Provider | the vendor's brand colour (`client/components/provider-logo.tsx`); a monochrome mark takes `foreground` | | |
 | Branch | the plugin's own (GitHub's link blue); Paseo has none | `#0969da` | `#4493f8` |
 | Archive | the plugin's own (Tailwind yellow), kept clear of the warning orange | `#eab308` | `#facc15` |
@@ -515,6 +521,13 @@ context menu too. Mark read takes Stop's place for a card in review, in the unre
 (plain on a failed card). "Answer" stands in for Open tab, which then is not drawn beside it.
 The details may add only status hints such as "Already open".
 
+Stop is available only when the host can perform it, including on phone cards. A parent task's
+split Stop control offers Stop only this task (`Power`) and Stop with subtasks (the tree glyph
+and child count); keep the selected scope in its confirmation. The phone's menu opens above the
+button. Native mounts it in a transparent `Modal`, measures the button in that viewport and
+clamps the menu 8 pt inside its edges, so later cards cannot cover it. Other native layouts
+prefer below and flip above when needed; web anchors below outside the phone layout.
+
 ### Layout and narrow widths
 
 The same rule applies to card actions (desktop hover, tablet and phone), the details sidebar,
@@ -619,7 +632,7 @@ width. Do not give the jump target a full-height column of its own.
 | Content column | `flex: 1`, `minWidth: 0`; 2 pt between title and metadata |
 | Title | `HOST_FONT.sm` / `HOST_LINE.smRead`; one line, tail ellipsis; leading tag or issue ID muted |
 | Metadata | `HOST_FONT.sm` / `HOST_LINE.smRead`, 12 pt icons and context ring; one line below the title with 10 pt column gaps; remaining long text uses tail ellipsis |
-| Row | 8 pt column gaps, 6 pt horizontal padding, radius 6 |
+| Row | 8 pt column gaps, 6 pt horizontal padding with −6 pt horizontal margins, radius 6; content aligns with its container while the hover fill extends 6 pt on each side |
 
 Touch changes targets and vertical spacing, not the content or icon rules:
 
@@ -640,9 +653,10 @@ corner. Keep both visible; a standalone status icon does not identify the child.
 
 | Child kind | Identity |
 | --- | --- |
-| Ordinary Paseo agent | Agent brand through `BrandMark` |
-| Provider-native subagent (`kind: "provider"`) | Type/tool icon through `subagentTypeIcon`, not the parent agent's brand |
+| Ordinary Paseo agent | Agent brand through `BrandMark`; `Bot` when no provider is supplied |
+| Provider-native subagent (`kind: "provider"`) | Agent brand through `BrandMark`, with the same status overlay; `Bot` when no provider is supplied |
 
+The provider subagent's type icon leads its secondary facts, even with no subtitle.
 Reuse the existing mapping in `client/tasks/subagent-type.ts`; do not copy it into
 individual surfaces or infer a type from the task's description:
 
@@ -656,7 +670,7 @@ individual surfaces or infer a type from the task's description:
 | `claude`, custom, missing or unknown type | `Bot` |
 
 Type matching ignores case and surrounding spaces and works without a subtitle.
-These are subagent type icons, not the icons of tools the subagent is executing.
+These secondary icons describe the subagent type, not the tools it is executing.
 The same identity keeps its running or needs-input ring, unread or failed dot,
 finished check, or archived box as its state changes.
 
@@ -679,7 +693,7 @@ to make more room for metadata.
 
 | Information | Rendering |
 | --- | --- |
-| Provider subagent facts | `subagentFacts(...).text`; preserve the supplied facts, without repeating the leading type icon |
+| Provider subagent facts | `subagentTypeIcon` followed by `subagentFacts(...).text`; preserve the supplied facts and keep the type icon even when the text is absent |
 | Model | Model label, including when siblings use the same model |
 | Thinking level | `Brain` followed by the supplied full level when it fits, otherwise the lowercase [thinking level label](#thinking-level-labels); retain the supplied full accessibility label |
 | Permission/mode | `modeIcon` followed by the mode label; `ShieldOff` uses the warning colour |
@@ -749,7 +763,7 @@ button, avoiding nested button markup.
 - Compare rendered rows through the card, sidebar and mobile-sheet entry points,
   including sparse data, completed rows and provider subagents without subtitles.
 - Seed real `MARK_BITMAPS` through `seedMarkBitmaps` in offline previews. Check
-  decoded brand images or mapped type icons together with their status overlays;
+  decoded brand images with their status overlays and the secondary type icons;
   mounting an empty image slot is not visual proof.
 - Check long titles, enlarged interface text, light/dark themes, hover stability,
   full-to-abbreviated-to-full thinking transitions, rows without a permission mode,
@@ -785,8 +799,16 @@ apply to all three.
   centred in the status icon slot, so the meta text and the title start at the same x.
 - The meta row is one muted line, segments joined by a spaced `›`; the context ring ends it, or
   ends the title row when there is no meta row. On a phone the ring shows only above 80%.
-- A provider subagent's card is dashed (1 pt) and keeps the resting shadow; a subtask card carries the
-  [corner arc](#data-colours).
+  The ring's centre is equally inset from the top and right edges (`ringNudge`), on the corner's
+  diagonal. When the meta row shares a ring, overflowing text clips under a 20 pt fade in 10
+  bands of the current card fill (`META_FADE`), rather than ending in an ellipsis. Show the fade
+  only when text no longer fits; keep the archived tag outside it with a 6 pt gap. Without a
+  meta-row ring, keep tail ellipsis. The parent link gives up width before project/workspace text.
+- Every card with a parent, provider subagents included, carries a decorative top-right dot:
+  diameter 3.5, centre 8.75 from the top and right, leaving 7 clear to each straight border
+  (`CornerMark`, `MARK_DOT`). Its colour follows [Data colours](#data-colours); it takes no
+  pointer events and is hidden from assistive technology. A provider subagent's card also has
+  a dashed 1 pt frame and keeps the resting shadow. All cards retain radius 8.
 - A new card fades in (120 after 120); a highlighted one keeps its accent fill and border for 1 s.
 - Actions by layout: on the desktop board they fade in on hover with the preview entrance, as an
   overlay on the footer backed by the card's fill, and the footer keeps the buttons' height, so
@@ -818,6 +840,26 @@ apply to all three.
 | Tablet (`TabletToolbar`) | 56, 36 when narrower than 680 | 44, 28 when narrow | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when on or hovered |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
+- Wide desktop: the top row ends with Show groups with no active tasks, then the sidebar
+  switch. The filter bar's right side orders Collapse empty lanes, Subtasks, Archived, Lane
+  width, Time range, then Sort. Agent, Project and Workspace menus also offer the empty-groups
+  switch at their foot; Labels does not. When the filter bar folds into the header, keep
+  Collapse empty lanes, Archived, Filters and the sidebar switch in that order; the filter
+  panel owns the remaining choices. If the header's measured action slot cannot fit, fold its
+  view actions into View while keeping Filters separately reachable.
+- Tablet: keep at most three buttons on the right. From `680 * max(1, scale)` they are Filters,
+  View and Sidebar; below that they are Subtasks, Filters and View. The View menu orders
+  Collapse empty lanes, Subtasks, Archived and Sidebar after its layout choices; empty groups
+  belongs only in the filter panel. The menu is at most 230 wide, with 44 pt rows and in-panel
+  drill-down. Below `560 * max(1, scale)`, Search expands in the header, hides the total and
+  keeps the right actions available. From `1000 * max(1, scale)`, Filters and View show labels
+  together. If the noncompact action slot cannot fit Filters beside View, View includes Filters.
+- Tablet filter counts and the Subtasks switch's hidden-card count use `CornerBadge`: bottom
+  right, `foregroundMuted` fill, `surface0` text and 1 pt ring, at least 12 high, 8/10 weight-600
+  tabular text; nothing at zero and `99+` above 99. Subtasks counts only cards in Needs input,
+  Running and Review excluded by hiding subtasks under the other current filters; Done and
+  Archived do not contribute. This badge appears only while subtasks are hidden, including on
+  the phone and desktop switches. The phone/desktop Filters badge retains its accent treatment.
 - Round buttons (`RoundButton`) are a 36 circle in a 44 target with a hairline, an accent border
   when active, and a badge at least 20 high on the accent with a 2 pt `surface0` ring.
 - An on/off switch in a toolbar is a round button whose icon tells the state; Archived is struck
@@ -842,15 +884,29 @@ apply to all three.
 - The filter sheet opens in the host `Modal` on phones, tablets and narrow web boards: sections
   padded 16 with muted `sm` titles, chips 32 high (radius 4, accent border and `accentSoft` when
   on), toggle rows 48, sort rows 44, and a pinned footer of Reset and an accent Show pill, both 44.
+- While the desktop/tablet filter panel is open, its controls update immediately and lane
+  rendering waits 180 ms (`SWITCH_MS + 40`) so the switch's 140 ms slide can finish. Closing the
+  panel releases the latest lane state immediately; preferences still save on the control change.
 
 ### Details
 
 - The sidebar (`sidebar-model.ts`) is inline from 1020, floating below 996 down to 784 and a bottom
-  sheet below 760; between those pairs it keeps its current form. Inline it is 380 wide (340 to
-  520, a double click restores 380) and slides 12 in over 180; floating it is a radius-16 panel on
-  the lane fill with the menu shadow, entering with a 24 slide over 220. The iPad floating panel
+  sheet below 760; between those pairs it keeps its current form. Inline it is 380 wide (260 to
+  520, a double click restores 380). Inline, the slot and surface open over
+  240 and close over 180 with an 8 pt slide and opacity change. Cards keep a fixed width during
+  the transition; reversing continues from the current progress. Closing disables input and
+  hides the subtree from assistive technology immediately, then unmounts after the animation.
+  Reduced motion snaps. Floating it is a radius-16 panel on
+  the lane fill, entering with a 24 slide over 220. The iPad floating panel
   is 340 (320 to 480) with a 24 grab strip.
-- The web resize handle is a 1 px line that shows after 100 ms of hover and follows the pointer.
+- The inline surface uses `surface0`, with a left shadow cast over the lanes:
+  `-8px 0px 16px -8px`, black at 20% light / 50% dark. Floating uses the same shadow.
+  It sits 12 from the right edge, padded 10 left and 4 right on web so the cards end 16 from the
+  board edge, aligned with the toolbar; native keeps 10 on both sides. Top/bottom padding is 4/12.
+- The web resize target is 8 wide inside the inline surface's left edge, inset 4 at the top and
+  12 at the bottom. A permanent muted 3 × 40 grabber (radius 2, opacity 0.5) centres in it; the
+  1 px line shows after 100 ms of hover and follows the pointer. Drag resizes the lanes and panel;
+  double click restores 380.
 - The board sheet has a 58% half detent; full height leaves 8 of the lanes showing; radius 16 on
   top, a 36 × 5 handle.
 
@@ -874,6 +930,15 @@ apply to all three.
   message's own time, and its tip gives the full timestamp.
 - Message bodies sit in a `sunk` box of radius 8 and fold after 4 lines or 240 characters under a
   fade; while the timeline is read they breathe as a skeleton instead of saying Loading.
+- While a visible, open agent is running, assistant-message events and subscription recovery
+  refresh the latest reply at most once per 1500 ms (`useLiveReplyCount`, `LIVE_READ_MS`). A
+  changed ready reply flashes its box once using the shared [motion](#motion); the first read,
+  loading skeleton, unchanged text and switching cards do not trigger a new flash. Closed
+  agents keep explicit Load because reading their timeline resumes them.
+- File links in the first prompt, latest sent message and latest reply open through
+  `onRevealPath` / `revealPathRpc`, resolving relative paths from the task's `cwd` on the daemon's
+  machine. Files open in their default app and folders in the file manager; errors show a toast.
+  These links do not copy the path. Explicit message Copy actions remain separate.
 - Charts: the context bar is 6 high (radius 3) with ticks at 75% and 90%; the token bar is 8-high
   segments 2 apart (cached accent 32%, input accent, output foreground 45%). On touch their tips
   show on tap and hide after 3 s.
@@ -882,6 +947,14 @@ apply to all three.
   touch) over group rows of 36 (44), radius 6, `surface2` when on.
 - A phone's details sheet has a 40 stepper and an action bar of 48 buttons (radius 12) over a
   hairline.
+
+### Host sidebar counts
+
+The host's Tasks entry (`sidebar-entry.tsx`) counts Needs input, Running and Review using the
+board's remembered filters for that host and this device's Subtasks preference, including
+provider subagent cards. Its counts match the filtered lane headers. Search reads already-loaded
+first prompts and follows their updates; the entry does not load timelines just to count.
+Keep counts hidden until their required lists are ready, and honour the configured count mode.
 
 ### Status marks
 
