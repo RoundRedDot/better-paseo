@@ -3090,9 +3090,9 @@ describe("overlays in the board's menu chrome", () => {
       const rows = menu.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
       expect(rows.map((row) => texts(row))).toEqual([["仅停止此任务"], ["连同子任务一起停止", "2"]]);
       for (const row of rows) expect(flat(row.props.style)).toMatchObject({ height: 32, borderRadius: 6, marginHorizontal: 6 });
-      // Leading marks: Stop's Power; the tree with a stop square at its corner.
+      // Leading marks: Stop's Power; the parent and child task hierarchy.
       expect(icons(rows[0]!)).toEqual(["Power"]);
-      expect(icons(rows[1]!)).toEqual(["ListTree"]);
+      expect(icons(rows[1]!)).toEqual(["Network"]);
       await act(async () => rows[1]!.props.onPress());
       expect(onStop).toHaveBeenCalledWith(card, { withChildren: true });
       expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-menu")).toHaveLength(0);

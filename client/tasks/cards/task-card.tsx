@@ -1949,26 +1949,12 @@ function MenuGlyph(props: { children: ReactNode }) {
   return <View style={{ width: MENU.icon, height: MENU.icon, alignItems: "center", justifyContent: "center" }}>{props.children}</View>;
 }
 
-/** "Stop with subtasks": the subtask tree with a small stop square at its corner. */
+/** "Stop with subtasks": the parent and child tasks as one hierarchy. */
 function StopTreeGlyph(props: { tokens: TaskTokens; color?: string }) {
   const muted = props.color ?? props.tokens.foregroundMuted;
   return (
     <MenuGlyph>
-      <Icon name="ListTree" size={14} color={muted} />
-      <View
-        style={{
-          position: "absolute",
-          right: -1,
-          bottom: -1,
-          width: 7,
-          height: 7,
-          borderRadius: 2,
-          backgroundColor: muted,
-          borderWidth: 1.5,
-          borderColor: props.tokens.surface0,
-        }}
-        testID="stop-square"
-      />
+      <Icon name="Network" size={MENU.icon} color={muted} />
     </MenuGlyph>
   );
 }
