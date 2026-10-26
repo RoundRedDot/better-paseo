@@ -55,10 +55,10 @@ export function DesktopToolbar(props: {
   /**
    * A narrow board's one-row header: the filter bar folds into this button
    * (its count of active filters on a badge), which opens the filter sheet,
-   * so the lanes keep the height two more rows took. The archived lane's
-   * switch, no filter, stays out as a round button on its left, and the
-   * empty lanes' fold on its right. A wide board keeps both in the filter
-   * bar, beside the lane width.
+   * so the lanes keep the height two more rows took. The empty lanes' fold
+   * and the archived lane's switch, no filters, stay out as round buttons
+   * on its left, in the filter bar's order. A wide board keeps both in the
+   * filter bar, beside the lane width.
    */
   filters?: { count: number; onPress(): void };
 }) {
@@ -120,8 +120,8 @@ export function DesktopToolbar(props: {
             <RoundButton icon="SlidersHorizontal" label={strings.view} selected={viewOpen} theme={theme} onPress={() => setViewOpen(!viewOpen)} size={toolbarButtonSize(scale)} testID="desktop-toolbar-view" />
             {viewOpen ? <CascadeMenu theme={theme} width={260} top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setViewOpen(false)} sections={[{ key: "view", items: [
               ...(props.filters ? [
-                { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
                 { key: "empty", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, disabled: props.emptyLanes.disabled, onSelect: props.emptyLanes.onToggle },
+                { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
               ] : []),
               ...(props.sidebar ? [{ key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, onSelect: props.sidebar.onToggle }] : []),
             ] }]} /> : null}
@@ -152,6 +152,7 @@ export function DesktopToolbar(props: {
       ) : null}
       {props.filters ? (
         <>
+          <EmptyLanesButton emptyLanes={props.emptyLanes} strings={strings} theme={theme} />
           <RoundButton
             icon="Archive"
             label={strings.archivedLane.row}
@@ -164,7 +165,6 @@ export function DesktopToolbar(props: {
             testID="toolbar-archived"
           />
           <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} tip={strings.filters} testID="toolbar-filters" />
-          <EmptyLanesButton emptyLanes={props.emptyLanes} strings={strings} theme={theme} />
         </>
       ) : null}
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}

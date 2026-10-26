@@ -2864,6 +2864,11 @@ describe("Tasks board, tablet filters", () => {
     const archived = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived");
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && (node.props.testID === "toolbar-archived" || node.props.testID === "toolbar-filters"));
     expect(buttons.map((node) => node.props.testID)).toEqual(["toolbar-archived", "toolbar-filters"]);
+    // The folded web header keeps the filter bar's order: empty lanes, then the archived lane, then the filters.
+    if (os === "web") {
+      const header = renderer!.root.findByType(DesktopToolbar).findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID !== "sidebar-switch");
+      expect(header.map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "toolbar-archived", "toolbar-filters"]);
+    }
     expect(textOf(archived())).toBe("");
     expect(archived().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Archive");
     expect(hostsById("archived-lane-toggle")).toHaveLength(0);
