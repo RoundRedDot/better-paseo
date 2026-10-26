@@ -7,6 +7,7 @@ import {
   SIDEBAR,
   TABLET_SIDEBAR,
   tabletSidebarWidth,
+  clampWidth,
   escapeStep,
   readSidebarPreference,
   resetSidebarPreference,
@@ -64,6 +65,14 @@ describe("bottom sheet", () => {
 });
 
 describe("sidebar width", () => {
+  it.each(["inline", "floating"] as const)("allows a 300 px desktop sidebar in %s mode and clamps smaller widths", (mode) => {
+    expect(sidebarWidth(2000, 300, mode)).toBe(300);
+    expect(sidebarWidth(2000, 320, mode)).toBe(320);
+    expect(sidebarWidth(2000, 299, mode)).toBe(300);
+    expect(clampWidth(299)).toBe(300);
+    expect(clampWidth(320)).toBe(320);
+  });
+
   it("uses a separate compact tablet floating width and clamps its drag range", () => {
     expect(tabletSidebarWidth(900)).toBe(340);
     expect(tabletSidebarWidth(900, 100)).toBe(TABLET_SIDEBAR.min);
@@ -87,7 +96,7 @@ describe("sidebar width", () => {
 
   it("floats at the user's width, inside the board", () => {
     expect(sidebarWidth(820, 380, "floating")).toBe(380);
-    expect(sidebarWidth(360, 380, "floating")).toBe(SIDEBAR.min);
+    expect(sidebarWidth(360, 380, "floating")).toBe(336);
   });
 });
 
