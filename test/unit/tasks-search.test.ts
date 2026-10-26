@@ -33,6 +33,19 @@ function lanesFor(...cards: TaskCard[]): Record<LaneId, LaneModel> {
 }
 
 describe("task search fields", () => {
+  it.each([false, true])("searches the current title after renaming (replace snapshot: %s)", (replaceSnapshot) => {
+    let renamed = { ...card, title: "Original task name" };
+    const search = (query: string) => filterLanes(lanesFor(renamed), { ...EMPTY_FILTERS, query })[renamed.lane].cards;
+    expect(search("original task name")).toEqual([renamed]);
+    expect(search("改名后的任务")).toEqual([]);
+
+    if (replaceSnapshot) renamed = { ...renamed, title: "改名后的任务" };
+    else renamed.title = "改名后的任务";
+
+    expect(search("改名后的任务")).toEqual([renamed]);
+    expect(search("original task name")).toEqual([]);
+  });
+
   it.each([
     ["title", "search behavior"], ["project", "project apple"], ["raw workspace name", "raw workspace"],
     ["branch", "feature/search"], ["folder hidden by deduplication", "hiddenfolder"],
