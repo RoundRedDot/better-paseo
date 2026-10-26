@@ -1,17 +1,21 @@
-import React, { type ReactNode } from "react";
+import React, { useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { View } from "react-native";
+import type { PaseoApi } from "@getpaseo/client";
 import type { PluginSidebarItemProps } from "@getpaseo/plugin/client";
-import { usePaseo } from "@getpaseo/plugin/client";
+import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
-import type { SidebarCount } from "../../../shared/tasks-settings";
+import { TASKS_SETTINGS, type SidebarCount, type TasksSettings } from "../../../shared/tasks-settings";
 import { StatusIcon, useTaskTokens } from "../cards";
-import { useTaskCounts } from "../data";
-import { LANE_STATUS } from "../model";
+import { useTaskCounts, type CountScope } from "../data";
+import { firstPromptStoreFor } from "../data/first-prompt";
+import { subagentFirstPrompts } from "../data/subagent-timeline";
+import { useDeviceTasksPreferences } from "../device-preferences";
+import { LANE_STATUS, type TaskCard } from "../model";
 import { HOST_FONT, TaskText as Text, TasksTypography } from "../typography";
 import { useTasksLanguage } from "../i18n";
 import { useTasksSettings } from "./enabled";
 import { sidebarCountParts, sidebarCountText } from "./navigation";
-import { encodeBoardParams, lastBoardParams } from "./params";
+import { encodeBoardParams, lastBoardParams, resolveBoardParams, subscribeBoardParams } from "./params";
 import { useBoardIntent } from "./prefetch";
 import { BOARD_STRINGS } from "./strings";
 
@@ -34,7 +38,7 @@ export function TasksSidebarEntry(props: PluginSidebarItemProps) {
   if (!settings?.enabled) return null;
   const mode = settings.sidebar.count;
   const label = BOARD_STRINGS[language].name;
-  return mode === "none" ? <TasksRow {...props} label={label} /> : <CountedTasksRow {...props} label={label} mode={mode} />;
+  return mode === "none" ? <TasksRow {...props} label={label} /> : <CountedTasksRow {...props} label={label} mode={mode} settings={settings} />;
 }
 
 /**
@@ -57,10 +61,43 @@ function TasksRow(props: PluginSidebarItemProps & { label: string; trailing?: Re
   );
 }
 
-/** Needs input, running and review, in the board's lane order; needs input in the warning colour. */
-function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: Exclude<SidebarCount, "none"> }) {
+/**
+ * The board's filters as it shows them on this host: the ones it remembered
+ * last, and this device's hidden subtasks. A search counts the first
+ * prompts loaded already, and follows them as they land.
+ */
+function useBoardCountScope(paseo: PaseoApi, hostId: string, settings: TasksSettings): CountScope {
+  const params = useSyncExternalStore(subscribeBoardParams, () => lastBoardParams(hostId), () => lastBoardParams(hostId));
+  const shared = useSettings(TASKS_SETTINGS);
+  const device = useDeviceTasksPreferences(shared.status === "ready" ? shared.values : null);
+  const board = device.settings?.board ?? settings.board;
+  const searching = params.query.trim() !== "";
+  const prompts = firstPromptStoreFor(paseo);
+  const subscribePrompts = useMemo(() => (listener: () => void) => {
+    if (!searching) return () => {};
+    const own = prompts.subscribe(listener);
+    const subs = subagentFirstPrompts.subscribe(listener);
+    return () => { own(); subs(); };
+  }, [prompts, searching]);
+  const promptsSnapshot = () => (searching ? `${prompts.version()}:${subagentFirstPrompts.version()}` : "");
+  const promptsVersion = useSyncExternalStore(subscribePrompts, promptsSnapshot, promptsSnapshot);
+  // A new scope (`promptsVersion` included) counts again.
+  return useMemo(() => {
+    const { filters } = resolveBoardParams(params, { hideSubtasks: board.hideSubtasks, doneWindow: board.doneWindow });
+    if (!searching) return { filters };
+    const firstMessage = (card: TaskCard) => {
+      const prompt = (card.subagent ? subagentFirstPrompts : prompts).read(card.id);
+      return prompt.state === "ready" ? prompt.text : undefined;
+    };
+    return { filters, firstMessage };
+  }, [params, board.hideSubtasks, board.doneWindow, searching, prompts, promptsVersion]);
+}
+
+/** Needs input, running and review, in the board's lane order, as the board's filters leave them; needs input in the warning colour. */
+function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: Exclude<SidebarCount, "none">; settings: TasksSettings }) {
   const paseo = usePaseo();
-  const counts = useTaskCounts(paseo, props.mode === "all");
+  const scope = useBoardCountScope(paseo, props.host.id, props.settings);
+  const counts = useTaskCounts(paseo, props.mode === "all", scope);
   const language = useTasksLanguage();
   const parts = sidebarCountParts(counts, counts.ready ? props.mode : "none");
   const colors = props.theme.colors;

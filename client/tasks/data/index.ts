@@ -51,6 +51,16 @@ export interface TasksOptions {
   includeArchived?: boolean;
 }
 
+/**
+ * What the sidebar's numbers count: the board's filters, so each matches its
+ * lane's header. A search also reads the first prompts already loaded; the
+ * row never loads one. Kept by identity: a new scope counts again.
+ */
+export interface CountScope {
+  filters: BoardFilters;
+  firstMessage?: (card: TaskCard) => string | undefined;
+}
+
 /** The sidebar row's numbers. */
 export interface SidebarCounts {
   needsInput: number;
@@ -767,7 +777,7 @@ interface TaskStore {
   hasHold(reason: TasksHoldReason): boolean;
   dropHolds(): void;
   getSnapshot(options: TasksOptions): TasksHandle;
-  getCounts(): SidebarCounts;
+  getCounts(scope?: CountScope): SidebarCounts;
   setArchivedLane(on: boolean): void;
   loadMoreDone(window: DoneWindow): void;
   resolveParent(id: string): void;
@@ -843,6 +853,7 @@ function createStore(api: PaseoApi): TaskStore {
   let workspacesListed = false;
   let countsCache: SidebarCounts | null = null;
   let countsDirty = true;
+  let countsScope: CountScope | undefined;
   let loadingDone = false;
   let doneReady = false;
   /**
@@ -2102,27 +2113,29 @@ function createStore(api: PaseoApi): TaskStore {
     return snapshot;
   }
 
-  function getCounts(): SidebarCounts {
-    if (countsDirty || !countsCache) {
+  function getCounts(scope?: CountScope): SidebarCounts {
+    if (countsDirty || !countsCache || scope !== countsScope) {
       countsDirty = false;
-      let needsInput = 0;
-      let running = 0;
-      let review = 0;
+      countsScope = scope;
       // Until both lists land the review count is unknown, not the unread
       // agents of archived workspaces: it stays hidden instead of jumping down.
       const reviewKnown = attentionReady && workspacesReady;
-      const count = (lane: LaneId) => {
-        if (lane === "needs_input") needsInput += 1;
-        else if (lane === "running") running += 1;
-        else if (lane === "review" && reviewKnown) review += 1;
+      const lanes = {} as Record<LaneId, LaneModel>;
+      for (const id of LANE_ORDER) lanes[id] = { id, cards: [], hasMore: false, loading: false };
+      const add = (card: TaskCard) => {
+        if (card.lane === "needs_input" || card.lane === "running" || (card.lane === "review" && reviewKnown)) lanes[card.lane].cards.push(card);
       };
       for (const card of cards.values()) {
-        count(card.lane);
+        add(card);
         // A provider subagent's card counts in its lane, as the board draws it (`withSubagentCards`).
         if (card.lane !== "archived" && card.children.some((child) => child.kind === "provider")) {
-          for (const sub of subagentCardsOf(card)) count(sub.lane);
+          for (const sub of subagentCardsOf(card)) add(sub);
         }
       }
+      const shown = scope ? filterLanes(lanes, scope.filters, scope.firstMessage && scope.filters.query.trim() ? firstMessagesOf(lanes, scope.firstMessage) : undefined) : lanes;
+      const needsInput = shown.needs_input.cards.length;
+      const running = shown.running.cards.length;
+      const review = shown.review.cards.length;
       // The same object while the numbers hold, so a streaming agent does not re-render the row.
       if (
         !countsCache ||
@@ -2422,13 +2435,25 @@ export function releaseTasksHolds(): void {
  * the cards an unfiltered board draws, a provider subagent's included.
  * Re-renders only when a number changes.
  */
-export function useTaskCounts(paseo: PaseoApi, review: boolean): SidebarCounts {
+export function useTaskCounts(paseo: PaseoApi, review: boolean, scope?: CountScope): SidebarCounts {
   const store = getStore(paseo);
   const subscribe = useMemo(
     () => (listener: () => void) => store.subscribe(listener, { board: false, done: false, attention: review }),
     [store, review],
   );
-  return useSyncExternalStore(subscribe, store.getCounts, store.getCounts);
+  const getCounts = useMemo(() => () => store.getCounts(scope), [store, scope]);
+  return useSyncExternalStore(subscribe, getCounts, getCounts);
+}
+
+function firstMessagesOf(lanes: Record<LaneId, LaneModel>, read: (card: TaskCard) => string | undefined): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const id of LANE_ORDER) {
+    for (const card of lanes[id].cards) {
+      const text = read(card);
+      if (text !== undefined) out.set(card.id, text);
+    }
+  }
+  return out;
 }
 
 /**

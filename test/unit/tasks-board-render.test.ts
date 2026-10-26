@@ -48,6 +48,8 @@ const host = vi.hoisted(() => ({
   toast: vi.fn(),
   settings: null as Record<string, unknown> | null,
   counts: null as { running: number; needsInput: number; review: number; done: number } | null,
+  /** The filters the sidebar row last counted with. */
+  countScope: null as unknown,
   canStop: false,
   save: vi.fn(async (_values: unknown, _revision: string) => true),
   reload: vi.fn(async () => {}),
@@ -98,7 +100,10 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
     ...actual,
     __handle: handle,
     useTasks: () => handle,
-    useTaskCounts: () => ({ ...(host.counts ?? handle.counts), ready: true }),
+    useTaskCounts: (_paseo: unknown, _review: boolean, scope?: unknown) => {
+      host.countScope = scope ?? null;
+      return { ...(host.counts ?? handle.counts), ready: true };
+    },
   };
 });
 
@@ -3837,6 +3842,15 @@ describe("Tasks sidebar entry", () => {
     host.counts = { running: 0, needsInput: 0, review: 0, done: 1 };
     act(() => renderer!.unmount());
     expect(textOf(entry(null))).toBe("");
+  });
+
+  it("counts with the board's filters and follows them as the board changes them", () => {
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, hideSubtasks: true } };
+    rememberBoardParams("host-1", { ...EMPTY_PARAMS, providers: ["codex"] });
+    entry(null);
+    expect(host.countScope).toMatchObject({ filters: { providers: ["codex"], labels: [], hideSubtasks: true, query: "" } });
+    act(() => rememberBoardParams("host-1", { ...EMPTY_PARAMS, labels: ["frontend"] }));
+    expect(host.countScope).toMatchObject({ filters: { providers: [], labels: ["frontend"], hideSubtasks: true } });
   });
 
   it("is active on the board and opens it with the session's filters", () => {

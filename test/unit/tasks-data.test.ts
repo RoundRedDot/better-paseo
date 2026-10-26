@@ -2,9 +2,9 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { filterLanes, setLabelDefinitionsLoader, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { filterLanes, setLabelDefinitionsLoader, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
-import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
+import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { fallbackLabelColor } from "../../client/tasks/label-colors";
 import { cardStart, cardTimer, formatEnded } from "../../client/tasks/cards/card-time";
@@ -1044,6 +1044,42 @@ describe("Tasks data store", () => {
         counts.unmount();
       }
       expect(fake.openSubscriptions()).toBe(0);
+    });
+
+    it("count what the board's filters leave on each lane, and count again when they change", async () => {
+      const fake = createFakePaseo({
+        agents: [
+          activeAgent("parent", { status: "running", provider: "claude" }),
+          activeAgent("child", { status: "running", provider: "claude", labels: { "paseo.parent-agent-id": "parent" } }),
+          activeAgent("other", { status: "running", provider: "codex", workspaceId: "ws-2" }),
+        ],
+      });
+      const unfiltered: CountScope = { filters: EMPTY_FILTERS };
+      const hidden: CountScope = { filters: { ...EMPTY_FILTERS, hideSubtasks: true } };
+      const claude: CountScope = { filters: { ...EMPTY_FILTERS, hideSubtasks: true, providers: ["claude"] } };
+      let scope = unfiltered;
+      let current!: ReturnType<typeof useTaskCounts>;
+      function Counts() {
+        current = useTaskCounts(fake.paseo, false, scope);
+        return null;
+      }
+      let renderer!: Renderer;
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(Counts));
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      try {
+        expect(current.running).toBe(3);
+        scope = hidden;
+        act(() => renderer.update(React.createElement(Counts)));
+        // The running child shows on its running parent's card, not as a card of its own.
+        expect(current.running).toBe(2);
+        scope = claude;
+        act(() => renderer.update(React.createElement(Counts)));
+        expect(current.running).toBe(1);
+      } finally {
+        act(() => renderer.unmount());
+      }
     });
 
     it("follow live updates and re-render only when a number changes", async () => {

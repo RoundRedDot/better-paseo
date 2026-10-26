@@ -155,6 +155,7 @@ interface HostSession {
 
 const sessions = new Map<string, HostSession>();
 let lastHost: string | null = null;
+const paramsListeners = new Set<() => void>();
 
 const isLane = (value: unknown): value is LaneId => LANE_ORDER.includes(value as LaneId);
 
@@ -183,8 +184,18 @@ function update(hostId: string, change: Partial<HostSession>): void {
 }
 
 export function rememberBoardParams(hostId: string, params: BoardParams): void {
+  const changed = session(hostId).params !== params;
   update(hostId, { params });
   lastHost = hostId;
+  if (changed) for (const listener of [...paramsListeners]) listener();
+}
+
+/** Re-runs `listener` when a board remembers new params on any host. */
+export function subscribeBoardParams(listener: () => void): () => void {
+  paramsListeners.add(listener);
+  return () => {
+    paramsListeners.delete(listener);
+  };
 }
 
 /** The board's last state on this host; the most recent host's when none is given. */
@@ -212,6 +223,7 @@ export function rememberedCollapsed(hostId: string): LaneId[] {
 /** Tests only. */
 export function resetBoardSessions(): void {
   sessions.clear();
+  paramsListeners.clear();
   lastHost = null;
   forgetCarried();
 }
