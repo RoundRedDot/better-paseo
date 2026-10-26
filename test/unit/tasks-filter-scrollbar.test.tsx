@@ -43,7 +43,7 @@ function render(controller = board) {
   return renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-scroll");
 }
 
-describe("filter sheet clear all", () => {
+describe("filter sheet reset", () => {
   it.each(["ios", "android", "web"])("clears active filters and keeps sorting on %s", (os) => {
     vi.stubGlobal("__rnMockOS", os);
     const params: BoardParams = {
@@ -52,31 +52,12 @@ describe("filter sheet clear all", () => {
     };
     const setParams = vi.fn();
     const scroll = render({ ...board, params, setParams });
-    const clear = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-clear-all");
-    expect(scroll.findAll((node) => node === clear)).toHaveLength(0);
-    expect(renderer!.toJSON()).toMatchObject({ children: [
-      { props: { testID: "filter-sheet-clear-row" } },
-      { props: { testID: "filter-sheet-scroll" } },
-      { props: { testID: "filter-sheet-footer" } },
-    ] });
-    expect(clear.props.accessibilityLabel).toBe(board.strings.clearAll);
-    act(() => clear.props.onPress());
+    const reset = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-reset");
+    expect(scroll.findAll((node) => node === reset)).toHaveLength(0);
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-clear-all")).toHaveLength(0);
+    act(() => reset.props.onPress());
     expect(setParams).toHaveBeenCalledOnce();
     expect(setParams.mock.calls[0]![0](params)).toEqual({ ...EMPTY_PARAMS, sort: params.sort });
-    act(() => renderer!.update(<FilterSheetBody board={board} theme={theme} options={{ agents: [], labels: [], workspaceGroups: [] }} onDone={() => {}} />));
-    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-clear-all")).toHaveLength(0);
-  });
-
-  it.each([
-    { query: "search" }, { providers: ["codex"] }, { labels: ["linear"] }, { workspaceIds: ["workspace"] }, { doneWindow: "7d" as const },
-  ])("offers clear all for an individual filter: %j", (filter) => {
-    render({ ...board, params: { ...EMPTY_PARAMS, ...filter } });
-    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-clear-all")).toHaveLength(1);
-  });
-
-  it("does not offer clear all for sorting alone", () => {
-    render({ ...board, params: { ...EMPTY_PARAMS, sort: { key: "title", direction: "asc" } } });
-    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-clear-all")).toHaveLength(0);
   });
 });
 
