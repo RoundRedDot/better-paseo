@@ -972,6 +972,18 @@ describe("Tasks board, desktop", () => {
     expect(mark()).toMatchObject({ width: 1.5, height: 7 });
   });
 
+  it("aligns the desktop sidebar cards with the filter bar and keeps equal side insets", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(2000);
+    const sidebar = StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style);
+    const filters = StyleSheet.flatten(hostsById("filter-bar")[0]!.props.style);
+    expect(sidebar.paddingLeft).toBe(filters.paddingHorizontal);
+    expect(sidebar.paddingRight + sidebar.marginRight).toBe(filters.paddingHorizontal);
+    expect(sidebar.width - sidebar.paddingLeft - sidebar.paddingRight).toBe(360);
+    expect(lanesScroll().props.contentContainerStyle.width).toBe(2000 - 380 - 12);
+  });
+
   it.each([2000, 600])("preserves the panel silhouette and selected styling at %i pt", (width) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false)); });

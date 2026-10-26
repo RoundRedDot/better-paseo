@@ -814,7 +814,8 @@ function SidebarColumn(props: { width: number; theme: PluginTheme; onDrag(width:
       style={{
         width: props.width,
         marginRight: SIDEBAR.gap,
-        paddingHorizontal: 10,
+        // Include the outer margin in the right inset to match the toolbar's 16 pt.
+        ...(Platform.OS === "web" ? { paddingLeft: 16, paddingRight: 16 - SIDEBAR.gap } : { paddingHorizontal: 10 }),
         paddingTop: 4,
         paddingBottom: 12,
         minHeight: 0,
