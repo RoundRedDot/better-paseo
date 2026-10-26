@@ -250,7 +250,7 @@ provider 内部的 subagent（Claude Code 的 Agent 工具、Codex 和 Pi 自己
 | 复制 | 点按模型、分支、文件夹、路径 pill；右键菜单复制会话 ID、标题、workspace 名、项目名 | 宿主的 `copyText` | 所有卡片 | 已做 |
 | 追加一条指令 | 卡片更多菜单里的输入框 | `agents.ref(id).send(text)` | 待查看、已完成 | 未做 |
 
-停止、标为已读和取消归档在插件服务端做不到时隐藏（`tasks.capabilities`）：停止和取消归档要找得到 CLI，标为已读要插件进程能加载宿主自带的 daemon 客户端。CLI 先看插件进程环境里的 `PASEO_CLI`（Paseo 桌面版会设置），再到 `PATH` 里找 `paseo`。用 npm 装的 `@getpaseo/cli` 起 daemon 时，如果 `paseo` 不在 `PATH` 上，两个变量都没有，所以卡片、详情和手机 sheet 上都不会出现停止和取消归档。隐藏范围包括所有平台的卡片：2026-10-26 之前，手机卡片把缺失的停止回调包成了空操作，结果仍然画出一个按了没反应的停止按钮。
+停止、标为已读和取消归档在插件服务端做不到时隐藏（`tasks.capabilities`）：停止和取消归档要找得到 CLI，标为已读要插件进程能加载宿主自带的 daemon 客户端。CLI 的查找顺序是：插件进程环境里的 `PASEO_CLI`（Paseo 桌面版会设置），然后 `PATH` 上的 `paseo`，最后是和 daemon 装在一起的 CLI。第三步照 daemon 自己找 CLI 的办法：插件进程从 `@getpaseo/server` 的 `plugin-process.js` 启动（`process.argv[1]`），从那里 resolve `@getpaseo/cli/bin/paseo`，npm 的 prefix 安装和全局安装都能这样找到。找到的 CLI 版本必须和这个 daemon 的 `@getpaseo/server` 一致，然后用插件进程自己的 Node 来跑。所以用 npm 装的 `@getpaseo/cli` 起的 daemon，即使没有 `PASEO_CLI`、`paseo` 也不在 `PATH` 上，也能停止和取消归档。三步都找不到时，卡片、详情和手机 sheet 上都不出现这两个按钮。隐藏范围包括所有平台的卡片：2026-10-26 之前，手机卡片把缺失的停止回调包成了空操作，结果仍然画出一个按了没反应的停止按钮。
 
 停止的含义是「中断当前这一轮」，和 CLI 说明一致：agent 回到空闲，会话保留，之后还能继续发消息。它不是删除或归档。
 
@@ -362,7 +362,7 @@ agent 分几路请求，避免一次拉全 340 个 agent 的完整快照；works
 
 ### 停止任务的两步走
 
-1. **现在**（已做）：插件服务端 RPC 调 CLI。已在本机确认插件进程环境里有 `PASEO_CLI=/Applications/Paseo.app/Contents/Resources/bin/paseo` 和 `PASEO_HOME=~/.paseo`。插件服务端跑在 daemon 所在机器上，所以连远程 host 时停的也是那台。`PASEO_CLI` 不可执行时退回 PATH 上的 `paseo`，都找不到时 `tasks.capabilities` 报告不可用，看板隐藏停止按钮。agent id 先校验再传给 CLI，每次调用 10 秒超时。
+1. **现在**（已做）：插件服务端 RPC 调 CLI。已在本机确认插件进程环境里有 `PASEO_CLI=/Applications/Paseo.app/Contents/Resources/bin/paseo` 和 `PASEO_HOME=~/.paseo`。插件服务端跑在 daemon 所在机器上，所以连远程 host 时停的也是那台。`PASEO_CLI` 不可执行时退回 PATH 上的 `paseo`，再退回和 daemon 装在一起的 `@getpaseo/cli`（见「操作」）。都找不到时 `tasks.capabilities` 报告不可用，看板隐藏停止按钮。agent id 先校验再传给 CLI，每次调用 10 秒超时。
 2. **之后**（未做，上游 PR 还没提）：给 getpaseo/paseo 提 PR，在 `PaseoAgentHandle` 上加 `cancel()`，内部转调已有的 `DaemonClient.cancelAgent`。合入后客户端直接调用，老版本宿主仍走 RPC。
 
 不用 `send()` 打断当前轮次来冒充停止，那样会在对话里多出一条消息。
@@ -380,7 +380,7 @@ agent 分几路请求，避免一次拉全 340 个 agent 的完整快照；works
 
 | 风险 | 影响 | 缓解 |
 | --- | --- | --- |
-| 停止依赖 CLI：无头 daemon 或 Linux 上可能没有 `PASEO_CLI` | 停止按钮不可用 | 已做：退回 PATH，都找不到就隐藏按钮。上游 `cancel()` 还没提 |
+| 停止依赖 CLI：无头 daemon 或 Linux 上可能没有 `PASEO_CLI` | 停止按钮不可用 | 已做：退回 PATH，再退回 daemon 自带的 npm CLI，都找不到就隐藏按钮。上游 `cancel()` 还没提 |
 | 列表数据量：每条快照带 `availableModes`、`features` 等，全量订阅很重 | 重连和中继解密变慢 | 看板可以关闭；开启时只常驻状态订阅，待查看订阅只在需要时打开，已完成列分页，workspace、项目和标签只在看板打开时请求 |
 | 客户端包体积：宿主每次重连都重发整个插件包 | 重连变慢 | 最初打算独立成插件；实际放进了 Better Paseo。已做：安装时把看板、侧边栏入口和看板设置的代码拆成单独的 Tasks chunk（`scripts/build-client.mjs`），由插件服务端经 `tasks.chunk` 按需下发；看板关闭时不取。目录里的客户端包从 1,977 KB 降到约 730 KB（2026-10-23 主包 728 KB、Tasks chunk 346 KB） |
 | Paseo 层以外的 subagent | 用户以为父子关系不全 | 已做：运行中和失败的 provider subagent 画成只读虚线卡片；跑完的不显示。这条路依赖插件服务端的 daemon 连接，连不上时看不到 |

@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
@@ -13,6 +13,7 @@ type Handler = (input: unknown) => Promise<unknown>;
 let tempRoot = "";
 let originalPaseoCli: string | undefined;
 let originalPath: string | undefined;
+let originalEntry: string | undefined;
 
 async function executable(directory: string, name = "paseo", mode = 0o755): Promise<string> {
   await mkdir(directory, { recursive: true });
@@ -55,12 +56,38 @@ async function invoke<T>(handlers: Map<string, Handler>, name: string, input: un
 
 const validJson = JSON.stringify({ stoppedCount: 1, agentIds: ["agent-a"] });
 
+/**
+ * A daemon's install as npm lays it out: `@getpaseo/server` (whose
+ * `plugin-process.js` runs the plugin) and `@getpaseo/cli` under one
+ * `node_modules`, or the server nested inside the CLI as a global install
+ * has it. Returns the plugin process's entry and the CLI's bin.
+ */
+async function daemonInstall(root: string, options: { nested?: boolean; cliVersion?: string; serverVersion?: string; bin?: boolean } = {}): Promise<{ entry: string; bin: string }> {
+  const modules = join(root, "node_modules");
+  const cli = join(modules, "@getpaseo", "cli");
+  const server = options.nested ? join(cli, "node_modules", "@getpaseo", "server") : join(modules, "@getpaseo", "server");
+  await mkdir(join(server, "dist", "server", "server", "plugins"), { recursive: true });
+  await writeFile(join(server, "package.json"), JSON.stringify({ name: "@getpaseo/server", version: options.serverVersion ?? "0.13.0", type: "module" }));
+  const entry = join(server, "dist", "server", "server", "plugins", "plugin-process.js");
+  await writeFile(entry, "");
+  await mkdir(join(cli, "bin"), { recursive: true });
+  await writeFile(join(cli, "package.json"), JSON.stringify({ name: "@getpaseo/cli", version: options.cliVersion ?? "0.13.0", type: "module", bin: { paseo: "bin/paseo" } }));
+  const bin = options.bin === false ? join(cli, "bin", "paseo") : await executable(join(cli, "bin"));
+  return { entry, bin: await realpath(bin).catch(() => bin) };
+}
+
+/** The command line a host CLI runs with: this process's Node, quietened as the bin's shebang does. */
+const hostCliCall = (bin: string, ...args: string[]) => [process.execPath, ["--disable-warning=DEP0040", bin, ...args], expect.any(Object)];
+
 beforeEach(async () => {
   originalPaseoCli = process.env.PASEO_CLI;
   originalPath = process.env.PATH;
+  originalEntry = process.argv[1];
   delete process.env.PASEO_CLI;
   process.env.PATH = "";
   tempRoot = await mkdtemp(join(tmpdir(), "tasks-server-"));
+  // The plugin process's entry, with no daemon install around it unless a test lays one out.
+  process.argv[1] = join(tempRoot, "plugin-process.js");
   execCommand.mockReset();
 });
 
@@ -69,6 +96,7 @@ afterEach(async () => {
   else process.env.PASEO_CLI = originalPaseoCli;
   if (originalPath === undefined) delete process.env.PATH;
   else process.env.PATH = originalPath;
+  process.argv[1] = originalEntry!;
   await rm(tempRoot, { recursive: true, force: true });
 });
 
@@ -135,6 +163,45 @@ describe("Tasks server stop RPC", () => {
         { agentId: "agent-b", ok: false, error: "Paseo CLI is unavailable." },
       ],
     });
+    expect(execCommand).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("falls back to the CLI installed beside the daemon, run with this Node (global install: %s)", async (nested) => {
+    const install = await daemonInstall(join(tempRoot, "prefix"), { nested });
+    process.argv[1] = install.entry;
+    execCommand.mockResolvedValue({ stdout: validJson, stderr: "" });
+
+    const handlers = await registerHandlers();
+    await expect(invoke(handlers, "tasks.capabilities", {})).resolves.toEqual({ stop: true, read: false });
+    await expect(invoke(handlers, "tasks.stop", { agentIds: ["agent-a"] })).resolves.toEqual({
+      results: [{ agentId: "agent-a", ok: true, error: null }],
+    });
+    expect(execCommand).toHaveBeenCalledWith(...hostCliCall(install.bin, "agent", "stop", "agent-a", "--json"));
+    expect(execCommand.mock.calls[0]?.[2]?.env).toBe(process.env);
+  });
+
+  it("keeps PASEO_CLI, then PATH, ahead of the CLI beside the daemon", async () => {
+    process.argv[1] = (await daemonInstall(join(tempRoot, "prefix"))).entry;
+    const configured = await executable(join(tempRoot, "configured"));
+    const onPath = await executable(join(tempRoot, "bin"));
+    process.env.PASEO_CLI = configured;
+    process.env.PATH = join(tempRoot, "bin");
+    execCommand.mockResolvedValue({ stdout: validJson, stderr: "" });
+    await invoke(await registerHandlers(), "tasks.stop", { agentIds: ["agent-a"] });
+    expect(execCommand).toHaveBeenLastCalledWith(configured, ["agent", "stop", "agent-a", "--json"], expect.any(Object));
+
+    delete process.env.PASEO_CLI;
+    await invoke(await registerHandlers(), "tasks.stop", { agentIds: ["agent-a"] });
+    expect(execCommand).toHaveBeenLastCalledWith(onPath, ["agent", "stop", "agent-a", "--json"], expect.any(Object));
+  });
+
+  it.each([
+    ["another version than the daemon's", { cliVersion: "0.12.0" }],
+    ["no bin", { bin: false }],
+  ] as const)("does not take a CLI beside the daemon with %s", async (_name, options) => {
+    process.argv[1] = (await daemonInstall(join(tempRoot, "prefix"), options)).entry;
+    const handlers = await registerHandlers();
+    await expect(invoke(handlers, "tasks.capabilities", {})).resolves.toEqual({ stop: false, read: false });
     expect(execCommand).not.toHaveBeenCalled();
   });
 
