@@ -48,8 +48,8 @@ export function TabletToolbar(props: {
   const [actionLayout, setActionLayout] = useState<LayoutRectangle | null>(null);
   const [viewLayout, setViewLayout] = useState<LayoutRectangle | null>(null);
   const actionWidth = actionLayout?.width ?? 0;
-  // At most three buttons at the right: filters, view and the sidebar; the board's switches live in the view menu.
-  const minimumActionsWidth = 2 * target + 6;
+  // Three buttons at the right: filters, view and the sidebar, or on a board too narrow for the sidebar's, the subtasks switch first. The other switches live in the view menu.
+  const minimumActionsWidth = 3 * target + 2 * 6;
   const separateFilters = compact || actionWidth === 0 || actionWidth >= 2 * target + 6;
   const menuAnchor = toolbarWidth !== null && actionLayout && viewLayout ? {
     right: toolbarWidth - actionLayout.x - viewLayout.x - viewLayout.width,
@@ -122,6 +122,7 @@ export function TabletToolbar(props: {
           </View>
         </View>}
         <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch ? 0 : 1, flexBasis: expandedSearch ? "auto" : 0, minWidth: compact ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+        {shortcuts ? null : <ToolbarButton compact={compact} icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} theme={theme} testID="subtasks-toggle" onPress={() => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks }))} />}
         {separateFilters ? <ToolbarButton compact={compact} icon="ListFilter" label={strings.filters} showLabel={labels} badge={count} theme={theme} testID="toolbar-filters" onPress={() => { close(); props.onFilters(); }} /> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
           <ToolbarButton compact={compact} icon="SlidersHorizontal" label={strings.view} showLabel={labels} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { setSearchOpen(false); openPage(page ? null : "view"); }} />

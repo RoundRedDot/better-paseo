@@ -2631,8 +2631,8 @@ describe("Tasks board, tablet filters", () => {
     layOut(width);
     const end = () => hostsById("tablet-toolbar-end")[0]!;
     const order = () => end().findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
-    // At most three buttons at the right; a narrow board has no sidebar switch, so two.
-    const expected = ["toolbar-filters", "tablet-view"];
+    // Three buttons at the right; a narrow board has no sidebar switch, so the subtasks switch leads instead.
+    const expected = ["subtasks-toggle", "toolbar-filters", "tablet-view"];
     expect(order()).toEqual(expected);
     // The view menu's switches follow the desktop filter bar's order; empty groups stay in the filter panel.
     act(() => hostsById("tablet-view")[0]!.props.onPress());
@@ -2913,8 +2913,8 @@ describe("Tasks board, tablet filters", () => {
     });
     layOut(width);
     const end = hostsById("tablet-toolbar-end")[0]!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
-    expect(end.length).toBeLessThanOrEqual(3);
-    expect(end).toEqual(["toolbar-filters", "tablet-view", ...(width >= 680 ? ["sidebar-switch"] : [])]);
+    expect(end).toHaveLength(3);
+    expect(end).toEqual(width >= 680 ? ["toolbar-filters", "tablet-view", "sidebar-switch"] : ["subtasks-toggle", "toolbar-filters", "tablet-view"]);
     expect(hostsById("toolbar-archived")).toHaveLength(0);
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     const item = () => hostsById("tablet-view-menu")[0]!.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith("Show the archived lane"));
