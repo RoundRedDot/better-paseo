@@ -1065,12 +1065,13 @@ describe("ProjectIcon", () => {
     expect(contrastRatio(lifted, dark.card.background)).toBeGreaterThan(contrastRatio(restOnCard, dark.card.background) * 2);
     // A lively colour is left as it is on a dark card.
     expect(markHue(withIcon.location, "host-1", dark)).toBe("#ff4d23");
-    // A top-level card has none, and a provider subagent keeps its dashed border alone.
+    // A top-level card has none; a provider subagent's dashed card has one too.
     await act(async () => tree.update(cardElement(sample("sample-running"))));
     expect(marks(tree)).toHaveLength(0);
     const subagent = { ...child, subagent: { subtitle: "general-purpose · High", type: "general-purpose" } };
-    await act(async () => tree.update(cardElement(subagent)));
-    expect(marks(tree)).toHaveLength(0);
+    await act(async () => tree.update(cardElement(subagent, { hostId: "host-1" })));
+    expect(marks(tree)).toHaveLength(1);
+    expect(color(tree)).toBe(markRest(light, light.card.background));
   });
 
 });
