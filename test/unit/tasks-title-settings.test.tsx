@@ -35,7 +35,7 @@ async function mount(extra: object = {}) {
   const settings = {
     status: "ready", values: titleGenerationSettingsSchema.parse({ customModel: true, provider: "claude", model: "haiku" }),
     revision: "r1", saving: false, saveError: null,
-    save: vi.fn(async () => true), reload: vi.fn(), ...extra,
+    save: vi.fn(async () => true), reset: vi.fn(async () => true), reload: vi.fn(), ...extra,
   };
   state.current = settings;
   await act(async () => { tree = TestRenderer.create(<TitleGenerationSettings look={look} />); });
@@ -45,6 +45,34 @@ const saveButton = () => tree.root.find((node) => typeof node.type === "string" 
 const customToggle = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "switch" && node.props.accessibilityLabel === "自定义自动标题模型");
 
 describe("automatic title settings", () => {
+  it.each([false, true])("resets only title settings and discards the title draft (compact: %s)", async (compact) => {
+    const settings = await mount();
+    await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
+    await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("Unsaved prompt"));
+    const reset = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "重置标题设置");
+    expect(reset.props.disabled).toBe(false);
+    await act(async () => reset.props.onPress());
+    expect(settings.reset).toHaveBeenCalledExactlyOnceWith();
+    expect(settings.save).not.toHaveBeenCalled();
+    expect(customToggle().props.accessibilityState.checked).toBe(false);
+    expect(tree.root.findByType("TextInput" as never).props.value).toBe(titleGenerationSettingsSchema.parse({}).prompt);
+    expect(tree.root.findAllByType(ProviderLogo)).toHaveLength(0);
+  });
+
+  it("keeps the draft and exposes a failed title reset", async () => {
+    await mount({ reset: vi.fn(async () => false), saveError: "Reset failed" });
+    await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("Keep this prompt"));
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "重置标题设置").props.onPress());
+    expect(customToggle().props.accessibilityState.checked).toBe(true);
+    expect(tree.root.findByType("TextInput" as never).props.value).toBe("Keep this prompt");
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert").children.join("")).toContain("Reset failed");
+  });
+
+  it("disables title reset while a settings write is pending", async () => {
+    await mount({ saving: true });
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "重置标题设置").props.disabled).toBe(true);
+  });
+
   it("defaults to following the source and saves without selecting a custom model", async () => {
     const settings = await mount({ values: titleGenerationSettingsSchema.parse({}) });
     expect(TITLE_GENERATION_SETTINGS.scope).toBe("host");
