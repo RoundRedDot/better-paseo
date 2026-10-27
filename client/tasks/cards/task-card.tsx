@@ -862,7 +862,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           animated={props.animated}
         />
       </View>
-      {updatingTitle ? <TitleLoading title={card.title} color={tokens.foreground} mutedColor={tokens.foregroundMuted}
+      {updatingTitle ? <TitleLoading title={card.title} color={tokens.accent} mutedColor={tokens.foregroundMuted}
         animated={props.animated} accessibilityLabel={strings.autoTitlePending}
         style={[text(m.titleSize, m.titleLine, tokens.foreground, "500"), WEB ? ({ overflowWrap: "anywhere" } as TextStyle) : null]} /> : <Text
         numberOfLines={2}
