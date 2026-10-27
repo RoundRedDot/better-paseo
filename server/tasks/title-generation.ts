@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { PaseoApi } from "@getpaseo/client";
+import type { PaseoAgentTimelineEvent, PaseoApi } from "@getpaseo/client";
 import type { PluginServerContext, PluginSettings } from "@getpaseo/plugin/server";
 import { z } from "zod";
 import { TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema, titleModelsRpc, titleUpdateRpc, type TitleUpdateState } from "../../shared/title-generation";
@@ -16,11 +16,23 @@ interface Dependencies {
   directory: string;
 }
 
+/**
+ * The title so far from a live timeline event: the host's live rows are a
+ * reply's chunks, appended until a different message starts.
+ */
+export function appendTitleChunk(sofar: { text: string; messageId?: string }, event: PaseoAgentTimelineEvent): { text: string; messageId?: string } | null {
+  if (event.event.type !== "timeline" || !("item" in event.event)) return null;
+  const { item } = event.event;
+  if (item.type !== "assistant_message" || !item.text) return null;
+  const restart = item.messageId !== undefined && sofar.messageId !== undefined && item.messageId !== sofar.messageId;
+  return { text: `${restart ? "" : sofar.text}${item.text}`, messageId: item.messageId ?? sofar.messageId };
+}
+
 /** Jobs outlive the menu and fit the host's 30-second RPC limit. */
 export function createTitleGenerator(deps: Dependencies) {
   const jobs = new Map<string, TitleUpdateState>();
 
-  async function generate(agentId: string, paseo: PaseoApi): Promise<string> {
+  async function generate(agentId: string, paseo: PaseoApi, stream: (update: { text?: string; helperId: string }) => void): Promise<string> {
     if (!deps.canRename()) throw new Error("This host cannot update agent titles.");
     const settings = await deps.settings.read();
     if (settings.status !== "ready") throw new Error("Title generation settings are invalid.");
@@ -51,6 +63,7 @@ export function createTitleGenerator(deps: Dependencies) {
     });
     let title: string;
     let generationFailure: unknown = null;
+    let unsubscribe: ((() => void) & { ready?: Promise<void> }) | null = null;
     try {
       const helper = await workspace.agents.create({
         config: { provider: `${config.provider}/${config.model}`, systemPrompt: SYSTEM_PROMPT,
@@ -58,6 +71,20 @@ export function createTitleGenerator(deps: Dependencies) {
         },
         title: "Title generator", labels: { "better-paseo.purpose": "title-generation" },
       });
+      stream({ helperId: helper.id });
+      // Subscribed before the prompt, so the reply's first chunk is not missed.
+      let sofar: { text: string; messageId?: string } = { text: "" };
+      try {
+        unsubscribe = helper.timeline.subscribe((event) => {
+          const next = appendTitleChunk(sofar, event);
+          if (!next) return;
+          sofar = next;
+          stream({ text: next.text, helperId: helper.id });
+        });
+        await unsubscribe.ready;
+      } catch {
+        // Without a live timeline the title lands whole when the turn ends.
+      }
       const result = await helper.run(`${config.prompt}\n\n${JSON.stringify({ currentTitle: original.agent.title, firstPrompt, recentMessages: recent })}`, { timeoutMs: 60_000 });
       if (result.status !== "idle") throw new Error(result.error || `Title generation ended with status: ${result.status}.`);
       const parsed = generatedTitle.safeParse(result.lastMessage);
@@ -67,6 +94,7 @@ export function createTitleGenerator(deps: Dependencies) {
       generationFailure = error;
       throw error;
     } finally {
+      unsubscribe?.();
       const cleanup = await workspace.archive().catch((error: unknown) => ({ error: error instanceof Error ? error.message : String(error) }));
       if (cleanup.error) throw new Error(`${generationFailure === null ? "" : `${String(generationFailure)}; `}Could not archive the title helper: ${cleanup.error}`);
     }
@@ -87,7 +115,14 @@ export function createTitleGenerator(deps: Dependencies) {
       if (known?.state === "running") return known;
       const pending: TitleUpdateState = { state: "running" };
       jobs.set(input.agentId, pending);
-      void generate(input.agentId, paseo).then(
+      // Only this run's job takes its chunks: a settled job keeps its result.
+      let latest: TitleUpdateState = pending;
+      const stream = (update: { text?: string; helperId: string }) => {
+        if (jobs.get(input.agentId) !== latest) return;
+        latest = { ...latest, ...update } as TitleUpdateState;
+        jobs.set(input.agentId, latest);
+      };
+      void generate(input.agentId, paseo, stream).then(
         (title) => jobs.set(input.agentId, { state: "done", title }),
         (error: unknown) => jobs.set(input.agentId, { state: "error", error: error instanceof Error ? error.message : String(error) }),
       );

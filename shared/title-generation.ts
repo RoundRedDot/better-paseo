@@ -15,7 +15,8 @@ export const TITLE_GENERATION_SETTINGS = defineSettings({
 
 export const titleUpdateStateSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("idle") }),
-  z.object({ state: z.literal("running") }),
+  // The title streams in as `text`; `helperId` is the helper agent whose live timeline announces each chunk.
+  z.object({ state: z.literal("running"), text: z.string().optional(), helperId: z.string().optional() }),
   z.object({ state: z.literal("done"), title: z.string() }),
   z.object({ state: z.literal("error"), error: z.string() }),
 ]);

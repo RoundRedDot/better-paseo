@@ -16,7 +16,12 @@ async function fixture() {
   directories.push(directory);
   const run = vi.fn(async (_prompt: string, _options: { timeoutMs: number }) => ({ status: "idle", lastMessage: "Updated 中文 title", error: null }));
   const archive = vi.fn(async () => ({ error: null as string | null }));
-  const create = vi.fn(async () => ({ run }));
+  const live = { handler: null as ((event: unknown) => void) | null, unsubscribe: vi.fn() };
+  const subscribe = vi.fn((handler: (event: unknown) => void) => {
+    live.handler = handler;
+    return Object.assign(live.unsubscribe, { ready: Promise.resolve() });
+  });
+  const create = vi.fn(async () => ({ id: "helper", run, timeline: { subscribe } }));
   const workspace = vi.fn(async () => ({ agents: { create }, archive }));
   const original = { agent: { title: "Original", workspaceId: "source-ws", archivedAt: null as string | null } };
   const refresh = vi.fn(async () => original);
@@ -36,7 +41,7 @@ async function fixture() {
   const state = () => service.request({ agentId: "source", action: "status" }, api);
   const start = () => service.request({ agentId: "source", action: "start" }, api);
   const settle = async () => { await expect.poll(() => state().state).not.toBe("running"); return state(); };
-  return { api, service, directory, run, archive, create, workspace, original, refresh, timeline, values, read, rename, canRename, state, start, settle };
+  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, timeline, values, read, rename, canRename, state, start, settle };
 }
 
 describe("background title generation", () => {
@@ -81,6 +86,45 @@ describe("background title generation", () => {
     expect(f.archive).toHaveBeenCalledTimes(1);
     expect(f.archive.mock.invocationCallOrder[0]).toBeLessThan(f.rename.mock.invocationCallOrder[0]!);
     expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
+  });
+
+  it("streams the helper's reply into the running state, then settles on the whole title", async () => {
+    const f = await fixture();
+    const chunk = (item: Record<string, unknown>) => f.live.handler!({ agentId: "helper", event: { type: "timeline", provider: "claude", item } });
+    let finish!: () => void;
+    f.run.mockImplementationOnce(() => new Promise((resolve) => {
+      chunk({ type: "reasoning", text: "Thinking" });
+      chunk({ type: "assistant_message", text: "Updated ", messageId: "m1" });
+      finish = () => {
+        chunk({ type: "assistant_message", text: "中文 title", messageId: "m1" });
+        resolve({ status: "idle", lastMessage: "Updated 中文 title", error: null });
+      };
+    }));
+    f.start();
+    await expect.poll(() => f.state()).toEqual({ state: "running", helperId: "helper", text: "Updated " });
+    expect(f.subscribe.mock.invocationCallOrder[0]).toBeLessThan(f.run.mock.invocationCallOrder[0]!);
+    finish();
+    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(f.live.unsubscribe).toHaveBeenCalledTimes(1);
+    // A late chunk cannot reopen the settled job.
+    chunk({ type: "assistant_message", text: " again" });
+    expect(f.state()).toEqual({ state: "done", title: "Updated 中文 title" });
+  });
+
+  it("starts over when the helper begins a different message", async () => {
+    const { appendTitleChunk } = await import("../../server/tasks/title-generation");
+    const event = (text: string, messageId?: string) => ({ agentId: "helper", event: { type: "timeline", provider: "claude", item: { type: "assistant_message", text, messageId } } }) as Parameters<typeof appendTitleChunk>[1];
+    const first = appendTitleChunk({ text: "" }, event("Draft", "m1"))!;
+    expect(appendTitleChunk(first, event(" title"))).toEqual({ text: "Draft title", messageId: "m1" });
+    expect(appendTitleChunk(first, event("Final", "m2"))).toEqual({ text: "Final", messageId: "m2" });
+    expect(appendTitleChunk(first, { agentId: "helper", event: { type: "subscription_restored" }, subscriptionId: "s" })).toBeNull();
+  });
+
+  it("still settles when the helper's live timeline is unavailable", async () => {
+    const f = await fixture();
+    f.subscribe.mockImplementationOnce(() => { throw new Error("No live timeline"); });
+    f.start();
+    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title" });
   });
 
   it("requires explicit model configuration and a conversation without provisioning resources", async () => {

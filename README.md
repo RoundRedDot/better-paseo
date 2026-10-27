@@ -883,8 +883,9 @@ subscription, and the board's code is not fetched. Its options are listed under
   title, workspace or project; Stop, Mark as read, Archive or Unarchive as the card allows.
 - **Automatically update title** generates a title without adding another card. Configure its
   provider, model and prompt under **Tasks board → Automatic titles**, then choose the action
-  from an active card's right-click or long-press menu. A spinner stays on the card until the
-  title updates; errors keep the original title and can be dismissed or retried. A manual title
+  from an active card's right-click or long-press menu. The new title streams in on the card
+  under a sweep of light as the model writes it; errors keep the original title and can be
+  dismissed or retried. A manual title
   change during generation is preserved.
 - Sub-agents a provider runs itself (Claude Code's Agent tool) get read-only cards with dashed
   borders: in running while they work and in to review after they fail, with the parent's project

@@ -543,6 +543,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const strings = cardStrings(language);
   const titleUpdate = useTitleUpdateState(props.titleUpdates, card.id);
   const updatingTitle = titleUpdate.state === "running";
+  // The title streams in under the sweep, then holds until the rename reaches the card.
+  const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
+  const shownTitle = streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : card.title);
   const previousTitle = useRef(card.title);
   useEffect(() => {
     if (previousTitle.current !== card.title) props.titleUpdates?.dismiss(card.id);
@@ -862,7 +865,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           animated={props.animated}
         />
       </View>
-      {updatingTitle ? <TitleLoading title={card.title} mutedColor={tokens.foregroundMuted}
+      {updatingTitle ? <TitleLoading title={shownTitle} mutedColor={tokens.foregroundMuted}
         // A band of light: towards the card's fill on a light theme, keeping the glyphs
         // readable under it, and the text color on a dark one.
         highlightColor={tokens.isDark ? tokens.foreground : mix(background, tokens.foregroundMuted, 0.45)}
@@ -877,7 +880,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         ]}
         testID="task-card-title"
       >
-        {card.title}
+        {shownTitle}
       </Text>}
       {hasMeta ? null : ringFor(m.titleLine)}
     </View>
