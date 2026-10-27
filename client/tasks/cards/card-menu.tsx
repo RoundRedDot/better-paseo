@@ -172,7 +172,7 @@ export function CardContextMenu(props: {
   useLayoutEffect(() => point && !editing ? openPointLayer(anchorRef.current, point) : undefined, [point?.x, point?.y, editing]);
   if (editing) {
     return <TaskRenameDialog agentId={props.card.id} title={props.card.title} strings={props.strings} theme={props.theme} onClose={props.onClose}
-      autoTitle={props.card.lane !== "archived" ? props.actions.autoTitle : undefined} autoTitlePending={props.actions.autoTitlePending} />;
+      canAutoTitle={props.card.lane !== "archived" && Boolean(props.actions.autoTitle)} autoTitlePending={props.actions.autoTitlePending} />;
   }
   if (!point) {
     const colors = props.theme.colors;

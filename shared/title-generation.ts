@@ -26,7 +26,7 @@ export type TitleUpdateState = z.output<typeof titleUpdateStateSchema>;
 
 export const titleUpdateRpc = defineRpc({
   name: "tasks.title-update",
-  input: z.object({ agentId: z.string().min(1), action: z.enum(["start", "status"]) }),
+  input: z.object({ agentId: z.string().min(1), action: z.enum(["start", "status"]), mode: z.enum(["apply", "preview"]).default("apply") }),
   output: titleUpdateStateSchema,
 });
 
