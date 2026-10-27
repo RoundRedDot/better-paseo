@@ -102,7 +102,7 @@ Paseo 在桌面、网页、iOS 和 Android 上运行的是同一个插件。Bett
 
 ### Web
 
-2026-10-26 至 27 日在 Mac Studio（Apple M5 Max、18 核、64 GB、macOS 27.0.1）上对照 Paseo 0.13.0 测量；Paseo 0.13 基于 React Native 0.86，回复仍由 react-native-enriched-markdown 绘制。Better Paseo 测试版本为 948b8720，通过插件安装流程构建，每次跑次都核实了实际加载的压缩 bundle。Web 和 iOS 各测 11 个场景 × 2 种配置（不开插件、Better Paseo）× 5 次：每个平台 110 次，共 220 次；串行执行，并按场景轮换配置顺序。bench daemon 使用干净的 home，测量期间只有 1 个 workspace 和 1 个 agent。每批只在机器安静时开始：没有其他已启动的模拟器，没有其他构建在跑，一分钟内 CPU 平均空闲不低于 90%；每次跑完时的 1 分钟负载，Web 为 1–7（中位数 2），iOS 为 1.0–8.3（中位数 1.7）。Web 使用 Chrome 156.0.8078.48、1280×900。Tasks 看板和 Block details 均按默认设置开启。之后到本 README 为止的提交 948b8720..8802deb8 只改了 Tasks 看板在手机上的搜索、筛选弹层和搜索索引，不涉及时间线；下表是 948b8720 的 220 次回放结果。
+2026-10-26 至 27 日在 Mac Studio（Apple M5 Max、18 核、64 GB、macOS 27.0.1）上对照 Paseo 0.13.0 测量；Paseo 0.13 基于 React Native 0.86，回复仍由 react-native-enriched-markdown 绘制。Better Paseo 测试版本为 948b8720，通过插件安装流程构建，每次跑次都核实了实际加载的压缩 bundle。Web 和 iOS 各测 11 个场景 × 2 种配置（不开插件、Better Paseo）× 5 次：每个平台 110 次，共 220 次；串行执行，并按场景轮换配置顺序。bench daemon 使用干净的 home，测量期间只有 1 个 workspace 和 1 个 agent。每批只在机器安静时开始：没有其他已启动的模拟器，没有其他构建在跑，一分钟内 CPU 平均空闲不低于 90%；每次跑完时的 1 分钟负载，Web 为 1–7（中位数 2），iOS 为 1.0–8.3（中位数 1.7）。Web 使用 Chrome 156.0.8078.48、1280×900。Tasks 看板和 Block details 均按默认设置开启。之后的提交 948b8720..8802deb8 只改了 Tasks 看板在手机上的搜索、筛选弹层和搜索索引，不涉及时间线。随后的 50143ce1 改了 iOS 时间线：仍在流式输出的回复先用普通文本绘制正文，结束后再换成原生文本视图；在另一组交错的 iOS 长回复 A/B 中（每组 5 次，未经上述安静闸门），App CPU 从 12.35 秒降到 11.01 秒。下表是 948b8720 的 220 次回放结果，没有针对 50143ce1 重测。
 
 ![Web 主线程时间](docs/perf/readme/web-cpu.zh.svg)
 
