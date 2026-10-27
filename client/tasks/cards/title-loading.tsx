@@ -3,8 +3,8 @@ import { Animated, Platform, View, type StyleProp, type TextStyle } from "react-
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { TaskText } from "../typography";
 
-const BAND_WIDTH = 72;
-const INTENSITIES = [0.15, 0.5, 1, 0.5, 0.15];
+const BAND_WIDTH = 112;
+const INTENSITIES = [0.25, 0.75, 1, 0.75, 0.25];
 
 export function TitleLoading(props: {
   title: string;
@@ -22,7 +22,7 @@ export function TitleLoading(props: {
     progress.setValue(0);
     if (!active || width === 0) return;
     const loop = Animated.loop(Animated.timing(progress, {
-      toValue: 1, duration: 1600, easing: (value) => value, useNativeDriver: Platform.OS !== "web", isInteraction: false,
+      toValue: 1, duration: 1350, easing: (value) => value, useNativeDriver: Platform.OS !== "web", isInteraction: false,
     }));
     loop.start();
     return () => loop.stop();
@@ -41,7 +41,7 @@ export function TitleLoading(props: {
             <View key={index} style={{ position: "absolute", top: 0, bottom: 0, left: index * BAND_WIDTH / INTENSITIES.length, width: BAND_WIDTH / INTENSITIES.length, overflow: "hidden" }}>
               {/* Counter-motion keeps every clipped text copy aligned with the in-flow title. */}
               <Animated.View style={{ width, marginLeft: -index * BAND_WIDTH / INTENSITIES.length, opacity, transform: [{ translateX: progress.interpolate(counterTravel) }] }}>
-                <TaskText numberOfLines={2} ellipsizeMode="tail" style={[props.style, { color: props.color }]}>{props.title}</TaskText>
+                <TaskText numberOfLines={2} ellipsizeMode="tail" style={[props.style, { color: props.color, textShadowColor: props.color, textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 5 }]}>{props.title}</TaskText>
               </Animated.View>
             </View>
           ))}

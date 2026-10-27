@@ -96,7 +96,7 @@ describe("automatic title settings", () => {
     expect(tree.root.findByType(SectionNote).props.text).toContain("Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off");
     expect(tree.root.findByType(SectionNote).props.text).toContain("Use the language of firstPrompt. Limit the title to 80 characters including spaces.");
     expect(section.findAllByType(SettingRow).map((row) => [row.props.title, row.props.first === true])).toEqual([
-      ["Provider", true], ["模型", false], ["思考等级", false], ["prompt", false],
+      ["Provider", true], ["模型", false], ["思考等级", false], ["Prompt", false],
     ]);
   });
 
