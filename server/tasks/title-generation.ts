@@ -53,7 +53,9 @@ export function createTitleGenerator(deps: Dependencies) {
     let generationFailure: unknown = null;
     try {
       const helper = await workspace.agents.create({
-        config: { provider: `${config.provider}/${config.model}`, systemPrompt: SYSTEM_PROMPT },
+        config: { provider: `${config.provider}/${config.model}`, systemPrompt: SYSTEM_PROMPT,
+          ...(config.thinkingOptionId ? { thinkingOptionId: config.thinkingOptionId } : {}),
+        },
         title: "Title generator", labels: { "better-paseo.purpose": "title-generation" },
       });
       const result = await helper.run(`${config.prompt}\n\n${JSON.stringify({ currentTitle: original.agent.title, firstPrompt, recentMessages: recent })}`, { timeoutMs: 60_000 });
@@ -104,6 +106,10 @@ export function registerTitleGeneration(server: PluginServerContext, rename: Dep
     if (!provider) return { providers, models: [], error: null };
     const result = await paseo.providers.listModels(provider);
     if (result.error || !result.models) return { providers, models: [], error: result.error || "The provider did not return a model catalog." };
-    return { providers, models: result.models.filter((model) => model.isSelectable !== false).map(({ id, label }) => ({ id, label })), error: result.error ?? null };
+    return { providers, models: result.models.filter((model) => model.isSelectable !== false).map((model) => ({
+      id: model.id, label: model.label,
+      thinkingOptions: (model.thinkingOptions ?? []).map(({ id, label }) => ({ id, label })),
+      defaultThinkingOptionId: model.defaultThinkingOptionId ?? null,
+    })), error: result.error ?? null };
   });
 }

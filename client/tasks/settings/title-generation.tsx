@@ -10,15 +10,15 @@ import { useTasksLanguage } from "../i18n";
 
 const WORDS = {
   en: {
-    title: "Automatic titles", provider: "Provider", model: "Model", choose: "Choose…", prompt: "prompt",
-    hint: "Choose a fast model configured on this host. The background task stays off the board, retains history and may trigger host notifications.",
+    title: "Automatic titles", provider: "Provider", model: "Model", thinkingOptionId: "Thinking level", modelDefault: "Model default", noThinking: "Not supported", choose: "Choose…", prompt: "prompt",
+    hint: "Recommended: Oh My Pi / DeepSeek Flash (deepseek/deepseek-flash), thinking low. Alternative: Claude / Haiku 5.5 (claude-haiku-5-5), thinking off.\nAppend to the default prompt: Use the language of firstPrompt. Limit the title to 80 characters including spaces.\nChoose models available on this host; actual speed also depends on agent startup and host load. The background task stays off the board, retains history and may trigger host notifications.",
     save: "Save title settings", saving: "Saving…", loading: "Loading…", retry: "Retry", refresh: "Refresh models", loadError: "Could not load title settings.",
     saveError: "Settings changed elsewhere or could not be saved. Reloaded the latest.",
     notRecommended: "Not recommended",
   },
   zh: {
-    title: "自动更新标题", provider: "Provider", model: "模型", choose: "请选择…", prompt: "prompt",
-    hint: "选择这台主机已配置的快速模型。后台任务不进入看板，仍保留历史，并可能触发宿主通知。",
+    title: "自动更新标题", provider: "Provider", model: "模型", thinkingOptionId: "思考等级", modelDefault: "模型默认", noThinking: "不支持", choose: "请选择…", prompt: "prompt",
+    hint: "推荐：Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low；备选：Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off。\n建议在默认 prompt 末尾补充：Use the language of firstPrompt. Limit the title to 80 characters including spaces.\n请选择当前主机可用的模型；实际速度也受 agent 启动和主机负载影响。后台任务不进入看板，仍保留历史，并可能触发宿主通知。",
     save: "保存标题设置", saving: "正在保存…", loading: "正在加载…", retry: "重试", refresh: "刷新模型", loadError: "标题设置加载失败。",
     saveError: "设置已在别处更改或保存失败，已重新加载最新内容。",
     notRecommended: "不推荐使用",
@@ -30,12 +30,12 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   const settings = useSettings(TITLE_GENERATION_SETTINGS);
   const loadCatalog = useRpc(titleModelsRpc);
   const [draft, setDraft] = useState(() => settings.status === "ready" ? settings.values : titleGenerationSettingsSchema.parse({}));
-  const [catalog, setCatalog] = useState<{ providers: string[]; models: Array<{ id: string; label: string }> }>({ providers: [], models: [] });
+  const [catalog, setCatalog] = useState<{ providers: string[]; models: Array<{ id: string; label: string; thinkingOptions: Array<{ id: string; label: string }>; defaultThinkingOptionId: string | null }> }>({ providers: [], models: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
-  const [choosing, setChoosing] = useState<"provider" | "model" | null>(null);
+  const [choosing, setChoosing] = useState<"provider" | "model" | "thinkingOptionId" | null>(null);
   const revision = settings.status === "ready" ? settings.revision : null;
   useEffect(() => {
     if (settings.status === "ready") setDraft(settings.values);
@@ -83,13 +83,20 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
     .sort((a, b) => Number(a === "cursor") - Number(b === "cursor"))
     .map((provider) => ({ id: provider, label: `${providerBrand(provider).displayName}${provider === "cursor" ? ` · ${words.notRecommended}` : ""}` }));
   const models = catalog.models.some((model) => model.id === draft.model) || !draft.model ? catalog.models : [...catalog.models, { id: draft.model, label: draft.model }];
-  const choices = choosing === "provider" ? providers : models;
+  const selectedModel = catalog.models.find((model) => model.id === draft.model);
+  const thinkingOptions = selectedModel?.thinkingOptions ?? [];
+  const modelDefault = `${words.modelDefault}${selectedModel?.defaultThinkingOptionId ? ` · ${selectedModel.defaultThinkingOptionId}` : ""}`;
+  const thinkingChoices = [{ id: "", label: modelDefault }, ...thinkingOptions];
+  const choices = choosing === "provider" ? providers : choosing === "model" ? models : thinkingChoices;
   return (
     <View style={{ gap: space.sm }}>
       <Section title={words.title} look={look}>
-        {(["provider", "model"] as const).map((field) => {
-          const disabled = settings.saving || loading || (field === "model" && !draft.provider);
-          const label = field === "provider" ? providers.find((provider) => provider.id === draft.provider)?.label : models.find((model) => model.id === draft.model)?.label;
+        {(["provider", "model", "thinkingOptionId"] as const).map((field) => {
+          const disabled = settings.saving || loading || (field === "model" && !draft.provider) || (field === "thinkingOptionId" && thinkingOptions.length === 0);
+          const label = field === "provider" ? providers.find((provider) => provider.id === draft.provider)?.label
+            : field === "model" ? models.find((model) => model.id === draft.model)?.label
+              : draft.thinkingOptionId ? thinkingOptions.find((option) => option.id === draft.thinkingOptionId)?.label ?? draft.thinkingOptionId
+                : thinkingOptions.length > 0 ? modelDefault : draft.model && selectedModel ? words.noThinking : words.choose;
           return <SettingRow key={field} title={words[field]} look={look} first={field === "provider"} control={
             <Pressable accessibilityRole="button" accessibilityLabel={words[field]} accessibilityState={{ expanded: choosing === field, disabled }}
               disabled={disabled} onPress={() => setChoosing(field)}
@@ -120,8 +127,17 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
             {choices.map((choice) => <Pressable key={choice.id} accessibilityRole="radio" accessibilityLabel={choice.label}
               accessibilityState={{ checked: draft[choosing] === choice.id }} aria-checked={draft[choosing] === choice.id}
               onPress={() => {
-                setDraft(choosing === "provider" ? { ...draft, provider: choice.id, model: choice.id === draft.provider ? draft.model : "" } : { ...draft, model: choice.id });
                 setChoosing(null);
+                if (choosing === "provider") {
+                  setDraft(choice.id === draft.provider ? draft : { ...draft, provider: choice.id, model: "", thinkingOptionId: "" });
+                  return;
+                }
+                if (choosing === "model") {
+                  const nextModel = catalog.models.find((model) => model.id === choice.id);
+                  setDraft({ ...draft, model: choice.id, thinkingOptionId: nextModel?.thinkingOptions.some((option) => option.id === draft.thinkingOptionId) ? draft.thinkingOptionId : "" });
+                  return;
+                }
+                setDraft({ ...draft, thinkingOptionId: choice.id });
               }}
               style={{ minHeight: 48, padding: space.md, flexDirection: "row", alignItems: "center", gap: 10 }}>
               {choosing === "provider" ? <ProviderLogo provider={choice.id} size={20} color={providerBrand(choice.id).monochrome ? look.tokens.foreground : undefined} /> : null}

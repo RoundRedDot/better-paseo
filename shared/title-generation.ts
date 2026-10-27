@@ -6,6 +6,7 @@ export const DEFAULT_TITLE_PROMPT = "Generate a concise, specific task title fro
 export const titleGenerationSettingsSchema = z.object({
   provider: z.string().catch(""),
   model: z.string().catch(""),
+  thinkingOptionId: z.string().catch(""),
   prompt: z.string().trim().min(1).max(8000).catch(DEFAULT_TITLE_PROMPT),
 });
 export const TITLE_GENERATION_SETTINGS = defineSettings({
@@ -31,7 +32,11 @@ export const titleModelsRpc = defineRpc({
   input: z.object({ provider: z.string() }),
   output: z.object({
     providers: z.array(z.string()),
-    models: z.array(z.object({ id: z.string(), label: z.string() })),
+    models: z.array(z.object({
+      id: z.string(), label: z.string(),
+      thinkingOptions: z.array(z.object({ id: z.string(), label: z.string() })),
+      defaultThinkingOptionId: z.string().nullable(),
+    })),
     error: z.string().nullable(),
   }),
 });

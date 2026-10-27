@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PaseoApi } from "@getpaseo/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createTitleGenerator } from "../../server/tasks/title-generation";
-import { titleGenerationSettingsSchema } from "../../shared/title-generation";
+import { createTitleGenerator, registerTitleGeneration } from "../../server/tasks/title-generation";
+import { titleGenerationSettingsSchema, titleModelsRpc } from "../../shared/title-generation";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -40,6 +40,33 @@ async function fixture() {
 }
 
 describe("background title generation", () => {
+  it("exposes each selectable model's thinking options and default in the settings catalog", async () => {
+    const handle = vi.fn();
+    registerTitleGeneration({ registerSettings: vi.fn(), handle } as unknown as Parameters<typeof registerTitleGeneration>[0], vi.fn(), () => true);
+    const models = handle.mock.calls.find(([contract]) => contract.name === titleModelsRpc.name)![1];
+    const paseo = { providers: {
+      snapshot: async () => ({ entries: [{ provider: "claude", enabled: true }, { provider: "cursor", enabled: false }] }),
+      listModels: async () => ({ error: null, models: [
+        { id: "haiku", label: "Haiku", thinkingOptions: [{ id: "off", label: "Off", description: "No thinking" }], defaultThinkingOptionId: "off" },
+        { id: "old", label: "Old" },
+        { id: "hidden", label: "Hidden", isSelectable: false },
+      ] }),
+    } };
+    expect(await models({ provider: "claude" }, { paseo })).toEqual({ providers: ["claude"], models: [
+      { id: "haiku", label: "Haiku", thinkingOptions: [{ id: "off", label: "Off" }], defaultThinkingOptionId: "off" },
+      { id: "old", label: "Old", thinkingOptions: [], defaultThinkingOptionId: null },
+    ], error: null });
+  });
+
+  it("keeps existing settings on the model default and forwards an explicitly selected thinking level", async () => {
+    const f = await fixture();
+    expect(f.values.thinkingOptionId).toBe("");
+    f.values.thinkingOptionId = "off";
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.create).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({ thinkingOptionId: "off" }) }));
+  });
+
   it("returns immediately, deduplicates starts, uses the configured model and updates only after cleanup", async () => {
     const f = await fixture();
     expect(f.state()).toEqual({ state: "idle" });
