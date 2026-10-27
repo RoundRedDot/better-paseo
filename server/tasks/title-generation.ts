@@ -16,6 +16,36 @@ interface Dependencies {
   directory: string;
 }
 
+/** A round starts with a user message and includes every assistant reply until the next user message. */
+async function readTitleRounds(timeline: PaseoAgentTimelineHandle, direction: "after" | "tail", count: number) {
+  const messages: { seq: number; role: "user_message" | "assistant_message"; text: string }[] = [];
+  let rounds = 0;
+  let cursor: NonNullable<Parameters<PaseoAgentTimelineHandle["refetch"]>[0]>["cursor"];
+  for (;;) {
+    const page = await timeline.refetch({
+      direction: direction === "tail" && cursor ? "before" : direction,
+      projection: "projected", limit: 12, ...(cursor ? { cursor } : {}),
+    });
+    if (page.error || page.reset && cursor) throw new Error(page.error || "Could not read the conversation.");
+    const entries = direction === "tail" ? [...page.entries].reverse() : page.entries;
+    for (const entry of entries) {
+      const item = entry.item;
+      if (item.type !== "user_message" && item.type !== "assistant_message") continue;
+      if (item.type === "user_message") rounds++;
+      if (direction === "after" && rounds > count) return messages;
+      if (direction === "after" && rounds === 0) continue;
+      messages.push({ seq: entry.seqStart, role: item.type, text: item.text.slice(0, item.type === "user_message" ? 4000 : 2000) });
+      if (direction === "tail" && rounds === count) return messages.reverse();
+    }
+    if (!(direction === "tail" ? page.hasOlder : page.hasNewer)) return direction === "tail" ? messages.reverse() : messages;
+    const next = direction === "tail" ? page.startCursor : page.endCursor;
+    if (!next || cursor && (next.epoch !== cursor.epoch || (direction === "tail" ? next.seq >= cursor.seq : next.seq <= cursor.seq))) {
+      throw new Error("Could not read the conversation.");
+    }
+    cursor = next;
+  }
+}
+
 /**
  * The title so far from a live timeline event: the host's live rows are a
  * reply's chunks, appended until a different message starts.
@@ -49,24 +79,12 @@ export function createTitleGenerator(deps: Dependencies) {
     if (!original.agent.workspaceId) throw new Error("The original agent has no workspace.");
     const sourceWorkspace = await paseo.workspaces.ref(original.agent.workspaceId).refresh();
     if (!sourceWorkspace) throw new Error("The original workspace is unavailable.");
-    const messages: { role: "user_message" | "assistant_message"; text: string }[] = [];
-    let cursor: NonNullable<Parameters<PaseoAgentTimelineHandle["refetch"]>[0]>["cursor"];
-    for (;;) {
-      const page = await source.timeline.refetch({
-        direction: cursor ? "before" : "tail", projection: "projected", limit: 12, ...(cursor ? { cursor } : {}),
-      });
-      if (page.error || page.reset && cursor) throw new Error(page.error || "Could not read the conversation.");
-      for (let index = page.entries.length - 1; index >= 0; index--) {
-        const item = page.entries[index]!.item;
-        if (item.type !== "user_message" && item.type !== "assistant_message") continue;
-        messages.unshift({ role: item.type, text: item.text.slice(0, item.type === "user_message" ? 4000 : 2000) });
-        if (messages.length === 8) break;
-      }
-      if (messages.length === 8 || !page.hasOlder) break;
-      const next = page.startCursor;
-      if (!next || cursor && (next.epoch !== cursor.epoch || next.seq >= cursor.seq)) throw new Error("Could not read the conversation.");
-      cursor = next;
-    }
+    const [first, recent] = await Promise.all([
+      readTitleRounds(source.timeline, "after", 1),
+      readTitleRounds(source.timeline, "tail", 4),
+    ]);
+    const messages = [...new Map([...first, ...recent].map((message) => [message.seq, message])).values()]
+      .sort((a, b) => a.seq - b.seq).map(({ role, text }) => ({ role, text }));
     if (messages.length === 0) throw new Error("This agent has no conversation to summarize.");
 
     // A neutral directory avoids running the source project's workspace setup or loading its instructions.
