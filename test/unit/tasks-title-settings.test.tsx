@@ -147,23 +147,46 @@ describe("automatic title settings", () => {
     expect(settings.save).toHaveBeenCalledExactlyOnceWith({ customModel: true, disableThinking: false, provider: "claude", model: "haiku", thinkingOptionId: "", prompt: "Summarize the actual goal" }, "r1");
   });
 
-  it("clears the old model on provider change and blocks an incomplete or blank prompt", async () => {
+  it.each([false, true])("selects the first available model on provider change (compact: %s)", async (compact) => {
     const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "claude", model: "haiku", thinkingOptionId: "off" }) });
+    await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
+    state.catalog.mockResolvedValueOnce({ providers: ["claude", "codex"], models: [
+      { id: "first", label: "First model", thinkingOptions: [], defaultThinkingOptionId: null },
+      { id: "second", label: "Second model", thinkingOptions: [], defaultThinkingOptionId: null },
+    ], error: null });
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider").props.onPress());
     expect(tree.root.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(["claude", "claude", "codex"]);
     expect(tree.root.findAllByType(ProviderLogo).find((node) => node.props.provider === "codex")!.props.color).toBe(look.tokens.foreground);
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === "Codex").props.onPress());
     expect(state.catalog).toHaveBeenLastCalledWith({ provider: "codex" });
     const modelButton = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "模型");
-    expect(modelButton.findAllByType("Text" as never).some((node) => node.children.join("") === "请选择…")).toBe(true);
-    expect(saveButton().props.disabled).toBe(true);
-    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "模型").props.onPress());
-    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === "Haiku").props.onPress());
+    expect(modelButton.findAllByType("Text" as never).some((node) => node.children.join("") === "First model")).toBe(true);
     expect(saveButton().props.disabled).toBe(false);
     await act(async () => saveButton().props.onPress());
-    expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ provider: "codex", thinkingOptionId: "" }), "r1");
+    expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ provider: "codex", model: "first", thinkingOptionId: "" }), "r1");
     await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("   "));
     expect(saveButton().props.disabled).toBe(true);
+  });
+
+  it("keeps model selection empty when the new provider has no available models", async () => {
+    await mount();
+    state.catalog.mockResolvedValueOnce({ providers: ["claude", "codex"], models: [], error: null });
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider").props.onPress());
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === "Codex").props.onPress());
+    expect(saveButton().props.disabled).toBe(true);
+    const model = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "模型");
+    expect(model.findAllByType("Text" as never).some((node) => node.children.join("") === "请选择…")).toBe(true);
+  });
+
+  it("preserves a selected model when loading or refreshing the catalog", async () => {
+    state.catalog.mockResolvedValue({ providers: ["claude", "codex"], models: [
+      { id: "first", label: "First", thinkingOptions: [], defaultThinkingOptionId: null },
+      { id: "haiku", label: "Haiku", thinkingOptions: [], defaultThinkingOptionId: null },
+    ], error: null });
+    const settings = await mount();
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "刷新模型").props.onPress());
+    await act(async () => saveButton().props.onPress());
+    expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ model: "haiku" }), "r1");
   });
 
   it.each([false, true])("puts Cursor last with a warning and uses branded provider names and logos (compact: %s)", async (compact) => {
