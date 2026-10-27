@@ -486,6 +486,37 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("keeps a running task out of the done lane when the daemon sends its idle snapshot late", async () => {
+    const fake = createFakePaseo();
+    const mounted = await mountTasks(fake, "24h", true);
+    try {
+      const created = recentIso(2_000);
+      // A new agent with a first prompt, as Paseo 0.13 publishes it: idle once
+      // registered, running once prompted, then the idle copy `createAgent`
+      // returned, older than the running one, and nothing more until the turn ends.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("printing", { status: "idle", updatedAt: created, lastUserMessageAt: null }));
+        fake.upsertAgent(activeAgent("printing", { status: "running", updatedAt: recentIso(1_000), lastUserMessageAt: recentIso(1_000) }));
+        fake.pushAgentSnapshot(activeAgent("printing", { status: "idle", updatedAt: recentIso(1_500), lastUserMessageAt: null }));
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("printing")).toMatchObject({ lane: "running", status: "running" });
+      expect(mounted.current.lanes.done.cards.map((card) => card.id)).not.toContain("printing");
+      expect(fake.calls.filter((call) => call.method === "agents.ref.refresh")).toEqual([
+        { method: "agents.ref.refresh", input: { agentId: "printing" } },
+      ]);
+
+      // Its turn ends: the later idle update moves it to done as usual.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("printing", { status: "idle", updatedAt: recentIso(0), lastUserMessageAt: recentIso(1_000) }));
+        await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("printing")?.lane).toBe("done");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("replaces subscription membership from reconnect snapshots", async () => {
     const fake = createFakePaseo({ agents: [activeAgent("a", { status: "running" })] });
     const mounted = await mountTasks(fake, "24h", false);

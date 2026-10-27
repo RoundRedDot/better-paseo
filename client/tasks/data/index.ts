@@ -824,6 +824,10 @@ function createStore(api: PaseoApi): TaskStore {
   const workingSince = new Map<string, number | null>();
   /** Agents whose closing is being checked for a delete (`checkGone`). */
   const goneChecks = new Set<string>();
+  /** The newest `updatedAt` applied for each agent, kept after its record goes, so a late update is known stale. */
+  const latestUpdates = new Map<string, number>();
+  /** Agents being read again by id after a stale update (`confirmAgent`). */
+  const confirmChecks = new Set<string>();
   /** Provider subagents by parent, as `tasks.subagents` last answered. */
   const subagentsByParent = new Map<string, ProviderSubagent[]>();
   let subagentVersion: string | undefined;
@@ -1041,9 +1045,11 @@ function createStore(api: PaseoApi): TaskStore {
     return current !== undefined && Date.parse(agent.updatedAt) < Date.parse(current.updatedAt);
   }
 
-  function updateRecord(agent: PaseoAgent, placement: AgentPlacement) {
+  function updateRecord(agent: PaseoAgent, placement: AgentPlacement, confirmed = false) {
     // Independently bootstrapped lists and pages can arrive after a newer live update.
-    if (isStaleAgent(agent)) return;
+    if (!confirmed && isStaleAgent(agent)) return;
+    const updatedAt = epoch(agent.updatedAt);
+    latestUpdates.set(agent.id, confirmed ? updatedAt : Math.max(updatedAt, latestUpdates.get(agent.id) ?? updatedAt));
     if (isArchived(agent) && !keepsArchived(agent)) {
       for (const members of sourceMembers.values()) members.delete(agent.id);
       removeRecord(agent.id);
@@ -1130,7 +1136,10 @@ function createStore(api: PaseoApi): TaskStore {
     const payload = update.payload;
     if (payload.kind === "upsert" && payload.agent) {
       const agent = payload.agent;
-      if (isStaleAgent(agent)) return;
+      if (epoch(agent.updatedAt) < (latestUpdates.get(agent.id) ?? Number.NEGATIVE_INFINITY)) {
+        confirmAgent(agent.id);
+        return;
+      }
       if (sourceKey === DONE_SUBSCRIPTION) {
         if (isDone(agent) && (!isArchived(agent) || keepsArchived(agent))) {
           sourceMembers.get(DONE_SUBSCRIPTION)?.add(agent.id);
@@ -1196,6 +1205,38 @@ function createStore(api: PaseoApi): TaskStore {
         if (run === generation) goneChecks.delete(id);
       });
     }, GONE_CHECK_DELAYS_MS[attempt]);
+  }
+
+  /**
+   * A live update older than one already applied is a snapshot the daemon
+   * took earlier and sent late: Paseo 0.13 forwards the idle agent
+   * `createAgent` returned after its first prompt has set it running. The
+   * removes sent with it have already let go of the newer record, and an
+   * agent whose provider reports nothing until its turn ends would sit in
+   * the done lane meanwhile. The agent is read again by id, and its record
+   * and lists follow what it is now.
+   */
+  function confirmAgent(id: string) {
+    if (confirmChecks.has(id)) return;
+    confirmChecks.add(id);
+    const run = generation;
+    void api.agents.ref(id).refresh().then((result) => {
+      if (run !== generation) return;
+      confirmChecks.delete(id);
+      if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) return;
+      const agent = result.agent;
+      batchUpdates(() => {
+        reconcileActiveMembers(agent);
+        for (const [key, members] of sourceMembers) {
+          if (key === DONE_SUBSCRIPTION && isDone(agent)) members.add(agent.id);
+          else if (key.startsWith("done-page-") || key === DONE_SUBSCRIPTION) members.delete(agent.id);
+        }
+        updateRecord(agent, result.project ?? null, true);
+        dropIfUnreferenced(agent.id);
+      });
+    }).catch(() => {
+      if (run === generation) confirmChecks.delete(id);
+    });
   }
 
   function matchingEntries(result: PaseoAgentListResult | { entries: PaseoAgentListResult["entries"] }) {
@@ -2010,6 +2051,8 @@ function createStore(api: PaseoApi): TaskStore {
     lastTurnQueue = new Set();
     workingSince.clear();
     goneChecks.clear();
+    latestUpdates.clear();
+    confirmChecks.clear();
     if (subagentTimer !== null) clearTimeout(subagentTimer);
     subagentTimer = null;
     subagentDueAt = Number.POSITIVE_INFINITY;
