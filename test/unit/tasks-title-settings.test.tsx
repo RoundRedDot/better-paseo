@@ -28,7 +28,9 @@ const look = {
   tokens: { typography: { content: { size: 16 } }, v2: {}, foreground: "#111111", warning: "#bb0000" },
 } as PageLook;
 let tree: TestRenderer.ReactTestRenderer;
-beforeEach(() => state.catalog.mockReset().mockResolvedValue({ providers: ["claude", "codex"], models: [{ id: "haiku", label: "Haiku", thinkingOptions: [], defaultThinkingOptionId: null }], error: null }));
+beforeEach(() => {
+  state.catalog.mockReset().mockResolvedValue({ providers: ["claude", "codex"], models: [{ id: "haiku", label: "Haiku", thinkingOptions: [], defaultThinkingOptionId: null }], error: null });
+});
 afterEach(async () => { await act(async () => tree?.unmount()); });
 
 async function mount(extra: object = {}) {
@@ -104,6 +106,32 @@ describe("automatic title settings", () => {
     expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ customModel: false, provider: "", model: "" }), "r1");
     await act(async () => customToggle().props.onPress());
     expect(state.catalog).toHaveBeenCalledWith({ provider: "" });
+    expect(state.catalog).toHaveBeenLastCalledWith({ provider: "claude" });
+    expect(saveButton().props.disabled).toBe(false);
+  });
+
+  it.each([false, true])("selects the first available provider and its first model when enabling custom models (compact: %s)", async (compact) => {
+    state.catalog.mockImplementation(async ({ provider }: { provider: string }) => ({
+      providers: ["cursor", "codex", "claude"],
+      models: provider === "codex" ? [
+        { id: "first", label: "First model", thinkingOptions: [], defaultThinkingOptionId: null },
+        { id: "second", label: "Second model", thinkingOptions: [], defaultThinkingOptionId: null },
+      ] : [], error: null,
+    }));
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({}) });
+    await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
+    await act(async () => customToggle().props.onPress());
+    expect(tree.root.findByType(ProviderLogo).props.provider).toBe("codex");
+    expect(state.catalog).toHaveBeenLastCalledWith({ provider: "codex" });
+    await act(async () => saveButton().props.onPress());
+    expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ customModel: true, provider: "codex", model: "first" }), "r1");
+  });
+
+  it("keeps provider selection empty when none are available", async () => {
+    state.catalog.mockResolvedValue({ providers: [], models: [], error: null });
+    await mount({ values: titleGenerationSettingsSchema.parse({}) });
+    await act(async () => customToggle().props.onPress());
+    expect(tree.root.findAllByType(ProviderLogo)).toHaveLength(0);
     expect(saveButton().props.disabled).toBe(true);
   });
 
