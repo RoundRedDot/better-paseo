@@ -203,7 +203,7 @@ it("keeps title-generation progress and failure visible on the card after its me
   expect(tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-title-update-error").children.join("")).toContain("Provider offline");
 });
 
-it.each([["light", LIGHT], ["dark", DARK]] as const)("sweeps the %s title with light brighter than its resting color", async (_name, theme) => {
+it.each([["light", LIGHT], ["dark", DARK]] as const)("sweeps the %s title with a readable light brighter than its resting color", async (_name, theme) => {
   const control = createTitleUpdateControl(() => new Promise(() => {}));
   const card = sampleCards(NOW)[0]!;
   const tree = await render(cardElement(card, { titleUpdates: control, theme }));
@@ -213,6 +213,8 @@ it.each([["light", LIGHT], ["dark", DARK]] as const)("sweeps the %s title with l
   // A visible band: at least a third of the way from the resting grey to white.
   const resting = brightness(sweep.props.mutedColor);
   expect(brightness(sweep.props.highlightColor) - resting).toBeGreaterThan((765 - resting) / 3);
+  // The glyphs under the light stay legible against the card's fill.
+  expect(contrastRatio(sweep.props.highlightColor, taskTokens(theme as never).card.background)).toBeGreaterThanOrEqual(1.5);
 });
 
 async function render(element: React.ReactElement): Promise<ReactTestRenderer> {

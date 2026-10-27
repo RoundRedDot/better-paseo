@@ -863,8 +863,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         />
       </View>
       {updatingTitle ? <TitleLoading title={card.title} mutedColor={tokens.foregroundMuted}
-        // A band of light: the card's fill on a light theme, the text color on a dark one.
-        highlightColor={tokens.isDark ? tokens.foreground : mix(background, tokens.foregroundMuted, 0.12)}
+        // A band of light: towards the card's fill on a light theme, keeping the glyphs
+        // readable under it, and the text color on a dark one.
+        highlightColor={tokens.isDark ? tokens.foreground : mix(background, tokens.foregroundMuted, 0.45)}
         animated={props.animated} accessibilityLabel={strings.autoTitlePending}
         style={[text(m.titleSize, m.titleLine, tokens.foreground, "500"), WEB ? ({ overflowWrap: "anywhere" } as TextStyle) : null]} /> : <Text
         numberOfLines={2}

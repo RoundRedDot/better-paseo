@@ -3,15 +3,16 @@ import { Animated, Platform, View, type StyleProp, type TextStyle } from "react-
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { TaskText } from "../typography";
 
-const DURATION = 2000;
+const DURATION = 2600;
 const STYLE_ELEMENT_ID = "better-paseo-title-sweep";
 const SWEEP_ATTR = "bctitlesweep";
 
 /**
  * ChatGPT's "thinking" shimmer: the title rests in the muted color while a
  * narrow band of light, about a word wide, sweeps across it. The card picks
- * the light (`highlightColor`): near the card's fill on a light theme, so the
- * glyphs wash out as it passes, and the text color on a dark one. Web clips
+ * the light (`highlightColor`): towards the card's fill on a light theme, so
+ * the glyphs pale but stay readable as it passes, and the text color on a
+ * dark one. Web clips
  * one gradient to the glyphs; native has no text mask, so it stacks thin
  * clipped copies of the title whose opacity follows a cos² profile, close
  * enough to a gradient that no band edge shows.
