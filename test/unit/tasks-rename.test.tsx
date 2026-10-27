@@ -29,6 +29,7 @@ import { CardContextMenu } from "../../client/tasks/cards/card-menu";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { CascadeMenu } from "../../client/tasks/board/menu";
+import { REVEAL_TICK_MS } from "../../client/tasks/cards/title-reveal";
 
 const theme = {
   colors: {
@@ -44,6 +45,7 @@ const save = () => tree.root.find((node) => typeof node.type === "string" && nod
 const cancel = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Cancel");
 
 beforeEach(() => {
+  vi.useFakeTimers();
   rpc.rename.mockReset().mockResolvedValue({ ok: true, error: null });
   rpc.generate.mockReset().mockResolvedValue({ state: "done", title: "Generated title" });
   rpc.paseo.agents.ref.mockReset();
@@ -61,7 +63,38 @@ async function renderDialog(extra: Partial<React.ComponentProps<typeof TaskRenam
   });
 }
 
+async function reveal(expected: string) {
+  for (let index = 0; index < 80 && input().props.value !== expected; index++) {
+    await act(async () => { await vi.advanceTimersByTimeAsync(REVEAL_TICK_MS); });
+  }
+  expect(input().props.value).toBe(expected);
+}
+
 describe("task title editor", () => {
+  it.each(["ios", "android", "web"])("types out even a complete result, using the left icon slot for loading (%s)", async (platform) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    const title = "New streamed title";
+    rpc.generate.mockResolvedValueOnce({ state: "done", title });
+    await renderDialog({ canAutoTitle: true });
+    const automatic = () => tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title");
+    await act(async () => automatic().props.onPress());
+    expect(input().props.value).toBe("Original");
+    expect((automatic().children[0] as TestRenderer.ReactTestInstance).props.testID).toBe("task-rename-title-loading");
+    expect(automatic().findAllByType("Icon" as never)).toHaveLength(0);
+    expect(automatic().findAllByType("Text" as never).map((node) => node.children.join("")).join("")).toBe("Generate title");
+    expect(save().props.disabled).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(REVEAL_TICK_MS); });
+    expect(input().props.value.length).toBeGreaterThan(0);
+    expect(input().props.value.length).toBeLessThan(title.length);
+    expect(title.startsWith(input().props.value)).toBe(true);
+    await reveal(title);
+    expect(automatic().findByType("Icon" as never).props.name).toBe("Sparkles");
+    expect(automatic().findAll((node) => node.props.testID === "task-rename-title-loading")).toHaveLength(0);
+    expect(save().props.disabled).toBe(false);
+    expect(rpc.rename).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("replaces the old title as live chunks arrive without waiting for the polling interval", async () => {
     vi.useFakeTimers();
     let event!: (value: unknown) => void;
@@ -79,8 +112,10 @@ describe("task title editor", () => {
     expect(input().props.value).toBe("Original");
     const chunk = (text: string) => event({ agentId: "helper", event: { type: "timeline", item: { type: "assistant_message", text } } });
     await act(async () => { chunk("New"); await vi.advanceTimersByTimeAsync(0); });
+    await reveal("New");
     expect(input().props.value).toBe("New");
     await act(async () => { chunk(" title"); await vi.advanceTimersByTimeAsync(0); });
+    await reveal("New title");
     expect(input().props.value).toBe("New title");
     expect(rpc.rename).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
@@ -103,7 +138,7 @@ describe("task title editor", () => {
     expect(rpc.generate).toHaveBeenCalledTimes(1);
     expect(input().props.value).toBe("Original");
     expect(automatic().findAllByType("Text" as never).map((node) => node.children.join("")).join("")).toBe("Generate title");
-    expect(automatic().findByType("Icon" as never).props.name).toBe("Sparkles");
+    expect(automatic().findAllByType("Icon" as never)).toHaveLength(0);
     expect(input().props.editable).toBe(false);
     expect(save().props.disabled).toBe(true);
     expect(cancel().props.disabled).toBe(false);
@@ -113,10 +148,13 @@ describe("task title editor", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     expect(input().props.value).toBe("Original");
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    await reveal("Generated ");
     expect(input().props.value).toBe("Generated ");
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    await reveal("Generated title");
     expect(input().props.value).toBe("Generated title");
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    await reveal("Final title");
     expect(input().props.value).toBe("Final title");
     expect(input().props.editable).toBe(true);
     expect(save().props.disabled).toBe(false);
@@ -168,6 +206,7 @@ describe("task title editor", () => {
     expect(rpc.rename).not.toHaveBeenCalled();
     expect(automatic().props.disabled).toBe(false);
     await act(async () => automatic().props.onPress());
+    await reveal("Generated title");
     expect(input().props.value).toBe("Generated title");
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert")).toHaveLength(0);
   });
@@ -181,6 +220,7 @@ describe("task title editor", () => {
     await act(async () => button.props.onPress());
     expect(rpc.generate).toHaveBeenCalledExactlyOnceWith({ agentId: "agent-a", action: "start", mode: "preview" });
     expect(onClose).not.toHaveBeenCalled();
+    await reveal("Generated title");
     expect(input().props.value).toBe("Generated title");
     expect(rpc.rename).not.toHaveBeenCalled();
     await act(async () => input().props.onChangeText("Edited generated title"));
@@ -315,6 +355,7 @@ describe("task card rename entry", () => {
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title").props.onPress());
     expect(autoTitle).not.toHaveBeenCalled();
     expect(rpc.generate).toHaveBeenCalledWith({ agentId: card.id, action: "start", mode: "preview" });
+    await reveal("Generated title");
     expect(input().props.value).toBe("Generated title");
     expect(onClose).not.toHaveBeenCalled();
   });

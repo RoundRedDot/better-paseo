@@ -7,6 +7,7 @@ import { tasksRenameRpc } from "../../../shared/tasks-rpc";
 import { TaskText as Text, TasksTypography, HOST_FONT as F, HOST_LINE, taskControlHeight, useTasksFontScale } from "../typography";
 import type { cardStrings } from "./strings";
 import { useTitleUpdateControl, useTitleUpdateState } from "../actions/title-update";
+import { useRevealedTitle } from "./title-reveal";
 
 export function TaskRenameDialog(props: {
   agentId: string;
@@ -25,10 +26,13 @@ export function TaskRenameDialog(props: {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const saving = useRef(false);
-  const generating = generated.state === "running";
+  const generatedTitle = generated.state === "running" ? generated.text || undefined : generated.state === "done" ? generated.title : undefined;
+  const revealedTitle = useRevealedTitle(generatedTitle ?? props.title, generatedTitle !== undefined);
+  const generating = generated.state === "running" || generated.state === "done" && revealedTitle !== generated.title;
   useEffect(() => {
-    if (generated.state === "running" && generated.text) setTitle(generated.text);
-    if (generated.state === "done") setTitle(generated.title);
+    if (generatedTitle !== undefined && revealedTitle) setTitle(revealedTitle);
+  }, [generatedTitle, revealedTitle]);
+  useEffect(() => {
     if (generated.state === "error") setError(props.strings.autoTitleFailed(generated.error));
   }, [generated, props.strings]);
   const scale = useTasksFontScale();
@@ -84,9 +88,8 @@ export function TaskRenameDialog(props: {
                   preview.start(props.agentId);
                 }}
                 style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8, opacity: pending || generating || props.autoTitlePending ? 0.5 : 1 }}>
-                <Icon name="Sparkles" size={18} color={colors.foreground} />
+                {generating ? <ActivityIndicator testID="task-rename-title-loading" size="small" color={colors.foreground} /> : <Icon name="Sparkles" size={18} color={colors.foreground} />}
                 <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{props.strings.generateTitle}</Text>
-                {generating ? <ActivityIndicator testID="task-rename-title-loading" size="small" color={colors.foreground} /> : null}
               </Pressable> : null}
               <Pressable accessibilityRole="button" accessibilityLabel={props.strings.cancelTitle} disabled={pending} onPress={props.onClose}
                 style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, justifyContent: "center", opacity: pending ? 0.5 : 1 }}>
