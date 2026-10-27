@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { parseFixture, StreamAccumulator } from "../../.showcase/replay-core";
+import { parseFixture, StreamAccumulator } from "./helpers/replay-core";
 import { longHistoryFixture } from "../fixtures/streams/generate-history-long-load.mjs";
 
 describe("long history benchmark fixture", () => {

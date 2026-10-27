@@ -24,3 +24,12 @@ docs/prototypes/*
 
 # QA and perf run output: screenshots, logs and patches stay on disk.
 /output/
+
+# Media production and benchmark archives live in the private better-paseo-media repository.
+images/
+docs/images/
+assets/listing/
+assets/promo/
+.showcase/
+docs/video/
+docs/video-*.md

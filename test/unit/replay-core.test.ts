@@ -4,7 +4,7 @@ import {
   parseFixture,
   phaseFor,
   type FixtureEvent,
-} from "../../.showcase/replay-core";
+} from "./helpers/replay-core";
 
 const text = (type: "assistant_message" | "reasoning", chunk: string, t = 0): FixtureEvent => ({
   t,

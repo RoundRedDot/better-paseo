@@ -1,6 +1,6 @@
 /**
  * The new engine's output in the old engine's block-tree shape (the shape
- * `parse.ts` produced and `.showcase/md-compare/old-engine.json` records), so
+ * `parse.ts` produced and `test/fixtures/markdown-old-engine.json` records), so
  * the two can be compared block by block. Mirrors what the renderer draws:
  * lists flatten to depth-tagged rows, soft breaks are spaces, empty items and
  * link definitions draw nothing.

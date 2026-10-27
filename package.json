@@ -8,7 +8,6 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "replay": "node .showcase/tools/replay.mjs",
     "check:hermes": "node scripts/check-hermes.mjs && node scripts/check-hermes.mjs --built",
     "build:client": "node scripts/build-client.mjs"
   },
