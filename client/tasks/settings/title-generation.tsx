@@ -55,6 +55,11 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
       if (!live) return;
       setCatalog({ providers: result.providers, models: result.models });
       setError(result.error);
+      const firstModel = result.models[0];
+      if (!result.error && draft.provider && firstModel) {
+        setDraft((current) => current.customModel && current.provider === draft.provider && !current.model
+          ? { ...current, model: firstModel.id, thinkingOptionId: "" } : current);
+      }
     }).catch((failure: unknown) => {
       if (live) setError(failure instanceof Error ? failure.message : String(failure));
     }).finally(() => { if (live) setLoading(false); });
