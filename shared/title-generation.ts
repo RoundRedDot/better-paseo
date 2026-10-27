@@ -1,7 +1,7 @@
 import { defineRpc, defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";
 
-export const DEFAULT_TITLE_PROMPT = "根据提供的对话，为任务生成简洁、具体的中文标题。突出实际目标，保留关键模块名、问题编号和技术标识，建议不超过 24 个字。只输出标题，不加引号、解释或 Markdown。";
+export const DEFAULT_TITLE_PROMPT = "Generate a concise, specific task title from the supplied conversation. Match the language used by the user in their messages. Focus on the actual goal and preserve key module names, issue numbers, and technical identifiers. Keep the title short. Return only the title, without quotes, explanations, or Markdown.";
 
 export const titleGenerationSettingsSchema = z.object({
   provider: z.string().catch(""),

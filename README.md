@@ -1025,7 +1025,7 @@ on a wide page a **Desktop / Mobile** switch draws the board as a phone would. T
 
 Automatic title settings use a separate host-scoped `title-generation` record. Choose a fast model
 from that host's configured providers and edit the prompt, then save. The default prompt requests
-a short Chinese title. Generation reads a bounded excerpt of user/assistant messages and runs an
+a short title in the user's language. Generation reads a bounded excerpt of user/assistant messages and runs an
 ordinary agent in a background workspace, attached to the original project but in a neutral plugin
 directory. It does not send a prompt to the original task. Reading a closed task's history can
 reopen its provider session. The helper keeps the provider's configured permissions; the no-tools
