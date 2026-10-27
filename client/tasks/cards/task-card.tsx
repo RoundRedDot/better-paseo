@@ -864,7 +864,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       <Text
         numberOfLines={2}
         ellipsizeMode="tail"
-        style={[text(m.titleSize, m.titleLine, tokens.foreground, "500"), { flex: 1 }]}
+        style={[
+          text(m.titleSize, m.titleLine, tokens.foreground, "500"),
+          { flex: 1, minWidth: 0 },
+          WEB ? ({ overflowWrap: "anywhere" } as TextStyle) : null,
+        ]}
         testID="task-card-title"
       >
         {card.title}
