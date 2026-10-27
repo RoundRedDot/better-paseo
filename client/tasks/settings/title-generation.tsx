@@ -55,10 +55,15 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
       if (!live) return;
       setCatalog({ providers: result.providers, models: result.models });
       setError(result.error);
+      const firstProvider = [...result.providers].sort((a, b) => Number(a === "cursor") - Number(b === "cursor"))[0];
       const firstModel = result.models[0];
-      if (!result.error && draft.provider && firstModel) {
-        setDraft((current) => current.customModel && current.provider === draft.provider && !current.model
-          ? { ...current, model: firstModel.id, thinkingOptionId: "" } : current);
+      if (!result.error) {
+        setDraft((current) => {
+          if (!current.customModel || current.provider !== draft.provider) return current;
+          if (!current.provider && firstProvider) return { ...current, provider: firstProvider, model: "", thinkingOptionId: "" };
+          if (current.provider && !current.model && firstModel) return { ...current, model: firstModel.id, thinkingOptionId: "" };
+          return current;
+        });
       }
     }).catch((failure: unknown) => {
       if (live) setError(failure instanceof Error ? failure.message : String(failure));
