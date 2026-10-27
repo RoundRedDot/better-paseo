@@ -2863,7 +2863,8 @@ describe("Tasks board, tablet filters", () => {
     act(() => pick("frontend").props.onPress());
     act(() => pick("tasks-board").props.onPress());
     expect(lastBoardParams("host-1")).toMatchObject({ providers: ["codex"], labels: ["frontend"], workspaceIds: ["wks_sample"] });
-    expect(textOf(hostsById("tablet-filter-count")[0]!)).toBe("4");
+    // Agent, label and workspace; the subtask switch is not a filter.
+    expect(textOf(hostsById("tablet-filter-count")[0]!)).toBe("3");
     await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
     await act(async () => hostsById("filter-sheet-archived")[0]!.props.onPress());
     expect(hostsById("filter-sheet-archived")[0]!.props.accessibilityState.checked).toBe(true);
@@ -3577,7 +3578,8 @@ describe("Tasks board, phone", () => {
       renderer = TestRenderer.create(screen(true, { agent: "claude,codex", sub: "1" }));
     });
     const filters = pressable("Filters");
-    expect(textOf(filters)).toBe("3");
+    // Two agents; showing subtasks does not count.
+    expect(textOf(filters)).toBe("2");
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
     act(() => filters.props.onPress());
     const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
