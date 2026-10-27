@@ -5,6 +5,7 @@ export const DEFAULT_TITLE_PROMPT = "Generate a concise, specific task title fro
 
 export const titleGenerationSettingsSchema = z.object({
   customModel: z.boolean().catch(false),
+  disableThinking: z.boolean().catch(true),
   provider: z.string().catch(""),
   model: z.string().catch(""),
   thinkingOptionId: z.string().catch(""),

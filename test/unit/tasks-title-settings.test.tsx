@@ -33,7 +33,7 @@ afterEach(async () => { await act(async () => tree?.unmount()); });
 
 async function mount(extra: object = {}) {
   const settings = {
-    status: "ready", values: titleGenerationSettingsSchema.parse({ customModel: true, provider: "claude", model: "haiku" }),
+    status: "ready", values: titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "claude", model: "haiku" }),
     revision: "r1", saving: false, saveError: null,
     save: vi.fn(async () => true), reset: vi.fn(async () => true), reload: vi.fn(), ...extra,
   };
@@ -45,6 +45,23 @@ const saveButton = () => tree.root.find((node) => typeof node.type === "string" 
 const customToggle = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "switch" && node.props.accessibilityLabel === "自定义自动标题模型");
 
 describe("automatic title settings", () => {
+  it.each([false, true])("defaults the thinking override on and saves it across layouts (compact: %s)", async (compact) => {
+    state.catalog.mockResolvedValue({ providers: ["claude"], models: [{ id: "haiku", label: "Haiku", thinkingOptions: [{ id: "high", label: "High" }], defaultThinkingOptionId: "high" }], error: null });
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, provider: "claude", model: "haiku", thinkingOptionId: "high" }) });
+    await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
+    const toggle = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "switch" && node.props.accessibilityLabel === "关闭标题生成思考模式");
+    const thinking = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "思考等级");
+    expect(toggle().props.accessibilityState.checked).toBe(true);
+    expect(thinking().props.disabled).toBe(true);
+    expect(thinking().findAllByType("Text" as never).some((node) => node.children.join("") === "关闭或最低支持等级")).toBe(true);
+    await act(async () => saveButton().props.onPress());
+    expect(settings.save).toHaveBeenLastCalledWith(expect.objectContaining({ disableThinking: true, thinkingOptionId: "high" }), "r1");
+    await act(async () => toggle().props.onPress());
+    expect(thinking().props.disabled).toBe(false);
+    await act(async () => saveButton().props.onPress());
+    expect(settings.save).toHaveBeenLastCalledWith(expect.objectContaining({ disableThinking: false, thinkingOptionId: "high" }), "r1");
+  });
+
   it.each([false, true])("resets only title settings and discards the title draft (compact: %s)", async (compact) => {
     const settings = await mount();
     await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
@@ -55,6 +72,7 @@ describe("automatic title settings", () => {
     expect(settings.reset).toHaveBeenCalledExactlyOnceWith();
     expect(settings.save).not.toHaveBeenCalled();
     expect(customToggle().props.accessibilityState.checked).toBe(false);
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "关闭标题生成思考模式").props.accessibilityState.checked).toBe(true);
     expect(tree.root.findByType("TextInput" as never).props.value).toBe(titleGenerationSettingsSchema.parse({}).prompt);
     expect(tree.root.findByType("TextInput" as never).props.value).toContain("Use the language of the first user message.");
     expect(tree.root.findByType("TextInput" as never).props.value).toContain("Limit the title to 80 characters including spaces.");
@@ -80,7 +98,7 @@ describe("automatic title settings", () => {
     expect(TITLE_GENERATION_SETTINGS.scope).toBe("host");
     expect(customToggle().props.accessibilityState.checked).toBe(false);
     expect(state.catalog).not.toHaveBeenCalled();
-    expect(tree.root.findAllByType(SettingRow).map((row) => row.props.title)).toEqual(["自定义自动标题模型", "Prompt"]);
+    expect(tree.root.findAllByType(SettingRow).map((row) => row.props.title)).toEqual(["自定义自动标题模型", "关闭标题生成思考模式", "Prompt"]);
     expect(saveButton().props.disabled).toBe(false);
     await act(async () => saveButton().props.onPress());
     expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ customModel: false, provider: "", model: "" }), "r1");
@@ -90,7 +108,7 @@ describe("automatic title settings", () => {
   });
 
   it("preserves custom selections while the switch is off and restores them when enabled", async () => {
-    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, provider: "claude", model: "haiku", thinkingOptionId: "off" }) });
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "claude", model: "haiku", thinkingOptionId: "off" }) });
     await act(async () => customToggle().props.onPress());
     expect(tree.root.findAllByType(ProviderLogo)).toHaveLength(0);
     await act(async () => saveButton().props.onPress());
@@ -104,18 +122,20 @@ describe("automatic title settings", () => {
   it.each([false, true])("applies settings revisions received from another client (compact: %s)", async (compact) => {
     const settings = await mount({ values: titleGenerationSettingsSchema.parse({}) });
     state.current = { ...settings, revision: "r2", values: titleGenerationSettingsSchema.parse({
-      customModel: true, provider: "claude", model: "haiku", thinkingOptionId: "off", prompt: "Shared prompt",
+      customModel: true, disableThinking: false, provider: "claude", model: "haiku", thinkingOptionId: "off", prompt: "Shared prompt",
     }) };
     await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
     expect(customToggle().props.accessibilityState.checked).toBe(true);
     expect(tree.root.findByType(ProviderLogo).props.provider).toBe("claude");
     expect(tree.root.findByType("TextInput" as never).props.value).toBe("Shared prompt");
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "关闭标题生成思考模式").props.accessibilityState.checked).toBe(false);
     await act(async () => saveButton().props.onPress());
     expect(settings.save).toHaveBeenLastCalledWith(expect.objectContaining({ customModel: true, thinkingOptionId: "off", prompt: "Shared prompt" }), "r2");
     state.current = { ...settings, revision: "r3", values: titleGenerationSettingsSchema.parse({ customModel: false, provider: "claude", model: "haiku" }) };
     await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
     expect(customToggle().props.accessibilityState.checked).toBe(false);
     expect(tree.root.findAllByType(ProviderLogo)).toHaveLength(0);
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "关闭标题生成思考模式").props.accessibilityState.checked).toBe(true);
   });
 
   it("loads the selected host's catalog and persists provider, model and custom prompt", async () => {
@@ -124,11 +144,11 @@ describe("automatic title settings", () => {
     expect(tree.root.findByType(ProviderLogo).props.provider).toBe("claude");
     await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("Summarize the actual goal"));
     await act(async () => saveButton().props.onPress());
-    expect(settings.save).toHaveBeenCalledExactlyOnceWith({ customModel: true, provider: "claude", model: "haiku", thinkingOptionId: "", prompt: "Summarize the actual goal" }, "r1");
+    expect(settings.save).toHaveBeenCalledExactlyOnceWith({ customModel: true, disableThinking: false, provider: "claude", model: "haiku", thinkingOptionId: "", prompt: "Summarize the actual goal" }, "r1");
   });
 
   it("clears the old model on provider change and blocks an incomplete or blank prompt", async () => {
-    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, provider: "claude", model: "haiku", thinkingOptionId: "off" }) });
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "claude", model: "haiku", thinkingOptionId: "off" }) });
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider").props.onPress());
     expect(tree.root.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(["claude", "claude", "codex"]);
     expect(tree.root.findAllByType(ProviderLogo).find((node) => node.props.provider === "codex")!.props.color).toBe(look.tokens.foreground);
@@ -148,7 +168,7 @@ describe("automatic title settings", () => {
 
   it.each([false, true])("puts Cursor last with a warning and uses branded provider names and logos (compact: %s)", async (compact) => {
     state.catalog.mockResolvedValue({ providers: ["cursor", "claude", "omp", "opencode", "codex"], models: [{ id: "grok-4.7", label: "Grok 4.7", thinkingOptions: [], defaultThinkingOptionId: null }], error: null });
-    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, provider: "cursor", model: "grok-4.7" }) });
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "cursor", model: "grok-4.7" }) });
     await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
     const providerButton = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider");
     expect(providerButton.findAllByType("Text" as never).some((node) => node.children.join("") === "Cursor · 不推荐使用")).toBe(true);
@@ -170,7 +190,7 @@ describe("automatic title settings", () => {
     expect(tree.root.findByType(SectionNote).props.text).toContain("Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off");
     expect(tree.root.findByType(SectionNote).props.text).not.toContain("建议在默认 prompt 末尾补充");
     expect(section.findAllByType(SettingRow).map((row) => [row.props.title, row.props.first === true])).toEqual([
-      ["自定义自动标题模型", true], ["Provider", false], ["模型", false], ["思考等级", false], ["Prompt", false],
+      ["自定义自动标题模型", true], ["关闭标题生成思考模式", false], ["Provider", false], ["模型", false], ["思考等级", false], ["Prompt", false],
     ]);
   });
 
@@ -194,7 +214,7 @@ describe("automatic title settings", () => {
       { id: "haiku", label: "Haiku", thinkingOptions: [{ id: "off", label: "Off" }], defaultThinkingOptionId: "off" },
       { id: "next", label: "Next", thinkingOptions: compatible ? [{ id: "off", label: "Off" }] : [], defaultThinkingOptionId: null },
     ], error: null });
-    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, provider: "claude", model: "haiku", thinkingOptionId: "off" }) });
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "claude", model: "haiku", thinkingOptionId: "off" }) });
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "模型").props.onPress());
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Next").props.onPress());
     await act(async () => saveButton().props.onPress());
