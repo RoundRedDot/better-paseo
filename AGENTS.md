@@ -4,6 +4,15 @@
 
 本仓库的 commit message 一律用英文，标题和正文都是，沿用 Conventional Commits 前缀（`feat:`、`fix:`、`docs(readme):` 等）。这条规则优先于全局或 skill 里要求中文提交信息的约定；已有的中文提交保持原样，不为此改写历史。
 
+## Tasks 看板：daemon 的 agent 更新会乱序
+
+「正在运行的任务被归到已完成」反复出现过多次。根因之一：daemon 推送的 `agent_update` 不保证按 `updatedAt` 递增。Paseo 0.13.2 新建带首条 prompt 的 agent 时，会在 running 之后再补发一份更旧的 idle 快照（status 订阅收到 `remove`，done 订阅收到 `upsert idle`）。Claude、Codex 随后的流式更新会把它纠正回来，cursor 这类 turn 结束前不再推送的 provider 就会一直停在已完成。
+
+- 看板 store 收到的快照，要和该 agent 已应用过的最大 `updatedAt` 比较（`client/tasks/data/index.ts` 的 `latestUpdates`，记录删除后仍保留）。更旧的不采用，改为按 id 重读（`confirmAgent`）。不要只和当前持有的记录比较：同一批消息里的 `remove` 会先把记录删掉。
+- `remove` 只表示 agent 离开了某个过滤列表，不能据此推断它的状态。
+- 排查车道归错时，先用 `paseo ls` / `paseo inspect` 确认 daemon 的实际状态，再按看板的三个过滤条件（status / attention / done）录下订阅事件，看实际收到的顺序。不要只凭读代码推测。
+- 改动分类或合并逻辑时，测试要覆盖乱序：用 fake 的 `pushAgentSnapshot` 发一份比已应用更旧的快照。
+
 ## 提交身份（commit 与 PR）
 
 推到 GitHub 的提交一律用 `luke <luopeihuan@gmail.com>`。范围包括本仓库、RoundRedDot/plugins 发往 getpaseo/plugins 的 PR，以及从 RoundRedDot/paseo 发往上游 getpaseo/paseo 的 PR。
