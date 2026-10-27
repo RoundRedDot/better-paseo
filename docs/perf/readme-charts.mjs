@@ -55,7 +55,7 @@ const TEXT = {
     iosNote: [
       "Paseo 0.13.0 Release simulator build, iOS 26.5, cold start, 5 runs/mode, median, 2026-10-26.",
       `Whole app process, native threads included. Bars past ${IOS_AXIS_S} s are clipped; the label is the real time.`,
-      "Simulator on a shared, loaded machine; no physical iPhone performance claim. Green ⬆ better, red ⬇ worse.",
+      "Simulator on a quiet machine; no physical iPhone performance claim. Green ⬆ better, red ⬇ worse.",
     ],
   },
   zh: {
@@ -77,7 +77,7 @@ const TEXT = {
     iosNote: [
       "Paseo 0.13.0 Release 模拟器构建，iOS 26.5，每次冷启动，每模式 5 次中位数，2026-10-26。",
       `整个 App 进程，含原生线程。超过 ${IOS_AXIS_S} 秒的条被截断，数字是真实时间。`,
-      "共享且有负载的机器上的模拟器，不代表 iPhone 真机性能。绿色 ⬆ 更好，红色 ⬇ 更差。",
+      "安静机器上的模拟器，不代表 iPhone 真机性能。绿色 ⬆ 更好，红色 ⬇ 更差。",
     ],
   },
 };
