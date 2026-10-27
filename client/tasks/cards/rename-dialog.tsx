@@ -26,7 +26,7 @@ export function TaskRenameDialog(props: {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const saving = useRef(false);
-  const generatedTitle = generated.state === "running" ? generated.text || undefined : generated.state === "done" ? generated.title : undefined;
+  const generatedTitle = generated.state === "running" ? generated.text?.replace(/\s+/g, " ").trim() || undefined : generated.state === "done" ? generated.title : undefined;
   const revealedTitle = useRevealedTitle(generatedTitle ?? props.title, generatedTitle !== undefined);
   const generating = generated.state === "running" || generated.state === "done" && revealedTitle !== generated.title;
   useEffect(() => {
