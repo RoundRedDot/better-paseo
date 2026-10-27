@@ -163,6 +163,18 @@ async function render(element: React.ReactElement) {
 }
 
 describe("TaskCardView on web", () => {
+  it.each([false, true])("constrains long URL titles and retains two-line truncation (compact=%s)", async (compact) => {
+    const card = { ...props("sample-running").card, title: `https://roundreddot.feishu.cn/wiki/${"a".repeat(120)}` };
+    const renderer = await render(React.createElement(TaskCardView, props(card.id, { card, compact })));
+    const title = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-title");
+    const style = Object.assign({}, ...[title.props.style].flat(Infinity).filter(Boolean));
+    expect(style).toMatchObject({ flex: 1, minWidth: 0, overflowWrap: "anywhere" });
+    expect(title.props.numberOfLines).toBe(2);
+    expect(title.props.ellipsizeMode).toBe("tail");
+    expect(texts(title)).toEqual([card.title]);
+    await act(async () => renderer.unmount());
+  });
+
   it.each(["light", "dark"])("distinguishes keyboard focus from selection in the %s theme", async (appearance) => {
     const theme = appearance === "light" ? THEME : {
       colors: { ...THEME.colors, surface0: "#181b1a", surface1: "#1e2120", surface2: "#272a29", border: "#252b2a", foreground: "#fafafa", foregroundMuted: "#a1a5a4" },
