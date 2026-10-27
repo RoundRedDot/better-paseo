@@ -146,7 +146,7 @@ function programName(word: string): string {
  * shell setup, from its program on.
  */
 function commandWords(command: string): string[] | undefined {
-  for (const segment of splitShellCommands(command).flatMap((part) => part.split("\n"))) {
+  for (const segment of splitShellCommands(command, true).flatMap((part) => part.split("\n"))) {
     const words = segment.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
     let index = 0;
     while (index < words.length && (ASSIGNMENT.test(words[index]!) || PREFIXES.has(words[index]!))) index += 1;

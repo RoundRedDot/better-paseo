@@ -45,10 +45,18 @@ describe("toolHasDetail", () => {
   });
 
   it.each(["a | b", "a; b; c", "cd x && npm test", "npm test || true"])(
-    "keeps the full silent chain %s available to expand", (command) => {
-      expect(toolHasDetail(view({ type: "shell", command }, { name: "Bash" }), BUDGET)).toBe(true);
+    "keeps the fully visible silent chain %s inert", (command) => {
+      expect(toolHasDetail(view({ type: "shell", command }, { name: "Bash" }), BUDGET)).toBe(false);
     },
   );
+
+  it("opens a Git chain whose operation summary hides the remaining commands", () => {
+    expect(toolHasDetail(view({ type: "shell", command: "git status && npm test" }, { name: "Bash" }), BUDGET)).toBe(true);
+  });
+
+  it("opens a silent shell chain when the row clips its full command", () => {
+    expect(toolHasDetail(view({ type: "shell", command: `echo ${"x".repeat(80)} && npm test` }, { name: "Bash" }), BUDGET)).toBe(true);
+  });
 
   it("does not open a short quoted operator as a chain", () => {
     expect(toolHasDetail(view({ type: "shell", command: 'echo "a && b"' }, { name: "Bash" }), BUDGET)).toBe(false);

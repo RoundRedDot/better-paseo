@@ -18,7 +18,6 @@ import { stripAnsi } from "../copy/content";
 import type { ToolCallView } from "./classify";
 import { shortAgentId, summarizeAgentRow } from "./agent-row";
 import { readUserQuestions } from "./user-questions";
-import { commandProgram } from "./command-icon";
 import { splitShellCommands } from "./shell-command";
 
 export interface ToolSummary {
@@ -197,7 +196,7 @@ const GIT_VALUE_OPTIONS = new Set(["-C", "-c", "--git-dir", "--work-tree", "--na
  * `push → origin/main`, or the subcommand and its arguments.
  */
 export function describeGitCommand(command: string): string {
-  const head = (splitShellCommands(command)[0] ?? "").split("\n")[0] ?? "";
+  const head = (splitShellCommands(command, true)[0] ?? "").split("\n")[0] ?? "";
   // Only describe the first command; the row's meta counts the rest of a chain.
   const words = splitWords(head);
   let index = words[0] && /^git(?:\.exe)?$/i.test(words[0]) ? 1 : 0;
@@ -322,9 +321,6 @@ function summarizeKind(view: ToolCallView): ToolSummary {
     case "bash":
     case "shell": {
       const command = view.shell?.command ?? view.command;
-      const commands = command ? splitShellCommands(command) : [];
-      const first = Math.max(0, commands.findIndex((part) => commandProgram(part) !== undefined));
-      if (commands.length > first + 1) meta.push(`+${commands.length - first - 1}`);
       const exitCode = view.shell?.exitCode ?? view.exitCode;
       let danger = tone === "danger";
       if (settled && exitCode !== undefined) {
@@ -335,7 +331,7 @@ function summarizeKind(view: ToolCallView): ToolSummary {
       const verb = view.tool === "bash" || (view.name ?? "").toLowerCase() === "bash" ? "Bash" : "Shell";
       return {
         verb,
-        target: clip(firstLine(commands[first]) ?? view.title.replace(/^\$\s*/, ""), TARGET_MAX),
+        target: clip(firstLine(command) ?? view.title.replace(/^\$\s*/, ""), TARGET_MAX),
         meta,
         metaPath: view.shell?.cwd ?? view.cwd,
         tone: danger ? "danger" : "default",

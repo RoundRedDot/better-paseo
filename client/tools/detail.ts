@@ -7,7 +7,6 @@
  */
 import { isImagePath } from "../image-file";
 import { stringifyValue, type ToolCallView } from "./classify";
-import { splitShellCommands } from "./shell-command";
 
 /** CJK and other full-width characters take two cells of the row. */
 const WIDE = /[\u1100-\u115f\u2e80-\ua4cf\uac00-\ud7a3\uf900-\ufaff\ufe30-\ufe4f\uff00-\uff60\uffe0-\uffe6]/;
@@ -43,7 +42,6 @@ function bodyDetail(view: ToolCallView, budget: number): boolean {
     case "bash":
     case "shell":
       return Boolean(view.shell?.stdout || view.shell?.stderr || view.output) ||
-        splitShellCommands(view.shell?.command || view.command || "").length > 1 ||
         !fitsRow(view.shell?.command || view.command, budget);
     case "git":
       // The header names the git operation, not the command line.

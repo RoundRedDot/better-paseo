@@ -2,9 +2,10 @@
  * Split a shell row's operator chain, preserving the original text of each
  * command. Quoted or escaped operators are arguments, not chain separators.
  * Newlines keep their existing first-line summary (including heredoc bodies).
+ * A pipeline counts as one command; icon lookup can inspect its stages.
  * This reads display text; it does not parse or execute a shell script.
  */
-export function splitShellCommands(command: string): string[] {
+export function splitShellCommands(command: string, splitPipelines = false): string[] {
   const segments: string[] = [];
   let start = 0;
   let quote = "";
@@ -27,7 +28,8 @@ export function splitShellCommands(command: string): string[] {
       break;
     }
     const pair = command.slice(index, index + 2);
-    if (pair !== "&&" && pair !== "||" && char !== ";" && (char !== "|" || command[index - 1] === ">")) continue;
+    if (pair !== "&&" && pair !== "||" && char !== ";" &&
+      (!splitPipelines || char !== "|" || command[index - 1] === ">")) continue;
     const segment = command.slice(start, index).trim();
     if (segment) segments.push(segment);
     if (pair === "&&" || pair === "||" || pair === "|&") index += 1;
