@@ -52,13 +52,34 @@ afterEach(async () => {
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
 });
 
-async function renderDialog() {
+async function renderDialog(extra: Partial<React.ComponentProps<typeof TaskRenameDialog>> = {}) {
   await act(async () => {
-    tree = TestRenderer.create(<TaskRenameDialog agentId="agent-a" title="Original" strings={cardStrings("en")} theme={theme} onClose={onClose} />);
+    tree = TestRenderer.create(<TaskRenameDialog agentId="agent-a" title="Original" strings={cardStrings("en")} theme={theme} onClose={onClose} {...extra} />);
   });
 }
 
 describe("task title editor", () => {
+  it("starts automatic generation with the menu icon and closes the editor", async () => {
+    const autoTitle = vi.fn();
+    await renderDialog({ autoTitle });
+    const button = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title");
+    expect(button.findByType("Icon" as never).props.name).toBe("Sparkles");
+    await act(async () => button.props.onPress());
+    expect(autoTitle).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(rpc.rename).not.toHaveBeenCalled();
+  });
+
+  it("disables automatic generation while an existing title job is running", async () => {
+    const autoTitle = vi.fn();
+    await renderDialog({ autoTitle, autoTitlePending: true });
+    const button = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title");
+    expect(button.props.disabled).toBe(true);
+    await act(async () => button.props.onPress());
+    expect(autoTitle).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("prefills the title, blocks unchanged and blank values, then saves the trimmed title", async () => {
     await renderDialog();
     expect(input().props.value).toBe("Original");
@@ -102,7 +123,8 @@ describe("task title editor", () => {
   it("prevents duplicate requests and dismissal while saving", async () => {
     let finish!: (result: { ok: boolean; error: null }) => void;
     rpc.rename.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    await renderDialog();
+    const autoTitle = vi.fn();
+    await renderDialog({ autoTitle });
     await act(async () => input().props.onChangeText("Draft"));
     const press = save().props.onPress;
     await act(async () => { press(); press(); });
@@ -110,6 +132,10 @@ describe("task title editor", () => {
     expect(save().props.accessibilityState).toEqual({ disabled: true, busy: true });
     expect(cancel().props.disabled).toBe(true);
     expect(input().props.editable).toBe(false);
+    const automatic = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title");
+    expect(automatic.props.disabled).toBe(true);
+    await act(async () => automatic.props.onPress());
+    expect(autoTitle).not.toHaveBeenCalled();
     await act(async () => tree.root.findByType("HostModal" as never).props.onOpenChange(false));
     expect(onClose).not.toHaveBeenCalled();
     await act(async () => finish({ ok: true, error: null }));
@@ -148,11 +174,14 @@ describe("task card rename entry", () => {
       tree = TestRenderer.create(<CardContextMenu point={null} card={{ ...card, lane: "archived" }} strings={cardStrings("zh")} actions={{ children: 0, autoTitle: vi.fn() }} theme={theme} onClose={onClose} />);
     });
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "自动更新标题")).toHaveLength(0);
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "修改标题").props.onPress());
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title")).toHaveLength(0);
   });
   it.each(["touch", "pointer"])("replaces the %s menu with an editor without closing its owner", async (kind) => {
+    const autoTitle = vi.fn();
     (globalThis as { __rnMockOS?: string }).__rnMockOS = kind === "pointer" ? "web" : "ios";
     await act(async () => {
-      tree = TestRenderer.create(<CardContextMenu point={kind === "pointer" ? { x: 20, y: 30 } : null} card={card} strings={cardStrings("zh")} actions={{ children: 0 }} theme={theme} onClose={onClose} />);
+      tree = TestRenderer.create(<CardContextMenu point={kind === "pointer" ? { x: 20, y: 30 } : null} card={card} strings={cardStrings("zh")} actions={{ children: 0, autoTitle }} theme={theme} onClose={onClose} />);
     });
     if (kind === "touch") {
       await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "修改标题").props.onPress());
@@ -166,6 +195,9 @@ describe("task card rename entry", () => {
     expect(tree.root.findByType(TaskRenameDialog).props.agentId).toBe(card.id);
     expect(input().props.value).toBe(card.title);
     expect(onClose).not.toHaveBeenCalled();
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title").props.onPress());
+    expect(autoTitle).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("does not offer editing for a provider's read-only subagent", async () => {
