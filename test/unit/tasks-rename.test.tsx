@@ -71,6 +71,18 @@ async function reveal(expected: string) {
 }
 
 describe("task title editor", () => {
+  it("does not restart the reveal when the final result trims streamed whitespace", async () => {
+    rpc.generate.mockResolvedValueOnce({ state: "running", text: "New title\n" })
+      .mockResolvedValueOnce({ state: "done", title: "New title" });
+    await renderDialog({ canAutoTitle: true });
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title").props.onPress());
+    await reveal("New title");
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(input().props.value).toBe("New title");
+    expect(save().props.disabled).toBe(false);
+    expect(tree.root.findAll((node) => node.props.testID === "task-rename-title-loading")).toHaveLength(0);
+  });
+
   it.each(["ios", "android", "web"])("types out even a complete result, using the left icon slot for loading (%s)", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     const title = "New streamed title";
@@ -148,8 +160,8 @@ describe("task title editor", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     expect(input().props.value).toBe("Original");
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
-    await reveal("Generated ");
-    expect(input().props.value).toBe("Generated ");
+    await reveal("Generated");
+    expect(input().props.value).toBe("Generated");
     await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
     await reveal("Generated title");
     expect(input().props.value).toBe("Generated title");
