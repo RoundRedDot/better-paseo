@@ -3895,6 +3895,29 @@ describe("Tasks board, phone", () => {
     act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.props.card.id}`).props.onLongPress());
     expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Automatically update title")).toHaveLength(1);
   });
+
+  it.each([true, false])("leaves automatic titles off an archived card's long-press menu (compact: %s)", async (compact) => {
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }>; byId: Map<string, TaskCard> } }).__handle;
+    const saved = handle.lanes;
+    const archived = data.withArchived(handle.byId.get("sample-done")!, "agent");
+    try {
+      // The archived lane mounts late; the first page carries the card, which keeps its own lane.
+      handle.lanes = { ...saved, needs_input: { ...saved.needs_input!, cards: [archived] } };
+      await act(async () => {
+        renderer = TestRenderer.create(screen(compact));
+        await Promise.resolve();
+      });
+      if (!compact) layOut(1400);
+      const card = cards().find((node) => node.props.card.id === archived.id)!;
+      expect(card.props.titleUpdates).toBeDefined();
+      act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${archived.id}`).props.onLongPress());
+      // The menu is up (Copy title is there), without the title action.
+      expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Copy title")).toHaveLength(1);
+      expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Automatically update title")).toHaveLength(0);
+    } finally {
+      handle.lanes = saved;
+    }
+  });
 });
 
 describe("Tasks board, phone lane swipe and the host's pans", () => {
