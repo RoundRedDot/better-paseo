@@ -4,7 +4,11 @@
   "description": "Redraws every agent's chat timeline as compact, typed rows for tool calls, reasoning, replies, prompts and tasks.",
   "icon": "assets/icon.png",
   "media": [
+    "https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-timeline-web.mp4",
+    "https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-tasks-web.mp4",
     "https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--hero-cover.png",
+    "https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--tasks-board-light.png",
+    "https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--timeline-light.png",
     "https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--assets--listing--02-tasks-board.png",
     "https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--assets--listing--03-timeline.png",
     "https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--assets--listing--04-phone.png",
