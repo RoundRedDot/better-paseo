@@ -46,13 +46,14 @@ export function ContextRing(props: { ratio: number; color: string; track: string
   const stride = size + 2 * padding;
   const percent = Math.round(Math.max(0, Math.min(1, props.ratio)) * 100);
   const layer = (frame: number, color: string, testID: string) => (
-    <View testID={testID} style={{ position: "absolute", width: size, height: size, overflow: "hidden" }}>
+    // Keep the transparent gutter inside the clip so native pixel rounding cannot cut the arc's edge.
+    <View testID={testID} style={{ position: "absolute", left: -padding, top: -padding, width: stride, height: stride, overflow: "hidden" }}>
       <Image
         source={{ uri: bitmap.uri }}
         accessible={false}
         resizeMode="stretch"
         fadeDuration={0}
-        style={{ position: "absolute", left: -(frame % columns) * stride - padding, top: -Math.floor(frame / columns) * stride - padding, width: stride * columns, height: stride * rows, tintColor: color }}
+        style={{ position: "absolute", left: -(frame % columns) * stride, top: -Math.floor(frame / columns) * stride, width: stride * columns, height: stride * rows, tintColor: color }}
       />
     </View>
   );
