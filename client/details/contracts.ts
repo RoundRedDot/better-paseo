@@ -24,6 +24,8 @@ export interface LayoutInput {
   sidebar: number;
   /** A fine pointer that hovers (desktop web, iPad with a trackpad). */
   pointer: boolean;
+  /** Web: measured empty space to the right of the timeline content column. */
+  sideSpace?: number;
 }
 
 export type BlockKind = "tool" | "thought" | "activity" | "todo" | "code";

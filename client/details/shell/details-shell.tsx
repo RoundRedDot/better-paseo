@@ -301,7 +301,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
     if (leaving) return;
     if (latest.current.form === "side" || panelTop.current !== null) runSync();
     else pendingSync.current = true;
-  }, [entry.id, leaving, runSync]);
+  }, [entry.id, leaving, form, runSync]);
   const onTop = useCallback((top: number) => {
     panelTop.current = top;
     if (pendingSync.current) runSync();

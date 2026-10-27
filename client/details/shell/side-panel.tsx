@@ -28,13 +28,13 @@ export const SIDE = {
 // The width the reader dragged the panel to, for the rest of the session.
 let sessionWidth: number | null = null;
 
-/** The panel's width for a window: the reader's, kept within 360…0.6W, or the design's; wider at full screen. */
-export function sideWidth(stage: { width: number; height: number }, wide: boolean): number {
-  if (stage.height < 500) return Math.min(SIDE.phone, stage.width);
+/** The saved or design width, wider at full screen; desktop web stays inside the empty gutter. */
+export function sideWidth(stage: { width: number; height: number; sideSpace?: number }, wide: boolean): number {
+  if (stage.height < 500 && stage.sideSpace === undefined) return Math.min(SIDE.phone, stage.width);
   const base = sessionWidth === null
     ? Math.round(sidePanelWidth(stage.width))
     : Math.round(Math.max(SIDE.min, Math.min(stage.width * SIDE.max, sessionWidth)));
-  return wide ? Math.max(base, Math.round(stage.width * SIDE.max)) : base;
+  return Math.min(stage.sideSpace ?? stage.width, wide ? Math.max(base, Math.round(stage.width * SIDE.max)) : base);
 }
 
 /** Tests only. */
@@ -44,7 +44,7 @@ export function resetSideWidth(): void {
 
 export function SidePanel(props: {
   tokens: ExtendedThemeTokens;
-  stage: { width: number; height: number };
+  stage: { width: number; height: number; sideSpace?: number };
   insets: Insets;
   reduced: boolean;
   entrance: Entrance;

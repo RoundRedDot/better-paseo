@@ -42,6 +42,16 @@ describe("details form", () => {
     expect(sidePanelWidth(600, true)).toBe(400);
   });
 
+  it.each([0, 359, 419, 420, 421, 640])("requires actual empty space beside web timeline content (%i px)", (sideSpace) => {
+    for (const width of [1280, 1400, 1560, 1920]) {
+      for (const current of [null, "floating", "side"] as const) {
+        for (const height of [400, 900]) {
+          expect(detailsForm({ ...input(width, height), sideSpace }, current)).toBe(sideSpace >= 420 ? "side" : "floating");
+        }
+      }
+    }
+  });
+
   it("calculates side and floating widths", () => {
     expect(sidePanelWidth(800)).toBe(420);
     expect(sidePanelWidth(1500)).toBe(540);
