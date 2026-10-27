@@ -23,6 +23,12 @@ export interface PageLook {
   t: SettingsStrings;
 }
 
+/** Settings chrome follows the host content size, with smaller supporting text. */
+export function settingsTextStyle(tokens: ExtendedThemeTokens, offset = 0) {
+  const fontSize = tokens.typography.content.size + offset;
+  return { fontSize, lineHeight: Math.round(fontSize * 1.4) };
+}
+
 /**
  * An on/off control that reads as one: on is the accent track with the
  * accent's foreground knob, off a surface2 track with a surface0 knob.
@@ -87,7 +93,7 @@ export function Segmented<T extends string>({
       style={[
         styles.segmented,
         compact ? styles.segmentedFill : null,
-        { backgroundColor: tokens.v2.surface2, height: compact ? 32 : 28 },
+        { backgroundColor: tokens.v2.surface2, minHeight: compact ? 32 : 28 },
       ]}
     >
       {options.map((option) => {
@@ -111,7 +117,7 @@ export function Segmented<T extends string>({
             <Text
               numberOfLines={1}
               style={[
-                styles.segmentLabel,
+                styles.segmentLabel, settingsTextStyle(tokens, -1),
                 {
                   color: selected ? tokens.foreground : tokens.foregroundMuted,
                   fontWeight: selected ? "500" : "400",
@@ -163,7 +169,7 @@ export function PlainButton({
         },
       ]}
     >
-      <Text style={[styles.plainLabel, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+      <Text style={[styles.plainLabel, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
         {label}
       </Text>
     </Pressable>
@@ -182,7 +188,7 @@ export function Section({ title, look, children }: { title: string; look: PageLo
       <Text
         accessibilityRole="header"
         style={[
-          styles.sectionTitle,
+          styles.sectionTitle, settingsTextStyle(tokens, -1),
           compact ? styles.sectionTitleInset : styles.sectionTitleDesktop,
           { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
         ]}
@@ -208,7 +214,7 @@ export function SectionNote({ text, look }: { text: string; look: PageLook }) {
   return (
     <Text
       style={[
-        styles.rowNote,
+        styles.rowNote, settingsTextStyle(tokens, -1),
         compact ? styles.sectionTitleInset : styles.sectionTitleDesktop,
         styles.sectionNote,
         { color: tokens.foregroundMuted, fontFamily: tokens.fontUi },
@@ -253,14 +259,14 @@ export function SettingRow({
     <View style={compact ? styles.rowText : styles.rowTextDesktop}>
       <Text
         style={[
-          compact ? styles.rowTitleCompact : styles.rowTitleDesktop,
+          compact ? styles.rowTitleCompact : styles.rowTitleDesktop, settingsTextStyle(tokens),
           { color: tokens.foreground, fontFamily: tokens.fontUi },
         ]}
       >
         {title}
       </Text>
       {description ? (
-        <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+        <Text style={[styles.rowNote, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
           {description}
         </Text>
       ) : null}

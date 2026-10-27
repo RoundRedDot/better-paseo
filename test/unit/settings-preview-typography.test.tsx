@@ -16,6 +16,8 @@ vi.mock("../../client/ui/wide-host-column", () => ({ useWideHostColumn() {} }));
 import { BetterPaseoSettingsPage } from "../../client/settings-page";
 import { SettingsPreview } from "../../client/settings-preview";
 import { resetEnhancerPreferences } from "../../client/preferences";
+import { SETTINGS_STRINGS } from "../../client/i18n/settings-strings";
+import { StyleSheet } from "./helpers/rn-mock";
 import { setSettingsTab } from "../../client/settings-tab";
 import {
   RECHECK_MS,
@@ -28,6 +30,21 @@ import {
 const colors = { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
   foregroundMuted: "#666", accent: "#00f", accentForeground: "#fff", statusSuccess: "#080", statusWarning: "#a60", statusDanger: "#d00" };
 let renderer: ReturnType<typeof TestRenderer.create> | undefined;
+
+function textStyle(text: string) {
+  return StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Text" && node.props.children === text).props.style);
+}
+
+function expectSettingsSizes(base: number) {
+  const t = SETTINGS_STRINGS.en;
+  const titles = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === t.pageTitle);
+  expect(titles.some((node) => StyleSheet.flatten(node.props.style).fontSize === base + 2)).toBe(true);
+  expect(textStyle(t.languageTitle)).toMatchObject({ fontSize: base, lineHeight: Math.round(base * 1.4) });
+  expect(textStyle(t.languageDescription).fontSize).toBe(base - 1);
+  expect(textStyle(t.sectionGeneral).fontSize).toBe(base - 1);
+  expect(textStyle(t.previewHide).fontSize).toBe(base - 1);
+  expect(textStyle(t.languageEnglish).fontSize).toBe(base - 1);
+}
 
 afterEach(() => {
   if (renderer) act(() => renderer!.unmount());
@@ -55,10 +72,32 @@ describe("settings preview host typography", () => {
     });
     const content = () => renderer!.root.findByType(SettingsPreview).props.tokens.typography.content;
     expect(content()).toEqual({ size: 12, lineHeight: 18 });
+    expectSettingsSizes(12);
 
     contentFontSize = 15;
     now.mockReturnValue(1000 + RECHECK_MS);
     await act(async () => triggerHostAppearanceCheck());
     expect(content()).toEqual({ size: 15, lineHeight: 23 });
+    expectSettingsSizes(15);
+  });
+
+  it.each(["web", "ios", "android"] as const)("uses content size independently of UI size on %s", (platform) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    resetEnhancerPreferences();
+    setSettingsTab("display");
+    for (const compact of [false, true]) {
+      for (const content of [10, 14, 21]) {
+        const page = (ui: number) => React.createElement(BetterPaseoSettingsPage, {
+          theme: { colors, typography: { fontSize: { ui, content } } },
+          layout: { platform, compact }, host: { id: "host" },
+        } as never);
+        act(() => { renderer = TestRenderer.create(page(19)); });
+        expectSettingsSizes(content);
+        act(() => renderer!.update(page(11)));
+        expectSettingsSizes(content);
+        act(() => renderer!.unmount());
+        renderer = undefined;
+      }
+    }
   });
 });
