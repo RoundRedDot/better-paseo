@@ -9,7 +9,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
-vi.mock("react-native", () => import("./helpers/rn-mock"));
+const screen = vi.hoisted(() => ({ width: 834, height: 1194 }));
+vi.mock("react-native", async () => ({
+  ...await import("./helpers/rn-mock"),
+  useWindowDimensions: () => ({ ...screen, scale: 2, fontScale: 1 }),
+}));
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}), show: vi.fn(), error: vi.fn() }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -49,6 +53,8 @@ let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 beforeEach(() => {
   vi.clearAllMocks();
   resetEnhancerPreferences();
+  screen.width = 834;
+  screen.height = 1194;
 });
 afterEach(() => {
   act(() => renderer?.unmount());
@@ -67,7 +73,7 @@ function entry(overrides: Partial<BlockEntry> = {}): BlockEntry {
 
 function shell(overrides: Partial<DetailsShellValue> = {}): DetailsShellValue {
   return {
-    agentId: "agent", entry: entry(), form: "drawer", detent: "fit", fullscreen: false, pointer: false,
+    agentId: "agent", entry: entry(), form: "floating", detent: "fit", fullscreen: false, pointer: false,
     index: 6, count: 15, canStep: { previous: true, next: true },
     step: vi.fn(), close: vi.fn(), toggleFullscreen: vi.fn(),
     ...overrides,
@@ -231,6 +237,48 @@ describe("details header", () => {
 });
 
 describe("details toolbar", () => {
+  it.each([
+    { width: 390, height: 844, form: "drawer" as const, pointer: false },
+    { width: 844, height: 390, form: "side" as const, pointer: false },
+    { width: 844, height: 390, form: "side" as const, pointer: true },
+    { width: 599, height: 844, form: "floating" as const, pointer: false },
+  ])("hides full screen on a $width × $height phone ($pointer pointer)", ({ width, height, form, pointer }) => {
+    screen.width = width;
+    screen.height = height;
+    const content = rowPreview(callout(bash));
+    const value = shell({ form, pointer });
+    const root = mount(details(content, value));
+    for (const fullscreen of [false, true]) {
+      act(() => renderer!.update(details(content, { ...value, fullscreen })));
+      expect(labels(byId(root, "details-toolbar-end"))).toEqual(["Copy command", "Copy output", "Copy command and output"]);
+    }
+    // Hiding the action returns its space to the copies.
+    layout(root, 360, 200);
+    expect(copyLabels(root)).toHaveLength(3);
+    expect(value.toggleFullscreen).not.toHaveBeenCalled();
+  });
+
+  it("omits the action for a drawer or a shell without a toggle", () => {
+    const content = rowPreview(callout(bash));
+    const root = mount(details(content, shell({ form: "drawer" })));
+    expect(labels(byId(root, "details-toolbar-end"))).not.toContain("Full screen");
+    act(() => renderer!.update(details(content, shell({ toggleFullscreen: undefined }))));
+    expect(labels(byId(root, "details-toolbar-end"))).not.toContain("Full screen");
+  });
+
+  it.each([[600, 800], [834, 1194], [1194, 834]])("keeps the floating-panel action at %i × %i", (width, height) => {
+    screen.width = width;
+    screen.height = height;
+    const value = shell();
+    const content = rowPreview(callout(bash));
+    const root = mount(details(content, value));
+    act(() => find(root, "Full screen").props.onPress());
+    expect(value.toggleFullscreen).toHaveBeenCalledOnce();
+    act(() => renderer!.update(details(content, { ...value, fullscreen: true })));
+    act(() => find(root, "Exit full screen").props.onPress());
+    expect(value.toggleFullscreen).toHaveBeenCalledTimes(2);
+  });
+
   it("draws a Bash call's three copies, then full screen, with wrap at the left", async () => {
     const root = mount(details(rowPreview(callout(bash))));
     expect(copyLabels(root)).toEqual(["Copy command", "Copy output", "Copy command and output"]);
@@ -343,6 +391,8 @@ describe("details toolbar", () => {
   });
 
   it("widens the side panel instead of going full screen", () => {
+    screen.width = 1440;
+    screen.height = 900;
     const value = shell({ form: "side", pointer: true });
     const content = rowPreview(callout(bash));
     const root = mount(details(content, value));
@@ -351,6 +401,8 @@ describe("details toolbar", () => {
     expect(value.toggleFullscreen).toHaveBeenCalledOnce();
     act(() => renderer!.update(details(content, { ...value, fullscreen: true })));
     expect(labels(byId(renderer!.root, "details-toolbar-end")).at(-1)).toBe("Restore panel width");
+    act(() => find(root, "Restore panel width").props.onPress());
+    expect(value.toggleFullscreen).toHaveBeenCalledTimes(2);
     act(() => renderer!.update(details(content, shell({ fullscreen: true }))));
     expect(labels(byId(renderer!.root, "details-toolbar-end")).at(-1)).toBe("Exit full screen");
   });

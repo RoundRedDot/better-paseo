@@ -9,11 +9,12 @@
  * header above names the block.
  */
 import { useState, type ReactNode } from "react";
-import { StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import { StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from "react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { space } from "../../components/theme-tokens";
 import { CopyOverflowContext, SpokenLabelsContext, ToolbarButton, ToolbarMetricsContext, TooltipAlignContext } from "../../ui/toolbar-button";
 import type { DetailsShellValue } from "../contracts";
+import { DETAILS_BREAKPOINTS } from "../layout-model";
 import { HEADER_BUTTONS } from "./details-header";
 import { copySlots, CopyOverflowMenu, useCopyOverflow } from "./copy-overflow";
 
@@ -42,7 +43,9 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
   const metrics = HEADER_BUTTONS[shell.pointer ? "pointer" : "touch"];
   const [width, setWidth] = useState<number | null>(null);
   const [leftWidth, setLeftWidth] = useState(0);
-  const fullscreen = fullscreenButton(shell);
+  const window = useWindowDimensions();
+  const fullscreen = Math.min(window.width, window.height) < DETAILS_BREAKPOINTS.drawerEnter
+    ? null : fullscreenButton(shell);
   const free = width === null ? null
     : width - 2 * PADDING - leftWidth - SPLIT - (fullscreen ? metrics.button + GAP : 0);
   const slots = copySlots(free, metrics.button, GAP);
@@ -88,13 +91,12 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
 }
 
 /**
- * Full screen, the hover panel's maximize: the drawer and the floating panel
- * grow to full height, whatever the content's, the side panel widens. Absent
- * only where the shell offers no toggle.
+ * Outside phone layouts, the floating panel grows to full height and the
+ * side panel widens. The drawer uses its handle instead.
  */
 function fullscreenButton(shell: DetailsShellValue): { icon: string; label: string; onPress(): void } | null {
   const toggle = shell.toggleFullscreen;
-  if (!toggle) return null;
+  if (!toggle || shell.form === "drawer") return null;
   if (shell.form === "side") {
     return shell.fullscreen
       ? { icon: "ChevronsRight", label: "Restore panel width", onPress: toggle }
