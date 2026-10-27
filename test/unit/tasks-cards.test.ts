@@ -1120,7 +1120,7 @@ describe("TaskCardView context ring", () => {
       expect(row[row.length - 1]).toBe(meter);
       expect(hostByTestId(tree.root, "task-card-footer").findAll((node) => node.props.testID === "task-card-context")).toHaveLength(0);
       const track = hostByTestId(meter, "context-ring-track");
-      expect(flat(track.props.style)).toMatchObject({ width: 14, height: 14 });
+      expect(flat(track.props.style)).toMatchObject({ left: -1, top: -1, width: 16, height: 16, overflow: "hidden" });
       const arc = hostByTestId(meter, "context-ring-fill").find((node) => (node.type as unknown) === "Image");
       expect((arc.type as unknown)).toBe("Image");
       expect(flat(arc.props.style)).toMatchObject({ tintColor: color });
@@ -1189,10 +1189,10 @@ describe("TaskCardView context ring", () => {
     const images = ring.findAll((node) => (node.type as unknown) === "Image");
     expect(images).toHaveLength(percent > 0 ? 2 : 1);
     expect(images[0]!.props).toMatchObject({ resizeMode: "stretch", fadeDuration: 0, accessible: false });
-    expect(flat(images[0]!.props.style)).toMatchObject({ tintColor: "#abcdef", left: -17, top: -145, width: 176, height: 160 });
+    expect(flat(images[0]!.props.style)).toMatchObject({ tintColor: "#abcdef", left: -16, top: -144, width: 176, height: 160 });
     if (percent > 0) {
       expect(images[1]!.props.source.uri).toBe(images[0]!.props.source.uri);
-      expect(flat(images[1]!.props.style)).toMatchObject({ tintColor: "#123456", left: -(percent % 11) * 16 - 1, top: -Math.floor(percent / 11) * 16 - 1 });
+      expect(flat(images[1]!.props.style)).toMatchObject({ tintColor: "#123456", left: -(percent % 11) * 16, top: -Math.floor(percent / 11) * 16 });
     }
     expect(ring.findAll((node) => (node.type as unknown) === "View" && flat(node.props.style).transform !== undefined)).toHaveLength(0);
   });
@@ -1202,7 +1202,24 @@ describe("TaskCardView context ring", () => {
     const ring = hostByTestId(tree.root, "context-ring");
     expect(flat(ring.props.style)).toMatchObject({ width: 12, height: 12 });
     const image = hostByTestId(ring, "context-ring-fill").children[0] as ReactTestInstance;
-    expect(flat(image.props.style)).toMatchObject({ left: -85, top: -57, width: 154, height: 140 });
+    expect(flat(image.props.style)).toMatchObject({ left: -84, top: -56, width: 154, height: 140 });
+  });
+
+  it.each(["card", "subtask"] as const)("keeps the %s arc inside a transparent gutter without moving or resizing the ring", async (variant) => {
+    const tree = await render(React.createElement(ContextRing, { ratio: 0.5, color: "#000", track: "#ccc", variant }));
+    const size = variant === "card" ? 14 : 12;
+    const ring = hostByTestId(tree.root, "context-ring");
+    expect(flat(ring.props.style)).toEqual({ width: size, height: size });
+    for (const id of ["context-ring-track", "context-ring-fill"]) {
+      const layer = hostByTestId(ring, id);
+      expect(flat(layer.props.style)).toMatchObject({ left: -1, top: -1, width: size + 2, height: size + 2, overflow: "hidden" });
+      const image = layer.find((node) => (node.type as unknown) === "Image");
+      const style = flat(image.props.style);
+      const frame = id === "context-ring-track" ? 100 : 50;
+      // The logical arc still starts at (0, 0), with a full pixel before every clipping edge.
+      expect(-1 + Number(style.left) + (frame % 11) * (size + 2) + 1).toBe(0);
+      expect(-1 + Number(style.top) + Math.floor(frame / 11) * (size + 2) + 1).toBe(0);
+    }
   });
 
   it("hides the ring from assistive tech with native props off the web and aria-hidden on it", async () => {
