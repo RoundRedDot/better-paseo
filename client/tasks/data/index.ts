@@ -1036,7 +1036,14 @@ function createStore(api: PaseoApi): TaskStore {
     return previousParent;
   }
 
+  function isStaleAgent(agent: PaseoAgent): boolean {
+    const current = entries.get(agent.id)?.agent;
+    return current !== undefined && Date.parse(agent.updatedAt) < Date.parse(current.updatedAt);
+  }
+
   function updateRecord(agent: PaseoAgent, placement: AgentPlacement) {
+    // Independently bootstrapped lists and pages can arrive after a newer live update.
+    if (isStaleAgent(agent)) return;
     if (isArchived(agent) && !keepsArchived(agent)) {
       for (const members of sourceMembers.values()) members.delete(agent.id);
       removeRecord(agent.id);
@@ -1123,6 +1130,7 @@ function createStore(api: PaseoApi): TaskStore {
     const payload = update.payload;
     if (payload.kind === "upsert" && payload.agent) {
       const agent = payload.agent;
+      if (isStaleAgent(agent)) return;
       if (sourceKey === DONE_SUBSCRIPTION) {
         if (isDone(agent) && (!isArchived(agent) || keepsArchived(agent))) {
           sourceMembers.get(DONE_SUBSCRIPTION)?.add(agent.id);
