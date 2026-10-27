@@ -53,17 +53,18 @@ export function createTitleGenerator(deps: Dependencies) {
     let cursor: NonNullable<Parameters<PaseoAgentTimelineHandle["refetch"]>[0]>["cursor"];
     for (;;) {
       const page = await source.timeline.refetch({
-        direction: "after", projection: "projected", limit: 12, ...(cursor ? { cursor } : {}),
+        direction: cursor ? "before" : "tail", projection: "projected", limit: 12, ...(cursor ? { cursor } : {}),
       });
       if (page.error || page.reset && cursor) throw new Error(page.error || "Could not read the conversation.");
-      for (const { item } of page.entries) {
+      for (let index = page.entries.length - 1; index >= 0; index--) {
+        const item = page.entries[index]!.item;
         if (item.type !== "user_message" && item.type !== "assistant_message") continue;
-        messages.push({ role: item.type, text: item.text.slice(0, item.type === "user_message" ? 4000 : 2000) });
+        messages.unshift({ role: item.type, text: item.text.slice(0, item.type === "user_message" ? 4000 : 2000) });
         if (messages.length === 8) break;
       }
-      if (messages.length === 8 || !page.hasNewer) break;
-      const next = page.endCursor;
-      if (!next || cursor && (next.epoch !== cursor.epoch || next.seq <= cursor.seq)) throw new Error("Could not read the conversation.");
+      if (messages.length === 8 || !page.hasOlder) break;
+      const next = page.startCursor;
+      if (!next || cursor && (next.epoch !== cursor.epoch || next.seq >= cursor.seq)) throw new Error("Could not read the conversation.");
       cursor = next;
     }
     if (messages.length === 0) throw new Error("This agent has no conversation to summarize.");

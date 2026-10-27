@@ -28,8 +28,8 @@ async function fixture() {
   const refresh = vi.fn(async () => original);
   const timeline = vi.fn(async (_options: { direction: string; cursor?: { epoch: string; seq: number } }) => ({
     error: null,
-    hasNewer: false,
-    endCursor: null as { epoch: string; seq: number } | null,
+    hasOlder: false,
+    startCursor: null as { epoch: string; seq: number } | null,
     entries: [
       { item: { type: "user_message", text: "Fix the card title" } },
       { item: { type: "assistant_message", text: "Diagnosed the warning" } },
@@ -131,7 +131,7 @@ describe("background title generation", () => {
     expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
   });
 
-  it("uses the opening messages in order and excludes tool calls", async () => {
+  it("uses recent messages in chronological order and excludes tool calls", async () => {
     const f = await fixture();
     f.start();
     expect(await f.settle()).toMatchObject({ state: "done" });
@@ -141,7 +141,7 @@ describe("background title generation", () => {
       { role: "user_message", text: "Now change the settings" },
       { role: "assistant_message", text: "Updated the settings" },
     ] })}`);
-    expect(f.timeline).toHaveBeenCalledExactlyOnceWith({ direction: "after", projection: "projected", limit: 12 });
+    expect(f.timeline).toHaveBeenCalledExactlyOnceWith({ direction: "tail", projection: "projected", limit: 12 });
   });
 
   it("reads across pages, ignores redundant events and stops at eight conversation messages", async () => {
@@ -151,28 +151,44 @@ describe("background title generation", () => {
       role: index % 2 === 0 ? "user_message" : "assistant_message", text: `Message ${index + 1}`,
     }));
     f.timeline.mockResolvedValueOnce({
-      error: null, hasNewer: true, endCursor: cursor,
+      error: null, hasOlder: true, startCursor: cursor,
       entries: [
-        { item: { type: messages[0]!.role, text: messages[0]!.text } },
+        { item: { type: messages[9]!.role, text: messages[9]!.text } },
         { item: { type: "reasoning", text: "PRIVATE_REASONING" } },
         ...Array.from({ length: 10 }, () => ({ item: { type: "tool_call", text: "PRIVATE_TOOL_OUTPUT" } })),
       ],
     }).mockResolvedValueOnce({
-      error: null, hasNewer: true, endCursor: { epoch: "timeline", seq: 24 },
+      error: null, hasOlder: true, startCursor: { epoch: "timeline", seq: 1 },
       entries: [
-        ...messages.slice(1).map((message) => ({ item: { type: message.role, text: message.text } })),
+        ...messages.slice(0, -1).map((message) => ({ item: { type: message.role, text: message.text } })),
       ],
     });
     f.start();
     expect(await f.settle()).toMatchObject({ state: "done" });
-    expect(f.run.mock.calls[0]?.[0]).toBe(`${f.values.prompt}\n\n${JSON.stringify({ messages: messages.slice(0, 8) })}`);
+    expect(f.run.mock.calls[0]?.[0]).toBe(`${f.values.prompt}\n\n${JSON.stringify({ messages: messages.slice(-8) })}`);
     expect(f.timeline).toHaveBeenCalledTimes(2);
-    expect(f.timeline).toHaveBeenLastCalledWith({ direction: "after", projection: "projected", limit: 12, cursor });
+    expect(f.timeline).toHaveBeenLastCalledWith({ direction: "before", projection: "projected", limit: 12, cursor });
+  });
+
+  it("reads older messages when the tail contains only tool and reasoning events", async () => {
+    const f = await fixture();
+    const cursor = { epoch: "timeline", seq: 12 };
+    f.timeline.mockResolvedValueOnce({ error: null, hasOlder: true, startCursor: cursor, entries: [
+      { item: { type: "tool_call", text: "PRIVATE_TOOL_OUTPUT" } },
+      { item: { type: "reasoning", text: "PRIVATE_REASONING" } },
+    ] });
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.timeline).toHaveBeenNthCalledWith(1, { direction: "tail", projection: "projected", limit: 12 });
+    expect(f.timeline).toHaveBeenNthCalledWith(2, { direction: "before", projection: "projected", limit: 12, cursor });
+    expect(f.run.mock.calls[0]?.[0]).toContain("Updated the settings");
+    expect(f.run.mock.calls[0]?.[0]).not.toContain("PRIVATE_REASONING");
+    expect(f.run.mock.calls[0]?.[0]).not.toContain("PRIVATE_TOOL_OUTPUT");
   });
 
   it("uses all available user messages when no assistant reply exists yet", async () => {
     const f = await fixture();
-    f.timeline.mockResolvedValueOnce({ error: null, hasNewer: false, endCursor: null, entries: [
+    f.timeline.mockResolvedValueOnce({ error: null, hasOlder: false, startCursor: null, entries: [
       { item: { type: "user_message", text: "First request" } },
       { item: { type: "user_message", text: "Later request" } },
     ] });
@@ -186,7 +202,7 @@ describe("background title generation", () => {
 
   it("does not provision a helper when reading a later conversation page fails", async () => {
     const f = await fixture();
-    f.timeline.mockResolvedValueOnce({ error: null, hasNewer: true, endCursor: { epoch: "timeline", seq: 12 }, entries: [
+    f.timeline.mockResolvedValueOnce({ error: null, hasOlder: true, startCursor: { epoch: "timeline", seq: 12 }, entries: [
       { item: { type: "user_message", text: "First request" } },
     ] }).mockRejectedValueOnce(new Error("Timeline unavailable"));
     f.start();
@@ -241,7 +257,7 @@ describe("background title generation", () => {
     expect(await f.settle()).toMatchObject({ state: "error", error: expect.stringContaining("settings first") });
     expect(f.workspace).not.toHaveBeenCalled();
     f.values.model = "claude-haiku-5-5";
-    f.timeline.mockResolvedValue({ error: null, entries: [], hasNewer: false, endCursor: null });
+    f.timeline.mockResolvedValue({ error: null, entries: [], hasOlder: false, startCursor: null });
     f.start();
     expect(await f.settle()).toMatchObject({ state: "error", error: expect.stringContaining("no conversation") });
     expect(f.workspace).not.toHaveBeenCalled();
