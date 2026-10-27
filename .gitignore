@@ -10,8 +10,20 @@ dist/
 .showcase/out/
 .agents/
 
-# Benchmark archive. Reports, tools and raw samples stay on disk for local runs.
-docs/bench/
+# Benchmark notes and scripts are tracked. Raw samples and generated video are
+# release assets (this repo is a public fork, so Git LFS uploads are rejected)
+# and are not part of a plugin clone.
+docs/bench/**
+!docs/bench/**/
+!docs/bench/**/*.md
+!docs/bench/**/*.mjs
+!docs/bench/**/*.sh
+!docs/bench/**/*.py
+!docs/bench/**/*.js
+!docs/bench/**/*.ts
+!docs/bench/samples.txt
+assets/promo/*.mp4
+docs/video/generated/
 
 /.playwright-mcp
 
