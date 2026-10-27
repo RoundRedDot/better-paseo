@@ -12,7 +12,7 @@ const WORDS = {
   en: {
     customModel: "Custom automatic title model", followSource: "Off: follow the card agent's provider, model and thinking level. Save to sync these settings across devices connected to this host.",
     title: "Automatic titles", provider: "Provider", model: "Model", thinkingOptionId: "Thinking level", modelDefault: "Model default", noThinking: "Not supported", choose: "Choose…", prompt: "Prompt",
-    hint: "Recommended custom model: Oh My Pi / DeepSeek Flash (deepseek/deepseek-flash), thinking low. Alternative: Claude / Haiku 5.5 (claude-haiku-5-5), thinking off.\nAppend to the default prompt: Use the language of the first user message. Limit the title to 80 characters including spaces.\nChoose models available on this host; actual speed also depends on agent startup and host load. The background task stays off the board, retains history and may trigger host notifications.",
+    hint: "Recommended custom model: Oh My Pi / DeepSeek Flash (deepseek/deepseek-flash), thinking low. Alternative: Claude / Haiku 5.5 (claude-haiku-5-5), thinking off.\nChoose models available on this host; actual speed also depends on agent startup and host load. The background task stays off the board, retains history and may trigger host notifications.",
     save: "Save title settings", reset: "Reset title settings", saving: "Saving…", loading: "Loading…", retry: "Retry", refresh: "Refresh models", loadError: "Could not load title settings.",
     saveError: "Settings changed elsewhere or could not be saved. Reloaded the latest.",
     notRecommended: "Not recommended",
@@ -20,7 +20,7 @@ const WORDS = {
   zh: {
     customModel: "自定义自动标题模型", followSource: "关闭时跟随卡片所属 agent 的 Provider、模型和思考等级。保存后，设置同步至连接此主机的各端。",
     title: "自动更新标题", provider: "Provider", model: "模型", thinkingOptionId: "思考等级", modelDefault: "模型默认", noThinking: "不支持", choose: "请选择…", prompt: "Prompt",
-    hint: "自定义模型推荐：Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low；备选：Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off。\n建议在默认 prompt 末尾补充：Use the language of the first user message. Limit the title to 80 characters including spaces.\n请选择当前主机可用的模型；实际速度也受 agent 启动和主机负载影响。后台任务不进入看板，仍保留历史，并可能触发宿主通知。",
+    hint: "自定义模型推荐：Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low；备选：Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off。\n请选择当前主机可用的模型；实际速度也受 agent 启动和主机负载影响。后台任务不进入看板，仍保留历史，并可能触发宿主通知。",
     save: "保存标题设置", reset: "重置标题设置", saving: "正在保存…", loading: "正在加载…", retry: "重试", refresh: "刷新模型", loadError: "标题设置加载失败。",
     saveError: "设置已在别处更改或保存失败，已重新加载最新内容。",
     notRecommended: "不推荐使用",

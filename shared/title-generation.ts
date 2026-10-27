@@ -1,7 +1,7 @@
 import { defineRpc, defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";
 
-export const DEFAULT_TITLE_PROMPT = "Generate a concise, specific task title from the supplied conversation. Match the language used by the user in their messages. Focus on the actual goal and preserve key module names, issue numbers, and technical identifiers. Keep the title short. Return only the title, without quotes, explanations, or Markdown.";
+export const DEFAULT_TITLE_PROMPT = "Generate a concise, specific task title from the supplied conversation. Use the language of the first user message. Focus on the actual goal and preserve key module names, issue numbers, and technical identifiers. Limit the title to 80 characters including spaces. Return only the title, without quotes, explanations, or Markdown.";
 
 export const titleGenerationSettingsSchema = z.object({
   customModel: z.boolean().catch(false),
