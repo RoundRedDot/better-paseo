@@ -17,7 +17,7 @@ import { PREVIEW_EDGES, PREVIEW_MIN, type PreviewBox } from "./preview-frame";
 import { previewEdgeResponders, previewEdgeStyle, toolbarResponder, type FrameDrag } from "./preview-drag";
 import { ProseSelectionContext } from "./prose-text";
 import { HScroll } from "./h-scroll";
-import { PreviewScrollerContext, type PreviewScroller } from "./preview-scroller";
+import { createPreviewViewport, PreviewScrollerContext, PreviewViewportContext, type PreviewScroller } from "./preview-scroller";
 import { ToolbarButton, ToolbarIcon, TooltipAlignContext } from "./toolbar-button";
 import { Glyph } from "../components/glyph";
 import { RunningDot } from "./running-dot";
@@ -880,7 +880,9 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
             scrollEnabled={!scroller.held && !(pulls && bodyTop)} scrollEventThrottle={16} {...detailsScroll}
             bounces={!(pulls && bodyTop)} disableScrollViewPanResponder={pulls && bodyTop}>
             <PreviewScrollerContext.Provider value={scroller.value}>
-              <ProseSelectionContext.Provider key={redrawKey} value>{content}</ProseSelectionContext.Provider>
+              <PreviewViewportContext.Provider value={scroller.viewport}>
+                <ProseSelectionContext.Provider key={redrawKey} value>{content}</ProseSelectionContext.Provider>
+              </PreviewViewportContext.Provider>
             </PreviewScrollerContext.Provider>
           </ScrollView>
         ) : (
@@ -904,7 +906,9 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
       <ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, fill && styles.pressBodyFill]} contentContainerStyle={styles.pressBodyContent}
         scrollEnabled={!scroller.held} scrollEventThrottle={16} {...scroller.props}>
         <PreviewScrollerContext.Provider value={scroller.value}>
-          <ProseSelectionContext.Provider value>{content}</ProseSelectionContext.Provider>
+          <PreviewViewportContext.Provider value={scroller.viewport}>
+            <ProseSelectionContext.Provider value>{content}</ProseSelectionContext.Provider>
+          </PreviewViewportContext.Provider>
         </PreviewScrollerContext.Provider>
       </ScrollView>
     );
@@ -1071,6 +1075,7 @@ function usePreviewScroller(
   onChange?: (following: boolean, extent: number) => void,
 ) {
   const ref = useRef<ScrollView>(null);
+  const [viewport] = useState(createPreviewViewport);
   const memoryKeyRef = useRef(memoryKey);
   memoryKeyRef.current = memoryKey;
   // Applied again while the taken-over text settles its layout, which grows
@@ -1108,6 +1113,7 @@ function usePreviewScroller(
       if (moved === 0) return 0;
       current.offset = next;
       ref.current?.scrollTo({ y: next, animated: glide });
+      viewport.changed();
       return moved;
     },
   }), []);
@@ -1127,17 +1133,18 @@ function usePreviewScroller(
     onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
       const native = event.nativeEvent;
       const offset = native.contentOffset.y;
-      const viewport = native.layoutMeasurement?.height ?? state.current.viewport;
+      const height = native.layoutMeasurement?.height ?? state.current.viewport;
       const content = native.contentSize?.height ?? state.current.content;
       if (!state.current.held) state.current.offset = offset;
+      viewport.changed();
       if (streamingRef.current) {
         const was = tail.pinned;
-        tail.scrolled(offset, viewport, content);
+        tail.scrolled(offset, height, content);
         if (tail.pinned !== was) changed.current?.(tail.pinned, content);
       }
       const key = memoryKeyRef.current;
       if (key && !state.current.held) {
-        rememberPreview(key, { offset, tail: streamingRef.current ? tail.pinned : previewFollowsTail(offset, viewport, content) });
+        rememberPreview(key, { offset, tail: streamingRef.current ? tail.pinned : previewFollowsTail(offset, height, content) });
       }
     },
     onScrollBeginDrag() {
@@ -1146,11 +1153,13 @@ function usePreviewScroller(
     },
     onLayout(event: LayoutChangeEvent) {
       state.current.viewport = event.nativeEvent.layout.height;
+      viewport.changed();
       // Android sizes the body after its content: the end moves without a new content size.
       if (Platform.OS !== "web" && state.current.content > 0) restoring();
     },
     onContentSizeChange(_width: number, height: number) {
       state.current.content = height;
+      viewport.changed();
       // The phone preview is a ScrollView. Web scrolls the body element.
       if (Platform.OS === "web" || state.current.held) return;
       if (height > 0 && restoring()) return;
@@ -1166,7 +1175,7 @@ function usePreviewScroller(
   const resume = useCallback(() => {
     tail.resume(state.current.viewport, state.current.content, still.current);
   }, [tail]);
-  return { ref, held, value, props, resume };
+  return { ref, held, value, props, resume, viewport };
 }
 
 const styles = StyleSheet.create({

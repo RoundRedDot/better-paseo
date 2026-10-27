@@ -18,3 +18,17 @@ export interface PreviewScroller {
 }
 
 export const PreviewScrollerContext = createContext<PreviewScroller | null>(null);
+
+/** Native text readers listen without re-rendering the panel on every scroll. */
+export function createPreviewViewport() {
+  const listeners = new Set<() => void>();
+  return {
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+    changed() { Array.from(listeners).forEach((listener) => listener()); },
+  };
+}
+
+export const PreviewViewportContext = createContext<ReturnType<typeof createPreviewViewport> | null>(null);

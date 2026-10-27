@@ -370,13 +370,22 @@ describe("full hover preview content", () => {
     expect(text).toContain("output-line-99");
     expect(text).not.toContain("earlier lines");
   });
-  it("includes the full path and a file larger than the normal code fold limit", () => {
+  it.each(["web", "ios", "android"])("opens a large file with its path and keeps full copying on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const content = Array.from({ length: 500 }, (_, i) => `file-line-${i}`).join("\n");
     const data = classifyTool({ name: "Read", status: "completed", detail: { type: "read", filePath: "/w/full-path.ts", content } });
-    const text = previewOf(React.createElement(ToolCallout, { data, tokens }));
-    expect(text).toContain("/w/full-path.ts");
-    expect(text).toContain("file-line-0");
-    expect(text).toContain("file-line-499");
+    try {
+      await exercisePreview(React.createElement(ToolCallout, { data, tokens }), async (body) => {
+        const text = textOf(body.toJSON());
+        expect(text).toContain("/w/full-path.ts");
+        expect(text).toContain("file-line-0");
+        expect(text.includes("file-line-499")).toBe(os === "web");
+        await press(body, "Copy file content");
+        expect(clipboard.copyText).toHaveBeenLastCalledWith(content);
+      });
+    } finally {
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    }
   });
   it("shows a long thought without a Show more control", () => {
     const thought = "Long reasoning paragraph. ".repeat(80) + "FINAL_SENTENCE";

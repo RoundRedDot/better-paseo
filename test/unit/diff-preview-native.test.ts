@@ -15,6 +15,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => ({
 import { DiffPreview } from "../../client/components/tool-output";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { ProseSelectionContext } from "../../client/ui/prose-text";
+import { HoverPreviewBody } from "../../client/ui/hover-preview";
+import { TEXT_CHUNK_LINES } from "../../client/ui/text-chunks";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -23,6 +25,20 @@ const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: 
   statusSuccess: "#198754", statusWarning: "#a36a00", statusDanger: "#d92d20" });
 
 describe("diff preview native text fragments", () => {
+  it("keeps a large preview's first native attributed string bounded and preserves its markers", async () => {
+    const lines = ["@@ -1,400 +1,400 @@", ...Array.from({ length: 400 }, (_, index) => `+const value${index} = ${index};`)];
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(HoverPreviewBody, null,
+        React.createElement(DiffPreview, { text: lines.join("\n"), filename: "x.ts", style: {}, tokens, running: true })));
+    });
+    const roots = renderer.root.findAll((node) => (node.type as unknown) === "RNUITextView");
+    expect(roots).toHaveLength(1);
+    const fragments = roots[0]!.findAll((node) => (node.type as unknown) === "RNUITextViewChild");
+    expect(fragments.map((node) => node.props.text).join("")).toBe(lines.slice(0, TEXT_CHUNK_LINES).join("\n"));
+    expect(roots[0]!.findAll((node) => (node.type as unknown) === "Text")).toHaveLength(0);
+    act(() => renderer.unmount());
+  });
   it.each([
     ["x.ts", "  const keep = 1;\n--const old = 2; // comment\n++const next = 3;"],
     ["x.html", '  <div title="keep">\n--<p>old</p>\n++<p>new</p>'],

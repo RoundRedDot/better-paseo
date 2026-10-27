@@ -16,6 +16,7 @@ import { ToolbarButton } from "../ui/toolbar-button";
 import { SelectableSpan } from "../ui/prose-text";
 import { useZoomedTokens } from "../ui/text-zoom";
 import type { HighlightLine, HighlightToken } from "../../shared/highlight-rpc";
+import { textChunks, TEXT_CHUNK_CHARS } from "../ui/text-chunks";
 
 interface SyntaxHighlightProps {
   code: string;
@@ -503,7 +504,7 @@ export function SyntaxHighlightBlock({
   const tokens = useZoomedTokens(given);
   const lines = useMemo(() => code.trimEnd().split("\n"), [code]);
   const total = lines.length;
-  const { shown, expanding, expanded, showAll, showLess } = useBatchedRows(total, initialLines);
+  const { shown, expanding, expanded, showAll, showLess } = useBatchedRows(total, initialLines, lines);
   const [wrapped, setWrapped] = useState(true);
   // A diff is a diff whatever the label says, and everything below reads this
   // flag rather than the label.
@@ -689,13 +690,15 @@ export function SyntaxHighlightBlock({
           {showLineNumbers && (
             <Text style={[styles.lineNumber, { width: numberWidth }]}>{number ?? ""}</Text>
           )}
-          <Text selectable style={scroll ? styles.lineNoWrap : styles.lineContent}>
+          {Platform.OS !== "web" && line.length > TEXT_CHUNK_CHARS ? (
+            <View style={{ flex: 1 }}><LongNativeLine text={line} tokens={tokens} style={scroll ? styles.lineNoWrap : styles.lineContent} /></View>
+          ) : <Text selectable style={scroll ? styles.lineNoWrap : styles.lineContent}>
             {isDiff
               ? renderDiffLine(line, parsedDiff![idx]!, tokens, filename, bodyLine, shikiLine)
               : shikiLine
                 ? renderShikiLine(shikiLine, tokens)
                 : renderSyntaxLine(line, language, lineDialects[idx] ?? codeLanguage, tokens)}
-          </Text>
+          </Text>}
         </View>
       );
     },
@@ -924,6 +927,7 @@ function FoldFooter({
   tokens,
   bare,
   earlier = false,
+  unit = "lines",
 }: {
   total: number;
   shown: number;
@@ -935,18 +939,19 @@ function FoldFooter({
   bare: boolean;
   /** Tail mode: the hidden lines come before the shown ones. */
   earlier?: boolean;
+  unit?: "lines" | "parts";
 }) {
   const hidden = total - shown;
   let label: string | null = null;
   let onPress: (() => void) | undefined;
   if (!expanded && hidden > 0) {
     label = earlier
-      ? `${hidden} earlier ${hidden === 1 ? "line" : "lines"}`
-      : `Show ${hidden} more ${hidden === 1 ? "line" : "lines"}`;
+      ? `${hidden} earlier ${hidden === 1 ? unit.slice(0, -1) : unit}`
+      : `Show ${hidden} more ${hidden === 1 ? unit.slice(0, -1) : unit}`;
     onPress = onShowAll;
   } else if (expanding && hidden > 0) {
-    label = `Showing ${shown} of ${total} lines`;
-  } else if (expanded && total > FOLD_LINES) {
+    label = `Showing ${shown} of ${total} ${unit}`;
+  } else if (expanded && (total > FOLD_LINES || unit === "parts")) {
     label = "Show less";
     onPress = onShowLess;
   }
@@ -996,24 +1001,67 @@ const footerStyles = StyleSheet.create({
  * How many of `total` rows to mount. A block over `FOLD_LINES` starts at
  * `initialLines` (default `FOLD_LINES`), never more than `LARGE_BLOCK_LINES`;
  * after `showAll`, rows are appended a batch per frame until every row is
- * mounted, so expanding a huge block never blocks the UI thread for the whole
- * block at once. `showLess` folds it again.
+ * mounted. Native callers also supply the text to bound each batch by its
+ * character count; a single oversized line owns its bounded parts below.
+ * `showLess` folds it again.
  */
 export function useBatchedRows(
   total: number,
   initialLines: number = FOLD_LINES,
+  lines?: readonly string[],
+  tail = false,
 ): { shown: number; expanding: boolean; expanded: boolean; showAll(): void; showLess(): void } {
-  const firstCap = Math.min(total > FOLD_LINES ? Math.min(initialLines, total) : total, LARGE_BLOCK_LINES);
+  const nextLimit = (from: number, count: number) => {
+    const end = Math.min(total, from + count);
+    if (Platform.OS === "web" || !lines) return end;
+    let chars = 0;
+    let limit = from;
+    while (limit < end) {
+      const length = lines[tail ? total - limit - 1 : limit]!.length + 1;
+      if (limit > from && chars + length > TEXT_CHUNK_CHARS) break;
+      chars += length;
+      limit++;
+    }
+    return limit;
+  };
+  const firstCap = nextLimit(0, Math.min(initialLines, LARGE_BLOCK_LINES));
   // null: the first rows only. A number: "Show all" was pressed.
   const [limit, setLimit] = useState<number | null>(null);
   const shown = limit === null ? firstCap : Math.min(limit, total);
   useEffect(() => {
     if (limit === null || limit >= total) return;
-    return scheduleFrame(() => setLimit((current) => (current ?? firstCap) + APPEND_BATCH));
-  }, [limit, total, firstCap]);
-  const showAll = useCallback(() => setLimit(shown + APPEND_BATCH), [shown]);
+    return scheduleFrame(() => setLimit((current) => nextLimit(current ?? firstCap, APPEND_BATCH)));
+  }, [limit, total, firstCap, lines, tail]);
+  const showAll = () => setLimit(nextLimit(shown, APPEND_BATCH));
   const showLess = useCallback(() => setLimit(null), []);
   return { shown, expanding: limit !== null && shown < total, expanded: limit !== null, showAll, showLess };
+}
+
+/** Oversized source lines never become one unbounded native text layout. */
+function LongNativeLine({ text, tokens, style, textProps, tail = false }: {
+  text: string; tokens: ExtendedThemeTokens; style?: StyleProp<TextStyle>; textProps?: TextProps; tail?: boolean;
+}) {
+  const parts = useMemo(() => {
+    if (!tail) return textChunks([text]).map((chunk) => chunk.text);
+    // Align a folded log's last part to its end, so a short remainder does
+    // not hide the context immediately before the newest output.
+    const parts: string[] = [];
+    for (let end = text.length; end > 0;) {
+      let start = Math.max(0, end - TEXT_CHUNK_CHARS);
+      if (start > 0 && text.charCodeAt(start) >= 0xdc00 && text.charCodeAt(start) <= 0xdfff) start++;
+      parts.push(text.slice(start, end));
+      end = start;
+    }
+    return parts.reverse();
+  }, [text, tail]);
+  const rows = useBatchedRows(parts.length, 1, parts, tail);
+  return <>
+    {parts.slice(tail ? parts.length - rows.shown : 0, tail ? parts.length : rows.shown).map((part, index) => (
+      <Text key={tail ? parts.length - rows.shown + index : index} selectable {...textProps} style={style}>{part}</Text>
+    ))}
+    <FoldFooter total={parts.length} shown={rows.shown} expanding={rows.expanding} expanded={rows.expanded}
+      onShowAll={rows.showAll} onShowLess={rows.showLess} tokens={tokens} bare unit="parts" earlier={tail} />
+  </>;
 }
 
 /** The rows a code block drew last, and the block-wide inputs they were drawn under. */
@@ -1576,6 +1624,13 @@ function OutputChunkBody({ text, tokens, more }: OutputChunkProps) {
 
 const OutputChunk = memo(OutputChunkBody);
 
+const NativeOutputChunk = memo(function NativeOutputChunk({ text, tokens, style, textProps }: TerminalOutputProps) {
+  const lines = text.split("\n");
+  return <Text selectable {...textProps} style={style}>
+    {lines.map((line, index) => renderTerminalLine(line, index, tokens, index < lines.length - 1 ? "\n" : ""))}
+  </Text>;
+});
+
 /**
  * Command output, folded to its last `FOLD_LINES` lines (S7 design spec §3.1):
  * the end of a log is where the result and the error are, and a running
@@ -1587,13 +1642,14 @@ const OutputChunk = memo(OutputChunkBody);
 export function TerminalOutput({ text, tokens, style, textProps }: TerminalOutputProps) {
   const lines = useMemo(() => text.replace(/\s+$/, "").split("\n"), [text]);
   const total = lines.length;
-  const { shown, expanding, expanded, showAll, showLess } = useBatchedRows(total);
+  const { shown, expanding, expanded, showAll, showLess } = useBatchedRows(total, FOLD_LINES, lines, true);
   const from = total - shown;
+  const nativeChunks = useMemo(() => Platform.OS === "web" ? [] : textChunks(lines), [lines]);
   // Chunk edges sit on absolute multiples of OUTPUT_CHUNK_LINES, so growing
   // the shown range upwards re-renders only the partial first chunk.
   const chunks: React.ReactNode[] = [];
   let start = from;
-  while (start < total) {
+  while (Platform.OS === "web" && start < total) {
     const end = Math.min(total, (Math.floor(start / OUTPUT_CHUNK_LINES) + 1) * OUTPUT_CHUNK_LINES);
     chunks.push(
       <OutputChunk
@@ -1621,9 +1677,14 @@ export function TerminalOutput({ text, tokens, style, textProps }: TerminalOutpu
           earlier
         />
       )}
-      <Text selectable {...textProps} style={style}>
+      {Platform.OS === "web" ? <Text selectable {...textProps} style={style}>
         {chunks}
-      </Text>
+      </Text> : nativeChunks.filter((chunk) => chunk.offset === 0 && chunk.from + chunk.lines.length > from).map((chunk) => (
+        lines[chunk.from]!.length > TEXT_CHUNK_CHARS
+          ? <LongNativeLine key={chunk.from} text={lines[chunk.from]!} tokens={tokens} style={style} textProps={textProps} tail />
+          : <NativeOutputChunk key={chunk.from} text={chunk.lines.slice(Math.max(0, from - chunk.from)).join("\n")}
+              tokens={tokens} style={style} textProps={textProps} />
+      ))}
       {settled ? (
         <FoldFooter
           total={total}
