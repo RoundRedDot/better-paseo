@@ -19,7 +19,7 @@ import {
   type TasksSettings,
 } from "../../../shared/tasks-settings";
 import { mix, radiusV2, space } from "../../components/theme-tokens";
-import { PHONE_PREVIEW_WIDTH, PlainButton, Section, Segmented, SettingRow, Toggle, controlStyles, type PageLook } from "../../settings-controls";
+import { PHONE_PREVIEW_WIDTH, PlainButton, Section, Segmented, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "../../settings-controls";
 import { TasksTypography } from "../typography";
 import { tasksBoardOpener } from "../board/enabled";
 import { useTasksLanguage } from "../i18n";
@@ -63,7 +63,7 @@ function Note({ text, look, danger = false }: { text: string; look: PageLook; da
   return (
     <Text
       style={[
-        controlStyles.rowNote,
+        controlStyles.rowNote, settingsTextStyle(tokens, -1),
         compact ? controlStyles.sectionTitleInset : controlStyles.sectionTitleDesktop,
         { color: danger ? tokens.warning : tokens.foregroundMuted, fontFamily: tokens.fontUi },
       ]}
@@ -91,10 +91,10 @@ function EnabledNotice({ strings, look }: { strings: TasksSettingsStrings; look:
       <View accessibilityLiveRegion="polite" style={styles.noticeLine}>
         <View style={[styles.noticeDot, { backgroundColor: tokens.accent }]} />
         <View style={styles.noticeText}>
-          <Text style={[look.compact ? controlStyles.rowTitleCompact : controlStyles.rowTitleDesktop, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+          <Text style={[look.compact ? controlStyles.rowTitleCompact : controlStyles.rowTitleDesktop, settingsTextStyle(tokens), { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
             {strings.enabledConfirm}
           </Text>
-          <Text style={[controlStyles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+          <Text style={[controlStyles.rowNote, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
             {strings.enabledConfirmHint}
           </Text>
         </View>
@@ -162,15 +162,15 @@ function PreviewCard(props: {
   const header = (
     <View style={styles.previewHeader}>
       <View style={styles.previewHeaderText}>
-        <Text style={[controlStyles.rowTitleDesktop, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+        <Text style={[controlStyles.rowTitleDesktop, settingsTextStyle(tokens), { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
           {strings.previewTitle}
         </Text>
-        <Text style={[controlStyles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+        <Text style={[controlStyles.rowNote, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
           {values.enabled ? strings.previewOnHint : strings.previewOffHint}
         </Text>
       </View>
       {values.enabled ? null : (
-        <Text style={[styles.tag, { color: tokens.foregroundMuted, borderColor: tokens.v2.border, fontFamily: tokens.fontUi }]}>
+        <Text style={[styles.tag, settingsTextStyle(tokens, -2), { color: tokens.foregroundMuted, borderColor: tokens.v2.border, fontFamily: tokens.fontUi }]}>
           {strings.previewOffTag}
         </Text>
       )}
@@ -243,8 +243,8 @@ function FieldChip({ label, on, onPress, look }: { label: string; on: boolean; o
         },
       ]}
     >
-      <Text style={[styles.chipMark, { color: on ? tokens.accent : tokens.foregroundSubtle }]}>{on ? "\u2713" : "+"}</Text>
-      <Text style={[styles.chipLabel, { color: on ? tokens.foreground : tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{label}</Text>
+      <Text style={[styles.chipMark, settingsTextStyle(tokens, -2), { color: on ? tokens.accent : tokens.foregroundSubtle }]}>{on ? "\u2713" : "+"}</Text>
+      <Text style={[styles.chipLabel, settingsTextStyle(tokens, -1), { color: on ? tokens.foreground : tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
     borderRadius: radiusV2.pill,
   },
   chipCompact: { minHeight: 34, paddingHorizontal: 12 },
-  chipMark: { fontSize: 12, lineHeight: 16, width: 10, textAlign: "center", fontWeight: "600" },
+  chipMark: { fontSize: 12, lineHeight: 16, minWidth: 10, textAlign: "center", fontWeight: "600" },
   chipLabel: { fontSize: 13, lineHeight: 18 },
   buttons: { flexDirection: "row", alignItems: "center", gap: space.sm },
 });

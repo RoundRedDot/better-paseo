@@ -40,7 +40,7 @@ import {
 import { usePreferenceSettings } from "./state/preference-sync-slot";
 import { useWideHostColumn } from "./ui/wide-host-column";
 import { SettingsPreview } from "./settings-preview";
-import { PHONE_PREVIEW_WIDTH, PlainButton, Section, SectionNote, Segmented, SettingRow, Toggle, controlStyles, type PageLook } from "./settings-controls";
+import { PHONE_PREVIEW_WIDTH, PlainButton, Section, SectionNote, Segmented, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "./settings-controls";
 import { setSettingsTab, useSettingsTab, type SettingsTab } from "./settings-tab";
 import { TasksSettingsPanel } from "./tasks/chunk/load";
 import type { SyncStatus } from "./state/preference-sync";
@@ -116,7 +116,7 @@ function CustomMonoInput({ value, look }: { value: string; look: PageLook }) {
       autoCapitalize="none"
       autoCorrect={false}
       style={[
-        styles.input,
+        styles.input, settingsTextStyle(tokens, -1),
         {
           color: tokens.foreground,
           borderColor: tokens.v2.border,
@@ -161,7 +161,7 @@ function SecondsInput({ value, look }: { value: number; look: PageLook }) {
         inputMode="decimal"
         selectTextOnFocus
         style={[
-          styles.input,
+          styles.input, settingsTextStyle(tokens, -1),
           styles.secondsInput,
           {
             color: tokens.foreground,
@@ -171,7 +171,7 @@ function SecondsInput({ value, look }: { value: number; look: PageLook }) {
           },
         ]}
       />
-      <Text style={[styles.plainLabel, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+      <Text style={[styles.plainLabel, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
         {t.hoverDelayUnit}
       </Text>
     </View>
@@ -214,7 +214,7 @@ function MonoPreview({ look }: { look: PageLook }) {
       <Text style={[line, { fontFamily: tokens.fontMono, color: tokens.foregroundMuted }]}>
         {"中文与 English 混排 · src/界面/设置.tsx:42"}
       </Text>
-      <Text style={[styles.previewMeta, { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}>
+      <Text style={[styles.previewMeta, settingsTextStyle(tokens, -2), { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}>
         {`${mono.size} / ${mono.lineHeight}`}
       </Text>
     </View>
@@ -255,7 +255,7 @@ function CodeSizeControl({ value, look }: { value: number | null; look: PageLook
         <Text
           accessibilityLabel={t.codeSizeValue(effective)}
           style={[
-            styles.stepperValue,
+            styles.stepperValue, settingsTextStyle(tokens, -1),
             { color: value === null ? tokens.foregroundMuted : tokens.foreground, fontFamily: tokens.fontMono },
           ]}
         >
@@ -293,7 +293,7 @@ function BlockSizeControl({ value, look }: { value: number; look: PageLook }) {
       />
       <Text
         accessibilityLabel={t.blockSizeValue(value)}
-        style={[styles.stepperValue, { color: tokens.foreground, fontFamily: tokens.fontMono }]}
+        style={[styles.stepperValue, settingsTextStyle(tokens, -1), { color: tokens.foreground, fontFamily: tokens.fontMono }]}
       >
         {`${value}px`}
       </Text>
@@ -319,7 +319,7 @@ function DetailsSizeControl({ value, look }: { value: number; look: PageLook }) 
         <PlainButton label="−" accessibilityLabel={t.detailsSizeSmaller}
           disabled={value <= DETAILS_FONT_SIZE_MIN} onPress={() => set(value - 1)} look={look} square />
         <Text accessibilityLabel={t.detailsSizeValue(value)}
-          style={[styles.stepperValue, { color: tokens.foreground, fontFamily: tokens.fontMono }]}>
+          style={[styles.stepperValue, settingsTextStyle(tokens, -1), { color: tokens.foreground, fontFamily: tokens.fontMono }]}>
           {`${value}px`}
         </Text>
         <PlainButton label="+" accessibilityLabel={t.detailsSizeLarger}
@@ -359,7 +359,7 @@ function AccentControl({ value, hostAccent, look }: { value: AccentPreset; hostA
             ]}
           >
             {option.id === "host" ? (
-              <Text style={[styles.hostChipLabel, { color: selected ? tokens.foreground : tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+              <Text style={[styles.hostChipLabel, settingsTextStyle(tokens, -1), { color: selected ? tokens.foreground : tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
                 {t.accentHost}
               </Text>
             ) : null}
@@ -454,11 +454,11 @@ function PreviewPanel({
         ]}
       >
         <View style={styles.previewHeaderText}>
-          <Text style={[styles.rowTitleDesktop, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+          <Text style={[styles.rowTitleDesktop, settingsTextStyle(tokens), { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
             {t.previewTitle}
           </Text>
           {open ? (
-            <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+            <Text style={[styles.rowNote, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
               {mobile ? t.previewHintMobile : pointer ? t.previewHintPointer : t.previewHintTouch}
             </Text>
           ) : null}
@@ -516,7 +516,7 @@ function ResetButton({ look }: { look: PageLook }) {
         }}
         look={look}
       />
-      <Text style={[styles.rowNote, { color: armed ? tokens.warning : tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+      <Text style={[styles.rowNote, settingsTextStyle(tokens, -1), { color: armed ? tokens.warning : tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
         {t.resetDescription}
       </Text>
     </View>
@@ -674,7 +674,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
               preferences.monoFont === "host" ? (
                 <Text
                   accessibilityLabel={t.monoSource}
-                  style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
+                  style={[styles.rowNote, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}
                 >
                   {describeMonoSource(tokens.typography.mono.source, platform, t)}
                 </Text>
@@ -981,10 +981,10 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         </View>
         {tab === "display" ? (
           <>
-            <Text style={[styles.title, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+            <Text style={[styles.title, settingsTextStyle(tokens, 2), { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
               {t.pageTitle}
             </Text>
-            <Text style={[styles.rowNote, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+            <Text style={[styles.rowNote, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
               {t.pageIntro}
             </Text>
           </>
@@ -993,7 +993,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           <Text
             accessibilityRole="alert"
             style={[
-              styles.rowNote,
+              styles.rowNote, settingsTextStyle(tokens, -1),
               styles.storageHint,
               {
                 color: sync.status === "loading" ? tokens.foregroundMuted : tokens.warning,
