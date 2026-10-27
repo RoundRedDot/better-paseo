@@ -42,3 +42,12 @@ gh pr create --repo getpaseo/paseo --head RoundRedDot:<branch>
 3. 新旧 tree 必须完全一致，不一致就停下排查，不要推送。
 4. 推送到 RoundRedDot/paseo（remote `fork`）：`git push --force-with-lease="refs/heads/${ref}:${old}" fork "${new}:refs/heads/${ref}"`。在 zsh 里变量要加花括号，`$new:refs` 会被当成 `:r` 修饰符。
 5. 验收：`gh api repos/getpaseo/paseo/pulls/<n>/commits` 里每条提交的 author 与 committer 都是 `luke <luopeihuan@gmail.com>`。
+
+## 公开代码与私有制作资料的边界
+
+- 公开插件仓库：`RoundRedDot/better-paseo`，主目录 `/Users/luopeihuan/workspace/rrd/beautiful-chat`。只提交插件运行源码、协议与 manifest、必要构建/CI 工具、回归测试及其最小 fixture、用户使用文档和维护这些内容所需的约束。
+- 私有制作仓库：`RoundRedDot/better-paseo-media`，本地目录 `/Users/luopeihuan/workspace/rrd/better-paseo-media`。视频脚本与产物、截图与录屏、视觉原型、benchmark 工具/报告/原始数据、QA 附件、临时分析与非插件交付必需的计划文档，一律在该仓库单独提交，不提交到公开插件仓库。
+- 提交前按文件用途检查范围；混合任务必须拆分提交到两个仓库。不要为归档资料把私有项目设为公开，也不要在公开仓库新增制作资料或大文件备份。
+- README 和 gallery 必须使用已发布的公开资源 URL；最终公开图片/视频可以作为公开仓库的 GitHub Release assets 发布，但不把二进制文件写入插件 Git 历史，也不引用需要登录私有仓库才能访问的链接。
+- 单测依赖的最小 fixture 和纯测试 helper 保留在 `test/`，不让插件构建或测试依赖私有仓库。图标、字体等运行必需资源不属于制作资料，按现有架构保留。
+- `benchmark`、`docs/listing-gallery-videos`、`proto/screen-header-actions` 等旧制作/原型分支仅保留本地；未经用户明确要求，不推送这些分支或旧备份 refs，不用它们更新远程 `main`，避免重新引入已清理的大文件历史。

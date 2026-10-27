@@ -2,19 +2,19 @@
  * Old engine vs new, on the showcase and the fixture corpus captured when
  * the old engine was removed (plan §3.1 test 3). The old engine's
  * output was recorded before `parse.ts` was deleted
- * (`.showcase/md-compare/old-engine.json`); both sides are compared in the
+ * (`test/fixtures/markdown-old-engine.json`); both sides are compared in the
  * old block-tree shape. Every difference is listed below with its reason;
  * anything else fails.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import * as corpus from "../../.showcase/markdown-corpus";
+import * as corpus from "../fixtures/markdown-corpus";
 import { fixtureNames, streamTexts } from "./helpers/stream-texts";
 import { normalizeMarkdown, normalizeOld, type NBlock } from "./helpers/md-normal";
 
 const OLD = JSON.parse(
-  readFileSync(path.resolve(__dirname, "../../.showcase/md-compare/old-engine.json"), "utf8"),
+  readFileSync(path.resolve(__dirname, "../fixtures/markdown-old-engine.json"), "utf8"),
 ) as Record<string, NBlock[]>;
 
 const documents: Array<[string, string]> = [];

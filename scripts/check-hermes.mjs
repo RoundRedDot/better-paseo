@@ -46,20 +46,6 @@ if (installBuild) {
   writeFileSync(entry, installBuild.entry);
 }
 
-// esbuild: a root devDependency (the release vitest resolves); the showcase
-// install is the fallback for a checkout that skipped the root install.
-function loadEsbuild() {
-  for (const base of [root, path.join(root, ".showcase")]) {
-    try {
-      return createRequire(path.join(base, "package.json"))("esbuild");
-    } catch {
-      // try the next install
-    }
-  }
-  console.error("check:hermes: esbuild not found; run `npm ci` (or `npm ci` in .showcase/)");
-  process.exit(2);
-}
-
 const PLATFORM_DIR = { darwin: "osx-bin", linux: "linux64-bin", win32: "win64-bin" }[process.platform];
 const EXE = process.platform === "win32" ? ".exe" : "";
 const rnRequire = createRequire(path.join(root, "package.json"));
@@ -123,7 +109,7 @@ for (const { hermesc } of compilers) {
 
 // --- 1. Bundle like the host -----------------------------------------------
 
-const { buildSync } = loadEsbuild();
+const { buildSync } = createRequire(path.join(root, "package.json"))("esbuild");
 const built = buildSync({
   entryPoints: [entry],
   bundle: true,

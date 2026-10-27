@@ -25,10 +25,7 @@ better-paseo/
       marks.ts               # Brand mark ids, and the client cache marks.bitmaps fills
       lobe-marks.ts          # Vendor SVG sources, read only by the generator
     tools/ reasoning/ state/ # Tool summaries, reasoning parser, per-call expansion state
-  .showcase/                 # Offline harness for the screenshots and replay benchmarks
-  docs/images/               # Screenshots used by the READMEs
   docs/perf/                 # Benchmark charts and the comparison page
-  docs/bench/                # Benchmark methods, tools and raw runs
   docs/design.md             # Design notes: the icon family, mark format and how to add a mark
 ```
 
@@ -121,43 +118,8 @@ Tasks board and the find bar behind `import()`, against about 62 ms with
 static imports. Leaving those three out of the bundle took it to about 42 ms.
 Code only leaves the startup path when it leaves the bundle.
 
-## Screenshots
+## Media and benchmark production
 
-`.showcase/` renders the real components with React Native Web and fixture data. Rebuild every
-`#shot-*` capture after a visual change (`SHOT_SCALE=2` renders at 2x):
-
-```bash
-(cd .showcase && npm install)
-SHOT_SCALE=1 node .showcase/tools/shots.mjs . /tmp/shots light dark
-SHOT_SCALE=1 SHOT_LOCALE=zh-CN SHOT_ONLY=shot-settings-wide,shot-settings-block-size \
-  node .showcase/tools/shots.mjs . /tmp/shots light dark
-node .showcase/tools/publish-readme-shots.mjs /tmp/shots
-node --test .showcase/tools/readme-shots.test.mjs
-```
-
-The capture tool defaults to `en-US`; `SHOT_LOCALE=zh-CN` selects Chinese settings.
-It writes `/tmp/shots/<theme>/shot-*.png` and `/tmp/shots/zh-CN/<theme>/shot-*.png`.
-The publisher validates all 52 captures before copying the README assets and records their
-source revision, dimensions and hashes in `docs/images/screenshots.json`. Run it from the same
-checkout used to capture, with no tracked changes to the production component source.
-Local showcase changes are recorded separately, along with the capture source hashes.
-Both READMEs use `<picture>`: the `<img>` loads `*-light.png` by default, and
-`<source media="(prefers-color-scheme: dark)">` selects `*-dark.png` for dark readers,
-including images inside tables. These fixture screenshots do not establish native device acceptance.
-
-## Benchmark charts
-
-The README charts use the audited latest-main campaign under
-`docs/bench/2026-10-17-readme/parallel-v2/`. The whole `docs/bench` tree, including
-reports and tools, stays on disk and is gitignored. Serial diagnostic samples and the
-invalid first parallel transport attempt remain separate and are excluded from publication:
-
-```bash
-node docs/bench/2026-10-17-readme/tools/update-readme.mjs .
-node docs/perf/readme-charts.mjs
-node docs/bench/2026-10-17-readme/tools/history-charts.mjs .
-```
-
-It writes `docs/perf/readme/*.{en,zh}.svg` and prints the medians it drew, so they can be checked
-against the bilingual README tables. The protocol, source pins, ranges, A/A variability and
-raw evidence stay in the local `docs/bench/2026-10-17-readme` archive and are not stored in git.
+Video scripts, screenshot tooling, benchmark reports and raw samples are maintained separately in the private [better-paseo-media repository](https://github.com/RoundRedDot/better-paseo-media).
+The public README and gallery use final image assets hosted on this repository's GitHub Releases. Media and raw measurements are not part of a plugin checkout or install.
+Unit-test fixtures and pure test helpers stay under `test/`, so plugin tests do not require access to the private repository.
