@@ -122,9 +122,11 @@ describe("task title editor", () => {
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert")).toHaveLength(0);
   });
 
-  it("previews with the menu icon and keeps the editor open until save", async () => {
-    await renderDialog({ canAutoTitle: true });
+  it.each(["en", "zh"] as const)("previews with the menu icon and keeps the editor open until save (%s)", async (language) => {
+    await renderDialog({ canAutoTitle: true, strings: cardStrings(language) });
     const button = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title");
+    expect(button.props.accessibilityLabel).toBe(language === "zh" ? "生成标题" : "Generate title");
+    expect(button.findAllByType("Text" as never).some((node) => node.children.join("") === cardStrings(language).generateTitle)).toBe(true);
     expect(button.findByType("Icon" as never).props.name).toBe("Sparkles");
     await act(async () => button.props.onPress());
     expect(rpc.generate).toHaveBeenCalledExactlyOnceWith({ agentId: "agent-a", action: "start", mode: "preview" });
