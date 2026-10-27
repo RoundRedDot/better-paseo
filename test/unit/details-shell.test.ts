@@ -200,6 +200,7 @@ const web = {
   /** Where it was sent gliding. */
   glides: [] as number[],
   row: 0,
+  pane: null as { left: number; right: number; contentRight: number } | null,
   /** Each node's inline `-webkit-app-region`, by test ID. */
   appRegion: new Map<string, string>(),
 };
@@ -222,11 +223,23 @@ function fakeElement(testID?: string): unknown {
     removeEventListener: (type: string, listener: (event: unknown) => void) => {
       if (type === "keydown") web.keydown = web.keydown.filter((entry) => entry !== listener);
     },
-    getComputedStyle: () => ({ overflowY: "visible" }),
+    getComputedStyle: (_element?: unknown) => ({ overflowY: "visible" }),
   };
+  const scroller = {
+    parentElement: null, ownerDocument: null as unknown,
+    scrollTop: 0, scrollHeight: 3000, clientHeight: 750,
+    getBoundingClientRect: () => ({ top: 100, bottom: 850, height: 750, left: web.pane!.left, right: web.pane!.right }),
+  };
+  const column = { ownerDocument: null as unknown, parentElement: scroller, getBoundingClientRect: () => ({ right: web.pane!.contentRight }) };
+  view.getComputedStyle = ((element: unknown) => ({
+    overflowY: element === scroller ? "auto" : "visible",
+    maxWidth: element === column ? "720px" : "none",
+  })) as typeof view.getComputedStyle;
   const doc = { defaultView: view, querySelectorAll: () => web.openPreviews, addEventListener() {}, removeEventListener() {} };
+  scroller.ownerDocument = doc;
+  column.ownerDocument = doc;
   return {
-    setAttribute() {}, ownerDocument: doc, parentElement: null,
+    setAttribute() {}, ownerDocument: doc, parentElement: testID === "details-pane-probe" && web.pane ? column : null,
     style: {
       setProperty(name: string, value: string, priority?: string) {
         if (name === "-webkit-app-region" && testID) web.appRegion.set(testID, `${value} ${priority ?? ""}`.trim());
@@ -346,6 +359,7 @@ beforeEach(() => {
   web.keydown = [];
   web.openPreviews = [];
   web.hidden = false;
+  web.pane = null;
   web.appRegion.clear();
   web.scrolls = [];
   web.glides = [];
@@ -407,6 +421,54 @@ describe("DetailsHostSlot", () => {
 });
 
 describe("form", () => {
+  it.each([1280, 1400, 1560, 1799, 1800, 1920])("uses only measured empty space for a side panel at %i px", async (width) => {
+    webDesktop();
+    screen.width = width;
+    web.pane = { left: 240, right: width, contentRight: (width + 240 + 720) / 2 };
+    const renderer = render(slot());
+    await act(async () => fake.api.open(AGENT, "a"));
+    const space = width - web.pane.contentRight;
+    if (space < 420) {
+      expect(byTestId(renderer, "details-floating")).not.toBeNull();
+      expect(byTestId(renderer, "details-side")).toBeNull();
+      return;
+    }
+    const panelWidth = () => Number(flat(byTestId(renderer, "details-side")!.props.style).width);
+    expect(panelWidth()).toBeLessThanOrEqual(space);
+    act(() => seen.shell!.toggleFullscreen!());
+    expect(panelWidth()).toBeLessThanOrEqual(space);
+  });
+
+  it("remeasures the pane and column without a window resize and releases its observer", async () => {
+    webDesktop();
+    web.pane = { left: 240, right: 1440, contentRight: 1000 };
+    const disconnect = vi.fn();
+    const observe = vi.fn();
+    let changed!: () => void;
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: () => void) { changed = callback; }
+      observe = observe;
+      disconnect = disconnect;
+    });
+    try {
+      const renderer = render(slot());
+      await act(async () => fake.api.open(AGENT, "a"));
+      expect(byTestId(renderer, "details-side")).not.toBeNull();
+      expect(observe).toHaveBeenCalledTimes(2);
+      web.pane.contentRight = 1021;
+      await act(async () => changed());
+      expect(byTestId(renderer, "details-floating")).not.toBeNull();
+      expect(byTestId(renderer, "content-a")).not.toBeNull();
+      web.pane.contentRight = 1020;
+      await act(async () => changed());
+      expect(byTestId(renderer, "details-side")).not.toBeNull();
+      act(() => renderer.unmount());
+      expect(disconnect).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it.each(["ios", "android"])("keeps the panel inside the timeline as its sidebar and window change on %s", async (os) => {
     vi.useFakeTimers();
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
@@ -449,7 +511,7 @@ describe("form", () => {
     { os: "ios", width: 390, height: 844, hover: false, form: "drawer" },
     { os: "ios", width: 834, height: 1194, hover: false, form: "floating" },
     { os: "ios", width: 1194, height: 834, hover: false, form: "side" },
-    { os: "web", width: 1440, height: 900, hover: true, form: "side" },
+    { os: "web", width: 1440, height: 900, hover: true, form: "floating" },
   ])("$width×$height draws the $form", ({ os, width, height, hover, form }) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     screen.width = width;
@@ -877,10 +939,12 @@ describe("closing", () => {
 // press went to the title bar drag: the toolbar's copy and width buttons did
 // nothing in Electron.
 describe("title bar drag on desktop web", () => {
-  it("keeps the side panel out of it, not the stage the timeline shows through", () => {
+  it("keeps the side panel out of it, not the stage the timeline shows through", async () => {
     webDesktop();
+    web.pane = { left: 240, right: 1440, contentRight: 1000 };
     render(slot());
     open("a");
+    await act(async () => {});
     expect(web.appRegion.get("details-side")).toBe("no-drag important");
     expect(web.appRegion.has("details-layer")).toBe(false);
   });
@@ -940,6 +1004,25 @@ describe("lease handover", () => {
 });
 
 describe("timeline sync", () => {
+  it("scrolls the current row above the floating panel after leaving the side layout", async () => {
+    vi.useFakeTimers();
+    screen.width = 1194;
+    screen.height = 834;
+    const scroll = vi.fn((delta: number) => delta);
+    registerHostList(AGENT, { viewport: async () => ({ top: 100, bottom: 800 }), scroll });
+    fake.box.blocks = [block("a", 1, { measure: async () => ({ top: 600, height: 28 }) })];
+    const renderer = render(slot());
+    await act(async () => fake.api.open(AGENT, "a"));
+    expect(byTestId(renderer, "details-side")).not.toBeNull();
+    expect(scroll).not.toHaveBeenCalled();
+    screen.width = 834;
+    act(() => renderer.update(slot()));
+    act(() => { vi.advanceTimersByTime(200); });
+    layOut(renderer, "details-floating", 300);
+    await act(async () => {});
+    expect(scroll).toHaveBeenCalledWith(164, 240);
+  });
+
   it("scrolls the row up to 24 above the panel's top on open", async () => {
     const scroll = vi.fn((delta: number) => delta);
     registerHostList(AGENT, { viewport: async () => ({ top: 100, bottom: 800 }), scroll });

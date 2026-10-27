@@ -9,14 +9,14 @@
  * the window (for example when the host sidebar opens).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useWindowDimensions } from "react-native";
+import { Platform, useWindowDimensions } from "react-native";
 import type { DetailsForm } from "../contracts";
 import { detailsForm } from "../layout-model";
 import { DETAILS_MOTION } from "./motion";
 import type { HostList } from "./timeline-sync";
 
 export interface DetailsLayout {
-  stage: { width: number; height: number };
+  stage: { width: number; height: number; sideSpace?: number };
   form: DetailsForm;
   left: number;
   measure(): void;
@@ -25,18 +25,21 @@ export interface DetailsLayout {
 export function useDetailsLayout(pointer: boolean, host: HostList | null): DetailsLayout {
   const { width, height } = useWindowDimensions();
   const [settled, setSettled] = useState({ width, height });
-  const [bounds, setBounds] = useState<{ left: number; right: number } | null>(null);
+  const [bounds, setBounds] = useState<{ left: number; right: number; contentRight?: number } | null>(null);
   const measure = useCallback(() => {
     if (!host) return;
     void host.viewport().then((box) => {
       if (box?.left === undefined || box.right === undefined) return;
-      const left = Math.max(0, Math.round(box.left));
-      const right = Math.min(width, Math.round(box.right));
+      const left = Math.max(0, Math.ceil(box.left));
+      const right = Math.min(width, Math.floor(box.right));
       if (right <= left) return;
-      setBounds((current) => current?.left === left && current.right === right ? current : { left, right });
+      const contentRight = box.contentRight;
+      setBounds((current) => current?.left === left && current.right === right && current.contentRight === contentRight
+        ? current : { left, right, contentRight });
     });
   }, [host, width]);
   useEffect(measure, [measure, height]);
+  useEffect(() => host?.observeResize?.(measure), [host, measure]);
   useEffect(() => {
     if (settled.width === width && settled.height === height) return;
     const timer = setTimeout(() => setSettled({ width, height }), DETAILS_MOTION.resizeSettleMs);
@@ -45,12 +48,16 @@ export function useDetailsLayout(pointer: boolean, host: HostList | null): Detai
   const left = Math.min(bounds?.left ?? 0, width);
   const paneWidth = Math.max(0, Math.min(bounds?.right ?? width, width) - left);
   const sidebar = width - paneWidth;
+  // Native panels are modal. Desktop web can share the timeline only in measured empty space.
+  const sideSpace = Platform.OS === "web" && pointer
+    ? Math.max(0, Math.floor(Math.min(bounds?.right ?? width, width) - (bounds?.contentRight ?? width)))
+    : undefined;
   // The current form widens each boundary by the 16 band, so it is the previous choice's input.
   const current = useRef<DetailsForm | null>(null);
   const form = useMemo(() => {
-    const next = detailsForm({ width: settled.width, height: settled.height, sidebar, pointer }, current.current);
+    const next = detailsForm({ width: settled.width, height: settled.height, sidebar, pointer, sideSpace }, current.current);
     current.current = next;
     return next;
-  }, [settled.width, settled.height, sidebar, pointer]);
-  return { stage: { width: paneWidth, height }, left, form, measure };
+  }, [settled.width, settled.height, sidebar, pointer, sideSpace]);
+  return { stage: { width: paneWidth, height, sideSpace }, left, form, measure };
 }

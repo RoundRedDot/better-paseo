@@ -19,7 +19,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, type Context } f
 import { Platform, VirtualizedList } from "react-native";
 import { detailsApi } from "../details-store";
 import { setOrderShift } from "../block-registry";
-import { nearestScroller } from "./web-layer";
+import { nearestScroller, timelineColumn } from "./web-layer";
 import { DETAILS_EASE } from "./motion";
 
 export const SYNC = {
@@ -56,7 +56,9 @@ export function syncDelta(row: { top: number; height: number }, band: Band): num
 /** The host list as the panel drives it. */
 export interface HostList {
   /** The list's visible box in window coordinates, null when it cannot be measured. */
-  viewport(): Promise<{ top: number; bottom: number; left?: number; right?: number } | null>;
+  viewport(): Promise<{ top: number; bottom: number; left?: number; right?: number; contentRight?: number } | null>;
+  /** Observes pane and content-column resizing independently of the window (web). */
+  observeResize?(measure: () => void): () => void;
   /** Moves the content up by `delta` (down when negative) over `ms`; returns how far it can move. */
   scroll(delta: number, ms: number): number;
   /**
@@ -243,11 +245,24 @@ export function nativeHostList(read: () => ListContextValue | null): HostList {
 /** The web list: the nearest scroller above `anchor`, looked up when used (the host can swap it). */
 export function webHostList(anchor: () => unknown): HostList {
   return {
+    observeResize(measure) {
+      const scroller = nearestScroller(anchor());
+      if (!scroller || typeof ResizeObserver === "undefined") return () => {};
+      const observer = new ResizeObserver(measure);
+      observer.observe(scroller);
+      const column = timelineColumn(anchor(), scroller);
+      if (column) observer.observe(column);
+      return () => observer.disconnect();
+    },
     viewport() {
       const scroller = nearestScroller(anchor());
       if (!scroller) return Promise.resolve(null);
       const rect = scroller.getBoundingClientRect();
-      return Promise.resolve(rect.height > 0 ? { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right } : null);
+      const column = timelineColumn(anchor(), scroller);
+      return Promise.resolve(rect.height > 0 ? {
+        top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right,
+        contentRight: column?.getBoundingClientRect().right ?? rect.right,
+      } : null);
     },
     scroll(delta, ms) {
       const scroller = nearestScroller(anchor());

@@ -20,16 +20,22 @@ export function floatingWidth(width: number): number {
 }
 
 function fitsSide(input: LayoutInput): boolean {
+  if (input.sideSpace !== undefined) return input.sideSpace >= 420;
   return input.width - input.sidebar - sidePanelWidth(input.width) >= 400;
 }
 
 /** Select a details form while keeping the current form inside each 16 px band. */
 export function detailsForm(input: LayoutInput, current: DetailsForm | null): DetailsForm {
   const { width, height } = input;
-  if (width >= DETAILS_BREAKPOINTS.drawerEnter && height < DETAILS_BREAKPOINTS.landscapeEnterHeight) {
+  if (
+    input.sideSpace === undefined &&
+    width >= DETAILS_BREAKPOINTS.drawerEnter &&
+    height < DETAILS_BREAKPOINTS.landscapeEnterHeight
+  ) {
     return "side";
   }
   if (
+    input.sideSpace === undefined &&
     current === "side" &&
     width >= DETAILS_BREAKPOINTS.drawerEnter &&
     height < DETAILS_BREAKPOINTS.landscapeLeaveHeight

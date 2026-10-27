@@ -355,6 +355,11 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
 | Floating | 600 to 960, or no room beside the timeline | min(W − 32, 760) |
 | Side | 960 and wider, with room | clamp(0.36 W, 420, 640) |
 
+- On desktop web, Side requires at least 420 pt of measured empty space to the right of the
+  host timeline's content column. Its width, including resize and full screen, is capped to that
+  space. Otherwise use Floating, which scrolls the selected row above the panel. Measure within
+  the current pane and remeasure when the pane or content column resizes; native forms are unchanged.
+
 - Each breakpoint keeps 16 pt of hysteresis. A pointer click expands a row in place; the panel
   opens from Open in panel or Open details. A tap opens the details, or the viewer for an image.
 - Header 44 pointer, 52 touch: a 28 `surface1` icon tile (radius 7, 16 icon), the title 14/20

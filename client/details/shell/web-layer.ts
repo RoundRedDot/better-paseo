@@ -106,6 +106,18 @@ export function nearestScroller(node: unknown): HTMLElement | null {
   return null;
 }
 
+/** The host's constrained content column above this row, within its own scroller. */
+export function timelineColumn(node: unknown, scroller: HTMLElement): HTMLElement | null {
+  let element = (node as HTMLElement | null)?.parentElement ?? null;
+  const view = scroller.ownerDocument.defaultView;
+  let column: HTMLElement | null = null;
+  while (element && element !== scroller && view) {
+    if (Number.parseFloat(view.getComputedStyle(element).maxWidth) > 0) column = element;
+    element = element.parentElement;
+  }
+  return column;
+}
+
 /** The body the panel's content draws (`HoverPreviewBody`) is scrolled to its top. */
 export function webBodyAtTop(panel: unknown): boolean {
   const node = panel as HTMLElement | null;
