@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
-import { Modal, TextInput } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal, TextInput } from "@getpaseo/plugin/client/react-native";
 import { tasksRenameRpc } from "../../../shared/tasks-rpc";
 import { TaskText as Text, TasksTypography, HOST_FONT as F, HOST_LINE, taskControlHeight, useTasksFontScale } from "../typography";
 import type { cardStrings } from "./strings";
@@ -12,6 +12,8 @@ export function TaskRenameDialog(props: {
   title: string;
   strings: ReturnType<typeof cardStrings>;
   theme: PluginTheme;
+  autoTitle?(): void;
+  autoTitlePending?: boolean;
   onClose(): void;
 }) {
   const rename = useRpc(tasksRenameRpc);
@@ -59,7 +61,18 @@ export function TaskRenameDialog(props: {
               style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderRadius: 8, borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface0, fontSize: Math.round(F.base * scale) }}
             />
             {error ? <Text accessibilityRole="alert" style={{ fontSize: F.sm, color: colors.statusDanger }}>{error}</Text> : null}
-            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
+              {props.autoTitle ? <Pressable testID="task-rename-auto-title" accessibilityRole="button" accessibilityLabel={props.strings.autoTitle}
+                accessibilityState={{ disabled: pending || props.autoTitlePending === true, busy: props.autoTitlePending === true }} disabled={pending || props.autoTitlePending === true}
+                onPress={() => {
+                  if (saving.current || props.autoTitlePending) return;
+                  props.autoTitle?.();
+                  props.onClose();
+                }}
+                style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8, opacity: pending || props.autoTitlePending ? 0.5 : 1 }}>
+                <Icon name="Sparkles" size={18} color={colors.foreground} />
+                <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{props.autoTitlePending ? props.strings.autoTitlePending : props.strings.autoTitle}</Text>
+              </Pressable> : null}
               <Pressable accessibilityRole="button" accessibilityLabel={props.strings.cancelTitle} disabled={pending} onPress={props.onClose}
                 style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, justifyContent: "center", opacity: pending ? 0.5 : 1 }}>
                 <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{props.strings.cancelTitle}</Text>
