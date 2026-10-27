@@ -108,7 +108,8 @@ export function TabletToolbar(props: {
     <>
       {page || (searchOpen && !inlineSearch) ? <Pressable accessibilityLabel={strings.closeMenu} testID="tablet-toolbar-backdrop" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: 9 }} /> : null}
       <View pointerEvents="box-none" testID="tablet-toolbar" onLayout={(event) => setToolbarWidth(event.nativeEvent.layout.width)} style={{ height, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>
-        <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 }}>
+        {/* Match both side slots' minimums: native flex otherwise shifts the title towards the search. */}
+        <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: compact && !expandedSearch ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", gap: 6 }}>
           {inlineSearch ? search : <ToolbarButton compact={compact} icon="Search" label={strings.searchButton} selected={searchOpen || !!board.params.query} theme={theme} testID="tablet-search-toggle" onPress={() => { setPage(null); setSearchOpen(!searchOpen); }} />}
           {expandedSearch ? search : null}
         </View>
