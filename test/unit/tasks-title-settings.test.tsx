@@ -58,7 +58,7 @@ describe("automatic title settings", () => {
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider").props.onPress());
     expect(tree.root.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(["claude", "claude", "codex"]);
     expect(tree.root.findAllByType(ProviderLogo).find((node) => node.props.provider === "codex")!.props.color).toBe(look.tokens.foreground);
-    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === "codex").props.onPress());
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === "Codex").props.onPress());
     expect(state.catalog).toHaveBeenLastCalledWith({ provider: "codex" });
     const modelButton = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "模型");
     expect(modelButton.findAllByType("Text" as never).some((node) => node.children.join("") === "请选择…")).toBe(true);
@@ -68,6 +68,21 @@ describe("automatic title settings", () => {
     expect(saveButton().props.disabled).toBe(false);
     await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("   "));
     expect(saveButton().props.disabled).toBe(true);
+  });
+
+  it.each([false, true])("puts Cursor last with a warning and uses branded provider names and logos (compact: %s)", async (compact) => {
+    state.catalog.mockResolvedValue({ providers: ["cursor", "claude", "omp", "opencode", "codex"], models: [{ id: "grok-4.7", label: "Grok 4.7" }], error: null });
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ provider: "cursor", model: "grok-4.7" }) });
+    await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
+    const providerButton = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider");
+    expect(providerButton.findAllByType("Text" as never).some((node) => node.children.join("") === "Cursor · 不推荐使用")).toBe(true);
+    await act(async () => providerButton.props.onPress());
+    const options = tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
+    expect(options.map((node) => node.props.accessibilityLabel)).toEqual(["Claude", "Oh My Pi", "OpenCode", "Codex", "Cursor · 不推荐使用"]);
+    expect(options.map((node) => node.findByType(ProviderLogo).props.provider)).toEqual(["claude", "omp", "opencode", "codex", "cursor"]);
+    await act(async () => options[4]!.props.onPress());
+    await act(async () => saveButton().props.onPress());
+    expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ provider: "cursor", model: "grok-4.7" }), "r1");
   });
 
   it("keeps the section note outside the grouped rows and uses a single first row", async () => {

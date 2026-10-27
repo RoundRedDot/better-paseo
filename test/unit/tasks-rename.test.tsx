@@ -140,7 +140,7 @@ describe("task card rename entry", () => {
     await act(async () => {
       tree = TestRenderer.create(<CardContextMenu point={null} card={card} strings={cardStrings("zh")} actions={{ children: 0, autoTitle: vi.fn(), autoTitlePending: true }} theme={theme} onClose={onClose} />);
     });
-    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "自动更新标题").props.disabled).toBe(true);
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "正在更新标题…").props.disabled).toBe(true);
   });
 
   it("does not offer automatic titles on archived cards", async () => {

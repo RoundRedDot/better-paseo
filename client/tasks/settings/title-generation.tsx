@@ -14,12 +14,14 @@ const WORDS = {
     hint: "Choose a fast model configured on this host. The background task stays off the board, retains history and may trigger host notifications.",
     save: "Save title settings", saving: "Saving…", loading: "Loading…", retry: "Retry", refresh: "Refresh models", loadError: "Could not load title settings.",
     saveError: "Settings changed elsewhere or could not be saved. Reloaded the latest.",
+    notRecommended: "Not recommended",
   },
   zh: {
     title: "自动更新标题", provider: "Provider", model: "模型", choose: "请选择…", prompt: "prompt",
     hint: "选择这台主机已配置的快速模型。后台任务不进入看板，仍保留历史，并可能触发宿主通知。",
     save: "保存标题设置", saving: "正在保存…", loading: "正在加载…", retry: "重试", refresh: "刷新模型", loadError: "标题设置加载失败。",
     saveError: "设置已在别处更改或保存失败，已重新加载最新内容。",
+    notRecommended: "不推荐使用",
   },
 };
 
@@ -77,15 +79,17 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
     }
   };
   const canSave = draft.provider && draft.model && draft.prompt.trim() && !settings.saving;
-  const providers = [...new Set([...catalog.providers, ...(draft.provider ? [draft.provider] : [])])];
+  const providers = [...new Set([...catalog.providers, ...(draft.provider ? [draft.provider] : [])])]
+    .sort((a, b) => Number(a === "cursor") - Number(b === "cursor"))
+    .map((provider) => ({ id: provider, label: `${providerBrand(provider).displayName}${provider === "cursor" ? ` · ${words.notRecommended}` : ""}` }));
   const models = catalog.models.some((model) => model.id === draft.model) || !draft.model ? catalog.models : [...catalog.models, { id: draft.model, label: draft.model }];
-  const choices = choosing === "provider" ? providers.map((provider) => ({ id: provider, label: provider })) : models;
+  const choices = choosing === "provider" ? providers : models;
   return (
     <View style={{ gap: space.sm }}>
       <Section title={words.title} look={look}>
         {(["provider", "model"] as const).map((field) => {
           const disabled = settings.saving || loading || (field === "model" && !draft.provider);
-          const label = field === "provider" ? draft.provider : models.find((model) => model.id === draft.model)?.label;
+          const label = field === "provider" ? providers.find((provider) => provider.id === draft.provider)?.label : models.find((model) => model.id === draft.model)?.label;
           return <SettingRow key={field} title={words[field]} look={look} first={field === "provider"} control={
             <Pressable accessibilityRole="button" accessibilityLabel={words[field]} accessibilityState={{ expanded: choosing === field, disabled }}
               disabled={disabled} onPress={() => setChoosing(field)}

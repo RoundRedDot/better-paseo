@@ -189,8 +189,12 @@ it("keeps title-generation progress and failure visible on the card after its me
   const control = createTitleUpdateControl(() => new Promise((_resolve, reject) => { fail = reject; }));
   const card = sampleCards(NOW)[0]!;
   const tree = await render(cardElement(card, { titleUpdates: control }));
+  const runningIndicators = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "status-running").length;
   await act(async () => control.start(card.id));
   expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "正在更新标题…")).toHaveLength(1);
+  const loading = tree.root.find((node) => String(node.type) === "ActivityIndicator" && node.props.testID === "task-title-update-loading");
+  expect(loading.props.accessibilityState).toEqual({ busy: true });
+  expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "status-running")).toHaveLength(runningIndicators);
   await act(async () => fail(new Error("Provider offline")));
   expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "正在更新标题…")).toHaveLength(0);
   expect(tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-title-update-error").children.join("")).toContain("Provider offline");

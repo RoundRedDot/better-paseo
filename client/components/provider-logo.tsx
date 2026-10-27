@@ -148,9 +148,9 @@ const MONOCHROME_PROVIDERS: ReadonlySet<KnownProvider> = new Set([
  * that follow the host theme pass the foreground as `color` for a
  * monochrome mark and leave coloured brands to their own hue.
  */
-export function providerBrand(provider: string): { color: string; monochrome: boolean } {
+export function providerBrand(provider: string): { color: string; monochrome: boolean; displayName: string } {
   const normalized = normalizeProvider(provider);
-  return { color: PROVIDER_CONFIGS[normalized].brandColor, monochrome: MONOCHROME_PROVIDERS.has(normalized) };
+  return { color: PROVIDER_CONFIGS[normalized].brandColor, monochrome: MONOCHROME_PROVIDERS.has(normalized), displayName: normalized === "generic" ? provider : PROVIDER_CONFIGS[normalized].displayName };
 }
 
 interface ProviderMeta {
