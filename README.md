@@ -47,7 +47,7 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
   [Block details](#block-details).
 - **Block-by-block streaming replies.** Finished Markdown blocks are cached while growing code and
   tables are repaired.
-- **Tasks board.** Every agent on the host by state (needs input, running, to review, done and
+- **Tasks board.** Every agent on the host by state (waiting, running, to review, done and
   archived), with Paseo's label colours and project icons, Stop, Mark as read, Archive and
   permission buttons on the card, and a details view with the running turn's clock and tokens, the
   first prompt, the last reply, subtasks and usage. See [Tasks board](#tasks-board).
@@ -831,9 +831,9 @@ panels close on a tap outside them, and Android's back button closes any form.
 
 ## Tasks board
 
-**Tasks** sits in the sidebar's top group (counting needs input · running · to review) and in the
+**Tasks** sits in the sidebar's top group (counting waiting · running · to review) and in the
 Command Center. It opens a board of every agent on the host in lanes, sorted the way the sidebar's
-workspace status sorts them: **needs input** (oldest wait first), **running** (longest first),
+workspace status sorts them: **waiting** (oldest wait first), **running** (longest first),
 **to review** (finished unread, or failed), **done** (last 24 hours by default, 50 at a time) and
 **archived** (archived agents, and those of archived workspaces, in the same window). A parent
 whose own turn has ended stays in running while a subtask still runs or waits, timed by their work;
