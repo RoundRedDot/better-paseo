@@ -355,7 +355,7 @@ describe("Tasks search coverage and centred toolbar", () => {
 
   it.each(["en", "zh"] as const)("keeps search left, the complete %s count centred and actions right on web and Pad", (language) => {
     updateEnhancerPreferences({ language });
-    for (const [os, width] of [["web", 1600], ["web", 600], ["ios", 1024], ["ios", 800], ["ios", 400]] as const) {
+    for (const [os, width] of [["web", 1600], ["web", 600], ["ios", 1024], ["ios", 800], ["ios", 400], ["android", 1024], ["android", 600], ["android", 400]] as const) {
       (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
       act(() => { renderer = TestRenderer.create(screen(false)); });
       layOut(width);
@@ -368,8 +368,9 @@ describe("Tasks search coverage and centred toolbar", () => {
       expect(hostParentOf(total)).toBe(bar);
       expect(hostParentOf(end)).toBe(bar);
       for (const side of [start, end]) expect(StyleSheet.flatten(side.props.style)).toMatchObject({ flex: 1, flexBasis: 0 });
-      expect(StyleSheet.flatten(start.props.style).minWidth).toBe(0);
-      if (os === "ios" && width === 400) expect(StyleSheet.flatten(end.props.style).minWidth).toBeGreaterThan(0);
+      // Equal flex alone is insufficient in Yoga when one side has a larger minimum.
+      expect(StyleSheet.flatten(start.props.style).minWidth).toBe(StyleSheet.flatten(end.props.style).minWidth);
+      if (os !== "web" && width < 680) expect(StyleSheet.flatten(end.props.style).minWidth).toBeGreaterThan(0);
       else expect(StyleSheet.flatten(end.props.style).minWidth).toBe(0);
       expect(StyleSheet.flatten(end.props.style).justifyContent).toBe("flex-end");
       expect(start.findAll((node) => (node.type as unknown) === "TextInput" || node.props.testID === "tablet-search-toggle").length).toBeGreaterThan(0);
@@ -2691,6 +2692,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(style(search())).toMatchObject({ height: Math.round(28 * base / 14), flex: 1, minWidth: 0 });
     expect(style(search()).position).toBeUndefined();
     expect(hostsById("tablet-toolbar-total")).toHaveLength(0);
+    expect(style(hostsById("tablet-toolbar-start")[0]!).minWidth).toBe(0);
     expect(style(end())).toMatchObject({ flex: 0, flexBasis: "auto" });
     expect(hostsById("toolbar-filters")).toHaveLength(1);
     expect(hostsById("tablet-view")).toHaveLength(1);
