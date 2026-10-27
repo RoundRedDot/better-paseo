@@ -3,6 +3,18 @@
   "name": "Better Paseo",
   "description": "Redraws every agent's chat timeline as compact, typed rows for tool calls, reasoning, replies, prompts and tasks.",
   "icon": "assets/icon.png",
+  "media": [
+    "images/hero-cover.png",
+    "assets/listing/02-tasks-board.png",
+    "assets/listing/03-timeline.png",
+    "assets/listing/04-phone.png",
+    "assets/listing/05-ipad.png",
+    "assets/listing/06-tool-icons.png",
+    "assets/listing/07-hover-preview.png",
+    "assets/listing/08-tables.png",
+    "assets/listing/09-card-menu.png",
+    "assets/listing/10-settings.png"
+  ],
   "requirements": {
     "paseo": ">=0.12.0"
   },
