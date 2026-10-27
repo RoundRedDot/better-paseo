@@ -71,7 +71,7 @@ export function TaskRenameDialog(props: {
             />
             {error ? <Text accessibilityRole="alert" style={{ fontSize: F.sm, color: colors.statusDanger }}>{error}</Text> : null}
             <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
-              {props.canAutoTitle ? <Pressable testID="task-rename-auto-title" accessibilityRole="button" accessibilityLabel={props.strings.autoTitle}
+              {props.canAutoTitle ? <Pressable testID="task-rename-auto-title" accessibilityRole="button" accessibilityLabel={props.strings.generateTitle}
                 accessibilityState={{ disabled: pending || generating || props.autoTitlePending === true, busy: generating || props.autoTitlePending === true }} disabled={pending || generating || props.autoTitlePending === true}
                 onPress={() => {
                   if (saving.current || props.autoTitlePending) return;
@@ -80,7 +80,7 @@ export function TaskRenameDialog(props: {
                 }}
                 style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8, opacity: pending || generating || props.autoTitlePending ? 0.5 : 1 }}>
                 {generating ? <ActivityIndicator testID="task-rename-title-loading" size="small" color={colors.foreground} /> : <Icon name="Sparkles" size={18} color={colors.foreground} />}
-                <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{generating || props.autoTitlePending ? props.strings.autoTitlePending : props.strings.autoTitle}</Text>
+                <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{generating || props.autoTitlePending ? props.strings.generatingTitle : props.strings.generateTitle}</Text>
               </Pressable> : null}
               <Pressable accessibilityRole="button" accessibilityLabel={props.strings.cancelTitle} disabled={pending} onPress={props.onClose}
                 style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, justifyContent: "center", opacity: pending ? 0.5 : 1 }}>
