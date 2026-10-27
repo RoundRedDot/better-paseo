@@ -124,7 +124,7 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     laneWidths: { narrow: "Narrow", default: "Default", wide: "Wide" },
     sidebarTitle: "Sidebar",
     sidebarCount: "Sidebar entry count",
-    sidebarCounts: { all: "Needs input · Running · Review", "input-only": "Needs input only", none: "Hidden" },
+    sidebarCounts: { all: "Waiting · Running · Review", "input-only": "Waiting only", none: "Hidden" },
     resetTitle: "Reset",
     reset: "Restore the Tasks defaults",
     resetHint: "Puts every Tasks option back to its default; the board stays on or off.",

@@ -687,7 +687,7 @@ describe("Tasks board, desktop", () => {
     });
     layOut(1600);
     const text = textOf(renderer!.root);
-    for (const name of ["Needs input", "Running", "Review", "Done"]) expect(text).toContain(name);
+    for (const name of ["Waiting", "Running", "Review", "Done"]) expect(text).toContain(name);
     expect(cards().map((card) => card.props.card.id)).toEqual(["sample-input", "sample-running", "sample-child-1", "sample-failed", "sample-unread", "sample-done"]);
     expect(text).toContain("Load more");
   });
@@ -821,7 +821,7 @@ describe("Tasks board, desktop", () => {
     act(() => hostsById("lane-needs_input")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Collapse lane")[0]!.props.onPress());
     // The collapsed lane eases from 340 to its strip; the strip inside has its 40 at once and fades in.
     expect(clip("needs_input")).toEqual({ easing: 340 });
-    const swap = hostParentOf(pressable("Expand lane: Needs input").findAll((node) => typeof node.type === "string")[0]!)!;
+    const swap = hostParentOf(pressable("Expand lane: Waiting").findAll((node) => typeof node.type === "string")[0]!)!;
     expect(StyleSheet.flatten(swap.props.style)).toMatchObject({ width: 40, opacity: { __value: 0 } });
     expect(clip("running")).toBe(340);
     // The board's own width (a window resize, the sidebar's edge dragged) is followed at once.
@@ -3416,8 +3416,8 @@ describe("Tasks board, phone", () => {
   it.each(["ios", "android"])("%s brings the page beside the shown lane up to date after the subtasks switch", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
-    // Needs input is shown; Running, beside it, is mounted and holds a subtask whose parent is in the same lane.
-    expect(pressable("Needs input 1").props.accessibilityState).toEqual({ selected: true });
+    // Waiting is shown; Running, beside it, is mounted and holds a subtask whose parent is in the same lane.
+    expect(pressable("Waiting 1").props.accessibilityState).toEqual({ selected: true });
     expect(laneCards("running")).toContain("sample-child-1");
     await act(async () => hostsById("phone-subtasks")[0]!.props.onPress());
     expect(laneCards("running")).not.toContain("sample-child-1");
@@ -3602,11 +3602,11 @@ describe("Tasks board, phone", () => {
       renderer = TestRenderer.create(screen(true));
     });
     const cell = (label: string) => pressable(label);
-    expect(textOf(cell("Needs input 1"))).toMatch(/Input\s*1/);
-    expect(cell("Needs input 1").props.accessibilityState).toEqual({ selected: true });
+    expect(textOf(cell("Waiting 1"))).toMatch(/Waiting\s*1/);
+    expect(cell("Waiting 1").props.accessibilityState).toEqual({ selected: true });
     act(() => cell("Running 2").props.onPress());
     expect(cell("Running 2").props.accessibilityState).toEqual({ selected: true });
-    expect(cell("Needs input 1").props.accessibilityState).toEqual({ selected: false });
+    expect(cell("Waiting 1").props.accessibilityState).toEqual({ selected: false });
     expect(StyleSheet.flatten(cell("Running 2").props.style)).toMatchObject({ borderRadius: 8, minHeight: 36 });
   });
 
@@ -3960,7 +3960,7 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true), { createNodeMock: () => ({ __internalInstanceHandle: fiber }) });
     });
-    // Needs input: the first lane registers nothing.
+    // Waiting: the first lane registers nothing.
     expect(record.registerScrollOffset).not.toHaveBeenCalled();
     act(() => pressable("Running 2").props.onPress());
     expect(record.registerScrollOffset).toHaveBeenCalledTimes(1);
@@ -3968,7 +3968,7 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
     expect(offset).toBeGreaterThan(1);
     act(() => pressable("Review 2").props.onPress());
     expect(record.registerScrollOffset).toHaveBeenCalledTimes(1);
-    act(() => pressable("Needs input 1").props.onPress());
+    act(() => pressable("Waiting 1").props.onPress());
     expect(record.unregisterScrollOffset).toHaveBeenCalledWith(id);
     act(() => pressable("Running 2").props.onPress());
     act(() => renderer!.unmount());
@@ -3995,7 +3995,7 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
     act(() => pressable("Running 2").props.onPress());
     act(() => area.props.onPointerDown(touch(100, 300)));
     act(() => area.props.onPointerUp(touch(180, 304)));
-    expect(pressable("Needs input 1").props.accessibilityState).toEqual({ selected: true });
+    expect(pressable("Waiting 1").props.accessibilityState).toEqual({ selected: true });
   });
 });
 
