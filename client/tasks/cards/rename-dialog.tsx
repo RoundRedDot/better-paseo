@@ -21,12 +21,13 @@ export function TaskRenameDialog(props: {
   const preview = useTitleUpdateControl(usePaseo(), "preview");
   const generated = useTitleUpdateState(preview, props.agentId);
   const [title, setTitle] = useState(props.title);
+  const [contentHeight, setContentHeight] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const saving = useRef(false);
   const generating = generated.state === "running";
   useEffect(() => {
-    if (generated.state === "running" && generated.text !== undefined) setTitle(generated.text);
+    if (generated.state === "running" && generated.text) setTitle(generated.text);
     if (generated.state === "done") setTitle(generated.title);
     if (generated.state === "error") setError(props.strings.autoTitleFailed(generated.error));
   }, [generated, props.strings]);
@@ -61,13 +62,17 @@ export function TaskRenameDialog(props: {
               testID="task-rename-input"
               accessibilityLabel={props.strings.titleLabel}
               value={title}
+              multiline
+              scrollEnabled={false}
+              onContentSizeChange={(event) => setContentHeight(event.nativeEvent.contentSize.height)}
               onChangeText={(value) => { setTitle(value); setError(null); }}
               editable={!pending && !generating}
               autoFocus
               selectTextOnFocus
               returnKeyType="done"
+              submitBehavior="submit"
               onSubmitEditing={() => void save()}
-              style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderRadius: 8, borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface0, fontSize: Math.round(F.base * scale) }}
+              style={{ minHeight: taskControlHeight(44, scale), height: Math.max(taskControlHeight(44, scale), contentHeight), textAlignVertical: "top", paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderRadius: 8, borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface0, fontSize: Math.round(F.base * scale) }}
             />
             {error ? <Text accessibilityRole="alert" style={{ fontSize: F.sm, color: colors.statusDanger }}>{error}</Text> : null}
             <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
@@ -79,8 +84,9 @@ export function TaskRenameDialog(props: {
                   preview.start(props.agentId);
                 }}
                 style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8, opacity: pending || generating || props.autoTitlePending ? 0.5 : 1 }}>
-                {generating ? <ActivityIndicator testID="task-rename-title-loading" size="small" color={colors.foreground} /> : <Icon name="Sparkles" size={18} color={colors.foreground} />}
-                <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{generating || props.autoTitlePending ? props.strings.generatingTitle : props.strings.generateTitle}</Text>
+                <Icon name="Sparkles" size={18} color={colors.foreground} />
+                <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{props.strings.generateTitle}</Text>
+                {generating ? <ActivityIndicator testID="task-rename-title-loading" size="small" color={colors.foreground} /> : null}
               </Pressable> : null}
               <Pressable accessibilityRole="button" accessibilityLabel={props.strings.cancelTitle} disabled={pending} onPress={props.onClose}
                 style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, justifyContent: "center", opacity: pending ? 0.5 : 1 }}>
