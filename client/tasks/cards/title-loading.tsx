@@ -8,15 +8,17 @@ const STYLE_ELEMENT_ID = "better-paseo-title-sweep";
 const SWEEP_ATTR = "bctitlesweep";
 
 /**
- * Codex's "thinking" shimmer: the title rests in the muted color while a soft
- * highlight in the text color sweeps across it. Web clips one gradient to the
- * glyphs; native has no text mask, so it stacks thin clipped copies of the
- * title whose opacity follows a cos² profile, close enough to a gradient that
- * no band edge shows.
+ * ChatGPT's "thinking" shimmer: the title rests in the muted color while a
+ * narrow band of light, about a word wide, sweeps across it. The card picks
+ * the light (`highlightColor`): near the card's fill on a light theme, so the
+ * glyphs wash out as it passes, and the text color on a dark one. Web clips
+ * one gradient to the glyphs; native has no text mask, so it stacks thin
+ * clipped copies of the title whose opacity follows a cos² profile, close
+ * enough to a gradient that no band edge shows.
  */
 export function TitleLoading(props: {
   title: string;
-  color: string;
+  highlightColor: string;
   mutedColor: string;
   style: StyleProp<TextStyle>;
   animated?: boolean;
@@ -40,9 +42,10 @@ const containerProps = (props: SweepProps) => ({
 const hasDom = () => typeof document !== "undefined" && typeof document.getElementById === "function";
 
 function sweepRules(muted: string): string {
-  // The highlight is `currentColor`, so the inline text color stays the title color.
+  // The light is `currentColor`: each card sets it inline, as its fill changes on hover.
+  // On a 300% background the band spans about a fifth of the title's width.
   const mix = (share: number) => `color-mix(in srgb, currentColor ${share}%, ${muted})`;
-  const gradient = `linear-gradient(90deg, ${muted} 0% 41%, ${mix(15)} 44%, ${mix(50)} 47%, currentColor 50%, ${mix(50)} 53%, ${mix(15)} 56%, ${muted} 59% 100%)`;
+  const gradient = `linear-gradient(90deg, ${muted} 0% 46.6%, ${mix(35)} 48%, ${mix(85)} 49.3%, currentColor 49.8% 50.2%, ${mix(85)} 50.7%, ${mix(35)} 52%, ${muted} 53.4% 100%)`;
   return `
 [data-${SWEEP_ATTR}] {
   -webkit-text-fill-color: transparent;
@@ -93,12 +96,12 @@ function WebSweep(props: SweepProps) {
     <View {...containerProps(props)}>
       <TaskText numberOfLines={2} ellipsizeMode="tail" testID="task-card-title"
         {...(props.active ? { dataSet: { [SWEEP_ATTR]: "" } } : null)}
-        style={[props.style, { color: props.active ? props.color : props.mutedColor }]}>{props.title}</TaskText>
+        style={[props.style, { color: props.active ? props.highlightColor : props.mutedColor }]}>{props.title}</TaskText>
     </View>
   );
 }
 
-const BAND_WIDTH = 144;
+const BAND_WIDTH = 60;
 const SLICES = 16;
 const SLICE_WIDTH = BAND_WIDTH / SLICES;
 const INTENSITIES = Array.from({ length: SLICES }, (_, index) => Math.sin(Math.PI * (index + 0.5) / SLICES) ** 2);
@@ -129,7 +132,7 @@ function NativeSweep(props: SweepProps) {
             <View key={index} style={{ position: "absolute", top: 0, bottom: 0, left: index * SLICE_WIDTH, width: SLICE_WIDTH, overflow: "hidden" }}>
               {/* Counter-motion keeps every clipped copy aligned with the in-flow title. */}
               <Animated.View style={{ width, marginLeft: -index * SLICE_WIDTH, opacity, transform: [{ translateX: progress.interpolate(counterTravel) }] }}>
-                <TaskText numberOfLines={2} ellipsizeMode="tail" style={[props.style, { color: props.color }]}>{props.title}</TaskText>
+                <TaskText numberOfLines={2} ellipsizeMode="tail" style={[props.style, { color: props.highlightColor }]}>{props.title}</TaskText>
               </Animated.View>
             </View>
           ))}
