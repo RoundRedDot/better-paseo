@@ -62,7 +62,7 @@ export function appendTitleChunk(sofar: { text: string; messageId?: string }, ev
 export function createTitleGenerator(deps: Dependencies) {
   const jobs = new Map<string, TitleUpdateState>();
 
-  async function generate(agentId: string, paseo: PaseoApi, stream: (update: { text?: string; helperId: string }) => void): Promise<string> {
+  async function generate(agentId: string, paseo: PaseoApi, stream: (update: { text?: string; helperId: string }) => void, mode: "apply" | "preview"): Promise<string> {
     if (!deps.canRename()) throw new Error("This host cannot update agent titles.");
     const settings = await deps.settings.read();
     if (settings.status !== "ready") throw new Error("Title generation settings are invalid.");
@@ -139,6 +139,7 @@ export function createTitleGenerator(deps: Dependencies) {
       if (cleanup.error) throw new Error(`${generationFailure === null ? "" : `${String(generationFailure)}; `}Could not archive the title helper: ${cleanup.error}`);
     }
 
+    if (mode === "preview") return title;
     const current = await source.refresh();
     if (!current) throw new Error("The original agent no longer exists.");
     if (current.agent.archivedAt) throw new Error("The original agent was archived during generation.");
@@ -149,22 +150,23 @@ export function createTitleGenerator(deps: Dependencies) {
   }
 
   return {
-    request(input: { agentId: string; action: "start" | "status" }, paseo: PaseoApi): TitleUpdateState {
-      const known = jobs.get(input.agentId);
+    request(input: { agentId: string; action: "start" | "status"; mode?: "apply" | "preview" }, paseo: PaseoApi): TitleUpdateState {
+      const key = `${input.mode ?? "apply"}:${input.agentId}`;
+      const known = jobs.get(key);
       if (input.action === "status") return known ?? { state: "idle" };
       if (known?.state === "running") return known;
       const pending: TitleUpdateState = { state: "running" };
-      jobs.set(input.agentId, pending);
+      jobs.set(key, pending);
       // Only this run's job takes its chunks: a settled job keeps its result.
       let latest: TitleUpdateState = pending;
       const stream = (update: { text?: string; helperId: string }) => {
-        if (jobs.get(input.agentId) !== latest) return;
+        if (jobs.get(key) !== latest) return;
         latest = { ...latest, ...update } as TitleUpdateState;
-        jobs.set(input.agentId, latest);
+        jobs.set(key, latest);
       };
-      void generate(input.agentId, paseo, stream).then(
-        (title) => jobs.set(input.agentId, { state: "done", title }),
-        (error: unknown) => jobs.set(input.agentId, { state: "error", error: error instanceof Error ? error.message : String(error) }),
+      void generate(input.agentId, paseo, stream, input.mode ?? "apply").then(
+        (title) => jobs.set(key, { state: "done", title }),
+        (error: unknown) => jobs.set(key, { state: "error", error: error instanceof Error ? error.message : String(error) }),
       );
       return pending;
     },

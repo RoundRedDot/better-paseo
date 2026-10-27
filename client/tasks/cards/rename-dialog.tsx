@@ -1,29 +1,38 @@
-import React, { useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { useRpc } from "@getpaseo/plugin/client";
+import { usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { Icon, Modal, TextInput } from "@getpaseo/plugin/client/react-native";
 import { tasksRenameRpc } from "../../../shared/tasks-rpc";
 import { TaskText as Text, TasksTypography, HOST_FONT as F, HOST_LINE, taskControlHeight, useTasksFontScale } from "../typography";
 import type { cardStrings } from "./strings";
+import { useTitleUpdateControl, useTitleUpdateState } from "../actions/title-update";
 
 export function TaskRenameDialog(props: {
   agentId: string;
   title: string;
   strings: ReturnType<typeof cardStrings>;
   theme: PluginTheme;
-  autoTitle?(): void;
+  canAutoTitle?: boolean;
   autoTitlePending?: boolean;
   onClose(): void;
 }) {
   const rename = useRpc(tasksRenameRpc);
+  const preview = useTitleUpdateControl(usePaseo(), "preview");
+  const generated = useTitleUpdateState(preview, props.agentId);
   const [title, setTitle] = useState(props.title);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const saving = useRef(false);
+  const generating = generated.state === "running";
+  useEffect(() => {
+    if (generated.state === "running" && generated.text !== undefined) setTitle(generated.text);
+    if (generated.state === "done") setTitle(generated.title);
+    if (generated.state === "error") setError(props.strings.autoTitleFailed(generated.error));
+  }, [generated, props.strings]);
   const scale = useTasksFontScale();
   const colors = props.theme.colors;
-  const disabled = pending || !title.trim() || title.trim() === props.title;
+  const disabled = pending || generating || !title.trim() || title.trim() === props.title;
   const save = async () => {
     if (saving.current || disabled) return;
     saving.current = true;
@@ -53,7 +62,7 @@ export function TaskRenameDialog(props: {
               accessibilityLabel={props.strings.titleLabel}
               value={title}
               onChangeText={(value) => { setTitle(value); setError(null); }}
-              editable={!pending}
+              editable={!pending && !generating}
               autoFocus
               selectTextOnFocus
               returnKeyType="done"
@@ -62,16 +71,16 @@ export function TaskRenameDialog(props: {
             />
             {error ? <Text accessibilityRole="alert" style={{ fontSize: F.sm, color: colors.statusDanger }}>{error}</Text> : null}
             <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
-              {props.autoTitle ? <Pressable testID="task-rename-auto-title" accessibilityRole="button" accessibilityLabel={props.strings.autoTitle}
-                accessibilityState={{ disabled: pending || props.autoTitlePending === true, busy: props.autoTitlePending === true }} disabled={pending || props.autoTitlePending === true}
+              {props.canAutoTitle ? <Pressable testID="task-rename-auto-title" accessibilityRole="button" accessibilityLabel={props.strings.autoTitle}
+                accessibilityState={{ disabled: pending || generating || props.autoTitlePending === true, busy: generating || props.autoTitlePending === true }} disabled={pending || generating || props.autoTitlePending === true}
                 onPress={() => {
                   if (saving.current || props.autoTitlePending) return;
-                  props.autoTitle?.();
-                  props.onClose();
+                  setError(null);
+                  preview.start(props.agentId);
                 }}
-                style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8, opacity: pending || props.autoTitlePending ? 0.5 : 1 }}>
-                <Icon name="Sparkles" size={18} color={colors.foreground} />
-                <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{props.autoTitlePending ? props.strings.autoTitlePending : props.strings.autoTitle}</Text>
+                style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8, opacity: pending || generating || props.autoTitlePending ? 0.5 : 1 }}>
+                {generating ? <ActivityIndicator testID="task-rename-title-loading" size="small" color={colors.foreground} /> : <Icon name="Sparkles" size={18} color={colors.foreground} />}
+                <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{generating || props.autoTitlePending ? props.strings.autoTitlePending : props.strings.autoTitle}</Text>
               </Pressable> : null}
               <Pressable accessibilityRole="button" accessibilityLabel={props.strings.cancelTitle} disabled={pending} onPress={props.onClose}
                 style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, justifyContent: "center", opacity: pending ? 0.5 : 1 }}>

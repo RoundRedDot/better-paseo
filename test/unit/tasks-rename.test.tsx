@@ -4,10 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const rpc = vi.hoisted(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-  return { rename: vi.fn() };
+  return { rename: vi.fn(), generate: vi.fn(), paseo: { agents: { ref: vi.fn() } } };
 });
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => rpc.rename }));
+vi.mock("@getpaseo/plugin/client", () => ({ useRpc: (contract: { name: string }) => contract.name === "tasks.title-update" ? rpc.generate : rpc.rename, usePaseo: () => rpc.paseo }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const react = await import("react");
   const rn = await import("./helpers/rn-mock");
@@ -45,10 +45,12 @@ const cancel = () => tree.root.find((node) => typeof node.type === "string" && n
 
 beforeEach(() => {
   rpc.rename.mockReset().mockResolvedValue({ ok: true, error: null });
+  rpc.generate.mockReset().mockResolvedValue({ state: "done", title: "Generated title" });
   onClose.mockReset();
 });
 afterEach(async () => {
   await act(async () => tree?.unmount());
+  vi.useRealTimers();
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
 });
 
@@ -59,24 +61,88 @@ async function renderDialog(extra: Partial<React.ComponentProps<typeof TaskRenam
 }
 
 describe("task title editor", () => {
-  it("starts automatic generation with the menu icon and closes the editor", async () => {
-    const autoTitle = vi.fn();
-    await renderDialog({ autoTitle });
+  it.each(["ios", "android", "web"])("streams a preview with loading and saves only on confirmation (%s)", async (platform) => {
+    vi.useFakeTimers();
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    rpc.generate.mockResolvedValueOnce({ state: "running", text: "Generated " })
+      .mockResolvedValueOnce({ state: "running", text: "Generated title" })
+      .mockResolvedValueOnce({ state: "done", title: "Final title" });
+    await renderDialog({ canAutoTitle: true });
+    const press = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title").props.onPress;
+    await act(async () => { press(); press(); });
+    expect(rpc.generate).toHaveBeenCalledTimes(1);
+    expect(input().props.value).toBe("Generated ");
+    expect(input().props.editable).toBe(false);
+    expect(save().props.disabled).toBe(true);
+    expect(cancel().props.disabled).toBe(false);
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-rename-title-loading")).toHaveLength(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(rpc.rename).not.toHaveBeenCalled();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(input().props.value).toBe("Generated title");
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(input().props.value).toBe("Final title");
+    expect(input().props.editable).toBe(true);
+    expect(save().props.disabled).toBe(false);
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-rename-title-loading")).toHaveLength(0);
+    expect(rpc.generate.mock.calls.every(([request]) => request.mode === "preview")).toBe(true);
+    expect(rpc.rename).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    await act(async () => save().props.onPress());
+    expect(rpc.rename).toHaveBeenCalledExactlyOnceWith({ agentId: "agent-a", title: "Final title" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["cancel", "dismiss"])("discards a running preview on %s without saving or restoring it on reopen", async (action) => {
+    vi.useFakeTimers();
+    rpc.generate.mockResolvedValueOnce({ state: "running", text: "Partial title" }).mockResolvedValueOnce({ state: "done", title: "Final title" });
+    await renderDialog({ canAutoTitle: true });
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title").props.onPress());
+    await act(async () => action === "cancel" ? cancel().props.onPress() : tree.root.findByType("HostModal" as never).props.onOpenChange(false));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(rpc.rename).not.toHaveBeenCalled();
+    await renderDialog({ canAutoTitle: true });
+    expect(input().props.value).toBe("Original");
+    expect(save().props.disabled).toBe(true);
+  });
+
+  it("keeps generation errors inside the editor and permits retry", async () => {
+    rpc.generate.mockResolvedValueOnce({ state: "error", error: "Provider failed" });
+    await renderDialog({ canAutoTitle: true });
+    const automatic = () => tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title");
+    await act(async () => automatic().props.onPress());
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert").children.join("")).toContain("Provider failed");
+    expect(onClose).not.toHaveBeenCalled();
+    expect(rpc.rename).not.toHaveBeenCalled();
+    expect(automatic().props.disabled).toBe(false);
+    await act(async () => automatic().props.onPress());
+    expect(input().props.value).toBe("Generated title");
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert")).toHaveLength(0);
+  });
+
+  it("previews with the menu icon and keeps the editor open until save", async () => {
+    await renderDialog({ canAutoTitle: true });
     const button = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title");
     expect(button.findByType("Icon" as never).props.name).toBe("Sparkles");
     await act(async () => button.props.onPress());
-    expect(autoTitle).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(rpc.generate).toHaveBeenCalledExactlyOnceWith({ agentId: "agent-a", action: "start", mode: "preview" });
+    expect(onClose).not.toHaveBeenCalled();
+    expect(input().props.value).toBe("Generated title");
     expect(rpc.rename).not.toHaveBeenCalled();
+    await act(async () => input().props.onChangeText("Edited generated title"));
+    await act(async () => save().props.onPress());
+    expect(rpc.rename).toHaveBeenCalledExactlyOnceWith({ agentId: "agent-a", title: "Edited generated title" });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("disables automatic generation while an existing title job is running", async () => {
-    const autoTitle = vi.fn();
-    await renderDialog({ autoTitle, autoTitlePending: true });
+    await renderDialog({ canAutoTitle: true, autoTitlePending: true });
     const button = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title");
     expect(button.props.disabled).toBe(true);
     await act(async () => button.props.onPress());
-    expect(autoTitle).not.toHaveBeenCalled();
+    expect(rpc.generate).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -123,8 +189,7 @@ describe("task title editor", () => {
   it("prevents duplicate requests and dismissal while saving", async () => {
     let finish!: (result: { ok: boolean; error: null }) => void;
     rpc.rename.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    const autoTitle = vi.fn();
-    await renderDialog({ autoTitle });
+    await renderDialog({ canAutoTitle: true });
     await act(async () => input().props.onChangeText("Draft"));
     const press = save().props.onPress;
     await act(async () => { press(); press(); });
@@ -135,7 +200,7 @@ describe("task title editor", () => {
     const automatic = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title");
     expect(automatic.props.disabled).toBe(true);
     await act(async () => automatic.props.onPress());
-    expect(autoTitle).not.toHaveBeenCalled();
+    expect(rpc.generate).not.toHaveBeenCalled();
     await act(async () => tree.root.findByType("HostModal" as never).props.onOpenChange(false));
     expect(onClose).not.toHaveBeenCalled();
     await act(async () => finish({ ok: true, error: null }));
@@ -196,8 +261,10 @@ describe("task card rename entry", () => {
     expect(input().props.value).toBe(card.title);
     expect(onClose).not.toHaveBeenCalled();
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title").props.onPress());
-    expect(autoTitle).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(autoTitle).not.toHaveBeenCalled();
+    expect(rpc.generate).toHaveBeenCalledWith({ agentId: card.id, action: "start", mode: "preview" });
+    expect(input().props.value).toBe("Generated title");
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("does not offer editing for a provider's read-only subagent", async () => {

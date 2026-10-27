@@ -14,7 +14,7 @@ afterEach(async () => {
 async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), "title-generation-"));
   directories.push(directory);
-  const run = vi.fn(async (_prompt: string, _options: { timeoutMs: number }) => ({ status: "idle", lastMessage: "Updated 中文 title", error: null }));
+  const run = vi.fn(async (_prompt: string, _options: { timeoutMs: number }) => ({ status: "idle", lastMessage: "Updated 中文 title", error: null as string | null }));
   const archive = vi.fn(async () => ({ error: null as string | null }));
   const live = { handler: null as ((event: unknown) => void) | null, unsubscribe: vi.fn() };
   const subscribe = vi.fn((handler: (event: unknown) => void) => {
@@ -49,13 +49,44 @@ async function fixture() {
   const rename = vi.fn(async () => ({ ok: true, error: null as string | null }));
   const canRename = vi.fn(() => true);
   const service = createTitleGenerator({ settings: { read, subscribe: () => () => {} }, rename, directory, canRename });
-  const state = () => service.request({ agentId: "source", action: "status" }, api);
-  const start = () => service.request({ agentId: "source", action: "start" }, api);
-  const settle = async () => { await expect.poll(() => state().state).not.toBe("running"); return state(); };
+  const state = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "status", mode }, api);
+  const start = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "start", mode }, api);
+  const settle = async (mode: "apply" | "preview" = "apply") => { await expect.poll(() => state(mode).state).not.toBe("running"); return state(mode); };
   return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, timeline, listModels, values, read, rename, canRename, state, start, settle };
 }
 
 describe("background title generation", () => {
+  it("streams previews and cleans up without renaming, separately from direct updates", async () => {
+    const f = await fixture();
+    let finish!: () => void;
+    f.run.mockImplementationOnce(() => new Promise((resolve) => {
+      f.live.handler!({ agentId: "helper", event: { type: "timeline", provider: "claude", item: { type: "assistant_message", text: "Preview", messageId: "m1" } } });
+      finish = () => resolve({ status: "idle", lastMessage: "Preview title", error: null });
+    }));
+    f.start("preview");
+    await expect.poll(() => f.state("preview")).toMatchObject({ state: "running", text: "Preview" });
+    expect(f.state()).toEqual({ state: "idle" });
+    expect(f.rename).not.toHaveBeenCalled();
+    finish();
+    expect(await f.settle("preview")).toEqual({ state: "done", title: "Preview title" });
+    expect(f.archive).toHaveBeenCalledTimes(1);
+    expect(f.rename).not.toHaveBeenCalled();
+    expect(f.original.agent.title).toBe("Original");
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
+    expect(f.state("preview")).toEqual({ state: "done", title: "Preview title" });
+  });
+
+  it("does not rename after a preview failure", async () => {
+    const f = await fixture();
+    f.run.mockResolvedValue({ status: "error", lastMessage: "Partial title", error: "Provider failed" });
+    f.start("preview");
+    expect(await f.settle("preview")).toEqual({ state: "error", error: "Provider failed" });
+    expect(f.archive).toHaveBeenCalledTimes(1);
+    expect(f.rename).not.toHaveBeenCalled();
+  });
+
   it("disables title thinking by default, including existing settings", () => {
     expect(titleGenerationSettingsSchema.parse({}).disableThinking).toBe(true);
     expect(titleGenerationSettingsSchema.parse({ provider: "claude", model: "haiku" }).disableThinking).toBe(true);

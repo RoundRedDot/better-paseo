@@ -101,15 +101,15 @@ export type TitleUpdateControl = ReturnType<typeof createTitleUpdateControl>;
 
 // Keep an in-flight action across board remounts, independently for each host API.
 const controls = new WeakMap<PaseoApi, TitleUpdateControl>();
-export function useTitleUpdateControl(paseo: PaseoApi): TitleUpdateControl {
+export function useTitleUpdateControl(paseo: PaseoApi, mode: "apply" | "preview" = "apply"): TitleUpdateControl {
   const call = useRpc(titleUpdateRpc);
   return useMemo(() => {
-    const existing = controls.get(paseo);
+    const existing = mode === "apply" ? controls.get(paseo) : undefined;
     if (existing) return existing;
-    const control = createTitleUpdateControl(call, (helperId, onChunk) => watchReply(paseo, helperId, onChunk));
-    controls.set(paseo, control);
+    const control = createTitleUpdateControl((input) => call({ ...input, mode }), (helperId, onChunk) => watchReply(paseo, helperId, onChunk));
+    if (mode === "apply") controls.set(paseo, control);
     return control;
-  }, [paseo, call]);
+  }, [paseo, call, mode]);
 }
 
 type LiveApi = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "subscribe"> } } };
