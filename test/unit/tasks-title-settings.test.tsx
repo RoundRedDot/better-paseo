@@ -56,6 +56,8 @@ describe("automatic title settings", () => {
     expect(settings.save).not.toHaveBeenCalled();
     expect(customToggle().props.accessibilityState.checked).toBe(false);
     expect(tree.root.findByType("TextInput" as never).props.value).toBe(titleGenerationSettingsSchema.parse({}).prompt);
+    expect(tree.root.findByType("TextInput" as never).props.value).toContain("Use the language of the first user message.");
+    expect(tree.root.findByType("TextInput" as never).props.value).toContain("Limit the title to 80 characters including spaces.");
     expect(tree.root.findAllByType(ProviderLogo)).toHaveLength(0);
   });
 
@@ -166,7 +168,7 @@ describe("automatic title settings", () => {
     expect(tree.root.findByType(SectionNote).props.text).toContain("后台任务不进入看板");
     expect(tree.root.findByType(SectionNote).props.text).toContain("Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low");
     expect(tree.root.findByType(SectionNote).props.text).toContain("Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off");
-    expect(tree.root.findByType(SectionNote).props.text).toContain("Use the language of the first user message. Limit the title to 80 characters including spaces.");
+    expect(tree.root.findByType(SectionNote).props.text).not.toContain("建议在默认 prompt 末尾补充");
     expect(section.findAllByType(SettingRow).map((row) => [row.props.title, row.props.first === true])).toEqual([
       ["自定义自动标题模型", true], ["Provider", false], ["模型", false], ["思考等级", false], ["Prompt", false],
     ]);
