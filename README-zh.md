@@ -4,11 +4,11 @@
 
 一个 [Paseo](https://paseo.sh) 插件，重新绘制 Paseo 中所有 agent 的聊天时间线，不论背后是哪家服务（Claude Code、Codex、Oh My Pi 等）：工具调用、思考、回复、提问、待办和错误都画成紧凑、按类型区分、带语法高亮的行，配色跟随当前的 Paseo 主题。它还加了一个 **Tasks** 看板，把这台主机上的所有 agent 按状态分列铺开。界面按手上的设备来画：手机上是可以双指缩放字号的详情抽屉和左右滑动的单列看板，iPad 上是浮动面板、侧边面板，以及带详情侧栏或底部弹层的看板。下方实测对比时间线和 Paseo 原生时间线的开销。
 
-{{TIMELINE_VIDEO_URL}}
+https://github.com/user-attachments/assets/493499a2-411f-45bb-9274-d33c92255099
 
 <sub>GitHub App 里看不到播放器？[打开时间线视频](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-timeline-web.mp4)。</sub>
 
-{{TASKS_VIDEO_URL}}
+https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 
 <sub>GitHub App 里看不到播放器？[打开Tasks视频](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-tasks-web.mp4)。</sub>
 
