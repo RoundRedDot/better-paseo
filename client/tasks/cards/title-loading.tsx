@@ -1,49 +1,52 @@
-import { useEffect, useRef } from "react";
-import { Animated, View } from "react-native";
-import { steppedEasing } from "../../ui/tokens/motion";
+import { useEffect, useRef, useState } from "react";
+import { Animated, Platform, View, type StyleProp, type TextStyle } from "react-native";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { TaskText } from "../typography";
 
-// Paseo's SyncedLoader snake states, in row-major order across its 2×3 grid.
-const STATES = [
-  [1, 0, 0.78, 0, 0.56, 0.34],
-  [0.78, 1, 0.56, 0, 0.34, 0],
-  [0.56, 0.78, 0.34, 1, 0, 0],
-  [0.34, 0.56, 0, 0.78, 0, 1],
-  [0, 0.34, 0, 0.56, 1, 0.78],
-  [0, 0, 1, 0.34, 0.78, 0.56],
-];
+const BAND_WIDTH = 72;
+const INTENSITIES = [0.15, 0.5, 1, 0.5, 0.15];
 
-export function TitleLoading(props: { color: string; animated?: boolean; accessibilityLabel?: string; testID?: string }) {
+export function TitleLoading(props: {
+  title: string;
+  color: string;
+  mutedColor: string;
+  style: StyleProp<TextStyle>;
+  animated?: boolean;
+  accessibilityLabel: string;
+}) {
   const progress = useRef(new Animated.Value(0)).current;
+  const [width, setWidth] = useState(0);
   const reduced = useReducedMotion();
   const active = props.animated !== false && !reduced;
   useEffect(() => {
     progress.setValue(0);
-    if (!active) return;
+    if (!active || width === 0) return;
     const loop = Animated.loop(Animated.timing(progress, {
-      toValue: 1, duration: 950, easing: steppedEasing(6), useNativeDriver: true, isInteraction: false,
+      toValue: 1, duration: 1600, easing: (value) => value, useNativeDriver: Platform.OS !== "web", isInteraction: false,
     }));
     loop.start();
     return () => loop.stop();
-  }, [active, progress]);
-  const size = 16;
-  const gap = Math.max(1, Math.round(size * 0.12));
-  const dot = (size - gap * 2) / 3;
+  }, [active, progress, width]);
+  const travel = { inputRange: [0, 0.8, 1], outputRange: [-BAND_WIDTH, width, width] };
+  const counterTravel = { inputRange: travel.inputRange, outputRange: [BAND_WIDTH, -width, -width] };
   return (
-    <View accessibilityLabel={props.accessibilityLabel} accessibilityState={{ busy: true }} testID={props.testID}
-      style={{ width: size, height: size, flexShrink: 0, alignItems: "center", justifyContent: "center" }}>
-      <View style={{ width: dot * 2 + gap, height: size }}>
-        {STATES[0]!.map((opacity, index) => (
-          <Animated.View key={index} style={{
-            position: "absolute", left: (index % 2) * (dot + gap), top: Math.floor(index / 2) * (dot + gap),
-            width: dot, height: dot, borderRadius: dot / 2, backgroundColor: props.color,
-            opacity: active ? progress.interpolate({
-              inputRange: [0, 1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 1],
-              outputRange: [...STATES.map((state) => state[index]!), opacity],
-            }) : opacity,
-          }} />
-        ))}
-      </View>
+    <View accessibilityLabel={props.accessibilityLabel} accessibilityState={{ busy: true }} testID="task-title-update-shimmer"
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+      <TaskText numberOfLines={2} ellipsizeMode="tail" style={[props.style, { color: props.mutedColor }]} testID="task-card-title">{props.title}</TaskText>
+      {active && width > 0 ? (
+        <Animated.View pointerEvents="none" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="task-title-update-sheen"
+          style={{ position: "absolute", top: 0, bottom: 0, width: BAND_WIDTH, overflow: "hidden", transform: [{ translateX: progress.interpolate(travel) }] }}>
+          {INTENSITIES.map((opacity, index) => (
+            <View key={index} style={{ position: "absolute", top: 0, bottom: 0, left: index * BAND_WIDTH / INTENSITIES.length, width: BAND_WIDTH / INTENSITIES.length, overflow: "hidden" }}>
+              {/* Counter-motion keeps every clipped text copy aligned with the in-flow title. */}
+              <Animated.View style={{ width, marginLeft: -index * BAND_WIDTH / INTENSITIES.length, opacity, transform: [{ translateX: progress.interpolate(counterTravel) }] }}>
+                <TaskText numberOfLines={2} ellipsizeMode="tail" style={[props.style, { color: props.color }]}>{props.title}</TaskText>
+              </Animated.View>
+            </View>
+          ))}
+        </Animated.View>
+      ) : null}
     </View>
   );
 }

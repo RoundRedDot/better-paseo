@@ -862,7 +862,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           animated={props.animated}
         />
       </View>
-      <Text
+      {updatingTitle ? <TitleLoading title={card.title} color={tokens.foreground} mutedColor={tokens.foregroundMuted}
+        animated={props.animated} accessibilityLabel={strings.autoTitlePending}
+        style={[text(m.titleSize, m.titleLine, tokens.foreground, "500"), WEB ? ({ overflowWrap: "anywhere" } as TextStyle) : null]} /> : <Text
         numberOfLines={2}
         ellipsizeMode="tail"
         style={[
@@ -873,8 +875,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         testID="task-card-title"
       >
         {card.title}
-      </Text>
-      {updatingTitle ? <View style={{ height: Math.round(m.titleLine * scale), justifyContent: "center" }}><TitleLoading color={tokens.foregroundMuted} animated={props.animated} accessibilityLabel={strings.autoTitlePending} testID="task-title-update-loading" /></View> : null}
+      </Text>}
       {hasMeta ? null : ringFor(m.titleLine)}
     </View>
   );
@@ -1456,7 +1457,6 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           actions={{
             autoTitle: props.titleUpdates ? () => props.titleUpdates?.start(card.id) : undefined,
             autoTitlePending: updatingTitle,
-            autoTitleLeading: updatingTitle ? <TitleLoading color={tokens.foregroundMuted} animated={props.animated} /> : undefined,
             open: props.onOpen && ownTab ? () => props.onOpen?.(card.id) : undefined,
             openParent: parentOpens ? () => props.onOpen?.(card.parent!.id) : undefined,
             revealParent: card.parent ? () => props.onReveal(card.parent!.id) : undefined,
