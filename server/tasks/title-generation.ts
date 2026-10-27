@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { PaseoAgentTimelineEvent, PaseoApi } from "@getpaseo/client";
+import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import type { PluginServerContext, PluginSettings } from "@getpaseo/plugin/server";
 import { z } from "zod";
 import { TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema, titleModelsRpc, titleUpdateRpc, type TitleUpdateState } from "../../shared/title-generation";
@@ -37,24 +37,36 @@ export function createTitleGenerator(deps: Dependencies) {
     const settings = await deps.settings.read();
     if (settings.status !== "ready") throw new Error("Title generation settings are invalid.");
     const config = settings.values;
-    if (!config.provider || !config.model) throw new Error("Choose a title provider and model in Tasks settings first.");
+    if (config.customModel && (!config.provider || !config.model)) throw new Error("Choose a title provider and model in Tasks settings first.");
     const source = paseo.agents.ref(agentId);
     const original = await source.refresh();
     if (!original) throw new Error("The original agent no longer exists.");
     if (original.agent.archivedAt) throw new Error("Unarchive the agent before generating a title.");
+    const provider = config.customModel ? config.provider : original.agent.provider;
+    const model = config.customModel ? config.model : original.agent.model;
+    const thinkingOptionId = config.customModel ? config.thinkingOptionId : original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId;
+    if (!model) throw new Error("The original agent has no model to use for title generation.");
     if (!original.agent.workspaceId) throw new Error("The original agent has no workspace.");
     const sourceWorkspace = await paseo.workspaces.ref(original.agent.workspaceId).refresh();
     if (!sourceWorkspace) throw new Error("The original workspace is unavailable.");
-    const [head, tail] = await Promise.all([
-      source.timeline.refetch({ direction: "after", projection: "projected", limit: 12 }),
-      source.timeline.refetch({ direction: "tail", projection: "projected", limit: 24 }),
-    ]);
-    if (head.error || tail.error) throw new Error(head.error || tail.error || "Could not read the conversation.");
-    const first = head.entries.find((entry) => entry.item.type === "user_message");
-    const firstPrompt = first?.item.type === "user_message" ? first.item.text.slice(0, 4000) : "";
-    const recent = tail.entries.flatMap(({ item }) => item.type === "user_message" || item.type === "assistant_message"
-      ? [{ role: item.type, text: item.text.slice(0, 2000) }] : []).slice(-8);
-    if (!firstPrompt && recent.length === 0) throw new Error("This agent has no conversation to summarize.");
+    const messages: { role: "user_message" | "assistant_message"; text: string }[] = [];
+    let cursor: NonNullable<Parameters<PaseoAgentTimelineHandle["refetch"]>[0]>["cursor"];
+    for (;;) {
+      const page = await source.timeline.refetch({
+        direction: "after", projection: "projected", limit: 12, ...(cursor ? { cursor } : {}),
+      });
+      if (page.error || page.reset && cursor) throw new Error(page.error || "Could not read the conversation.");
+      for (const { item } of page.entries) {
+        if (item.type !== "user_message" && item.type !== "assistant_message") continue;
+        messages.push({ role: item.type, text: item.text.slice(0, item.type === "user_message" ? 4000 : 2000) });
+        if (messages.length === 8) break;
+      }
+      if (messages.length === 8 || !page.hasNewer) break;
+      const next = page.endCursor;
+      if (!next || cursor && (next.epoch !== cursor.epoch || next.seq <= cursor.seq)) throw new Error("Could not read the conversation.");
+      cursor = next;
+    }
+    if (messages.length === 0) throw new Error("This agent has no conversation to summarize.");
 
     // A neutral directory avoids running the source project's workspace setup or loading its instructions.
     await mkdir(deps.directory, { recursive: true });
@@ -66,8 +78,8 @@ export function createTitleGenerator(deps: Dependencies) {
     let unsubscribe: ((() => void) & { ready?: Promise<void> }) | null = null;
     try {
       const helper = await workspace.agents.create({
-        config: { provider: `${config.provider}/${config.model}`, systemPrompt: SYSTEM_PROMPT,
-          ...(config.thinkingOptionId ? { thinkingOptionId: config.thinkingOptionId } : {}),
+        config: { provider: `${provider}/${model}`, systemPrompt: SYSTEM_PROMPT,
+          ...(thinkingOptionId ? { thinkingOptionId } : {}),
         },
         title: "Title generator", labels: { "better-paseo.purpose": "title-generation" },
       });
@@ -85,7 +97,7 @@ export function createTitleGenerator(deps: Dependencies) {
       } catch {
         // Without a live timeline the title lands whole when the turn ends.
       }
-      const result = await helper.run(`${config.prompt}\n\n${JSON.stringify({ currentTitle: original.agent.title, firstPrompt, recentMessages: recent })}`, { timeoutMs: 60_000 });
+      const result = await helper.run(`${config.prompt}\n\n${JSON.stringify({ messages })}`, { timeoutMs: 60_000 });
       if (result.status !== "idle") throw new Error(result.error || `Title generation ended with status: ${result.status}.`);
       const parsed = generatedTitle.safeParse(result.lastMessage);
       if (!parsed.success) throw new Error("The model must return one title between 1 and 80 characters, without explanations or line breaks.");
