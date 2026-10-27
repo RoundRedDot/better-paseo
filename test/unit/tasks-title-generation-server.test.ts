@@ -40,8 +40,11 @@ async function fixture() {
       { item: { type: "assistant_message", text: "Updated the settings" } },
     ].map((entry, index) => ({ ...entry, seqStart: index + 1 })),
   }));
-  const api = { agents: { ref: vi.fn(() => ({ refresh, timeline: { refetch: timeline } })) }, workspaces: { create: workspace, ref: () => ({ refresh: async () => ({ projectId: "source-project" }) }) } } as unknown as PaseoApi;
-  const values = titleGenerationSettingsSchema.parse({ customModel: true, provider: "claude", model: "claude-haiku-5-5", prompt: "Use an actionable title" });
+  const listModels = vi.fn(async (_provider: string) => ({ error: null as string | null, models: [
+    { id: "claude-haiku-5-5", thinkingOptions: [{ id: "off", label: "Off" }, { id: "high", label: "High" }] },
+  ] }));
+  const api = { providers: { listModels }, agents: { ref: vi.fn(() => ({ refresh, timeline: { refetch: timeline } })) }, workspaces: { create: workspace, ref: () => ({ refresh: async () => ({ projectId: "source-project" }) }) } } as unknown as PaseoApi;
+  const values = titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "claude", model: "claude-haiku-5-5", prompt: "Use an actionable title" });
   const read = vi.fn(async () => ({ status: "ready" as const, revision: "1", values }));
   const rename = vi.fn(async () => ({ ok: true, error: null as string | null }));
   const canRename = vi.fn(() => true);
@@ -49,10 +52,66 @@ async function fixture() {
   const state = () => service.request({ agentId: "source", action: "status" }, api);
   const start = () => service.request({ agentId: "source", action: "start" }, api);
   const settle = async () => { await expect.poll(() => state().state).not.toBe("running"); return state(); };
-  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, timeline, values, read, rename, canRename, state, start, settle };
+  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, timeline, listModels, values, read, rename, canRename, state, start, settle };
 }
 
 describe("background title generation", () => {
+  it("disables title thinking by default, including existing settings", () => {
+    expect(titleGenerationSettingsSchema.parse({}).disableThinking).toBe(true);
+    expect(titleGenerationSettingsSchema.parse({ provider: "claude", model: "haiku" }).disableThinking).toBe(true);
+  });
+
+  it.each([
+    { ids: ["high", "off", "low"], expected: "off" },
+    { ids: ["high", "none", "low"], expected: "none" },
+    { ids: ["medium", "disabled"], expected: "disabled" },
+    { ids: ["high", "low", "medium"], expected: "low" },
+    { ids: ["low", "minimal", "high"], expected: "minimal" },
+    { ids: ["high", "medium"], expected: "medium" },
+    { ids: [], expected: undefined },
+  ])("uses a supported off or minimum thinking option: $ids", async ({ ids, expected }) => {
+    const f = await fixture();
+    f.values.disableThinking = true;
+    f.values.thinkingOptionId = "high";
+    f.listModels.mockResolvedValue({ error: null, models: [{ id: f.values.model, thinkingOptions: ids.map((id) => ({ id, label: id })) }] });
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.listModels).toHaveBeenCalledExactlyOnceWith("claude");
+    expect(f.create).toHaveBeenCalledWith(expect.objectContaining({ config: {
+      provider: "claude/claude-haiku-5-5", systemPrompt: expect.any(String), ...(expected ? { thinkingOptionId: expected } : {}),
+    } }));
+  });
+
+  it("overrides inherited thinking with the source model's supported minimum", async () => {
+    const f = await fixture();
+    f.values.customModel = false;
+    f.values.disableThinking = true;
+    f.listModels.mockResolvedValue({ error: null, models: [{ id: f.original.agent.model!, thinkingOptions: [{ id: "low", label: "Low" }, { id: "high", label: "High" }] }] });
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.listModels).toHaveBeenCalledExactlyOnceWith("codex");
+    expect(f.create).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({ thinkingOptionId: "low" }) }));
+  });
+
+  it("does not query the catalog when the thinking override is off", async () => {
+    const f = await fixture();
+    f.values.thinkingOptionId = "high";
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.listModels).not.toHaveBeenCalled();
+    expect(f.create).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({ thinkingOptionId: "high" }) }));
+  });
+
+  it.each([true, false])("does not start a helper when the model catalog is unavailable (error: %s)", async (error) => {
+    const f = await fixture();
+    f.values.disableThinking = true;
+    f.listModels.mockResolvedValue({ error: error ? "Catalog unavailable" : null, models: [] });
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "error" });
+    expect(f.workspace).not.toHaveBeenCalled();
+    expect(f.rename).not.toHaveBeenCalled();
+  });
+
   it("defaults existing settings to following the card agent", () => {
     expect(titleGenerationSettingsSchema.parse({ provider: "claude", model: "haiku" }).customModel).toBe(false);
   });

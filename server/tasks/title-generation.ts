@@ -74,8 +74,17 @@ export function createTitleGenerator(deps: Dependencies) {
     if (original.agent.archivedAt) throw new Error("Unarchive the agent before generating a title.");
     const provider = config.customModel ? config.provider : original.agent.provider;
     const model = config.customModel ? config.model : original.agent.model;
-    const thinkingOptionId = config.customModel ? config.thinkingOptionId : original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId;
+    let thinkingOptionId = config.customModel ? config.thinkingOptionId : original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId;
     if (!model) throw new Error("The original agent has no model to use for title generation.");
+    if (config.disableThinking) {
+      const catalog = await paseo.providers.listModels(provider);
+      if (catalog.error || !catalog.models) throw new Error(catalog.error || "Could not load title model thinking options.");
+      const selected = catalog.models.find((entry) => entry.id === model);
+      if (!selected) throw new Error("The title model is not available in the provider catalog.");
+      const options = selected.thinkingOptions ?? [];
+      thinkingOptionId = ["off", "none", "disabled", "minimal", "low", "medium", "high", "xhigh", "max", "ultra", "ultracode"]
+        .find((id) => options.some((option) => option.id === id)) ?? options[0]?.id;
+    }
     if (!original.agent.workspaceId) throw new Error("The original agent has no workspace.");
     const sourceWorkspace = await paseo.workspaces.ref(original.agent.workspaceId).refresh();
     if (!sourceWorkspace) throw new Error("The original workspace is unavailable.");

@@ -10,6 +10,7 @@ import { useTasksLanguage } from "../i18n";
 
 const WORDS = {
   en: {
+    disableThinking: "Disable title thinking", thinkingHint: "Disable thinking when supported; otherwise use the lowest supported level. Turn off to follow the agent or custom thinking level.", automaticThinking: "Off or lowest supported level",
     customModel: "Custom automatic title model", followSource: "Off: follow the card agent's provider, model and thinking level. Save to sync these settings across devices connected to this host.",
     title: "Automatic titles", provider: "Provider", model: "Model", thinkingOptionId: "Thinking level", modelDefault: "Model default", noThinking: "Not supported", choose: "Choose…", prompt: "Prompt",
     hint: "Recommended custom model: Oh My Pi / DeepSeek Flash (deepseek/deepseek-flash), thinking low. Alternative: Claude / Haiku 5.5 (claude-haiku-5-5), thinking off.\nChoose models available on this host; actual speed also depends on agent startup and host load. The background task stays off the board, retains history and may trigger host notifications.",
@@ -18,6 +19,7 @@ const WORDS = {
     notRecommended: "Not recommended",
   },
   zh: {
+    disableThinking: "关闭标题生成思考模式", thinkingHint: "模型支持时关闭思考，否则使用支持的最低等级。关闭此开关后，跟随 agent 或自定义的思考等级。", automaticThinking: "关闭或最低支持等级",
     customModel: "自定义自动标题模型", followSource: "关闭时跟随卡片所属 agent 的 Provider、模型和思考等级。保存后，设置同步至连接此主机的各端。",
     title: "自动更新标题", provider: "Provider", model: "模型", thinkingOptionId: "思考等级", modelDefault: "模型默认", noThinking: "不支持", choose: "请选择…", prompt: "Prompt",
     hint: "自定义模型推荐：Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low；备选：Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off。\n请选择当前主机可用的模型；实际速度也受 agent 启动和主机负载影响。后台任务不进入看板，仍保留历史，并可能触发宿主通知。",
@@ -107,10 +109,17 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
             setDraft({ ...draft, customModel });
           }} />
         } />
+        <SettingRow title={words.disableThinking} description={words.thinkingHint} look={look} disabled={settings.saving} control={
+          <Toggle value={draft.disableThinking} label={words.disableThinking} look={look} onChange={(disableThinking) => {
+            setChoosing(null);
+            setDraft({ ...draft, disableThinking });
+          }} />
+        } />
         {draft.customModel && (["provider", "model", "thinkingOptionId"] as const).map((field) => {
-          const disabled = settings.saving || loading || (field === "model" && !draft.provider) || (field === "thinkingOptionId" && thinkingOptions.length === 0);
+          const disabled = settings.saving || loading || (field === "model" && !draft.provider) || (field === "thinkingOptionId" && (draft.disableThinking || thinkingOptions.length === 0));
           const label = field === "provider" ? providers.find((provider) => provider.id === draft.provider)?.label
             : field === "model" ? models.find((model) => model.id === draft.model)?.label
+              : draft.disableThinking ? words.automaticThinking
               : draft.thinkingOptionId ? thinkingOptions.find((option) => option.id === draft.thinkingOptionId)?.label ?? draft.thinkingOptionId
                 : thinkingOptions.length > 0 ? modelDefault : draft.model && selectedModel ? words.noThinking : words.choose;
           return <SettingRow key={field} title={words[field]} look={look} control={
