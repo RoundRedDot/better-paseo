@@ -1182,17 +1182,17 @@ describe("TaskCardView context ring", () => {
   });
 
   it.each([
-    [-0.2, 0], [0, 0], [0.254, 25], [0.756, 76], [1, 100], [1.2, 100],
+    [-0.2, 0], [0, 0], [0.1, 10], [0.11, 11], [0.254, 25], [0.756, 76], [0.99, 99], [1, 100], [1.2, 100],
   ])("selects the nearest displayed percent from the padded PNG atlas (ratio %s)", async (ratio, percent) => {
     const tree = await render(React.createElement(ContextRing, { ratio, color: "#123456", track: "#abcdef" }));
     const ring = hostByTestId(tree.root, "context-ring");
     const images = ring.findAll((node) => (node.type as unknown) === "Image");
     expect(images).toHaveLength(percent > 0 ? 2 : 1);
     expect(images[0]!.props).toMatchObject({ resizeMode: "stretch", fadeDuration: 0, accessible: false });
-    expect(flat(images[0]!.props.style)).toMatchObject({ tintColor: "#abcdef", left: -1601, top: -1, width: 1616, height: 16 });
+    expect(flat(images[0]!.props.style)).toMatchObject({ tintColor: "#abcdef", left: -17, top: -145, width: 176, height: 160 });
     if (percent > 0) {
       expect(images[1]!.props.source.uri).toBe(images[0]!.props.source.uri);
-      expect(flat(images[1]!.props.style)).toMatchObject({ tintColor: "#123456", left: -percent * 16 - 1 });
+      expect(flat(images[1]!.props.style)).toMatchObject({ tintColor: "#123456", left: -(percent % 11) * 16 - 1, top: -Math.floor(percent / 11) * 16 - 1 });
     }
     expect(ring.findAll((node) => (node.type as unknown) === "View" && flat(node.props.style).transform !== undefined)).toHaveLength(0);
   });
@@ -1202,7 +1202,7 @@ describe("TaskCardView context ring", () => {
     const ring = hostByTestId(tree.root, "context-ring");
     expect(flat(ring.props.style)).toMatchObject({ width: 12, height: 12 });
     const image = hostByTestId(ring, "context-ring-fill").children[0] as ReactTestInstance;
-    expect(flat(image.props.style)).toMatchObject({ left: -701, width: 1414, height: 14 });
+    expect(flat(image.props.style)).toMatchObject({ left: -85, top: -57, width: 154, height: 140 });
   });
 
   it("hides the ring from assistive tech with native props off the web and aria-hidden on it", async () => {

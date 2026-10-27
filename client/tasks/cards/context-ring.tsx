@@ -13,7 +13,8 @@ const hidden = (): ViewProps =>
  * The host's context meter: clockwise from twelve, with round caps. Each
  * percent is rasterised at 4x and downsampled by Image, avoiding the jagged
  * diagonal borders of clipped and rotated native Views. The masks share a
- * padded sprite sheet and take their colour from the current theme.
+ * padded grid (rather than a wide strip that native decoders downsample)
+ * and take their colour from the current theme.
  */
 
 export type ContextRingTone = "normal" | "warning" | "danger";
@@ -41,7 +42,7 @@ export function formatSessionCost(value: number | null | undefined): string | nu
 
 export function ContextRing(props: { ratio: number; color: string; track: string; variant?: "card" | "subtask" }) {
   const bitmap = CONTEXT_RING_BITMAPS[props.variant ?? "card"];
-  const { size, padding, frames } = bitmap;
+  const { size, padding, columns, rows } = bitmap;
   const stride = size + 2 * padding;
   const percent = Math.round(Math.max(0, Math.min(1, props.ratio)) * 100);
   const layer = (frame: number, color: string, testID: string) => (
@@ -51,7 +52,7 @@ export function ContextRing(props: { ratio: number; color: string; track: string
         accessible={false}
         resizeMode="stretch"
         fadeDuration={0}
-        style={{ position: "absolute", left: -frame * stride - padding, top: -padding, width: stride * frames, height: stride, tintColor: color }}
+        style={{ position: "absolute", left: -(frame % columns) * stride - padding, top: -Math.floor(frame / columns) * stride - padding, width: stride * columns, height: stride * rows, tintColor: color }}
       />
     </View>
   );
