@@ -1431,7 +1431,7 @@ describe("Tasks data store", () => {
 
       // Prompted again: working, then done once the server's record has no error.
       await act(async () => {
-        fake.upsertAgent(activeAgent("limited", { status: "running", lastUserMessageAt: iso(Date.now()), activeTurn: { turnId: "t2", startedAt: iso(Date.now()) } }));
+        fake.upsertAgent(activeAgent("limited", { status: "running", updatedAt: iso(Date.now()), lastUserMessageAt: iso(Date.now()), activeTurn: { turnId: "t2", startedAt: iso(Date.now()) } }));
         await Promise.resolve();
       });
       expect(mounted.current.byId.get("limited")).toMatchObject({ lane: "running", error: null });
