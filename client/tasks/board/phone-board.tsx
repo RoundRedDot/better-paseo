@@ -218,6 +218,7 @@ export function PhoneBoard(props: {
         if (!swallowsTap(swipedAt.current, Date.now())) run?.(...args);
       };
     return {
+      titleUpdates: base.titleUpdates,
       onOpen: base.onOpen ? guard(base.onOpen) : undefined,
       onReveal: guard(base.onReveal),
       // Absent without the host's CLI: a guarded no-op would still draw Stop on every card.

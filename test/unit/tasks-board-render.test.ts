@@ -3882,6 +3882,19 @@ describe("Tasks board, phone", () => {
     expect(bar.props.card.id).toBe(running.props.card.id);
     expect(bar.props.stop ? "stop" : null).toBe(canStop ? "stop" : null);
   });
+
+  // The phone wraps the board's callbacks to swallow taps after a swipe; it once dropped the title control.
+  it.each([true, false])("offers automatic titles from a card's long-press menu (compact: %s)", async (compact) => {
+    await act(async () => {
+      renderer = TestRenderer.create(screen(compact));
+      await Promise.resolve();
+    });
+    if (!compact) layOut(1400);
+    const card = cards().find((node) => node.props.card.lane === "running" && !node.props.card.subagent)!;
+    expect(card.props.titleUpdates).toBeDefined();
+    act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.props.card.id}`).props.onLongPress());
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Automatically update title")).toHaveLength(1);
+  });
 });
 
 describe("Tasks board, phone lane swipe and the host's pans", () => {
