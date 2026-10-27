@@ -13,7 +13,7 @@ import { TitleLoading } from "../../client/tasks/cards/title-loading";
 
 let tree: TestRenderer.ReactTestRenderer;
 const title = "/Users/example/Downloads/飞书 20261027-193857.mp4";
-const renderTitle = (animated = true, mutedColor = "#666666") => <TitleLoading title={title} color="#111111" mutedColor={mutedColor} style={{ fontSize: 16, lineHeight: 24 }} animated={animated} accessibilityLabel="正在更新标题…" />;
+const renderTitle = (animated = true, mutedColor = "#666666") => <TitleLoading title={title} highlightColor="#111111" mutedColor={mutedColor} style={{ fontSize: 16, lineHeight: 24 }} animated={animated} accessibilityLabel="正在更新标题…" />;
 const host = (testID: string) => tree.root.find((node) => typeof node.type === "string" && node.props.testID === testID);
 const hosts = (testID: string) => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === testID);
 const measure = async (width: number) => { await act(async () => host("task-title-update-shimmer").props.onLayout({ nativeEvent: { layout: { width } } })); };

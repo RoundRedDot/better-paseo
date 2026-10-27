@@ -132,6 +132,7 @@ import { modeIcon } from "../../client/tasks/cards/mode-icons";
 import { menuChrome } from "../../client/tasks/board/menu";
 import { cardMenuSections } from "../../client/tasks/cards/card-menu";
 import { cardStrings } from "../../client/tasks/cards/strings";
+import { TitleLoading } from "../../client/tasks/cards/title-loading";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { BrandMark, PiMark, agentPillColors, contrastRatio, tintedPillColors } from "../../client/tasks/cards/brand-mark";
 import { permissionButtons } from "../../client/tasks/actions";
@@ -200,6 +201,18 @@ it("keeps title-generation progress and failure visible on the card after its me
   await act(async () => fail(new Error("Provider offline")));
   expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "正在更新标题…")).toHaveLength(0);
   expect(tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-title-update-error").children.join("")).toContain("Provider offline");
+});
+
+it.each([["light", LIGHT], ["dark", DARK]] as const)("sweeps the %s title with light brighter than its resting color", async (_name, theme) => {
+  const control = createTitleUpdateControl(() => new Promise(() => {}));
+  const card = sampleCards(NOW)[0]!;
+  const tree = await render(cardElement(card, { titleUpdates: control, theme }));
+  await act(async () => control.start(card.id));
+  const sweep = tree.root.findByType(TitleLoading);
+  const brightness = (hex: string) => [1, 3, 5].reduce((sum, at) => sum + parseInt(hex.slice(at, at + 2), 16), 0);
+  // A visible band: at least a third of the way from the resting grey to white.
+  const resting = brightness(sweep.props.mutedColor);
+  expect(brightness(sweep.props.highlightColor) - resting).toBeGreaterThan((765 - resting) / 3);
 });
 
 async function render(element: React.ReactElement): Promise<ReactTestRenderer> {
