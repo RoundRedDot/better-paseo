@@ -28,7 +28,7 @@ const look = {
   tokens: { typography: { content: { size: 16 } }, v2: {}, foreground: "#111111", warning: "#bb0000" },
 } as PageLook;
 let tree: TestRenderer.ReactTestRenderer;
-beforeEach(() => state.catalog.mockReset().mockResolvedValue({ providers: ["claude", "codex"], models: [{ id: "haiku", label: "Haiku" }], error: null }));
+beforeEach(() => state.catalog.mockReset().mockResolvedValue({ providers: ["claude", "codex"], models: [{ id: "haiku", label: "Haiku", thinkingOptions: [], defaultThinkingOptionId: null }], error: null }));
 afterEach(async () => { await act(async () => tree?.unmount()); });
 
 async function mount(extra: object = {}) {
@@ -50,11 +50,11 @@ describe("automatic title settings", () => {
     expect(tree.root.findByType(ProviderLogo).props.provider).toBe("claude");
     await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("Summarize the actual goal"));
     await act(async () => saveButton().props.onPress());
-    expect(settings.save).toHaveBeenCalledExactlyOnceWith({ provider: "claude", model: "haiku", prompt: "Summarize the actual goal" }, "r1");
+    expect(settings.save).toHaveBeenCalledExactlyOnceWith({ provider: "claude", model: "haiku", thinkingOptionId: "", prompt: "Summarize the actual goal" }, "r1");
   });
 
   it("clears the old model on provider change and blocks an incomplete or blank prompt", async () => {
-    await mount();
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ provider: "claude", model: "haiku", thinkingOptionId: "off" }) });
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider").props.onPress());
     expect(tree.root.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(["claude", "claude", "codex"]);
     expect(tree.root.findAllByType(ProviderLogo).find((node) => node.props.provider === "codex")!.props.color).toBe(look.tokens.foreground);
@@ -66,12 +66,14 @@ describe("automatic title settings", () => {
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "模型").props.onPress());
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === "Haiku").props.onPress());
     expect(saveButton().props.disabled).toBe(false);
+    await act(async () => saveButton().props.onPress());
+    expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ provider: "codex", thinkingOptionId: "" }), "r1");
     await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("   "));
     expect(saveButton().props.disabled).toBe(true);
   });
 
   it.each([false, true])("puts Cursor last with a warning and uses branded provider names and logos (compact: %s)", async (compact) => {
-    state.catalog.mockResolvedValue({ providers: ["cursor", "claude", "omp", "opencode", "codex"], models: [{ id: "grok-4.7", label: "Grok 4.7" }], error: null });
+    state.catalog.mockResolvedValue({ providers: ["cursor", "claude", "omp", "opencode", "codex"], models: [{ id: "grok-4.7", label: "Grok 4.7", thinkingOptions: [], defaultThinkingOptionId: null }], error: null });
     const settings = await mount({ values: titleGenerationSettingsSchema.parse({ provider: "cursor", model: "grok-4.7" }) });
     await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
     const providerButton = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider");
@@ -90,9 +92,40 @@ describe("automatic title settings", () => {
     const section = tree.root.findByType(Section);
     expect(section.findAllByType(SectionNote)).toHaveLength(0);
     expect(tree.root.findByType(SectionNote).props.text).toContain("后台任务不进入看板");
+    expect(tree.root.findByType(SectionNote).props.text).toContain("Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low");
+    expect(tree.root.findByType(SectionNote).props.text).toContain("Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off");
+    expect(tree.root.findByType(SectionNote).props.text).toContain("Use the language of firstPrompt. Limit the title to 80 characters including spaces.");
     expect(section.findAllByType(SettingRow).map((row) => [row.props.title, row.props.first === true])).toEqual([
-      ["Provider", true], ["模型", false], ["prompt", false],
+      ["Provider", true], ["模型", false], ["思考等级", false], ["prompt", false],
     ]);
+  });
+
+  it("shows model thinking options, saves the selection and allows resetting to the model default", async () => {
+    state.catalog.mockResolvedValue({ providers: ["claude"], models: [{ id: "haiku", label: "Haiku", thinkingOptions: [{ id: "off", label: "Off" }, { id: "low", label: "Low" }], defaultThinkingOptionId: "low" }], error: null });
+    const settings = await mount();
+    const thinking = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "思考等级");
+    await act(async () => thinking().props.onPress());
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel)).toEqual(["模型默认 · low", "Off", "Low"]);
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Off").props.onPress());
+    await act(async () => saveButton().props.onPress());
+    expect(settings.save).toHaveBeenLastCalledWith(expect.objectContaining({ thinkingOptionId: "off" }), "r1");
+    await act(async () => thinking().props.onPress());
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "模型默认 · low").props.onPress());
+    await act(async () => saveButton().props.onPress());
+    expect(settings.save).toHaveBeenLastCalledWith(expect.objectContaining({ thinkingOptionId: "" }), "r1");
+  });
+
+  it.each([true, false])("keeps only a compatible thinking selection when switching models (compatible: %s)", async (compatible) => {
+    state.catalog.mockResolvedValue({ providers: ["claude"], models: [
+      { id: "haiku", label: "Haiku", thinkingOptions: [{ id: "off", label: "Off" }], defaultThinkingOptionId: "off" },
+      { id: "next", label: "Next", thinkingOptions: compatible ? [{ id: "off", label: "Off" }] : [], defaultThinkingOptionId: null },
+    ], error: null });
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ provider: "claude", model: "haiku", thinkingOptionId: "off" }) });
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "模型").props.onPress());
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Next").props.onPress());
+    await act(async () => saveButton().props.onPress());
+    expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ model: "next", thinkingOptionId: compatible ? "off" : "" }), "r1");
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "思考等级").props.disabled).toBe(!compatible);
   });
 
   it("keeps a catalog or save failure visible and supports retry", async () => {
