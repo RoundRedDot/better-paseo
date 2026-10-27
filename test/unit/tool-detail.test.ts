@@ -44,6 +44,16 @@ describe("toolHasDetail", () => {
     expect(toolHasDetail(view({ type: "shell", command: "x".repeat(100) }, { name: "Bash" }), BUDGET)).toBe(true);
   });
 
+  it.each(["a | b", "a; b; c", "cd x && npm test", "npm test || true"])(
+    "keeps the full silent chain %s available to expand", (command) => {
+      expect(toolHasDetail(view({ type: "shell", command }, { name: "Bash" }), BUDGET)).toBe(true);
+    },
+  );
+
+  it("does not open a short quoted operator as a chain", () => {
+    expect(toolHasDetail(view({ type: "shell", command: 'echo "a && b"' }, { name: "Bash" }), BUDGET)).toBe(false);
+  });
+
   it("has none for one-line plain text, detail for more", () => {
     expect(toolHasDetail(view({ type: "plain_text", text: "Started" }), BUDGET)).toBe(false);
     expect(toolHasDetail(view({ type: "plain_text", text: "Started\nwith flags" }), BUDGET)).toBe(true);

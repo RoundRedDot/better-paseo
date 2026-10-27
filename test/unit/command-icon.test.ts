@@ -18,6 +18,8 @@ describe("commandProgram", () => {
     ["g++ -o a a.cpp", "g++"],
     ["C:\\Python312\\python.exe x.py", "python"],
     ["cd /w", undefined],
+    ["echo 'a && cd'; npm test", "echo"],
+    ["FOO='a && b' pnpm build && npm test", "pnpm"],
   ])("%s runs %s", (command, program) => {
     expect(commandProgram(command)).toBe(program);
   });
@@ -34,6 +36,10 @@ describe("commandIcon", () => {
     ["npx --yes playwright install", "brand:playwright"],
     ["playwright test --ui", "brand:playwright"],
     ["pnpm install", "brand:pnpm"],
+    ["cd x && npm test", "brand:npm"],
+    ["FOO=1 pnpm build || npm test", "brand:pnpm"],
+    ["npx 'playwright' test | cat", "brand:playwright"],
+    ["npm test; pnpm build; cargo test", "brand:npm"],
     ["java -version", "Coffee"],
     ["./gradlew build", "Coffee"],
     ["go run .", "brand:go"],
