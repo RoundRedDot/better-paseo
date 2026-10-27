@@ -172,7 +172,7 @@ describe("Tasks board preview", () => {
       }));
     });
     const lane = byTestID(renderer!.root, "tasks-preview-lane-needs_input")[0]!;
-    const heading = hosts(lane, (node) => (node.type as unknown) === "Text" && textOf(node) === "Needs input")[0]!;
+    const heading = hosts(lane, (node) => (node.type as unknown) === "Text" && textOf(node) === "Waiting")[0]!;
     expect(StyleSheet.flatten(heading.props.style).fontSize).toBe(Math.round(12 * base / 14));
     const title = byTestID(lane, "task-card-title")[0]!;
     expect(StyleSheet.flatten(title.props.style).fontSize).toBe(Math.round(12 * base / 14));

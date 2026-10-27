@@ -9,9 +9,9 @@ const en = {
   name: "Tasks",
   /** The Command Center item. */
   openBoard: "Open Tasks",
-  lanes: { needs_input: "Needs input", running: "Running", review: "Review", done: "Done", archived: "Archived" } as Record<LaneId, string>,
+  lanes: { needs_input: "Waiting", running: "Running", review: "Review", done: "Done", archived: "Archived" } as Record<LaneId, string>,
   /** The phone's tabs: a quarter of 390 each. */
-  tabs: { needs_input: "Input", running: "Running", review: "Review", done: "Done", archived: "Archived" } as Record<LaneId, string>,
+  tabs: { needs_input: "Waiting", running: "Running", review: "Review", done: "Done", archived: "Archived" } as Record<LaneId, string>,
   laneEmpty: {
     needs_input: "No tasks waiting for you",
     running: "No tasks running",
