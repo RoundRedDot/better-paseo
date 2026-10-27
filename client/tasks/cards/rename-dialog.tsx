@@ -37,6 +37,7 @@ export function TaskRenameDialog(props: {
   }, [generated, props.strings]);
   const scale = useTasksFontScale();
   const colors = props.theme.colors;
+  const inputLineHeight = Math.round(HOST_LINE.base * scale);
   const disabled = pending || generating || !title.trim() || title.trim() === props.title;
   const save = async () => {
     if (saving.current || disabled) return;
@@ -76,7 +77,7 @@ export function TaskRenameDialog(props: {
               returnKeyType="done"
               submitBehavior="submit"
               onSubmitEditing={() => void save()}
-              style={{ minHeight: taskControlHeight(44, scale), height: Math.max(taskControlHeight(44, scale), contentHeight), textAlignVertical: "top", paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderRadius: 8, borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface0, fontSize: Math.round(F.base * scale) }}
+              style={{ minHeight: taskControlHeight(44, scale), height: Math.max(taskControlHeight(44, scale), contentHeight), textAlignVertical: "center", lineHeight: inputLineHeight, includeFontPadding: false, paddingHorizontal: 12, paddingVertical: Math.max(10, (taskControlHeight(44, scale) - inputLineHeight - 2) / 2), borderWidth: 1, borderRadius: 8, borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface0, fontSize: Math.round(F.base * scale) }}
             />
             {error ? <Text accessibilityRole="alert" style={{ fontSize: F.sm, color: colors.statusDanger }}>{error}</Text> : null}
             <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>

@@ -186,9 +186,12 @@ describe("task title editor", () => {
     expect(input().props.value).toBe(title);
     expect(input().props.multiline).toBe(true);
     expect(input().props.scrollEnabled).toBe(false);
+    expect(input().props.style.textAlignVertical).toBe("center");
+    expect(input().props.style.includeFontPadding).toBe(false);
+    expect(input().props.style.lineHeight + input().props.style.paddingVertical * 2 + input().props.style.borderWidth * 2).toBe(input().props.style.minHeight);
     await act(async () => input().props.onContentSizeChange({ nativeEvent: { contentSize: { width: 260, height: 108 } } }));
     expect(input().props.style.height).toBe(108);
-    expect(input().props.style.textAlignVertical).toBe("top");
+    expect(input().props.style.textAlignVertical).toBe("center");
     await act(async () => input().props.onContentSizeChange({ nativeEvent: { contentSize: { width: 260, height: 64 } } }));
     expect(input().props.style.height).toBe(64);
   });
