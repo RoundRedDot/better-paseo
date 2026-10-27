@@ -4,13 +4,13 @@
 
 一个 [Paseo](https://paseo.sh) 插件，重新绘制 Paseo 中所有 agent 的聊天时间线，不论背后是哪家服务（Claude Code、Codex、Oh My Pi 等）：工具调用、思考、回复、提问、待办和错误都画成紧凑、按类型区分、带语法高亮的行，配色跟随当前的 Paseo 主题。它还加了一个 **Tasks** 看板，把这台主机上的所有 agent 按状态分列铺开。界面按手上的设备来画：手机上是可以双指缩放字号的详情抽屉和左右滑动的单列看板，iPad 上是浮动面板、侧边面板，以及带详情侧栏或底部弹层的看板。下方实测对比时间线和 Paseo 原生时间线的开销。
 
-https://github.com/user-attachments/assets/2b16b0a5-8567-4f3e-8fbd-4a594c74d2da
+{{TIMELINE_VIDEO_URL}}
 
-<sub>GitHub App 里看不到播放器？[打开时间线视频](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v13/better-paseo-promo-v13-timeline-web.mp4)。</sub>
+<sub>GitHub App 里看不到播放器？[打开时间线视频](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-timeline-web.mp4)。</sub>
 
-https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
+{{TASKS_VIDEO_URL}}
 
-<sub>GitHub App 里看不到播放器？[打开Tasks视频](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v13/better-paseo-promo-v13-tasks-web.mp4)。</sub>
+<sub>GitHub App 里看不到播放器？[打开Tasks视频](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-tasks-web.mp4)。</sub>
 
 <img alt="Better Paseo，一个 Paseo 插件：桌面窗口里的 Tasks 看板，有出错的子任务卡片、展开子任务的父卡片和虚线框的只读子代理卡片，旁边是 iPhone 上的聊天时间线" src="images/hero-cover-zh.png">
 
@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
 
 - **为手机和 iPad 设计。** 手机上点按一行，它会在底部抽屉里打开，双指可以调字号；iPad 上则是浮动面板或侧边面板。Tasks 看板在手机上一次显示一列，在平板上是多列泳道，配详情侧栏、浮动面板或底部弹层。见[手机与 iPad](#手机与-ipad)。
 
-- **性能实测。** 对照 Paseo 0.12.0，本轮 Web 与 iOS 共串行回放 220 次（每格 5 次）；长回复的 Web 主线程时间减少 80%。详见[性能对比](#性能对比)。
+- **性能实测。** 对照 Paseo 0.13.0，Web 与 iOS 共串行回放 220 次（每格 5 次）；长回复的 Web 主线程时间从 16.189 秒降到 5.520 秒，减少 66%。详见[性能对比](#性能对比)。
 
 - **一个工具调用一行。** 调用默认折叠成 26pt 的一行，摘要按类型生成；完成、滚进历史、重新挂载后，展开状态都不会丢。
 - **每个工具都有自己的图标。** Shell 行画出所运行的程序（101 个图标覆盖 209 个程序，从 `python` 到 `kubectl`），MCP 行画出所调用的服务（75 个服务，从 Linear 到飞书），其余调用按类型画。见[工具图标](#工具图标)。
@@ -33,7 +33,7 @@ https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
 - **跟随 Paseo。** 字体、字号、颜色和语言默认跟随宿主；设置保存在 daemon 上，桌面、网页、iOS、Android 共用同一份。
 - **重连负担小。** 客户端以压缩后的形式下发，Tasks 看板只在开启时加载，Paseo 每次重连都要重发的插件清单从 1,977 KB 降到 722 KB（2026-10-23 改动合入时在 Paseo 0.12 daemon 上测得）。
 
-- **内存实测。** 所有 Web 场景中，Better Paseo 强制 GC 后的 JavaScript 堆比不开插件多 5.1–14.2 MB。见[内存对比](#内存对比)。
+- **内存实测。** 所有 Web 场景中，Better Paseo 强制 GC 后的 JavaScript 堆比不开插件多 5.1–13.2 MB。见[内存对比](#内存对比)。
 
 ## 安装
 
@@ -41,7 +41,7 @@ https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
 paseo plugin install RoundRedDot/better-paseo
 ```
 
-需要 Paseo `>=0.8.0`，开发与测量基于 Paseo 0.12.0。在 Paseo 0.8–0.10 上可以使用，但有部分兼容问题，见[兼容性](#兼容性)。在 **设置 → 插件 → Better Paseo**（页面标题为 **设置**）中配置。Paseo 从 GitHub 安装插件，并在安装时构建客户端；更新到新版本：
+需要 Paseo `>=0.12.0`，开发与测量基于 Paseo 0.13.0。更早的版本和测试版见[兼容性](#兼容性)。在 **设置 → 插件 → Better Paseo**（页面标题为 **设置**）中配置。Paseo 从 GitHub 安装插件，并在安装时构建客户端；更新到新版本：
 
 ```bash
 paseo plugin update better-paseo        # 列出更新并询问
@@ -69,16 +69,16 @@ Paseo 在桌面、网页、iOS 和 Android 上运行的是同一个插件。Bett
 
 - **适合拇指的行。** 在 Paseo 的紧凑布局里，工具行高 28pt，摘要按更窄的栏宽截断；每一行的点按区域扩到 44pt。点按打开这一行的详情，点行首图标在原地展开；展开时行头留在按下的位置，内容向下打开。
 - **可以双指缩放的抽屉。** 区块详情从底部升起，高度贴合内容（最多屏幕的 58%），从把手可以拉到全高。在正文上双指捏合即可调字号，范围是时间线正文字号的 -4pt 到 +10pt；正文和代码一起变，手指下的那一行保持不动，捏合时会显示「字号」标记和「复原」。字号保存在 daemon 上，连接同一主机的所有手机都按这个字号显示。在标题栏上左右滑动可切换到上一个或下一个区块。
-- **能横屏的地方。** Paseo 的 iOS 和 Android 应用让手机保持竖屏（Paseo 0.12 的应用配置里是 `orientation: "portrait"`）。在横过来的手机浏览器里，或任何宽至少 600pt、高不足 500pt 的窗口中，详情改成 400pt 宽的侧边面板，旁边的时间线仍然可读。
+- **能横屏的地方。** Paseo 的 iOS 和 Android 应用让手机保持竖屏（Paseo 0.13 的应用配置里是 `orientation: "portrait"`）。在横过来的手机浏览器里，或任何宽至少 600pt、高不足 500pt 的窗口中，详情改成 400pt 宽的侧边面板，旁边的时间线仍然可读。
 - **用手指选中。** iOS 上长按回复正文可以放置光标、拖动选区。表格里，连续点按两次选中一个单元格，按住某个单元格再横向、纵向拖动可以选中一片；松手后弹出复制菜单。
 - **图片。** 全屏查看器以手指为中心缩放（0.25 到 8 倍），放大后可拖动平移，双击复位，上下拖动关闭。文件按钮显示为「复制路径」，复制文件的绝对路径，因为文件在 daemon 那台机器上。
 - **单手看 Tasks。** 看板一次显示一列，顶部是带各列计数的标签（待输入、运行中、待查看、已完成，开启已归档泳道时还有已归档）；左右滑动或点按切换。各列是原生分页，所以除了第一列，横向滑动只会换列，不会打开 Paseo 的 agent 列表。卡片末尾是一排按钮，最右是「打开」，提问请求显示「打开处理」。点按卡片打开详情弹层，可以在同一列的卡片间前后切换，底部固定着「打开」或「打开处理」和「停止」或「归档」，权限请求还会有「拒绝」或「允许」；停止前先弹系统对话框确认。顶部保留搜索、已归档泳道和「筛选」；筛选弹层里有空分组和子任务开关、agent、标签、已完成时间窗口和排序，最后是带搜索框的 workspace 列表，「重置」和「显示 N 个任务」固定在底部。
 
 | 时间线 | 区块详情抽屉，正在双指缩放 | Tasks 看板 |
 | --- | --- | --- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-timeline-dark.png"><img width="260" alt="iPhone：紧凑工具行，每行带程序或服务图标（Vitest、Playwright、ESLint、TypeScript、Sentry、GitHub、Linear），带代码块的回复和轮次信息栏，下方是 Paseo 的输入框" src="images/mobile-timeline-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-details-drawer-dark.png"><img width="260" alt="iPhone：屏幕底部的区块详情抽屉里是一次编辑的 diff，正在双指缩放，代码上方显示「Text size 19 · Reset」标记" src="images/mobile-details-drawer-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-dark.png"><img width="260" alt="iPhone：Tasks 看板顶部是带计数的列标签，当前是待输入列的两张卡片，各有允许、拒绝、停止和打开 tab" src="images/mobile-tasks-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-timeline-dark.png"><img width="260" alt="iPhone：紧凑工具行，每行带程序或服务图标（Vitest、Playwright、ESLint、TypeScript、Sentry、GitHub、Linear），带代码块的回复和轮次信息栏，下方是 Paseo 的输入框" src="images/mobile-timeline-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-details-drawer-dark.png"><img width="260" alt="iPhone：屏幕底部的区块详情抽屉里是一次编辑的 diff，正在双指缩放，代码上方显示「Text size 16 · Reset」标记" src="images/mobile-details-drawer-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-dark.png"><img width="260" alt="iPhone：Tasks 看板顶部是带计数的列标签，当前是待输入列的两张卡片，各有允许、拒绝、停止和打开箭头" src="images/mobile-tasks-light.png"></picture> |
 | **运行中卡片的详情** | **等待中卡片的详情** | **筛选** |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-sheet-dark.png"><img width="260" alt="iPhone：运行中卡片的详情弹层，顶部是「Running · 2 / 5」切换，有本轮计时和上下文，底部固定停止和打开 tab" src="images/mobile-tasks-sheet-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-sheet-input-dark.png"><img width="260" alt="iPhone：等待中卡片的详情弹层，显示它请求运行的命令，底部固定拒绝、允许和打开 tab" src="images/mobile-tasks-sheet-input-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-filters-dark.png"><img width="260" alt="iPhone：Tasks 筛选弹层，有显示子任务开关、带计数的 agent 和标签选项，底部是重置和「Show 4 tasks」" src="images/mobile-tasks-filters-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-sheet-dark.png"><img width="260" alt="iPhone：运行中卡片的详情弹层，顶部是「Running · 3 / 6」切换，有本轮计时和上下文，底部固定停止和打开" src="images/mobile-tasks-sheet-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-sheet-input-dark.png"><img width="260" alt="iPhone：等待中卡片的详情弹层，显示它请求运行的命令，底部固定拒绝、允许和打开箭头" src="images/mobile-tasks-sheet-input-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-filters-dark.png"><img width="260" alt="iPhone：Tasks 筛选弹层，有「Show groups with no active tasks」开关、agent 选项和带计数的标签选项，底部是重置和「Show 4 tasks」" src="images/mobile-tasks-filters-light.png"></picture> |
 
 ### 在 iPad 上
 
@@ -92,7 +92,7 @@ Paseo 在桌面、网页、iOS 和 Android 上运行的是同一个插件。Bett
 
 | 13 英寸横屏：Tasks 与详情侧栏 | 13 英寸竖屏：Tasks 与详情弹层 |
 | --- | --- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="images/ipad-tasks-dark.png"><img width="440" alt="13 英寸 iPad 横屏：Tasks 看板的过滤栏和泳道，右侧侧栏是一张等待中卡片的详情" src="images/ipad-tasks-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/ipad-tasks-sheet-dark.png"><img width="300" alt="13 英寸 iPad 竖屏：Tasks 看板的泳道下方是两栏的底部弹层，显示一张等待中卡片的详情" src="images/ipad-tasks-sheet-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="images/ipad-tasks-dark.png"><img width="440" alt="13 英寸 iPad 横屏：Tasks 看板的单行工具栏和泳道，每张卡片都有停止和打开，运行中列有一张虚线框的只读子代理卡片，右侧侧栏是一张等待中卡片的详情" src="images/ipad-tasks-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/ipad-tasks-sheet-dark.png"><img width="300" alt="13 英寸 iPad 竖屏：Tasks 看板的泳道里有虚线框的只读子代理卡片和待查看列中出错的卡片，下方是两栏的底部弹层，显示一张等待中卡片的详情，带停止、打开、允许和拒绝" src="images/ipad-tasks-sheet-light.png"></picture> |
 
 快捷键、桌面悬停预览、按住 Command 添加表格选区，以及看板上的双击和右键菜单，只在网页和桌面上有；接了键盘的 iPad 也没有。
 
@@ -102,101 +102,101 @@ Paseo 在桌面、网页、iOS 和 Android 上运行的是同一个插件。Bett
 
 ### Web
 
-2026-10-23 在 Mac Studio（Apple M5 Max、18 核、64 GB、macOS 27.0.1）上对照 Paseo 0.12.0 测量；Paseo 使用 react-native-enriched-markdown 绘制回复。Better Paseo 测试版本为 f2f64009，通过插件安装流程构建，并核实了实际加载的压缩 bundle。Web 和 iOS 各测 11 个场景 × 2 种配置（不开插件、Better Paseo）× 5 次：每个平台 110 次，共 220 次；串行执行，并按场景轮换配置顺序。bench daemon 使用干净的 home，测量期间只有 1 个 workspace 和 1 个活跃 agent；每次跑完时的 1 分钟负载为 13–29，中位数 16。Web 使用 Chrome 155.0.8059.85、1280×900。Tasks 看板和 Block details 均按默认设置开启。之后的 UI 提交 466b149d、7f857477（图片查看器）及 7c781aa2、7e8d412f、925f4871（Tasks 卡片）不会改变这些时间线场景。后续时间线提交 9607e789（"perf(details): defer inactive timeline details work"）和 d4f68108（"perf(details): mount row markers only after selection"）单独对照 11 个场景，没有场景变慢；历史回放端到端基本持平：Web 为 0.896 对 0.887 秒，iOS 为 2.78 对 2.77 秒。下表仍是 f2f64009 的 220 次回放结果，不代表这些后续提交的测量值。
+2026-10-26 至 27 日在 Mac Studio（Apple M5 Max、18 核、64 GB、macOS 27.0.1）上对照 Paseo 0.13.0 测量；Paseo 0.13 基于 React Native 0.86，回复仍由 react-native-enriched-markdown 绘制。Better Paseo 测试版本为 948b8720，通过插件安装流程构建，每次跑次都核实了实际加载的压缩 bundle。Web 和 iOS 各测 11 个场景 × 2 种配置（不开插件、Better Paseo）× 5 次：每个平台 110 次，共 220 次；串行执行，并按场景轮换配置顺序。bench daemon 使用干净的 home，测量期间只有 1 个 workspace 和 1 个 agent。每批只在机器安静时开始：没有其他已启动的模拟器，没有其他构建在跑，一分钟内 CPU 平均空闲不低于 90%；每次跑完时的 1 分钟负载，Web 为 1–7（中位数 2），iOS 为 1.0–8.3（中位数 1.7）。Web 使用 Chrome 156.0.8078.48、1280×900。Tasks 看板和 Block details 均按默认设置开启。之后到本 README 为止的提交 948b8720..8802deb8 只改了 Tasks 看板在手机上的搜索、筛选弹层和搜索索引，不涉及时间线；下表是 948b8720 的 220 次回放结果。
 
 ![Web 主线程时间](docs/perf/readme/web-cpu.zh.svg)
 
-整段回放主线程 Task 时间（秒）对比不开插件：9 项更低、1 项持平、1 项更高。差异不到 10% 记为持平；如果两边整段回放都不到 0.5 秒，也记为持平。长回复的 Task 时间是不开插件 15.617 秒、Better Paseo 3.153 秒，减少 80%。
+整段回放主线程 Task 时间（秒）对比不开插件：9 项更低、1 项持平、1 项更高。差异不到 10% 记为持平；如果两边整段回放都不到 0.5 秒，也记为持平。长回复的 Task 时间是不开插件 16.189 秒、Better Paseo 5.520 秒，减少 66%。
 
 | 场景 | 不开插件 | Better Paseo | 对比不开插件 |
 | --- | ---: | ---: | :--- |
-| 代码块流式 | 3.714 | **1.401** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;62% |
-| 大 diff | 0.272 | **0.250** | 持平 |
-| 历史回放 | 0.701 | **0.975** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;39% |
-| 长回复 | 15.617 | **3.153** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;80% |
-| 混合一轮 | 1.009 | **0.785** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;22% |
-| 读 20 个文件 | 0.778 | **0.640** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;18% |
-| 思考散文 | 1.584 | **1.007** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;36% |
-| 思考分节 | 1.419 | **0.888** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;37% |
-| 大段终端 | 0.613 | **0.423** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;31% |
-| 表格流式 | 2.242 | **1.012** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;55% |
-| 工具日志增长 | 1.075 | **0.906** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;16% |
+| 代码块流式 | 3.789 | **2.351** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;38% |
+| 大 diff | 0.368 | **0.328** | 持平 |
+| 历史回放 | 0.784 | **1.075** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;37% |
+| 长回复 | 16.189 | **5.520** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;66% |
+| 混合一轮 | 1.514 | **1.221** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;19% |
+| 读 20 个文件 | 1.077 | **0.945** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;12% |
+| 思考散文 | 2.985 | **1.737** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;42% |
+| 思考分节 | 2.586 | **1.470** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;43% |
+| 大段终端 | 0.943 | **0.657** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;30% |
+| 表格流式 | 2.783 | **1.651** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;41% |
+| 工具日志增长 | 1.736 | **1.450** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;16% |
 
 同一批跑次的时间线行渲染总量（宿主 Profiler allRows.sum，毫秒），对比不开插件：9 项更低、0 项持平、2 项更高。
 
 | 场景 | 不开插件 | Better Paseo | 对比不开插件 |
 | --- | ---: | ---: | :--- |
-| 代码块流式 | 1,491.6 | **123.2** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;92% |
-| 大 diff | 17.8 | **13.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;26% |
-| 历史回放 | 164.8 | **260.6** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;58% |
-| 长回复 | 9,733.0 | **238.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;98% |
-| 混合一轮 | 117.6 | **50.4** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;57% |
-| 读 20 个文件 | 79.3 | **56.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;29% |
-| 思考散文 | 325.8 | **71.9** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;78% |
-| 思考分节 | 294.4 | **68.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% |
-| 大段终端 | 18.4 | **11.4** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;38% |
-| 表格流式 | 832.7 | **78.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;91% |
-| 工具日志增长 | 32.4 | **52.0** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;60% |
+| 代码块流式 | 1,247.1 | **222.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;82% |
+| 大 diff | 27.6 | **19.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;31% |
+| 历史回放 | 147.0 | **236.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;61% |
+| 长回复 | 8,887.4 | **438.7** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;95% |
+| 混合一轮 | 164.6 | **89.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;46% |
+| 读 20 个文件 | 120.7 | **87.7** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;27% |
+| 思考散文 | 493.7 | **132.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% |
+| 思考分节 | 457.5 | **120.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;74% |
+| 大段终端 | 26.2 | **17.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;35% |
+| 表格流式 | 886.4 | **147.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;83% |
+| 工具日志增长 | 56.8 | **94.3** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;66% |
 
 ### 流式布局偏移
 
-同一批 Web 跑次的累计布局偏移（CLS，越低越好），保留六位小数。0.5 秒规则不适用。基线很小时百分比会显得很大，应同时看绝对值；低于 0.002 的读数通常不易看出来。对比不开插件：3 项更低、3 项持平、5 项更高。
+同一批 Web 跑次的累计布局偏移（CLS，越低越好），保留六位小数。0.5 秒规则不适用。基线很小时百分比会显得很大，应同时看绝对值；低于 0.002 的读数通常不易看出来。对比不开插件：2 项更低、3 项持平、6 项更高。
 
 | 场景 | 不开插件 | Better Paseo | 对比不开插件 |
 | --- | ---: | ---: | :--- |
-| 代码块流式 | 0.001333 | **0.030847** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;2214% |
+| 代码块流式 | 0.001168 | **0.030875** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;2543% |
 | 大 diff | 0.000015 | **0.000015** | 持平 |
-| 历史回放 | 0.107329 | **0.008503** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;92% |
-| 长回复 | 0.054866 | **0.000015** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| 历史回放 | 0.000015 | **0.000347** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;2278% |
+| 长回复 | 0.053955 | **0.000015** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
 | 混合一轮 | 0.002791 | **0.026655** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;855% |
 | 读 20 个文件 | 0.000015 | **0.000793** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5335% |
 | 思考散文 | 0.000015 | **0.000778** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5235% |
 | 思考分节 | 0.000015 | **0.000778** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5235% |
 | 大段终端 | 0.000015 | **0.000015** | 持平 |
-| 表格流式 | 0.046049 | **0.016243** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;65% |
+| 表格流式 | 0.045756 | **0.016243** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;65% |
 | 工具日志增长 | 0.000015 | **0.000015** | 持平 |
 
 ### iOS
 
-Paseo 0.12.0 Release 构建，iPhone 17 Pro / iOS 26.5 模拟器；每次样本都冷启动，行探针使用 React profiling renderer。Paseo 0.12 在原生线程上排版 Markdown，因此 iOS 的主要指标是整段回放期间整个 App 进程的 CPU 时间。这些模拟器测量不代表真机性能。
+Paseo 0.13.0 Release 构建，iPhone 17 Pro / iOS 26.5 模拟器；每次样本都冷启动，行探针使用 React profiling renderer。Paseo 0.13 在原生线程上排版 Markdown，因此 iOS 的主要指标是整段回放期间整个 App 进程的 CPU 时间。这些模拟器测量不代表真机性能。iOS 批次进行中，bench 之外的一次模拟器服务重启关掉了所有模拟器；第 1、2 轮因此作废，在同样的安静检查下完整重跑，并检查每个样本期间模拟器都没有重启。有 7 个样本（都是不开插件）以 Paseo App 崩溃结束，已整次重跑，所以每格都是 5 个完整样本。
 
 ![iOS App CPU 时间](docs/perf/readme/ios-cpu.zh.svg)
 
-整个 App 进程的 CPU 时间对比不开插件：3 项更低、7 项持平、1 项更高。长回复中宿主耗时 30.64 秒，Better Paseo 为 8.16 秒（减少 73%）。帧探针记录的掉帧数中位数分别为宿主 1,253 帧、Better Paseo 12 帧；最长帧分别为 388 ms 和 78 ms。
+整个 App 进程的 CPU 时间对比不开插件：4 项更低、6 项持平、1 项更高。长回复中宿主耗时 25.56 秒，Better Paseo 为 11.76 秒（减少 54%）。帧探针记录的掉帧数中位数分别为宿主 894 帧、Better Paseo 15 帧；最长帧分别为 155.1 ms 和 47.9 ms。iOS 的历史回放呈双峰：App CPU 取决于回放画了多少帧。本轮 10 个样本全部落在低峰，之前 Paseo 0.12 那一轮则全部落在高峰。因此 iOS 的秒数不能跨轮比较，只看同一轮内的比例。
 
 | 场景 | 不开插件 | Better Paseo | 对比不开插件 |
 | --- | ---: | ---: | :--- |
-| 代码块流式 | 3.54 | **3.27** | 持平 |
-| 大 diff | 0.40 | **0.43** | 持平 |
-| 历史回放 | 1.96 | **2.19** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;12% |
-| 长回复 | 30.64 | **8.16** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% |
-| 混合一轮 | 1.47 | **1.37** | 持平 |
-| 读 20 个文件 | 1.24 | **1.34** | 持平 |
-| 思考散文 | 2.46 | **2.31** | 持平 |
-| 思考分节 | 2.17 | **1.99** | 持平 |
-| 大段终端 | 0.83 | **0.68** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;18% |
-| 表格流式 | 2.19 | **2.17** | 持平 |
-| 工具日志增长 | 1.86 | **1.67** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;10% |
+| 代码块流式 | 4.54 | **4.23** | 持平 |
+| 大 diff | 0.55 | **0.50** | 持平 |
+| 历史回放 | 0.38 | **0.58** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;53% |
+| 长回复 | 25.56 | **11.76** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;54% |
+| 混合一轮 | 2.04 | **1.90** | 持平 |
+| 读 20 个文件 | 1.50 | **1.63** | 持平 |
+| 思考散文 | 3.40 | **3.31** | 持平 |
+| 思考分节 | 2.98 | **2.54** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;15% |
+| 大段终端 | 1.32 | **0.92** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;30% |
+| 表格流式 | 3.10 | **2.98** | 持平 |
+| 工具日志增长 | 2.80 | **2.33** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;17% |
 
 JavaScript 时间线行渲染总量（宿主 Profiler allRows.sum，毫秒）对比不开插件：3 项更低、0 项持平、8 项更高。Paseo 在原生线程上排版 Markdown，所以这项 JavaScript 探针不能代表整个 App 的 CPU 开销。
 
 | 场景 | 不开插件 | Better Paseo | 对比不开插件 |
 | --- | ---: | ---: | :--- |
-| 代码块流式 | 584.8 | **317.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;46% |
-| 大 diff | 9.8 | **41.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;329% |
-| 历史回放 | 47.2 | **115.4** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;145% |
-| 长回复 | 19,925.6 | **704.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;96% |
-| 混合一轮 | 82.5 | **131.4** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;59% |
-| 读 20 个文件 | 97.1 | **152.7** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;57% |
-| 思考散文 | 127.6 | **174.2** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;37% |
-| 思考分节 | 115.0 | **158.7** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;38% |
-| 大段终端 | 10.1 | **39.4** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;290% |
-| 表格流式 | 289.6 | **186.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;35% |
-| 工具日志增长 | 71.1 | **124.3** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;75% |
+| 代码块流式 | 647.2 | **407.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;37% |
+| 大 diff | 11.9 | **45.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;286% |
+| 历史回放 | 34.7 | **82.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;137% |
+| 长回复 | 13,968.3 | **798.9** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;94% |
+| 混合一轮 | 107.6 | **168.8** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;57% |
+| 读 20 个文件 | 101.0 | **175.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;74% |
+| 思考散文 | 144.5 | **215.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;49% |
+| 思考分节 | 133.1 | **179.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;35% |
+| 大段终端 | 12.0 | **40.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;241% |
+| 表格流式 | 358.6 | **285.2** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;20% |
+| 工具日志增长 | 87.9 | **144.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;64% |
 
 绿色 ⬆ 表示更低，红色 ⬇ 表示更高。百分比按未舍入的中位数计算。`history-100` 是 fixture 名称，不代表 100 个实际 provider turn，此处称“历史回放”。`tool-expanded-streaming` 不执行展开操作，此处称“工具日志增长”。
 
-**方法与边界。** Web 主线程时间是 CDP 记录的整段回放 TaskDuration；行渲染表为宿主 React Profiler 对各时间线行计时的总和。iOS App CPU 覆盖整个进程及原生线程，iOS 行渲染时间只覆盖 JavaScript。表中每格都是 5 次跑次的中位数，百分比按未舍入中位数计算。差异不到 10% 记为持平；Web 整段回放两边都不到 0.5 秒时也记为持平。CLS 不适用 0.5 秒门槛；基线接近零时百分比会放大，应看六位小数的绝对值。与 Beautiful Chat 42b61d8 的对比是在 Paseo 0.11.2 上测得，未在 0.12 重测。Tasks 和 Block details 按默认设置开启。单独的 A/B 显示，Tasks 使 Web 历史回放主线程时间从 0.885 秒升至 0.941 秒（+6%），对应样本的 JS 堆增加约 1.3–2.1 MB；iOS 历史回放 App CPU 变化约 2%。关闭 Block details 后，三个 iOS 场景的 JavaScript 行渲染时间减少 12–17%，App CPU 只变化约 2–4%。历史回放开销的一个已知来源是：宿主每次 agent 更新时，即使 `features` 没有变化，也会换成一个新的数组，导致整个 agent 视图和行渲染回调重新渲染；无论 Tasks 看板开或关都一样。已向上游报告（[getpaseo/paseo#7773](https://github.com/getpaseo/paseo/issues/7773)），修复见 [#7774](https://github.com/getpaseo/paseo/pull/7774)。
+**方法与边界。** Web 主线程时间是 CDP 记录的整段回放 TaskDuration；行渲染表为宿主 React Profiler 对各时间线行计时的总和。iOS App CPU 覆盖整个进程及原生线程，iOS 行渲染时间只覆盖 JavaScript。表中每格都是 5 次跑次的中位数，百分比按未舍入中位数计算。差异不到 10% 记为持平；Web 整段回放两边都不到 0.5 秒时也记为持平。CLS 不适用 0.5 秒门槛；基线接近零时百分比会放大，应看六位小数的绝对值。与 Beautiful Chat 42b61d8 的对比是在 Paseo 0.11.2 上测得，未在 0.12 和 0.13 重测。Tasks 和 Block details 按默认设置开启。在 Paseo 0.12 上单独做的 A/B（未在 0.13 重做）显示，Tasks 使 Web 历史回放主线程时间从 0.885 秒升至 0.941 秒（+6%），对应样本的 JS 堆增加约 1.3–2.1 MB；iOS 历史回放 App CPU 变化约 2%。关闭 Block details 后，三个 iOS 场景的 JavaScript 行渲染时间减少 12–17%，App CPU 只变化约 2–4%。历史回放开销的一个已知来源是：宿主每次 agent 更新时，即使 `features` 没有变化，也会换成一个新的数组，导致整个 agent 视图和行渲染回调重新渲染；无论 Tasks 看板开或关都一样。已向上游报告（[getpaseo/paseo#7773](https://github.com/getpaseo/paseo/issues/7773)），修复见 [#7774](https://github.com/getpaseo/paseo/pull/7774)，目前仍未合并，所以 Paseo 0.13.0 也是如此。
 
 ### 时间省在哪里
 
@@ -210,31 +210,31 @@ JavaScript 时间线行渲染总量（宿主 Profiler allRows.sum，毫秒）对
 
 ## 内存对比
 
-2026-10-23 的 Web 生产 profiling 跑次；每个数值是同一批回放中强制 GC 后 5 次读数的中位数。这是 JavaScript 堆，不是整个进程或应用的内存。差值为 Better Paseo 减不开插件，单位 MB；不适用 10% 持平规则。所有列出的场景里，Better Paseo 的堆多 5.1–14.2 MB。
+2026-10-26 的 Web 生产 profiling 跑次；每个数值是同一批回放中强制 GC 后 5 次读数的中位数。这是 JavaScript 堆，不是整个进程或应用的内存。差值为 Better Paseo 减不开插件，单位 MB；不适用 10% 持平规则。所有列出的场景里，Better Paseo 的堆多 5.1–13.2 MB。
 
 ![Web JavaScript 堆与 DOM 节点](docs/perf/readme/web-memory.zh.svg)
 
 | 场景 | 不开插件 | Better Paseo | 差值 |
 | --- | ---: | ---: | ---: |
-| 代码块流式 | 83.1 | **88.2** | +5.1 |
-| 大 diff | 76.9 | **85.8** | +8.9 |
-| 历史回放 | 83.6 | **97.4** | +13.8 |
-| 长回复 | 82.5 | **96.7** | +14.2 |
-| 混合一轮 | 79.6 | **89.4** | +9.8 |
-| 读 20 个文件 | 80.1 | **91.5** | +11.4 |
-| 思考散文 | 78.5 | **86.5** | +8.1 |
-| 思考分节 | 78.0 | **86.4** | +8.4 |
-| 大段终端 | 77.9 | **86.5** | +8.6 |
-| 表格流式 | 79.1 | **88.3** | +9.2 |
-| 工具日志增长 | 79.8 | **90.9** | +11.0 |
+| 代码块流式 | 83.9 | **89.0** | +5.1 |
+| 大 diff | 78.3 | **86.6** | +8.2 |
+| 历史回放 | 85.8 | **99.1** | +13.2 |
+| 长回复 | 83.8 | **96.4** | +12.6 |
+| 混合一轮 | 80.6 | **90.2** | +9.6 |
+| 读 20 个文件 | 81.6 | **92.1** | +10.6 |
+| 思考散文 | 79.4 | **87.4** | +8.0 |
+| 思考分节 | 79.3 | **87.0** | +7.7 |
+| 大段终端 | 78.9 | **87.3** | +8.4 |
+| 表格流式 | 80.4 | **89.0** | +8.6 |
+| 工具日志增长 | 81.2 | **91.6** | +10.4 |
 
-本轮 Web 原始样本留在本地、被 git 忽略的 docs/bench/2026-10-23-paseo-012-f2f64009 归档中，不进入 git。
+本轮 Web 原始样本留在本地、被 git 忽略的 docs/bench/2026-10-26-paseo-013-948b8720 归档中，不进入 git。
 
 ---
 
 ## 时间线
 
-截图于 2026-10-23 拍摄，代码为 `f2f64009`。截图清单里记录的是本 README 分支的 `118f5903`，其 `client`、`server`、`shared` 与 `f2f64009` 完全一致。卡片和设置截图来自离线 Web showcase；桌面标题图来自网页版 Paseo 0.12.0；手机和 iPad 截图来自 iOS 26.5 模拟器（iPhone 17 Pro、11 英寸和 13 英寸 iPad）上的 Paseo 0.12 Release 构建。所有数据都是示例 fixture。全部截图默认浅色，并随阅读器主题自动切换深色。性能版本及条件见上文。[截图清单](docs/images/screenshots.json)。
+截图于 2026-10-26 至 27 日拍摄。桌面看板、时间线截图和封面图来自 `948b8720`，运行在网页版 Paseo 0.13.0 上；手机和 iPad 截图在 `8802deb8` 上拍摄或复核，来自 iOS 26.5 模拟器（iPhone 17 Pro、11 英寸和 13 英寸 iPad）上的 Paseo 0.13.0 Release 构建。`948b8720..8802deb8` 只改了手机上的搜索和筛选弹层，桌面截图里没有这些界面。卡片和设置截图来自离线 Web showcase，已在 `948b8720` 上复核，没有变化的沿用之前的截图。所有数据都是示例 fixture。全部截图默认浅色，并随阅读器主题自动切换深色。性能版本及条件见上文。[截图清单](docs/images/screenshots.json)。
 
 以下功能都建立在 Beautiful Chat 已有的能力之上：按类型区分的工具卡片、Shiki 高亮、读图、打开文件，以及插件自己的查找栏。
 
@@ -794,10 +794,10 @@ Better Paseo 只能画 Paseo 插件 SDK 允许插件画的东西。下面列出�
 
 ### 兼容性
 
-Better Paseo 基于 Paseo 0.12.0 开发和测量，可在 Paseo 0.8 及以后安装。
+Better Paseo 基于 Paseo 0.13.0 开发和测量，可在 Paseo 0.12.0 及以后安装。
 
-- **Paseo 0.8–0.10。** 时间线可以正常绘制。在这些版本上，Oh My Pi 的 `eval` 和 `ask` 调用以原工具名到达插件，而不是经过 Paseo 0.11 的纯文本转换：`eval` 显示为通用卡片，`ask` 只有在输入含结构化 `questions` 数组时才显示问答记录。
-- **Paseo 0.13 测试版。** 0.13 去掉了插件用来逐步显示流式文字的接口，所以实时回复和思考按到达的内容整段显示，不再平滑展开。[#7571](https://github.com/getpaseo/paseo/pull/7571)（未合并）会恢复它。
+- **Paseo 0.11 及更早。** 插件已无法在这些版本上安装：iOS 正文用到的原生 Markdown 组件需要 Paseo 0.12.0 或更新版本，所以 manifest 要求 `>=0.12.0`。从 Paseo 0.11 起，Oh My Pi 的 `eval` 和 `ask` 调用经过 Paseo 的纯文本转换到达插件，不再以原工具名到达。
+- **Paseo 0.13 测试版。** 测试版去掉了插件用来逐步显示流式文字的接口，所以实时回复和思考按到达的内容整段显示，不再平滑展开。Paseo 0.13.0 为插件恢复了这个接口（[#7780](https://github.com/getpaseo/paseo/pull/7780)）。
 
 ---
 
