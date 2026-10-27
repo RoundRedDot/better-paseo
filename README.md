@@ -10,11 +10,11 @@ and it is drawn for the device in your hand: a phone gets a details drawer you c
 one-lane board you swipe through, an iPad gets floating and side panels and a board with a details
 sidebar or sheet. The performance section compares the timeline with Paseo's own.
 
-{{TIMELINE_VIDEO_URL}}
+https://github.com/user-attachments/assets/493499a2-411f-45bb-9274-d33c92255099
 
 <sub>No player in the GitHub app? [Open the timeline video](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-timeline-web.mp4).</sub>
 
-{{TASKS_VIDEO_URL}}
+https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 
 <sub>No player in the GitHub app? [Open the tasks video](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-tasks-web.mp4).</sub>
 
