@@ -220,6 +220,35 @@ describe("summarizeTool", () => {
     expect(summary.tone).toBe("default");
   });
 
+  it.each([
+    ["git switch --detach v2.13.0 && npm run build -- --report", "switch --detach v2.13.0", ["+1"]],
+    ["git add .&&git commit -m x", "add .", ["+1"]],
+    ["cd x && npm test", "npm test", []],
+    ["cd x && npm test && npm run build", "npm test", ["+1"]],
+    ["FOO=1 pnpm build", "FOO=1 pnpm build", []],
+    ["FOO=1 pnpm build || npm test", "FOO=1 pnpm build", ["+1"]],
+    ["a | b", "a", ["+1"]],
+    ["a; b; c", "a", ["+2"]],
+    ['echo "a && b"', 'echo "a && b"', []],
+    ["echo 'a || b; c | d' && npm test", "echo 'a || b; c | d'", ["+1"]],
+    ["echo a\\;b", "echo a\\;b", []],
+    ['git commit -m "a && b" && npm test', "commit · a && b", ["+1"]],
+    ["npm test # comment && not a command", "npm test # comment && not a command", []],
+    ["python3 - <<'EOF'\nprint('a && b')\nEOF", "python3 - <<'EOF' …", []],
+    [Array.from({ length: 100 }, (_, index) => `cmd${index}`).join(" && "), "cmd0", ["+99"]],
+  ])("summarizes the operator chain %s", (command, target, meta) => {
+    const payload = call("Bash", { type: "shell", command, output: "" });
+    const view = classifyTool(payload);
+    expect(summarizeTool(view)).toMatchObject({ target, meta });
+    expect(view.command).toBe(command);
+  });
+
+  it("keeps the chain count before exit and duration metadata", () => {
+    expect(summarizeTool(classifyTool(call("Bash", {
+      type: "shell", command: "npm test && npm run build", exitCode: 2, durationMs: 1200,
+    })))).toMatchObject({ target: "npm test", meta: ["+1", "exit 2", "1.2s"], tone: "danger" });
+  });
+
   it("puts the first line of a failure under the header", () => {
     const summary = summarizeTool(
       classifyTool(

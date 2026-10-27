@@ -269,6 +269,12 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
 | Meta | 12/16 mono, tabular, at most 45% of the row, entries two spaces apart |
 | Group count | a 22 circle on `surface2`, 11/14 |
 
+- **Shell summaries** keep the first command (Git describes its operation) and its program
+  icon, reading past leading shell setup such as `cd dir &&`. Single-line operator chains (`&&`, `||`,
+  `;`, pipes) put `+N` in the muted meta for the remaining commands, even on long chains;
+  quoted and escaped operators do not split commands. The row stays one line, and opening
+  it shows the full original command, including setup and every chained command. Multiline
+  scripts keep their existing first-line summary with `…`.
 - **Tone** (`rowPalette`): a finished row is quiet, its target muted and its meta and icon pulled
   toward the page; a running row's target sits halfway to `foreground`; a row waiting on the
   reader, and any hovered, pressed, open or current row, is full contrast.

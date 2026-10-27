@@ -1,4 +1,5 @@
 import { cachedLookup } from "./lookup-cache";
+import { splitShellCommands } from "./shell-command";
 
 /**
  * Programs whose shell calls draw the program's icon instead of the terminal,
@@ -145,8 +146,8 @@ function programName(word: string): string {
  * shell setup, from its program on.
  */
 function commandWords(command: string): string[] | undefined {
-  for (const segment of command.split(/&&|\|\||[;|\n]/)) {
-    const words = segment.trim().split(/\s+/).filter(Boolean);
+  for (const segment of splitShellCommands(command).flatMap((part) => part.split("\n"))) {
+    const words = segment.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? [];
     let index = 0;
     while (index < words.length && (ASSIGNMENT.test(words[index]!) || PREFIXES.has(words[index]!))) index += 1;
     const word = words[index]?.replace(/^[("']+|["')]+$/g, "");
