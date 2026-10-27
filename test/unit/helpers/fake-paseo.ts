@@ -438,6 +438,10 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     forgetAgent(agentId: string) {
       agents.delete(agentId);
     },
+    /** Push an agent's updates without changing the table, as a daemon sends a snapshot it took earlier. */
+    pushAgentSnapshot(agent: Agent) {
+      pushAgent(agent, null);
+    },
     setAgentSilently(agent: Agent, placement?: Placement) {
       ensureWorkspace(agent);
       agents.set(agent.id, agent);
