@@ -6,16 +6,16 @@
 
 https://github.com/user-attachments/assets/493499a2-411f-45bb-9274-d33c92255099
 
-<sub>GitHub App 里看不到播放器？[打开时间线视频](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-timeline-web.mp4)。</sub>
+<sub>GitHub App 里看不到播放器？[打开时间线视频](https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/better-paseo-promo-v14-timeline-web.mp4)。</sub>
 
 https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 
-<sub>GitHub App 里看不到播放器？[打开Tasks视频](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-tasks-web.mp4)。</sub>
+<sub>GitHub App 里看不到播放器？[打开Tasks视频](https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/better-paseo-promo-v14-tasks-web.mp4)。</sub>
 
-<img alt="Better Paseo，一个 Paseo 插件：桌面窗口里的 Tasks 看板，有出错的子任务卡片、展开子任务的父卡片和虚线框的只读子代理卡片，旁边是 iPhone 上的聊天时间线" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--hero-cover-zh.png">
+<img alt="Better Paseo，一个 Paseo 插件：桌面窗口里的 Tasks 看板，有出错的子任务卡片、展开子任务的父卡片和虚线框的只读子代理卡片，旁边是 iPhone 上的聊天时间线" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--hero-cover-zh.png">
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--tasks-board-zh-dark.png"><img alt="Tasks 看板：所有 agent 按状态分列排开，包括带错误信息的出错子任务卡片、展开子任务的父卡片和虚线框的只读子代理卡片，侧栏显示各状态数量和按 agent 的分组" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--tasks-board-zh-light.png"></picture>
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--timeline-zh-dark.png"><img alt="由紧凑工具行和待办组成的聊天时间线，区块详情侧边面板里打开了一次编辑的 diff" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--timeline-zh-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--tasks-board-zh-dark.png"><img alt="Tasks 看板：所有 agent 按状态分列排开，包括带错误信息的出错子任务卡片、展开子任务的父卡片和虚线框的只读子代理卡片，侧栏显示各状态数量和按 agent 的分组" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--tasks-board-zh-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--timeline-zh-dark.png"><img alt="由紧凑工具行和待办组成的聊天时间线，区块详情侧边面板里打开了一次编辑的 diff" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--timeline-zh-light.png"></picture>
 
 > Better Paseo fork 自 [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat)，从 `42b61d8`（2026-09-23）接着开发。除 Eval、Ask、Task 和审批卡片外，Beautiful Chat 原有的卡片都还在；当前的 Paseo 不会把这几类内容交给插件（见[兼容性](#兼容性)）。本文介绍这个 fork 新增的功能和它的性能表现。
 
@@ -76,9 +76,9 @@ Paseo 在桌面、网页、iOS 和 Android 上运行的是同一个插件。Bett
 
 | 时间线 | 区块详情抽屉，正在双指缩放 | Tasks 看板 |
 | --- | --- | --- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-timeline-dark.png"><img width="260" alt="iPhone：紧凑工具行，每行带程序或服务图标（Vitest、Playwright、ESLint、TypeScript、Sentry、GitHub、Linear），带代码块的回复和轮次信息栏，下方是 Paseo 的输入框" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-timeline-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-details-drawer-dark.png"><img width="260" alt="iPhone：屏幕底部的区块详情抽屉里是一次编辑的 diff，正在双指缩放，代码上方显示「Text size 16 · Reset」标记" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-details-drawer-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-tasks-dark.png"><img width="260" alt="iPhone：Tasks 看板顶部是带计数的列标签，当前是待输入列的两张卡片，各有允许、拒绝、停止和打开箭头" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-tasks-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-timeline-dark.png"><img width="260" alt="iPhone：紧凑工具行，每行带程序或服务图标（Vitest、Playwright、ESLint、TypeScript、Sentry、GitHub、Linear），带代码块的回复和轮次信息栏，下方是 Paseo 的输入框" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-timeline-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-details-drawer-dark.png"><img width="260" alt="iPhone：屏幕底部的区块详情抽屉里是一次编辑的 diff，正在双指缩放，代码上方显示「Text size 16 · Reset」标记" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-details-drawer-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-tasks-dark.png"><img width="260" alt="iPhone：Tasks 看板顶部是带计数的列标签，当前是待输入列的两张卡片，各有允许、拒绝、停止和打开箭头" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-tasks-light.png"></picture> |
 | **运行中卡片的详情** | **等待中卡片的详情** | **筛选** |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-tasks-sheet-dark.png"><img width="260" alt="iPhone：运行中卡片的详情弹层，顶部是「Running · 3 / 6」切换，有本轮计时和上下文，底部固定停止和打开" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-tasks-sheet-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-tasks-sheet-input-dark.png"><img width="260" alt="iPhone：等待中卡片的详情弹层，显示它请求运行的命令，底部固定拒绝、允许和打开箭头" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-tasks-sheet-input-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-tasks-filters-dark.png"><img width="260" alt="iPhone：Tasks 筛选弹层，有「Show groups with no active tasks」开关、agent 选项和带计数的标签选项，底部是重置和「Show 4 tasks」" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--mobile-tasks-filters-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-tasks-sheet-dark.png"><img width="260" alt="iPhone：运行中卡片的详情弹层，顶部是「Running · 3 / 6」切换，有本轮计时和上下文，底部固定停止和打开" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-tasks-sheet-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-tasks-sheet-input-dark.png"><img width="260" alt="iPhone：等待中卡片的详情弹层，显示它请求运行的命令，底部固定拒绝、允许和打开箭头" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-tasks-sheet-input-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-tasks-filters-dark.png"><img width="260" alt="iPhone：Tasks 筛选弹层，有「Show groups with no active tasks」开关、agent 选项和带计数的标签选项，底部是重置和「Show 4 tasks」" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--mobile-tasks-filters-light.png"></picture> |
 
 ### 在 iPad 上
 
@@ -88,11 +88,11 @@ Paseo 在桌面、网页、iOS 和 Android 上运行的是同一个插件。Bett
 
 | 11 英寸竖屏：浮动面板 | 11 英寸横屏：侧边面板 |
 | --- | --- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--ipad-details-floating-dark.png"><img width="300" alt="11 英寸 iPad 竖屏：一次编辑的 diff 在区块详情浮动面板里，居中盖在时间线和 Paseo 侧边栏上方" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--ipad-details-floating-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--ipad-details-side-dark.png"><img width="440" alt="11 英寸 iPad 横屏：Paseo 侧边栏、时间线，右侧区块详情侧边面板里是一次编辑的 diff" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--ipad-details-side-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--ipad-details-floating-dark.png"><img width="300" alt="11 英寸 iPad 竖屏：一次编辑的 diff 在区块详情浮动面板里，居中盖在时间线和 Paseo 侧边栏上方" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--ipad-details-floating-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--ipad-details-side-dark.png"><img width="440" alt="11 英寸 iPad 横屏：Paseo 侧边栏、时间线，右侧区块详情侧边面板里是一次编辑的 diff" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--ipad-details-side-light.png"></picture> |
 
 | 13 英寸横屏：Tasks 与详情侧栏 | 13 英寸竖屏：Tasks 与详情弹层 |
 | --- | --- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--ipad-tasks-dark.png"><img width="440" alt="13 英寸 iPad 横屏：Tasks 看板的单行工具栏和泳道，每张卡片都有停止和打开，运行中列有一张虚线框的只读子代理卡片，右侧侧栏是一张等待中卡片的详情" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--ipad-tasks-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--ipad-tasks-sheet-dark.png"><img width="300" alt="13 英寸 iPad 竖屏：Tasks 看板的泳道里有虚线框的只读子代理卡片和待查看列中出错的卡片，下方是两栏的底部弹层，显示一张等待中卡片的详情，带停止、打开、允许和拒绝" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--ipad-tasks-sheet-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--ipad-tasks-dark.png"><img width="440" alt="13 英寸 iPad 横屏：Tasks 看板的单行工具栏和泳道，每张卡片都有停止和打开，运行中列有一张虚线框的只读子代理卡片，右侧侧栏是一张等待中卡片的详情" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--ipad-tasks-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--ipad-tasks-sheet-dark.png"><img width="300" alt="13 英寸 iPad 竖屏：Tasks 看板的泳道里有虚线框的只读子代理卡片和待查看列中出错的卡片，下方是两栏的底部弹层，显示一张等待中卡片的详情，带停止、打开、允许和拒绝" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--ipad-tasks-sheet-light.png"></picture> |
 
 快捷键、桌面悬停预览、按住 Command 添加表格选区，以及看板上的双击和右键菜单，只在网页和桌面上有；接了键盘的 iPad 也没有。
 
@@ -238,7 +238,7 @@ JavaScript 时间线行渲染总量（宿主 Profiler allRows.sum，毫秒）对
 
 以下功能都建立在 Beautiful Chat 已有的能力之上：按类型区分的工具卡片、Shiki 高亮、读图、打开文件，以及插件自己的查找栏。
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--thread-dark.png"><img alt="完整的一轮对话，从上到下" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--thread-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--thread-dark.png"><img alt="完整的一轮对话，从上到下" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--thread-light.png"></picture>
 
 ### 工具行
 
@@ -257,28 +257,28 @@ Oh My Pi 的 `hub` 工具和它的 GitHub 设备调用按工具名识别，有�
 - 不同 agent 发出的受支持提问调用，只要带结构化 `questions` 数据，就会显示分页问答记录，包括选项、已记录的回答和状态。「显示原始数据」可查看原始内容；这类卡片只展示记录，回答仍由 Paseo 处理。预览中的问题会自动换行，便于阅读。
 - 前一轮的后台子 agent 还在汇报时，Paseo 0.12 可能把后面的工具行再画一份；插件会隐藏这些重复的行（见[插件绕开的 Paseo 问题](#插件绕开的-paseo-问题)）。
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--questions-dark.png"><img alt="带已记录回答的结构化提问记录" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--questions-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--questions-dark.png"><img alt="带已记录回答的结构化提问记录" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--questions-light.png"></picture>
 
 | Shell 与 Git | Read |
 | --- | --- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-bash-dark.png"><img alt="Shell 与 Git 工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-bash-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-read-dark.png"><img alt="Read 工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-read-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-bash-dark.png"><img alt="Shell 与 Git 工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-bash-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-read-dark.png"><img alt="Read 工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-read-light.png"></picture> |
 | **Edit** | **Hub**（Oh My Pi） |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-edit-dark.png"><img alt="Edit 工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-edit-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--hub-dark.png"><img alt="Hub 工具调用（Oh My Pi）" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--hub-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-edit-dark.png"><img alt="Edit 工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-edit-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--hub-dark.png"><img alt="Hub 工具调用（Oh My Pi）" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--hub-light.png"></picture> |
 
 <details>
 <summary>更多卡片：MCP、Paseo 工具、读图、代码块、<code>thinking</code> 工具</summary>
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-mcp-dark.png"><img alt="MCP 工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-mcp-light.png"></picture>
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--paseo-dark.png"><img alt="Paseo 工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--paseo-light.png"></picture>
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-thinking-dark.png"><img alt="思考工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-thinking-light.png"></picture>
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-image-dark.png"><img alt="读图" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-image-light.png"></picture>
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--syntax-dark.png"><img alt="代码块" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--syntax-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-mcp-dark.png"><img alt="MCP 工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-mcp-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--paseo-dark.png"><img alt="Paseo 工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--paseo-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-thinking-dark.png"><img alt="思考工具调用" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-thinking-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-image-dark.png"><img alt="读图" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-image-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--syntax-dark.png"><img alt="代码块" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--syntax-light.png"></picture>
 
 </details>
 
 ### 工具图标
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-icons-zh-dark.png"><img alt="工具行能画出的全部图标：上方是四条真实的 Shell 行和四条 MCP、agent 行，下方按用途分组排出 16 种工具类型、101 个 Shell 程序图标和 75 个 MCP 服务" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tool-icons-zh-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-icons-zh-dark.png"><img alt="工具行能画出的全部图标：上方是四条真实的 Shell 行和四条 MCP、agent 行，下方按用途分组排出 16 种工具类型、101 个 Shell 程序图标和 75 个 MCP 服务" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tool-icons-zh-light.png"></picture>
 
 <sub>2026-10-25 在离线 Web showcase 中以 2 倍分辨率拍摄，代码为 `2490d376`。图里每个图标都由插件自己的查表逻辑解析，插件不认识的名字会让截图直接失败。</sub>
 
@@ -514,9 +514,9 @@ Oh My Pi 的 `hub` 工具和它的 GitHub 设备调用按工具名识别，有�
 - 只有本机真的看到了思考的流式过程，才显示耗时；不做估算。
 - 待办显示阶段名、每项状态、耗时，以及被阻塞的任务和原因。进度环显示已完成项，全部完成后会变为勾选标记。标题栏的窗口按钮会在浮窗中打开实时待办；使用时间线时浮窗保持打开，并始终跟随最新列表，长标题也可换行。
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--reasoning-dark.png"><img alt="思考过程" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--reasoning-light.png"></picture>
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tasks-dark.png"><img alt="待办清单" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--tasks-light.png"></picture>
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--checklist-window-dark.png"><img alt="浮窗中的实时待办" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--checklist-window-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--reasoning-dark.png"><img alt="思考过程" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--reasoning-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tasks-dark.png"><img alt="待办清单" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--tasks-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--checklist-window-dark.png"><img alt="浮窗中的实时待办" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--checklist-window-light.png"></picture>
 
 ### 回复
 
@@ -531,10 +531,10 @@ Oh My Pi 的 `hub` 工具和它的 GitHub 设备调用按工具名识别，有�
 
 | 表格复制菜单 | 选中单元格后的操作 |
 | --- | --- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--table-copy-menu-dark.png"><img alt="表格复制菜单" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--table-copy-menu-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--table-selection-dark.png"><img alt="选中表格单元格后的操作" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--table-selection-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--table-copy-menu-dark.png"><img alt="表格复制菜单" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--table-copy-menu-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--table-selection-dark.png"><img alt="选中表格单元格后的操作" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--table-selection-light.png"></picture> |
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--markdown-styles-dark.png"><img alt="文档、紧凑、终端三种 Markdown 样式" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--markdown-styles-light.png"></picture>
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--markdown-preview-window-dark.png"><img alt="最大化窗口中的原始 Markdown 预览" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--markdown-preview-window-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--markdown-styles-dark.png"><img alt="文档、紧凑、终端三种 Markdown 样式" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--markdown-styles-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--markdown-preview-window-dark.png"><img alt="最大化窗口中的原始 Markdown 预览" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--markdown-preview-window-light.png"></picture>
 
 ### 图片
 
@@ -544,7 +544,7 @@ Oh My Pi 的 `hub` 工具和它的 GitHub 设备调用按工具名识别，有�
 - 图片数据在第一次展开、预览或长按时从 daemon（`file.image`）读取。支持 PNG、JPEG、GIF、WebP、AVIF、BMP、ICO 和 SVG；超过 3MB 的文件只显示大小，不内联。
 - 多个读图卡片引用同一张图片时，每个卡片都会显示它。
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--shared-image-cards-dark.png"><img alt="两个读图卡片展示同一张图片" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--shared-image-cards-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--shared-image-cards-dark.png"><img alt="两个读图卡片展示同一张图片" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--shared-image-cards-light.png"></picture>
 
 ### 悬停预览
 
@@ -556,13 +556,13 @@ Oh My Pi 的 `hub` 工具和它的 GitHub 设备调用按工具名识别，有�
 - 复制统一走宿主的 `copyText`，在 iOS 和 Android 上同样可用：桌面悬停、触控设备上的行菜单（长按），或 `⋯` 菜单。纯文本代码块可换行，并带复制按钮。
 - 网页和桌面上，在卡片里选中文字会出现「复制」和「添加到对话」；后者把选中内容作为引用放进输入框，选自代码时放成代码块。页面滚动时工具栏会收起；当前没有可见输入框时，「添加到对话」会改为复制选中内容。
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--selection-actions-dark.png"><img alt="选中文字后出现复制和添加到对话操作" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--selection-actions-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--selection-actions-dark.png"><img alt="选中文字后出现复制和添加到对话操作" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--selection-actions-light.png"></picture>
 
 ### 提问气泡
 
 默认由 Paseo 绘制提问，保留粘贴的图片和回退菜单。打开「增强提问气泡」后，符合条件的提问会改用插件气泡：复制按钮常驻；对最新一条提问，在本客户端看着这一轮运行时，还会显示本轮 token 用量。插件能取得受支持的图片源时也会绘制图片；含无法呈现附件的提问仍交给 Paseo。已发布的 Paseo 不把回退菜单交给插件，所以插件气泡上没有回退（见[插件做不到的事](#插件做不到的事)）。
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--user-dark.png"><img alt="提问气泡" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--user-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--user-dark.png"><img alt="提问气泡" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--user-light.png"></picture>
 
 ### 错误与系统消息
 
@@ -653,7 +653,7 @@ Paseo 仍会绘制原生权限提示，并负责允许和拒绝操作。agent �
 
 看板打开时 App 重连，看板会带着原来的卡片、所在列和过滤条件回来，而不是从头加载。
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--ipad-tasks-filters-dark.png"><img width="420" alt="11 英寸 iPad 竖屏：窄看板的单行顶部打开了筛选，含子任务、agent、标签、已完成时间范围、泳道宽度和排序" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--images--ipad-tasks-filters-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--ipad-tasks-filters-dark.png"><img width="420" alt="11 英寸 iPad 竖屏：窄看板的单行顶部打开了筛选，含子任务、agent、标签、已完成时间范围、泳道宽度和排序" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--ipad-tasks-filters-light.png"></picture>
 
 ---
 
@@ -661,8 +661,8 @@ Paseo 仍会绘制原生权限提示，并负责允许和拒绝操作。agent �
 
 **设置 → 插件 → Better Paseo**，页面 **设置**。页面分「聊天展示」和「任务看板」两个标签，两边顶部都有任务看板的开关。在聊天展示标签里，一段用时间线组件绘制的示例对话会实时跟随每一项修改：宽窗口下显示在选项旁边，其他情况显示在选项上方；其中 Read 行的悬停预览常驻展开。在网页和桌面上，预览标题栏的「桌面端 / 移动端」切换可以按 iOS 样式、手机宽度绘制同一段对话，并使用你选的行内代码颜色。父选项关闭时，子选项变灰；某个平台用不上的选项在该平台上隐藏；「恢复全部默认设置」需要再点一次确认。
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--settings-zh-dark.png"><img alt="设置页与实时预览" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--settings-zh-light.png"></picture>
-<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--settings-tools-zh-dark.png"><img alt="块字号设置与实时预览" src="https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/media--docs--images--settings-tools-zh-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-zh-dark.png"><img alt="设置页与实时预览" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-zh-light.png"></picture>
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-tools-zh-dark.png"><img alt="块字号设置与实时预览" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-tools-zh-light.png"></picture>
 
 | 分组 | 设置 | 默认 | 作用 |
 | --- | --- | --- | --- |
