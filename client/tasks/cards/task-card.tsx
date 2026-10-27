@@ -25,6 +25,7 @@ import { subagentFacts } from "../subagent-type";
 import { identityColor, ProjectIcon, projectViewKey } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
 import { TitleLoading } from "./title-loading";
+import { useRevealedTitle } from "./title-reveal";
 import { SubtaskRow } from "./subtask-row";
 import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
 import { subtaskFinished } from "./details-format";
@@ -545,7 +546,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const updatingTitle = titleUpdate.state === "running";
   // The title streams in under the sweep, then holds until the rename reaches the card.
   const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
-  const shownTitle = streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : card.title);
+  const shownTitle = useRevealedTitle(streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : card.title),
+    Boolean(streamedTitle) || titleUpdate.state === "done", props.animated !== false);
   const previousTitle = useRef(card.title);
   useEffect(() => {
     if (previousTitle.current !== card.title) props.titleUpdates?.dismiss(card.id);
