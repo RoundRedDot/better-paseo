@@ -16,7 +16,7 @@ const title = "/Users/example/Downloads/飞书 20261027-193857.mp4";
 const renderTitle = (animated = true, mutedColor = "#666666") => <TitleLoading title={title} highlightColor="#111111" mutedColor={mutedColor} style={{ fontSize: 16, lineHeight: 24 }} animated={animated} accessibilityLabel="正在更新标题…" />;
 const host = (testID: string) => tree.root.find((node) => typeof node.type === "string" && node.props.testID === testID);
 const hosts = (testID: string) => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === testID);
-const measure = async (width: number) => { await act(async () => host("task-title-update-shimmer").props.onLayout({ nativeEvent: { layout: { width } } })); };
+const measure = async (width: number) => { await act(async () => host("task-title-update-shimmer").props.onLayout({ nativeEvent: { layout: { width, height: 48 } } })); };
 const colorOf = (node: TestRenderer.ReactTestInstance) => [node.props.style].flat(Infinity).reduce((color, style) => style?.color ?? color, undefined);
 
 beforeEach(() => {
@@ -54,6 +54,12 @@ describe.each(["ios", "android"])("native title sweep (%s)", (os) => {
     expect(Math.max(opacities[0]!, opacities.at(-1)!)).toBeLessThan(0.05);
     expect(Math.max(...opacities)).toBeGreaterThan(0.95);
     expect(Math.max(...opacities.slice(1).map((value, index) => Math.abs(value - opacities[index]!)))).toBeLessThan(0.2);
+    // The band leans, top to the right; every copy shears back from the same top edge, so the glyphs stay upright.
+    const skew = (style: { transform?: Array<Record<string, unknown>> }) => style.transform?.find((step) => "skewX" in step)?.skewX;
+    expect(skew(sheen.props.style)).toBe("-20deg");
+    expect(sheen.props.style.transformOrigin).toBe("left top");
+    const shifted = sheen.findAll((node) => String(node.type) === "Animated.View" && typeof node.props.style?.opacity === "number");
+    expect(shifted.every((node) => skew(node.props.style) === "20deg" && node.props.style.transformOrigin === "left top")).toBe(true);
     await measure(180);
     expect(motion.stop).toHaveBeenCalledOnce();
     expect(motion.start).toHaveBeenCalledTimes(2);
@@ -98,6 +104,7 @@ describe("web title sweep", () => {
     expect(motion.start).not.toHaveBeenCalled();
     const css = [...elements.values()][0]!.textContent;
     expect(css).toContain("background-clip: text");
+    expect(css).toContain("linear-gradient(110deg");
     expect(css).toContain("#666666");
     expect(css).toContain("prefers-reduced-motion");
     await act(async () => tree.update(renderTitle(true, "#777777")));

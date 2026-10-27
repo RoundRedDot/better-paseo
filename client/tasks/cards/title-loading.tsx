@@ -4,6 +4,8 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { TaskText } from "../typography";
 
 const DURATION = 2600;
+/** The band leans this far from upright, top to the right, like ChatGPT's. */
+const TILT_DEG = 20;
 const STYLE_ELEMENT_ID = "better-paseo-title-sweep";
 const SWEEP_ATTR = "bctitlesweep";
 
@@ -46,7 +48,7 @@ function sweepRules(muted: string): string {
   // The light is `currentColor`: each card sets it inline, as its fill changes on hover.
   // On a 300% background the band spans about a fifth of the title's width.
   const mix = (share: number) => `color-mix(in srgb, currentColor ${share}%, ${muted})`;
-  const gradient = `linear-gradient(90deg, ${muted} 0% 46.6%, ${mix(35)} 48%, ${mix(85)} 49.3%, currentColor 49.8% 50.2%, ${mix(85)} 50.7%, ${mix(35)} 52%, ${muted} 53.4% 100%)`;
+  const gradient = `linear-gradient(${90 + TILT_DEG}deg, ${muted} 0% 46.6%, ${mix(35)} 48%, ${mix(85)} 49.3%, currentColor 49.8% 50.2%, ${mix(85)} 50.7%, ${mix(35)} 52%, ${muted} 53.4% 100%)`;
   return `
 [data-${SWEEP_ATTR}] {
   -webkit-text-fill-color: transparent;
@@ -106,10 +108,18 @@ const BAND_WIDTH = 60;
 const SLICES = 16;
 const SLICE_WIDTH = BAND_WIDTH / SLICES;
 const INTENSITIES = Array.from({ length: SLICES }, (_, index) => Math.sin(Math.PI * (index + 0.5) / SLICES) ** 2);
+const LEAN = Math.tan(TILT_DEG * Math.PI / 180);
+/**
+ * The band shears its slices from its top edge; each copy shears back from
+ * the same edge, so the glyphs stay upright and aligned while the slices'
+ * edges lean.
+ */
+const SHEAR = { transformOrigin: "left top", skew: [{ skewX: `${-TILT_DEG}deg` }] } as const;
+const UNSHEAR = [{ skewX: `${TILT_DEG}deg` }] as const;
 
 function NativeSweep(props: SweepProps) {
   const progress = useRef(new Animated.Value(0)).current;
-  const [width, setWidth] = useState(0);
+  const [{ width, height }, setSize] = useState({ width: 0, height: 0 });
   const { active } = props;
   useEffect(() => {
     progress.setValue(0);
@@ -120,19 +130,21 @@ function NativeSweep(props: SweepProps) {
     loop.start();
     return () => loop.stop();
   }, [active, progress, width]);
-  // A short rest past the right edge before the next pass, as on web.
-  const travel = { inputRange: [0, 0.8, 1], outputRange: [-BAND_WIDTH, width, width] };
-  const counterTravel = { inputRange: travel.inputRange, outputRange: [BAND_WIDTH, -width, -width] };
+  // A short rest past the right edge before the next pass, as on web. The
+  // band's foot trails its top by the lean, so it travels that much further.
+  const end = width + LEAN * height;
+  const travel = { inputRange: [0, 0.8, 1], outputRange: [-BAND_WIDTH, end, end] };
+  const counterTravel = { inputRange: travel.inputRange, outputRange: [BAND_WIDTH, -end, -end] };
   return (
-    <View {...containerProps(props)} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+    <View {...containerProps(props)} onLayout={(event) => setSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}>
       <TaskText numberOfLines={2} ellipsizeMode="tail" style={[props.style, { color: props.mutedColor }]} testID="task-card-title">{props.title}</TaskText>
       {active && width > 0 ? (
         <Animated.View pointerEvents="none" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="task-title-update-sheen"
-          style={{ position: "absolute", top: 0, bottom: 0, width: BAND_WIDTH, overflow: "hidden", transform: [{ translateX: progress.interpolate(travel) }] }}>
+          style={{ position: "absolute", top: 0, bottom: 0, width: BAND_WIDTH, overflow: "hidden", transformOrigin: SHEAR.transformOrigin, transform: [{ translateX: progress.interpolate(travel) }, ...SHEAR.skew] }}>
           {INTENSITIES.map((opacity, index) => (
             <View key={index} style={{ position: "absolute", top: 0, bottom: 0, left: index * SLICE_WIDTH, width: SLICE_WIDTH, overflow: "hidden" }}>
               {/* Counter-motion keeps every clipped copy aligned with the in-flow title. */}
-              <Animated.View style={{ width, marginLeft: -index * SLICE_WIDTH, opacity, transform: [{ translateX: progress.interpolate(counterTravel) }] }}>
+              <Animated.View style={{ width, marginLeft: -index * SLICE_WIDTH, opacity, transformOrigin: SHEAR.transformOrigin, transform: [{ translateX: progress.interpolate(counterTravel) }, ...UNSHEAR] }}>
                 <TaskText numberOfLines={2} ellipsizeMode="tail" style={[props.style, { color: props.highlightColor }]}>{props.title}</TaskText>
               </Animated.View>
             </View>
