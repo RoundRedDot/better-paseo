@@ -42,8 +42,10 @@ import { cardStrings, subtaskSummary } from "./strings";
 import { TagMark } from "./tag-mark";
 import { pillTint, readableOn, taskTokens, type TaskTokens } from "./tokens";
 import { mix, withAlpha } from "../../components/theme-tokens";
+import { useTitleUpdateState, type TitleUpdateControl } from "../actions/title-update";
 
 export interface CardCallbacks {
+  titleUpdates?: TitleUpdateControl;
   /** Jump to the agent's tab (`navigation.openAgent`). Absent on hosts without navigation: hide Open tab. */
   onOpen?(agentId: string): void;
   /**
@@ -538,6 +540,13 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const preferred = useTasksLanguage();
   const language = props.language ?? preferred;
   const strings = cardStrings(language);
+  const titleUpdate = useTitleUpdateState(props.titleUpdates, card.id);
+  const updatingTitle = titleUpdate.state === "running";
+  const previousTitle = useRef(card.title);
+  useEffect(() => {
+    if (previousTitle.current !== card.title) props.titleUpdates?.dismiss(card.id);
+    previousTitle.current = card.title;
+  }, [card.title, card.id, props.titleUpdates]);
   const m = compact ? PHONE : DESKTOP;
   const buttonHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT;
   const layout = cardLayout(card, fields, compact);
@@ -860,6 +869,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       >
         {card.title}
       </Text>
+      {updatingTitle ? <StatusIcon kind="running" size={16} theme={theme} accessibilityLabel={strings.autoTitlePending} /> : null}
       {hasMeta ? null : ringFor(m.titleLine)}
     </View>
   );
@@ -1419,6 +1429,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {cornerMark ? <CornerMark color={cornerMark} /> : null}
         {metaRow}
         {titleRow}
+        {titleUpdate.state === "error" ? <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 8 }}>
+          <Text accessibilityRole="alert" numberOfLines={3} testID="task-title-update-error" style={[text(F.sm, HOST_LINE.sm, tokens.danger), { flex: 1 }]}>{strings.autoTitleFailed(titleUpdate.error)}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={strings.dismissTitleError} hitSlop={8} style={{ minWidth: taskControlHeight(compact ? 44 : 28, scale), minHeight: taskControlHeight(compact ? 44 : 28, scale), alignItems: "center", justifyContent: "center" }} onPress={() => props.titleUpdates?.dismiss(card.id)}><Icon name="X" size={16} color={tokens.foregroundMuted} /></Pressable>
+        </View> : null}
         {pillRow}
         {footer}
         {answerRow ? null : controlRow}
@@ -1435,6 +1449,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           strings={strings}
           theme={theme}
           actions={{
+            autoTitle: props.titleUpdates ? () => props.titleUpdates?.start(card.id) : undefined,
+            autoTitlePending: updatingTitle,
+            autoTitleLeading: updatingTitle ? <StatusIcon kind="running" size={16} theme={theme} /> : undefined,
             open: props.onOpen && ownTab ? () => props.onOpen?.(card.id) : undefined,
             openParent: parentOpens ? () => props.onOpen?.(card.parent!.id) : undefined,
             revealParent: card.parent ? () => props.onReveal(card.parent!.id) : undefined,

@@ -119,6 +119,36 @@ describe("task title editor", () => {
 
 describe("task card rename entry", () => {
   const card = sampleCards(Date.parse("2026-10-20T09:00:00Z"))[0]!;
+  it.each(["touch", "pointer"])("starts automatic title generation from the %s menu and closes it", async (kind) => {
+    const autoTitle = vi.fn();
+    await act(async () => {
+      tree = TestRenderer.create(<CardContextMenu point={kind === "pointer" ? { x: 20, y: 30 } : null} card={card} strings={cardStrings("zh")} actions={{ children: 0, autoTitle }} theme={theme} onClose={onClose} />);
+    });
+    if (kind === "touch") {
+      await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "自动更新标题").props.onPress());
+    } else {
+      const menu = tree.root.findByType(CascadeMenu);
+      const items = menu.props.sections.flatMap((section: { items: Array<{ key: string }> }) => section.items);
+      const index = items.findIndex((item: { key: string }) => item.key === "auto-title");
+      await act(async () => tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem")[index]!.props.onPress());
+    }
+    expect(autoTitle).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables the automatic action while a title request is pending", async () => {
+    await act(async () => {
+      tree = TestRenderer.create(<CardContextMenu point={null} card={card} strings={cardStrings("zh")} actions={{ children: 0, autoTitle: vi.fn(), autoTitlePending: true }} theme={theme} onClose={onClose} />);
+    });
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "自动更新标题").props.disabled).toBe(true);
+  });
+
+  it("does not offer automatic titles on archived cards", async () => {
+    await act(async () => {
+      tree = TestRenderer.create(<CardContextMenu point={null} card={{ ...card, lane: "archived" }} strings={cardStrings("zh")} actions={{ children: 0, autoTitle: vi.fn() }} theme={theme} onClose={onClose} />);
+    });
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "自动更新标题")).toHaveLength(0);
+  });
   it.each(["touch", "pointer"])("replaces the %s menu with an editor without closing its owner", async (kind) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = kind === "pointer" ? "web" : "ios";
     await act(async () => {

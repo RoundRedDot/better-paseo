@@ -116,6 +116,7 @@ import {
   type TaskCardViewProps,
 } from "../../client/tasks/cards";
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
+import { createTitleUpdateControl } from "../../client/tasks/actions/title-update";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { FLASH } from "../../client/tasks/board/breathing";
@@ -182,6 +183,18 @@ function sample(id: string): TaskCard {
 }
 
 let renderer: ReactTestRenderer | null = null;
+
+it("keeps title-generation progress and failure visible on the card after its menu closes", async () => {
+  let fail!: (error: Error) => void;
+  const control = createTitleUpdateControl(() => new Promise((_resolve, reject) => { fail = reject; }));
+  const card = sampleCards(NOW)[0]!;
+  const tree = await render(cardElement(card, { titleUpdates: control }));
+  await act(async () => control.start(card.id));
+  expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "正在更新标题…")).toHaveLength(1);
+  await act(async () => fail(new Error("Provider offline")));
+  expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "正在更新标题…")).toHaveLength(0);
+  expect(tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-title-update-error").children.join("")).toContain("Provider offline");
+});
 
 async function render(element: React.ReactElement): Promise<ReactTestRenderer> {
   await act(async () => {
