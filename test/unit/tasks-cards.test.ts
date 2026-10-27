@@ -192,9 +192,10 @@ it("keeps title-generation progress and failure visible on the card after its me
   const runningIndicators = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "status-running").length;
   await act(async () => control.start(card.id));
   expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "正在更新标题…")).toHaveLength(1);
-  const loading = hostByTestId(tree.root, "task-title-update-loading");
+  const loading = hostByTestId(tree.root, "task-title-update-shimmer");
   expect(loading.props.accessibilityState).toEqual({ busy: true });
-  expect(loading.findAll((node) => String(node.type) === "Animated.View")).toHaveLength(6);
+  expect(hostByTestId(tree.root, "task-card-title").children.join("")).toBe(card.title);
+  expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-title-update-loading")).toHaveLength(0);
   expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "status-running")).toHaveLength(runningIndicators);
   await act(async () => fail(new Error("Provider offline")));
   expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "正在更新标题…")).toHaveLength(0);
