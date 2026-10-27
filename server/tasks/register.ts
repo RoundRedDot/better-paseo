@@ -10,6 +10,7 @@ import { iconThemeColor } from "./icon-color";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
 import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
+import { registerTitleGeneration } from "./title-generation";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
@@ -350,6 +351,7 @@ export function registerTasksServer(
   tokens: SessionTokenReader = createSessionTokenReader(),
 ): void {
   server.registerSettings(TASKS_SETTINGS);
+  registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available);
   // A new turn means a new prompt: the agent is no longer "stopped manually", nor read.
   server.on("agent.turn_started", async ({ agent }, context) => {
     void subagents.ensure(context?.paseo);

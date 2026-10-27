@@ -881,6 +881,11 @@ subscription, and the board's code is not fetched. Its options are listed under
   Open returns once the task is back.
 - On desktop and web a right-click opens the card's menu: open the tab; copy its session ID,
   title, workspace or project; Stop, Mark as read, Archive or Unarchive as the card allows.
+- **Automatically update title** generates a title without adding another card. Configure its
+  provider, model and prompt under **Tasks board → Automatic titles**, then choose the action
+  from an active card's right-click or long-press menu. A spinner stays on the card until the
+  title updates; errors keep the original title and can be dismissed or retried. A manual title
+  change during generation is preserved.
 - Sub-agents a provider runs itself (Claude Code's Agent tool) get read-only cards with dashed
   borders: in running while they work and in to review after they fail, with the parent's project
   and labels. They have no Stop, Mark as read or Archive; Open opens the parent's tab, where Paseo
@@ -1017,6 +1022,17 @@ sets the call's initial state.
 The **Tasks board** tab draws sample agents in every lane and redraws them as each option changes;
 on a wide page a **Desktop / Mobile** switch draws the board as a phone would. The record is
 `tasks` in `shared/tasks-settings.ts`, stored and shared the same way as the chat settings above.
+
+Automatic title settings use a separate host-scoped `title-generation` record. Choose a fast model
+from that host's configured providers and edit the prompt, then save. The default prompt requests
+a short Chinese title. Generation reads a bounded excerpt of user/assistant messages and runs an
+ordinary agent in a background workspace, attached to the original project but in a neutral plugin
+directory. It does not send a prompt to the original task. Reading a closed task's history can
+reopen its provider session. The helper keeps the provider's configured permissions; the no-tools
+instruction is not a sandbox. Background history and ordinary hooks/notifications remain, and a
+plugin or daemon shutdown can leave an unfinished background task. Normal completion archives
+the helper workspace before renaming. The host must support background workspaces; no internal
+agent API is required.
 
 | Group | Setting | Default | Effect |
 | --- | --- | --- | --- |

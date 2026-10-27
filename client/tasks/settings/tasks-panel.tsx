@@ -26,6 +26,7 @@ import { useTasksLanguage } from "../i18n";
 import { PREVIEW_LANES_MAX_HEIGHT, TasksBoardPreview } from "./board-preview";
 import { TASKS_SETTINGS_STRINGS, type TasksSettingsStrings } from "./strings";
 import { dismissEnabledNotice, useTasksForm, type TasksForm } from "./use-tasks-form";
+import { TitleGenerationSettings } from "./title-generation";
 
 /**
  * The Tasks half of Better Paseo's settings page: the switch, the preview
@@ -407,6 +408,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
 
   const rest = (
     <>
+      <TitleGenerationSettings look={look} />
       <Section title={strings.boardTitle} look={look}>
         <SettingRow
           title={strings.doneWindow}

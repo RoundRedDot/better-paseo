@@ -11,7 +11,8 @@ const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...
 
 const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh" }));
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client", () => ({ useSettings: () => state.current, useRpc: () => vi.fn() }));
+vi.mock("@getpaseo/plugin/client", () => ({ useSettings: (definition: { id: string }) => definition.id === "title-generation" ? { status: "loading", reload: vi.fn() } : state.current, useRpc: () => vi.fn() }));
+vi.mock("@getpaseo/plugin/client/ui", () => ({ SettingsSelect: "SettingsSelect", TextInput: "TextInput" }));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({ TextInput: "TextInput", useToast: () => ({ show() {} }) }));
 vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => state.language, resolveTasksLanguage: () => state.language }));
 vi.mock("../../client/tasks/chunk/load", async () => import("../../client/tasks/settings/tasks-panel"));

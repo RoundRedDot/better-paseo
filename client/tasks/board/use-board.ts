@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { usePaseo, useSettings } from "@getpaseo/plugin/client";
+import { useTitleUpdateControl } from "../actions/title-update";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
@@ -302,6 +303,7 @@ export function useBoard(
   const verifyUnarchive = useCallback((agentId: string) => latest.current.tasks.refreshParent(agentId), []);
   const unarchive = useUnarchiveControl({ available: stop.available, verify: verifyUnarchive, toast });
   const archive = useArchiveControl({ paseo, toast });
+  const titleUpdates = useTitleUpdateControl(paseo);
   const { stoppedManually, noteRunning, reconcile, restored } = stop;
   const stoppedIds = useMemo(() => restoredStops(stoppedManually, restored, tasks.byId), [stoppedManually, restored, tasks.byId]);
   // Every card the board can draw: the store's, with a card for each provider subagent.
@@ -403,6 +405,7 @@ export function useBoard(
   const unarchiveAvailable = unarchive.available;
   const callbacks = useMemo<CardCallbacks>(
     () => ({
+      titleUpdates,
       onOpen: hasNavigation ? open : undefined,
       onReveal: (agentId, parentId) => {
         // A provider subagent's row, while hidden subtasks or the filters leave its card off the board: its parent's tab.
@@ -431,7 +434,7 @@ export function useBoard(
       onFilter: (card, by) => setParams((current) => filterToCard(current, card, latest.current.tasks.workspaces, by)),
       filterState: (card) => cardFilterState(paramsRef.current, card, latest.current.tasks.workspaces),
     }),
-    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams],
+    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates],
   );
 
   return {

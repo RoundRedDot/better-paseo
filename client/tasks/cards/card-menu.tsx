@@ -19,6 +19,9 @@ export const CARD_MENU_WIDTH = 240;
 export interface CardMenuActions {
   open?(): void;
   rename?(): void;
+  autoTitle?(): void;
+  autoTitlePending?: boolean;
+  autoTitleLeading?: ReactNode;
   /** A subtask's card: its parent task's tab, unless the parent is archived. */
   openParent?(): void;
   /** A subtask's card: scrolls the board to its parent's card, as the parent link does. */
@@ -77,6 +80,7 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
       items: [
         ...(actions.open ? [{ key: "open", label: strings.openTab, icon: "ArrowUpRight", onSelect: actions.open }] : []),
         ...(!card.subagent && actions.rename ? [{ key: "rename", label: strings.renameTitle, icon: "Pencil", keepOpen: true, onSelect: actions.rename }] : []),
+        ...(!card.subagent && card.lane !== "archived" && actions.autoTitle ? [{ key: "auto-title", label: strings.autoTitle, icon: "Sparkles", leading: actions.autoTitleLeading, disabled: actions.autoTitlePending, onSelect: actions.autoTitle }] : []),
         ...(actions.openParent ? [{ key: "open-parent", label: strings.openParent, icon: "CornerLeftUp", onSelect: actions.openParent }] : []),
         ...(actions.revealParent ? [{ key: "reveal-parent", label: strings.revealParentCard, icon: "LocateFixed", onSelect: actions.revealParent }] : []),
       ],
@@ -185,6 +189,8 @@ export function CardContextMenu(props: {
                         key={item.key}
                         accessibilityRole="menuitem"
                         accessibilityLabel={item.label}
+                        accessibilityState={{ disabled: item.disabled }}
+                        disabled={item.disabled}
                         onPress={() => {
                           item.onSelect?.();
                           if (!item.keepOpen) props.onClose();
