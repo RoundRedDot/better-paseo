@@ -117,6 +117,7 @@ import {
 } from "../../client/tasks/cards";
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
 import { createTitleUpdateControl } from "../../client/tasks/actions/title-update";
+import type { TitleUpdateState } from "../../shared/title-generation";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { FLASH } from "../../client/tasks/board/breathing";
@@ -201,6 +202,25 @@ it("keeps title-generation progress and failure visible on the card after its me
   await act(async () => fail(new Error("Provider offline")));
   expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "正在更新标题…")).toHaveLength(0);
   expect(tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-title-update-error").children.join("")).toContain("Provider offline");
+});
+
+it("streams the generated title under the sweep and holds it until the rename reaches the card", async () => {
+  const answers: ((state: TitleUpdateState) => void)[] = [];
+  let chunk!: () => void;
+  const control = createTitleUpdateControl(() => new Promise((resolve) => { answers.push(resolve); }), (_id, onChunk) => { chunk = onChunk; return () => {}; });
+  const card = sampleCards(NOW)[0]!;
+  const tree = await render(cardElement(card, { titleUpdates: control }));
+  await act(async () => control.start(card.id));
+  await act(async () => answers.shift()!({ state: "running", helperId: "helper", text: "  Fix the\ncard " }));
+  expect(tree.root.findByType(TitleLoading).props.title).toBe("Fix the card");
+  await act(async () => chunk());
+  await vi.waitFor(() => expect(answers).toHaveLength(1));
+  await act(async () => answers.shift()!({ state: "done", title: "Fix the card title" }));
+  expect(tree.root.findAllByType(TitleLoading)).toHaveLength(0);
+  expect(hostByTestId(tree.root, "task-card-title").children.join("")).toBe("Fix the card title");
+  await act(async () => tree.update(cardElement({ ...card, title: "Renamed elsewhere" }, { titleUpdates: control })));
+  expect(control.read(card.id)).toEqual({ state: "idle" });
+  expect(hostByTestId(tree.root, "task-card-title").children.join("")).toBe("Renamed elsewhere");
 });
 
 it.each([["light", LIGHT], ["dark", DARK]] as const)("sweeps the %s title with a readable light brighter than its resting color", async (_name, theme) => {
