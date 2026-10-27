@@ -212,12 +212,12 @@ it("streams the generated title under the sweep and holds it until the rename re
   const tree = await render(cardElement(card, { titleUpdates: control }));
   await act(async () => control.start(card.id));
   await act(async () => answers.shift()!({ state: "running", helperId: "helper", text: "  Fix the\ncard " }));
-  expect(tree.root.findByType(TitleLoading).props.title).toBe("Fix the card");
+  await vi.waitFor(() => expect(tree.root.findByType(TitleLoading).props.title).toBe("Fix the card"));
   await act(async () => chunk());
   await vi.waitFor(() => expect(answers).toHaveLength(1));
   await act(async () => answers.shift()!({ state: "done", title: "Fix the card title" }));
   expect(tree.root.findAllByType(TitleLoading)).toHaveLength(0);
-  expect(hostByTestId(tree.root, "task-card-title").children.join("")).toBe("Fix the card title");
+  await vi.waitFor(() => expect(hostByTestId(tree.root, "task-card-title").children.join("")).toBe("Fix the card title"));
   await act(async () => tree.update(cardElement({ ...card, title: "Renamed elsewhere" }, { titleUpdates: control })));
   expect(control.read(card.id)).toEqual({ state: "idle" });
   expect(hostByTestId(tree.root, "task-card-title").children.join("")).toBe("Renamed elsewhere");
