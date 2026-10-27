@@ -10,13 +10,13 @@ and it is drawn for the device in your hand: a phone gets a details drawer you c
 one-lane board you swipe through, an iPad gets floating and side panels and a board with a details
 sidebar or sheet. The performance section compares the timeline with Paseo's own.
 
-https://github.com/user-attachments/assets/2b16b0a5-8567-4f3e-8fbd-4a594c74d2da
+{{TIMELINE_VIDEO_URL}}
 
-<sub>No player in the GitHub app? [Open the timeline video](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v13/better-paseo-promo-v13-timeline-web.mp4).</sub>
+<sub>No player in the GitHub app? [Open the timeline video](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-timeline-web.mp4).</sub>
 
-https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
+{{TASKS_VIDEO_URL}}
 
-<sub>No player in the GitHub app? [Open the tasks video](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v13/better-paseo-promo-v13-tasks-web.mp4).</sub>
+<sub>No player in the GitHub app? [Open the tasks video](https://github.com/RoundRedDot/better-paseo/releases/download/promo-v14/better-paseo-promo-v14-tasks-web.mp4).</sub>
 
 <img alt="Better Paseo, a Paseo plugin: the Tasks board on a desktop window, with a failed subtask card, a parent card with its subtasks expanded and a dashed read-only subagent card, beside a chat timeline on an iPhone" src="images/hero-cover.png">
 
@@ -35,7 +35,7 @@ https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
   lane at a time on a phone and lanes with a details sidebar, panel or sheet on a tablet. See
   [Phones and iPad](#phones-and-ipad).
 
-- **Measured performance.** Against Paseo 0.12.0, the 220 serial Web and iOS replays (five runs per cell) show 80% less Web main-thread time on the long reply. Details in [Performance](#performance).
+- **Measured performance.** Against Paseo 0.13.0, 220 serial Web and iOS replays (five runs per cell) show 66% less Web main-thread time on the long reply, 16.189 seconds down to 5.520. Details in [Performance](#performance).
 
 - **One row per tool call.** Calls start collapsed to a 26pt row with a typed summary and stay
   open or closed across completion, history and remounts.
@@ -57,7 +57,7 @@ https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
   so the plugin catalog Paseo sends on every reconnect fell from 1,977 KB to 722 KB (measured on a
   Paseo 0.12 daemon when the change landed, 2026-10-23).
 
-- **Measured memory.** Across the Web scenarios, Better Paseo uses 5.1–14.2 MB more post-GC JavaScript heap than no plugin. See [Memory comparison](#memory-comparison).
+- **Measured memory.** Across the Web scenarios, Better Paseo uses 5.1–13.2 MB more post-GC JavaScript heap than no plugin. See [Memory comparison](#memory-comparison).
 
 ## Install
 
@@ -65,11 +65,10 @@ https://github.com/user-attachments/assets/3ddf3024-c67a-4690-a3a9-d01348b034df
 paseo plugin install RoundRedDot/better-paseo
 ```
 
-Paseo `>=0.8.0` is required; the plugin is developed and measured against Paseo 0.12.0. On Paseo
-0.8–0.10 it works with some compatibility issues, listed under [Compatibility](#compatibility).
-Open **Settings → Plugins → Better Paseo** (the page is titled **Settings**) to
-configure it. Paseo installs plugins from GitHub and builds the client on install, so pull a new
-version with:
+Paseo `>=0.12.0` is required; the plugin is developed and measured against Paseo 0.13.0. See
+[Compatibility](#compatibility) for older and pre-release versions. Open **Settings → Plugins →
+Better Paseo** (the page is titled **Settings**) to configure it. Paseo installs plugins from
+GitHub and builds the client on install, so pull a new version with:
 
 ```bash
 paseo plugin update better-paseo        # reviews the update and asks
@@ -111,7 +110,7 @@ plugin treats that session as having a pointer as well.
   badge with **Reset** shows while you pinch. The size is saved on the daemon, so every phone on
   that host reads with it. Swipe the header sideways to step to the previous or next block.
 - **Sideways, where the screen turns.** Paseo's iOS and Android apps keep a phone in portrait
-  (`orientation: "portrait"` in Paseo 0.12's app config). In a phone browser turned sideways, or any
+  (`orientation: "portrait"` in Paseo 0.13's app config). In a phone browser turned sideways, or any
   window at least 600pt wide and under 500pt tall, the details move to a 400pt side panel so the
   timeline stays readable beside them.
 - **Selection by touch.** On iOS a long press in a reply places a cursor and drags a selection.
@@ -132,9 +131,9 @@ plugin treats that session as having a pointer as well.
 
 | Timeline | Block details drawer, mid-pinch | Tasks board |
 | --- | --- | --- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-timeline-dark.png"><img width="260" alt="iPhone: a timeline of compact tool rows, each with its program or service icon (Vitest, Playwright, ESLint, TypeScript, Sentry, GitHub, Linear), a reply with a code block and the turn footer, above Paseo's composer" src="images/mobile-timeline-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-details-drawer-dark.png"><img width="260" alt="iPhone: an edit's diff in the block details drawer at the bottom of the screen, mid-pinch, with the Text size 19 and Reset badge over the code" src="images/mobile-details-drawer-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-dark.png"><img width="260" alt="iPhone: the Tasks board with lane tabs and counts, showing the Input lane's two cards, each with Allow, Deny, Stop and Open tab" src="images/mobile-tasks-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-timeline-dark.png"><img width="260" alt="iPhone: a timeline of compact tool rows, each with its program or service icon (Vitest, Playwright, ESLint, TypeScript, Sentry, GitHub, Linear), a reply with a code block and the turn footer, above Paseo's composer" src="images/mobile-timeline-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-details-drawer-dark.png"><img width="260" alt="iPhone: an edit's diff in the block details drawer at the bottom of the screen, mid-pinch, with the Text size 16 and Reset badge over the code" src="images/mobile-details-drawer-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-dark.png"><img width="260" alt="iPhone: the Tasks board with lane tabs and counts, showing the Input lane's two cards, each with Allow, Deny, Stop and an Open arrow" src="images/mobile-tasks-light.png"></picture> |
 | **A running card's details** | **A waiting card's details** | **Filters** |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-sheet-dark.png"><img width="260" alt="iPhone: a running card's details sheet with the Running 2 of 5 stepper, the turn timer and context, and Stop and Open tab pinned at the bottom" src="images/mobile-tasks-sheet-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-sheet-input-dark.png"><img width="260" alt="iPhone: a waiting card's details sheet showing the command it asks to run, with Deny, Allow and Open tab pinned at the bottom" src="images/mobile-tasks-sheet-input-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-filters-dark.png"><img width="260" alt="iPhone: the Tasks filter sheet with the Show subtasks switch, agent and label choices with counts, and Reset and Show 4 tasks at the bottom" src="images/mobile-tasks-filters-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-sheet-dark.png"><img width="260" alt="iPhone: a running card's details sheet with the Running 3 of 6 stepper, the turn timer and context, and Stop and Open pinned at the bottom" src="images/mobile-tasks-sheet-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-sheet-input-dark.png"><img width="260" alt="iPhone: a waiting card's details sheet showing the command it asks to run, with Deny, Allow and an Open arrow pinned at the bottom" src="images/mobile-tasks-sheet-input-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/mobile-tasks-filters-dark.png"><img width="260" alt="iPhone: the Tasks filter sheet with the Show groups with no active tasks switch, agent choices, label choices with counts, and Reset and Show 4 tasks at the bottom" src="images/mobile-tasks-filters-light.png"></picture> |
 
 ### On iPad
 
@@ -169,7 +168,7 @@ plugin treats that session as having a pointer as well.
 
 | 13-inch, landscape: Tasks with the details sidebar | 13-inch, portrait: Tasks with the details sheet |
 | --- | --- |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="images/ipad-tasks-dark.png"><img width="440" alt="13-inch iPad in landscape: the Tasks board's filter bar and lanes, with a waiting card's details in the sidebar on the right" src="images/ipad-tasks-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/ipad-tasks-sheet-dark.png"><img width="300" alt="13-inch iPad in portrait: the Tasks board's lanes above a two-column bottom sheet with a waiting card's details" src="images/ipad-tasks-sheet-light.png"></picture> |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="images/ipad-tasks-dark.png"><img width="440" alt="13-inch iPad in landscape: the Tasks board's one-row toolbar and lanes, every card with Stop and Open and a dashed read-only subagent card under Running, with a waiting card's details in the sidebar on the right" src="images/ipad-tasks-light.png"></picture> | <picture><source media="(prefers-color-scheme: dark)" srcset="images/ipad-tasks-sheet-dark.png"><img width="300" alt="13-inch iPad in portrait: the Tasks board's lanes, with a dashed read-only subagent card and a failed card under Review, above a two-column bottom sheet with a waiting card's details, Stop and Open, Allow and Deny" src="images/ipad-tasks-sheet-light.png"></picture> |
 
 Keyboard shortcuts, the desktop hover preview, Command-click table ranges, and the board's
 double-click and right-click menu are web and desktop only; an iPad with a keyboard does not get
@@ -181,101 +180,101 @@ them.
 
 ### Web
 
-Measured on 2026-10-23 on a Mac Studio with an Apple M5 Max, 18 cores, 64 GB and macOS 27.0.1, against Paseo 0.12.0 and its react-native-enriched-markdown reply renderer. The tested Better Paseo revision was f2f64009, built through the plugin install flow; the running minified bundle was verified. Web and iOS each covered 11 scenarios × 2 configurations (no plugin and Better Paseo) × 5 runs: 110 per platform, 220 total, serially with configuration order rotated by scenario. The clean bench daemon held one workspace and one active agent; one-minute load at run completion ranged from 13 to 29 (median 16). Web used Chrome 155.0.8059.85 at 1280×900. Tasks and Block details were enabled by default. Later UI commits 466b149d (touch viewer file action) and 7f857477 (localized viewer labels), and 7c781aa2, 7e8d412f and 925f4871 (Tasks parent navigation and subagent cards), do not change the measured timeline scenarios. The later timeline commits 9607e789 ("perf(details): defer inactive timeline details work") and d4f68108 ("perf(details): mount row markers only after selection") were checked separately across 11 scenarios with no slowdown; history replay was effectively flat at 0.896 versus 0.887 seconds on Web and 2.78 versus 2.77 seconds on iOS. The tables remain the 220-run results for f2f64009, not measurements of those later commits.
+Measured on 2026-10-26 and 27 on a Mac Studio with an Apple M5 Max, 18 cores, 64 GB and macOS 27.0.1, against Paseo 0.13.0 (React Native 0.86; replies are still drawn by react-native-enriched-markdown). The tested Better Paseo revision was 948b8720, built through the plugin install flow; the running minified bundle was verified on every run. Web and iOS each covered 11 scenarios × 2 configurations (no plugin and Better Paseo) × 5 runs: 110 per platform, 220 total, serially with configuration order rotated by scenario. The clean bench daemon held one workspace and one agent. A batch started only on a quiet machine: no other simulator booted, no other build running, and at least 90% CPU idle over a minute; one-minute load at run completion ranged from 1 to 7 on Web (median 2) and from 1.0 to 8.3 on iOS (median 1.7). Web used Chrome 156.0.8078.48 at 1280×900. Tasks and Block details were enabled by default. The later commits up to this README, 948b8720..8802deb8, change only the Tasks board's phone search and filter sheet and its search index, not the timeline; the tables are the 220-run results for 948b8720.
 
 ![Web main-thread time](docs/perf/readme/web-cpu.en.svg)
 
-Whole-replay main-thread Task time versus no plugin: 9 lower, 1 even and 1 higher. A change under 10% is even; if both whole-replay times are below 0.5 seconds, it is also even. On the long reply, Task time was 15.617 seconds without the plugin and 3.153 seconds with Better Paseo, an 80% reduction.
+Whole-replay main-thread Task time versus no plugin: 9 lower, 1 even and 1 higher. A change under 10% is even; if both whole-replay times are below 0.5 seconds, it is also even. On the long reply, Task time was 16.189 seconds without the plugin and 5.520 seconds with Better Paseo, a 66% reduction.
 
 | Scenario | No plugin | Better Paseo | vs no plugin |
 | --- | ---: | ---: | :--- |
-| Code block streaming | 3.714 | **1.401** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;62% |
-| Large diff | 0.272 | **0.250** | even |
-| History replay | 0.701 | **0.975** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;39% |
-| Long reply | 15.617 | **3.153** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;80% |
-| Mixed turn | 1.009 | **0.785** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;22% |
-| 20 file reads | 0.778 | **0.640** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;18% |
-| Reasoning, prose | 1.584 | **1.007** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;36% |
-| Reasoning, sections | 1.419 | **0.888** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;37% |
-| Large shell log | 0.613 | **0.423** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;31% |
-| Table streaming | 2.242 | **1.012** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;55% |
-| Growing tool log | 1.075 | **0.906** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;16% |
+| Code block streaming | 3.789 | **2.351** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;38% |
+| Large diff | 0.368 | **0.328** | even |
+| History replay | 0.784 | **1.075** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;37% |
+| Long reply | 16.189 | **5.520** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;66% |
+| Mixed turn | 1.514 | **1.221** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;19% |
+| 20 file reads | 1.077 | **0.945** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;12% |
+| Reasoning, prose | 2.985 | **1.737** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;42% |
+| Reasoning, sections | 2.586 | **1.470** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;43% |
+| Large shell log | 0.943 | **0.657** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;30% |
+| Table streaming | 2.783 | **1.651** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;41% |
+| Growing tool log | 1.736 | **1.450** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;16% |
 
 Total timeline-row render time (host Profiler allRows.sum, milliseconds), versus no plugin: 9 lower, 0 even and 2 higher.
 
 | Scenario | No plugin | Better Paseo | vs no plugin |
 | --- | ---: | ---: | :--- |
-| Code block streaming | 1,491.6 | **123.2** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;92% |
-| Large diff | 17.8 | **13.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;26% |
-| History replay | 164.8 | **260.6** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;58% |
-| Long reply | 9,733.0 | **238.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;98% |
-| Mixed turn | 117.6 | **50.4** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;57% |
-| 20 file reads | 79.3 | **56.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;29% |
-| Reasoning, prose | 325.8 | **71.9** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;78% |
-| Reasoning, sections | 294.4 | **68.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;77% |
-| Large shell log | 18.4 | **11.4** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;38% |
-| Table streaming | 832.7 | **78.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;91% |
-| Growing tool log | 32.4 | **52.0** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;60% |
+| Code block streaming | 1,247.1 | **222.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;82% |
+| Large diff | 27.6 | **19.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;31% |
+| History replay | 147.0 | **236.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;61% |
+| Long reply | 8,887.4 | **438.7** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;95% |
+| Mixed turn | 164.6 | **89.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;46% |
+| 20 file reads | 120.7 | **87.7** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;27% |
+| Reasoning, prose | 493.7 | **132.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% |
+| Reasoning, sections | 457.5 | **120.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;74% |
+| Large shell log | 26.2 | **17.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;35% |
+| Table streaming | 886.4 | **147.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;83% |
+| Growing tool log | 56.8 | **94.3** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;66% |
 
 ### Streaming layout shift
 
-Cumulative layout shift (CLS) for the same Web runs; lower is better and values are shown to six decimal places. The 0.5-second rule does not apply. Percentages can magnify tiny baselines, so read the absolute values too; values below 0.002 are generally hard to see. Versus no plugin: 3 lower, 3 even and 5 higher.
+Cumulative layout shift (CLS) for the same Web runs; lower is better and values are shown to six decimal places. The 0.5-second rule does not apply. Percentages can magnify tiny baselines, so read the absolute values too; values below 0.002 are generally hard to see. Versus no plugin: 2 lower, 3 even and 6 higher.
 
 | Scenario | No plugin | Better Paseo | vs no plugin |
 | --- | ---: | ---: | :--- |
-| Code block streaming | 0.001333 | **0.030847** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;2214% |
+| Code block streaming | 0.001168 | **0.030875** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;2543% |
 | Large diff | 0.000015 | **0.000015** | even |
-| History replay | 0.107329 | **0.008503** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;92% |
-| Long reply | 0.054866 | **0.000015** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
+| History replay | 0.000015 | **0.000347** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;2278% |
+| Long reply | 0.053955 | **0.000015** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
 | Mixed turn | 0.002791 | **0.026655** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;855% |
 | 20 file reads | 0.000015 | **0.000793** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5335% |
 | Reasoning, prose | 0.000015 | **0.000778** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5235% |
 | Reasoning, sections | 0.000015 | **0.000778** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5235% |
 | Large shell log | 0.000015 | **0.000015** | even |
-| Table streaming | 0.046049 | **0.016243** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;65% |
+| Table streaming | 0.045756 | **0.016243** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;65% |
 | Growing tool log | 0.000015 | **0.000015** | even |
 
 ### iOS
 
-Paseo 0.12.0 Release simulator build on an iPhone 17 Pro / iOS 26.5 simulator, cold-launched for every sample, with the React profiling renderer for the row probe. Paseo 0.12 lays out Markdown on native threads, so the main iOS metric is whole-app-process CPU time over the replay. These simulator measurements do not establish physical-device performance.
+Paseo 0.13.0 Release simulator build on an iPhone 17 Pro / iOS 26.5 simulator, cold-launched for every sample, with the React profiling renderer for the row probe. Paseo 0.13 lays out Markdown on native threads, so the main iOS metric is whole-app-process CPU time over the replay. These simulator measurements do not establish physical-device performance. During the iOS batch, a restart of the simulator service from outside the bench shut down every simulator; rounds 1 and 2 were set aside and re-run in full under the same quiet checks, with a check that the simulator stayed up through every sample. Seven samples, all without the plugin, ended in a crash of the Paseo app and were run again, so every cell has five complete samples.
 
 ![iOS app CPU time](docs/perf/readme/ios-cpu.en.svg)
 
-Whole-app CPU time versus no plugin: 3 lower, 7 even and 1 higher. On the long reply, the host used 30.64 seconds and Better Paseo 8.16 seconds (73% less). The frame probe recorded medians of 1,253 dropped frames on the host and 12 with Better Paseo; the longest frames were 388 ms and 78 ms.
+Whole-app CPU time versus no plugin: 4 lower, 6 even and 1 higher. On the long reply, the host used 25.56 seconds and Better Paseo 11.76 seconds (54% less). The frame probe recorded medians of 894 dropped frames on the host and 15 with Better Paseo; the longest frames were 155.1 ms and 47.9 ms. History replay is bimodal on iOS, its app CPU depending on how many frames the replay draws: all ten samples of this round fell in the low mode, while those of the earlier Paseo 0.12 round all fell in the high one. iOS seconds are therefore not comparable across rounds; compare the ratios within a round.
 
 | Scenario | No plugin | Better Paseo | vs no plugin |
 | --- | ---: | ---: | :--- |
-| Code block streaming | 3.54 | **3.27** | even |
-| Large diff | 0.40 | **0.43** | even |
-| History replay | 1.96 | **2.19** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;12% |
-| Long reply | 30.64 | **8.16** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% |
-| Mixed turn | 1.47 | **1.37** | even |
-| 20 file reads | 1.24 | **1.34** | even |
-| Reasoning, prose | 2.46 | **2.31** | even |
-| Reasoning, sections | 2.17 | **1.99** | even |
-| Large shell log | 0.83 | **0.68** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;18% |
-| Table streaming | 2.19 | **2.17** | even |
-| Growing tool log | 1.86 | **1.67** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;10% |
+| Code block streaming | 4.54 | **4.23** | even |
+| Large diff | 0.55 | **0.50** | even |
+| History replay | 0.38 | **0.58** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;53% |
+| Long reply | 25.56 | **11.76** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;54% |
+| Mixed turn | 2.04 | **1.90** | even |
+| 20 file reads | 1.50 | **1.63** | even |
+| Reasoning, prose | 3.40 | **3.31** | even |
+| Reasoning, sections | 2.98 | **2.54** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;15% |
+| Large shell log | 1.32 | **0.92** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;30% |
+| Table streaming | 3.10 | **2.98** | even |
+| Growing tool log | 2.80 | **2.33** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;17% |
 
 JavaScript timeline-row render time (host Profiler allRows.sum, milliseconds), versus no plugin: 3 lower, 0 even and 8 higher. Paseo performs Markdown layout on native threads, so this JavaScript-only probe does not represent total app CPU.
 
 | Scenario | No plugin | Better Paseo | vs no plugin |
 | --- | ---: | ---: | :--- |
-| Code block streaming | 584.8 | **317.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;46% |
-| Large diff | 9.8 | **41.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;329% |
-| History replay | 47.2 | **115.4** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;145% |
-| Long reply | 19,925.6 | **704.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;96% |
-| Mixed turn | 82.5 | **131.4** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;59% |
-| 20 file reads | 97.1 | **152.7** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;57% |
-| Reasoning, prose | 127.6 | **174.2** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;37% |
-| Reasoning, sections | 115.0 | **158.7** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;38% |
-| Large shell log | 10.1 | **39.4** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;290% |
-| Table streaming | 289.6 | **186.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;35% |
-| Growing tool log | 71.1 | **124.3** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;75% |
+| Code block streaming | 647.2 | **407.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;37% |
+| Large diff | 11.9 | **45.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;286% |
+| History replay | 34.7 | **82.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;137% |
+| Long reply | 13,968.3 | **798.9** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;94% |
+| Mixed turn | 107.6 | **168.8** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;57% |
+| 20 file reads | 101.0 | **175.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;74% |
+| Reasoning, prose | 144.5 | **215.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;49% |
+| Reasoning, sections | 133.1 | **179.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;35% |
+| Large shell log | 12.0 | **40.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;241% |
+| Table streaming | 358.6 | **285.2** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;20% |
+| Growing tool log | 87.9 | **144.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;64% |
 
 Green ⬆ is lower; red ⬇ is higher. Percentages use unrounded medians. `history-100` is a fixture name, not 100 actual provider turns; it is labelled “History replay”. `tool-expanded-streaming` performs no expand action and is labelled “Growing tool log”.
 
-**Method and limits.** Web main-thread time is CDP TaskDuration for a whole replay; the row table is the sum of the host React Profiler row timings. iOS app CPU covers the whole process, including native threads; iOS row timings cover JavaScript work only. Every table uses the median of five runs per cell; percentage changes use unrounded medians. Changes under 10% are even; for whole Web replays, both sides below 0.5 seconds are also even. CLS has no 0.5-second floor; use its six-decimal absolute values because percentages can grow around near-zero baselines. The comparison with Beautiful Chat 42b61d8 was measured on Paseo 0.11.2 and was not repeated on 0.12. Tasks and Block details were on by default. Separate A/B runs show Tasks increased Web history-replay main-thread time from 0.885 to 0.941 seconds (+6%), and increased JS heap by about 1.3–2.1 MB across the paired fixtures; iOS history-replay app CPU changed about 2%. Turning Block details off reduced iOS JavaScript row time by 12–17% in three fixtures, while app CPU changed only about 2–4%. One known source of history-replay overhead is that each host agent update supplies a fresh `features` array even when it is unchanged, making the whole agent view and row-render callbacks render again whether Tasks is on or off; reported upstream as [getpaseo/paseo#7773](https://github.com/getpaseo/paseo/issues/7773) with a fix in [#7774](https://github.com/getpaseo/paseo/pull/7774).
+**Method and limits.** Web main-thread time is CDP TaskDuration for a whole replay; the row table is the sum of the host React Profiler row timings. iOS app CPU covers the whole process, including native threads; iOS row timings cover JavaScript work only. Every table uses the median of five runs per cell; percentage changes use unrounded medians. Changes under 10% are even; for whole Web replays, both sides below 0.5 seconds are also even. CLS has no 0.5-second floor; use its six-decimal absolute values because percentages can grow around near-zero baselines. The comparison with Beautiful Chat 42b61d8 was measured on Paseo 0.11.2 and was not repeated on 0.12 or 0.13. Tasks and Block details were on by default. Separate A/B runs on Paseo 0.12, not repeated on 0.13, showed Tasks increased Web history-replay main-thread time from 0.885 to 0.941 seconds (+6%), and increased JS heap by about 1.3–2.1 MB across the paired fixtures; iOS history-replay app CPU changed about 2%. Turning Block details off reduced iOS JavaScript row time by 12–17% in three fixtures, while app CPU changed only about 2–4%. One known source of history-replay overhead is that each host agent update supplies a fresh `features` array even when it is unchanged, making the whole agent view and row-render callbacks render again whether Tasks is on or off; reported upstream as [getpaseo/paseo#7773](https://github.com/getpaseo/paseo/issues/7773) with a fix in [#7774](https://github.com/getpaseo/paseo/pull/7774), which is still open, so Paseo 0.13.0 behaves the same way.
 
 ### Where the time goes
 
@@ -298,35 +297,37 @@ Green ⬆ is lower; red ⬇ is higher. Percentages use unrounded medians. `histo
 
 ## Memory comparison
 
-2026-10-23 Web production-profiling runs; each value is the median of five post-GC readings, from the same replay matrix as the main-thread table. This is JavaScript heap, not total process or app memory. Differences are Better Paseo minus no plugin, in MB; the 10% even rule does not apply. Better Paseo used 5.1–14.2 MB more heap across the listed scenarios.
+2026-10-26 Web production-profiling runs; each value is the median of five post-GC readings, from the same replay matrix as the main-thread table. This is JavaScript heap, not total process or app memory. Differences are Better Paseo minus no plugin, in MB; the 10% even rule does not apply. Better Paseo used 5.1–13.2 MB more heap across the listed scenarios.
 
 ![Web JavaScript heap and DOM nodes](docs/perf/readme/web-memory.en.svg)
 
 | Scenario | No plugin | Better Paseo | Difference |
 | --- | ---: | ---: | ---: |
-| Code block streaming | 83.1 | **88.2** | +5.1 |
-| Large diff | 76.9 | **85.8** | +8.9 |
-| History replay | 83.6 | **97.4** | +13.8 |
-| Long reply | 82.5 | **96.7** | +14.2 |
-| Mixed turn | 79.6 | **89.4** | +9.8 |
-| 20 file reads | 80.1 | **91.5** | +11.4 |
-| Reasoning, prose | 78.5 | **86.5** | +8.1 |
-| Reasoning, sections | 78.0 | **86.4** | +8.4 |
-| Large shell log | 77.9 | **86.5** | +8.6 |
-| Table streaming | 79.1 | **88.3** | +9.2 |
-| Growing tool log | 79.8 | **90.9** | +11.0 |
+| Code block streaming | 83.9 | **89.0** | +5.1 |
+| Large diff | 78.3 | **86.6** | +8.2 |
+| History replay | 85.8 | **99.1** | +13.2 |
+| Long reply | 83.8 | **96.4** | +12.6 |
+| Mixed turn | 80.6 | **90.2** | +9.6 |
+| 20 file reads | 81.6 | **92.1** | +10.6 |
+| Reasoning, prose | 79.4 | **87.4** | +8.0 |
+| Reasoning, sections | 79.3 | **87.0** | +7.7 |
+| Large shell log | 78.9 | **87.3** | +8.4 |
+| Table streaming | 80.4 | **89.0** | +8.6 |
+| Growing tool log | 81.2 | **91.6** | +10.4 |
 
-Raw Web samples from this round are kept in the local, git-ignored docs/bench/2026-10-23-paseo-012-f2f64009 archive; they are not stored in git.
+Raw Web samples from this round are kept in the local, git-ignored docs/bench/2026-10-26-paseo-013-948b8720 archive; they are not stored in git.
 
 ---
 
 ## Timeline
 
-Screenshots taken on 2026-10-23 from the code at `f2f64009`. The manifest records `118f5903`, this
-README's branch, whose `client`, `server` and `shared` are identical to `f2f64009`. Card and setting
-screenshots come from the offline Web showcase; the desktop title shots from Paseo 0.12.0 on the
-web; the phone and iPad shots from Paseo 0.12 Release builds on iOS 26.5 simulators (iPhone 17
-Pro, 11-inch and 13-inch iPad). All data is sample fixture data. Every screenshot defaults to light
+Screenshots taken on 2026-10-26 and 27. The desktop board and timeline shots and the cover come
+from `948b8720` on Paseo 0.13.0's web app; the phone and iPad shots were taken or rechecked at
+`8802deb8` on Paseo 0.13.0 Release builds on iOS 26.5 simulators (iPhone 17 Pro, 11-inch and
+13-inch iPad). `948b8720..8802deb8` changes only the phone search and filter sheet, which the
+desktop shots do not show. Card and setting screenshots come from the offline Web showcase and were
+rechecked at `948b8720`; where nothing had changed, the earlier capture was kept. All data is
+sample fixture data. Every screenshot defaults to light
 and switches to dark with the reader's theme. Performance versions and conditions are identified
 above. [Capture manifest](docs/images/screenshots.json).
 
@@ -1130,14 +1131,16 @@ developers in [`docs/plugin-sdk-limitations.md`](docs/plugin-sdk-limitations.md)
 
 ### Compatibility
 
-Better Paseo is developed and measured against Paseo 0.12.0 and installs on Paseo 0.8 and later.
+Better Paseo is developed and measured against Paseo 0.13.0 and installs on Paseo 0.12.0 and
+later.
 
-- **Paseo 0.8–0.10.** The timeline draws. Oh My Pi's `eval` and `ask` calls reach plugins under
-  their own names there, not through Paseo 0.11's plain-text mapping: `eval` stays generic, and
-  `ask` gets a question transcript only when its input contains a structured `questions` array.
-- **Paseo 0.13 beta.** 0.13 drops the paced reveal plugins used for streaming text, so live replies
-  and thoughts are drawn whole as they arrive instead of revealed smoothly.
-  [#7571](https://github.com/getpaseo/paseo/pull/7571) (open) would restore it.
+- **Paseo 0.11 and earlier.** The plugin no longer installs there: iOS prose uses native
+  Markdown components that need Paseo 0.12.0 or newer, so the manifest requires `>=0.12.0`.
+  Since Paseo 0.11, Oh My Pi's `eval` and `ask` calls reach plugins through Paseo's plain-text
+  mapping rather than under their own names.
+- **Paseo 0.13 betas.** The betas drop the paced reveal plugins use for streaming text, so live
+  replies and thoughts are drawn whole as they arrive instead of revealed smoothly. Paseo 0.13.0
+  brings it back for plugins ([#7780](https://github.com/getpaseo/paseo/pull/7780)).
 
 ---
 
