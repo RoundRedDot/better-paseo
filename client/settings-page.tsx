@@ -540,8 +540,8 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
   const native = platform !== "web";
   const compact = layout?.compact ?? native;
   const hostTypography = useMemo(() => readHostTypography(theme) !== null, [theme]);
-  // Plan D10 level 2: Paseo's Appearance mono settings (web, without H1).
-  const appearance = useHostAppearance(platform === "web" && !hostTypography, theme);
+  // Content size follows Paseo's Appearance settings on native as well as web.
+  const appearance = useHostAppearance(!hostTypography, theme);
   const tokens = useMemo(
     () => {
       ensureEmbeddedFonts(preferences, platform);
