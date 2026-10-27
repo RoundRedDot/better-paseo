@@ -21,7 +21,7 @@ import { SelectableSpan, SelectableText } from "./prose-text";
 import { TextZoomContext, isZoomed, zoomTextStyle, zoomTokens } from "./text-zoom";
 import { LineSelectionMenu, useLineSelection } from "./line-selection";
 import { PreviewScrollerContext, PreviewViewportContext } from "./preview-scroller";
-import { textChunks, TEXT_CHUNK_CHARS, TEXT_CHUNK_LINES, type TextChunk } from "./text-chunks";
+import { textChunks, DIFF_TEXT_CHUNK_LINES, TEXT_CHUNK_CHARS, TEXT_CHUNK_LINES, type TextChunk } from "./text-chunks";
 
 /** A line as laid out: its text, ending in `\n` where a source line ends, and its box where the platform says. */
 export interface VisualLine {
@@ -150,7 +150,7 @@ function ChunkedPreviewLines(props: PreviewLinesProps) {
   const tokens = zoomTokens(props.tokens, zoom);
   const wraps = usePreviewWraps();
   const root = useRef<View>(null);
-  const chunks = useMemo(() => textChunks(props.lines), [props.lines]);
+  const chunks = useMemo(() => textChunks(props.lines, props.diff ? DIFF_TEXT_CHUNK_LINES : TEXT_CHUNK_LINES), [props.lines, props.diff]);
   const numbers = useMemo(() => props.diff ? diffLineNumbers(props.lines)
     : props.lines.map((_, index) => (props.firstLine ?? 1) + index), [props.diff, props.lines, props.firstLine]);
   const gutter = lineNumberWidth(numbers.reduce<number>((max, number) => Math.max(max, number ?? 0), 0), tokens.typography.mono.size);

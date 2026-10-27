@@ -16,7 +16,7 @@ import { DiffPreview } from "../../client/components/tool-output";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { ProseSelectionContext } from "../../client/ui/prose-text";
 import { HoverPreviewBody } from "../../client/ui/hover-preview";
-import { TEXT_CHUNK_LINES } from "../../client/ui/text-chunks";
+import { DIFF_TEXT_CHUNK_LINES } from "../../client/ui/text-chunks";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -35,7 +35,7 @@ describe("diff preview native text fragments", () => {
     const roots = renderer.root.findAll((node) => (node.type as unknown) === "RNUITextView");
     expect(roots).toHaveLength(1);
     const fragments = roots[0]!.findAll((node) => (node.type as unknown) === "RNUITextViewChild");
-    expect(fragments.map((node) => node.props.text).join("")).toBe(lines.slice(0, TEXT_CHUNK_LINES).join("\n"));
+    expect(fragments.map((node) => node.props.text).join("")).toBe(lines.slice(0, DIFF_TEXT_CHUNK_LINES).join("\n"));
     expect(roots[0]!.findAll((node) => (node.type as unknown) === "Text")).toHaveLength(0);
     act(() => renderer.unmount());
   });

@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { textChunks, TEXT_CHUNK_CHARS, TEXT_CHUNK_LINES } from "../../client/ui/text-chunks";
+import { textChunks, DIFF_TEXT_CHUNK_LINES, TEXT_CHUNK_CHARS, TEXT_CHUNK_LINES } from "../../client/ui/text-chunks";
 
 describe("native text chunks", () => {
+  it("uses smaller diff chunks without losing row offsets or empty lines", () => {
+    const lines = Array.from({ length: 100 }, (_, index) => index % 16 ? `+line-${index}` : "");
+    const chunks = textChunks(lines, DIFF_TEXT_CHUNK_LINES);
+    expect(chunks.every((chunk) => chunk.lines.length <= DIFF_TEXT_CHUNK_LINES)).toBe(true);
+    expect(chunks.flatMap((chunk) => chunk.lines)).toEqual(lines);
+    expect(chunks.map((chunk) => chunk.from)).toEqual([0, 16, 32, 48, 64, 80, 96]);
+  });
   it.each([1_000, 5_000, 20_000])("bounds text and row counts for %i lines without changing content", (count) => {
     const lines = Array.from({ length: count }, (_, index) => `${index}: ${"word ".repeat(index % 40)}`);
     const chunks = textChunks(lines);

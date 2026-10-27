@@ -19,7 +19,7 @@ import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../clien
 import { HoverPreviewBody } from "../../client/ui/hover-preview";
 import { PreviewLines } from "../../client/ui/preview-lines";
 import { TextZoomContext } from "../../client/ui/text-zoom";
-import { TEXT_CHUNK_CHARS, TEXT_CHUNK_LINES } from "../../client/ui/text-chunks";
+import { DIFF_TEXT_CHUNK_LINES, TEXT_CHUNK_CHARS, TEXT_CHUNK_LINES } from "../../client/ui/text-chunks";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -98,12 +98,15 @@ describe.each(["ios", "android"])("large native previews on %s", (os) => {
     const lines = ["@@ -900,400 +1000,400 @@", ...Array.from({ length: 400 }, (_, index) => index === 80 ? "-old" : index === 81 ? "+new" : ` context-${index}`)];
     const { renderer, scroll } = render(React.createElement(HoverPreviewBody, null,
       React.createElement(DiffPreview, { text: lines.join("\n"), filename: "x.ts", tokens, style: {}, running: true })));
+    const firstGutter = renderer.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "preview-line-numbers");
+    expect(firstGutter.children).toHaveLength(DIFF_TEXT_CHUNK_LINES);
     scroll(64 * tokens.typography.mono.lineHeight);
     const gutters = renderer.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "preview-line-numbers");
-    const numbers = gutters[1]!.children.map(textOf);
-    expect(numbers[0]).toBe("1063");
-    expect(numbers[17]).toBe("980");
-    expect(numbers[18]).toBe("1080");
+    const numbers = gutters.flatMap((gutter) => gutter.children.map(textOf));
+    expect(numbers).toContain("1063");
+    const removed = numbers.indexOf("980");
+    expect(removed).toBeGreaterThanOrEqual(0);
+    expect(numbers.slice(removed, removed + 2)).toEqual(["980", "1080"]);
     const fills = renderer.root.findAll((node) => (node.type as unknown) === "View" && Array.isArray(node.props.style)
       && node.props.style.some((part: { backgroundColor?: string } | null) => part?.backgroundColor === tokens.syntax.diffAddBg || part?.backgroundColor === tokens.syntax.diffRemoveBg));
     expect(fills).toHaveLength(2);
