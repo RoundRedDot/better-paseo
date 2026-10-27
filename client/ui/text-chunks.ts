@@ -1,5 +1,7 @@
 /** Bound both native text layout and the number of attributed fragments. */
 export const TEXT_CHUNK_LINES = 64;
+/** Diff rows carry both syntax runs and semantic fills. */
+export const DIFF_TEXT_CHUNK_LINES = 16;
 export const TEXT_CHUNK_CHARS = 8192;
 
 export interface TextChunk {
@@ -11,7 +13,7 @@ export interface TextChunk {
 }
 
 /** Source lines stay intact except when one line exceeds the character budget. */
-export function textChunks(lines: readonly string[]): TextChunk[] {
+export function textChunks(lines: readonly string[], lineLimit = TEXT_CHUNK_LINES): TextChunk[] {
   const chunks: TextChunk[] = [];
   let start = 0;
   let size = 0;
@@ -37,7 +39,7 @@ export function textChunks(lines: readonly string[]): TextChunk[] {
       start = index + 1;
       continue;
     }
-    if (index - start >= TEXT_CHUNK_LINES || size + line.length + (index > start ? 1 : 0) > TEXT_CHUNK_CHARS) flush(index);
+    if (index - start >= lineLimit || size + line.length + (index > start ? 1 : 0) > TEXT_CHUNK_CHARS) flush(index);
     size += line.length + (index > start ? 1 : 0);
   }
   flush(lines.length);
