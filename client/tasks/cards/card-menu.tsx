@@ -80,7 +80,7 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
       items: [
         ...(actions.open ? [{ key: "open", label: strings.openTab, icon: "ArrowUpRight", onSelect: actions.open }] : []),
         ...(!card.subagent && actions.rename ? [{ key: "rename", label: strings.renameTitle, icon: "Pencil", keepOpen: true, onSelect: actions.rename }] : []),
-        ...(!card.subagent && card.lane !== "archived" && actions.autoTitle ? [{ key: "auto-title", label: strings.autoTitle, icon: "Sparkles", leading: actions.autoTitleLeading, disabled: actions.autoTitlePending, onSelect: actions.autoTitle }] : []),
+        ...(!card.subagent && card.lane !== "archived" && actions.autoTitle ? [{ key: "auto-title", label: actions.autoTitlePending ? strings.autoTitlePending : strings.autoTitle, icon: "Sparkles", leading: actions.autoTitleLeading, disabled: actions.autoTitlePending, onSelect: actions.autoTitle }] : []),
         ...(actions.openParent ? [{ key: "open-parent", label: strings.openParent, icon: "CornerLeftUp", onSelect: actions.openParent }] : []),
         ...(actions.revealParent ? [{ key: "reveal-parent", label: strings.revealParentCard, icon: "LocateFixed", onSelect: actions.revealParent }] : []),
       ],

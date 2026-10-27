@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
+import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -869,7 +869,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       >
         {card.title}
       </Text>
-      {updatingTitle ? <StatusIcon kind="running" size={16} theme={theme} accessibilityLabel={strings.autoTitlePending} /> : null}
+      {updatingTitle ? <ActivityIndicator size="small" color={tokens.foregroundMuted} animating={props.animated !== false && !reducedMotion} hidesWhenStopped={false} accessibilityLabel={strings.autoTitlePending} accessibilityState={{ busy: true }} testID="task-title-update-loading" /> : null}
       {hasMeta ? null : ringFor(m.titleLine)}
     </View>
   );
@@ -1451,7 +1451,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           actions={{
             autoTitle: props.titleUpdates ? () => props.titleUpdates?.start(card.id) : undefined,
             autoTitlePending: updatingTitle,
-            autoTitleLeading: updatingTitle ? <StatusIcon kind="running" size={16} theme={theme} /> : undefined,
+            autoTitleLeading: updatingTitle ? <ActivityIndicator size="small" color={tokens.foregroundMuted} animating={props.animated !== false && !reducedMotion} hidesWhenStopped={false} /> : undefined,
             open: props.onOpen && ownTab ? () => props.onOpen?.(card.id) : undefined,
             openParent: parentOpens ? () => props.onOpen?.(card.parent!.id) : undefined,
             revealParent: card.parent ? () => props.onReveal(card.parent!.id) : undefined,
