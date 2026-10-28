@@ -429,14 +429,33 @@ describe("background title generation", () => {
     expect(f.rename).not.toHaveBeenCalled();
   });
 
-  it("checks rename availability and archive state before starting a model", async () => {
+  it.each(["apply", "preview"] as const)("generates an archived agent's title without unarchiving it (%s)", async (mode) => {
+    const f = await fixture();
+    f.original.agent.archivedAt = "2026-10-27T00:00:00Z";
+    f.start(mode);
+    expect(await f.settle(mode)).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(f.original.agent.archivedAt).toBe("2026-10-27T00:00:00Z");
+    expect(f.archive).toHaveBeenCalledTimes(1);
+    if (mode === "preview") {
+      expect(f.rename).not.toHaveBeenCalled();
+      return;
+    }
+    expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
+  });
+
+  it("can apply a title when the source was archived during generation", async () => {
+    const f = await fixture();
+    f.refresh.mockResolvedValueOnce(f.original).mockResolvedValueOnce({ agent: { ...f.original.agent, archivedAt: "2026-10-27T00:00:00Z" } });
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
+  });
+
+  it("checks rename availability before starting a model", async () => {
     const f = await fixture();
     f.canRename.mockReturnValueOnce(false);
     f.start();
     expect(await f.settle()).toEqual({ state: "error", error: "This host cannot update agent titles." });
-    f.original.agent.archivedAt = "2026-10-27T00:00:00Z";
-    f.start();
-    expect(await f.settle()).toMatchObject({ state: "error", error: expect.stringContaining("Unarchive") });
     expect(f.workspace).not.toHaveBeenCalled();
   });
 });
