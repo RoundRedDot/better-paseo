@@ -543,16 +543,20 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const language = props.language ?? preferred;
   const strings = cardStrings(language);
   const titleUpdate = useTitleUpdateState(props.titleUpdates, card.id);
-  const updatingTitle = titleUpdate.state === "running";
   // The title streams in under the sweep, then holds until the rename reaches the card.
   const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
   const shownTitle = useRevealedTitle(streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : card.title),
     Boolean(streamedTitle) || titleUpdate.state === "done", props.animated !== false);
+  const updatingTitle = titleUpdate.state === "running" || titleUpdate.state === "done" && shownTitle !== titleUpdate.title;
   const previousTitle = useRef(card.title);
   useEffect(() => {
-    if (previousTitle.current !== card.title) props.titleUpdates?.dismiss(card.id);
+    if (titleUpdate.state === "done" && shownTitle === titleUpdate.title) {
+      props.titleUpdates?.finishReveal(card.id);
+      if (card.title === titleUpdate.title || previousTitle.current !== card.title) props.titleUpdates?.dismiss(card.id);
+    }
+    if (titleUpdate.state === "error" && previousTitle.current !== card.title) props.titleUpdates?.dismiss(card.id);
     previousTitle.current = card.title;
-  }, [card.title, card.id, props.titleUpdates]);
+  }, [card.title, card.id, props.titleUpdates, titleUpdate, shownTitle]);
   const m = compact ? PHONE : DESKTOP;
   const buttonHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT;
   const layout = cardLayout(card, fields, compact);

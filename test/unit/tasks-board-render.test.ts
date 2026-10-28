@@ -3884,6 +3884,53 @@ describe("Tasks board, phone", () => {
   });
 
   // The phone wraps the board's callbacks to swallow taps after a swipe; it once dropped the title control.
+  it.each(["needs_input", "running", "review", "done", "archived"] as const)("keeps a card in place until its complete generated title is displayed (%s)", async (lane) => {
+    const titleUpdates = await import("../../client/tasks/actions/title-update");
+    let answer!: (state: { state: "done"; title: string }) => void;
+    const control = titleUpdates.createTitleUpdateControl(() => new Promise((resolve) => { answer = resolve; }));
+    const titleControl = vi.spyOn(titleUpdates, "useTitleUpdateControl").mockReturnValue(control);
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }>; byId: Map<string, TaskCard> } }).__handle;
+    const saved = handle.lanes;
+    const first = { ...handle.byId.get("sample-done")!, id: "title-first", lane };
+    const target = { ...first, id: "title-target", title: "Old title" };
+    const title = "A complete generated title that must finish before the card moves";
+    const laneCards = () => cards().filter((card) => card.props.card.lane === lane);
+    try {
+      host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
+      handle.lanes = { ...saved, [lane]: { ...saved[lane]!, cards: [first, target] } };
+      await act(async () => { renderer = TestRenderer.create(screen(false)); });
+      await act(async () => { await deviceTasksStore().update({ showArchived: true }); });
+      layOut(2400);
+      await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+      expect(laneCards().map((card) => card.props.card.id)).toEqual([first.id, target.id]);
+      await act(async () => control.start(target.id));
+      const rowRenders = host.rowRenders;
+      const updated = { ...target, title, timing: { ...target.timing, updatedAt: "2026-10-28T00:00:00Z" } };
+      // The daemon publishes the rename before the final status reaches the client.
+      handle.lanes = { ...handle.lanes, [lane]: { ...handle.lanes[lane]!, cards: [updated, first] } };
+      await act(async () => renderer!.update(screen(false)));
+      expect(laneCards().map((card) => card.props.card.id)).toEqual([first.id, target.id]);
+      expect(laneCards()[1]!.props.card).toBe(target);
+      await act(async () => answer({ state: "done", title }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+      expect(control.revealing().has(target.id)).toBe(true);
+      expect(laneCards().map((card) => card.props.card.id)).toEqual([first.id, target.id]);
+      expect(laneCards()[1]!.props.card).toBe(target);
+      expect(host.rowRenders).toBe(rowRenders);
+      for (let index = 0; index < 100 && control.revealing().has(target.id); index++) {
+        await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+      }
+      expect(control.revealing().has(target.id)).toBe(false);
+      expect(laneCards().map((card) => card.props.card.id)).toEqual([target.id, first.id]);
+      expect(laneCards()[0]!.props.card).toBe(updated);
+      expect(laneCards()[1]!.props.card).toBe(first);
+      expect(textOf(laneCards()[0]!.find((node) => typeof node.type === "string" && node.props.testID === "task-card-title"))).toBe(title);
+    } finally {
+      handle.lanes = saved;
+      titleControl.mockRestore();
+    }
+  });
+
   it.each([true, false])("offers automatic titles from a card's long-press menu (compact: %s)", async (compact) => {
     await act(async () => {
       renderer = TestRenderer.create(screen(compact));
@@ -3896,7 +3943,7 @@ describe("Tasks board, phone", () => {
     expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Automatically update title")).toHaveLength(1);
   });
 
-  it.each([true, false])("leaves automatic titles off an archived card's long-press menu (compact: %s)", async (compact) => {
+  it.each([true, false])("offers automatic titles on an archived card's long-press menu (compact: %s)", async (compact) => {
     const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }>; byId: Map<string, TaskCard> } }).__handle;
     const saved = handle.lanes;
     const archived = data.withArchived(handle.byId.get("sample-done")!, "agent");
@@ -3911,9 +3958,9 @@ describe("Tasks board, phone", () => {
       const card = cards().find((node) => node.props.card.id === archived.id)!;
       expect(card.props.titleUpdates).toBeDefined();
       act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${archived.id}`).props.onLongPress());
-      // The menu is up (Copy title is there), without the title action.
+      // Archived cards keep the same title actions as other sessions.
       expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Copy title")).toHaveLength(1);
-      expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Automatically update title")).toHaveLength(0);
+      expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Automatically update title")).toHaveLength(1);
     } finally {
       handle.lanes = saved;
     }

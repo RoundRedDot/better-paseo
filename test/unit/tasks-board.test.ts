@@ -36,7 +36,7 @@ import {
 } from "../../client/tasks/board/navigation";
 import { activeChips, buildFilterOptions, cardFilterState, filterToCard, searchWorkspaceGroups, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, projectOptions, shownFilterOptions, toggleProject, type ChipGroup } from "../../client/tasks/board/filter-options";
 import { boardPalette, buttonOutline, cubicBezier } from "../../client/tasks/board/board-style";
-import { hiddenSubtaskCount, restoredStops, withStopReasons } from "../../client/tasks/board/use-board";
+import { hiddenSubtaskCount, holdRevealingTitles, keepSameLanes, restoredStops, withStopReasons } from "../../client/tasks/board/use-board";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { hostLanguage, resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18n";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
@@ -45,6 +45,50 @@ import { ACTIVE_LANE_ORDER, EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneMod
 import { filterLanes, type TasksHandle } from "../../client/tasks/data";
 
 const defaults = { hideSubtasks: false, doneWindow: "24h" as const };
+
+describe("title refresh", () => {
+  it.each(LANE_ORDER)("holds only the revealing card at its old position, then accepts the final update once (%s)", (lane) => {
+    const lanes = handle().lanes;
+    const first = { ...lanes.done.cards[0]!, id: "first", lane };
+    const target = { ...first, id: "target", title: "Old title" };
+    const last = { ...lanes, [lane]: { ...lanes[lane], cards: [first, target] } };
+    const updated = { ...target, title: "Complete generated title", timing: { ...target.timing, updatedAt: "2026-10-28T00:00:00Z" } };
+    const next = { ...last, [lane]: { ...last[lane], cards: [updated, first] } };
+    const held = holdRevealingTitles(last, next, new Set([target.id]));
+    expect(held[lane].cards).toEqual([first, target]);
+    expect(keepSameLanes(last, held)).toBe(last);
+    for (const other of LANE_ORDER) if (other !== lane) expect(held[other]).toBe(last[other]);
+    const released = holdRevealingTitles(held, next, new Set());
+    expect(released).toBe(next);
+    expect(released[lane].cards[0]).toBe(updated);
+    expect(released[lane].cards[1]).toBe(first);
+  });
+
+  it("does not defer a status update or a move to another lane", () => {
+    const lanes = handle().lanes;
+    const target = lanes.running.cards[0]!;
+    const status = { ...target, error: "Task status updated" };
+    const next = { ...lanes, running: { ...lanes.running, cards: [status] } };
+    expect(holdRevealingTitles(lanes, next, new Set([target.id]))).toBe(next);
+    const moved = { ...next, running: { ...next.running, cards: [] }, done: { ...next.done, cards: [{ ...status, lane: "done" as const, title: "Generated title" }] } };
+    expect(holdRevealingTitles(lanes, moved, new Set([target.id]))).toBe(moved);
+  });
+
+  it("keeps other card updates and paging live, and does not restore a removed card", () => {
+    const lanes = handle().lanes;
+    const first = { ...lanes.done.cards[0]!, id: "first", lane: "archived" as const };
+    const target = { ...first, id: "target" };
+    const last = { ...lanes, archived: { ...lanes.archived, cards: [first, target] } };
+    const updatedFirst = { ...first, title: "Unrelated update" };
+    const next = { ...last, archived: { ...last.archived, cards: [{ ...target, title: "Generated" }, updatedFirst], hasMore: true } };
+    const held = holdRevealingTitles(last, next, new Set([target.id]));
+    expect(held.archived.cards).toEqual([updatedFirst, target]);
+    expect(held.archived.cards[0]).toBe(updatedFirst);
+    expect(held.archived.hasMore).toBe(true);
+    const removed = { ...next, archived: { ...next.archived, cards: [updatedFirst] } };
+    expect(holdRevealingTitles(held, removed, new Set([target.id]))).toBe(removed);
+  });
+});
 
 afterEach(() => resetBoardSessions());
 

@@ -216,11 +216,44 @@ it("streams the generated title under the sweep and holds it until the rename re
   await act(async () => chunk());
   await vi.waitFor(() => expect(answers).toHaveLength(1));
   await act(async () => answers.shift()!({ state: "done", title: "Fix the card title" }));
-  expect(tree.root.findAllByType(TitleLoading)).toHaveLength(0);
   await vi.waitFor(() => expect(hostByTestId(tree.root, "task-card-title").children.join("")).toBe("Fix the card title"));
+  expect(tree.root.findAllByType(TitleLoading)).toHaveLength(0);
   await act(async () => tree.update(cardElement({ ...card, title: "Renamed elsewhere" }, { titleUpdates: control })));
   expect(control.read(card.id)).toEqual({ state: "idle" });
   expect(hostByTestId(tree.root, "task-card-title").children.join("")).toBe("Renamed elsewhere");
+});
+
+it("finishes revealing before releasing an archived card's final snapshot", async () => {
+  vi.useFakeTimers();
+  try {
+    let answer!: (state: TitleUpdateState) => void;
+    const control = createTitleUpdateControl(() => new Promise((resolve) => { answer = resolve; }));
+    const card = { ...sampleCards(NOW)[0]!, lane: "archived" as const };
+    const title = "A complete generated title that must finish before the archived card moves";
+    const tree = await render(cardElement(card, { titleUpdates: control }));
+    await act(async () => control.start(card.id));
+    await act(async () => answer({ state: "done", title }));
+    expect(control.revealing().has(card.id)).toBe(true);
+    expect(control.read(card.id).state).toBe("done");
+    await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+    const partial = tree.root.findByType(TitleLoading).props.title;
+    expect(partial.length).toBeGreaterThan(0);
+    expect(partial.length).toBeLessThan(title.length);
+    expect(control.revealing().has(card.id)).toBe(true);
+    // The daemon's rename may arrive before the visual reveal finishes.
+    await act(async () => tree.update(cardElement({ ...card, title }, { titleUpdates: control })));
+    expect(control.read(card.id).state).toBe("done");
+    expect(tree.root.findByType(TitleLoading).props.title).toBe(partial);
+    for (let index = 0; index < 100 && control.revealing().has(card.id); index++) {
+      await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+    }
+    expect(control.revealing().has(card.id)).toBe(false);
+    expect(hostByTestId(tree.root, "task-card-title").children.join("")).toBe(title);
+    expect(control.read(card.id)).toEqual({ state: "idle" });
+    expect(tree.root.findAllByType(TitleLoading)).toHaveLength(0);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it.each([["light", LIGHT], ["dark", DARK]] as const)("sweeps the %s title with a readable light brighter than its resting color", async (_name, theme) => {
