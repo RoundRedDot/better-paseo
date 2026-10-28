@@ -58,6 +58,8 @@ function rules(theme: PluginTheme): string {
   initial-value: transparent;
 }
 [data-bclane] {
+  /* A renamed card can move to the top; keep the reader's scroll offset. */
+  overflow-anchor: none;
   scrollbar-width: auto;
   scrollbar-color: auto;
   scrollbar-gutter: stable;
