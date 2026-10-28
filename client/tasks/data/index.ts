@@ -441,7 +441,7 @@ function timestamp(value: string | null, missing: number): number {
  * `updatedAt` stands in (archiving sets it, and a later touch must not
  * outrank a newer archive).
  */
-function archivedOrderAt(card: TaskCard): string | null {
+function archivedOrderAt(card: TaskCard): string {
   return card.timing.archivedAt ?? card.timing.updatedAt;
 }
 
