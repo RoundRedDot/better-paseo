@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import { tipProps } from "../cards/card-hints";
@@ -388,13 +388,13 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   useRequestProjectIcons([...new Set(rows.flatMap((row) => (row.iconFor ? [row.iconFor] : [])))], board.tasks.requestProjectIcon);
 
   return (
-    <DetailCard tokens={tokens} style={{ flexShrink: 1, minHeight: 0, paddingTop: 10, paddingBottom: 6 }} testID="sidebar-groups">
-      <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 10, paddingBottom: 6 }}>
+    <DetailCard tokens={tokens} style={{ flexShrink: 1, minHeight: 0, paddingTop: 12, paddingBottom: 8 }} testID="sidebar-groups">
+      <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 10, paddingBottom: 10 }}>
         {GROUP_KINDS.map((id) => (
           <Segment key={id} id={id} icon={FILTER_ICONS[id]} label={strings.groups[id]} showLabel={showLabels} onFit={reportFit} on={kind === id} tokens={tokens} touch={props.touch} onPress={() => setKind(id)} />
         ))}
       </View>
-      <View style={{ paddingHorizontal: 10, paddingBottom: 6 }}>
+      <View style={{ paddingHorizontal: 10, paddingBottom: 8 }}>
         <View testID="sidebar-groups-search" style={{ height: taskControlHeight(props.touch ? 36 : 28, scale), flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: searchFocused ? props.theme.colors.foregroundMuted : props.theme.colors.border }}>
           <Icon name="Search" size={13} color={tokens.foregroundMuted} />
           <TextInput
@@ -409,7 +409,7 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
-            style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: tokens.foreground }}
+            style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: tokens.foreground, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }}
           />
           {query ? (
             <Pressable testID="sidebar-groups-search-clear" accessibilityRole="button" accessibilityLabel={board.strings.menuSearch.clear} {...tipProps(board.strings.menuSearch.clear)} hitSlop={6} style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center" }} onPress={() => setQueries((previous) => ({ ...previous, [kind]: "" }))}>
@@ -527,6 +527,7 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
       {...hoverProps}
       style={({ pressed }) => ({
         height: taskControlHeight(props.touch ? 44 : 36, scale),
+        marginVertical: 2,
         // The scrollbar's gutter takes the right margin (`detail-scrollbar.ts`); off web the gutter is 0 and the margin stays 6.
         marginLeft: 6,
         marginRight: 6 - detailGutter("inset"),

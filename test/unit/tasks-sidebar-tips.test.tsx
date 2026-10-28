@@ -129,9 +129,12 @@ describe("sidebar action tips", () => {
     const input = () => host(root, "sidebar-groups-search-input");
     const rows = () => root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
     expect(host(root, "sidebar-groups-search").props.style).toMatchObject({ borderRadius: 999, height: touch ? 36 : 28, borderColor: THEME.colors.border });
+    expect(input().props.style.outlineStyle).toBe("none");
+    expect(rows()[0]!.props.style).toMatchObject({ height: touch ? 44 : 36, marginVertical: 2 });
     await act(async () => input().props.onFocus());
     expect(host(root, "sidebar-groups-search").props.style.borderColor).toBe(THEME.colors.foregroundMuted);
     await act(async () => input().props.onBlur());
+    expect(host(root, "sidebar-groups-search").props.style.borderColor).toBe(THEME.colors.border);
     for (const [icon, query, label] of [
       ["Bot", "  CODEX ", "Codex 0"],
       ["FolderKanban", "PAY", "Payments 0"],
