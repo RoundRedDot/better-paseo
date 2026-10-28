@@ -164,7 +164,9 @@ describe("Markdown table copy", () => {
     expect(selectedCopy()).toHaveLength(0);
     tap(index, 230);
     expect(selectedCopy()).toHaveLength(1);
-    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(tokens.accentBg);
+    expect(tokens.selectionFill).toBe("rgba(27, 27, 31, 0.1)");
+    expect(tokens.selectionFill).not.toBe(tokens.accentBg);
+    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(tokens.selectionFill);
     const menu = selectedCopy()[0]!;
     let corner = menu.parent!;
     while (StyleSheet.flatten(corner.props.style).position !== "absolute") corner = corner.parent!;
@@ -175,7 +177,7 @@ describe("Markdown table copy", () => {
     expect(selectedCopy()).toHaveLength(0);
     finishExit(runs);
     expect(buttons()).toHaveLength(1);
-    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).not.toBe(tokens.accentBg);
+    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).not.toBe(tokens.selectionFill);
   });
 
   it("expands the corner into Copy selected without adding any content below the table", () => {
@@ -403,7 +405,7 @@ describe("Markdown table copy", () => {
     });
     const highlighted = () => renderer!.root.findAll((node) => String(node.type) === "Text"
       && node.props.testID === "markdown-table-cell"
-      && StyleSheet.flatten(node.props.style).backgroundColor === tokens.accentBg).map((node) => node.children.join(""));
+      && StyleSheet.flatten(node.props.style).backgroundColor === tokens.selectionFill).map((node) => node.children.join(""));
     const scroller = () => renderer!.root.findAll((node) => node.props.horizontal === true)[0]!;
     expect(touchFrame().props.onMoveShouldSetResponder()).toBe(false);
     act(() => touchFrame().props.onTouchStart(touch(0, 5, 140)));

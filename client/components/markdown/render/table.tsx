@@ -164,7 +164,7 @@ export function MdTable({
               align(column),
               ...frame(column),
               contentTextStyle(),
-              rangeHas(ranges, row, column) && { backgroundColor: context.tokens.accentBg },
+              rangeHas(ranges, row, column) && { backgroundColor: context.tokens.selectionFill },
             ]}
           >
             {renderInline(cell.tokens, context, cellKey)}

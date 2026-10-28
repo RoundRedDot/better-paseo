@@ -1255,7 +1255,7 @@ describe("content gestures in the drawer", () => {
       && typeof node.props.onTouchStart === "function" && typeof node.props.onMoveShouldSetResponder === "function")[0]!.props as Handlers;
     const touch = (pageX: number, pageY: number, timestamp: number) => ({ nativeEvent: { pageX, pageY, timestamp, touches: [{}] } });
     const highlighted = () => renderer.root.findAll((node) => (node.type as unknown) === "Text"
-      && node.props.testID === "markdown-table-cell" && flat(node.props.style).backgroundColor === tokens.accentBg).length;
+      && node.props.testID === "markdown-table-cell" && flat(node.props.style).backgroundColor === tokens.selectionFill).length;
     web.row = 0;
     act(() => {
       panel.onStartShouldSetPanResponderCapture!(event(10, 440, 1000));

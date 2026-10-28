@@ -107,6 +107,11 @@ export interface ExtendedThemeTokens {
   accentForeground: string;
   accentBg: string;
   /**
+   * A dragged Markdown range, such as table cells. Grey from the foreground,
+   * at the same strength as `accentBg`, so a theme's accent does not paint it.
+   */
+  selectionFill: string;
+  /**
    * Inline code where it cannot have a fill (iOS, Android): the colour picked
    * in the settings, an opaque dark grey by default. See `inlineCodeColor`.
    */
@@ -346,6 +351,7 @@ export function buildThemeTokens(
     accent,
     accentForeground: colors.accentForeground,
     accentBg: withAlpha(accent, isDark ? 0.14 : 0.1),
+    selectionFill: withAlpha(fg, isDark ? 0.14 : 0.1),
     codeInline: inlineCodeColor(preferences.inlineCodeColor, fg, colors.surface0, isDark),
     // The host draws its own prompt bubble on its most raised surface; surface2
     // is the most raised one a plugin is given.

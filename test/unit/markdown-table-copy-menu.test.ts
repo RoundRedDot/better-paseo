@@ -223,7 +223,7 @@ describe("Markdown table copy menu", () => {
   const selectedCopy = () => entry("Copy selected cell");
   const selectedCells = () => renderer!.root.findAll((node) => String(node.type) === "Text"
     && node.props.testID === "markdown-table-cell"
-    && StyleSheet.flatten(node.props.style).backgroundColor === tokens.accentBg);
+    && StyleSheet.flatten(node.props.style).backgroundColor === tokens.selectionFill);
 
   it("adds a double-clicked cell through the desktop input with an icon and translated label", () => {
     const appendText = vi.fn(() => true);
