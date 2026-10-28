@@ -2019,4 +2019,47 @@ describe("Tasks data store, archived lane", () => {
       mounted.unmount();
     }
   });
+
+  it("orders the archived lane by archive time, newest first, ahead of a later update", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        // Touched after an older archive: its updatedAt must not put it first.
+        activeAgent("touched", { status: "closed", updatedAt: recentIso(60_000), archivedAt: recentIso(3 * 86_400_000) }),
+        activeAgent("fresh", { status: "closed", updatedAt: recentIso(2 * 86_400_000), archivedAt: recentIso(30 * 60_000) }),
+        activeAgent("workspace", { status: "idle", updatedAt: recentIso(2 * 86_400_000), workspaceId: "ws-old" }),
+      ],
+      workspaces: [
+        workspace(),
+        makeWorkspace({ id: "ws-old", archivingAt: recentIso(5 * 60_000) }),
+      ],
+    });
+    const mounted = await mountArchived(fake, true, "all");
+    try {
+      expect(ids(mounted.current.lanes.archived)).toEqual(["workspace", "fresh", "touched"]);
+      await act(async () => {
+        fake.removeWorkspace("ws-old");
+        await Promise.resolve();
+      });
+      // The list drops the workspace; the archive time it already reported still orders the card.
+      expect(ids(mounted.current.lanes.archived)).toEqual(["workspace", "fresh", "touched"]);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("keeps the 24h window on archive time, so a later update does not bring an old archive back", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("touched", { status: "closed", updatedAt: recentIso(60_000), archivedAt: recentIso(3 * 86_400_000) }),
+        activeAgent("fresh", { status: "closed", updatedAt: recentIso(2 * 86_400_000), archivedAt: recentIso(30 * 60_000) }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountArchived(fake, true, "24h");
+    try {
+      expect(ids(mounted.current.lanes.archived)).toEqual(["fresh"]);
+    } finally {
+      mounted.unmount();
+    }
+  });
 });

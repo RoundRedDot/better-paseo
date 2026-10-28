@@ -435,13 +435,23 @@ function timestamp(value: string | null, missing: number): number {
   return Number.isFinite(parsed) ? parsed : missing;
 }
 
-/** A lane's default order: waiting and running oldest first, the rest newest first. */
+/**
+ * When an archived card was archived. The agent's own time, else its
+ * workspace's; a workspace already absent from the list has neither, and
+ * `updatedAt` stands in (archiving sets it, and a later touch must not
+ * outrank a newer archive).
+ */
+function archivedOrderAt(card: TaskCard): string | null {
+  return card.timing.archivedAt ?? card.timing.updatedAt;
+}
+
+/** A lane's default order: waiting and running oldest first, the rest newest first. Archived is by archive time. */
 function laneCompare(lane: LaneId): (left: TaskCard, right: TaskCard) => number {
   if (lane === "needs_input") return (left, right) => timestamp(left.timing.attentionAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.attentionAt, Number.POSITIVE_INFINITY);
   if (lane === "running") return (left, right) => timestamp(left.timing.turnStartedAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.turnStartedAt, Number.POSITIVE_INFINITY);
   if (lane === "review") return (left, right) => timestamp(right.timing.attentionAt ?? right.timing.updatedAt, Number.NEGATIVE_INFINITY) - timestamp(left.timing.attentionAt ?? left.timing.updatedAt, Number.NEGATIVE_INFINITY);
   if (lane === "done") return (left, right) => timestamp(settledAt(right.timing), Number.NEGATIVE_INFINITY) - timestamp(settledAt(left.timing), Number.NEGATIVE_INFINITY);
-  return (left, right) => timestamp(right.timing.updatedAt, Number.NEGATIVE_INFINITY) - timestamp(left.timing.updatedAt, Number.NEGATIVE_INFINITY);
+  return (left, right) => timestamp(archivedOrderAt(right), Number.NEGATIVE_INFINITY) - timestamp(archivedOrderAt(left), Number.NEGATIVE_INFINITY);
 }
 
 // One list per parent card, so a subagent's card keeps its identity while its parent's does.
@@ -795,6 +805,11 @@ function createStore(api: PaseoApi): TaskStore {
   const entries = new Map<string, AgentEntry>();
   const sourceMembers = new Map<string, Set<string>>();
   const workspaces = new Map<string, PaseoWorkspace>();
+  /**
+   * Archive time of a workspace that has since left the list. The list drops
+   * an archived workspace, and its agents have no `archivedAt` of their own.
+   */
+  const workspaceArchiveTimes = new Map<string, string>();
   const projects = new Map<string, PaseoProject>();
   const colorNames = new Map<string, string>();
   const modelCatalogs = new Map<string, PaseoProviderModelsResult>();
@@ -954,7 +969,11 @@ function createStore(api: PaseoApi): TaskStore {
       return cards.delete(id);
     }
     const archived = archivedRecord(id);
-    const archivedKind = archived ? (isArchived(entries.get(id)!.agent) ? "agent" : "workspace") : null;
+    const entryForArchive = entries.get(id);
+    const archivedKind = archived ? (isArchived(entryForArchive!.agent) ? "agent" : "workspace") : null;
+    const workspaceId = entryForArchive?.agent.workspaceId;
+    const archivedAt = entryForArchive?.agent.archivedAt
+      ?? (archivedKind === "workspace" && workspaceId ? workspaces.get(workspaceId)?.archivingAt ?? workspaceArchiveTimes.get(workspaceId) ?? null : null);
     const parentAgentId = parentByChild.get(id);
     const parentEntry = parentAgentId ? entries.get(parentAgentId) : undefined;
     const parentTitle = parentAgentId
@@ -971,7 +990,7 @@ function createStore(api: PaseoApi): TaskStore {
     const next: TaskCard = withArchived(withActiveSubtasks(withReadMark(withSubagents({
       ...withTurnError(base, turnErrors.get(id)),
       usage: withRecordedCost(base.usage, turnCosts.get(id)),
-      timing: withLastTurn(base.timing, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
+      timing: withLastTurn({ ...base.timing, archivedAt }, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
       parent: parentAgentId
         ? {
             id: parentAgentId,
@@ -1612,6 +1631,8 @@ function createStore(api: PaseoApi): TaskStore {
 
   function updateWorkspace(workspace: PaseoWorkspace) {
     workspaces.set(workspace.id, workspace);
+    if (workspace.archivingAt) workspaceArchiveTimes.set(workspace.id, workspace.archivingAt);
+    else workspaceArchiveTimes.delete(workspace.id);
     for (const [id, entry] of entries) {
       if (entry.agent.workspaceId !== workspace.id) continue;
       const project = projects.get(workspace.projectId);
@@ -2038,6 +2059,7 @@ function createStore(api: PaseoApi): TaskStore {
     resolvedParents.clear();
     parentReads.clear();
     workspaces.clear();
+    workspaceArchiveTimes.clear();
     projects.clear();
     colorNames.clear();
     modelCatalogs.clear();
@@ -2105,8 +2127,9 @@ function createStore(api: PaseoApi): TaskStore {
       if (!isHistoryLane(card.lane)) return true;
       if (!options.includeDone || (card.lane === "archived" && !showArchived)) return false;
       if (cutoff === null) return true;
-      // Archiving moves `updatedAt`; a done card's own end ignores the daemon loading it.
-      const at = Date.parse(card.lane === "done" ? settledAt(card.timing) : card.timing.updatedAt);
+      // Done uses the card's own end: the daemon moves `updatedAt` whenever it loads the agent.
+      // Archived uses the archive time, so a later touch does not count as just archived.
+      const at = Date.parse(card.lane === "done" ? settledAt(card.timing) : archivedOrderAt(card));
       return Number.isFinite(at) && now - at <= cutoff;
     });
     const byId = new Map(filteredCards.map((card) => [card.id, card]));

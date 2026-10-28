@@ -101,6 +101,12 @@ export interface TaskTiming {
   lastTurnMs: number | null;
   /** When that turn ended; null with `lastTurnMs`. */
   lastTurnEndedAt: string | null;
+  /**
+   * When this card was archived, for the archived lane's order and window:
+   * the agent's `archivedAt`, or its workspace's `archivingAt`. Null when
+   * neither is known; that lane then uses `updatedAt`.
+   */
+  archivedAt?: string | null;
 }
 
 /**
