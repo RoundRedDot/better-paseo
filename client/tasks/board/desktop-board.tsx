@@ -1263,7 +1263,11 @@ function DesktopLaneView(props: DesktopLaneProps) {
   const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
   const pillRef = useRef<View | null>(null);
   // Cards that change lanes fly to the list, or to the pill of a collapsed lane.
-  useLaneTarget(lane.id, () => (props.collapsed ? pillRef.current : scrollNode(listRef.current)));
+  useLaneTarget(
+    lane.id,
+    () => (props.collapsed ? pillRef.current : scrollNode(listRef.current)),
+    (offset) => listRef.current?.scrollToOffset({ offset, animated: false }),
+  );
   const covered = useLaneCovered(lane.id);
   const { listRef: publish } = props;
   const setList = useCallback(

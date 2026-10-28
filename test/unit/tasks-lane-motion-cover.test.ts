@@ -85,6 +85,70 @@ describe("native lane motion (cover)", () => {
     store.settle();
   });
 
+  it("keeps a scrolled lane's cards on screen when a card in it is sorted to its top", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    vi.resetModules();
+    const { createLaneMotionStore } = await import("../../client/tasks/board/lane-motion");
+    const store = createLaneMotionStore(false);
+    // A 400-tall list at y 100, scrolled 300 into 2000 of content (top at -200); cards 120 tall, 10 apart.
+    const content = { x: 0, y: -200, width: 300, height: 2000 };
+    const card = (index: number) => ({ x: 0, y: content.y + index * 130, width: 300, height: 120 });
+    const order = ["v", "w", "x", "r", "y", "z"];
+    const at: Record<string, Box | null> = Object.fromEntries(order.map((id, index) => [id, card(index)]));
+    store.layer = node(() => ({ x: 0, y: 100, width: 300, height: 400 }));
+    const scrolls: number[] = [];
+    const scroller = { ...node(() => ({ x: 0, y: 100, width: 300, height: 400 })), getInnerViewRef: () => node(() => content) };
+    store.setLane("running", () => scroller, (offset) => scrolls.push(offset));
+    for (const id of order) store.attach(id, node(() => at[id] ?? null), null);
+
+    const last = lanes(order);
+    // r was renamed: newest first, it leaves the middle of the screen for the top of the list.
+    const renamed = ["r", "v", "w", "x", "y", "z"];
+    const next = lanes(renamed);
+    const before = store.snapshot(last);
+    store.freeze(before, last, next);
+    renamed.forEach((id, index) => (at[id] = card(index)));
+    store.play(before, next);
+
+    // The list follows x, the top card on screen: 130 further down.
+    expect(scrolls).toEqual([430]);
+    const ghosts = new Map(store.ghosts().map((ghost) => [ghost.key, ghost]));
+    expect(ghosts.get("x")).toMatchObject({ from: { y: 60 }, to: { y: 60 } });
+    // r fades where it was; y closes the gap from below.
+    expect(ghosts.get("r")).toMatchObject({ from: { y: 190 }, fade: "out" });
+    expect(ghosts.get("y")).toMatchObject({ from: { y: 320 }, to: { y: 190 }, fade: "none" });
+    store.settle();
+  });
+
+  it("does not scroll a list at its start: a card sorted to its top shows there", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    vi.resetModules();
+    const { createLaneMotionStore } = await import("../../client/tasks/board/lane-motion");
+    const store = createLaneMotionStore(false);
+    const content = { x: 0, y: 100, width: 300, height: 2000 };
+    const card = (index: number) => ({ x: 0, y: content.y + index * 130, width: 300, height: 120 });
+    const order = ["a", "b", "r"];
+    const at: Record<string, Box | null> = Object.fromEntries(order.map((id, index) => [id, card(index)]));
+    store.layer = node(() => ({ x: 0, y: 100, width: 300, height: 400 }));
+    const scrolls: number[] = [];
+    const scroller = { ...node(() => ({ x: 0, y: 100, width: 300, height: 400 })), getInnerViewRef: () => node(() => content) };
+    store.setLane("running", () => scroller, (offset) => scrolls.push(offset));
+    for (const id of order) store.attach(id, node(() => at[id] ?? null), null);
+
+    const last = lanes(order);
+    const next = lanes(["r", "a", "b"]);
+    const before = store.snapshot(last);
+    store.freeze(before, last, next);
+    ["r", "a", "b"].forEach((id, index) => (at[id] = card(index)));
+    store.play(before, next);
+
+    expect(scrolls).toEqual([]);
+    const ghosts = new Map(store.ghosts().map((ghost) => [ghost.key, ghost]));
+    expect(ghosts.get("r")).toMatchObject({ from: { y: 360 }, to: { y: 100 }, fade: "none" });
+    expect(ghosts.get("a")).toMatchObject({ from: { y: 100 }, to: { y: 230 } });
+    store.settle();
+  });
+
   it("goes on with a copy fading out when another change covers its lane", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     vi.resetModules();

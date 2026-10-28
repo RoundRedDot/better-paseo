@@ -133,9 +133,68 @@ function clamp(value: number, low: number, high: number): number {
  * just laid out, with the offset the list had before.
  */
 export function scrollBack(viewport: Rect, content: Rect): number {
+  return listScroll(viewport, content, 0).shift;
+}
+
+/**
+ * Where a list's offset goes after a lane change, as `scrollBack` measures
+ * it, when it also follows `drift`: how far the card at the top of the list
+ * moved because cards above it came or went (`anchorDrift`). The browser
+ * anchors its scrolling this way; a native list keeps its offset, so a card
+ * that moved from the middle of a scrolled list to its top dragged every card
+ * above its old place down through the screen. `target` is the new offset,
+ * within the content; `shift` how far each card in the list then moves down
+ * from where it was just laid out.
+ */
+export function listScroll(viewport: Rect, content: Rect, drift: number): { offset: number; target: number; shift: number } {
   const offset = viewport.y - content.y;
   const end = Math.max(0, content.height - viewport.height);
-  return offset - end >= STILL ? offset - end : 0;
+  const target = Math.min(end, Math.max(0, offset + drift));
+  return { offset, target, shift: Math.abs(offset - target) >= STILL ? offset - target : 0 };
+}
+
+/** Each card's neighbours in its lane: the ids above and below it, null at either end. */
+export type Neighbours = ReadonlyMap<string, readonly [string | null, string | null]>;
+
+export function laneNeighbours<Lane extends { cards: readonly { id: string }[] }>(lanes: Record<LaneId, Lane>, order: readonly LaneId[]): Map<string, readonly [string | null, string | null]> {
+  const out = new Map<string, readonly [string | null, string | null]>();
+  for (const lane of order) {
+    const cards = lanes[lane].cards;
+    cards.forEach((card, index) => out.set(card.id, [cards[index - 1]?.id ?? null, cards[index + 1]?.id ?? null]));
+  }
+  return out;
+}
+
+/**
+ * The cards that moved themselves: both neighbours changed. The cards it left
+ * and the ones it went between keep one neighbour each, so a card renamed to
+ * the top of its lane is the only one that moved.
+ */
+export function movedCards(before: Neighbours, after: Neighbours): Set<string> {
+  const out = new Set<string>();
+  for (const [id, [above, below]] of after) {
+    const was = before.get(id);
+    if (was && was[0] !== above && was[1] !== below) out.add(id);
+  }
+  return out;
+}
+
+/**
+ * How far a scrolled list's top card on screen moved: the list follows it, so
+ * what is on screen stays and only the change shows. Nothing when the list is
+ * at its start (a card coming in at the top shows), when that card left or is
+ * the one that moved, or when it has no new place.
+ */
+export function anchorDrift(lane: LaneId, offset: number, before: MotionFrame, after: MotionFrame, moved: ReadonlySet<string>): number {
+  if (offset < STILL) return 0;
+  let top: { id: string; rect: Rect } | null = null;
+  for (const [id, rect] of before.cards) {
+    if (before.laneOf.get(id) !== lane || !inView(rect, laneRect(before, lane), before.viewport)) continue;
+    if (!top || rect.y < top.rect.y) top = { id, rect };
+  }
+  if (!top || moved.has(top.id) || after.laneOf.get(top.id) !== lane) return 0;
+  const to = after.cards.get(top.id);
+  return to ? to.y - top.rect.y : 0;
 }
 
 /** The lanes hold the same cards in the same order: nothing moved, whatever else changed on the cards. */

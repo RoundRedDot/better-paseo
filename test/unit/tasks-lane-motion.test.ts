@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inView, laneChurn, planLaneMotion, sameOrder, scrollBack, toward, type MotionFrame, type Rect } from "../../client/tasks/board/lane-motion-plan";
+import { anchorDrift, inView, laneChurn, laneNeighbours, listScroll, movedCards, planLaneMotion, sameOrder, scrollBack, toward, type MotionFrame, type Rect } from "../../client/tasks/board/lane-motion-plan";
 import type { LaneId } from "../../client/tasks/model";
 
 const rect = (x: number, y: number, width = 300, height = 80): Rect => ({ x, y, width, height });
@@ -109,6 +109,39 @@ describe("scrollBack", () => {
   it("is nothing while the offset still fits", () => {
     expect(scrollBack(list, rect(0, 20, 300, 480))).toBe(0);
     expect(scrollBack(list, rect(0, 100, 300, 200))).toBe(0);
+  });
+});
+
+describe("listScroll", () => {
+  const list = rect(0, 100, 300, 400);
+  it("follows the drift within the content", () => {
+    // Offset 80 into 1000 of content: a drift of 100 scrolls to 180, every card 100 up.
+    expect(listScroll(list, rect(0, 20, 300, 1000), 100)).toEqual({ offset: 80, target: 180, shift: -100 });
+    // Not past the end (600) nor before the start.
+    expect(listScroll(list, rect(0, 20, 300, 1000), 900).target).toBe(600);
+    expect(listScroll(list, rect(0, 20, 300, 1000), -200)).toMatchObject({ target: 0, shift: 80 });
+  });
+});
+
+describe("anchorDrift", () => {
+  // A phone's archived lane scrolled 300 down: x shows partly at its top, r and y below it.
+  const list = rect(0, 100, 300, 400);
+  const order = (ids: string[]) => laneNeighbours({ needs_input: { cards: [] }, running: { cards: [] }, review: { cards: [] }, done: { cards: [] }, archived: { cards: ids.map((id) => ({ id })) } }, ["archived"]);
+  const at = (cards: [string, Rect][]): MotionFrame => ({ cards: new Map(cards), lanes: new Map([["archived", list]]), laneOf: new Map(cards.map(([id]) => [id, "archived" as LaneId])), viewport: rect(0, 0, 300, 600) });
+  const before = at([["x", rect(0, 60, 300, 120)], ["r", rect(0, 190, 300, 120)], ["y", rect(0, 320, 300, 120)]]);
+  // r was renamed and sorted to the top: the content above x grew by r's 130.
+  const after = at([["r", rect(0, -1000, 300, 120)], ["x", rect(0, 190, 300, 120)], ["y", rect(0, 320, 300, 120)]]);
+
+  it("picks the card that moved, not the ones it left or went between", () => {
+    expect([...movedCards(order(["w", "x", "r", "y"]), order(["r", "w", "x", "y"]))]).toEqual(["r"]);
+  });
+  it("is how far the top card on screen moved", () => {
+    expect(anchorDrift("archived", 300, before, after, new Set(["r"]))).toBe(130);
+  });
+  it("is nothing at the start of the list, or when the top card is the one that moved or left", () => {
+    expect(anchorDrift("archived", 0, before, after, new Set(["r"]))).toBe(0);
+    expect(anchorDrift("archived", 300, before, after, new Set(["x"]))).toBe(0);
+    expect(anchorDrift("archived", 300, before, at([["y", rect(0, 60, 300, 120)]]), new Set())).toBe(0);
   });
 });
 

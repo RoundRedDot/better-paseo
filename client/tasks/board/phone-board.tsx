@@ -759,7 +759,7 @@ const PhoneLane = memo(function PhoneLane(props: {
   const covered = useLaneCovered(lane.id);
   // Its list is what the lane shows: a card that leaves its end lets the list scroll back.
   const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
-  useLaneTarget(lane.id, () => scrollNode(listRef.current));
+  useLaneTarget(lane.id, () => scrollNode(listRef.current), (offset) => listRef.current?.scrollToOffset({ offset, animated: false }));
   const { listRef: shared } = props;
   const setList = useCallback(
     (list: NativeFlatList<TaskCard> | null) => {

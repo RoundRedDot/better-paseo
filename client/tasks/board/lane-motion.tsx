@@ -31,12 +31,21 @@
  * where the cards will be after that scroll (`scrollBack`), so the cards above
  * slide down into the gap instead of the whole list dropping as it shows
  * again. The browser scrolls back during layout, so the web measures it.
+ *
+ * The browser also anchors a scrolled list to what it shows: cards that come
+ * or go above the screen leave the cards on it in place. A native list keeps
+ * its offset instead, so a card renamed in the middle of the archived lane,
+ * sorted to its top, pulled every card above its old place down through the
+ * screen, and the place it left stood empty until they arrived. Native scrolls
+ * the hidden list by what its top card on screen moved (`anchorDrift`), and the
+ * card that moved out of view fades where it was while the cards below close
+ * the gap.
  */
 import React, { createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Animated, Platform, View } from "react-native";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { MOTION } from "./board-style";
-import { inView, laneChurn, planLaneMotion, sameCards, sameOrder, scrollBack, type LaneMove, type MotionFrame, type Rect } from "./lane-motion-plan";
+import { anchorDrift, inView, laneChurn, laneNeighbours, listScroll, movedCards, planLaneMotion, sameCards, sameOrder, type LaneMove, type MotionFrame, type Neighbours, type Rect } from "./lane-motion-plan";
 
 const COVER = Platform.OS !== "web";
 /** JS-driven: the web's offsets are set from JS in the frame they belong to. */
@@ -121,6 +130,14 @@ interface Snapshot {
   cards: ReadonlyMap<string, TaskCard>;
   /** Web: the cards hidden while their copy flies to them, which fly on from where the copy is. */
   flying: ReadonlySet<string>;
+  /** Each card's neighbours in its lane, to tell the card that moved from the ones that made room. */
+  neighbours: Neighbours;
+}
+
+/** A lane's measurable node, and on native its list's scroll to an offset. */
+interface LaneTarget {
+  node(): unknown;
+  scrollTo?(offset: number): void;
 }
 
 const now = () => Date.now();
@@ -141,8 +158,8 @@ export interface LaneMotionStore {
   /** The ghosts' layer: its rect is their origin and the lanes' viewport. */
   layer: unknown;
   attach(id: string, node: unknown, values: CellValues | null, onArrive?: () => void): () => void;
-  /** A lane's measurable node: an expanded lane's list, a collapsed lane's pill. */
-  setLane(id: LaneId, node: (() => unknown) | null): void;
+  /** A lane's measurable node: an expanded lane's list, a collapsed lane's pill; `scrollTo` moves the list without animation. */
+  setLane(id: LaneId, node: (() => unknown) | null, scrollTo?: (offset: number) => void): void;
   ghosts(): readonly Ghost[];
   /** Native: the lanes whose list is hidden under copies of their cards. */
   covered(): ReadonlySet<LaneId>;
@@ -164,7 +181,7 @@ const NO_LANES: ReadonlySet<LaneId> = new Set();
 // A closure, not a class: Hermes compiles no class syntax.
 export function createLaneMotionStore(flights: boolean): LaneMotionStore {
   const cells = new Map<string, Cell>();
-  const lanes = new Map<LaneId, () => unknown>();
+  const lanes = new Map<LaneId, LaneTarget>();
   const slides = new Map<string, Slide>();
   const arrivals = new Set<string>();
   const listeners = new Set<() => void>();
@@ -220,22 +237,32 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
 
   function laneRects(): Map<LaneId, Rect> {
     const out = new Map<LaneId, Rect>();
-    for (const [id, node] of lanes) {
-      const rect = measureNow(node());
+    for (const [id, lane] of lanes) {
+      const rect = measureNow(lane.node());
       if (rect) out.set(id, rect);
     }
     return out;
   }
 
-  /** Native: how far each lane's list will scroll back on its own, for content that got shorter. */
-  function scrollBacks(rects: ReadonlyMap<LaneId, Rect>): Map<LaneId, number> {
+  /**
+   * Native: how far each lane's list scrolls, as how far its cards move down
+   * from where they were just laid out: back on its own for content that got
+   * shorter, and with its top card on screen (scrolled here) for cards that
+   * came or went above it.
+   */
+  function scrollLists(before: MotionFrame, after: MotionFrame, moved: ReadonlySet<string>): Map<LaneId, number> {
     const out = new Map<LaneId, number>();
-    for (const [id, node] of lanes) {
-      const viewport = rects.get(id);
-      const scroller = node() as { getInnerViewRef?(): unknown } | null;
+    for (const [id, lane] of lanes) {
+      const viewport = after.lanes.get(id);
+      const scroller = lane.node() as { getInnerViewRef?(): unknown } | null;
       const content = viewport ? measureNow(scroller?.getInnerViewRef?.()) : null;
-      const shift = viewport && content ? scrollBack(viewport, content) : 0;
-      if (shift > 0) out.set(id, shift);
+      if (!viewport || !content) continue;
+      const offset = viewport.y - content.y;
+      // Only a hidden list scrolls: one on screen would jump.
+      const drift = lane.scrollTo && coveredLanes.has(id) ? anchorDrift(id, offset, before, after, moved) : 0;
+      const scroll = listScroll(viewport, content, drift);
+      if (drift !== 0 && scroll.shift !== 0) lane.scrollTo?.(scroll.target);
+      if (scroll.shift !== 0) out.set(id, scroll.shift);
     }
     return out;
   }
@@ -295,7 +322,7 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
   }
 
   /** Native: every copy under the cover heads for its card's new place, and new cards fade in over theirs. */
-  function playCover(moves: LaneMove[], before: MotionFrame, after: MotionFrame, at: number, cardOf: (move: LaneMove) => TaskCard | undefined, current: ReadonlyMap<string, TaskCard>): void {
+  function playCover(moves: LaneMove[], before: MotionFrame, after: MotionFrame, at: number, cardOf: (move: LaneMove) => TaskCard | undefined, current: ReadonlyMap<string, TaskCard>, moved: ReadonlySet<string>): void {
     const byId = new Map(moves.map((move) => [move.id, move]));
     const next: Ghost[] = [];
     for (const ghost of ghostList) {
@@ -309,6 +336,9 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
       if (move?.kind === "fly") {
         next.push({ ...ghost, card: cardOf(move) ?? ghost.card, to: move.to, fade: move.land ? "none" : "out", start: at, duration: MOTION.flyMs });
       } else if (move?.kind === "leave" || !to) {
+        next.push({ ...ghost, fade: "out", start: at, duration: MOTION.leaveMs });
+      } else if (moved.has(ghost.key) && !inView(to, laneRectOf(after, ghost.key), after.viewport)) {
+        // Moved out of view in its lane (renamed to the top): it fades where it was as the cards below close the gap.
         next.push({ ...ghost, fade: "out", start: at, duration: MOTION.leaveMs });
       } else {
         next.push({ ...ghost, to, start: at, duration: MOTION.slideMs });
@@ -347,8 +377,8 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
         slides.delete(id);
       };
     },
-    setLane(id, node) {
-      if (node) lanes.set(id, node);
+    setLane(id, node, scrollTo) {
+      if (node) lanes.set(id, { node, scrollTo });
       else lanes.delete(id);
     },
     ghosts: () => ghostList,
@@ -373,7 +403,7 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
       for (const ghost of ghostList) if (stand.has(ghost.key)) cards.set(ghost.key, ghostRect(ghost, at));
       const { laneOf, byId } = index(current);
       const flying = new Set(ghostList.filter((ghost) => ghost.reveal).map((ghost) => ghost.key));
-      return { frame: { cards, lanes: laneRects(), laneOf, viewport: measureNow(store.layer) }, cards: byId, flying };
+      return { frame: { cards, lanes: laneRects(), laneOf, viewport: measureNow(store.layer) }, cards: byId, flying, neighbours: laneNeighbours(current, LANE_ORDER) };
     },
     freeze(before, last, next) {
       const viewport = before.frame.viewport;
@@ -408,16 +438,23 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
       const at = now();
       const { laneOf, byId } = index(next);
       const laneAt = laneRects();
-      const back = COVER ? scrollBacks(laneAt) : null;
       const cards = new Map<string, Rect>();
       for (const [id, cell] of cells) {
         const rect = measureNow(cell.node);
-        const lane = laneOf.get(id);
-        const shift = back && lane !== undefined ? back.get(lane) ?? 0 : 0;
-        if (rect) cards.set(id, shift ? { ...rect, y: rect.y + shift } : rect);
+        if (rect) cards.set(id, rect);
       }
       const viewport = measureNow(store.layer);
       const after: MotionFrame = { cards, lanes: laneAt, laneOf, viewport };
+      const moved = movedCards(before.neighbours, laneNeighbours(next, LANE_ORDER));
+      if (COVER) {
+        // Each card where it will be once its list has scrolled.
+        const shifts = scrollLists(before.frame, after, moved);
+        for (const [id, rect] of cards) {
+          const lane = laneOf.get(id);
+          const shift = lane !== undefined ? shifts.get(lane) ?? 0 : 0;
+          if (shift) cards.set(id, { ...rect, y: rect.y + shift });
+        }
+      }
       const moves = planLaneMotion(before.frame, after, { flights, flying: before.flying });
       for (const move of moves) {
         if (move.kind === "leave" || (move.kind === "fly" && !move.land)) {
@@ -430,7 +467,7 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
       // A card that leaves draws as it was; one that flies, as it will be where it lands.
       const cardOf = (move: LaneMove) => (move.kind === "leave" ? before.cards.get(move.id) : byId.get(move.id) ?? before.cards.get(move.id));
       if (COVER) {
-        if (coveredLanes.size > 0) playCover(moves, before.frame, after, at, cardOf, byId);
+        if (coveredLanes.size > 0) playCover(moves, before.frame, after, at, cardOf, byId, moved);
       } else if (moves.length > 0) {
         playOnCards(moves, at, cardOf, viewport);
       }
@@ -469,6 +506,11 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
     },
   };
   return store;
+}
+
+function laneRectOf(frame: MotionFrame, id: string): Rect | null {
+  const lane = frame.laneOf.get(id);
+  return lane === undefined ? null : frame.lanes.get(lane) ?? null;
 }
 
 function index(lanes: Record<LaneId, LaneModel>): { laneOf: Map<string, LaneId>; byId: Map<string, TaskCard> } {
@@ -630,15 +672,16 @@ const GhostCard = memo(function GhostCard(props: { ghost: Ghost; onDone(key: str
 
 /**
  * Where a lane's cards show, for the cards that fly to it: `node` answers the
- * lane's list when expanded and its pill when collapsed.
+ * lane's list when expanded and its pill when collapsed; `scrollTo` scrolls
+ * the list, so it keeps what it shows when cards come or go above it.
  */
-export function useLaneTarget(id: LaneId, node: () => unknown): void {
+export function useLaneTarget(id: LaneId, node: () => unknown, scrollTo?: (offset: number) => void): void {
   const store = useContext(LaneMotionContext);
-  const latest = useRef(node);
-  latest.current = node;
+  const latest = useRef({ node, scrollTo });
+  latest.current = { node, scrollTo };
   useLayoutEffect(() => {
     if (!store) return;
-    store.setLane(id, () => latest.current());
+    store.setLane(id, () => latest.current.node(), (offset) => latest.current.scrollTo?.(offset));
     return () => store.setLane(id, null);
   }, [store, id]);
 }
