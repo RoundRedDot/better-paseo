@@ -5,7 +5,7 @@
  */
 import { StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
-import { radiusV2, space, type ExtendedThemeTokens } from "../../theme-tokens";
+import { mix, radiusV2, space, type ExtendedThemeTokens } from "../../theme-tokens";
 import { hairline } from "../../../ui/tokens/platform";
 import { even, proseScale } from "../../../ui/tokens/typography";
 import { selectableSurface, unselectable } from "../../selection";
@@ -483,7 +483,7 @@ export function buildStyles(
     },
     tableHeaderRow: {
       flexDirection: "row",
-      backgroundColor: tokens.v2.surface2,
+      backgroundColor: mix(tokens.v2.surface2, tokens.foreground, 0.04),
       borderBottomWidth: 1,
       borderBottomColor: tokens.v2.border,
     },

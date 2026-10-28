@@ -107,8 +107,8 @@ export interface ExtendedThemeTokens {
   accentForeground: string;
   accentBg: string;
   /**
-   * A dragged Markdown range, such as table cells. A soft accent tint keeps
-   * selection distinct from neutral headers, with more opacity on dark surfaces.
+   * A dragged Markdown range, such as table cells. Soft translucent grey from
+   * the foreground, with more opacity on dark surfaces to keep it visible.
    */
   selectionFill: string;
   /**
@@ -351,7 +351,7 @@ export function buildThemeTokens(
     accent,
     accentForeground: colors.accentForeground,
     accentBg: withAlpha(accent, isDark ? 0.14 : 0.1),
-    selectionFill: withAlpha(accent, isDark ? 0.14 : 0.08),
+    selectionFill: withAlpha(fg, isDark ? 0.08 : 0.06),
     codeInline: inlineCodeColor(preferences.inlineCodeColor, fg, colors.surface0, isDark),
     // The host draws its own prompt bubble on its most raised surface; surface2
     // is the most raised one a plugin is given.
