@@ -27,6 +27,8 @@ async function readTitleRounds(timeline: PaseoAgentTimelineHandle, direction: "a
       projection: "projected", limit: 12, ...(cursor ? { cursor } : {}),
     });
     if (page.error || page.reset && cursor) throw new Error(page.error || "Could not read the conversation.");
+    // An empty daemon timeline can advertise hasNewer without supplying a cursor.
+    if (!cursor && page.entries.length === 0 && !page.startCursor && !page.endCursor) return messages;
     const entries = direction === "tail" ? [...page.entries].reverse() : page.entries;
     for (const entry of entries) {
       const item = entry.item;
@@ -85,8 +87,7 @@ export function createTitleGenerator(deps: Dependencies) {
         .find((id) => options.some((option) => option.id === id)) ?? options[0]?.id;
     }
     if (!original.agent.workspaceId) throw new Error("The original agent has no workspace.");
-    const sourceWorkspace = await paseo.workspaces.ref(original.agent.workspaceId).refresh();
-    if (!sourceWorkspace) throw new Error("The original workspace is unavailable.");
+    if (!original.project) throw new Error("The original agent has no project placement.");
     const [first, recent] = await Promise.all([
       readTitleRounds(source.timeline, "after", 1),
       readTitleRounds(source.timeline, "tail", 4),
@@ -98,7 +99,7 @@ export function createTitleGenerator(deps: Dependencies) {
     // A neutral directory avoids running the source project's workspace setup or loading its instructions.
     await mkdir(deps.directory, { recursive: true });
     const workspace = await paseo.workspaces.create({
-      source: { kind: "directory", path: deps.directory, projectId: sourceWorkspace.projectId }, background: true, title: "Title generation",
+      source: { kind: "directory", path: deps.directory, projectId: original.project.projectKey }, background: true, title: "Title generation",
     });
     let title: string;
     let generationFailure: unknown = null;

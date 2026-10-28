@@ -23,7 +23,7 @@ async function fixture() {
   });
   const create = vi.fn(async () => ({ id: "helper", run, timeline: { subscribe } }));
   const workspace = vi.fn(async () => ({ agents: { create }, archive }));
-  const original = { agent: { title: "Original", workspaceId: "source-ws", archivedAt: null as string | null,
+  const original = { project: { projectKey: "source-project" } as { projectKey: string } | null, agent: { title: "Original", workspaceId: "source-ws", archivedAt: null as string | null,
     provider: "codex", model: "gpt-5.5" as string | null, thinkingOptionId: "high" as string | null, effectiveThinkingOptionId: "xhigh" as string | null } };
   const refresh = vi.fn(async () => original);
   const timeline = vi.fn(async (_options: { direction: string; cursor?: { epoch: string; seq: number } }) => ({
@@ -43,7 +43,8 @@ async function fixture() {
   const listModels = vi.fn(async (_provider: string) => ({ error: null as string | null, models: [
     { id: "claude-haiku-5-5", thinkingOptions: [{ id: "off", label: "Off" }, { id: "high", label: "High" }] },
   ] }));
-  const api = { providers: { listModels }, agents: { ref: vi.fn(() => ({ refresh, timeline: { refetch: timeline } })) }, workspaces: { create: workspace, ref: () => ({ refresh: async () => ({ projectId: "source-project" }) }) } } as unknown as PaseoApi;
+  const refreshWorkspace = vi.fn(async (): Promise<{ projectId: string } | null> => ({ projectId: "source-project" }));
+  const api = { providers: { listModels }, agents: { ref: vi.fn(() => ({ refresh, timeline: { refetch: timeline } })) }, workspaces: { create: workspace, ref: () => ({ refresh: refreshWorkspace }) } } as unknown as PaseoApi;
   const values = titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "claude", model: "claude-haiku-5-5", prompt: "Use an actionable title" });
   const read = vi.fn(async () => ({ status: "ready" as const, revision: "1", values }));
   const rename = vi.fn(async () => ({ ok: true, error: null as string | null }));
@@ -52,7 +53,7 @@ async function fixture() {
   const state = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "status", mode }, api);
   const start = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "start", mode }, api);
   const settle = async (mode: "apply" | "preview" = "apply") => { await expect.poll(() => state(mode).state).not.toBe("running"); return state(mode); };
-  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, timeline, listModels, values, read, rename, canRename, state, start, settle };
+  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, refreshWorkspace, timeline, listModels, values, read, rename, canRename, state, start, settle };
 }
 
 describe("background title generation", () => {
@@ -311,6 +312,25 @@ describe("background title generation", () => {
     expect(f.rename).not.toHaveBeenCalled();
   });
 
+  it("reports an empty conversation when the daemon advertises more rows without cursors", async () => {
+    const f = await fixture();
+    f.timeline.mockResolvedValue({ error: null, entries: [], hasOlder: false, hasNewer: true, startCursor: null, endCursor: null });
+    f.start();
+    expect(await f.settle()).toEqual({ state: "error", error: "This agent has no conversation to summarize." });
+    expect(f.timeline).toHaveBeenCalledTimes(2);
+    expect(f.workspace).not.toHaveBeenCalled();
+    expect(f.rename).not.toHaveBeenCalled();
+  });
+
+  it("still rejects a nonempty page that advertises more rows without a cursor", async () => {
+    const f = await fixture();
+    f.timeline.mockResolvedValue({ error: null, entries: [{ item: { type: "user_message", text: "Request" }, seqStart: 1 }], hasOlder: false, hasNewer: true, startCursor: null, endCursor: null });
+    f.start();
+    expect(await f.settle()).toEqual({ state: "error", error: "Could not read the conversation." });
+    expect(f.workspace).not.toHaveBeenCalled();
+    expect(f.rename).not.toHaveBeenCalled();
+  });
+
   it("streams the helper's reply into the running state, then settles on the whole title", async () => {
     const f = await fixture();
     const chunk = (item: Record<string, unknown>) => f.live.handler!({ agentId: "helper", event: { type: "timeline", provider: "claude", item } });
@@ -383,7 +403,7 @@ describe("background title generation", () => {
 
   it("preserves a manual title change while the helper was working", async () => {
     const f = await fixture();
-    f.refresh.mockResolvedValueOnce(f.original).mockResolvedValueOnce({ agent: { ...f.original.agent, title: "Edited manually" } });
+    f.refresh.mockResolvedValueOnce(f.original).mockResolvedValueOnce({ ...f.original, agent: { ...f.original.agent, title: "Edited manually" } });
     f.start();
     expect(await f.settle()).toMatchObject({ state: "error", error: expect.stringContaining("title changed") });
     expect(f.rename).not.toHaveBeenCalled();
@@ -429,11 +449,14 @@ describe("background title generation", () => {
     expect(f.rename).not.toHaveBeenCalled();
   });
 
-  it.each(["apply", "preview"] as const)("generates an archived agent's title without unarchiving it (%s)", async (mode) => {
+  it.each(["apply", "preview"] as const)("generates a title after the source agent and workspace are archived (%s)", async (mode) => {
     const f = await fixture();
     f.original.agent.archivedAt = "2026-10-27T00:00:00Z";
+    f.refreshWorkspace.mockResolvedValue(null);
     f.start(mode);
     expect(await f.settle(mode)).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(f.refreshWorkspace).not.toHaveBeenCalled();
+    expect(f.workspace).toHaveBeenCalledExactlyOnceWith({ source: { kind: "directory", path: f.directory, projectId: "source-project" }, background: true, title: "Title generation" });
     expect(f.original.agent.archivedAt).toBe("2026-10-27T00:00:00Z");
     expect(f.archive).toHaveBeenCalledTimes(1);
     if (mode === "preview") {
@@ -443,9 +466,18 @@ describe("background title generation", () => {
     expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
   });
 
+  it("reports missing project placement without provisioning a helper", async () => {
+    const f = await fixture();
+    f.original.project = null;
+    f.start();
+    expect(await f.settle()).toEqual({ state: "error", error: "The original agent has no project placement." });
+    expect(f.workspace).not.toHaveBeenCalled();
+    expect(f.rename).not.toHaveBeenCalled();
+  });
+
   it("can apply a title when the source was archived during generation", async () => {
     const f = await fixture();
-    f.refresh.mockResolvedValueOnce(f.original).mockResolvedValueOnce({ agent: { ...f.original.agent, archivedAt: "2026-10-27T00:00:00Z" } });
+    f.refresh.mockResolvedValueOnce(f.original).mockResolvedValueOnce({ ...f.original, agent: { ...f.original.agent, archivedAt: "2026-10-27T00:00:00Z" } });
     f.start();
     expect(await f.settle()).toMatchObject({ state: "done" });
     expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
