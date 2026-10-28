@@ -1,9 +1,9 @@
-import React, { memo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import React, { memo, useMemo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
-import { labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
+import { densityOf, labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import { useCopy } from "../../ui/use-copy";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
@@ -48,8 +48,13 @@ import { useTitleUpdateState, type TitleUpdateControl } from "../actions/title-u
 import { AvailabilityCorner, cornerFill, shownIssue } from "./availability-tag";
 import { taskOperationIssue } from "../availability";
 
+import type { FirstPrompt } from "../data/first-prompt";
+import { searchBreadcrumb, searchBranch, searchLabels, taskSearchHits } from "../data/search-hits";
+import { highlightText, SearchHitSummary, useSearchClip } from "./search-highlight";
+
 export interface CardCallbacks {
   titleUpdates?: TitleUpdateControl;
+  onSearchPromptRetry?(card: TaskCard): void;
   /** Jump to the agent's tab (`navigation.openAgent`). Absent on hosts without navigation: hide Open tab. */
   onOpen?(agentId: string): void;
   /**
@@ -89,6 +94,9 @@ export interface CardCallbacks {
 
 export interface TaskCardViewProps extends CardCallbacks {
   card: TaskCard;
+  searchQuery?: string;
+  searchPrompt?: FirstPrompt;
+  searchPromptUnavailable?: boolean;
   /** Field switches after `effectiveCard`. */
   fields: CardSettings;
   theme: PluginTheme;
@@ -586,6 +594,16 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const m = compact ? PHONE : DESKTOP;
   const buttonHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT;
   const layout = cardLayout(card, fields, compact);
+  const query = props.searchQuery ?? "";
+  const titleClip = useSearchClip(shownTitle, updatingTitle ? "" : query, 2);
+  const searchHits = useMemo(() => taskSearchHits(card, query, { ...cardLayout(card, fields, compact), path: layout.path && tildePath(card.location.cwd).toLowerCase().includes(query), title: !updatingTitle && titleClip.visible }, props.searchPrompt?.state === "ready" ? props.searchPrompt.text : undefined), [card, card.title, fields, compact, query, props.searchPrompt, updatingTitle, titleClip.visible]);
+  const hasHiddenHits = searchHits.some((hit) => !hit.visible);
+  const minimalSummary = densityOf(fields) === "minimal" && hasHiddenHits;
+  const promptNote = query && props.searchPrompt && props.searchPrompt.state !== "ready" && props.searchPrompt.state !== "none"
+    ? props.searchPrompt.state === "error" || props.searchPromptUnavailable || card.closed ? strings.searchHits.unavailable : strings.searchHits.loading : undefined;
+  const mark = (value: string, branch = false) => highlightText(value, query, tokens.isDark, branch);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [metaWidth, setMetaWidth] = useState(0);
   // On web the hover is the DOM's, child controls included (`bindRowHover`):
   // RNW's Pressable ends an ancestor's hover as soon as the pointer enters an
   // inner Pressable (its `hover:lock` event), which dropped the Stop button
@@ -734,7 +752,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     borderColor: props.highlighted ? tokens.accent : props.current ? look.currentBorder : failed ? look.failedBorder : look.border,
     backgroundColor: background,
     boxShadow: shadows.length > 0 ? shadows.join(", ") : "none",
-    zIndex: menuOpen ? 30 : hovered || cornerOpen ? 2 : 1,
+    zIndex: menuOpen || searchOpen ? 30 : hovered || cornerOpen ? 2 : 1,
     // Both Tab and composite navigation use the same outline. Unlike the
     // hover shadow it changes at once, so a departing focus cannot linger.
     ...(WEB ? { outlineStyle: props.focused ? "solid" : undefined, outlineWidth: 1, outlineColor: tokens.foregroundMuted, outlineOffset: 2 } : null),
@@ -759,7 +777,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const metaParts: string[] = [];
   if (layout.project && location.projectName) metaParts.push(location.projectName);
   if (layout.workspace && location.workspaceName) metaParts.push(location.workspaceName);
-  const metaText = metaParts.join(SEPARATOR);
+  const metaText = query ? searchBreadcrumb(layout.project ? location.projectName ?? "" : "", layout.workspace ? location.workspaceName ?? "" : "", query, metaWidth ? Math.floor(metaWidth / (m.metaSize * scale * 0.65)) : 35) : metaParts.join(SEPARATOR);
   const hasMeta = metaText !== "" || card.parent !== null;
   const corner = fold ? warningCorner(m, hasMeta ? m.metaLine : m.titleLine, scale) : null;
 
@@ -820,7 +838,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           <ProjectIcon location={location} size={m.icon} hostId={props.hostId} />
         </View>
       ) : null}
-      <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center" }} onLayout={fit("row")} testID="task-card-meta-body">
+      <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center" }} onLayout={query ? (event) => { fit("row")?.(event); setMetaWidth(event.nativeEvent.layout.width); } : fit("row")} testID="task-card-meta-body">
         <View style={{ flexShrink: 1, minWidth: 0, flexDirection: "row", alignItems: "center" }} onLayout={fit("text")} testID="task-card-meta-text">
           {metaText ? (
             <Text
@@ -837,7 +855,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                 ),
               )}
             >
-              {metaText}
+              {mark(metaText)}
             </Text>
           ) : null}
           {metaText && parentLabel !== null ? (
@@ -917,9 +935,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           { flex: 1, minWidth: 0 },
           WEB ? ({ overflowWrap: "anywhere" } as TextStyle) : null,
         ]}
+        ref={titleClip.ref}
+        onLayout={titleClip.onLayout}
+        onTextLayout={titleClip.onTextLayout}
         testID="task-card-title"
       >
-        {shownTitle}
+        {mark(shownTitle)}
       </Text>}
       {hasMeta ? null : ringFor(m.titleLine)}
     </View>
@@ -931,7 +952,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     if (props.onLongPress?.() === false) return;
     setMenuAt("touch");
   } : undefined;
-  const pill = { tokens, compact, language };
+  const pill = { tokens, compact, language, searchQuery: query };
   // Model, branch and folder copy what they show; a pointer's hint says so.
   const copyOn = props.copyable !== false;
   const copyOf = (text: string, toast: string) => (copyOn ? { text, toast } : undefined);
@@ -1059,8 +1080,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     );
   }
   if (layout.labels > 0) {
-    const shown = card.labels.slice(0, layout.labelLimit);
-    for (const label of shown) {
+    const shown = searchLabels(card.labels, layout.labelLimit, query);
+    shown.forEach((label) => {
       pills.push(
         <Pill
           key={`label-${label.name}`}
@@ -1073,7 +1094,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           hint={hint(`label-${label.name}`, () => pair(strings.hint.label, label.name))}
         />,
       );
-    }
+    });
     const hidden = card.labels.length - shown.length;
     if (hidden > 0) {
       pills.push(
@@ -1085,14 +1106,14 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           label={`+${hidden}`}
           tabular
           accessibilityLabel={card.labels
-            .slice(shown.length)
+            .filter((label) => !shown.includes(label))
             .map((label) => label.name)
             .join(", ")}
           hint={hint("labels-more", () =>
             pair(
               strings.hint.moreLabels,
               card.labels
-                .slice(shown.length)
+                .filter((label) => !shown.includes(label))
                 .map((label) => label.name)
                 .join(", "),
             ),
@@ -1243,9 +1264,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   );
   if (parentStop) hint("stop-options", () => strings.stopOptions);
   const footerContent =
-    timer || stopSlot ? (
+    timer || stopSlot || promptNote ? (
       <>
-        {timer ? (
+        {timer && !minimalSummary ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
             {started ? (
               <View
@@ -1270,6 +1291,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             </View>
           </View>
         ) : null}
+        {promptNote ? <Text numberOfLines={1} testID="task-search-prompt-note" style={{ flexShrink: 1, fontSize: 12, lineHeight: m.footLine, color: muted }}>{promptNote}</Text> : null}
         {(showControl || controlLeaving) && !TOUCH ? (
           // On web the buttons appear on hover, so they float over the ring (the card's
           // fill behind it hides what it covers) instead of taking room from the
@@ -1473,6 +1495,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         nativeID={props.focusId}
         {...(WEB ? { dataSet: { bctaskcard: card.id } } : null)}
         accessibilityLabel={card.title}
+        accessibilityHint={query && searchHits.length ? `${strings.searchHits.count(searchHits.length, query)}: ${searchHits.map((hit) => `${strings.searchHits.fields[hit.field]}: ${hit.snippet}`).join("; ")}` : undefined}
         onPress={pressBody}
         onLongPress={longPress}
         delayLongPress={LONG_PRESS_MS}
@@ -1502,12 +1525,13 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           <Pressable accessibilityRole="button" accessibilityLabel={strings.dismissTitleError} hitSlop={8} style={{ minWidth: taskControlHeight(compact ? 44 : 28, scale), minHeight: taskControlHeight(compact ? 44 : 28, scale), alignItems: "center", justifyContent: "center" }} onPress={() => props.titleUpdates?.dismiss(card.id)}><Icon name="X" size={16} color={tokens.foregroundMuted} /></Pressable>
         </View> : null}
         {pillRow}
-        {footer}
+        {minimalSummary ? <View style={{ marginTop: m.rowGap, minHeight: footHeight, zIndex: footerZ, flexDirection: "row", alignItems: "center" }}><SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal rowHeight={footHeight} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} />{footerContent}</View> : footer}
         {answerRow ? null : controlRow}
         {permissionBlock}
         {failure}
         {subtaskList}
         {actionBar}
+        {hasHiddenHits && !minimalSummary ? <SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal={false} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} /> : null}
         {WEB ? <CardHints root={rootRef} texts={hintTexts} theme={theme} color={tokens.foreground} /> : null}
       </Pressable>
       {menuAt ? (
@@ -1558,6 +1582,7 @@ interface PillProps {
   compact: boolean;
   /** The pill's text; a pill of icons and counts passes children instead. */
   label?: string;
+  searchQuery?: string;
   /** A Lucide icon before the text. */
   icon?: string;
   /** Any other leading mark (the agent's brand, a label's tag). */
@@ -1613,6 +1638,8 @@ export function pillStyle(tokens: TaskTokens, compact: boolean, tint: string | n
 }
 
 function PillContent(props: PillProps) {
+  const [width, setWidth] = useState(0);
+  const shiftsMatch = props.mono || props.icon === "Folder";
   const m = props.compact ? PHONE : DESKTOP;
   const color = props.solid?.text ?? props.color ?? props.tokens.foregroundMuted;
   return (
@@ -1622,13 +1649,14 @@ function PillContent(props: PillProps) {
       {props.label !== undefined ? (
         <Text
           numberOfLines={1}
+          onLayout={props.searchQuery && shiftsMatch ? (event) => setWidth(event.nativeEvent.layout.width) : undefined}
           style={[
           { fontSize: m.pillText, lineHeight: m.pillLine, color, flexShrink: 1, fontWeight: props.solid ? "500" : "400" },
           props.tabular ? tabular : null,
           props.mono ? { fontFamily: TASK_MONO } : null,
         ]}
         >
-          {props.label}
+          {highlightText(shiftsMatch && props.searchQuery ? searchBranch(props.label, props.searchQuery, width ? Math.floor(width / (m.pillText * 0.65)) : 32) : props.label, props.searchQuery ?? "", props.tokens.isDark, props.icon === "GitBranch")}
         </Text>
       ) : null}
       {props.children}

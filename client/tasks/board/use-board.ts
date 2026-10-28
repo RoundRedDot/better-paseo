@@ -8,6 +8,8 @@ import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSetting
 import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, setTasksArchivedLane, useTasks, withSubagentCards, type TasksHandle } from "../data";
+import { firstPromptStoreFor, type FirstPrompt } from "../data/first-prompt";
+import { requestSubagentFirstPrompt } from "../data/subagent-timeline";
 import { useSearchFirstPrompts, type SearchCoverage } from "../data/search-first-prompts";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { LANE_ORDER, boardLaneOrder, opensInPaseo, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
@@ -72,6 +74,7 @@ export interface BoardController {
   lanes: Record<LaneId, LaneModel>;
   /** First messages still loading or not covered by this search. Other metadata is searched for every card. */
   searchCoverage: SearchCoverage;
+  searchPrompts?: ReadonlyMap<string, FirstPrompt>;
   /** A card by id, a provider subagent's included (`tasks.byId` has only the agents'), filtered out or not. */
   cardById(id: string): TaskCard | undefined;
   /** Per lane, the cards the filters leave out, so the lane can say why its count is below the sidebar's. */
@@ -425,6 +428,12 @@ export function useBoard(
   const callbacks = useMemo<CardCallbacks>(
     () => ({
       titleUpdates,
+      onSearchPromptRetry: (card) => {
+        const current = card.subagent ? card.parent && latest.current.tasks.byId.get(card.parent.id) : latest.current.tasks.byId.get(card.id);
+        if (!current || current.closed) return;
+        if (card.subagent) void requestSubagentFirstPrompt(card.id, current.id);
+        else void firstPromptStoreFor(latest.current.paseo).request(card.id, () => latest.current.tasks.byId.has(card.id) && !latest.current.tasks.byId.get(card.id)!.closed);
+      },
       onOpen: hasNavigation ? open : undefined,
       onReveal: (agentId, parentId) => {
         // A provider subagent's row, while hidden subtasks or the filters leave its card off the board: its parent's tab.
@@ -482,6 +491,7 @@ export function useBoard(
     paseo,
     lanes,
     searchCoverage: firstPrompts.coverage,
+    searchPrompts: filters.query.trim() ? firstPrompts.prompts : undefined,
     cardById,
     hidden,
     hiddenSubtasks,

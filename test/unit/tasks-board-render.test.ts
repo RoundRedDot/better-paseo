@@ -611,7 +611,7 @@ describe("Tasks board, desktop", () => {
     updateEnhancerPreferences({ language });
     await act(async () => { renderer = TestRenderer.create(screen(false, { agent: "codex", ws: "wks_sample", win: "7d", sort: "title-asc" })); });
     layOut(width);
-    const field = () => renderer!.root.find((node) => (node.type as unknown) === "TextInput");
+    const field = () => renderer!.root.find((node) => (node.type as unknown) === "TextInput" && node.props.accessibilityLabel === BOARD_STRINGS[language].search);
     const clear = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === BOARD_STRINGS[language].menuSearch.clear);
     const before = lastBoardParams("host-1");
     const frameStyle = StyleSheet.flatten(hostParentOf(field())!.props.style);
@@ -646,7 +646,7 @@ describe("Tasks board, desktop", () => {
     subtasks();
     filter();
     expect(scopes()).toEqual(before);
-    act(() => renderer!.root.find((node) => (node.type as unknown) === "TextInput").props.onChangeText("api"));
+    act(() => renderer!.root.find((node) => (node.type as unknown) === "TextInput" && [BOARD_STRINGS.en.search, BOARD_STRINGS.zh.search].includes(node.props.accessibilityLabel)).props.onChangeText("api"));
     expect(scopes().every((scope, index) => scope !== before[index])).toBe(true);
     act(() => renderer!.unmount());
 
@@ -679,7 +679,7 @@ describe("Tasks board, desktop", () => {
       const text = (value: string) => renderer!.root.find((node) => (node.type as unknown) === "Text" && textOf(node) === value);
       // Every size is a step of the host's ramp (sm 12, base 14), scaled as the host scales it.
       expect(font(text("Move"))).toBe(Math.round(12 * base / 14));
-      const search = renderer!.root.find((node) => (node.type as unknown) === "TextInput");
+      const search = renderer!.root.find((node) => (node.type as unknown) === "TextInput" && [BOARD_STRINGS.en.search, BOARD_STRINGS.zh.search].includes(node.props.accessibilityLabel));
       expect(font(search)).toBe(Math.round(14 * base / 14));
       const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
       // A card's title and a lane's name read at the host's list-row step, a step over the meta row and pills.
@@ -766,7 +766,7 @@ describe("Tasks board, desktop", () => {
         renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: 21 } } }));
       });
       layOut(1600);
-      const search = renderer!.root.find((node) => (node.type as unknown) === "TextInput");
+      const search = renderer!.root.find((node) => (node.type as unknown) === "TextInput" && [BOARD_STRINGS.en.search, BOARD_STRINGS.zh.search].includes(node.props.accessibilityLabel));
       expect(StyleSheet.flatten(search.props.style).fontSize).toBe(21);
       // The sidebar reads its own open state; the appearance is never read.
       expect(getItem).not.toHaveBeenCalledWith(APP_SETTINGS_KEY);
@@ -2147,9 +2147,9 @@ describe("Tasks board, desktop", () => {
     layOut(1600);
     const toolbar = () => textOf(renderer!.root.findByType(DesktopToolbar));
     const strings = BOARD_STRINGS[language];
-    expect(toolbar()).toContain(`↵${strings.keys.open}Space${language === "zh" ? "预览" : "Preview"}/${strings.keys.search}`);
+    expect(toolbar()).toContain(`↵${strings.keys.open}${strings.keys.space}${strings.keys.preview}/${strings.keys.search}`);
     layOut(800);
-    expect(toolbar()).not.toContain("Space");
+    expect(toolbar()).not.toContain(strings.keys.space);
   });
 
   it("disarms an armed stop on Esc, whatever has the keyboard focus", async () => {
@@ -3072,7 +3072,7 @@ describe("Tasks board, tablet filters", () => {
     // Search relayout must retain every action, including the filter button.
     act(() => end().props.onLayout({ nativeEvent: { layout: { x: 160, y: 6, width: StyleSheet.flatten(end().props.style).minWidth, height: 32 } } }));
     expect(order()).toEqual(expected);
-    const field = hostsById("tablet-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput");
+    const field = hostsById("tablet-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput" && [BOARD_STRINGS.en.search, BOARD_STRINGS.zh.search].includes(node.props.accessibilityLabel));
     act(() => field.props.onChangeText("needle"));
     expect(order()).toEqual(expected);
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
@@ -4189,14 +4189,14 @@ describe("Tasks board, phone", () => {
     const titleControl = vi.spyOn(titleUpdates, "useTitleUpdateControl").mockReturnValue(control);
     const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }>; byId: Map<string, TaskCard> } }).__handle;
     const saved = handle.lanes;
-    const first = { ...handle.byId.get("sample-done")!, id: "title-first", lane };
+    const first = { ...handle.byId.get("sample-done")!, id: "title-first", lane, location: { ...handle.byId.get("sample-done")!.location, branch: "search-match" } };
     const target = { ...first, id: "title-target", title: "Old title" };
     const title = "A complete generated title that must finish before the card moves";
     const laneCards = () => cards().filter((card) => card.props.card.lane === lane);
     try {
       host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
       handle.lanes = { ...saved, [lane]: { ...saved[lane]!, cards: [first, target] } };
-      await act(async () => { renderer = TestRenderer.create(screen(false)); });
+      await act(async () => { renderer = TestRenderer.create(screen(false, { q: "search-match" })); });
       await act(async () => { await deviceTasksStore().update({ showArchived: true }); });
       layOut(2400);
       await act(async () => { await vi.advanceTimersByTimeAsync(800); });
@@ -4206,7 +4206,7 @@ describe("Tasks board, phone", () => {
       const updated = { ...target, title, timing: { ...target.timing, updatedAt: "2026-10-28T00:00:00Z" } };
       // The daemon publishes the rename before the final status reaches the client.
       handle.lanes = { ...handle.lanes, [lane]: { ...handle.lanes[lane]!, cards: [updated, first] } };
-      await act(async () => renderer!.update(screen(false)));
+      await act(async () => renderer!.update(screen(false, { q: "search-match" })));
       expect(laneCards().map((card) => card.props.card.id)).toEqual([first.id, target.id]);
       expect(laneCards()[1]!.props.card).toBe(target);
       await act(async () => answer({ state: "done", title }));

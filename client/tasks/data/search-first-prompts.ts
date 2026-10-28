@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import type { PaseoApi } from "@getpaseo/client";
-import { firstPromptStoreFor } from "./first-prompt";
+import { type FirstPrompt, firstPromptStoreFor } from "./first-prompt";
 import { requestSubagentFirstPrompt, subagentFirstPrompts } from "./subagent-timeline";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../model";
 
@@ -70,18 +70,25 @@ export function useSearchFirstPrompts(api: PaseoApi, lanes: Record<LaneId, LaneM
     // `requestKey` captures every card fact the queue depends on.
   }, [store, active, requestKey]);
 
-  return useMemo(() => {
+  const result = useMemo(() => {
     const messages = new Map<string, string>();
+    const prompts = new Map<string, FirstPrompt>();
     const coverage: SearchCoverage = { pending: 0, unavailable: 0, failed: 0 };
-    if (!active) return { messages, coverage };
+    if (!active) return { messages, coverage, prompts };
     for (const card of cards) {
       const prompt = (card.subagent ? subagentFirstPrompts : store).read(card.id);
+      prompts.set(card.id, prompt);
       if (prompt.state === "ready") messages.set(card.id, prompt.text);
       else if (prompt.state === "none") continue;
       else if (card.closed || card.subagent && (!card.parent || !byId.has(card.parent.id) || byId.get(card.parent.id)!.closed)) coverage.unavailable += 1;
       else if (prompt.state === "error") coverage.failed += 1;
       else coverage.pending += 1;
     }
-    return { messages, coverage };
+    return { messages, coverage, prompts };
   }, [store, cards, byId, active, revision]);
+  // Holding a streamed title can rebuild lanes with exactly the same card objects.
+  // A new map with identical prompt snapshots must not invalidate lane memoization.
+  const prompts = useRef(result.prompts);
+  if (prompts.current.size !== result.prompts.size || [...result.prompts].some(([id, prompt]) => prompts.current.get(id) !== prompt)) prompts.current = result.prompts;
+  return { ...result, prompts: prompts.current };
 }

@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 import type { DetailSection } from "./detail-model";
 
@@ -66,4 +66,19 @@ export function useSectionChoices(): Choices {
 /** Tests only. */
 export function resetSectionChoices(): void {
   remembered = null;
+}
+
+/** Search-only choices disappear when the query clears; normal preferences stay intact. */
+export function useSearchSectionChoices(owner: string, query: string, matching: readonly DetailSection[]) {
+  const [state, setState] = useState<{ key: string; manual: Choices }>({ key: "", manual: {} });
+  const key = query ? owner : "";
+  const manual = state.key === key ? state.manual : {};
+  if (state.key !== key) setState({ key, manual: {} });
+  return {
+    closed: (section: DetailSection, normal: boolean) => manual[section] ?? (matching.includes(section) ? false : normal),
+    toggle: (section: DetailSection, closed: boolean) => {
+      if (!query) { setSectionClosed(section, closed); return; }
+      setState((was) => ({ key, manual: { ...(was.key === key ? was.manual : {}), [section]: closed } }));
+    },
+  };
 }

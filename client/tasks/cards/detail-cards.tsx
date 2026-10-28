@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useMemo, useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
@@ -65,9 +65,11 @@ import {
 } from "./detail-model";
 import { Chip, ContextBar, SummaryTiles, TimelineChart, TokenBar, TurnHero, detailColors, statusColor } from "./detail-charts";
 import { detailGutter, detailScrollProps } from "./detail-scrollbar";
-import { sectionClosed, setSectionClosed, useSectionChoices } from "./detail-collapse";
+import { sectionClosed, useSectionChoices, useSearchSectionChoices } from "./detail-collapse";
 import { tipProps } from "./card-hints";
 import { AvailabilityTag } from "./availability-tag";
+import { highlightText } from "./search-highlight";
+import { detailSearchHits, searchRanges, taskSearchHits } from "../data/search-hits";
 import { taskOperationIssue } from "../availability";
 
 /**
@@ -134,6 +136,7 @@ export function DetailCard(props: { tokens: TaskTokens; style?: ViewStyle; testI
 
 export interface DetailCardsStrings {
   close: string;
+  searchMatches?: string;
   back(title: string): string;
   stopRun: string;
   openTab: string;
@@ -147,6 +150,7 @@ export interface DetailNotice {
 }
 
 export interface TaskDetailCardsProps extends TimeSource {
+  searchQuery?: string;
   card: TaskCard;
   theme: PluginTheme;
   language: TasksLanguage;
@@ -209,6 +213,13 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   // The caller's source, for what ticks each second: `now` below is whole minutes.
   const time: TimeSource = { now: props.now, clock: props.clock };
   const choices = useSectionChoices();
+  const query = props.searchQuery?.trim().toLowerCase() ?? "";
+  const prompt = props.firstPrompt?.prompt;
+  const metadataHits = taskSearchHits(card, query, { title: true, project: true, workspace: true, branch: true, folder: true, path: true, modelPill: true, model: true, pullRequest: true, labels: card.labels.length, labelLimit: Infinity });
+  const matching: DetailSection[] = [];
+  if (metadataHits.some((hit) => hit.field !== "title" && hit.field !== "label")) matching.push("properties");
+  if (prompt?.state === "ready" && searchRanges(prompt.text, query).length) matching.push("prompt");
+  const searchChoices = useSearchSectionChoices(card.id, query, matching);
   const { order, closed } = detailSections(card, !!props.firstPrompt, !!props.lastMessage, !!props.humanMessage);
   // Two columns: properties precede subtasks under the header; the other sections sit on the right.
   const leftSections: DetailSection[] = props.columns ? order.filter((section) => section === "properties" || section === "subtasks") : [];
@@ -220,7 +231,8 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
       key={section}
       section={section}
       divider={divider}
-      closed={sectionClosed(choices, section, closed.includes(section))}
+      closed={searchChoices.closed(section, sectionClosed(choices, section, closed.includes(section)))}
+      onToggleSection={(closed) => searchChoices.toggle(section, closed)}
       {...props}
       m={m}
       tokens={tokens}
@@ -403,7 +415,7 @@ function DetailHeader(props: Inner) {
         {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={m.round} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
       </View>
       <Text style={{ marginTop: 2, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
-        {card.title}
+        {highlightText(card.title, props.searchQuery ?? "", tokens.isDark)}
       </Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }} testID="detail-agent">
         <Chip
@@ -413,6 +425,7 @@ function DetailHeader(props: Inner) {
           lead={card.providerMark !== null ? <BrandMark provider={card.provider} size={iconSize} tokens={tokens} /> : null}
           // A provider subagent's model comes from its facts line; a line that names neither model nor effort stands in whole.
           text={card.modelLabel ?? (card.thinkingLabel ? null : card.subagent?.subtitle) ?? card.providerLabel}
+          renderText={props.searchQuery ? (text) => highlightText(text, props.searchQuery!, tokens.isDark) : undefined}
           testID="detail-model"
         />
         {card.thinkingLabel ? (
@@ -442,6 +455,7 @@ function DetailHeader(props: Inner) {
               font={chipFont}
               lead={<TagMark size={iconSize} color={tag.color ?? tokens.foregroundMuted} hole={tokens.card.background} />}
               text={tag.name}
+              renderText={props.searchQuery ? (text) => highlightText(text, props.searchQuery!, tokens.isDark) : undefined}
             />
           ))}
         </View>
@@ -692,7 +706,7 @@ function ErrorBlock(props: Inner) {
 
 // ---- Sections --------------------------------------------------------------
 
-function Section(props: Inner & { section: DetailSection; closed: boolean; divider: boolean }) {
+function Section(props: Inner & { section: DetailSection; closed: boolean; divider: boolean; onToggleSection(closed: boolean): void }) {
   const { card, m, tokens, section, gutter = 0 } = props;
   const words = cardStrings(props.language).details;
   const title = { prompt: words.prompt, human: words.human, message: words.message, properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
@@ -736,7 +750,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
           trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined}
           closed={props.closed}
           language={props.language}
-          onPress={() => setSectionClosed(section, !props.closed)}
+          onPress={() => props.onToggleSection(!props.closed)}
         />
         {props.closed ? null : section === "prompt" ? (
           <TimelineTextBody {...props} read={props.firstPrompt} id="detail-prompt" none={words.promptNone} error={words.promptError} copyLabel={words.copyPrompt} copyToast="Copy prompt" />
@@ -839,7 +853,7 @@ function Properties(props: Inner) {
     const width = event.nativeEvent.layout.width;
     setWide((was) => (width >= LABEL_COLUMN.show ? true : width < LABEL_COLUMN.hide ? false : was));
   };
-  const common = { m, tokens, language: props.language, wide };
+  const common = { m, tokens, language: props.language, wide, searchQuery: props.searchQuery };
   const rows: React.ReactNode[] = [];
 
   const placeName = location.projectName ?? location.workspaceName;
@@ -889,7 +903,7 @@ function Properties(props: Inner) {
       key="cwd"
       label={words.cwd}
       icon="Folder"
-      value={tildePath(location.cwd)}
+      value={props.searchQuery ? location.cwd : tildePath(location.cwd)}
       mono="path"
       lines={2}
       action={canOpenFolder ? { icon: "FolderOpen", label: details.openFolder, onPress: () => void openFolder() } : undefined}
@@ -916,6 +930,11 @@ function Properties(props: Inner) {
     );
   }
 
+  if (props.searchQuery) {
+    for (const hit of detailSearchHits(card, props.searchQuery)) {
+      rows.push(<PropertyRow {...common} key={`search-${hit.field}`} label={cardText.searchHits.fields[hit.field]} accessibilityLabel={`${props.strings.searchMatches ?? cardText.searchHits.dialog}: ${cardText.searchHits.fields[hit.field]}: ${hit.text}`} icon="Search" value={hit.text} lines={20} mono={hit.mono ? "branch" : undefined} testID={`detail-search-${hit.field}`} />);
+    }
+  }
   if (card.parent) {
     const parent = card.parent;
     const archived = parent.missing && parent.archived === true;
@@ -993,6 +1012,7 @@ interface Note {
  * on the row runs it. A copy is confirmed by the host's toast.
  */
 function PropertyRow(props: {
+  searchQuery?: string;
   m: Metrics;
   tokens: TaskTokens;
   language: TasksLanguage;
@@ -1048,9 +1068,9 @@ function PropertyRow(props: {
   const actionSlot = (props.action ? 26 : 0) + (touch ? 0 : (props.copy ? 24 : 0) + (props.link ? 26 : 0));
   const showActions = actionSlot > 0 && (touch || hovered);
   let shown = props.value;
-  if (props.mono === "branch" || props.hyphens) shown = breakable(props.value);
+  if (!props.searchQuery && (props.mono === "branch" || props.hyphens)) shown = breakable(props.value);
   // A path wraps as runs in a row, so its breaks are the layout's on every platform.
-  const runs = props.mono === "path" ? pathTokens(foldPath(props.value, columns, props.lines), columns) : null;
+  const runs = props.mono === "path" && !props.searchQuery ? pathTokens(foldPath(props.value, columns, props.lines), columns) : null;
   const onValueLayout =
     props.mono === "path"
       ? (event: LayoutChangeEvent) => {
@@ -1082,7 +1102,7 @@ function PropertyRow(props: {
           <Text key={note.text} style={note.warn ? { color: tokens.warning } : note.parts ? { fontVariant: ["tabular-nums"] } : undefined}>
             {index > 0 ? <Text style={{ color: tokens.foregroundMuted }}>{" \u00b7 "}</Text> : null}
             {note.warn ? "\u25cf " : null}
-            {note.parts ? note.parts.map((part) => (part.color ? <Text key={part.text} style={{ color: part.color }}>{part.text}</Text> : part.text)) : note.text}
+            {note.parts ? note.parts.map((part) => (part.color ? <Text key={part.text} style={{ color: part.color }}>{part.text}</Text> : part.text)) : highlightText(note.text, props.searchQuery ?? "", tokens.isDark)}
           </Text>
         ))}
       </Text>
@@ -1113,9 +1133,9 @@ function PropertyRow(props: {
             ))}
           </View>
         ) : (
-          <Text numberOfLines={props.lines} style={valueStyle} testID={props.testID ? `${props.testID}-value` : undefined}>
-            {props.pre ? <Text style={{ fontSize: font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${props.pre}\u2002`}</Text> : null}
-            {shown}
+          <Text numberOfLines={props.searchQuery ? undefined : props.lines} style={valueStyle} testID={props.testID ? `${props.testID}-value` : undefined}>
+            {props.pre ? <Text style={{ fontSize: font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{highlightText(`${props.pre}\u2002`, props.searchQuery ?? "", tokens.isDark)}</Text> : null}
+            {highlightText(shown, props.searchQuery ?? "", tokens.isDark, props.icon === "GitBranch")}
           </Text>
         )}
         {noteLine}
@@ -1314,6 +1334,9 @@ function TimelineTextBody(props: Inner & {
   const { tokens, id } = props;
   const words = cardStrings(props.language).details;
   const [open, setOpen] = useState(false);
+  const query = props.id === "detail-prompt" ? props.searchQuery ?? "" : "";
+  const [searchFold, setSearchFold] = useState({ query: "", closed: false });
+  const expanded = query ? searchFold.query === query ? !searchFold.closed : true : open;
   const { copied, copy } = useCopy();
   const prose = useThemeTokens(props.theme, useEnhancerPreferences());
   const adjustment = useTasksFontAdjustment();
@@ -1337,6 +1360,7 @@ function TimelineTextBody(props: Inner & {
       })
       .catch((error: unknown) => fail(error instanceof Error ? error.message : String(error)));
   }, []);
+  const renderText = useMemo(() => query ? (text: string) => highlightText(text, query, tokens.isDark) : undefined, [query, tokens.isDark]);
   if (!first) return null;
   const font = Math.round(prose.typography.content.size * 0.9 * adjustment);
   const small = F.sm;
@@ -1361,7 +1385,7 @@ function TimelineTextBody(props: Inner & {
   const text = prompt.text;
   const lines = errorLines(text);
   const long = lines.length > PROMPT_LINES || text.length > 240;
-  const folded = long && !open;
+  const folded = long && !expanded;
   const line = variantMetrics(PROSE, font).bodyLineHeight;
   const sunk = detailColors(tokens).sunk;
   return (
@@ -1371,7 +1395,7 @@ function TimelineTextBody(props: Inner & {
           <Animated.View pointerEvents="none" testID={`${id}-flash`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }} />
         ) : null}
         <View style={folded ? { maxHeight: PROMPT_LINES * line, overflow: "hidden" } : null} testID={`${id}-text`}>
-          <MarkdownView text={text} tokens={prose} variant={PROSE} size={font} onRevealPath={onRevealPath} />
+          <MarkdownView text={text} renderText={renderText} tokens={prose} variant={PROSE} size={font} onRevealPath={onRevealPath} />
           {folded ? (
             // A heading or code block cuts the last line anywhere: fade it out.
             <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: line, flexDirection: "column" }}>
@@ -1384,8 +1408,8 @@ function TimelineTextBody(props: Inner & {
       </View>
       <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
         {long ? (
-          <Pressable accessibilityRole="button" {...tipProps(open ? words.showLess : words.showAll(lines.length))} onPress={() => setOpen((was) => !was)} hitSlop={4} testID={`${id}-more`}>
-            <Text style={{ fontSize: small, color: tokens.foregroundMuted }}>{open ? words.showLess : words.showAll(lines.length)}</Text>
+          <Pressable accessibilityRole="button" {...tipProps(expanded ? words.showLess : words.showAll(lines.length))} onPress={() => query ? setSearchFold({ query, closed: expanded }) : setOpen((was) => !was)} hitSlop={4} testID={`${id}-more`}>
+            <Text style={{ fontSize: small, color: tokens.foregroundMuted }}>{expanded ? words.showLess : words.showAll(lines.length)}</Text>
           </Pressable>
         ) : null}
         <View style={{ flex: 1 }} />

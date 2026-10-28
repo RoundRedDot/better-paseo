@@ -165,6 +165,7 @@ const en = {
     archived: "Archived · removed from the board",
     hidden: "Hidden by the current filters",
     deleted: "Task deleted",
+    searchMatches: "Search matches",
     property: { project: "Project", parent: "Parent", branch: "Branch", cwd: "Directory", pr: "PR", labels: "Labels" },
   },
 };
@@ -311,6 +312,7 @@ const zh: typeof en = {
     archived: "已归档 · 已从看板移除",
     hidden: "当前筛选已隐藏这张卡",
     deleted: "任务已删除",
+    searchMatches: "搜索命中",
     property: { project: "项目", parent: "父任务", branch: "分支", cwd: "工作目录", pr: "PR", labels: "标签" },
   },
 };

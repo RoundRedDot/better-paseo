@@ -576,6 +576,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
       {/* Keyed by the card: a jump to the parent or a step starts the new card at its top. */}
       <ScrollView key={card.id} style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12 }} testID="details-sheet-scroll">
         <TaskDetailCards
+          searchQuery={board.params.query}
           card={card}
           theme={theme}
           language={board.language}

@@ -76,6 +76,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   const detailProps = card
     ? {
         card,
+        searchQuery: board.params.query,
         theme,
         language: board.language,
         strings,

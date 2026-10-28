@@ -359,6 +359,9 @@ export function CardCell(props: CardCellProps) {
         <FadeOnMount enabled={props.fresh}>
           <TaskCardView
             card={card}
+            searchQuery={board.params.query.trim().toLowerCase()}
+            searchPrompt={board.searchPrompts?.get(card.id)}
+            searchPromptUnavailable={Boolean(card.closed || card.subagent && (!card.parent || !board.cardById(card.parent.id) || board.cardById(card.parent.id)!.closed))}
             fields={board.fields}
             theme={props.theme}
             compact={props.compact}
