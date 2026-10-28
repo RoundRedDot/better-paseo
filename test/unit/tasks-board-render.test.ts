@@ -111,7 +111,8 @@ import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
 import { Modal } from "@getpaseo/plugin/client/react-native";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
-import { SearchCoverage, TasksBoardScreen } from "../../client/tasks/board/board-screen";
+import { firstPromptStoreFor } from "../../client/tasks/data/first-prompt";
+import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { CardCell, RollingCount, RollingTotal, WindowSegments } from "../../client/tasks/board/board-parts";
 import { createLaneMotionStore, LaneMotionLayer, LaneMotionProvider } from "../../client/tasks/board/lane-motion";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
@@ -336,6 +337,33 @@ afterEach(() => {
   resetTasksEnabled();
 });
 
+describe("search coverage render isolation", () => {
+  it.each([false, true])("updates counts without redrawing lane rows (phone=%s)", async (phone) => {
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }>; byId: Map<string, TaskCard> } }).__handle;
+    const saved = { lanes: handle.lanes, byId: handle.byId };
+    const task = { ...handle.lanes.needs_input!.cards[0]!, id: `coverage-render-${phone}`, title: "coverage probe", closed: false };
+    handle.lanes = { ...handle.lanes, needs_input: { ...handle.lanes.needs_input!, cards: [task] } };
+    handle.byId = new Map(handle.byId).set(task.id, task);
+    let finish!: () => void;
+    const ref = vi.spyOn(paseo.agents, "ref").mockImplementation(() => ({ timeline: { refetch: () => new Promise((resolve) => { finish = () => resolve({ error: "offline", entries: [] } as never); }) } }));
+    try {
+      await act(async () => { renderer = TestRenderer.create(screen(phone, { q: "coverage probe" })); });
+      if (!phone) layOut(1600);
+      const before = host.rowRenders;
+      let request!: Promise<void>;
+      act(() => { request = firstPromptStoreFor(paseo as never).request(task.id); });
+      expect(host.rowRenders).toBe(before);
+      await act(async () => { finish(); await request; });
+      expect(textOf(hostsById("search-coverage-failure")[0]!)).toContain("1 failed");
+      expect(host.rowRenders).toBe(before);
+      expect(hostsById("tasks-search-coverage")).toHaveLength(0);
+    } finally {
+      act(() => renderer?.unmount()); renderer = undefined;
+      handle.lanes = saved.lanes; handle.byId = saved.byId; ref.mockRestore();
+    }
+  });
+});
+
 describe("Tasks search coverage and centred toolbar", () => {
   it.each(["en", "zh"] as const)("shows all six toolbar shortcuts in %s hover tips without a sidebar key hint", (language) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
@@ -495,17 +523,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(BOARD_STRINGS.en.total(116)).toBe("116 tasks");
   });
 
-  it.each(["en", "zh"] as const)("shows loading, uncovered and failed first messages in %s, only during search", (language) => {
-    const board = { params: { ...EMPTY_PARAMS, query: "apple" }, strings: BOARD_STRINGS[language], searchCoverage: { pending: 2, unavailable: 3, failed: 1 } };
-    act(() => { renderer = TestRenderer.create(React.createElement(SearchCoverage, { board, theme })); });
-    const status = hostsById("tasks-search-coverage")[0]!;
-    expect(textOf(status)).toBe([board.strings.searchLoading(2), board.strings.searchUnavailable(3), board.strings.searchFailed(1)].join(" · "));
-    expect(status.props.accessibilityLiveRegion).toBe("polite");
-    act(() => renderer!.update(React.createElement(SearchCoverage, { board: { ...board, params: { ...board.params, query: " " } }, theme })));
-    expect(hostsById("tasks-search-coverage")).toHaveLength(0);
-    act(() => renderer!.update(React.createElement(SearchCoverage, { board: { ...board, searchCoverage: { pending: 0, unavailable: 0, failed: 0 } }, theme })));
-    expect(hostsById("tasks-search-coverage")).toHaveLength(0);
-  });
+
 });
 
 describe("F1: Web switch Space activation", () => {

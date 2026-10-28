@@ -1,6 +1,6 @@
 import React, { useState, type Ref } from "react";
 import { Pressable, View, type LayoutRectangle, type TextInput as NativeTextInput } from "react-native";
-import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, useTasksFontScale, taskControlHeight } from "../typography";
@@ -11,6 +11,9 @@ import { laneWidthMenuSections, sortMenuSections } from "./board-menus";
 import { CascadeMenu, type MenuSection } from "./menu";
 import { activeFilterCount, resolveBoardParams } from "./params";
 import type { BoardController } from "./use-board";
+import { SearchInput } from "./search-loading";
+import { SearchCoverageItems } from "./search-coverage";
+import { SearchQueryChip } from "./filter-bar";
 
 type ViewPage = "view" | "sort";
 
@@ -43,6 +46,7 @@ export function TabletToolbar(props: {
   const [trail, setTrail] = useState<string[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const searching = Boolean(board.params.query.trim());
   const expandedSearch = searchOpen && !inlineSearch;
   const [toolbarWidth, setToolbarWidth] = useState<number | null>(null);
   const [actionLayout, setActionLayout] = useState<LayoutRectangle | null>(null);
@@ -85,8 +89,7 @@ export function TabletToolbar(props: {
   ];
   const search = (
     <View testID="tablet-toolbar-search" style={{ flex: 1, minWidth: 0, maxWidth: inlineSearch ? 320 : undefined, height: target, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
-      <Icon name="Search" size={16} color={colors.foregroundMuted} />
-      <TextInput
+      <SearchInput iconSize={16} iconColor={colors.foregroundMuted}
         ref={props.searchRef}
         value={board.params.query}
         onChangeText={(query) => board.setParams((p) => ({ ...p, query }))}
@@ -109,10 +112,12 @@ export function TabletToolbar(props: {
       {page || (searchOpen && !inlineSearch) ? <Pressable accessibilityLabel={strings.closeMenu} testID="tablet-toolbar-backdrop" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: 9 }} /> : null}
       <View pointerEvents="box-none" testID="tablet-toolbar" onLayout={(event) => setToolbarWidth(event.nativeEvent.layout.width)} style={{ height, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>
         {/* Match both side slots' minimums: native flex otherwise shifts the title towards the search. */}
-        <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: compact && !expandedSearch ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: inlineSearch && searching ? 160 : compact && !expandedSearch ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", gap: 6 }}>
           {inlineSearch ? search : <ToolbarButton compact={compact} icon="Search" label={strings.searchButton} selected={searchOpen || !!board.params.query} theme={theme} testID="tablet-search-toggle" onPress={() => { setPage(null); setSearchOpen(!searchOpen); }} />}
           {expandedSearch ? search : null}
         </View>
+        <SearchQueryChip board={board} theme={theme} />
+        <SearchCoverageItems theme={theme} />
         {expandedSearch ? null : <View accessible accessibilityLabel={strings.total(board.total)} testID="tablet-toolbar-total" style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
           <View testID="tablet-total-slot" style={{ flexShrink: 0, alignItems: "center", justifyContent: "center" }}>
             {/* Reserve the complete localised phrase, so count changes never move the search. */}
@@ -122,7 +127,7 @@ export function TabletToolbar(props: {
             </View>
           </View>
         </View>}
-        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch ? 0 : 1, flexBasis: expandedSearch ? "auto" : 0, minWidth: compact ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch || searching ? 0 : 1, flexBasis: expandedSearch || searching ? "auto" : 0, minWidth: compact ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
         {shortcuts ? null : <ToolbarButton compact={compact} icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks }))} />}
         {separateFilters ? <ToolbarButton compact={compact} icon="ListFilter" label={strings.filters} showLabel={labels} badge={count} theme={theme} testID="toolbar-filters" onPress={() => { close(); props.onFilters(); }} /> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>

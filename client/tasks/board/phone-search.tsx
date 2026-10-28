@@ -1,9 +1,10 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { Animated, Pressable, View } from "react-native";
-import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { HOST_FONT as F, useTasksFontScale } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { SearchInput } from "./search-loading";
 import { HAIRLINE, MOTION } from "./board-style";
 
 /** Owns its height and exit lifetime instead of relying on a host layout transaction. */
@@ -77,8 +78,7 @@ export function PhoneSearch(props: {
           style={{ position: natural ? "relative" : "absolute", left: 0, right: 0, top: 0, paddingHorizontal: 16, paddingBottom: 10 }}
         >
           <View style={{ minHeight: 36, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 18 }}>
-            <Icon name="Search" size={15} color={colors.foregroundMuted} />
-            <TextInput
+            <SearchInput iconSize={15} iconColor={colors.foregroundMuted}
               autoFocus={props.autoFocus}
               value={props.query}
               onChangeText={props.onChange}

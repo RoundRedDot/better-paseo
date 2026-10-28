@@ -26,6 +26,8 @@ import { CardCell, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, Skele
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
+import { SearchCoverageItems } from "./search-coverage";
+import { SearchQueryChip } from "./filter-bar";
 import { PhoneSearch } from "./phone-search";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
@@ -219,6 +221,7 @@ export function PhoneBoard(props: {
       };
     return {
       titleUpdates: base.titleUpdates,
+      onSearchPromptRetry: base.onSearchPromptRetry,
       onOpen: base.onOpen ? guard(base.onOpen) : undefined,
       onReveal: guard(base.onReveal),
       // Absent without the host's CLI: a guarded no-op would still draw Stop on every card.
@@ -357,6 +360,8 @@ export function PhoneBoard(props: {
         clear={strings.menuSearch.clear}
         theme={theme}
       />
+      {board.params.query.trim() ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ paddingHorizontal: 16 }}><SearchQueryChip board={board} theme={theme} /></ScrollView> : null}
+      <SearchCoverageItems theme={theme} phone />
       <View
         onLayout={(event: LayoutChangeEvent) => setBarWidth(event.nativeEvent.layout.width)}
         style={{ borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 5, backgroundColor: palette.panel }}

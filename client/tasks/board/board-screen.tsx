@@ -1,12 +1,13 @@
-import React, { useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { Pressable, Text, View } from "react-native";
-import { TasksTypography, TaskText, HOST_FONT as F, HOST_LINE } from "../typography";
+import { TasksTypography, HOST_FONT as F, HOST_LINE } from "../typography";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useDeviceTasksPreferences } from "../device-preferences";
 import { useTasksLanguage } from "../i18n";
 import { pluginRoot } from "../../components/focus-ring";
 import { HAIRLINE } from "./board-style";
+import { SearchCoverageProvider } from "./search-loading";
 import { DesktopBoard } from "./desktop-board";
 import { MenuBoundsContext } from "./menu";
 import { carriedSettings } from "./carry";
@@ -14,7 +15,7 @@ import { tasksSettingsOpener, useTasksEnabledStore, useTasksSettings } from "./e
 import { boardIsCompact } from "./navigation";
 import { PhoneBoard } from "./phone-board";
 import { BOARD_STRINGS } from "./strings";
-import { useBoard, type BoardController, type BoardLayoutHandlers } from "./use-board";
+import { useBoard, type BoardLayoutHandlers } from "./use-board";
 
 /**
  * The Tasks board (`addScreen` id `tasks`): the lanes side by side, scrolling
@@ -65,32 +66,17 @@ function BoardContent(props: PluginScreenProps) {
   const compact = boardIsCompact(props.layout.compact);
   const board = useBoard(props, rootRef, handlers, compact);
   const Layout = compact ? PhoneBoard : DesktopBoard;
+  const layout = useMemo(() => <Layout screen={props} board={board} rootRef={rootRef} handlers={handlers} />, [Layout, props, board]);
   return (
     <TasksTypography theme={props.theme}>
       <View {...pluginRoot} style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }}>
-        <MenuBoundsContext.Provider value={rootRef}>
-          <Layout screen={props} board={board} rootRef={rootRef} handlers={handlers} />
-          <SearchCoverage board={board} theme={props.theme} />
-        </MenuBoundsContext.Provider>
+        <SearchCoverageProvider status={board.searchStatus} query={board.params.query} strings={board.strings.searchCoverage} total={board.total}>
+          <MenuBoundsContext.Provider value={rootRef}>
+            {layout}
+          </MenuBoundsContext.Provider>
+        </SearchCoverageProvider>
       </View>
     </TasksTypography>
-  );
-}
-
-/** The same persistent search coverage on desktop, tablet and phone. */
-export function SearchCoverage({ board, theme }: { board: Pick<BoardController, "params" | "searchCoverage" | "strings">; theme: PluginScreenProps["theme"] }) {
-  if (!board.params.query.trim()) return null;
-  const { pending, unavailable, failed } = board.searchCoverage;
-  const text = [
-    pending ? board.strings.searchLoading(pending) : null,
-    unavailable ? board.strings.searchUnavailable(unavailable) : null,
-    failed ? board.strings.searchFailed(failed) : null,
-  ].filter(Boolean).join(" · ");
-  if (!text) return null;
-  return (
-    <View testID="tasks-search-coverage" accessibilityLiveRegion="polite" style={{ flexShrink: 0, paddingHorizontal: 16, paddingVertical: 6, borderTopWidth: HAIRLINE, borderTopColor: theme.colors.border }}>
-      <TaskText style={{ fontSize: F.sm, color: theme.colors.foregroundMuted }}>{text}</TaskText>
-    </View>
   );
 }
 

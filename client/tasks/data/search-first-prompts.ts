@@ -26,7 +26,10 @@ export function useSearchFirstPrompts(api: PaseoApi, lanes: Record<LaneId, LaneM
   }, [store, active]);
   const snapshot = () => active ? `${store.version()}:${subagentFirstPrompts.version()}` : "";
   const revision = useSyncExternalStore(subscribe, snapshot, snapshot);
-  const cards = useMemo(() => LANE_ORDER.flatMap((id) => lanes[id].cards), [lanes]);
+  const nextCards = useMemo(() => LANE_ORDER.flatMap((id) => lanes[id].cards), [lanes]);
+  const cardsRef = useRef(nextCards);
+  if (cardsRef.current.length !== nextCards.length || nextCards.some((card, index) => card !== cardsRef.current[index])) cardsRef.current = nextCards;
+  const cards = cardsRef.current;
   const byId = useMemo(() => new Map(cards.map((card) => [card.id, card])), [cards]);
   const latestCards = useRef(byId);
   latestCards.current = byId;
@@ -70,27 +73,22 @@ export function useSearchFirstPrompts(api: PaseoApi, lanes: Record<LaneId, LaneM
     // `requestKey` captures every card fact the queue depends on.
   }, [store, active, requestKey]);
 
-  const result = useMemo(() => {
+  const latestActive = useRef(active);
+  latestActive.current = active;
+  const status = useMemo(() => createSearchCoverage(api, () => [...latestCards.current.values()], () => latestActive.current, (id) => latestCards.current.get(id), requests.current), [api]);
+  const nextMessages = useMemo(() => {
     const messages = new Map<string, string>();
-    const prompts = new Map<string, FirstPrompt>();
-    const coverage: SearchCoverage = { pending: 0, unavailable: 0, failed: 0 };
-    if (!active) return { messages, coverage, prompts };
-    for (const card of cards) {
+    if (active) for (const card of cards) {
       const prompt = (card.subagent ? subagentFirstPrompts : store).read(card.id);
-      prompts.set(card.id, prompt);
       if (prompt.state === "ready") messages.set(card.id, prompt.text);
-      else if (prompt.state === "none") continue;
-      else if (card.closed || card.subagent && (!card.parent || !byId.has(card.parent.id) || byId.get(card.parent.id)!.closed)) coverage.unavailable += 1;
-      else if (prompt.state === "error") coverage.failed += 1;
-      else coverage.pending += 1;
     }
-    return { messages, coverage, prompts };
-  }, [store, cards, byId, active, revision]);
-  // Holding a streamed title can rebuild lanes with exactly the same card objects.
-  // A new map with identical prompt snapshots must not invalidate lane memoization.
-  const prompts = useRef(result.prompts);
-  if (prompts.current.size !== result.prompts.size || [...result.prompts].some(([id, prompt]) => prompts.current.get(id) !== prompt)) prompts.current = result.prompts;
-  return { ...result, prompts: prompts.current };
+    return messages;
+  }, [store, cards, active, revision]);
+  // Loading/error count changes update leaf subscribers, not the lane filter.
+  const messages = useRef(nextMessages);
+  if (messages.current.size !== nextMessages.size || [...nextMessages].some(([id, text]) => messages.current.get(id) !== text)) messages.current = nextMessages;
+  const coverage = status.read();
+  return { messages: messages.current, coverage: { pending: coverage.pending, unavailable: coverage.unavailable, failed: coverage.failed }, status };
 }
 
 export interface SearchCoverageControl {

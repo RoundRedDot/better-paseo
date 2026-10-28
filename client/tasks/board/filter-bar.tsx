@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { Platform, Pressable, View, type LayoutChangeEvent, type TextInput as NativeTextInput } from "react-native";
-import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -19,6 +19,8 @@ import { LABEL_GAP, nextBarLayout, type BarBoxes, type BarLayout, type Box } fro
 import type { BoardController } from "./use-board";
 import { LaneWidthMark } from "./lane-width-mark";
 import { useSwitchSpace } from "../../ui/use-switch-space";
+import { SearchInput } from "./search-loading";
+import { SearchCoverageItems } from "./search-coverage";
 import { tasksSettingsOpener } from "./enabled";
 
 export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
@@ -101,8 +103,7 @@ function DesktopToolbarView(props: {
           borderRadius: 6,
         }}
       >
-        <Icon name="Search" size={13} color={colors.foregroundMuted} />
-        <TextInput
+        <SearchInput iconSize={13} iconColor={colors.foregroundMuted}
           ref={props.searchRef}
           value={board.params.query}
           onChangeText={(query) => board.setParams((params) => ({ ...params, query }))}
@@ -521,7 +522,12 @@ function DesktopFilterBarView(props: {
                   />
                 </GroupChip>
               ) : (
-                <Chip key={entry.key} chip={entry} onClear={() => setParams(entry.clear)} clearLabel={`${strings.clear} ${entry.value}`} theme={theme} />
+                entry.key === "q" ? (
+                  <View key={entry.key} style={{ flexDirection: "row", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 1, gap: 10 }}>
+                    <Chip chip={entry} onClear={() => setParams(entry.clear)} clearLabel={`${strings.clear} ${entry.value}`} theme={theme} />
+                    <SearchCoverageItems theme={theme} />
+                  </View>
+                ) : <Chip key={entry.key} chip={entry} onClear={() => setParams(entry.clear)} clearLabel={`${strings.clear} ${entry.value}`} theme={theme} />
               ),
             )}
             <HoverPressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={() => ({ height: toolbarButtonSize(scale), paddingHorizontal: 4, justifyContent: "center" })}>
@@ -891,4 +897,8 @@ function MenuButton(props: { icon: string | React.ReactElement; label: string; c
 }
 
 
-
+/** The same Contains chip beside compact search fields. */
+export function SearchQueryChip({ board, theme }: { board: BoardController; theme: PluginTheme }) {
+  if (!board.params.query.trim()) return null;
+  return <Chip chip={{ key: "q", kind: board.strings.searchContains, value: `「${board.params.query.trim()}」`, clear: (params) => ({ ...params, query: "" }) }} onClear={() => board.setParams((params) => ({ ...params, query: "" }))} clearLabel={`${board.strings.clear} ${board.strings.searchContains}`} theme={theme} />;
+}

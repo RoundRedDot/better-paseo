@@ -30,7 +30,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: rn.View, TextInput: rn.TextInput };
 });
-vi.mock("../../client/tasks/typography", () => ({ HOST_FONT: { base: 14 }, useTasksFontScale: () => 1 }));
+vi.mock("../../client/tasks/typography", async () => ({ HOST_FONT: { base: 14 }, useTasksFontScale: () => 1, TaskText: (await import("./helpers/rn-mock")).Text }));
 import { PhoneSearch } from "../../client/tasks/board/phone-search";
 
 let renderer: TestRenderer.ReactTestRenderer;

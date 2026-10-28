@@ -133,6 +133,7 @@ export const Animated = {
 };
 
 export const AccessibilityInfo = {
+  announceForAccessibility(_message: string) {},
   isReduceMotionEnabled: () => Promise.resolve(false),
   addEventListener: () => ({ remove() {} }),
 };

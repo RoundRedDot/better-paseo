@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Animated, Platform, Pressable, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -336,6 +336,11 @@ export interface CardCellProps {
  */
 export function CardCell(props: CardCellProps) {
   const { card, board, register } = props;
+  const searchPrompt = useSyncExternalStore(
+    board.params.query.trim() ? board.searchStatus.subscribe : () => () => {},
+    () => board.params.query.trim() ? board.searchStatus.prompt(card) : undefined,
+    () => undefined,
+  );
   const nodeRef = useRef<View>(null);
   const [arrival, setArrival] = useState(0);
   const onArrive = useCallback(() => setArrival((key) => key + 1), []);
@@ -360,7 +365,7 @@ export function CardCell(props: CardCellProps) {
           <TaskCardView
             card={card}
             searchQuery={board.params.query.trim().toLowerCase()}
-            searchPrompt={board.searchPrompts?.get(card.id)}
+            searchPrompt={searchPrompt}
             searchPromptUnavailable={Boolean(card.closed || card.subagent && (!card.parent || !board.cardById(card.parent.id) || board.cardById(card.parent.id)!.closed))}
             fields={board.fields}
             theme={props.theme}
