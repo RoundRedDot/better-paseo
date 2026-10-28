@@ -3,6 +3,19 @@ import type { StatusKind, WorkspaceKind } from "../model";
 
 /** The cards' own words; Chinese follows the prototype. */
 const en = {
+  searchHits: {
+    fields: { title: "Title", prompt: "First message", pr: "PR", label: "Label", branch: "Branch", folder: "Folder", project: "Project", workspace: "Workspace", path: "Path", model: "Model ID", id: "Task ID" },
+    viewAll: (count: number) => `View all ${count} matches`,
+    more: (count: number) => `+${count} matches`,
+    count: (count: number, query: string) => `${count} matches · “${query}”`,
+    dialog: "Search matches",
+    visible: "Visible on card",
+    close: "Close matches",
+    retry: "Retry",
+    detailHint: "Open task details to see matching sections expanded",
+    loading: "Loading first message",
+    unavailable: "First message unavailable",
+  },
   openInWorkspace: "Open in workspace",
   openTab: "Open",
   stop: "Stop",
@@ -212,6 +225,19 @@ const en = {
 type CardStrings = typeof en;
 
 const zh: CardStrings = {
+  searchHits: {
+    fields: { title: "标题", prompt: "首条消息", pr: "PR", label: "标签", branch: "分支", folder: "文件夹", project: "项目", workspace: "工作区", path: "路径", model: "模型 ID", id: "任务 ID" },
+    viewAll: (count) => `查看全部 ${count} 处命中`,
+    more: (count) => `+${count} 处命中`,
+    count: (count, query) => `${count} 处命中 ·「${query}」`,
+    dialog: "搜索命中",
+    visible: "卡片上可见",
+    close: "收起命中",
+    retry: "重试",
+    detailHint: "点击卡片打开详情，命中分组自动展开",
+    loading: "首条消息载入中",
+    unavailable: "首条消息无法读取",
+  },
   openInWorkspace: "在工作区中打开",
   openTab: "打开",
   stop: "停止",

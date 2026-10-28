@@ -4,7 +4,7 @@ import { Lexer } from "../../client/vendor/marked";
 import { nativeProseSource, escapeProse, groupNativeParagraphs, nativeBlockSource, nativeList } from "../../client/components/markdown/render/native-prose-source";
 
 const copy = vi.hoisted(() => vi.fn(async () => true));
-vi.mock("react-native", () => import("./helpers/rn-mock"));
+vi.mock("react-native", async () => ({ ...await import("./helpers/rn-mock"), UIManager: { hasViewManagerConfig: () => true } }));
 vi.mock("../../client/ui/use-copy", () => ({ useCopy: () => ({ copy }) }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -178,6 +178,24 @@ describe("iOS Markdown prose", () => {
     await act(async () => renderer.update(React.createElement(MarkdownView, { text: source, tokens, variant: "document" })));
     expect(native(renderer)).toHaveLength(0);
     expect(renderer.root.findAll((node) => String(node.type) === "Text")[0]!.props).toBe(first);
+    await act(async () => renderer.unmount());
+  });
+});
+
+
+describe("search decoration in Markdown", () => {
+  it.each(["ios", "android", "web"])("decorates prose, inline code and fenced code on %s without changing the source", async (platform) => {
+    os.__rnMockOS = platform;
+    const { highlightText } = await import("../../client/tasks/cards/search-highlight");
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    const source = "# Schedule heading\n\n**Schedule** and `scheduler`\n\n```ts\nconst scheduler = true;\n```";
+    await act(async () => { renderer = TestRenderer.create(React.createElement(MarkdownView, { text: source, tokens, variant: "compact", renderText: (text: string) => highlightText(text, "sche", false) })); });
+    const marks = renderer.root.findAll((node) => typeof node.type === "string" && (node.type === "mark" || node.props.style?.backgroundColor === "#FBE7A1"));
+    expect(marks.length).toBeGreaterThanOrEqual(4);
+    expect(native(renderer)).toHaveLength(0);
+    if (platform === "ios") expect(renderer.root.findAll((node) => String(node.type) === "RNUITextViewChild" && node.props.text === "Sche").length).toBeGreaterThan(0);
+    await act(async () => renderer.update(React.createElement(MarkdownView, { text: source, tokens, variant: "compact" })));
+    expect(renderer.root.findAll((node) => String(node.type) === "mark")).toHaveLength(0);
     await act(async () => renderer.unmount());
   });
 });

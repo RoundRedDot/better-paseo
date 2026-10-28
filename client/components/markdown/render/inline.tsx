@@ -67,21 +67,25 @@ export function renderInline(
         if (token.tokens && token.tokens.length > 0) {
           out.push(...renderInline(token.tokens, context, key, inBold));
         } else {
-          out.push(softBreaks(decodeEntities(token.text)));
+          out.push(context.renderText ? context.renderText(softBreaks(decodeEntities(token.text))) : softBreaks(decodeEntities(token.text)));
         }
         return;
       case "escape":
-        out.push(token.text);
+        out.push(context.renderText ? context.renderText(token.text) : token.text);
         return;
       case "br":
         out.push("\n");
         return;
       case "html":
         // HTML is shown as the source the author wrote, never interpreted.
-        out.push(token.raw);
+        out.push(context.renderText ? context.renderText(token.raw) : token.raw);
         return;
       case "codespan":
         if (isPathLike(token.text)) {
+          if (context.renderText) {
+            out.push(<LocalLink key={key} path={token.text} context={context}><ProseSpan style={codeStyle}>{context.renderText(token.text)}</ProseSpan></LocalLink>);
+            return;
+          }
           out.push(
             <PathText
               key={key}
@@ -97,7 +101,7 @@ export function renderInline(
         }
         out.push(
           <ProseSpan key={key} selectable {...(codeSurface as object)} style={codeStyle}>
-            {token.text}
+            {context.renderText ? context.renderText(token.text) : token.text}
           </ProseSpan>,
         );
         return;

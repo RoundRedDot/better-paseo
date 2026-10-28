@@ -38,6 +38,8 @@ export function CodeBlock({
   const language = lang === "" ? "plaintext" : lang;
   const lines = lineCount(token.text);
 
+  if (context.renderText) return <View style={styles.codeBlock}><Text selectable {...(codeSurface as object)} style={styles.plain}>{context.renderText(token.text)}</Text></View>;
+
   if (collapseCode && variant === "compact" && !expanded) {
     return (
       <Pressable

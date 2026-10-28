@@ -34,7 +34,7 @@ interface Props extends TextProps {
 /** A paragraph, heading or list body; code fences and tables keep their existing renderers. */
 export function MarkdownProse({ context, tokens, text, prefix, bold, style, ...rest }: Props) {
   if (Platform.OS !== "ios" || context.plainProse) {
-    const body = text ?? renderInline(tokens, context, "p", bold);
+    const body = text === undefined ? renderInline(tokens, context, "p", bold) : context.renderText ? context.renderText(text) : text;
     return <ProseText style={style} {...rest}>{prefix
       ? [<ProseSpan key="prefix" style={context.styles.headingHash}>{prefix}</ProseSpan>, body]
       : body}</ProseText>;

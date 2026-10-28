@@ -7,6 +7,7 @@ import type { MarkdownStyles, MarkdownVariant, VariantMetrics } from "./styles";
  * rebuilds this object and the blocks re-render, but nothing is lexed again.
  */
 export interface RenderContext {
+  renderText?(text: string): import("react").ReactNode;
   styles: MarkdownStyles;
   tokens: ExtendedThemeTokens;
   metrics: VariantMetrics;

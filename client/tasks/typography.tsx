@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, type ReactNode } from "react";
+import React, { createContext, useContext, useMemo, type ReactNode, type Ref } from "react";
 import { Platform, StyleSheet, Text, type TextProps, type TextStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useHostAppearance } from "../ui/tokens/host-appearance-shim";
@@ -54,7 +54,7 @@ export function useTasksFontAdjustment(): number {
 }
 
 /** Match Paseo's rounded UI ramp; nested spans keep inheriting their parent. */
-export function TaskText({ style, ...props }: TextProps) {
+export function TaskText({ style, ...props }: TextProps & { ref?: Ref<Text> }) {
   const scale = useTasksFontScale();
   const authored = StyleSheet.flatten(style);
   const scaled: TextStyle = {};

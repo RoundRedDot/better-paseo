@@ -25,6 +25,8 @@ export const TimelineProseContext = createContext(false);
 
 export interface MarkdownViewProps {
   text: string;
+  /** Optional inline decoration, leaving Markdown layout and parsing intact. */
+  renderText?(text: string): React.ReactNode;
   /** False for a continuation row of the same reply. */
   firstBlock?: boolean;
   /** A new list row continues the preceding tight list's item spacing. */
@@ -81,6 +83,7 @@ function split(text: string, cache: BlockCache, streaming: boolean): Split {
  */
 export function MarkdownView({
   text,
+  renderText,
   firstBlock = true,
   listContinuation = false,
   tokens: given,
@@ -140,7 +143,7 @@ export function MarkdownView({
   const styles = useMemo(() => buildStyles(tokens, variant, metrics, quiet), [tokens, variant, metrics, quiet]);
   // iOS only: elsewhere prose is the same `Text` either way, and the context
   // must stay put when the reply settles so finished blocks are not redrawn.
-  const plainProse = Platform.OS === "ios" && streaming;
+  const plainProse = Platform.OS === "ios" && (streaming || renderText !== undefined);
   const context = useMemo<RenderContext>(
     () => ({
       styles,
@@ -150,8 +153,9 @@ export function MarkdownView({
       collapseCode,
       plainProse,
       onRevealPath,
+      renderText,
     }),
-    [styles, tokens, metrics, variant, collapseCode, plainProse, onRevealPath],
+    [styles, tokens, metrics, variant, collapseCode, plainProse, onRevealPath, renderText],
   );
 
   // A streamed chunk changes the tail and leaves every block before it as it
