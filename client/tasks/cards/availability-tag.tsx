@@ -6,13 +6,11 @@ import type { TaskIssue } from "../../../shared/task-availability";
 import type { TasksLanguage } from "../i18n";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, taskControlHeight, useTasksFontScale } from "../typography";
 import { useHover } from "../../ui/use-hover";
-import { mix } from "../../components/theme-tokens";
 import { pillTint, readableOn, type TaskTokens } from "./tokens";
 import { tildePath } from "./format";
 import { breakable } from "./details-format";
 import { HINT_DELAY_MS } from "./card-hints";
 import { panelChrome } from "./panel";
-import { webTransition } from "./action-style";
 
 const labels: Record<TasksLanguage, Record<TaskIssue["code"], string>> = {
   zh: {
@@ -62,16 +60,6 @@ export function shownIssue(issue: TaskIssue | null | undefined): TaskIssue | nul
   return issue && issue.code !== "checking" ? issue : null;
 }
 
-/**
- * The corner's fill over the card's fill: Paseo's status-dot amber at 42%
- * (50% on a dark theme), a step more while the corner is hovered, focused or
- * open. One flat colour, no icon: the corner is a mark, the hint says why.
- */
-export function cornerFill(tokens: TaskTokens, background: string): { rest: string; active: string } {
-  const amber = tokens.status.warning;
-  return { rest: mix(background, amber, tokens.isDark ? 0.5 : 0.42), active: mix(background, amber, tokens.isDark ? 0.64 : 0.56) };
-}
-
 /** The hint's prose under the reason. */
 const NOTE: Record<TasksLanguage, string> = {
   zh: "相关写操作暂不可用，恢复后自动重新检查。",
@@ -82,29 +70,16 @@ const NOTE: Record<TasksLanguage, string> = {
 const HINT_EDGE = 6;
 const HINT_GAP = 4;
 
-/**
- * A task card's warning: a flat amber triangle in the top-right corner,
- * `size` along each edge, under the subtask dot and clipped by the card's
- * inner radius. A triangle `hit` along each edge, wider than the drawn one
- * but short of the context ring, takes the pointer: hovering it shows the
- * reason after the card hints' delay, keyboard focus shows it at once, and a
- * press pins it until a second press, a press elsewhere or Escape. The hint
- * floats, so nothing in the card moves. Render it before the subtask dot so
- * the dot draws over it.
- */
+/** The cut corner's hover, focus and touch target; its hint stays outside the surface clips. */
 export function AvailabilityCorner(props: {
   issue: TaskIssue;
   language: TasksLanguage;
   theme: PluginTheme;
   tokens: TaskTokens;
-  fill: { rest: string; active: string };
-  size: number;
   hit: number;
-  /** The card's inner corner radius (its radius less its border). */
-  radius: number;
   onOpenChange?(open: boolean): void;
 }) {
-  const { issue, language, size, hit, radius } = props;
+  const { issue, language, hit } = props;
   const [pinned, setPinned] = useState(false);
   const [focusShown, setFocusShown] = useState(false);
   const [hoverShown, setHoverShown] = useState(false);
@@ -146,30 +121,10 @@ export function AvailabilityCorner(props: {
   const label = labels[language][issue.code];
   const detail = issue.detail ? tildePath(issue.detail) : null;
   const accessibilityLabel = [label, detail, NOTE[language]].filter(Boolean).join("\n");
-  const active = open || hovered;
   // The rotated square's lower-left half, inside the clip, is the hit triangle.
   const diamond = hit * Math.SQRT2;
   return (
     <>
-      <View
-        pointerEvents="none"
-        style={{ position: "absolute", top: 0, right: 0, width: size, height: size, overflow: "hidden", borderTopRightRadius: radius }}
-        testID="task-availability-corner"
-        {...ariaHidden()}
-      >
-        <View
-          style={{
-            width: size,
-            height: size,
-            borderTopWidth: size,
-            borderLeftWidth: size,
-            borderTopColor: active ? props.fill.active : props.fill.rest,
-            borderLeftColor: "transparent",
-            ...webTransition,
-          }}
-          testID="task-availability-corner-fill"
-        />
-      </View>
       <View
         pointerEvents="box-none"
         style={{ position: "absolute", top: 0, right: 0, width: hit, height: hit, overflow: "hidden", zIndex: 4 }}
@@ -213,8 +168,7 @@ export function AvailabilityCorner(props: {
             style={{ maxWidth: Math.round(300 * Math.max(1, scale)), paddingHorizontal: 10, paddingTop: 8, paddingBottom: 9, gap: 4, ...panelChrome(props.theme), borderRadius: 8 } as ViewStyle}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-              {/* The corner's own shape as the hint's key. */}
-              <View style={{ width: 9, height: 9, borderTopWidth: 9, borderLeftWidth: 9, borderTopColor: props.fill.rest, borderLeftColor: "transparent" }} />
+              <Icon name="TriangleAlert" size={13} color={props.tokens.foregroundMuted} />
               <Text style={{ flexShrink: 1, fontSize: F.sm, lineHeight: HOST_LINE.sm, fontWeight: "600", color: props.tokens.foreground }} testID="task-availability-hint-title">{label}</Text>
             </View>
             {detail ? (
@@ -227,6 +181,3 @@ export function AvailabilityCorner(props: {
     </>
   );
 }
-
-const ariaHidden = () =>
-  Platform.OS === "web" ? ({ "aria-hidden": true } as object) : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" as const };

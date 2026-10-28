@@ -133,7 +133,6 @@ import { variantMetrics } from "../../client/components/markdown/render/styles";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
 import { menuChrome } from "../../client/tasks/board/menu";
 import { cardMenuSections } from "../../client/tasks/cards/card-menu";
-import { cornerFill } from "../../client/tasks/cards/availability-tag";
 import { HINT_DELAY_MS } from "../../client/tasks/cards/card-hints";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { TitleLoading } from "../../client/tasks/cards/title-loading";
@@ -224,39 +223,64 @@ describe("unavailable task operations", () => {
     expect(fromUnavailable.some((text) => text.includes("~"))).toBe(false);
   });
 
-  it.each([["light", LIGHT], ["dark", DARK]] as const)("draws one flat %s amber triangle under a single round dot", async (_name, theme) => {
+  it.each([["light", LIGHT], ["dark", DARK]] as const)("cuts the %s surface and its shadow while keeping one dot inside the card", async (_name, theme) => {
     const card = { ...sample("sample-child-1"), availability: unavailableTask({ code: "workspace_unavailable", detail: "/removed/worktree" }) };
     const tokens = taskTokens(theme as never);
     const tree = await render(cardElement(card, { theme, hostId: "host-1" }));
     const root = hostByTestId(tree.root, "task-card-sample-child-1");
-    const fill = cornerFill(tokens, tokens.card.background);
-    const corner = hostByTestId(tree.root, "task-availability-corner");
-    // Desktop meta row: halfway between the dot and the ring along the diagonal.
-    expect(flat(corner.props.style)).toMatchObject({ position: "absolute", top: 0, right: 0, width: 21, height: 21, overflow: "hidden", borderTopRightRadius: 7 });
-    expect(corner.props.pointerEvents).toBe("none");
-    expect(flat(hostByTestId(corner, "task-availability-corner-fill").props.style)).toMatchObject({ borderTopWidth: 21, borderLeftWidth: 21, borderTopColor: fill.rest, borderLeftColor: "transparent" });
-    // One flat fill: nothing else is drawn in the corner, no round knockout or halo.
-    expect(corner.findAll((node) => typeof node.type === "string")).toHaveLength(2);
-    expect(corner.findAll((node) => typeof node.type === "string" && node.props.style && "borderRadius" in flat(node.props.style))).toHaveLength(0);
-    // Exactly one dot, a square box scaled to 3.5 pt, its centre at the triangle's centroid (a third of the
-    // 21 pt leg in), drawn after (over) the corner.
+    expect(flat(root.props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: "transparent", boxShadow: "none" });
+    const surface = hostByTestId(tree.root, "task-card-cut-surface");
+    expect(surface.props.pointerEvents).toBe("none");
+    expect(surface.props.importantForAccessibility).toBe("no-hide-descendants");
+    for (const part of ["body", "top", "edge"]) {
+      expect(flat(hostByTestId(tree.root, `task-card-cut-${part}`).props.style)).toMatchObject({
+        backgroundColor: tokens.card.background, borderColor: tokens.card.border,
+        borderWidth: 1, borderStyle: "solid", boxShadow: tokens.card.shadow,
+      });
+    }
+    const edge = flat(hostByTestId(tree.root, "task-card-cut-edge").props.style);
+    expect(edge).toMatchObject({ borderRadius: 1, transform: [{ rotate: "45deg" }] });
+    expect(edge.width).toBeCloseTo((12 + 2) * Math.SQRT2);
+    expect(edge.height).toBe(edge.width);
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-availability-corner-fill")).toHaveLength(0);
     const marks = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
     expect(marks).toHaveLength(1);
     const dot = flat(marks[0]!.props.style);
     expect(dot.width).toBe(dot.height);
     expect(dot.borderRadius).toBe((dot.width as number) / 2);
     expect((dot.width as number) * (dot.transform as Array<{ scale: number }>)[0]!.scale).toBe(MARK_DOT.size);
-    expect((dot.top as number) + (dot.width as number) / 2).toBe(7);
-    expect((dot.right as number) + (dot.width as number) / 2).toBe(7);
+    const centre = (dot.top as number) + (dot.width as number) / 2;
+    expect(centre * Math.SQRT2 - MARK_DOT.size / 2).toBeGreaterThan(12 / Math.SQRT2);
     const order = rows(tree.root, "sample-child-1");
-    expect(order.indexOf("task-availability-corner")).toBeLessThan(order.indexOf("task-card-subtask-mark"));
-    // The dot reads at 3:1 on the amber, at rest and active, as it does on the card.
-    expect(contrastRatio(String(dot.backgroundColor), fill.rest)).toBeGreaterThanOrEqual(3);
-    expect(contrastRatio(String(dot.backgroundColor), fill.active)).toBeGreaterThanOrEqual(3);
+    expect(order.indexOf("task-card-cut-surface")).toBeLessThan(order.indexOf("task-card-subtask-mark"));
     await act(async () => root.props.onHoverIn());
-    const lit = String(flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style).backgroundColor);
-    expect(lit).toBe(markHue(card.location, "host-1", tokens, [fill.rest, fill.active]));
-    expect(contrastRatio(lit, fill.active)).toBeGreaterThanOrEqual(3);
+    expect(String(flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style).backgroundColor)).toBe(markHue(card.location, "host-1", tokens, [tokens.card.hoverBackground]));
+    for (const part of ["body", "top", "edge"]) {
+      expect(flat(hostByTestId(tree.root, `task-card-cut-${part}`).props.style)).toMatchObject({ backgroundColor: tokens.card.hoverBackground, boxShadow: tokens.card.shadowHover });
+    }
+  });
+
+  it.each([["light", LIGHT], ["dark", DARK]] as const)("preserves selected, highlighted, failed and subagent surfaces on %s cut cards", async (_name, theme) => {
+    const tokens = taskTokens(theme as never);
+    const base = { ...sample("sample-child-1"), availability: unavailableTask({ code: "workspace_unavailable", detail: null }) };
+    const tree = await render(cardElement(base, { theme }));
+    for (const state of [
+      { card: base, props: { current: true }, backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder },
+      { card: base, props: { highlighted: true }, backgroundColor: tokens.card.highlight, borderColor: tokens.accent },
+      { card: { ...base, status: "failed" as const }, props: {}, backgroundColor: tokens.card.failed, borderColor: tokens.card.failedBorder },
+      { card: { ...base, status: "failed" as const }, props: { current: true }, backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder },
+    ]) {
+      await act(async () => tree.update(cardElement(state.card, { theme, ...state.props })));
+      for (const part of ["body", "top", "edge"]) expect(flat(hostByTestId(tree.root, `task-card-cut-${part}`).props.style)).toMatchObject({ backgroundColor: state.backgroundColor, borderColor: state.borderColor });
+    }
+    const subagent = { ...base, subagent: { subtitle: "general-purpose · High", type: "general-purpose" } };
+    await act(async () => tree.update(cardElement({ ...subagent, availability: base.availability }, { theme })));
+    for (const part of ["body", "top", "edge"]) expect(flat(hostByTestId(tree.root, `task-card-cut-${part}`).props.style)).toMatchObject({ borderStyle: "dashed", borderWidth: 1 });
+    await act(async () => tree.update(cardElement(base, { theme, focused: true })));
+    expect(flat(hostByTestId(tree.root, "task-card-cut-edge").props.style).boxShadow).toContain(`0px 0px 0px 1px ${tokens.foregroundMuted}`);
+    await act(async () => tree.update(cardElement({ ...base, availability: { issue: null, blocked: {} } }, { theme })));
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-cut-surface")).toHaveLength(0);
+    expect(flat(hostByTestId(tree.root, `task-card-${base.id}`).props.style)).toMatchObject({ backgroundColor: tokens.card.background, borderColor: tokens.card.border, boxShadow: tokens.card.shadow });
   });
 
   it("shows the hint after the hover delay, over the card, and moves nothing", async () => {
@@ -266,10 +290,10 @@ describe("unavailable task operations", () => {
       const tree = await render(cardElement(card));
       const before = rows(tree.root, "sample-child-1");
       const hit = hostByTestId(tree.root, "task-availability-corner-hit");
-      const fill = () => flat(hostByTestId(tree.root, "task-availability-corner-fill").props.style).borderTopColor;
-      const rest = fill();
+      const edge = () => flat(hostByTestId(tree.root, "task-card-cut-edge").props.style);
+      const rest = edge();
       await act(async () => hit.props.onHoverIn());
-      expect(fill()).not.toBe(rest);
+      expect(edge()).toEqual(rest);
       await act(async () => { await vi.advanceTimersByTimeAsync(HINT_DELAY_MS - 1); });
       expect(hints(tree)).toHaveLength(0);
       await act(async () => { await vi.advanceTimersByTimeAsync(1); });
@@ -281,7 +305,7 @@ describe("unavailable task operations", () => {
       expect(flat(hostByTestId(tree.root, "task-card-sample-child-1").props.style).zIndex).toBe(2);
       await act(async () => hostByTestId(tree.root, "task-availability-corner-hit").props.onHoverOut());
       expect(hints(tree)).toHaveLength(0);
-      expect(fill()).toBe(rest);
+      expect(edge()).toEqual(rest);
     } finally {
       vi.useRealTimers();
     }
@@ -300,44 +324,39 @@ describe("unavailable task operations", () => {
     expect(flat(hostByTestId(tree.root, `task-card-${card.id}`).props.style).zIndex).toBe(1);
   });
 
-  it("sizes the corner from the ring's metrics so it sits halfway between the centred dot and the ring", async () => {
+  it("scales a small cut and keeps the dot between its edge and the context ring", async () => {
     for (const padTop of [10, 12]) {
       for (const line of [16, 18, 20]) {
         for (const scale of [0.85, 1, 15 / 14, 1.25, 1.5, 2]) {
           const ringEdge = (padTop + Math.round(line * scale) / 2) * Math.SQRT2 - 7;
           const { size, hit, dot } = warningCorner({ padTop }, line, scale);
-          // The dot sits at the triangle's centroid, a third of a leg in from the top and right.
-          expect(dot).toBe(size / 3);
-          const dotEdge = dot * Math.SQRT2 + MARK_DOT.size / 2;
-          const edge = size / Math.SQRT2;
+          const cutEdge = size / Math.SQRT2;
+          const centre = dot * Math.SQRT2;
           expect(Number.isInteger(size) && Number.isInteger(hit)).toBe(true);
-          // Clear of both, centred to within the whole-point rounding.
-          expect(edge).toBeGreaterThan(dotEdge);
-          expect(edge).toBeLessThan(ringEdge);
-          expect(Math.abs((edge - dotEdge) - (ringEdge - edge))).toBeLessThanOrEqual(0.5);
-          // The pointer's triangle reaches at least the drawn one and stops 1 pt short of the ring.
+          expect(centre - MARK_DOT.size / 2).toBeGreaterThan(cutEdge);
+          expect(centre + MARK_DOT.size / 2).toBeLessThan(ringEdge);
+          expect(centre - cutEdge).toBeCloseTo(ringEdge - centre);
           expect(hit).toBeGreaterThanOrEqual(size);
           expect(hit / Math.SQRT2).toBeLessThanOrEqual(ringEdge - 1);
         }
       }
     }
-    expect(warningCorner({ padTop: 10 }, 16, 1)).toEqual({ size: 21, hit: 24, dot: 7 });
-    expect(warningCorner({ padTop: 12 }, 16, 1)).toEqual({ size: 24, hit: 28, dot: 8 });
-    // The card uses its own metrics: a phone card, and a larger interface size; the dot follows the corner.
+    expect(warningCorner({ padTop: 10 }, 16, 1).size).toBe(12);
+    expect(warningCorner({ padTop: 12 }, 16, 1).size).toBe(14);
     const card = { ...sample("sample-child-1"), availability: unavailableTask({ code: "workspace_unavailable", detail: null }) };
     const dotCentre = (tree: ReactTestRenderer) => {
       const dot = flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style);
       return [(dot.top as number) + (dot.width as number) / 2, (dot.right as number) + (dot.width as number) / 2];
     };
     const tree = await render(cardElement(card, { compact: true }));
-    expect(flat(hostByTestId(tree.root, "task-availability-corner").props.style).width).toBe(24);
-    expect(dotCentre(tree)).toEqual([8, 8]);
+    expect(flat(hostByTestId(tree.root, "task-card-cut-edge").props.style).width).toBeCloseTo((14 + 2) * Math.SQRT2);
+    const phone = warningCorner({ padTop: 12 }, 16, 1);
+    expect(dotCentre(tree)).toEqual([phone.dot, phone.dot]);
     await act(async () => tree.update(React.createElement(TasksTypographyScale, { factor: 1.5, children: cardElement(card) })));
     const large = warningCorner({ padTop: 10 }, 16, 1.5);
-    expect(flat(hostByTestId(tree.root, "task-availability-corner").props.style).width).toBe(large.size);
-    expect(large.size).toBeGreaterThan(21);
+    expect(flat(hostByTestId(tree.root, "task-card-cut-edge").props.style).width).toBeCloseTo((large.size + 2) * Math.SQRT2);
+    expect(large.size).toBeGreaterThan(12);
     expect(dotCentre(tree)).toEqual([large.dot, large.dot]);
-    // Without a corner the dot stays at its usual inset.
     await act(async () => tree.update(cardElement(sample("sample-child-1"))));
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-availability-corner")).toHaveLength(0);
     expect(dotCentre(tree)).toEqual([MARK_DOT.inset, MARK_DOT.inset]);

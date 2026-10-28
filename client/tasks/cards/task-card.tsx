@@ -45,8 +45,9 @@ import { TagMark } from "./tag-mark";
 import { pillTint, readableOn, taskTokens, type TaskTokens } from "./tokens";
 import { mix, withAlpha } from "../../components/theme-tokens";
 import { useTitleUpdateState, type TitleUpdateControl } from "../actions/title-update";
-import { AvailabilityCorner, cornerFill, shownIssue } from "./availability-tag";
+import { AvailabilityCorner, shownIssue } from "./availability-tag";
 import { taskOperationIssue } from "../availability";
+import { CutCardSurface } from "./cut-card-surface";
 
 import type { FirstPrompt } from "../data/first-prompt";
 import { searchBreadcrumb, searchBranch, searchLabels, searchSnippet, taskSearchHits } from "../data/search-hits";
@@ -438,8 +439,8 @@ const CARD_RADIUS = 8;
  * centre this far in from both edges. Past the corner's 8 pt curve, so the
  * top and right edges are nearest: its edge keeps 7 pt clear of both (7.5
  * along the diagonal). The context ring sits on the same diagonal
- * (`ringNudge`), about 4 pt beyond it on a desktop card. Over a warning
- * corner the dot moves in to the triangle's centroid (`warningCorner`).
+ * (`ringNudge`), about 4 pt beyond it on a desktop card. On a cut card the
+ * dot sits between the cut edge and the context ring (`warningCorner`).
  */
 export const MARK_DOT = { size: 3.5, inset: 8.75 } as const;
 /**
@@ -489,16 +490,6 @@ export function markHue(location: TaskCard["location"], hostId: string | null | 
  */
 export function markRest(tokens: TaskTokens, fill: string): string {
   return mix(fill, tokens.foregroundMuted, MARK_REST_ALPHA);
-}
-
-/**
- * The mark over the warning corner (`AvailabilityCorner`): the same rule,
- * with the corner's amber, at rest and active, as its backdrop, so the dot
- * keeps its size and still reads at `MARK_CONTRAST`.
- */
-export function markOnCorner(tokens: TaskTokens, fill: { rest: string; active: string }, active: boolean, location: TaskCard["location"], hostId: string | null | undefined): string {
-  const backdrops = [fill.rest, fill.active];
-  return active ? markHue(location, hostId, tokens, backdrops) : readableOn(markRest(tokens, fill.rest), backdrops, tokens.foreground, MARK_CONTRAST);
 }
 
 const ariaHidden = (): ViewProps =>
@@ -729,16 +720,18 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A subtask's card (a Paseo agent with a parent, or a provider subagent's dashed card) marks its
   // top-right corner in its project's colour. Grey at rest; the project's colour while the card is
   // hovered, chosen in the sidebar or focused.
-  // A card whose task cannot take writes marks the same corner in amber (`AvailabilityCorner`), under the dot, which moves in to the triangle's centre.
+  // An unavailable card loses its top-right corner; its dot stays on the card, inside the cut.
   const issue = shownIssue(card.availability?.issue);
-  const fold = issue ? cornerFill(tokens, background) : null;
   const markActive = lit || props.current || props.focused;
   const cornerMark = card.parent !== null
-    ? fold ? markOnCorner(tokens, fold, markActive, card.location, props.hostId) : markActive ? markHue(card.location, props.hostId, tokens) : markRest(tokens, background)
+    ? markActive ? markHue(card.location, props.hostId, tokens, issue ? [background] : undefined) : markRest(tokens, background)
     : null;
   const shadows = lit ? [look.shadowHover] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
-  if (props.focused && !WEB) shadows.push(`0px 0px 0px 1px ${tokens.foregroundMuted}`);
+  if (props.focused && (!WEB || issue)) shadows.push(`0px 0px 0px 1px ${tokens.foregroundMuted}`);
+  const borderColor = props.highlighted ? tokens.accent : props.current ? look.currentBorder : failed ? look.failedBorder : look.border;
+  const borderWidth = dashed ? 1 : StyleSheet.hairlineWidth;
+  const shadow = shadows.join(", ");
   const cardStyle = {
     paddingHorizontal: m.padH,
     paddingTop: m.padTop,
@@ -747,15 +740,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     // and on hover only the fill and shadow change.
     borderRadius: CARD_RADIUS,
     // A dashed hairline breaks up into dots: the dashes take a whole point.
-    borderWidth: dashed ? 1 : StyleSheet.hairlineWidth,
+    borderWidth,
     borderStyle: dashed ? "dashed" : "solid",
-    borderColor: props.highlighted ? tokens.accent : props.current ? look.currentBorder : failed ? look.failedBorder : look.border,
-    backgroundColor: background,
-    boxShadow: shadows.length > 0 ? shadows.join(", ") : "none",
+    borderColor: issue ? "transparent" : borderColor,
+    backgroundColor: issue ? "transparent" : background,
+    boxShadow: issue ? "none" : shadow,
     zIndex: menuOpen || searchOpen ? 30 : hovered || cornerOpen ? 2 : 1,
     // Both Tab and composite navigation use the same outline. Unlike the
     // hover shadow it changes at once, so a departing focus cannot linger.
-    ...(WEB ? { outlineStyle: props.focused ? "solid" : undefined, outlineWidth: 1, outlineColor: tokens.foregroundMuted, outlineOffset: 2 } : null),
+    ...(WEB ? { outlineStyle: props.focused && !issue ? "solid" : undefined, outlineWidth: 1, outlineColor: tokens.foregroundMuted, outlineOffset: 2 } : null),
     ...webTransition,
   } as ViewStyle;
 
@@ -779,7 +772,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   if (layout.workspace && location.workspaceName) metaParts.push(location.workspaceName);
   const metaText = query ? searchBreadcrumb(layout.project ? location.projectName ?? "" : "", layout.workspace ? location.workspaceName ?? "" : "", query, metaWidth ? Math.floor(metaWidth / (m.metaSize * scale * 0.65)) : 35) : metaParts.join(SEPARATOR);
   const hasMeta = metaText !== "" || card.parent !== null;
-  const corner = fold ? warningCorner(m, hasMeta ? m.metaLine : m.titleLine, scale) : null;
+  const corner = issue ? warningCorner(m, hasMeta ? m.metaLine : m.titleLine, scale) : null;
 
   // The context ring at the top right: on the meta row, or on the title row
   // when the meta row has nothing to say. Its details card opens downwards
@@ -1504,16 +1497,14 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         style={cardStyle}
         testID={`task-card-${card.id}`}
       >
-        {issue && fold && corner ? (
+        {corner ? <CutCardSurface size={corner.size} radius={CARD_RADIUS} background={background} borderColor={borderColor} borderWidth={borderWidth} dashed={dashed} shadow={shadow} /> : null}
+        {issue && corner ? (
           <AvailabilityCorner
             issue={issue}
             language={language}
             theme={theme}
             tokens={tokens}
-            fill={fold}
-            size={corner.size}
             hit={corner.hit}
-            radius={CARD_RADIUS - (dashed ? 1 : StyleSheet.hairlineWidth)}
             onOpenChange={setCornerOpen}
           />
         ) : null}
@@ -1773,23 +1764,14 @@ export function ringNudge(m: Pick<Metrics, "padH" | "padTop">, line: number, sca
 }
 
 /**
- * The warning corner's legs (`AvailabilityCorner`), from the same metrics as
- * the ring. The subtask dot moves in to the triangle's centroid (`dot`, a
- * third of a leg in from the top and right), and the 45° edge sits halfway
- * across the gap between the dot's edge and the ring's near edge, measured
- * along the corner's diagonal: with `c` the ring's centre and L the leg,
- * L/√2 − (L·√2/3 + dot radius) = (c·√2 − ring radius) − L/√2. So a larger
- * interface size (a taller first row, the ring further in) grows it with the
- * ring. `hit`: the pointer's triangle, out to 1 pt short of the ring, so the
- * ring keeps its own hover. Whole points, so the edges land on the pixel
- * grid alike. At the default size: 21 (dot 7, hit 24) by a desktop meta
- * row, 24 (8, 28) by a phone's or a desktop title row.
+ * A small cut scales with the interface. The subtask dot stays midway between
+ * the cut and the context ring; the hint target stops 1 pt short of the ring.
  */
 export function warningCorner(m: Pick<Metrics, "padTop">, line: number, scale: number): { size: number; hit: number; dot: number } {
   const ring = m.padTop + Math.round(line * scale) / 2;
   const ringEdge = ring * Math.SQRT2 - CONTEXT_RING_BITMAPS.card.size / 2;
-  const size = Math.round(((ringEdge + MARK_DOT.size / 2) * 3) / (2 * Math.SQRT2));
-  return { size, hit: Math.max(size, Math.floor((ringEdge - 1) * Math.SQRT2)), dot: size / 3 };
+  const size = Math.round(12 * scale + m.padTop - DESKTOP.padTop);
+  return { size, hit: Math.floor((ringEdge - 1) * Math.SQRT2), dot: (size + ringEdge * Math.SQRT2) / 4 };
 }
 
 /**
