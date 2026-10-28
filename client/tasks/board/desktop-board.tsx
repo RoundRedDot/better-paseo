@@ -48,6 +48,7 @@ import { FilterSheetBody } from "./filter-sheet";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 import { focusedTaskCardId, focusTaskBoard } from "../../web";
+import { tasksSettingsOpener } from "./enabled";
 
 const nativeDriver = Platform.OS !== "web";
 
@@ -292,8 +293,8 @@ export function DesktopBoard(props: {
   }, [selectedGone]);
 
   const floatWidth = Platform.OS === "ios" ? tabletSidebarWidth(boardWidth, preference.floatingWidth) : sidebarWidth(boardWidth, preference.width, "floating");
-  const latest = useRef({ board, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed });
-  latest.current = { board, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed };
+  const latest = useRef({ board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed });
+  latest.current = { board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed };
   const sheetMode = mode === "sheet";
   const sheetModeRef = useRef(sheetMode);
   sheetModeRef.current = sheetMode;
@@ -429,7 +430,7 @@ export function DesktopBoard(props: {
     },
   };
 
-  // Keys on web: J/K, H/L, arrows, Enter, Space (preview), Esc, "/", I (sidebar). Only
+  // Keys on web: navigation, preview, search and the toolbar's switches. Only
   // while the board is on screen and focus is not somewhere else in the app.
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined" || !board.visible) return;
@@ -464,10 +465,21 @@ export function DesktopBoard(props: {
         }
       }
       const key = event.key.toLowerCase();
-      if (key === "i" && !event.shiftKey) {
-        event.preventDefault();
-        now.toggleSidebar();
-        return;
+      if (!event.shiftKey && !event.isComposing && !now.menu) {
+        const actions: Record<string, (() => void) | null> = {
+          "]": now.toggleSidebar,
+          ",": tasksSettingsOpener(),
+          e: now.emptyLanesSwitch.disabled ? null : now.emptyLanesSwitch.onToggle,
+          s: () => now.live.setParams((params) => ({ ...params, hideSubtasks: !(params.hideSubtasks ?? now.live.defaults.hideSubtasks) })),
+          a: () => now.live.setShowArchived(!now.live.showArchived),
+          g: () => now.live.setShowEmptyGroups(!now.live.showEmptyGroups),
+        };
+        const action = actions[key];
+        if (action) {
+          event.preventDefault();
+          if (!event.repeat) action();
+          return;
+        }
       }
       if (event.key === " " && !event.shiftKey && !event.isComposing && !now.menu) {
         const card = keyFocus

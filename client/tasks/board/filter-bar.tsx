@@ -152,13 +152,7 @@ function DesktopToolbarView(props: {
           <KeyCap label="Space" theme={theme} />
           <KeyHint text={strings.keys.preview} theme={theme} />
           <KeyCap label="/" theme={theme} />
-          <KeyHint text={strings.keys.search} theme={theme} last={!props.sidebar} />
-          {props.sidebar ? (
-            <>
-              <KeyCap label="I" theme={theme} />
-              <KeyHint text={strings.sidebar.key} theme={theme} last />
-            </>
-          ) : null}
+          <KeyHint text={strings.keys.search} theme={theme} last />
         </View>
       ) : null}
       {props.filters ? (
@@ -172,7 +166,7 @@ function DesktopToolbarView(props: {
             theme={theme}
             onPress={() => board.setShowArchived(!board.showArchived)}
             size={toolbarButtonSize(scale)}
-            tip={board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row}
+            tip={`${board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row} (A)`}
             testID="toolbar-archived"
           />
           <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} tip={strings.filters} testID="toolbar-filters" />
@@ -185,12 +179,12 @@ function DesktopToolbarView(props: {
           onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
           label={strings.emptyGroups.row}
           hint={strings.emptyGroups.hint(board.showEmptyGroups)}
-          tip={board.showEmptyGroups ? strings.tips.hideEmptyGroups : strings.emptyGroups.row}
+          tip={`${board.showEmptyGroups ? strings.tips.hideEmptyGroups : strings.emptyGroups.row} (G)`}
           theme={theme}
           testID="empty-groups-toggle"
         />
       )}
-      {openSettings ? <RoundButton icon="Bolt" label={strings.openSettings} theme={theme} onPress={openSettings} size={toolbarButtonSize(scale)} tip={strings.openSettings} testID="toolbar-settings" /> : null}
+      {openSettings ? <RoundButton icon="Bolt" label={strings.openSettings} theme={theme} onPress={openSettings} size={toolbarButtonSize(scale)} tip={`${strings.openSettings} (,)`} testID="toolbar-settings" /> : null}
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
       </>}
       </View>
@@ -210,7 +204,7 @@ function EmptyLanesButton({ emptyLanes, strings, theme }: { emptyLanes: EmptyLan
       theme={theme}
       onPress={emptyLanes.onToggle}
       size={toolbarButtonSize(useTasksFontScale())}
-      tip={label}
+      tip={`${label} (E)`}
       testID="empty-lanes-toggle"
     />
   );
@@ -225,9 +219,9 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${props.label} (I)`}
+      accessibilityLabel={`${props.label} (])`}
       accessibilityState={{ selected: props.open }}
-      {...tipProps(`${props.label} (I)`)}
+      {...tipProps(`${props.label} (])`)}
       onPress={props.onToggle}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
@@ -409,7 +403,7 @@ function DesktopFilterBarView(props: {
       onPress={() => board.setShowArchived(!board.showArchived)}
       label={strings.archivedLane.row}
       hint={strings.archivedLane.hint}
-      tip={board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row}
+      tip={`${board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row} (A)`}
       theme={theme}
       testID="archived-lane-toggle"
     />
@@ -427,7 +421,7 @@ function DesktopFilterBarView(props: {
       onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}
       label={strings.showSubtasks}
       hint={strings.showSubtasksHint}
-      tip={resolved.filters.hideSubtasks ? strings.showSubtasks : strings.tips.hideSubtasks}
+      tip={`${resolved.filters.hideSubtasks ? strings.showSubtasks : strings.tips.hideSubtasks} (S)`}
       theme={theme}
       testID="subtasks-toggle"
     />

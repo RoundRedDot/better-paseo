@@ -297,10 +297,10 @@ function renderFocusBoard() {
       board().props.onFocus({ target: node });
     });
   };
-  const key = (value: string, hostConsumes = false) => {
+  const key = (value: string, hostConsumes = false, options: Partial<KeyboardEvent> = {}) => {
     let stopped = hostConsumes;
     const event = {
-      key: value, defaultPrevented: hostConsumes,
+      key: value, defaultPrevented: hostConsumes, ...options,
       preventDefault: vi.fn(() => { event.defaultPrevented = true; }),
       stopPropagation: vi.fn(() => { stopped = true; }),
     };
@@ -337,6 +337,88 @@ afterEach(() => {
 });
 
 describe("Tasks search coverage and centred toolbar", () => {
+  it.each(["en", "zh"] as const)("shows all six toolbar shortcuts in %s hover tips without a sidebar key hint", (language) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    updateEnhancerPreferences({ language });
+    setTasksSettingsOpener(vi.fn());
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(2400);
+    for (const [id, key] of [
+      ["empty-lanes-toggle", "E"], ["subtasks-toggle", "S"], ["archived-lane-toggle", "A"],
+      ["empty-groups-toggle", "G"], ["toolbar-settings", ","], ["sidebar-switch", "]"],
+    ] as const) {
+      expect(hostsById(id)[0]!.props.dataSet.bctip.endsWith(`(${key})`)).toBe(true);
+    }
+    const toolbarText = textOf(hostsById("desktop-toolbar")[0]!);
+    expect(toolbarText).toContain(BOARD_STRINGS[language].keys.search);
+    expect(toolbarText).not.toContain(BOARD_STRINGS[language].sidebar.key);
+  });
+
+  it("runs toolbar shortcuts through the same controls and toggles their latest state", async () => {
+    const openSettings = vi.fn();
+    setTasksSettingsOpener(openSettings);
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const browser = renderFocusBoard();
+    try {
+      const selected = (id: string) => hostsById(id)[0]!.props.accessibilityState.selected;
+      const checked = (id: string) => hostsById(id)[0]!.props.accessibilityState.checked;
+      const initialSidebar = selected("sidebar-switch");
+      browser.key("i");
+      expect(selected("sidebar-switch")).toBe(initialSidebar);
+      browser.key("]");
+      expect(selected("sidebar-switch")).toBe(!initialSidebar);
+      browser.key("]");
+      expect(selected("sidebar-switch")).toBe(initialSidebar);
+      browser.key(",");
+      expect(openSettings).toHaveBeenCalledTimes(1);
+      for (const [key, id] of [["s", "subtasks-toggle"], ["a", "archived-lane-toggle"], ["g", "empty-groups-toggle"]] as const) {
+        const initial = checked(id);
+        await act(async () => { browser.key(key); });
+        expect(checked(id)).toBe(!initial);
+        await act(async () => { browser.key(key); });
+        expect(checked(id)).toBe(initial);
+      }
+      act(() => renderer!.root.findByType(DesktopToolbar).props.board.setParams((params: object) => ({ ...params, query: "no matching tasks" })));
+      expect(hostsById("empty-lanes-toggle")[0]!.props.disabled).toBe(false);
+      browser.key("e");
+      expect(selected("empty-lanes-toggle")).toBe(true);
+      browser.key("e");
+      expect(selected("empty-lanes-toggle")).toBe(false);
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("yields toolbar shortcuts to typing, other surfaces, modifiers and composition, and ignores repeats", () => {
+    const openSettings = vi.fn();
+    setTasksSettingsOpener(openSettings);
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const browser = renderFocusBoard();
+    try {
+      const state = () => ["sidebar-switch", "subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle"].map((id) => hostsById(id)[0]!.props.accessibilityState);
+      const initial = state();
+      for (const key of ["]", ",", "e", "s", "a", "g"]) {
+        for (const active of [{ tagName: "INPUT", inBoard: true }, { tagName: "TEXTAREA", inBoard: true }, { isContentEditable: true, inBoard: true }, { inBoard: false }]) {
+          browser.doc.activeElement = active;
+          expect(browser.key(key).preventDefault).not.toHaveBeenCalled();
+        }
+        browser.doc.activeElement = browser.root;
+        for (const options of [{ metaKey: true }, { ctrlKey: true }, { altKey: true }, { shiftKey: true }, { isComposing: true }]) {
+          expect(browser.key(key, false, options).preventDefault).not.toHaveBeenCalled();
+        }
+        browser.key(key, false, { repeat: true });
+      }
+      expect(state()).toEqual(initial);
+      expect(openSettings).not.toHaveBeenCalled();
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it.each(["en", "zh"] as const)("opens settings between the group and sidebar switches, including the compact %s menu", (language) => {
     updateEnhancerPreferences({ language });
     const openSettings = vi.fn();
@@ -349,7 +431,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(controls.map((node) => node.props.testID)).toEqual(["empty-groups-toggle", "toolbar-settings", "sidebar-switch"]);
     expect(button.props.accessibilityRole).toBe("button");
     expect(button.props.accessibilityLabel).toBe(BOARD_STRINGS[language].openSettings);
-    expect(button.props.dataSet?.bctip).toBe(BOARD_STRINGS[language].openSettings);
+    expect(button.props.dataSet?.bctip).toBe(`${BOARD_STRINGS[language].openSettings} (,)`);
     expect(StyleSheet.flatten(button.props.style).width).toBe(StyleSheet.flatten(hostsById("sidebar-switch")[0]!.props.style).width);
     expect(button.find((node) => (node.type as unknown) === "Icon").props.name).toBe("Bolt");
     act(() => button.props.onPress());
@@ -2554,21 +2636,21 @@ describe("Tasks board, toolbar tips", () => {
         "Filter by workspace",
         "Filter by Agent",
         "Filter by label",
-        "Hide subtasks",
+        "Hide subtasks (S)",
         "How far back Done and Archived reach",
-        "Show the archived lane",
+        "Show the archived lane (A)",
         "Order the cards in each lane",
         "Lanes · Default",
       ]),
     );
     const toggle = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "archived-lane-toggle")[0]!;
     await act(async () => toggle.props.onPress());
-    expect(tips()).toContain("Hide the archived lane");
-    expect(tips()).not.toContain("Show the archived lane");
+    expect(tips()).toContain("Hide the archived lane (A)");
+    expect(tips()).not.toContain("Show the archived lane (A)");
     const subtasks = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "subtasks-toggle")[0]!;
     act(() => subtasks.props.onPress());
-    expect(tips()).toContain("Show subtasks");
-    expect(tips()).not.toContain("Hide subtasks");
+    expect(tips()).toContain("Show subtasks (S)");
+    expect(tips()).not.toContain("Hide subtasks (S)");
     // An open menu covers its button's tip.
     const project = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === "Filter by project");
     act(() => project.props.onPress());
@@ -3046,7 +3128,7 @@ describe("Tasks board, tablet filters", () => {
       const toolbar = renderer!.root.findByType(DesktopToolbar);
       expect(toolbar.findAll((node) => node === toggle())).toHaveLength(1);
       expect(toggle().props).toMatchObject({ accessibilityRole: "switch", accessibilityLabel: "Show groups with no active tasks", accessibilityState: { checked: true } });
-      expect(toggle().props.dataSet?.bctip).toBe("Hide groups with no active tasks");
+      expect(toggle().props.dataSet?.bctip).toBe("Hide groups with no active tasks (G)");
       // The same round size as the sidebar switch beside it.
       const size = (testID: string) => StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID).props.style).width;
       expect(size("empty-groups-toggle")).toBe(size("sidebar-switch"));
