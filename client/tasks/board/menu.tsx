@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { Platform, Pressable, View, useWindowDimensions, type TextInput as NativeTextInput } from "react-native";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { HAIRLINE, devicePixel } from "./board-style";
 import { taskTokens } from "../cards/tokens";
 import {
@@ -529,7 +529,7 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
         </Text>
       )}
       {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}
-      {Platform.OS === "web" && item.shortcut ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{item.shortcut === "Enter" ? "↵" : item.shortcut.toUpperCase()}</Text> : null}
+      {Platform.OS === "web" && item.shortcut ? <Text style={{ fontFamily: TASK_MONO, fontSize: F.sm, color: colors.foregroundMuted }}>{item.shortcut === "Enter" ? "↵" : item.shortcut.toUpperCase()}</Text> : null}
       {item.checked ? <Icon name="Check" size={14} color={colors.accent} /> : item.checked === false ? <View style={{ width: 14 }} /> : null}
       {item.submenu ? <Icon name="ChevronRight" size={12} color={colors.foregroundMuted} /> : null}
     </Pressable>
