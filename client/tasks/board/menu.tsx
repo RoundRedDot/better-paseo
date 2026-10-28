@@ -526,7 +526,7 @@ function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginThe
     >
       {leading}
       {item.detail ? (
-        <View style={{ flex: 1, flexBasis: props.fitContent ? "auto" : undefined, minWidth: 0, gap: 2 }}>
+        <View style={{ flex: 1, flexBasis: props.fitContent ? "auto" : undefined, marginEnd: props.fitContent ? Math.round(16 * Math.max(1, scale)) : undefined, minWidth: 0, gap: 2 }}>
           <Text numberOfLines={1} style={{ fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>
             {item.label}
           </Text>
@@ -535,7 +535,7 @@ function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginThe
           </Text>
         </View>
       ) : (
-        <Text numberOfLines={1} style={{ flex: 1, flexBasis: props.fitContent ? "auto" : undefined, minWidth: 0, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>
+        <Text numberOfLines={1} style={{ flex: 1, flexBasis: props.fitContent ? "auto" : undefined, marginEnd: props.fitContent ? Math.round(16 * Math.max(1, scale)) : undefined, minWidth: 0, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>
           {item.label}
         </Text>
       )}
