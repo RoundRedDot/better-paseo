@@ -1,7 +1,7 @@
 {
   "id": "better-paseo",
   "name": "Better Paseo",
-  "description": "Redraws every agent's chat timeline as compact, typed rows for tool calls, reasoning, replies, prompts and tasks.",
+  "description": "A clear, fast chat timeline, and every agent on one board, on phone, iPad and desktop.",
   "icon": "assets/icon.png",
   "media": [
     "https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/better-paseo-promo-v14-timeline-web.mp4",
