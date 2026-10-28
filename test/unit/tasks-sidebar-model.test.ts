@@ -80,17 +80,18 @@ describe("sidebar width", () => {
     expect(tabletSidebarWidth(900, 410)).toBe(410);
     expect(tabletSidebarWidth(460, 480)).toBe(436);
   });
-  it("keeps the user's width while the lanes have room", () => {
-    expect(sidebarWidth(2000, 380, "inline")).toBe(380);
-    expect(sidebarWidth(2000, 900, "inline")).toBe(SIDEBAR.max);
-    expect(sidebarWidth(2000, 100, "inline")).toBe(SIDEBAR.min);
+  it.each(["inline", "floating"] as const)("keeps the user's width up to 800 px while there is room in %s mode", (mode) => {
+    expect(sidebarWidth(2000, 380, mode)).toBe(380);
+    expect(sidebarWidth(2000, 800, mode)).toBe(800);
+    expect(sidebarWidth(2000, 900, mode)).toBe(800);
+    expect(sidebarWidth(2000, 100, mode)).toBe(SIDEBAR.min);
   });
 
   it("narrows an inline sidebar to its minimum before the lanes give way", () => {
     // 1024 wide: 1024 - 12 - 612 = 400 left, so 380 still fits; 1000 leaves 376.
     expect(sidebarWidth(1024, 380, "inline")).toBe(380);
     expect(sidebarWidth(1000, 380, "inline")).toBe(376);
-    expect(sidebarWidth(SIDEBAR.inlineFrom, 520, "inline")).toBe(SIDEBAR.inlineFrom - SIDEBAR.gap - SIDEBAR.lanesMin);
+    expect(sidebarWidth(SIDEBAR.inlineFrom, 800, "inline")).toBe(SIDEBAR.inlineFrom - SIDEBAR.gap - SIDEBAR.lanesMin);
     expect(sidebarWidth(900, 380, "inline")).toBe(276);
     expect(sidebarWidth(860, 380, "inline")).toBe(260);
   });
