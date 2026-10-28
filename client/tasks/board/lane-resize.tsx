@@ -17,16 +17,13 @@ type Resize = { from: number; to: number };
  * Only the lane's clip moves: its content takes the new width at once, so a
  * list's cards lay out once, not on every frame. `moving` is true while it
  * eases, for content swapped in then to fade in.
- *
- * `from`: a lane that mounts there (the archived lane switched on, at 0)
- * eases from it to its width as it comes in.
  */
-export function useLaneWidth(target: number, sizing: string, from?: number): { width: number | Animated.Value; moving: boolean } {
+export function useLaneWidth(target: number, sizing: string): { width: number | Animated.Value; moving: boolean } {
   const reduced = useReducedMotion();
   const [seen, setSeen] = useState({ target, sizing });
-  const [resize, setResize] = useState<Resize | null>(() => (from !== undefined && from !== target && !reduced ? { from, to: target } : null));
+  const [resize, setResize] = useState<Resize | null>(null);
   // Where an easing lane is, frame by frame: the start of the next one if the target moves again.
-  const now = useRef(from ?? target);
+  const now = useRef(target);
   if (seen.target !== target || seen.sizing !== sizing) {
     setSeen({ target, sizing });
     if (seen.target !== target) {
@@ -52,6 +49,22 @@ export function useLaneWidth(target: number, sizing: string, from?: number): { w
     };
   }, [resize, value]);
   return { width: value ?? target, moving: resize !== null };
+}
+
+/** Slide the complete panel inside its fixed slot; reversing keeps the current position. */
+export function useLaneSlide(phase: "enter" | "leave" | null, distance: number): Animated.Value {
+  const reduced = useReducedMotion();
+  const x = useRef(new Animated.Value(phase === "enter" && !reduced ? distance : 0)).current;
+  useEffect(() => {
+    if (!phase || reduced) {
+      x.setValue(0);
+      return;
+    }
+    const animation = Animated.timing(x, { toValue: phase === "leave" ? distance : 0, duration: MOTION.resizeMs, easing: MOTION.ease, useNativeDriver: nativeDriver });
+    animation.start();
+    return () => animation.stop();
+  }, [x, phase, distance, reduced]);
+  return x;
 }
 
 /** A lane's content swapped in while the lane eases (strip for list, or back): opacity 0 -> 1 once on mount. */

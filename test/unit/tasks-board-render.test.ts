@@ -116,7 +116,7 @@ import { CardCell, RollingCount, RollingTotal, WindowSegments } from "../../clie
 import { createLaneMotionStore, LaneMotionLayer, LaneMotionProvider } from "../../client/tasks/board/lane-motion";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
-import { lastBoardParams, rememberBoardParams, rememberedCollapsed, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
+import { lastBoardParams, rememberBoardParams, rememberCollapsed, rememberedCollapsed, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import { TabletToolbar } from "../../client/tasks/board/tablet-toolbar";
 import { DesktopFilterBar as DesktopFilterBarMemo, DesktopToolbar as DesktopToolbarMemo } from "../../client/tasks/board/filter-bar";
 import { LaneWidthMark } from "../../client/tasks/board/lane-width-mark";
@@ -948,24 +948,32 @@ describe("Tasks board, desktop", () => {
     expect(clip("needs_input")).toEqual({ easing: 340 });
   });
 
-  it("grows the archived lane in and shrinks it out without resizing the other lanes", () => {
+  it.each([
+    ["web", 600, false], ["web", 1300, false], ["web", 2000, false], ["web", 1300, true],
+    ["ios", 600, false], ["ios", 1300, true], ["android", 600, false],
+  ] as const)("%s slides the whole archived lane without resizing the other lanes at %i pt (folded=%s)", (os, viewport, folded) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    if (folded) rememberCollapsed("host-1", ["archived"]);
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
-    layOut(2000);
+    layOut(viewport);
     const clip = (lane: string) => {
       const width = StyleSheet.flatten(hostsById(`lane-${lane}`)[0]!.props.style).width as number | { __value: number };
       return typeof width === "number" ? width : { easing: width.__value };
     };
     // Archived uses the four active lanes' width, extending the scrollable row.
     const four = clip("done") as number;
-    expect(lanesScroll().props.scrollEnabled).toBe(false);
+    const before = lanesScroll().props.contentContainerStyle.width;
     act(() => { void deviceTasksStore().update({ showArchived: true }); renderer!.update(screen(false)); });
-    // Only archived grows in from nothing; the active lanes stay still.
-    expect(clip("archived")).toEqual({ easing: 0 });
+    // The full panel travels, including its background; no width animation or content fade.
+    const archivedWidth = folded ? 40 : four;
+    expect(clip("archived")).toBe(archivedWidth);
+    const surface = hostsById("lane-surface-archived")[0]!;
+    expect(StyleSheet.flatten(surface.props.style)).toMatchObject({ width: archivedWidth, transform: [{ translateX: { __value: archivedWidth + 8 } }] });
     expect(LANE_ORDER.map(clip)).toEqual([four, four, four, four]);
-    expect(lanesScroll().props.scrollEnabled).toBe(true);
-    expect(lanesScroll().props.contentContainerStyle.width).toBe(2 * 12 + 4 * 8 + 5 * four);
+    const shownWidth = Math.max(before, 2 * 12 + 4 * 8 + 4 * four + archivedWidth);
+    expect(lanesScroll().props.contentContainerStyle.width).toBe(shownWidth);
     const inside = (lane: string) => {
       const swap = hostsById(`lane-${lane}`)[0]!.findAll((node) => {
         const style = typeof node.type === "string" ? StyleSheet.flatten(node.props.style) : null;
@@ -974,22 +982,81 @@ describe("Tasks board, desktop", () => {
       return StyleSheet.flatten(swap.props.style).width as number;
     };
     expect(inside("done")).toBe(four);
-    expect(inside("archived")).toBe(four);
+    expect(inside("archived")).toBe(archivedWidth);
     act(() => {
       vi.advanceTimersByTime(300);
     });
     act(() => { void deviceTasksStore().update({ showArchived: false }); renderer!.update(screen(false)); });
-    // Out to nothing, its content as it was and out of reach, then gone.
+    // Keep the entire scroll extent until the outgoing panel has left.
     expect(hostsById("lane-archived")).toHaveLength(1);
     expect(hostsById("lane-archived")[0]!.props.pointerEvents).toBe("none");
-    expect(inside("archived")).toBe(four);
+    expect(inside("archived")).toBe(archivedWidth);
     expect(inside("done")).toBe(four);
     expect(LANE_ORDER.map(clip)).toEqual([four, four, four, four]);
-    expect(lanesScroll().props.scrollEnabled).toBe(false);
+    expect(clip("archived")).toBe(archivedWidth);
+    expect(lanesScroll().props.contentContainerStyle.width).toBe(shownWidth);
+    for (const lane of [...LANE_ORDER, "archived"]) expect(StyleSheet.flatten(hostsById(`lane-${lane}`)[0]!.props.style).flexShrink).toBe(0);
     act(() => {
       vi.advanceTimersByTime(300);
     });
     expect(hostsById("lane-archived")).toHaveLength(0);
+    expect(lanesScroll().props.contentContainerStyle.width).toBe(before);
+  });
+
+  it("reverses an archived lane slide from its current position and cancels its pending removal", () => {
+    const timing = vi.spyOn(Animated, "timing");
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(1300);
+      const toggle = (on: boolean) => act(() => { void deviceTasksStore().update({ showArchived: on }); renderer!.update(screen(false)); });
+      const position = () => StyleSheet.flatten(hostsById("lane-surface-archived")[0]!.props.style).transform[0].translateX as Animated.Value;
+      toggle(true);
+      const x = position();
+      const distance = StyleSheet.flatten(hostsById("lane-archived")[0]!.props.style).width + 8;
+      expect(timing).toHaveBeenCalledWith(x, expect.objectContaining({ toValue: 0, duration: 220 }));
+      act(() => x.setValue(distance / 2));
+      act(() => { vi.advanceTimersByTime(100); });
+      toggle(false);
+      expect(timing).toHaveBeenCalledWith(x, expect.objectContaining({ toValue: distance, duration: 220 }));
+      expect(position()).toBe(x);
+      expect((x as unknown as { __value: number }).__value).toBe(distance / 2);
+      act(() => { vi.advanceTimersByTime(100); });
+      toggle(true);
+      expect(position()).toBe(x);
+      expect((x as unknown as { __value: number }).__value).toBe(distance / 2);
+      expect(hostsById("lane-archived")[0]!.props.pointerEvents).toBe("auto");
+      act(() => { vi.advanceTimersByTime(300); });
+      expect(hostsById("lane-archived")).toHaveLength(1);
+      expect((x as unknown as { __value: number }).__value).toBe(0);
+    } finally {
+      timing.mockRestore();
+    }
+  });
+
+  it("finishes the archived exit immediately when reduced motion is enabled mid-slide", async () => {
+    let onReduce: (enabled: boolean) => void = () => {};
+    const addListener = AccessibilityInfo.addEventListener;
+    const subscription = vi.spyOn(AccessibilityInfo, "addEventListener").mockImplementation(((name: string, listener: (enabled: boolean) => void) => {
+      if (name === "reduceMotionChanged") onReduce = listener;
+      return addListener("reduceMotionChanged", listener);
+    }) as typeof AccessibilityInfo.addEventListener);
+    try {
+      await act(async () => { renderer = TestRenderer.create(screen(false)); });
+      layOut(1300);
+      const toggle = (on: boolean) => act(() => { void deviceTasksStore().update({ showArchived: on }); renderer!.update(screen(false)); });
+      toggle(true);
+      toggle(false);
+      expect(hostsById("lane-archived")).toHaveLength(1);
+      act(() => onReduce(true));
+      expect(hostsById("lane-archived")).toHaveLength(0);
+      toggle(true);
+      expect(StyleSheet.flatten(hostsById("lane-surface-archived")[0]!.props.style)).toMatchObject({ transform: [{ translateX: { __value: 0 } }] });
+      toggle(false);
+      expect(hostsById("lane-archived")).toHaveLength(0);
+    } finally {
+      act(() => onReduce(false));
+      subscription.mockRestore();
+    }
   });
 
   it("draws an out-of-view lane's cards once it scrolls in, or a moment later", () => {

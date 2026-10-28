@@ -24,7 +24,7 @@ import { menuChrome } from "./menu-model";
 import { DetailsSidebar } from "./details-sidebar";
 import { BoardTips } from "../cards/card-hints";
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
-import { LaneSwap, useLaneWidth } from "./lane-resize";
+import { LaneSwap, useLaneSlide, useLaneWidth } from "./lane-resize";
 import {
   NO_SELECTION,
   SIDEBAR,
@@ -249,10 +249,12 @@ export function DesktopBoard(props: {
     ? tabletSidebarWidth(boardWidth, floatingDragWidth ?? preference.floatingWidth)
     : sidebarWidth(boardWidth, dragWidth ?? preference.width, floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
-  const layout = boardLaneLayout(lanesWidth, laneOrder, collapsed, board.laneWidth);
+  const laneWidth = boardLaneLayout(lanesWidth, laneOrder, collapsed, board.laneWidth).laneWidth;
   // What the user sized the lanes with: a change to it eases the lanes to their new widths.
-  const sizing = `${collapsed.join()}|${board.laneWidth}|${laneOrder.length}`;
-  const archivedSwitch = useArchivedSwitch(laneOrder, lanes.archived, layout.laneWidth, board.visible);
+  const sizing = `${collapsedState.filter((id) => id !== "archived").join()}|${board.laneWidth}`;
+  const archivedSwitch = useArchivedSwitch(laneOrder, lanes.archived, laneWidth, board.visible);
+  // An outgoing lane still occupies its slot until the complete panel has slid out.
+  const layout = boardLaneLayout(lanesWidth, archivedSwitch.drawn, collapsedState, board.laneWidth);
   // A floating panel covers the lanes' right side: the row scrolls far enough for the last lane to come out from under it.
   const coverRoom = floating && !inSheet ? panelWidth + SIDEBAR.gap : 0;
 
@@ -659,7 +661,7 @@ export function DesktopBoard(props: {
                       lane={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.last : lanes[id]}
                       width={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.width : layout.laneWidth}
                       collapsed={collapsedState.includes(id)}
-                      sizing={sizing}
+                      sizing={`${sizing}|${collapsedState.includes(id)}`}
                       enter={id === "archived" && archivedSwitch.phase === "enter"}
                       leaving={id === "archived" && archivedSwitch.phase === "leave"}
                       onToggle={toggleLane[id]}
@@ -1061,8 +1063,8 @@ function BoardEmpty({ board, theme }: { board: BoardController; theme: PluginThe
 }
 
 /**
- * The archived lane as it is switched on and off: it grows in from nothing,
- * and shrinks to nothing before it goes, keeping the other lanes' widths.
+ * The archived lane as it is switched on and off: the complete panel slides
+ * in and out, keeping its slot and the other lanes' widths until it leaves.
  * `drawn` is the lanes to render: the
  * board's, and the archived lane while it leaves, drawn as it last showed
  * (`last`, at `width`). At once when the board is hidden or motion is reduced.
@@ -1081,6 +1083,7 @@ function useArchivedSwitch(
     setSeen(on);
     setPhase(visible && !reduced ? (on ? "enter" : "leave") : null);
   }
+  if (phase && (!visible || reduced)) setPhase(null);
   const last = useRef({ lane: archived, width: laneWidth });
   if (on) last.current = { lane: archived, width: laneWidth };
   useEffect(() => {
@@ -1172,11 +1175,11 @@ interface DesktopLaneProps {
   lane: LaneModel;
   width: number;
   collapsed: boolean;
-  /** Changes when the user collapses, expands or resizes lanes, or switches the archived lane: the lane eases to its new width. */
+  /** Changes when the user collapses, expands or resizes lanes: the lane eases to its new width. */
   sizing: string;
-  /** The archived lane just switched on: it grows in from nothing. */
+  /** The archived lane just switched on: its complete panel slides in. */
   enter?: boolean;
-  /** The archived lane just switched off: it shrinks to nothing, its content as it was, and takes no touch. */
+  /** The archived lane just switched off: it slides out, its content as it was, and takes no touch. */
   leaving?: boolean;
   onToggle(): void;
   board: BoardController;
@@ -1279,18 +1282,23 @@ function DesktopLaneView(props: DesktopLaneProps) {
   const blankTap = useTap();
   const drawn = useDrawnOnce(props.inView);
   const shown = props.collapsed ? LANES.collapsed : props.width;
-  const target = props.leaving ? 0 : shown;
-  const resized = useLaneWidth(target, props.sizing, props.enter ? 0 : undefined);
+  const resized = useLaneWidth(shown, props.sizing);
+  const slide = useLaneSlide(props.enter ? "enter" : props.leaving ? "leave" : null, shown + LANES.gap);
   // The lane's clip eases to its width; the strip or list inside it has its own at once.
   const clip = (content: React.ReactNode) => (
     <Animated.View
       testID={`lane-${lane.id}`}
       pointerEvents={props.leaving ? "none" : "auto"}
-      style={{ width: resized.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}
+      aria-hidden={props.leaving}
+      accessibilityElementsHidden={props.leaving}
+      importantForAccessibility={props.leaving ? "no-hide-descendants" : "auto"}
+      style={{ width: resized.width, flexShrink: 0, minHeight: 0, borderRadius: PANEL_RADIUS, overflow: "hidden" }}
     >
-      <LaneSwap key={props.collapsed ? "strip" : "list"} fade={resized.moving} width={shown}>
-        {content}
-      </LaneSwap>
+      <Animated.View testID={`lane-surface-${lane.id}`} style={{ width: shown, flex: 1, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden", transform: [{ translateX: slide }] }}>
+        <LaneSwap key={props.collapsed ? "strip" : "list"} fade={resized.moving} width={shown}>
+          {content}
+        </LaneSwap>
+      </Animated.View>
     </Animated.View>
   );
 
