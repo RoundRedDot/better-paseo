@@ -110,6 +110,48 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it.each([false, true])("shows project paths and workspace projects on a separate line (touch=%s)", async (touch) => {
+    const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: [] }]));
+    const board = {
+      language: "en", strings: BOARD_STRINGS.en, params: EMPTY_PARAMS, showEmptyGroups: true,
+      tasks: {
+        lanes, providers: [], labels: [],
+        workspaces: [
+          { id: "w1", name: "Main", projectId: "p1", projectName: "Payments", projectPath: "/Users/dev/code/payments", projectIcon: "icon" },
+          { id: "w2", name: "Website", projectId: "p2", projectName: "Website", projectPath: "/home/dev/code/website", projectIcon: "icon" },
+          { id: "w3", name: "Develop", projectId: "p3", projectName: "Server", projectPath: "/srv/server", projectIcon: "icon" },
+          { id: "w4", name: "Other", projectId: "p4", projectName: "Other", projectIcon: "icon" },
+        ],
+        requestProjectIcon() {},
+      },
+      setParams: vi.fn(), callbacks: {}, cardById: () => undefined,
+    } as unknown as BoardController;
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={touch} stats={false} />);
+    const rows = () => root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
+    const expectLines = (row: ReactTestInstance, label: string, detail: string) => {
+      const texts = row.findAll((node) => (node.type as unknown) === "Text");
+      expect(texts.map((text) => text.children)).toEqual([[label], [detail], ["0"]]);
+      const column = row.find((node) => typeof node.type === "string" && node.props.style?.flex === 1 && node.props.style?.minWidth === 0);
+      expect(column.findAll((node) => (node.type as unknown) === "Text").map((text) => text.children)).toEqual([[label], [detail]]);
+      expect(column.props.style.flexDirection ?? "column").toBe("column");
+      expect(texts.slice(0, 2).map((text) => text.props.numberOfLines)).toEqual([1, 1]);
+      expect(StyleSheet.flatten(texts[1]!.props.style).color).toBe(THEME.colors.foregroundMuted);
+      expect(row.props.style.height).toBe(touch ? 56 : 48);
+    };
+    await act(async () => host(root, "sidebar-group-tab-FolderKanban").props.onPress());
+    expectLines(rows()[0]!, "Payments", "~/code/payments");
+    expectLines(rows()[1]!, "Website", "~/code/website");
+    expectLines(rows()[2]!, "Server", "/srv/server");
+    expect(rows()[3]!.props.style.height).toBe(touch ? 44 : 36);
+    await act(async () => rows()[0]!.props.onPress());
+    expect(board.setParams).toHaveBeenCalledOnce();
+    await act(async () => host(root, "sidebar-group-tab-FolderGit2").props.onPress());
+    expectLines(rows()[0]!, "Main", "Payments");
+    expectLines(rows()[1]!, "Website", "Website");
+    await act(async () => rows()[0]!.props.onPress());
+    expect(board.setParams).toHaveBeenCalledTimes(2);
+  });
+
   it.each([false, true])("searches and clears all four group lists independently (touch=%s)", async (touch) => {
     const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: [] }]));
     const board = {

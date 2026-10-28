@@ -5,7 +5,7 @@ import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import { tipProps } from "../cards/card-hints";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
-import { BrandMark, DETAIL_CARD, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, type DetailNotice, type TaskTokens } from "../cards";
+import { BrandMark, DETAIL_CARD, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { activeStopChildren } from "../actions/stop-targets";
 import { useFirstPrompt } from "../data/first-prompt";
@@ -314,7 +314,7 @@ interface GroupRow {
   on: boolean;
   /** Before the label; a label's tag is handed the row's fill for its hole. */
   lead: React.ReactNode | ((fill: string) => React.ReactNode);
-  /** Muted after the label: a workspace's project. */
+  /** Muted second line: a project's path or a workspace's project. */
   detail?: string;
   /** A project row whose uploaded icon is not loaded yet. */
   iconFor?: string;
@@ -368,7 +368,7 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
             ...pick(item),
             lead: group.projectId ? <ProjectIcon location={group} size={16} hostId={board.hostId} /> : <Initial name={item.label} tokens={tokens} />,
             iconFor: group.projectId && group.projectIcon === null ? group.projectId : undefined,
-            detail: group.projectId && group.projectName !== item.label ? group.projectName : undefined,
+            detail: group.projectId ? group.projectName : undefined,
             toggle: () => board.setParams((params) => ({ ...params, workspaceIds: toggleItem(params.workspaceIds, item.id) })),
           })),
         )
@@ -379,6 +379,7 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
         ...pick(project),
         lead: <ProjectIcon location={project.group} size={16} hostId={board.hostId} />,
         iconFor: project.group.projectIcon === null ? project.id : undefined,
+        detail: project.group.projectPath ? tildePath(project.group.projectPath) : undefined,
         toggle: () => board.setParams((params) => toggleProject(params, project)),
       }))
       .sort(byCount);
@@ -526,7 +527,7 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
       onPress={row.toggle}
       {...hoverProps}
       style={({ pressed }) => ({
-        height: taskControlHeight(props.touch ? 44 : 36, scale),
+        height: taskControlHeight(row.detail ? (props.touch ? 56 : 48) : (props.touch ? 44 : 36), scale),
         marginVertical: 2,
         // The scrollbar's gutter takes the right margin (`detail-scrollbar.ts`); off web the gutter is 0 and the margin stays 6.
         marginLeft: 6,
@@ -540,10 +541,10 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
       })}
     >
       <View style={{ width: 20, alignItems: "center" }}>{typeof row.lead === "function" ? row.lead(fill) : row.lead}</View>
-      <Text numberOfLines={1} style={{ flex: 1, fontSize: F.base, color: tokens.foreground }}>
-        {row.label}
-        {row.detail ? <Text style={{ fontSize: 12, color: tokens.foregroundMuted }}>{`  ${row.detail}`}</Text> : null}
-      </Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={1} style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: tokens.foreground }}>{row.label}</Text>
+        {row.detail ? <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }}>{row.detail}</Text> : null}
+      </View>
       {row.on ? <Icon name="Check" size={14} color={tokens.foreground} /> : null}
       <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{row.count}</Text>
     </Pressable>
