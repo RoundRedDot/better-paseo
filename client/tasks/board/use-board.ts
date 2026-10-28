@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { useTitleUpdateControl } from "../actions/title-update";
@@ -304,10 +304,14 @@ export function useBoard(
   const unarchive = useUnarchiveControl({ available: stop.available, verify: verifyUnarchive, toast });
   const archive = useArchiveControl({ paseo, toast });
   const titleUpdates = useTitleUpdateControl(paseo);
+  const revealingTitles = useSyncExternalStore(titleUpdates.subscribe, titleUpdates.revealing, titleUpdates.revealing);
+  const previousTitleLanes = useRef(tasks.lanes);
+  const titleLanes = useMemo(() => holdRevealingTitles(previousTitleLanes.current, tasks.lanes, revealingTitles), [tasks.lanes, revealingTitles]);
+  previousTitleLanes.current = titleLanes;
   const { stoppedManually, noteRunning, reconcile, restored } = stop;
   const stoppedIds = useMemo(() => restoredStops(stoppedManually, restored, tasks.byId), [stoppedManually, restored, tasks.byId]);
   // Every card the board can draw: the store's, with a card for each provider subagent.
-  const unfiltered = useMemo(() => withSubagentCards(withStopReasons(tasks.lanes, stoppedIds, strings.stoppedManually)), [tasks.lanes, stoppedIds, strings.stoppedManually]);
+  const unfiltered = useMemo(() => withSubagentCards(withStopReasons(titleLanes, stoppedIds, strings.stoppedManually)), [titleLanes, stoppedIds, strings.stoppedManually]);
   const firstPrompts = useSearchFirstPrompts(paseo, unfiltered, filters.query);
   const filtered = useMemo(() => filterLanes(unfiltered, filters, firstPrompts.messages), [unfiltered, filters, firstPrompts.messages]);
   // The order is taken when the sort or the cards change, never on a clock
@@ -521,6 +525,25 @@ function sameFields(left: CardSettings, right: CardSettings): boolean {
   if (left === right) return true;
   const keys = Object.keys(right) as (keyof CardSettings)[];
   return keys.length === Object.keys(left).length && keys.every((key) => left[key] === right[key]);
+}
+
+/** Defer a revealing card's title update and position, leaving other updates and lane changes live. */
+export function holdRevealingTitles(last: Record<LaneId, LaneModel>, next: Record<LaneId, LaneModel>, revealing: ReadonlySet<string>): Record<LaneId, LaneModel> {
+  if (revealing.size === 0) return next;
+  let out = next;
+  for (const lane of LANE_ORDER) {
+    const current = new Map(next[lane].cards.map((card) => [card.id, card]));
+    const held = last[lane].cards.filter((card) => {
+      const updated = current.get(card.id);
+      return revealing.has(card.id) && updated !== undefined && updated.title !== card.title;
+    });
+    if (held.length === 0) continue;
+    const ids = new Set(held.map((card) => card.id));
+    const cards = next[lane].cards.filter((card) => !ids.has(card.id));
+    for (const card of held) cards.splice(Math.min(last[lane].cards.indexOf(card), cards.length), 0, card);
+    out = { ...out, [lane]: { ...next[lane], cards } };
+  }
+  return out;
 }
 
 /** `next`, with each lane that did not change taken from `last`; `last` itself when none did. */

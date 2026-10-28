@@ -5,6 +5,33 @@ import type { TitleUpdateState } from "../../shared/title-generation";
 afterEach(() => vi.useRealTimers());
 
 describe("title update state", () => {
+  it("holds the card through completion until its reveal finishes, without changing the hold on chunks", async () => {
+    vi.useFakeTimers();
+    const call = vi.fn(async (): Promise<TitleUpdateState> => ({ state: "running" }));
+    call.mockResolvedValueOnce({ state: "running", text: "Up" })
+      .mockResolvedValueOnce({ state: "done", title: "Updated title" });
+    const control = createTitleUpdateControl(call);
+    control.start("a");
+    const revealing = control.revealing();
+    expect(revealing.has("a")).toBe(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(control.revealing()).toBe(revealing);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(control.read("a").state).toBe("done");
+    expect(control.revealing()).toBe(revealing);
+    control.finishReveal("a");
+    expect(control.revealing().has("a")).toBe(false);
+    expect(control.read("a")).toEqual({ state: "done", title: "Updated title" });
+  });
+
+  it("releases only the failed card while another title is still being generated", async () => {
+    const control = createTitleUpdateControl(async ({ agentId }) => agentId === "a" ? { state: "error", error: "Failed" } : new Promise(() => {}));
+    control.start("a");
+    control.start("b");
+    await vi.waitFor(() => expect(control.read("a").state).toBe("error"));
+    expect([...control.revealing()]).toEqual(["b"]);
+  });
+
   it("shows pending immediately, deduplicates clicks, polls until done and notifies observers", async () => {
     vi.useFakeTimers();
     const call = vi.fn(async (): Promise<TitleUpdateState> => ({ state: "running" }));

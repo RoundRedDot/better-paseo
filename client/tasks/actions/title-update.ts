@@ -21,11 +21,26 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
   const states = new Map<string, TitleUpdateState>();
   const listeners = new Set<() => void>();
   const interrupted = new Set<string>();
+  let revealing: ReadonlySet<string> = new Set();
   const set = (id: string, state: TitleUpdateState) => {
     states.set(id, state);
+    if ((state.state === "error" || state.state === "idle") && revealing.has(id)) {
+      const next = new Set(revealing);
+      next.delete(id);
+      revealing = next;
+    }
     for (const listener of listeners) listener();
   };
   return {
+    /** The card keeps its place until its final title has been displayed. Stable between chunks. */
+    revealing: () => revealing,
+    finishReveal(agentId: string) {
+      if (!revealing.has(agentId)) return;
+      const next = new Set(revealing);
+      next.delete(agentId);
+      revealing = next;
+      for (const listener of listeners) listener();
+    },
     /** Clears a shown error, or a result once the card shows its own title. */
     dismiss(agentId: string) {
       const state = states.get(agentId)?.state;
@@ -38,6 +53,7 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
     },
     start(agentId: string) {
       if (states.get(agentId)?.state === "running") return;
+      revealing = new Set(revealing).add(agentId);
       set(agentId, RUNNING);
       // A chunk during a status call asks again as soon as it returns.
       let nudged = false;
