@@ -51,8 +51,8 @@ export interface CardMenuActions {
  * parent's, or shows the parent's card); copy its session ID, title,
  * workspace and project; filter the board to its agent, workspace or
  * project; then whatever the card can do right now (Stop, Mark read,
- * Unarchive, Archive). A copy whose value the card lacks is left out, and
- * so is an empty group.
+ * Unarchive, Archive). A copy whose value the card lacks is left out, so
+ * is a write the task cannot take, and so is an empty group.
  */
 export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof cardStrings>, actions: CardMenuActions): MenuSection[] {
   const location = card.location;
@@ -131,13 +131,15 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
       ],
     },
   ];
+  // A write the task cannot take is left out, as a copy without a value is, never shown greyed; the
+  // backend refuses it anyway. That includes the first check ("checking"): the row appears once it passes.
   const operations: Record<string, TaskOperation> = { rename: "rename", "auto-title": "autoTitle", unarchive: "unarchive", archive: "archive", read: "read" };
-  const language = strings === cardStrings("en") ? "en" : "zh";
-  return sections.filter((section) => section.items.length > 0).map((section) => ({ ...section, items: section.items.map((item) => {
-    const operation = operations[item.key];
-    const issue = operation && taskOperationIssue(card, operation);
-    return issue ? { ...item, disabled: true, detail: taskIssueText(issue, language), onSelect: undefined } : item;
-  }) }));
+  return sections
+    .map((section) => ({ ...section, items: section.items.filter((item) => {
+      const operation = operations[item.key];
+      return !operation || !taskOperationIssue(card, operation);
+    }) }))
+    .filter((section) => section.items.length > 0);
 }
 
 /**

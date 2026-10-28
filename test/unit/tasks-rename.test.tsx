@@ -30,6 +30,7 @@ import { cardStrings } from "../../client/tasks/cards/strings";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { CascadeMenu } from "../../client/tasks/board/menu";
 import { REVEAL_TICK_MS } from "../../client/tasks/cards/title-reveal";
+import { unavailableTask } from "../../shared/task-availability";
 
 const theme = {
   colors: {
@@ -428,6 +429,22 @@ describe("task card rename entry", () => {
     await reveal("Generated title");
     expect(input().props.value).toBe("Generated title");
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps an editor opened before the workspace went away guarded, while a new menu hides the row", async () => {
+    const element = (subject: typeof card, key = "menu") => <CardContextMenu key={key} point={null} card={subject} strings={cardStrings("en")} actions={{ children: 0, autoTitle: vi.fn() }} theme={theme} onClose={onClose} />;
+    await act(async () => { tree = TestRenderer.create(element(card)); });
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Edit title").props.onPress());
+    await act(async () => input().props.onChangeText("New title"));
+    expect(save().props.disabled).toBe(false);
+    const gone = { ...card, availability: unavailableTask({ code: "workspace_unavailable", detail: "/removed/worktree" }) };
+    await act(async () => tree.update(element(gone)));
+    expect(tree.root.findByType(TaskRenameDialog).props.blockedReason).toBe("Workspace unavailable\n/removed/worktree");
+    expect(save().props.disabled).toBe(true);
+    await act(async () => save().props.onPress());
+    expect(rpc.rename).not.toHaveBeenCalled();
+    await act(async () => tree.update(element(gone, "fresh")));
+    expect(tree.root.findAll((node) => node.props.accessibilityLabel === "Edit title" || node.props.accessibilityLabel === "Automatically update title")).toHaveLength(0);
   });
 
   it("does not offer editing for a provider's read-only subagent", async () => {

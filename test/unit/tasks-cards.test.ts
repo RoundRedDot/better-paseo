@@ -121,7 +121,7 @@ import type { TitleUpdateState } from "../../shared/title-generation";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { FLASH } from "../../client/tasks/board/breathing";
-import { MARK_DOT, markHue, markRest, OVERLAY_ROW_Z, ringNudge } from "../../client/tasks/cards/task-card";
+import { MARK_DOT, MARK_DOT_BOX, markHue, markRest, OVERLAY_ROW_Z, ringNudge, warningCorner } from "../../client/tasks/cards/task-card";
 import { SubtaskRow, SubtaskMetadata } from "../../client/tasks/cards/subtask-row";
 import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
@@ -133,6 +133,8 @@ import { variantMetrics } from "../../client/components/markdown/render/styles";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
 import { menuChrome } from "../../client/tasks/board/menu";
 import { cardMenuSections } from "../../client/tasks/cards/card-menu";
+import { cornerFill } from "../../client/tasks/cards/availability-tag";
+import { HINT_DELAY_MS } from "../../client/tasks/cards/card-hints";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { TitleLoading } from "../../client/tasks/cards/title-loading";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -176,37 +178,198 @@ const DARK = {
 const NOW = Date.parse("2026-10-20T09:00:00.000Z");
 
 describe("unavailable task operations", () => {
-  it.each(LANE_ORDER)("shows a warning independently of card fields in the %s lane", async (lane) => {
+  const hints = (tree: ReactTestRenderer) => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-availability-hint");
+
+  it.each(LANE_ORDER)("marks the corner instead of a pill, independently of card fields, in the %s lane", async (lane) => {
     const card = { ...sampleCards(NOW)[0]!, lane, availability: unavailableTask({ code: "directory_missing", detail: "/removed/worktree" }) };
     const tree = await render(cardElement(card, { compact: true, fields: fields("minimal") }));
-    const tag = hostByTestId(tree.root, "task-availability-tag");
-    expect(icons(tag)).toContain("TriangleAlert");
-    expect(texts(tag)).toContain("工作目录不存在");
-    await act(async () => tag.props.onPress({ stopPropagation() {} }));
-    expect(texts(hostByTestId(tree.root, "task-availability-hint")).join("")).toContain("/removed/worktree");
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-availability-tag")).toHaveLength(0);
+    // No icon, no text in the corner itself: the hint says why.
+    expect(icons(hostByTestId(tree.root, "task-availability-corner"))).toHaveLength(0);
+    const hit = hostByTestId(tree.root, "task-availability-corner-hit");
+    expect(hit.props.accessibilityLabel).toContain("工作目录不存在");
+    await act(async () => hit.props.onPress({ stopPropagation() {} }));
+    expect(texts(hostByTestId(tree.root, "task-availability-hint"))).toEqual(["工作目录不存在", "/removed/worktree", "相关写操作暂不可用，恢复后自动重新检查。"]);
+    // A second press puts it away.
+    await act(async () => hostByTestId(tree.root, "task-availability-corner-hit").props.onPress({ stopPropagation() {} }));
+    expect(hints(tree)).toHaveLength(0);
   });
 
-  it.each([LIGHT, DARK])("uses a readable warning tint and an overlay on hover", async (theme) => {
-    const card = { ...sampleCards(NOW)[0]!, availability: unavailableTask({ code: "directory_inaccessible", detail: "/protected/worktree" }) };
-    const tree = await render(cardElement(card, { theme }));
-    const tag = hostByTestId(tree.root, "task-availability-tag");
-    const color = tag.findByType("Icon" as never).props.color;
-    expect(contrastRatio(color, tag.props.style.backgroundColor)).toBeGreaterThanOrEqual(4.5);
-    await act(async () => tag.props.onHoverIn());
-    expect(hostByTestId(tree.root, "task-availability-hint").props.style.position).toBe("absolute");
-    await act(async () => tag.props.onHoverOut());
-    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-availability-hint")).toHaveLength(0);
+  it("leaves a healthy or still-checking card's corner unmarked", async () => {
+    const tree = await render(cardElement(sampleCards(NOW)[0]!));
+    expect(tree.root.findAll((node) => typeof node.type === "string" && String(node.props.testID).startsWith("task-availability"))).toHaveLength(0);
+    await act(async () => tree.update(cardElement({ ...sampleCards(NOW)[0]!, availability: unavailableTask({ code: "checking", detail: null }) })));
+    expect(tree.root.findAll((node) => typeof node.type === "string" && String(node.props.testID).startsWith("task-availability"))).toHaveLength(0);
   });
 
-  it("keeps disabled menu actions visible with reasons and leaves copy and stop available", () => {
-    const card = { ...sampleCards(NOW)[0]!, availability: unavailableTask({ code: "directory_missing", detail: "/removed/worktree" }) };
-    const stop = vi.fn();
-    const items = cardMenuSections(card, cardStrings("en"), { copy() {}, children: 0, rename() {}, autoTitle() {}, archive() {}, unarchive() {}, read() {}, stop }).flatMap((section) => section.items);
-    for (const key of ["rename", "auto-title", "archive", "unarchive", "read"]) {
-      expect(items.find((item) => item.key === key)).toMatchObject({ disabled: true, detail: "Working directory missing\n/removed/worktree", onSelect: undefined });
+  it("names a home folder as ~ in the hint and keeps the task's own path and copies unchanged", async () => {
+    const raw = "/Users/luke/workspace/rrd/beautiful-chat/.worktrees/bench-013";
+    const card = { ...sampleCards(NOW)[0]!, availability: unavailableTask({ code: "workspace_unavailable", detail: raw }) };
+    const tree = await render(cardElement(card));
+    await act(async () => hostByTestId(tree.root, "task-availability-corner-hit").props.onPress({ stopPropagation() {} }));
+    expect(texts(hostByTestId(tree.root, "task-availability-hint-title"))).toEqual(["工作区已不可用"]);
+    const path = hostByTestId(tree.root, "task-availability-hint-path");
+    expect(texts(path)).toEqual(["~/workspace/rrd/beautiful-chat/.worktrees/bench-013"]);
+    // It may wrap after each slash, so a narrow card breaks between folders.
+    expect(path.children.join("")).toContain("/\u200bworkspace/\u200brrd/");
+    expect(hostByTestId(tree.root, "task-availability-corner-hit").props.accessibilityLabel).toContain("~/workspace/rrd/beautiful-chat/.worktrees/bench-013");
+    expect(card.availability.issue?.detail).toBe(raw);
+    const copied: string[] = [];
+    const healthy = sampleCards(NOW)[0]!;
+    const copies = (subject: TaskCard) => cardMenuSections(subject, cardStrings("en"), { copy: (text) => copied.push(text), children: 0 }).find((section) => section.key === "copy")!.items;
+    for (const item of copies(card)) item.onSelect?.();
+    const fromUnavailable = copied.splice(0);
+    for (const item of copies(healthy)) item.onSelect?.();
+    expect(fromUnavailable).toEqual(copied);
+    expect(fromUnavailable.some((text) => text.includes("~"))).toBe(false);
+  });
+
+  it.each([["light", LIGHT], ["dark", DARK]] as const)("draws one flat %s amber triangle under a single round dot", async (_name, theme) => {
+    const card = { ...sample("sample-child-1"), availability: unavailableTask({ code: "workspace_unavailable", detail: "/removed/worktree" }) };
+    const tokens = taskTokens(theme as never);
+    const tree = await render(cardElement(card, { theme, hostId: "host-1" }));
+    const root = hostByTestId(tree.root, "task-card-sample-child-1");
+    const fill = cornerFill(tokens, tokens.card.background);
+    const corner = hostByTestId(tree.root, "task-availability-corner");
+    // Desktop meta row: halfway between the dot and the ring along the diagonal.
+    expect(flat(corner.props.style)).toMatchObject({ position: "absolute", top: 0, right: 0, width: 23, height: 23, overflow: "hidden", borderTopRightRadius: 7 });
+    expect(corner.props.pointerEvents).toBe("none");
+    expect(flat(hostByTestId(corner, "task-availability-corner-fill").props.style)).toMatchObject({ borderTopWidth: 23, borderLeftWidth: 23, borderTopColor: fill.rest, borderLeftColor: "transparent" });
+    // One flat fill: nothing else is drawn in the corner, no round knockout or halo.
+    expect(corner.findAll((node) => typeof node.type === "string")).toHaveLength(2);
+    expect(corner.findAll((node) => typeof node.type === "string" && node.props.style && "borderRadius" in flat(node.props.style))).toHaveLength(0);
+    // Exactly one dot, a square box scaled to 3.5 pt, its centre still 8.75 in, drawn after (over) the corner.
+    const marks = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
+    expect(marks).toHaveLength(1);
+    const dot = flat(marks[0]!.props.style);
+    expect(dot.width).toBe(dot.height);
+    expect(dot.borderRadius).toBe((dot.width as number) / 2);
+    expect((dot.width as number) * (dot.transform as Array<{ scale: number }>)[0]!.scale).toBe(MARK_DOT.size);
+    expect((dot.top as number) + (dot.width as number) / 2).toBe(MARK_DOT.inset);
+    expect((dot.right as number) + (dot.width as number) / 2).toBe(MARK_DOT.inset);
+    const order = rows(tree.root, "sample-child-1");
+    expect(order.indexOf("task-availability-corner")).toBeLessThan(order.indexOf("task-card-subtask-mark"));
+    // The dot reads at 3:1 on the amber, at rest and active, as it does on the card.
+    expect(contrastRatio(String(dot.backgroundColor), fill.rest)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(String(dot.backgroundColor), fill.active)).toBeGreaterThanOrEqual(3);
+    await act(async () => root.props.onHoverIn());
+    const lit = String(flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style).backgroundColor);
+    expect(lit).toBe(markHue(card.location, "host-1", tokens, [fill.rest, fill.active]));
+    expect(contrastRatio(lit, fill.active)).toBeGreaterThanOrEqual(3);
+  });
+
+  it("shows the hint after the hover delay, over the card, and moves nothing", async () => {
+    vi.useFakeTimers();
+    try {
+      const card = { ...sample("sample-child-1"), availability: unavailableTask({ code: "workspace_unavailable", detail: "/removed/worktree" }) };
+      const tree = await render(cardElement(card));
+      const before = rows(tree.root, "sample-child-1");
+      const hit = hostByTestId(tree.root, "task-availability-corner-hit");
+      const fill = () => flat(hostByTestId(tree.root, "task-availability-corner-fill").props.style).borderTopColor;
+      const rest = fill();
+      await act(async () => hit.props.onHoverIn());
+      expect(fill()).not.toBe(rest);
+      await act(async () => { await vi.advanceTimersByTimeAsync(HINT_DELAY_MS - 1); });
+      expect(hints(tree)).toHaveLength(0);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      const hint = hostByTestId(tree.root, "task-availability-hint");
+      expect(flat(hint.props.style)).toMatchObject({ position: "absolute", top: 24 + 4, left: 6, right: 6, zIndex: 40 });
+      expect(hint.props.pointerEvents).toBe("none");
+      // The hint is the only thing added, and floats; every row stays in place.
+      expect(rows(tree.root, "sample-child-1").filter((id) => id !== "task-availability-hint")).toEqual(before);
+      expect(flat(hostByTestId(tree.root, "task-card-sample-child-1").props.style).zIndex).toBe(2);
+      await act(async () => hostByTestId(tree.root, "task-availability-corner-hit").props.onHoverOut());
+      expect(hints(tree)).toHaveLength(0);
+      expect(fill()).toBe(rest);
+    } finally {
+      vi.useRealTimers();
     }
-    expect(items.find((item) => item.key === "copy-title")?.disabled).toBeUndefined();
-    expect(items.find((item) => item.key === "stop")?.disabled).toBeUndefined();
+  });
+
+  it("shows the hint while focused and raises the card over the next one", async () => {
+    const card = { ...sampleCards(NOW)[0]!, availability: unavailableTask({ code: "workspace_unavailable", detail: "/removed/worktree" }) };
+    const tree = await render(cardElement(card));
+    expect(flat(hostByTestId(tree.root, `task-card-${card.id}`).props.style).zIndex).toBe(1);
+    await act(async () => hostByTestId(tree.root, "task-availability-corner-hit").props.onFocus({}));
+    expect(hints(tree)).toHaveLength(1);
+    expect(hostByTestId(tree.root, "task-availability-corner-hit").props.accessibilityState).toEqual({ expanded: true });
+    expect(flat(hostByTestId(tree.root, `task-card-${card.id}`).props.style).zIndex).toBe(2);
+    await act(async () => hostByTestId(tree.root, "task-availability-corner-hit").props.onBlur());
+    expect(hints(tree)).toHaveLength(0);
+    expect(flat(hostByTestId(tree.root, `task-card-${card.id}`).props.style).zIndex).toBe(1);
+  });
+
+  it("sizes the corner from the ring's metrics so it sits halfway between the dot and the ring", async () => {
+    const dotEdge = MARK_DOT.inset * Math.SQRT2 + MARK_DOT.size / 2;
+    for (const padTop of [10, 12]) {
+      for (const line of [16, 18, 20]) {
+        for (const scale of [0.85, 1, 15 / 14, 1.25, 1.5, 2]) {
+          const ringEdge = (padTop + Math.round(line * scale) / 2) * Math.SQRT2 - 7;
+          const { size, hit } = warningCorner({ padTop }, line, scale);
+          const edge = size / Math.SQRT2;
+          expect(Number.isInteger(size) && Number.isInteger(hit)).toBe(true);
+          // Clear of both, centred to within the whole-point rounding.
+          expect(edge).toBeGreaterThan(dotEdge);
+          expect(edge).toBeLessThan(ringEdge);
+          expect(Math.abs((edge - dotEdge) - (ringEdge - edge))).toBeLessThanOrEqual(Math.SQRT1_2);
+          // The pointer's triangle reaches at least the drawn one and stops 1 pt short of the ring.
+          expect(hit).toBeGreaterThanOrEqual(size);
+          expect(hit / Math.SQRT2).toBeLessThanOrEqual(ringEdge - 1);
+        }
+      }
+    }
+    expect(warningCorner({ padTop: 10 }, 16, 1)).toEqual({ size: 23, hit: 24 });
+    expect(warningCorner({ padTop: 12 }, 16, 1)).toEqual({ size: 25, hit: 28 });
+    // The card uses its own metrics: a phone card, and a larger interface size.
+    const card = { ...sample("sample-child-1"), availability: unavailableTask({ code: "workspace_unavailable", detail: null }) };
+    const tree = await render(cardElement(card, { compact: true }));
+    expect(flat(hostByTestId(tree.root, "task-availability-corner").props.style).width).toBe(25);
+    await act(async () => tree.update(React.createElement(TasksTypographyScale, { factor: 1.5, children: cardElement(card) })));
+    expect(flat(hostByTestId(tree.root, "task-availability-corner").props.style).width).toBe(warningCorner({ padTop: 10 }, 16, 1.5).size);
+    expect(warningCorner({ padTop: 10 }, 16, 1.5).size).toBeGreaterThan(23);
+  });
+
+  it("hides writes the task cannot take from the menu and drops the groups they empty", () => {
+    const card = { ...sampleCards(NOW)[0]!, availability: unavailableTask({ code: "directory_missing", detail: "/removed/worktree" }) };
+    const all = { copy() {}, children: 0, open() {}, rename() {}, autoTitle() {}, archive() {}, unarchive() {}, read() {}, filters: { state: { agent: false, workspace: false, project: false }, select() {} } };
+    const keys = (sections: ReturnType<typeof cardMenuSections>) => sections.flatMap((section) => section.items.map((item) => item.key));
+    const stop = vi.fn();
+    const withStop = cardMenuSections(card, cardStrings("en"), { ...all, stop });
+    for (const key of ["rename", "auto-title", "archive", "unarchive", "read"]) expect(keys(withStop)).not.toContain(key);
+    expect(withStop.flatMap((section) => section.items).some((item) => item.disabled)).toBe(false);
+    // Open, the copies, Filter and Stop stay.
+    expect(keys(withStop)).toEqual(expect.arrayContaining(["open", "copy-title", "filter", "stop"]));
+    expect(withStop.find((section) => section.key === "actions")!.items.map((item) => item.key)).toEqual(["stop"]);
+    // With nothing left in the actions group, the group and its divider go too.
+    const without = cardMenuSections(card, cardStrings("en"), all);
+    expect(without.map((section) => section.key)).toEqual(["open", "copy", "filter"]);
+    expect(without.every((section) => section.items.length > 0)).toBe(true);
+    // A subtask whose only first-group row was a write loses that group.
+    const lone = cardMenuSections({ ...card }, cardStrings("en"), { copy() {}, children: 0, rename() {}, autoTitle() {} });
+    expect(lone.map((section) => section.key)).toEqual(["copy"]);
+    // A healthy card keeps every row.
+    expect(keys(cardMenuSections(sampleCards(NOW)[0]!, cardStrings("en"), all))).toEqual(expect.arrayContaining(["rename", "auto-title", "archive", "unarchive", "read"]));
+    // Only a write blocked for another reason goes; the rest of the card's writes stay.
+    const titleOnly = { ...sampleCards(NOW)[0]!, availability: { issue: { code: "model_unavailable" as const, detail: "m" }, blocked: { autoTitle: { code: "model_unavailable" as const, detail: "m" } } } };
+    expect(keys(cardMenuSections(titleOnly, cardStrings("en"), all))).toEqual(expect.arrayContaining(["rename", "archive", "unarchive", "read"]));
+    expect(keys(cardMenuSections(titleOnly, cardStrings("en"), all))).not.toContain("auto-title");
+  });
+
+  it("hides blocked writes while the first check runs, shows them once it passes, and keeps them hidden when unavailable", () => {
+    const done = { ...sample("sample-done"), archived: undefined };
+    const all = { copy() {}, children: 0, open() {}, rename() {}, autoTitle() {}, archive() {}, read() {} };
+    const menu = (availability: TaskCard["availability"]) => cardMenuSections({ ...done, availability }, cardStrings("en"), all);
+    const layout = (sections: ReturnType<typeof cardMenuSections>) => sections.map((section) => `${section.key}:${section.items.map((item) => item.key).join(",")}`);
+    // Checking: no greyed rows; the actions group, all writes, goes with its divider.
+    const checking = menu(unavailableTask({ code: "checking", detail: null }));
+    expect(layout(checking)).toEqual(["open:open", "copy:copy-id,copy-title,copy-workspace,copy-project"]);
+    expect(checking.flatMap((section) => section.items).some((item) => item.disabled || item.detail)).toBe(false);
+    // The check passes: the rows appear, enabled, in their groups.
+    const ready = menu({ issue: null, blocked: {} });
+    expect(layout(ready)).toEqual(["open:open,rename,auto-title", "copy:copy-id,copy-title,copy-workspace,copy-project", "actions:read,archive"]);
+    expect(ready.flatMap((section) => section.items).every((item) => !item.disabled && item.onSelect)).toBe(true);
+    // It comes back unavailable: hidden again, as during the check.
+    expect(layout(menu(unavailableTask({ code: "workspace_unavailable", detail: "/removed/worktree" })))).toEqual(layout(checking));
   });
 
   it.each(["card", "details", "bar"])("disables archive on the %s surface", async (surface) => {
@@ -1173,7 +1336,11 @@ describe("ProjectIcon", () => {
     const { size, inset } = MARK_DOT;
     expect(MARK_DOT).toEqual({ size: 3.5, inset: 8.75 });
     expect(inset - size / 2).toBe(7);
-    expect(flat(mark.props.style)).toMatchObject({ position: "absolute", top: inset - size / 2, right: inset - size / 2, width: size, height: size, borderRadius: size / 2 });
+    // Drawn in a square box whose side is whole in points and in pixels at the common densities, then
+    // scaled: a 3.5 pt box has each edge snapped on its own and drew a 3 x 4 oval at a fractional offset.
+    expect(MARK_DOT_BOX).toBe(8);
+    for (const density of [1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.5]) expect(Number.isInteger(MARK_DOT_BOX * density)).toBe(true);
+    expect(flat(mark.props.style)).toMatchObject({ position: "absolute", top: inset - MARK_DOT_BOX / 2, right: inset - MARK_DOT_BOX / 2, width: MARK_DOT_BOX, height: MARK_DOT_BOX, borderRadius: MARK_DOT_BOX / 2, transform: [{ scale: size / MARK_DOT_BOX }] });
     expect(mark.props.pointerEvents).toBe("none");
     expect(mark.props.importantForAccessibility).toBe("no-hide-descendants");
     // At rest: an opaque grey.

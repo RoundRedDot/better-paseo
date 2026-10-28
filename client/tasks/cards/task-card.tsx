@@ -45,7 +45,7 @@ import { TagMark } from "./tag-mark";
 import { pillTint, readableOn, taskTokens, type TaskTokens } from "./tokens";
 import { mix, withAlpha } from "../../components/theme-tokens";
 import { useTitleUpdateState, type TitleUpdateControl } from "../actions/title-update";
-import { AvailabilityTag } from "./availability-tag";
+import { AvailabilityCorner, cornerFill, shownIssue } from "./availability-tag";
 import { taskOperationIssue } from "../availability";
 
 export interface CardCallbacks {
@@ -433,6 +433,16 @@ const CARD_RADIUS = 8;
  * (`ringNudge`), about 4 pt beyond it on a desktop card.
  */
 export const MARK_DOT = { size: 3.5, inset: 8.75 } as const;
+/**
+ * The box the mark is drawn in, then scaled down to `MARK_DOT.size`.
+ * On the web, Chrome snaps each edge of a box to whole pixels on its own, so
+ * a 3.5 pt box at a fractional offset (a lane's width rarely divides evenly)
+ * painted 3 by 4 and its 50% radius drew an oval. A box whose side is whole
+ * in points and in device pixels at the common densities (1, 1.25, 1.5,
+ * 1.75, 2, 2.25, 2.5, 2.75, 3, 3.5) stays square wherever it lands, and the
+ * scale after layout is not snapped.
+ */
+export const MARK_DOT_BOX = 8;
 /** The mark's hue reads at least this far from the card (a black logo on a dark card). */
 const MARK_CONTRAST = 3;
 /** The mark at rest: this much of the muted foreground, mixed into the card. */
@@ -457,9 +467,9 @@ function chroma(hex: string): number {
  * off the card, and a grey one until it stands off the resting grey too. At
  * rest the mark is grey (`markRest`).
  */
-export function markHue(location: TaskCard["location"], hostId: string | null | undefined, tokens: TaskTokens): string {
+export function markHue(location: TaskCard["location"], hostId: string | null | undefined, tokens: TaskTokens, backdrops: readonly string[] = [tokens.card.background]): string {
   const hue = location.projectIcon ? location.projectIconColor ?? tokens.foregroundMuted : identityColor(projectViewKey(location, hostId));
-  const visible = readableOn(hue, [tokens.card.background], tokens.foreground, MARK_CONTRAST);
+  const visible = readableOn(hue, backdrops, tokens.foreground, MARK_CONTRAST);
   // A grey hue (black on a dark card ends up grey) goes on toward the foreground, off the resting grey.
   return chroma(visible) < MARK_GREY_CHROMA ? readableOn(visible, [markRest(tokens, tokens.card.background)], tokens.foreground, MARK_REST_CONTRAST) : visible;
 }
@@ -472,6 +482,16 @@ export function markRest(tokens: TaskTokens, fill: string): string {
   return mix(fill, tokens.foregroundMuted, MARK_REST_ALPHA);
 }
 
+/**
+ * The mark over the warning corner (`AvailabilityCorner`): the same rule,
+ * with the corner's amber, at rest and active, as its backdrop, so the dot
+ * keeps its size and place and still reads at `MARK_CONTRAST`.
+ */
+export function markOnCorner(tokens: TaskTokens, fill: { rest: string; active: string }, active: boolean, location: TaskCard["location"], hostId: string | null | undefined): string {
+  const backdrops = [fill.rest, fill.active];
+  return active ? markHue(location, hostId, tokens, backdrops) : readableOn(markRest(tokens, fill.rest), backdrops, tokens.foreground, MARK_CONTRAST);
+}
+
 const ariaHidden = (): ViewProps =>
   Platform.OS === "web" ? ({ "aria-hidden": true } as ViewProps) : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" };
 
@@ -481,16 +501,18 @@ const ariaHidden = (): ViewProps =>
  */
 function CornerMark(props: { color: string }) {
   const { size, inset } = MARK_DOT;
+  const box = MARK_DOT_BOX;
   return (
     <View
       pointerEvents="none"
       style={{
         position: "absolute",
-        top: inset - size / 2,
-        right: inset - size / 2,
-        width: size,
-        height: size,
-        borderRadius: size / 2,
+        top: inset - box / 2,
+        right: inset - box / 2,
+        width: box,
+        height: box,
+        borderRadius: box / 2,
+        transform: [{ scale: size / box }],
         backgroundColor: props.color,
         ...webTransition,
       }}
@@ -574,6 +596,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const [localExpanded, setLocalExpanded] = useState(false);
   const expanded = props.subtasksExpanded ?? localExpanded;
   const [ringOpen, setRingOpen] = useState(false);
+  // The warning corner's hint is open (hovered, focused or pinned): the card rises over the next one.
+  const [cornerOpen, setCornerOpen] = useState(false);
   // The meta row's widths while a context ring shares it: the row, its text, and the archived tag.
   const [metaFit, setMetaFit] = useState({ row: 0, text: 0, tag: 0 });
   // Right click keeps its window point; long press uses the host's modal.
@@ -685,8 +709,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A subtask's card (a Paseo agent with a parent, or a provider subagent's dashed card) marks its
   // top-right corner in its project's colour. Grey at rest; the project's colour while the card is
   // hovered, chosen in the sidebar or focused.
+  // A card whose task cannot take writes marks the same corner in amber (`AvailabilityCorner`), under the dot.
+  const issue = shownIssue(card.availability?.issue);
+  const fold = issue ? cornerFill(tokens, background) : null;
+  const markActive = lit || props.current || props.focused;
   const cornerMark = card.parent !== null
-    ? lit || props.current || props.focused ? markHue(card.location, props.hostId, tokens) : markRest(tokens, background)
+    ? fold ? markOnCorner(tokens, fold, markActive, card.location, props.hostId) : markActive ? markHue(card.location, props.hostId, tokens) : markRest(tokens, background)
     : null;
   const shadows = lit ? [look.shadowHover] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
@@ -704,7 +732,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     borderColor: props.highlighted ? tokens.accent : props.current ? look.currentBorder : failed ? look.failedBorder : look.border,
     backgroundColor: background,
     boxShadow: shadows.length > 0 ? shadows.join(", ") : "none",
-    zIndex: menuOpen ? 30 : hovered ? 2 : 1,
+    zIndex: menuOpen ? 30 : hovered || cornerOpen ? 2 : 1,
     // Both Tab and composite navigation use the same outline. Unlike the
     // hover shadow it changes at once, so a departing focus cannot linger.
     ...(WEB ? { outlineStyle: props.focused ? "solid" : undefined, outlineWidth: 1, outlineColor: tokens.foregroundMuted, outlineOffset: 2 } : null),
@@ -1450,10 +1478,21 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         style={cardStyle}
         testID={`task-card-${card.id}`}
       >
+        {issue && fold ? (
+          <AvailabilityCorner
+            issue={issue}
+            language={language}
+            theme={theme}
+            tokens={tokens}
+            fill={fold}
+            {...warningCorner(m, hasMeta ? m.metaLine : m.titleLine, scale)}
+            radius={CARD_RADIUS - (dashed ? 1 : StyleSheet.hairlineWidth)}
+            onOpenChange={setCornerOpen}
+          />
+        ) : null}
         {cornerMark ? <CornerMark color={cornerMark} /> : null}
         {metaRow}
         {titleRow}
-        <AvailabilityTag issue={card.availability?.issue} language={language} tokens={tokens} compact={compact} />
         {titleUpdate.state === "error" ? <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 8 }}>
           <Text accessibilityRole="alert" numberOfLines={3} testID="task-title-update-error" style={[text(F.sm, HOST_LINE.sm, tokens.danger), { flex: 1 }]}>{strings.autoTitleFailed(titleUpdate.error)}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={strings.dismissTitleError} hitSlop={8} style={{ minWidth: taskControlHeight(compact ? 44 : 28, scale), minHeight: taskControlHeight(compact ? 44 : 28, scale), alignItems: "center", justifyContent: "center" }} onPress={() => props.titleUpdates?.dismiss(card.id)}><Icon name="X" size={16} color={tokens.foregroundMuted} /></Pressable>
@@ -1698,6 +1737,24 @@ function GitStatus(props: {
  */
 export function ringNudge(m: Pick<Metrics, "padH" | "padTop">, line: number, scale: number): number {
   return m.padH + CONTEXT_RING_BITMAPS.card.size / 2 - (m.padTop + Math.round(line * scale) / 2);
+}
+
+/**
+ * The warning corner's legs (`AvailabilityCorner`), from the same metrics as
+ * the ring: its 45° edge sits halfway across the gap between the subtask
+ * dot's edge and the ring's near edge, measured along the corner's
+ * diagonal, so a larger interface size (a taller first row, the ring further
+ * in) grows it with the ring. `hit`: the pointer's triangle, out to 1 pt
+ * short of the ring, so the ring keeps its own hover. Whole points, so the
+ * edges land on the pixel grid alike. At the default size: 23 (hit 24) by
+ * a desktop meta row, 25 (28) by a phone's or a desktop title row.
+ */
+export function warningCorner(m: Pick<Metrics, "padTop">, line: number, scale: number): { size: number; hit: number } {
+  const ring = m.padTop + Math.round(line * scale) / 2;
+  const ringEdge = ring * Math.SQRT2 - CONTEXT_RING_BITMAPS.card.size / 2;
+  const dotEdge = MARK_DOT.inset * Math.SQRT2 + MARK_DOT.size / 2;
+  const size = Math.round(((dotEdge + ringEdge) / 2) * Math.SQRT2);
+  return { size, hit: Math.max(size, Math.floor((ringEdge - 1) * Math.SQRT2)) };
 }
 
 /**
