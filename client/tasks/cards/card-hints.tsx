@@ -193,7 +193,7 @@ function HintLayer(props: {
   if (!shown) return null;
   const { place: at } = shown;
   // Board controls append their keyboard shortcut in parentheses; card hints remain prose.
-  const shortcut = attribute === "bctip" ? /^([\s\S]* \()([A-Z/,\]]|Esc|Space|空格)(\))$/.exec(shown.text) : null;
+  const shortcut = attribute === "bctip" ? /^([\s\S]* \()([A-Z/,\]]|Esc|Space|\u7a7a\u683c)(\))$/.exec(shown.text) : null;
   return (
     <View
       pointerEvents="none"
