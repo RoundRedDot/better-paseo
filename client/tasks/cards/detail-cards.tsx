@@ -9,7 +9,7 @@ import { MarkdownView } from "../../components/markdown/markdown-view";
 import { variantMetrics } from "../../components/markdown/render/styles";
 import { useThemeTokens, withAlpha } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
-import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { useInputCapabilities } from "../../ui/use-input-capabilities";
 import { useCopy } from "../../ui/use-copy";
@@ -1307,7 +1307,7 @@ function TimelineTextBody(props: Inner & {
   const [open, setOpen] = useState(false);
   const { copied, copy } = useCopy();
   const prose = useThemeTokens(props.theme, useEnhancerPreferences());
-  const scale = useTasksFontScale();
+  const adjustment = useTasksFontAdjustment();
   const first = props.read;
   const breathing = useBreathing(first?.prompt.state === "loading");
   const changes = useTextChanges(props.card.id, props.flash === true && first?.prompt.state === "ready" ? first.prompt.text : null);
@@ -1329,7 +1329,7 @@ function TimelineTextBody(props: Inner & {
       .catch((error: unknown) => fail(error instanceof Error ? error.message : String(error)));
   }, []);
   if (!first) return null;
-  const font = Math.round(F.sm * scale);
+  const font = Math.round(prose.typography.content.size * adjustment);
   const small = F.sm;
   const prompt = first.prompt;
   if (prompt.state === "loading") {

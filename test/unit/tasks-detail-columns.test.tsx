@@ -19,6 +19,7 @@ import { cardStrings } from "../../client/tasks/cards/strings";
 import { previewSampleCards } from "../../client/tasks/sample-cards";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { TasksTypography, TasksTypographyScale, HOST_FONT } from "../../client/tasks/typography";
+import { variantMetrics } from "../../client/components/markdown/render/styles";
 
 const NOW = Date.parse("2026-10-20T09:00:00Z");
 const THEME = { colors: {
@@ -91,25 +92,27 @@ describe("details columns", () => {
 });
 
 describe("detail message typography", () => {
-  it.each([false, true])("keeps all three message previews compact with touch=%s", async (touch) => {
+  it.each(["web", "ios", "android"])("follows Paseo's body size for all three messages on %s", async (os) => {
+    vi.stubGlobal("__rnMockOS", os);
     const message = (text: string) => ({ prompt: { state: "ready" as const, text: text.repeat(80) }, load() {} });
     const detailProps: TaskDetailCardsProps = {
-      ...props(false), touch, columns: false,
+      ...props(false), touch: os !== "web", columns: false,
       firstPrompt: message("First prompt. "),
       humanMessage: message("Follow-up. "),
       lastMessage: message("Latest reply. "),
     };
-    for (const [ui, factor] of [[14, 1], [18, 1], [18, 0.9]] as const) {
-      const theme = { ...THEME, typography: { fontSize: { ui } } };
-      const size = Math.round(HOST_FONT.sm * ui / HOST_FONT.base * factor);
+    for (const [ui, content, factor] of [[14, 16, 1], [18, 16, 1], [18, 20, 1], [18, 20, 0.9]] as const) {
+      const theme = { ...THEME, typography: { fontSize: { ui, content } } };
+      const size = Math.round(content * factor);
       await act(async () => {
         renderer = TestRenderer.create(<TasksTypography theme={theme}><TasksTypographyScale factor={factor}><TaskDetailCards {...detailProps} theme={theme} /></TasksTypographyScale></TasksTypography>);
       });
       for (const id of ["detail-prompt", "detail-human", "detail-message"]) {
         const section = host(renderer!.root, id);
         expect(section.findByType(MarkdownView).props.size).toBe(size);
+        expect(host(section, `${id}-text`).props.style).toMatchObject({ maxHeight: 4 * variantMetrics("compact", size).bodyLineHeight });
         const more = host(section, `${id}-more`);
-        expect(StyleSheet.flatten(more.find((node) => (node.type as unknown) === "Text").props.style).fontSize).toBe(size);
+        expect(StyleSheet.flatten(more.find((node) => (node.type as unknown) === "Text").props.style).fontSize).toBe(Math.round(HOST_FONT.sm * ui / HOST_FONT.base * factor));
         await act(async () => more.props.onPress());
         expect(host(section, `${id}-text`).props.style).toBeNull();
         expect(section.findByType(MarkdownView).props.size).toBe(size);

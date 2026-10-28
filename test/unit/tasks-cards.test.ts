@@ -129,6 +129,7 @@ import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } fro
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { TasksTypography, TasksTypographyScale } from "../../client/tasks/typography";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
+import { variantMetrics } from "../../client/components/markdown/render/styles";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
 import { menuChrome } from "../../client/tasks/board/menu";
 import { cardMenuSections } from "../../client/tasks/cards/card-menu";
@@ -2913,7 +2914,8 @@ describe("TaskDetailCards", () => {
     const sections = tree.root.findAll((node) => typeof node.type === "string" && ["detail-prompt", "detail-location", "detail-activity", "detail-usage"].includes(node.props.testID));
     expect(sections.map((node) => node.props.testID)).toEqual(["detail-location", "detail-prompt", "detail-activity", "detail-usage"]);
     const body = hostByTestId(tree.root, "detail-prompt-text");
-    expect(body.props.style).toMatchObject({ maxHeight: 4 * 16, overflow: "hidden" });
+    const size = tree.root.findByType(MarkdownView).props.tokens.typography.content.size;
+    expect(body.props.style).toMatchObject({ maxHeight: 4 * variantMetrics("compact", size).bodyLineHeight, overflow: "hidden" });
     expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", "Check whether this issue is handled:", "The board\nThe sidebar\nThe sheet\nThe phone", "Show all · 6 lines"]);
     await act(async () => hostByTestId(tree.root, "detail-prompt-more").props.onPress());
     expect(hostByTestId(tree.root, "detail-prompt-text").props.style).toBeNull();
@@ -2934,10 +2936,10 @@ describe("TaskDetailCards", () => {
     const read = { prompt: { state: "ready", text: "A short message" } as const, load: vi.fn() };
     const content = () => details(sample("sample-failed"), { touch: true, firstPrompt: read, lastMessage: read }, "en");
     const tree = await render(content());
-    // The small host size on touch too, scaled with the board.
-    expect(tree.root.findAllByType(MarkdownView).map((node) => node.props.size)).toEqual([12, 12]);
+    const size = tree.root.findAllByType(MarkdownView)[0]!.props.tokens.typography.content.size;
+    expect(tree.root.findAllByType(MarkdownView).map((node) => node.props.size)).toEqual([size, size]);
     await act(async () => tree.update(React.createElement(TasksTypographyScale, { factor: 0.9, children: content() })));
-    expect(tree.root.findAllByType(MarkdownView).map((node) => node.props.size)).toEqual([11, 11]);
+    expect(tree.root.findAllByType(MarkdownView).map((node) => node.props.size)).toEqual([Math.round(size * 0.9), Math.round(size * 0.9)]);
   });
 
   it("shows the latest reply under the first prompt, copyable, with its own empty note", async () => {
