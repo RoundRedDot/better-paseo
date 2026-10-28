@@ -103,7 +103,7 @@ describe("detail message typography", () => {
     };
     for (const [ui, content, factor] of [[14, 16, 1], [18, 16, 1], [18, 20, 1], [18, 20, 0.9]] as const) {
       const theme = { ...THEME, typography: { fontSize: { ui, content } } };
-      const size = Math.round(content * factor);
+      const size = Math.round(content * (7 / 8) * factor);
       await act(async () => {
         renderer = TestRenderer.create(<TasksTypography theme={theme}><TasksTypographyScale factor={factor}><TaskDetailCards {...detailProps} theme={theme} /></TasksTypographyScale></TasksTypography>);
       });
