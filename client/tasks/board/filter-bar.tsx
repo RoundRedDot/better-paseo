@@ -19,6 +19,7 @@ import { LABEL_GAP, nextBarLayout, type BarBoxes, type BarLayout, type Box } fro
 import type { BoardController } from "./use-board";
 import { LaneWidthMark } from "./lane-width-mark";
 import { useSwitchSpace } from "../../ui/use-switch-space";
+import { tasksSettingsOpener } from "./enabled";
 
 export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
@@ -75,8 +76,9 @@ function DesktopToolbarView(props: {
   const [searchFocused, setSearchFocused] = useState(false);
   const [actionWidth, setActionWidth] = useState(0);
   const [viewOpen, setViewOpen] = useState(false);
-  // A wide board's top row: the empty-groups switch and the sidebar's; a folded one's: empty lanes, archived, filters and the sidebar's.
-  const actionCount = (props.filters ? 3 : 1) + Number(!!props.sidebar);
+  const openSettings = tasksSettingsOpener();
+  // Include settings when deciding whether the actions fit beside the centred count.
+  const actionCount = (props.filters ? 3 : 1) + Number(!!openSettings) + Number(!!props.sidebar);
   const compactActions = actionWidth > 0 && actionWidth < actionCount * toolbarButtonSize(scale) + (actionCount - 1) * TOOLBAR_GAP;
   return (
     <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
@@ -131,6 +133,7 @@ function DesktopToolbarView(props: {
                 { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
               ] : []),
               ...(props.filters ? [] : [{ key: "empty-groups", label: strings.emptyGroups.row, checked: board.showEmptyGroups, onSelect: () => board.setShowEmptyGroups(!board.showEmptyGroups) }]),
+              ...(openSettings ? [{ key: "settings", label: strings.openSettings, icon: "Bolt", onSelect: openSettings }] : []),
               ...(props.sidebar ? [{ key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, onSelect: props.sidebar.onToggle }] : []),
             ] }]} /> : null}
           </View>
@@ -187,6 +190,7 @@ function DesktopToolbarView(props: {
           testID="empty-groups-toggle"
         />
       )}
+      {openSettings ? <RoundButton icon="Bolt" label={strings.openSettings} theme={theme} onPress={openSettings} size={toolbarButtonSize(scale)} tip={strings.openSettings} testID="toolbar-settings" /> : null}
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
       </>}
       </View>

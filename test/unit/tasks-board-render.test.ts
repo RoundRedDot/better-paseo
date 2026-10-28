@@ -127,7 +127,7 @@ import { ACTIVE_LANE_ORDER as LANE_ORDER, type TaskCard } from "../../client/tas
 import { BrandMark, DetailActionBar, PiMark, TagMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
 import { deviceTasksStore } from "../../client/tasks/device-preferences";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
-import { resetTasksEnabled } from "../../client/tasks/board/enabled";
+import { resetTasksEnabled, setTasksSettingsOpener } from "../../client/tasks/board/enabled";
 import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderForTests, triggerHostAppearanceCheck } from "../../client/ui/tokens/host-appearance-shim";
 
 // These tests draw the board on and the archived lane off unless they turn it on
@@ -337,6 +337,31 @@ afterEach(() => {
 });
 
 describe("Tasks search coverage and centred toolbar", () => {
+  it.each(["en", "zh"] as const)("opens settings between the group and sidebar switches, including the compact %s menu", (language) => {
+    updateEnhancerPreferences({ language });
+    const openSettings = vi.fn();
+    setTasksSettingsOpener(openSettings);
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(2400);
+    const button = hostsById("toolbar-settings")[0]!;
+    const controls = hostsById("desktop-toolbar-end")[0]!.findAll((node) => (node.type as unknown) === "Pressable");
+    expect(controls.map((node) => node.props.testID)).toEqual(["empty-groups-toggle", "toolbar-settings", "sidebar-switch"]);
+    expect(button.props.accessibilityRole).toBe("button");
+    expect(button.props.accessibilityLabel).toBe(BOARD_STRINGS[language].openSettings);
+    expect(button.props.dataSet?.bctip).toBe(BOARD_STRINGS[language].openSettings);
+    expect(StyleSheet.flatten(button.props.style).width).toBe(StyleSheet.flatten(hostsById("sidebar-switch")[0]!.props.style).width);
+    expect(button.find((node) => (node.type as unknown) === "Icon").props.name).toBe("Bolt");
+    act(() => button.props.onPress());
+    expect(openSettings).toHaveBeenCalledTimes(1);
+    // Two controls fit in this slot; adding settings must fold the actions.
+    act(() => hostsById("desktop-toolbar-end")[0]!.props.onLayout({ nativeEvent: { layout: { width: 90 } } }));
+    expect(hostsById("toolbar-settings")).toHaveLength(0);
+    act(() => hostsById("desktop-toolbar-view")[0]!.props.onPress());
+    act(() => menuOption(BOARD_STRINGS[language].openSettings).props.onPress());
+    expect(openSettings).toHaveBeenCalledTimes(2);
+  });
+
   it.each(["web", "ios"] as const)("%s keeps every action available when a narrow side slot needs the View menu", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(screen(false)); });
