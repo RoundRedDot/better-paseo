@@ -430,7 +430,8 @@ const CARD_RADIUS = 8;
  * centre this far in from both edges. Past the corner's 8 pt curve, so the
  * top and right edges are nearest: its edge keeps 7 pt clear of both (7.5
  * along the diagonal). The context ring sits on the same diagonal
- * (`ringNudge`), about 4 pt beyond it on a desktop card.
+ * (`ringNudge`), about 4 pt beyond it on a desktop card. Over a warning
+ * corner the dot moves in to the triangle's centroid (`warningCorner`).
  */
 export const MARK_DOT = { size: 3.5, inset: 8.75 } as const;
 /**
@@ -485,7 +486,7 @@ export function markRest(tokens: TaskTokens, fill: string): string {
 /**
  * The mark over the warning corner (`AvailabilityCorner`): the same rule,
  * with the corner's amber, at rest and active, as its backdrop, so the dot
- * keeps its size and place and still reads at `MARK_CONTRAST`.
+ * keeps its size and still reads at `MARK_CONTRAST`.
  */
 export function markOnCorner(tokens: TaskTokens, fill: { rest: string; active: string }, active: boolean, location: TaskCard["location"], hostId: string | null | undefined): string {
   const backdrops = [fill.rest, fill.active];
@@ -496,11 +497,12 @@ const ariaHidden = (): ViewProps =>
   Platform.OS === "web" ? ({ "aria-hidden": true } as ViewProps) : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" };
 
 /**
- * A subtask card's mark (`MARK_DOT`). It is decoration, so neither touch nor
- * a screen reader finds it.
+ * A subtask card's mark (`MARK_DOT`), its centre `inset` in from the top and
+ * right. It is decoration, so neither touch nor a screen reader finds it.
  */
-function CornerMark(props: { color: string }) {
-  const { size, inset } = MARK_DOT;
+function CornerMark(props: { color: string; inset?: number }) {
+  const { size } = MARK_DOT;
+  const inset = props.inset ?? MARK_DOT.inset;
   const box = MARK_DOT_BOX;
   return (
     <View
@@ -709,7 +711,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A subtask's card (a Paseo agent with a parent, or a provider subagent's dashed card) marks its
   // top-right corner in its project's colour. Grey at rest; the project's colour while the card is
   // hovered, chosen in the sidebar or focused.
-  // A card whose task cannot take writes marks the same corner in amber (`AvailabilityCorner`), under the dot.
+  // A card whose task cannot take writes marks the same corner in amber (`AvailabilityCorner`), under the dot, which moves in to the triangle's centre.
   const issue = shownIssue(card.availability?.issue);
   const fold = issue ? cornerFill(tokens, background) : null;
   const markActive = lit || props.current || props.focused;
@@ -759,6 +761,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   if (layout.workspace && location.workspaceName) metaParts.push(location.workspaceName);
   const metaText = metaParts.join(SEPARATOR);
   const hasMeta = metaText !== "" || card.parent !== null;
+  const corner = fold ? warningCorner(m, hasMeta ? m.metaLine : m.titleLine, scale) : null;
 
   // The context ring at the top right: on the meta row, or on the title row
   // when the meta row has nothing to say. Its details card opens downwards
@@ -1478,19 +1481,20 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         style={cardStyle}
         testID={`task-card-${card.id}`}
       >
-        {issue && fold ? (
+        {issue && fold && corner ? (
           <AvailabilityCorner
             issue={issue}
             language={language}
             theme={theme}
             tokens={tokens}
             fill={fold}
-            {...warningCorner(m, hasMeta ? m.metaLine : m.titleLine, scale)}
+            size={corner.size}
+            hit={corner.hit}
             radius={CARD_RADIUS - (dashed ? 1 : StyleSheet.hairlineWidth)}
             onOpenChange={setCornerOpen}
           />
         ) : null}
-        {cornerMark ? <CornerMark color={cornerMark} /> : null}
+        {cornerMark ? <CornerMark color={cornerMark} inset={corner?.dot} /> : null}
         {metaRow}
         {titleRow}
         {titleUpdate.state === "error" ? <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 8 }}>
@@ -1741,20 +1745,22 @@ export function ringNudge(m: Pick<Metrics, "padH" | "padTop">, line: number, sca
 
 /**
  * The warning corner's legs (`AvailabilityCorner`), from the same metrics as
- * the ring: its 45° edge sits halfway across the gap between the subtask
- * dot's edge and the ring's near edge, measured along the corner's
- * diagonal, so a larger interface size (a taller first row, the ring further
- * in) grows it with the ring. `hit`: the pointer's triangle, out to 1 pt
- * short of the ring, so the ring keeps its own hover. Whole points, so the
- * edges land on the pixel grid alike. At the default size: 23 (hit 24) by
- * a desktop meta row, 25 (28) by a phone's or a desktop title row.
+ * the ring. The subtask dot moves in to the triangle's centroid (`dot`, a
+ * third of a leg in from the top and right), and the 45° edge sits halfway
+ * across the gap between the dot's edge and the ring's near edge, measured
+ * along the corner's diagonal: with `c` the ring's centre and L the leg,
+ * L/√2 − (L·√2/3 + dot radius) = (c·√2 − ring radius) − L/√2. So a larger
+ * interface size (a taller first row, the ring further in) grows it with the
+ * ring. `hit`: the pointer's triangle, out to 1 pt short of the ring, so the
+ * ring keeps its own hover. Whole points, so the edges land on the pixel
+ * grid alike. At the default size: 21 (dot 7, hit 24) by a desktop meta
+ * row, 24 (8, 28) by a phone's or a desktop title row.
  */
-export function warningCorner(m: Pick<Metrics, "padTop">, line: number, scale: number): { size: number; hit: number } {
+export function warningCorner(m: Pick<Metrics, "padTop">, line: number, scale: number): { size: number; hit: number; dot: number } {
   const ring = m.padTop + Math.round(line * scale) / 2;
   const ringEdge = ring * Math.SQRT2 - CONTEXT_RING_BITMAPS.card.size / 2;
-  const dotEdge = MARK_DOT.inset * Math.SQRT2 + MARK_DOT.size / 2;
-  const size = Math.round(((dotEdge + ringEdge) / 2) * Math.SQRT2);
-  return { size, hit: Math.max(size, Math.floor((ringEdge - 1) * Math.SQRT2)) };
+  const size = Math.round(((ringEdge + MARK_DOT.size / 2) * 3) / (2 * Math.SQRT2));
+  return { size, hit: Math.max(size, Math.floor((ringEdge - 1) * Math.SQRT2)), dot: size / 3 };
 }
 
 /**

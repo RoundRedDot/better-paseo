@@ -232,21 +232,22 @@ describe("unavailable task operations", () => {
     const fill = cornerFill(tokens, tokens.card.background);
     const corner = hostByTestId(tree.root, "task-availability-corner");
     // Desktop meta row: halfway between the dot and the ring along the diagonal.
-    expect(flat(corner.props.style)).toMatchObject({ position: "absolute", top: 0, right: 0, width: 23, height: 23, overflow: "hidden", borderTopRightRadius: 7 });
+    expect(flat(corner.props.style)).toMatchObject({ position: "absolute", top: 0, right: 0, width: 21, height: 21, overflow: "hidden", borderTopRightRadius: 7 });
     expect(corner.props.pointerEvents).toBe("none");
-    expect(flat(hostByTestId(corner, "task-availability-corner-fill").props.style)).toMatchObject({ borderTopWidth: 23, borderLeftWidth: 23, borderTopColor: fill.rest, borderLeftColor: "transparent" });
+    expect(flat(hostByTestId(corner, "task-availability-corner-fill").props.style)).toMatchObject({ borderTopWidth: 21, borderLeftWidth: 21, borderTopColor: fill.rest, borderLeftColor: "transparent" });
     // One flat fill: nothing else is drawn in the corner, no round knockout or halo.
     expect(corner.findAll((node) => typeof node.type === "string")).toHaveLength(2);
     expect(corner.findAll((node) => typeof node.type === "string" && node.props.style && "borderRadius" in flat(node.props.style))).toHaveLength(0);
-    // Exactly one dot, a square box scaled to 3.5 pt, its centre still 8.75 in, drawn after (over) the corner.
+    // Exactly one dot, a square box scaled to 3.5 pt, its centre at the triangle's centroid (a third of the
+    // 21 pt leg in), drawn after (over) the corner.
     const marks = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
     expect(marks).toHaveLength(1);
     const dot = flat(marks[0]!.props.style);
     expect(dot.width).toBe(dot.height);
     expect(dot.borderRadius).toBe((dot.width as number) / 2);
     expect((dot.width as number) * (dot.transform as Array<{ scale: number }>)[0]!.scale).toBe(MARK_DOT.size);
-    expect((dot.top as number) + (dot.width as number) / 2).toBe(MARK_DOT.inset);
-    expect((dot.right as number) + (dot.width as number) / 2).toBe(MARK_DOT.inset);
+    expect((dot.top as number) + (dot.width as number) / 2).toBe(7);
+    expect((dot.right as number) + (dot.width as number) / 2).toBe(7);
     const order = rows(tree.root, "sample-child-1");
     expect(order.indexOf("task-availability-corner")).toBeLessThan(order.indexOf("task-card-subtask-mark"));
     // The dot reads at 3:1 on the amber, at rest and active, as it does on the card.
@@ -299,34 +300,47 @@ describe("unavailable task operations", () => {
     expect(flat(hostByTestId(tree.root, `task-card-${card.id}`).props.style).zIndex).toBe(1);
   });
 
-  it("sizes the corner from the ring's metrics so it sits halfway between the dot and the ring", async () => {
-    const dotEdge = MARK_DOT.inset * Math.SQRT2 + MARK_DOT.size / 2;
+  it("sizes the corner from the ring's metrics so it sits halfway between the centred dot and the ring", async () => {
     for (const padTop of [10, 12]) {
       for (const line of [16, 18, 20]) {
         for (const scale of [0.85, 1, 15 / 14, 1.25, 1.5, 2]) {
           const ringEdge = (padTop + Math.round(line * scale) / 2) * Math.SQRT2 - 7;
-          const { size, hit } = warningCorner({ padTop }, line, scale);
+          const { size, hit, dot } = warningCorner({ padTop }, line, scale);
+          // The dot sits at the triangle's centroid, a third of a leg in from the top and right.
+          expect(dot).toBe(size / 3);
+          const dotEdge = dot * Math.SQRT2 + MARK_DOT.size / 2;
           const edge = size / Math.SQRT2;
           expect(Number.isInteger(size) && Number.isInteger(hit)).toBe(true);
           // Clear of both, centred to within the whole-point rounding.
           expect(edge).toBeGreaterThan(dotEdge);
           expect(edge).toBeLessThan(ringEdge);
-          expect(Math.abs((edge - dotEdge) - (ringEdge - edge))).toBeLessThanOrEqual(Math.SQRT1_2);
+          expect(Math.abs((edge - dotEdge) - (ringEdge - edge))).toBeLessThanOrEqual(0.5);
           // The pointer's triangle reaches at least the drawn one and stops 1 pt short of the ring.
           expect(hit).toBeGreaterThanOrEqual(size);
           expect(hit / Math.SQRT2).toBeLessThanOrEqual(ringEdge - 1);
         }
       }
     }
-    expect(warningCorner({ padTop: 10 }, 16, 1)).toEqual({ size: 23, hit: 24 });
-    expect(warningCorner({ padTop: 12 }, 16, 1)).toEqual({ size: 25, hit: 28 });
-    // The card uses its own metrics: a phone card, and a larger interface size.
+    expect(warningCorner({ padTop: 10 }, 16, 1)).toEqual({ size: 21, hit: 24, dot: 7 });
+    expect(warningCorner({ padTop: 12 }, 16, 1)).toEqual({ size: 24, hit: 28, dot: 8 });
+    // The card uses its own metrics: a phone card, and a larger interface size; the dot follows the corner.
     const card = { ...sample("sample-child-1"), availability: unavailableTask({ code: "workspace_unavailable", detail: null }) };
+    const dotCentre = (tree: ReactTestRenderer) => {
+      const dot = flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style);
+      return [(dot.top as number) + (dot.width as number) / 2, (dot.right as number) + (dot.width as number) / 2];
+    };
     const tree = await render(cardElement(card, { compact: true }));
-    expect(flat(hostByTestId(tree.root, "task-availability-corner").props.style).width).toBe(25);
+    expect(flat(hostByTestId(tree.root, "task-availability-corner").props.style).width).toBe(24);
+    expect(dotCentre(tree)).toEqual([8, 8]);
     await act(async () => tree.update(React.createElement(TasksTypographyScale, { factor: 1.5, children: cardElement(card) })));
-    expect(flat(hostByTestId(tree.root, "task-availability-corner").props.style).width).toBe(warningCorner({ padTop: 10 }, 16, 1.5).size);
-    expect(warningCorner({ padTop: 10 }, 16, 1.5).size).toBeGreaterThan(23);
+    const large = warningCorner({ padTop: 10 }, 16, 1.5);
+    expect(flat(hostByTestId(tree.root, "task-availability-corner").props.style).width).toBe(large.size);
+    expect(large.size).toBeGreaterThan(21);
+    expect(dotCentre(tree)).toEqual([large.dot, large.dot]);
+    // Without a corner the dot stays at its usual inset.
+    await act(async () => tree.update(cardElement(sample("sample-child-1"))));
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-availability-corner")).toHaveLength(0);
+    expect(dotCentre(tree)).toEqual([MARK_DOT.inset, MARK_DOT.inset]);
   });
 
   it("hides writes the task cannot take from the menu and drops the groups they empty", () => {
