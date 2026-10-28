@@ -113,7 +113,7 @@ import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
 import { SearchCoverage, TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { CardCell, RollingCount, RollingTotal, WindowSegments } from "../../client/tasks/board/board-parts";
-import { LaneMotionLayer } from "../../client/tasks/board/lane-motion";
+import { createLaneMotionStore, LaneMotionLayer, LaneMotionProvider } from "../../client/tasks/board/lane-motion";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { lastBoardParams, rememberBoardParams, rememberedCollapsed, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
@@ -3426,6 +3426,42 @@ describe("Tasks board, phone", () => {
     expect(laneCards("running")).toContain("sample-running");
     await act(async () => hostsById("phone-subtasks")[0]!.props.onPress());
     expect(laneCards("running")).toContain("sample-child-1");
+  });
+
+  it("pulses a landed card with the lane flash rhythm, without registering animation copies", () => {
+    act(() => { renderer = TestRenderer.create(screen(true)); });
+    const cell = renderer!.root.findAllByType(CardCell)[0]!;
+    const props = cell.props as React.ComponentProps<typeof CardCell>;
+    const store = createLaneMotionStore(true);
+    const attach = vi.spyOn(store, "attach");
+    const timing = vi.spyOn(Animated, "timing");
+    let landed: TestRenderer.ReactTestRenderer | undefined;
+    let copy: TestRenderer.ReactTestRenderer | undefined;
+    try {
+      act(() => {
+        landed = TestRenderer.create(React.createElement(LaneMotionProvider, { value: store }, React.createElement(CardCell, { ...props, fresh: false })));
+      });
+      const onArrive = attach.mock.calls[0]![3]!;
+      timing.mockClear();
+      act(() => onArrive());
+      const overlay = landed!.root.find((node) => typeof node.type === "string" && node.props.testID === `card-flash-${props.card.id}`);
+      expect(overlay.props.pointerEvents).toBe("none");
+      expect(overlay.props.style).toMatchObject({ backgroundColor: props.theme.colors.accent, borderRadius: 8 });
+      const flash = timing.mock.calls.filter(([value]) => value === overlay.props.style.opacity);
+      expect(flash.map(([, config]) => [config.toValue, config.duration])).toEqual([[0.07, 600], [0, 800], [0.07, 600], [0, 800]]);
+      timing.mockClear();
+      act(() => onArrive());
+      expect(timing.mock.calls.filter(([value]) => value === overlay.props.style.opacity)).toHaveLength(4);
+      attach.mockClear();
+      act(() => {
+        copy = TestRenderer.create(React.createElement(LaneMotionProvider, { value: store }, React.createElement(CardCell, { ...props, copy: true, fresh: false })));
+      });
+      expect(attach).not.toHaveBeenCalled();
+    } finally {
+      act(() => { landed?.unmount(); copy?.unmount(); });
+      attach.mockRestore();
+      timing.mockRestore();
+    }
   });
 
   it.each([true, false])("keeps expanded subtasks through refresh, animation copies and lane remounts (compact=%s)", (compact) => {

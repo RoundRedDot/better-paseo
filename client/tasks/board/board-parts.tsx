@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -15,6 +15,7 @@ import { filterSummary, readFilterOptions } from "./filter-options";
 import type { BoardStrings } from "./strings";
 import type { BoardController } from "./use-board";
 import { useCardMotion } from "./lane-motion";
+import { useFlash } from "./breathing";
 
 const nativeDriver = Platform.OS !== "web";
 
@@ -336,7 +337,10 @@ export interface CardCellProps {
 export function CardCell(props: CardCellProps) {
   const { card, board, register } = props;
   const nodeRef = useRef<View>(null);
-  const motion = useCardMotion(card.id, nodeRef, props.copy ?? false);
+  const [arrival, setArrival] = useState(0);
+  const onArrive = useCallback(() => setArrival((key) => key + 1), []);
+  const flashOpacity = useFlash(board.visible ? arrival : 0);
+  const motion = useCardMotion(card.id, nodeRef, props.copy ?? false, onArrive);
   useEffect(() => {
     if (!register) return;
     register(card.id, nodeRef.current);
@@ -376,6 +380,11 @@ export function CardCell(props: CardCellProps) {
             {...(props.callbacks ?? board.callbacks)}
           />
         </FadeOnMount>
+        <Animated.View
+          pointerEvents="none"
+          testID={`card-flash-${card.id}`}
+          style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }}
+        />
       </Animated.View>
     </View>
   );

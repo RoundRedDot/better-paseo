@@ -88,6 +88,7 @@ interface CellValues {
 interface Cell {
   node: unknown;
   values: CellValues | null;
+  onArrive?: () => void;
 }
 
 /** A web slide in progress, so a lane change in the middle of it starts from where the card is. */
@@ -139,7 +140,7 @@ function ghostRect(ghost: Ghost, at: number): Rect {
 export interface LaneMotionStore {
   /** The ghosts' layer: its rect is their origin and the lanes' viewport. */
   layer: unknown;
-  attach(id: string, node: unknown, values: CellValues | null): () => void;
+  attach(id: string, node: unknown, values: CellValues | null, onArrive?: () => void): () => void;
   /** A lane's measurable node: an expanded lane's list, a collapsed lane's pill. */
   setLane(id: LaneId, node: (() => unknown) | null): void;
   ghosts(): readonly Ghost[];
@@ -165,6 +166,7 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
   const cells = new Map<string, Cell>();
   const lanes = new Map<LaneId, () => unknown>();
   const slides = new Map<string, Slide>();
+  const arrivals = new Set<string>();
   const listeners = new Set<() => void>();
   let ghostList: readonly Ghost[] = [];
   let coveredLanes: ReadonlySet<LaneId> = NO_LANES;
@@ -172,6 +174,11 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
 
   function notify(): void {
     listeners.forEach((listener) => listener());
+  }
+
+  function arrive(id: string): void {
+    if (!arrivals.delete(id)) return;
+    cells.get(id)?.onArrive?.();
   }
 
   function setGhosts(next: readonly Ghost[]): void {
@@ -188,6 +195,7 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
     coveredLanes = NO_LANES;
     ghostList = [];
     notify();
+    for (const id of arrivals) arrive(id);
   }
 
   function holdCover(ms: number): void {
@@ -241,8 +249,10 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
     const animation = Animated.parallel([timing(values.x), timing(values.y)]);
     const entry: Slide = { dx, dy, start: at, animation };
     slides.set(id, entry);
-    animation.start(() => {
-      if (slides.get(id) === entry) slides.delete(id);
+    animation.start(({ finished }) => {
+      if (slides.get(id) !== entry) return;
+      slides.delete(id);
+      if (finished) arrive(id);
     });
   }
 
@@ -327,8 +337,8 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
 
   const store: LaneMotionStore = {
     layer: null,
-    attach(id, node, values) {
-      const cell = { node, values };
+    attach(id, node, values, onArrive) {
+      const cell = { node, values, onArrive };
       cells.set(id, cell);
       return () => {
         if (cells.get(id) !== cell) return;
@@ -409,6 +419,14 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
       const viewport = measureNow(store.layer);
       const after: MotionFrame = { cards, lanes: laneAt, laneOf, viewport };
       const moves = planLaneMotion(before.frame, after, { flights, flying: before.flying });
+      for (const move of moves) {
+        if (move.kind === "leave" || (move.kind === "fly" && !move.land)) {
+          arrivals.delete(move.id);
+          continue;
+        }
+        // Unchanged neighbours only make room; emphasize the updated card itself.
+        if (before.cards.get(move.id) !== byId.get(move.id)) arrivals.add(move.id);
+      }
       // A card that leaves draws as it was; one that flies, as it will be where it lands.
       const cardOf = (move: LaneMove) => (move.kind === "leave" ? before.cards.get(move.id) : byId.get(move.id) ?? before.cards.get(move.id));
       if (COVER) {
@@ -430,12 +448,16 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
         return;
       }
       // The card it carried shows, and the ghost goes a frame later, over the card.
-      if (ghost.reveal) cells.get(key)?.values?.opacity.setValue(1);
+      if (ghost.reveal) {
+        cells.get(key)?.values?.opacity.setValue(1);
+        arrive(key);
+      }
       const remove = () => setGhosts(ghostList.filter((item) => item !== ghost));
       if (ghost.reveal && typeof requestAnimationFrame === "function") requestAnimationFrame(remove);
       else remove();
     },
     settle() {
+      arrivals.clear();
       slides.forEach((entry) => entry.animation.stop());
       slides.clear();
       cells.forEach((cell) => {
@@ -516,14 +538,14 @@ export const LaneMotionProvider = LaneMotionContext.Provider;
  * values outside a board (the settings preview), on native, or when `off` (a
  * copy of a card: a ghost, the phone's outgoing lane).
  */
-export function useCardMotion(id: string, node: React.RefObject<unknown>, off: boolean): CellValues | null {
+export function useCardMotion(id: string, node: React.RefObject<unknown>, off: boolean, onArrive?: () => void): CellValues | null {
   const store = useContext(LaneMotionContext);
   const [values] = useState<CellValues | null>(() => (COVER ? null : { x: new Animated.Value(0), y: new Animated.Value(0), opacity: new Animated.Value(1) }));
   const active = store && !off ? store : null;
   useLayoutEffect(() => {
     if (!active) return;
-    return active.attach(id, node.current, values);
-  }, [active, id, node, values]);
+    return active.attach(id, node.current, values, onArrive);
+  }, [active, id, node, values, onArrive]);
   return active ? values : null;
 }
 
