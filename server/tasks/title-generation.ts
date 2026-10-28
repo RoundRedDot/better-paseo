@@ -71,7 +71,6 @@ export function createTitleGenerator(deps: Dependencies) {
     const source = paseo.agents.ref(agentId);
     const original = await source.refresh();
     if (!original) throw new Error("The original agent no longer exists.");
-    if (original.agent.archivedAt) throw new Error("Unarchive the agent before generating a title.");
     const provider = config.customModel ? config.provider : original.agent.provider;
     const model = config.customModel ? config.model : original.agent.model;
     let thinkingOptionId = config.customModel ? config.thinkingOptionId : original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId;
@@ -142,7 +141,6 @@ export function createTitleGenerator(deps: Dependencies) {
     if (mode === "preview") return title;
     const current = await source.refresh();
     if (!current) throw new Error("The original agent no longer exists.");
-    if (current.agent.archivedAt) throw new Error("The original agent was archived during generation.");
     if (current.agent.title !== original.agent.title) throw new Error("The title changed during generation. Keep the current title and retry if needed.");
     const renamed = await deps.rename(agentId, title);
     if (!renamed.ok) throw new Error(renamed.error || "Could not update the title.");

@@ -341,13 +341,37 @@ describe("task card rename entry", () => {
     expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "正在更新标题…").props.disabled).toBe(true);
   });
 
-  it("does not offer automatic titles on archived cards", async () => {
+  it.each(["ios", "android", "web"])("offers automatic titles and editor previews on archived cards (%s)", async (platform) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    const autoTitle = vi.fn();
     await act(async () => {
-      tree = TestRenderer.create(<CardContextMenu point={null} card={{ ...card, lane: "archived" }} strings={cardStrings("zh")} actions={{ children: 0, autoTitle: vi.fn() }} theme={theme} onClose={onClose} />);
+      tree = TestRenderer.create(<CardContextMenu point={platform === "web" ? { x: 20, y: 30 } : null} card={{ ...card, lane: "archived" }} strings={cardStrings("zh")} actions={{ children: 0, autoTitle }} theme={theme} onClose={onClose} />);
     });
-    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "自动更新标题")).toHaveLength(0);
-    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "修改标题").props.onPress());
-    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title")).toHaveLength(0);
+    if (platform === "web") {
+      const items = tree.root.findByType(CascadeMenu).props.sections.flatMap((section: { items: Array<{ key: string; disabled?: boolean }> }) => section.items);
+      const index = items.findIndex((item: { key: string }) => item.key === "auto-title");
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(items[index].disabled).toBeFalsy();
+      await act(async () => tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem")[index]!.props.onPress());
+    } else {
+      const automatic = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "自动更新标题");
+      expect(automatic.props.disabled).toBeFalsy();
+      await act(async () => automatic.props.onPress());
+    }
+    expect(autoTitle).toHaveBeenCalledTimes(1);
+    onClose.mockClear();
+    if (platform === "web") {
+      const items = tree.root.findByType(CascadeMenu).props.sections.flatMap((section: { items: Array<{ key: string }> }) => section.items);
+      const index = items.findIndex((item: { key: string }) => item.key === "rename");
+      await act(async () => tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem")[index]!.props.onPress());
+    } else {
+      await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "修改标题").props.onPress());
+    }
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title").props.onPress());
+    await reveal("Generated title");
+    expect(rpc.generate).toHaveBeenCalledWith({ agentId: card.id, action: "start", mode: "preview" });
+    expect(rpc.rename).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
   it.each(["touch", "pointer"])("replaces the %s menu with an editor without closing its owner", async (kind) => {
     const autoTitle = vi.fn();
