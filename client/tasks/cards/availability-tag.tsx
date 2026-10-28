@@ -11,7 +11,7 @@ const labels: Record<TasksLanguage, Record<TaskIssue["code"], string>> = {
   zh: {
     checking: "正在检查可用性", host_unavailable: "主机暂时不可用", unsupported: "操作不可用", agent_missing: "任务已不存在",
     directory_missing: "工作目录不存在", directory_not_directory: "工作路径无效", directory_inaccessible: "目录无法访问",
-    workspace_unavailable: "Workspace 已不可用", project_unavailable: "项目归属不可用", title_settings_invalid: "标题生成配置无效",
+    workspace_unavailable: "工作区已不可用", project_unavailable: "项目归属不可用", title_settings_invalid: "标题生成配置无效",
     provider_unavailable: "Provider 不可用", model_unavailable: "标题模型不可用",
   },
   en: {
