@@ -151,6 +151,45 @@ describe("search model boundaries", () => {
     const preview = searchSnippet("a".repeat(40) + "Schedule" + "z".repeat(200), "sche", "prompt", true);
     expect(preview).toHaveLength(106);
   });
+  it.each([
+    ["path", "~/workspace/rrd/duo-r12-sched/ios/App", "sche"],
+    ["id", "a91c03e7-5b2d-4f2a-9c61-0e8d7b3f12aa", "4f2a"],
+    ["branch", "fix/rrd-11847-duo-guide-bubble-scheduled-task", "sche"],
+    ["model", "gpt-6.1-sol-schema-0915", "sche"],
+  ] as const)("keeps a short %s preview complete", (field, value, query) => {
+    expect(searchSnippet(value, query, field, true)).toBe(value);
+  });
+  it.each(["path", "id", "branch", "model"] as const)("cuts long %s previews only at machine-value separators", (field) => {
+    const value = `${"prefix-".repeat(8)}workspacelong/schedule/${"suffix-".repeat(16)}finalword`;
+    const preview = searchSnippet(value, "sche", field, true);
+    const content = preview.replace(/^…|…$/g, "");
+    const start = value.indexOf(content);
+    const end = start + content.length;
+    expect(preview.startsWith("…")).toBe(true);
+    expect(preview.endsWith("…")).toBe(true);
+    expect(start).toBeGreaterThan(0);
+    expect(value[start - 1]).toMatch(/[\/-]/);
+    expect(value[end]).toMatch(/[\/-]/);
+    expect(content).toContain("schedule");
+    const token = `${"prefix".repeat(20)}schedule${"suffix".repeat(20)}`;
+    expect(searchSnippet(token, "sche", field, true)).toBe(token);
+  });
+  it.each([false, true])("skips punctuation and whitespace at a natural-language cut (preview: %s)", (preview) => {
+    for (const punctuation of ["，", "。", "；", "：", ",", " ", "\n\t"]) {
+      const prefix = "前文".repeat(20);
+      // Put the cut exactly at the punctuation for each context budget.
+      const context = preview ? 20 : 8;
+      const message = prefix + punctuation + "然".repeat(context - punctuation.length) + "Schedule 推送";
+      const snippet = searchSnippet(message, "sche", "prompt", preview);
+      expect(snippet).toMatch(/^…然/);
+      expect(snippet).toContain("Schedule");
+    }
+  });
+  it("starts the supplied first-message excerpt with words rather than a comma", () => {
+    const message = "先跑一遍 UI 测试，然后顺便看下 Schedule 推送在冷启动时为什么没触发，日志在 /tmp/push.log";
+    expect(searchSnippet(message, "sche", "prompt")).toMatch(/^…然后顺便看下 Schedule/);
+  });
+
   it("summarizes hidden title matches without changing title truncation", () => {
     expect(hidden({ ...base, title: "Schedule" }, "sche", undefined, { ...visible, title: false })).toMatchObject([
       { field: "title", visible: false },

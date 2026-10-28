@@ -66,6 +66,15 @@ export function searchLabels(labels: TaskLabel[], limit: number, query: string):
 export function searchSnippet(text: string, query: string, field: SearchField, preview = false): string {
   const range = searchRanges(text, query)[0];
   if (!range) return text;
+  if (preview && ["path", "id", "branch", "model"].includes(field)) {
+    if (text.length <= 100) return text;
+    const before = Math.max(0, range.start - 20);
+    const start = Math.max(text.lastIndexOf("/", before), text.lastIndexOf("-", before)) + 1;
+    let end = Math.min(text.length, range.end + 80);
+    // Keep machine tokens whole, even if a single token exceeds the preview budget.
+    while (end < text.length && !/[\/-]/.test(text[end]!)) end++;
+    return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`;
+  }
   if (!preview && field === "id") {
     const groups = text.split("-");
     let offset = 0;
@@ -87,11 +96,13 @@ export function searchSnippet(text: string, query: string, field: SearchField, p
   const before = text.slice(0, range.start);
   const budget = preview ? 20 : /[\u3400-\u9fff]/.test(before.slice(-16)) ? 8 : 16;
   let start = Math.max(0, range.start - budget);
+  const punctuation = /[\s,.;:!?\uFF0C\u3002\uFF1B\uFF1A\uFF01\uFF1F]/;
   // Move forward to a word boundary without exceeding the context budget.
   if (start > 0 && /[\w]/.test(text[start - 1]!) && /[\w]/.test(text[start]!)) {
-    const boundary = text.slice(start, range.start).search(/[\s,.;:!?\uFF0C\u3002\uFF1B\uFF1A\uFF01\uFF1F]/);
+    const boundary = text.slice(start, range.start).search(punctuation);
     if (boundary >= 0) start += boundary + 1;
   }
+  while (start < range.start && punctuation.test(text[start]!)) start++;
   const end = preview ? Math.min(text.length, range.end + 80) : text.length;
   return `${start > 0 ? "…" : ""}${text.slice(start, end).replace(/\s+/g, " ")}${end < text.length ? "…" : ""}`;
 }
