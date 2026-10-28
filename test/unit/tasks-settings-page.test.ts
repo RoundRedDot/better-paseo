@@ -58,7 +58,7 @@ const theme = {
   },
 };
 const tokens = {
-  typography: { content: { size: 14, lineHeight: 20 } },
+  typography: { ui: { size: 14 }, content: { size: 14, lineHeight: 20 } },
   isDark: false, fontUi: undefined, foreground: "#18181b", foregroundMuted: "#62626b", foregroundSubtle: "#9a9aa3",
   accent: "#2563eb", accentForeground: "#ffffff", warning: "#a36a00",
   v2: { surface0: "#ffffff", surface1: "#fafafa", surface2: "#ededef", border: "#e2e2e6" },
@@ -106,11 +106,11 @@ afterEach(() => {
 });
 
 describe("Tasks settings entry", () => {
-  it.each([12, 21])("sizes settings chrome from content size %i", (base) => {
+  it.each([12, 21])("sizes settings chrome from UI size %i", (base) => {
     makeSettings();
     const r = panel();
     act(() => r.update(React.createElement(TasksSettingsPanel, {
-      look: { ...look(), tokens: { ...tokens, typography: { content: { size: base } } } as never },
+      look: { ...look(), tokens: { ...tokens, typography: { ui: { size: base }, content: { size: 18 } } } as never },
       theme: theme as never, side: false,
     })));
     const styleOf = (text: string) => r.root.find((node) => (node.type as unknown) === "Text" && node.props.children === text).props.style.flat();

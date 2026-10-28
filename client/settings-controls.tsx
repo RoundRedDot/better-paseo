@@ -23,9 +23,9 @@ export interface PageLook {
   t: SettingsStrings;
 }
 
-/** Settings chrome follows the host content size, with smaller supporting text. */
+/** Settings chrome follows Paseo's interface size, with smaller supporting text. */
 export function settingsTextStyle(tokens: ExtendedThemeTokens, offset = 0) {
-  const fontSize = tokens.typography.content.size + offset;
+  const fontSize = tokens.typography.ui.size + offset;
   return { fontSize, lineHeight: Math.round(fontSize * 1.4) };
 }
 

@@ -61,9 +61,10 @@ describe("settings preview host typography", () => {
     setSettingsTab("display");
     resetHostAppearanceForTests();
     const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+    let uiBaseFontSize = 14;
     let contentFontSize = 12;
     setNativeSettingsReaderForTests(async () => ({
-      current: JSON.stringify({ uiBaseFontSize: 14, contentFontSize }), legacy: null,
+      current: JSON.stringify({ uiBaseFontSize, contentFontSize }), legacy: null,
     }));
     await act(async () => {
       renderer = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
@@ -72,16 +73,22 @@ describe("settings preview host typography", () => {
     });
     const content = () => renderer!.root.findByType(SettingsPreview).props.tokens.typography.content;
     expect(content()).toEqual({ size: 12, lineHeight: 18 });
-    expectSettingsSizes(12);
+    expectSettingsSizes(14);
 
     contentFontSize = 15;
     now.mockReturnValue(1000 + RECHECK_MS);
     await act(async () => triggerHostAppearanceCheck());
     expect(content()).toEqual({ size: 15, lineHeight: 23 });
-    expectSettingsSizes(15);
+    expectSettingsSizes(14);
+
+    uiBaseFontSize = 13;
+    now.mockReturnValue(1000 + RECHECK_MS * 2);
+    await act(async () => triggerHostAppearanceCheck());
+    expectSettingsSizes(13);
+    expect(content()).toEqual({ size: 15, lineHeight: 23 });
   });
 
-  it.each(["web", "ios", "android"] as const)("uses content size independently of UI size on %s", (platform) => {
+  it.each(["web", "ios", "android"] as const)("uses UI size for settings independently of preview content on %s", (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     resetEnhancerPreferences();
     setSettingsTab("display");
@@ -92,9 +99,11 @@ describe("settings preview host typography", () => {
           layout: { platform, compact }, host: { id: "host" },
         } as never);
         act(() => { renderer = TestRenderer.create(page(19)); });
-        expectSettingsSizes(content);
+        expectSettingsSizes(19);
+        expect(renderer!.root.findByType(SettingsPreview).props.tokens.typography.content.size).toBe(content);
         act(() => renderer!.update(page(11)));
-        expectSettingsSizes(content);
+        expectSettingsSizes(11);
+        expect(renderer!.root.findByType(SettingsPreview).props.tokens.typography.content.size).toBe(content);
         act(() => renderer!.unmount());
         renderer = undefined;
       }

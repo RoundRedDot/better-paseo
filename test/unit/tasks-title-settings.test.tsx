@@ -25,7 +25,7 @@ import { ProviderLogo } from "../../client/components/provider-logo";
 
 const look = {
   compact: false, t: SETTINGS_STRINGS.zh,
-  tokens: { typography: { content: { size: 16 } }, v2: {}, foreground: "#111111", warning: "#bb0000" },
+  tokens: { typography: { ui: { size: 14 }, content: { size: 16 } }, v2: {}, foreground: "#111111", warning: "#bb0000" },
 } as PageLook;
 let tree: TestRenderer.ReactTestRenderer;
 beforeEach(() => {

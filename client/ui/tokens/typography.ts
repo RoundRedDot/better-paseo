@@ -59,6 +59,8 @@ export interface Typography {
   ui: {
     /** Undefined: inherit the host's interface font. */
     family?: string;
+    /** Paseo's settings and controls size, independent of chat content. */
+    size: number;
     scale: typeof UI_SCALE;
   };
   content: { size: number; lineHeight: number };
@@ -389,7 +391,7 @@ export function resolveTypography(
     (web ? CONTENT_SIZE.web : CONTENT_SIZE.native);
 
   return {
-    ui: { family: uiFamily, scale: UI_SCALE },
+    ui: { family: uiFamily, size: host?.fontSize?.ui ?? appearance?.uiBaseFontSize ?? TYPE.setting.desktop.size, scale: UI_SCALE },
     content: { size: contentSize, lineHeight: lineHeightFor(contentSize) },
     mono: { family, size: codeSize, lineHeight: codeLineHeight, source: monoSource(host, paseoAppearance) },
     block: blockMetrics(prefs.blockFontSize ?? BLOCK_FONT_SIZE_DEFAULT),

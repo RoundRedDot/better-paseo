@@ -174,6 +174,16 @@ describe("resolveTypography details", () => {
     });
   });
 
+  it.each(PLATFORMS)("resolves the settings size independently of content on %s", (platform) => {
+    expect(resolveTypography(noHost, follow, platform).ui.size).toBe(14);
+    const stored = resolveTypography(noHost, follow, platform, { uiBaseFontSize: 13, contentFontSize: 18 });
+    expect(stored.ui.size).toBe(13);
+    expect(stored.content.size).toBe(18);
+    const host = resolveTypography(withHost, follow, platform, { uiBaseFontSize: 13, contentFontSize: 18 });
+    expect(host.ui.size).toBe(14);
+    expect(host.content.size).toBe(17);
+  });
+
   it("rounds line height to 1.5x", () => {
     expect(lineHeightFor(11)).toBe(17);
     expect(lineHeightFor(22)).toBe(33);
