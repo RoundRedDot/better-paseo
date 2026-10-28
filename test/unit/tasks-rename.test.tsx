@@ -179,21 +179,31 @@ describe("task title editor", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["ios", "android", "web"])("expands the multiline title input to show its full content (%s)", async (platform) => {
+  it.each(["ios", "android", "web"])("wraps the title within the editor width without clipping native intrinsic height (%s)", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     const title = "A long title that wraps over several lines on a narrow device";
     await renderDialog({ title });
     expect(input().props.value).toBe(title);
     expect(input().props.multiline).toBe(true);
     expect(input().props.scrollEnabled).toBe(false);
+    expect(input().props.style.width).toBe("100%");
     expect(input().props.style.textAlignVertical).toBe("center");
     expect(input().props.style.includeFontPadding).toBe(false);
     expect(input().props.style.lineHeight + input().props.style.paddingVertical * 2 + input().props.style.borderWidth * 2).toBe(input().props.style.minHeight);
+    if (platform !== "web") {
+      expect(input().props.style.height).toBeUndefined();
+      expect(input().props.onContentSizeChange).toBeUndefined();
+      await act(async () => input().props.onChangeText("Short title"));
+      expect(input().props.style.height).toBeUndefined();
+      return;
+    }
     await act(async () => input().props.onContentSizeChange({ nativeEvent: { contentSize: { width: 260, height: 108 } } }));
     expect(input().props.style.height).toBe(108);
     expect(input().props.style.textAlignVertical).toBe("center");
     await act(async () => input().props.onContentSizeChange({ nativeEvent: { contentSize: { width: 260, height: 64 } } }));
     expect(input().props.style.height).toBe(64);
+    await act(async () => input().props.onContentSizeChange({ nativeEvent: { contentSize: { width: 260, height: 20 } } }));
+    expect(input().props.style.height).toBe(input().props.style.minHeight);
   });
 
   it.each(["cancel", "dismiss"])("discards a running preview on %s without saving or restoring it on reopen", async (action) => {

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { Icon, Modal, TextInput } from "@getpaseo/plugin/client/react-native";
@@ -69,7 +69,7 @@ export function TaskRenameDialog(props: {
               value={title}
               multiline
               scrollEnabled={false}
-              onContentSizeChange={(event) => setContentHeight(event.nativeEvent.contentSize.height)}
+              onContentSizeChange={Platform.OS === "web" ? (event) => setContentHeight(event.nativeEvent.contentSize.height) : undefined}
               onChangeText={(value) => { setTitle(value); setError(null); }}
               editable={!pending && !generating}
               autoFocus
@@ -77,7 +77,7 @@ export function TaskRenameDialog(props: {
               returnKeyType="done"
               submitBehavior="submit"
               onSubmitEditing={() => void save()}
-              style={{ minHeight: taskControlHeight(44, scale), height: Math.max(taskControlHeight(44, scale), contentHeight), textAlignVertical: "center", lineHeight: inputLineHeight, includeFontPadding: false, paddingHorizontal: 12, paddingVertical: Math.max(10, (taskControlHeight(44, scale) - inputLineHeight - 2) / 2), borderWidth: 1, borderRadius: 8, borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface0, fontSize: Math.round(F.base * scale) }}
+              style={{ width: "100%", minHeight: taskControlHeight(44, scale), height: Platform.OS === "web" ? Math.max(taskControlHeight(44, scale), contentHeight) : undefined, textAlignVertical: "center", lineHeight: inputLineHeight, includeFontPadding: false, paddingHorizontal: 12, paddingVertical: Math.max(10, (taskControlHeight(44, scale) - inputLineHeight - 2) / 2), borderWidth: 1, borderRadius: 8, borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface0, fontSize: Math.round(F.base * scale) }}
             />
             {error ? <Text accessibilityRole="alert" style={{ fontSize: F.sm, color: colors.statusDanger }}>{error}</Text> : null}
             <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
