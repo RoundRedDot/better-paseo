@@ -1329,7 +1329,7 @@ function TimelineTextBody(props: Inner & {
       .catch((error: unknown) => fail(error instanceof Error ? error.message : String(error)));
   }, []);
   if (!first) return null;
-  const font = Math.round(prose.typography.content.size * (7 / 8) * adjustment);
+  const font = Math.round(prose.typography.content.size * 0.9 * adjustment);
   const small = F.sm;
   const prompt = first.prompt;
   if (prompt.state === "loading") {

@@ -2914,7 +2914,7 @@ describe("TaskDetailCards", () => {
     const sections = tree.root.findAll((node) => typeof node.type === "string" && ["detail-prompt", "detail-location", "detail-activity", "detail-usage"].includes(node.props.testID));
     expect(sections.map((node) => node.props.testID)).toEqual(["detail-location", "detail-prompt", "detail-activity", "detail-usage"]);
     const body = hostByTestId(tree.root, "detail-prompt-text");
-    const size = Math.round(tree.root.findByType(MarkdownView).props.tokens.typography.content.size * (7 / 8));
+    const size = Math.round(tree.root.findByType(MarkdownView).props.tokens.typography.content.size * 0.9);
     expect(body.props.style).toMatchObject({ maxHeight: 4 * variantMetrics("compact", size).bodyLineHeight, overflow: "hidden" });
     expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", "Check whether this issue is handled:", "The board\nThe sidebar\nThe sheet\nThe phone", "Show all · 6 lines"]);
     await act(async () => hostByTestId(tree.root, "detail-prompt-more").props.onPress());
@@ -2936,7 +2936,7 @@ describe("TaskDetailCards", () => {
     const read = { prompt: { state: "ready", text: "A short message" } as const, load: vi.fn() };
     const content = () => details(sample("sample-failed"), { touch: true, firstPrompt: read, lastMessage: read }, "en");
     const tree = await render(content());
-    const size = tree.root.findAllByType(MarkdownView)[0]!.props.tokens.typography.content.size * (7 / 8);
+    const size = tree.root.findAllByType(MarkdownView)[0]!.props.tokens.typography.content.size * 0.9;
     expect(tree.root.findAllByType(MarkdownView).map((node) => node.props.size)).toEqual([Math.round(size), Math.round(size)]);
     await act(async () => tree.update(React.createElement(TasksTypographyScale, { factor: 0.9, children: content() })));
     expect(tree.root.findAllByType(MarkdownView).map((node) => node.props.size)).toEqual([Math.round(size * 0.9), Math.round(size * 0.9)]);
