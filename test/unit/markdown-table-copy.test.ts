@@ -165,7 +165,7 @@ describe("Markdown table copy", () => {
     expect(selectedCopy()).toHaveLength(0);
     tap(index, 230);
     expect(selectedCopy()).toHaveLength(1);
-    expect(tokens.selectionFill).toBe("rgba(27, 27, 31, 0.06)");
+    expect(tokens.selectionFill).toBe("rgba(59, 111, 224, 0.08)");
     expect(tokens.selectionFill).not.toBe(tokens.accentBg);
     expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(tokens.selectionFill);
     const menu = selectedCopy()[0]!;
@@ -182,22 +182,37 @@ describe("Markdown table copy", () => {
   });
 
   it.each([
-    ["light", "#ffffff", "#1b1b1f", "rgba(27, 27, 31, 0.06)"],
-    ["dark", "#18181b", "#f2f3f5", "rgba(242, 243, 245, 0.08)"],
-  ])("keeps the selected cell fill soft in the %s theme", (_theme, surface0, foreground, fill) => {
-    const themed = buildThemeTokens({ ...colors, surface0, foreground });
+    ["light header", "#ffffff", "#ececee", "#1b1b1f", "#3b6fe0", "rgba(59, 111, 224, 0.08)", 0],
+    ["light body", "#ffffff", "#ececee", "#1b1b1f", "#3b6fe0", "rgba(59, 111, 224, 0.08)", 2],
+    ["dark header", "#18181b", "#2e2e32", "#f2f3f5", "#82aaff", "rgba(130, 170, 255, 0.14)", 0],
+    ["dark body", "#18181b", "#2e2e32", "#f2f3f5", "#82aaff", "rgba(130, 170, 255, 0.14)", 2],
+  ] as const)("distinguishes selection from the neutral %s", (_theme, surface0, surface2, foreground, accent, fill, index) => {
+    const themed = buildThemeTokens({ ...colors, surface0, surface2, foreground, accent });
     act(() => {
       renderer = TestRenderer.create(React.createElement(MarkdownView, {
         text: "| A | B |\n| --- | --- |\n| one | two |", tokens: themed,
         variant: "document", streaming: false,
       }), { createNodeMock });
     });
-    const unselected = StyleSheet.flatten(cell(3).props.style).backgroundColor;
-    tap(2, 100); tap(2, 230);
+    const original = StyleSheet.flatten(cell(index).props.style);
+    const unselected = StyleSheet.flatten(cell(index + 1).props.style);
+    let header = cell(0).parent!;
+    while (String(header.type) !== "View") header = header.parent!;
+    expect(StyleSheet.flatten(header.props.style).backgroundColor).toBe(surface2);
+    tap(index, 100); tap(index, 230);
     expect(themed.selectionFill).toBe(fill);
-    expect(StyleSheet.flatten(cell(2).props.style).backgroundColor).toBe(fill);
-    expect(StyleSheet.flatten(cell(2).props.style).color).toBe(foreground);
-    expect(StyleSheet.flatten(cell(3).props.style).backgroundColor).toBe(unselected);
+    expect(StyleSheet.flatten(cell(index).props.style)).toEqual({ ...original, backgroundColor: fill });
+    expect(StyleSheet.flatten(cell(index + 1).props.style)).toEqual(unselected);
+    expect(StyleSheet.flatten(header.props.style).backgroundColor).toBe(surface2);
+    const switched = buildThemeTokens({ ...colors, surface0: surface0 === "#ffffff" ? "#18181b" : "#ffffff",
+      foreground, accent });
+    act(() => renderer!.update(React.createElement(MarkdownView, {
+      text: "| A | B |\n| --- | --- |\n| one | two |", tokens: switched,
+      variant: "document", streaming: false,
+    })));
+    expect(switched.isDark).toBe(!themed.isDark);
+    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(switched.selectionFill);
+    expect(switched.selectionFill).not.toBe(fill);
   });
 
   it("expands the corner into Copy selected without adding any content below the table", () => {
