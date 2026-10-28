@@ -254,6 +254,41 @@ describe("CascadeMenu", () => {
     },
   ];
 
+  it.each(["left", "right"] as const)("anchors a content-sized submenu to the actual %s edge", (align) => {
+    vi.stubGlobal("__rnMockOS", "web");
+    try {
+      act(() => {
+        renderer = TestRenderer.create(React.createElement(CascadeMenu, {
+          sections: sections(), theme: theme(LIGHT), width: 280, fitContent: true,
+          top: 0, align, onClose: close, testID: "fitted-menu",
+        }));
+      });
+      const container = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "fitted-menu");
+      expect(StyleSheet.flatten(container.props.style)).toMatchObject({ width: "max-content", maxWidth: 280 });
+      const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
+      expect(StyleSheet.flatten(panel.props.style).width).toBeUndefined();
+      act(() => row("Branch").props.onPress());
+      expect(StyleSheet.flatten(submenu()[0]!.props.style)).toMatchObject(align === "left"
+        ? { left: "100%", marginLeft: -MENU.overlap }
+        : { right: "100%", marginRight: -MENU.overlap });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("keeps native menu geometry when content fitting is requested", () => {
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(CascadeMenu, {
+        sections: sections(), theme: theme(LIGHT), width: 280, fitContent: true,
+        top: 0, align: "left", onClose: close,
+      }));
+    });
+    const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
+    expect(StyleSheet.flatten(panel.props.style).width).toBe(280);
+    act(() => row("Branch").props.onPress());
+    expect(StyleSheet.flatten(submenu()[0]!.props.style).left).toBe(280 - MENU.overlap);
+  });
+
   it("draws Linear's chrome from the theme: radius 12, a hairline, a wide soft shadow, rows 32 inset 6", () => {
     for (const colors of [LIGHT, DARK, SEPIA]) {
       render(sections(), colors);

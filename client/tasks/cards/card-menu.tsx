@@ -229,14 +229,16 @@ export function CardContextMenu(props: {
     );
   }
   const height = layoutMenu(sections, scale).height + 2 * StyleSheet.hairlineWidth;
-  const right = point.x + CARD_MENU_WIDTH + MENU_EDGE > window.width && point.x - CARD_MENU_WIDTH >= MENU_EDGE;
+  const width = Math.min(CARD_MENU_WIDTH * Math.max(1, scale), window.width - MENU_EDGE * 2);
+  const right = point.x + width + MENU_EDGE > window.width && point.x - width >= MENU_EDGE;
   const up = point.y + height + MENU_EDGE > window.height && point.y - height >= MENU_EDGE;
   return (
     <View ref={anchorRef} collapsable={false} testID="task-card-menu-anchor">
       <CascadeMenu
         sections={sections}
         theme={props.theme}
-        width={CARD_MENU_WIDTH}
+        width={width}
+        fitContent
         submenuWidth={SUBMENU_WIDTH}
         top={up ? -height : 0}
         align={right ? "right" : "left"}

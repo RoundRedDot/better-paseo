@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Platform, Pressable, View, useWindowDimensions, type TextInput as NativeTextInput } from "react-native";
+import { Platform, Pressable, View, useWindowDimensions, type TextInput as NativeTextInput, type ViewStyle } from "react-native";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -7,6 +7,7 @@ import { HAIRLINE, devicePixel } from "./board-style";
 import { taskTokens } from "../cards/tokens";
 import {
   MENU,
+  MENU_EDGE,
   MENU_FOCUS,
   filterMenuSections,
   layoutMenu,
@@ -39,6 +40,8 @@ export interface CascadeMenuProps {
   sections: MenuSection[];
   theme: PluginTheme;
   width: number;
+  /** On web, fit the translated content; `width` is the panel's maximum. */
+  fitContent?: boolean;
   submenuWidth?: number;
   /** The panel's top inside its anchor, and which edge it hangs from. */
   top: number;
@@ -87,6 +90,7 @@ export function CascadeMenu(props: CascadeMenuProps) {
 
   // The side with room: towards the window's middle from the anchor.
   const window = useWindowDimensions();
+  const fitContent = Platform.OS === "web" && props.fitContent;
   const containerRef = useRef<View>(null);
   const boundsRef = useContext(MenuBoundsContext);
   const [side, setSide] = useState<"left" | "right">(props.align === "right" ? "left" : "right");
@@ -216,13 +220,15 @@ export function CascadeMenu(props: CascadeMenuProps) {
       collapsable={false}
       onLayout={measure}
       testID={props.testID}
-      style={{ position: "absolute", top: props.top, ...(props.align === "right" ? { right: 0 } : { left: 0 }), width, zIndex: 30 }}
+      style={{ position: "absolute", top: props.top, ...(props.align === "right" ? { right: 0 } : { left: 0 }), width, zIndex: 30,
+        ...(fitContent ? { width: "max-content", maxWidth: Math.min(width, window.width - MENU_EDGE * 2) } as unknown as ViewStyle : null) }}
     >
       <MenuPanel
         sections={sections}
         chrome={chrome}
         theme={theme}
-        width={width}
+        width={fitContent ? undefined : width}
+        fitContent={fitContent}
         active={focus.level === 0 ? focus.top : focus.open ?? -1}
         open={focus.open}
         onHover={hoverTop}
@@ -239,7 +245,10 @@ export function CascadeMenu(props: CascadeMenuProps) {
         <View
           testID="menu-submenu"
           onPointerEnter={clearTimer}
-          style={{ position: "absolute", top: sub.top, width: subWidth, ...(side === "right" ? { left: width - MENU.overlap } : { right: width - MENU.overlap }) }}
+          style={{ position: "absolute", top: sub.top, width: subWidth,
+            ...(fitContent
+              ? side === "right" ? { left: "100%", marginLeft: -MENU.overlap } : { right: "100%", marginRight: -MENU.overlap }
+              : side === "right" ? { left: width - MENU.overlap } : { right: width - MENU.overlap }) }}
         >
           <MenuPanel
             sections={subSections}
@@ -324,7 +333,8 @@ function MenuPanel(props: {
   sections: MenuSection[];
   chrome: MenuChrome;
   theme: PluginTheme;
-  width: number;
+  width?: number;
+  fitContent?: boolean;
   /** The highlighted selectable row; -1 for none. */
   active: number;
   /** The row whose submenu shows; it keeps its fill. */
@@ -366,6 +376,7 @@ function MenuPanel(props: {
           <MenuRow
             key={item.key}
             item={item}
+            fitContent={props.fitContent}
             theme={theme}
             chrome={chrome}
             active={at >= 0 && (at === props.active || at === props.open)}
@@ -487,7 +498,7 @@ function DragScroll(props: {
   );
 }
 
-function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome; active: boolean; onHover(): void; onPress(): void }) {
+function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginTheme; chrome: MenuChrome; active: boolean; onHover(): void; onPress(): void }) {
   const { item, chrome } = props;
   const scale = useTasksFontScale();
   const colors = props.theme.colors;
@@ -515,7 +526,7 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
     >
       {leading}
       {item.detail ? (
-        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <View style={{ flex: 1, flexBasis: props.fitContent ? "auto" : undefined, minWidth: 0, gap: 2 }}>
           <Text numberOfLines={1} style={{ fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>
             {item.label}
           </Text>
@@ -524,7 +535,7 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
           </Text>
         </View>
       ) : (
-        <Text numberOfLines={1} style={{ flex: 1, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>
+        <Text numberOfLines={1} style={{ flex: 1, flexBasis: props.fitContent ? "auto" : undefined, minWidth: 0, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>
           {item.label}
         </Text>
       )}
