@@ -47,12 +47,13 @@ type TableToken = import("../../client/vendor/marked").Tokens.Table;
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const tokens = buildThemeTokens({
+const colors = {
   surface0: "#ffffff", surface1: "#f6f6f7", surface2: "#ececee", border: "#e2e2e6",
   foreground: "#1b1b1f", foregroundMuted: "#6b6b75", accent: "#3b6fe0",
   accentForeground: "#ffffff", statusSuccess: "#1f8a5b", statusWarning: "#a36a00",
   statusDanger: "#d23c3c",
-});
+};
+const tokens = buildThemeTokens(colors);
 let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 const appendText = vi.fn((_text: string) => true);
 
@@ -164,7 +165,7 @@ describe("Markdown table copy", () => {
     expect(selectedCopy()).toHaveLength(0);
     tap(index, 230);
     expect(selectedCopy()).toHaveLength(1);
-    expect(tokens.selectionFill).toBe("rgba(27, 27, 31, 0.1)");
+    expect(tokens.selectionFill).toBe("rgba(27, 27, 31, 0.06)");
     expect(tokens.selectionFill).not.toBe(tokens.accentBg);
     expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(tokens.selectionFill);
     const menu = selectedCopy()[0]!;
@@ -178,6 +179,25 @@ describe("Markdown table copy", () => {
     finishExit(runs);
     expect(buttons()).toHaveLength(1);
     expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).not.toBe(tokens.selectionFill);
+  });
+
+  it.each([
+    ["light", "#ffffff", "#1b1b1f", "rgba(27, 27, 31, 0.06)"],
+    ["dark", "#18181b", "#f2f3f5", "rgba(242, 243, 245, 0.08)"],
+  ])("keeps the selected cell fill soft in the %s theme", (_theme, surface0, foreground, fill) => {
+    const themed = buildThemeTokens({ ...colors, surface0, foreground });
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(MarkdownView, {
+        text: "| A | B |\n| --- | --- |\n| one | two |", tokens: themed,
+        variant: "document", streaming: false,
+      }), { createNodeMock });
+    });
+    const unselected = StyleSheet.flatten(cell(3).props.style).backgroundColor;
+    tap(2, 100); tap(2, 230);
+    expect(themed.selectionFill).toBe(fill);
+    expect(StyleSheet.flatten(cell(2).props.style).backgroundColor).toBe(fill);
+    expect(StyleSheet.flatten(cell(2).props.style).color).toBe(foreground);
+    expect(StyleSheet.flatten(cell(3).props.style).backgroundColor).toBe(unselected);
   });
 
   it("expands the corner into Copy selected without adding any content below the table", () => {
