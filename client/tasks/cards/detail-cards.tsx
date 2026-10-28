@@ -1478,7 +1478,7 @@ function Activity(props: Inner) {
 function KeyCap(props: { label: string; tokens: TaskTokens }) {
   return (
     <View style={{ height: 16, paddingHorizontal: 4, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.border, borderRadius: 3, justifyContent: "center" }}>
-      <Text style={{ fontSize: F.sm, color: props.tokens.foregroundMuted }}>{props.label}</Text>
+      <Text style={{ fontFamily: MONO, fontSize: F.sm, color: props.tokens.foregroundMuted }}>{props.label}</Text>
     </View>
   );
 }

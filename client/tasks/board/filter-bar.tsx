@@ -3,7 +3,7 @@ import { Platform, Pressable, View, type LayoutChangeEvent, type TextInput as Na
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS } from "../../../shared/tasks-settings";
-import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { TagMark, taskTokens } from "../cards";
 import { tipProps } from "../cards/card-hints";
 import { CornerBadge, HoverPressable, RollingTotal, WindowSegments, RoundButton, Segments, SlashMark } from "./board-parts";
@@ -321,7 +321,7 @@ function KeyCap({ label, theme }: { label: string; theme: PluginTheme }) {
   const scale = useTasksFontScale();
   return (
     <View style={{ minWidth: 16, height: taskControlHeight(16, scale), paddingHorizontal: 3, borderWidth: HAIRLINE, borderColor: theme.colors.border, borderRadius: 3, alignItems: "center", justifyContent: "center" }}>
-      <Text style={{ fontSize: F.sm, color: theme.colors.foregroundMuted }}>{label}</Text>
+      <Text style={{ fontFamily: TASK_MONO, fontSize: F.sm, color: theme.colors.foregroundMuted }}>{label}</Text>
     </View>
   );
 }

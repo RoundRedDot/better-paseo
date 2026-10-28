@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, type RefObject } from "react";
 import { Platform, StyleSheet, View, type ViewProps, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { TaskText as Text, HOST_LINE, HOST_FONT as F } from "../typography";
+import { TaskText as Text, HOST_LINE, HOST_FONT as F, TASK_MONO } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { PREVIEW_REVEAL } from "../../ui/tokens/motion";
 import { panelChrome } from "./panel";
@@ -192,6 +192,8 @@ function HintLayer(props: {
   }, [root, attribute, place]);
   if (!shown) return null;
   const { place: at } = shown;
+  // Board controls append their keyboard shortcut in parentheses; card hints remain prose.
+  const shortcut = attribute === "bctip" ? /^([\s\S]* \()([A-Z/,\]]|Esc|Space|空格)(\))$/.exec(shown.text) : null;
   return (
     <View
       pointerEvents="none"
@@ -213,7 +215,9 @@ function HintLayer(props: {
       ]}
       testID={props.testID}
     >
-      <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.color }}>{shown.text}</Text>
+      <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.color }}>
+        {shortcut ? <>{shortcut[1]}<Text style={{ fontFamily: TASK_MONO }}>{shortcut[2]}</Text>{shortcut[3]}</> : shown.text}
+      </Text>
     </View>
   );
 }

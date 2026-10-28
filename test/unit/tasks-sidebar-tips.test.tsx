@@ -43,7 +43,8 @@ import { DetailsSidebar } from "../../client/tasks/board/details-sidebar";
 import { EMPTY_PARAMS } from "../../client/tasks/board/params";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import type { BoardController } from "../../client/tasks/board/use-board";
-import { BoardTips } from "../../client/tasks/cards/card-hints";
+import { BoardTips, CardHints } from "../../client/tasks/cards/card-hints";
+import { TASK_MONO } from "../../client/tasks/typography";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { TaskDetailCards, type TaskDetailCardsProps } from "../../client/tasks/cards/detail-cards";
 import { cardStrings } from "../../client/tasks/cards/strings";
@@ -272,6 +273,41 @@ describe("sidebar action tips", () => {
 });
 
 describe("sidebar tips in the board layer", () => {
+  it.each(["E", "S", "A", "G", ",", "]", "/", "Esc", "Space", "空格"])("keeps tooltip prose intact and renders the %s shortcut separately", async (shortcut) => {
+    vi.useFakeTimers();
+    const listeners = new Map<string, (event: unknown) => void>();
+    const root = {
+      clientLeft: 0, clientTop: 0, clientWidth: 1000, clientHeight: 600,
+      contains: () => true, getBoundingClientRect: () => ({ left: 0, top: 0 }),
+      addEventListener: (type: string, handler: (event: unknown) => void) => listeners.set(type, handler),
+      removeEventListener: (type: string) => listeners.delete(type),
+    };
+    const label = `工具栏\nToolbar (${shortcut})`;
+    const mark = {
+      isConnected: true, getAttribute: () => label,
+      getBoundingClientRect: () => ({ left: 20, top: 20, width: 24, height: 24 }),
+      closest: () => mark,
+    };
+    const enter = async () => act(async () => {
+      listeners.get("pointerover")!({ pointerType: "mouse", target: mark });
+      vi.advanceTimersByTime(400);
+    });
+    await render(<BoardTips root={{ current: root as never }} theme={THEME} color={THEME.colors.foreground} />);
+    await enter();
+    const texts = host(renderer!.root, "board-tip").findAll((node) => (node.type as unknown) === "Text");
+    expect(texts[0]!.children.filter((child) => typeof child === "string")).toEqual(["工具栏\nToolbar (", ")"]);
+    expect(texts[1]!.children).toEqual([shortcut]);
+    expect(StyleSheet.flatten(texts[1]!.props.style).fontFamily).toBe(TASK_MONO);
+    expect(StyleSheet.flatten(texts[0]!.props.style).fontFamily).toBeUndefined();
+    // A card's hint can end in the same text without describing a keyboard shortcut.
+    await act(async () => renderer!.unmount());
+    await render(<CardHints root={{ current: root as never }} texts={{ current: new Map([[label, () => label]]) }} theme={THEME} color={THEME.colors.foreground} />);
+    await enter();
+    const prose = host(renderer!.root, "task-card-hint").findAll((node) => (node.type as unknown) === "Text");
+    expect(prose).toHaveLength(1);
+    expect(prose[0]!.children).toEqual([label]);
+  });
+
   it("delays a nested action's own tip, opens above the bottom edge, and closes on scroll or press", async () => {
     vi.useFakeTimers();
     const listeners = new Map<string, (event: unknown) => void>();
