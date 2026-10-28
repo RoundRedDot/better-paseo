@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import { tipProps } from "../cards/card-hints";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
@@ -17,6 +17,7 @@ import { FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFi
 import { RollingCount, RollingTotal } from "./board-parts";
 import { useRequestProjectIcons } from "./project-icons";
 import { toggleItem } from "./params";
+import { matchesSearch, searchWords } from "./search";
 import type { SelectionAction, SidebarSelection } from "./sidebar-model";
 import { findCard, type BoardController } from "./use-board";
 
@@ -335,6 +336,9 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   // All four labels appear together, only after every current measurement fits.
   const showLabels = GROUP_KINDS.every((id) => labelFits[id]?.key === `${strings.groups[id]}|${scale}` && labelFits[id]?.fits);
   const [kind, setKind] = useState<GroupKind>("agent");
+  const [queries, setQueries] = useState<Record<GroupKind, string>>({ agent: "", project: "", workspace: "", label: "" });
+  const [searchFocused, setSearchFocused] = useState(false);
+  const query = queries[kind];
   const showEmpty = board.showEmptyGroups;
   const options = useMemo(() => shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty), [board.tasks, board.params, showEmpty]);
   const rows = useMemo<GroupRow[]>(() => {
@@ -379,6 +383,8 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
       }))
       .sort(byCount);
   }, [kind, options, board, tokens]);
+  const words = searchWords(query);
+  const visibleRows = rows.filter((row) => matchesSearch([row.label, row.detail], words));
   useRequestProjectIcons([...new Set(rows.flatMap((row) => (row.iconFor ? [row.iconFor] : [])))], board.tasks.requestProjectIcon);
 
   return (
@@ -388,11 +394,35 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
           <Segment key={id} id={id} icon={FILTER_ICONS[id]} label={strings.groups[id]} showLabel={showLabels} onFit={reportFit} on={kind === id} tokens={tokens} touch={props.touch} onPress={() => setKind(id)} />
         ))}
       </View>
-      <ScrollView style={{ flexShrink: 1 }} {...detailScrollProps("inset")} testID="sidebar-groups-scroll">
-        {rows.length === 0 ? (
-          <Text style={{ paddingHorizontal: DETAIL_CARD.padH, paddingVertical: 12, fontSize: F.sm, color: tokens.foregroundMuted }}>{strings.noGroups}</Text>
+      <View style={{ paddingHorizontal: 10, paddingBottom: 6 }}>
+        <View testID="sidebar-groups-search" style={{ height: taskControlHeight(props.touch ? 36 : 28, scale), flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: searchFocused ? props.theme.colors.foregroundMuted : props.theme.colors.border }}>
+          <Icon name="Search" size={13} color={tokens.foregroundMuted} />
+          <TextInput
+            testID="sidebar-groups-search-input"
+            value={query}
+            onChangeText={(value) => setQueries((previous) => ({ ...previous, [kind]: value }))}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
+            placeholder={board.strings.menuSearch.placeholder}
+            placeholderTextColor={tokens.foregroundMuted}
+            accessibilityLabel={`${board.strings.searchButton} ${strings.groups[kind]}`}
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+            style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: tokens.foreground }}
+          />
+          {query ? (
+            <Pressable testID="sidebar-groups-search-clear" accessibilityRole="button" accessibilityLabel={board.strings.menuSearch.clear} {...tipProps(board.strings.menuSearch.clear)} hitSlop={6} style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center" }} onPress={() => setQueries((previous) => ({ ...previous, [kind]: "" }))}>
+              <Icon name="X" size={13} color={tokens.foregroundMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+      <ScrollView style={{ flexShrink: 1 }} keyboardShouldPersistTaps="handled" {...detailScrollProps("inset")} testID="sidebar-groups-scroll">
+        {visibleRows.length === 0 ? (
+          <Text style={{ paddingHorizontal: DETAIL_CARD.padH, paddingVertical: 12, fontSize: F.sm, color: tokens.foregroundMuted }}>{words.length ? board.strings.menuSearch.empty : strings.noGroups}</Text>
         ) : (
-          rows.map((row) => <GroupRowView key={row.id} row={row} tokens={tokens} touch={props.touch} />)
+          visibleRows.map((row) => <GroupRowView key={row.id} row={row} tokens={tokens} touch={props.touch} />)
         )}
       </ScrollView>
     </DetailCard>
@@ -456,7 +486,7 @@ function Segment(props: { id: GroupKind; icon: string; label: string; showLabel:
         paddingHorizontal: 6,
       }}
     >
-      <Icon name={props.icon} size={14} color={props.on ? tokens.foreground : tokens.foregroundMuted} />
+      <Icon name={props.icon} size={props.showLabel ? 14 : 18} color={props.on ? tokens.foreground : tokens.foregroundMuted} />
       {props.showLabel ? <Text testID="sidebar-group-tab-label" numberOfLines={1} style={[labelStyle, { flexShrink: 0 }]}>
         {props.label}
       </Text> : null}

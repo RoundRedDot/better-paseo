@@ -24,6 +24,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return {
     Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
+    TextInput: rn.TextInput,
     ScrollView: rn.ScrollView,
     copyText: actions.copy,
     useToast: () => ({ show() {}, error() {} }),
@@ -108,6 +109,52 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it.each([false, true])("searches and clears all four group lists independently (touch=%s)", async (touch) => {
+    const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: [] }]));
+    const board = {
+      language: "en", strings: BOARD_STRINGS.en, params: EMPTY_PARAMS, showEmptyGroups: true,
+      tasks: {
+        lanes, providers: [{ id: "codex", label: "Codex" }, { id: "claude", label: "Claude" }],
+        labels: [{ name: "Bug fix", color: null }, { name: "Feature", color: null }],
+        workspaces: [
+          { id: "w1", name: "Main", projectId: "p1", projectName: "Payments", projectIcon: "icon" },
+          { id: "w2", name: "Develop", projectId: "p2", projectName: "Website", projectIcon: "icon" },
+        ],
+        requestProjectIcon() {},
+      },
+      setParams: vi.fn(), callbacks: {}, cardById: () => undefined,
+    } as unknown as BoardController;
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={touch} stats={false} />);
+    const input = () => host(root, "sidebar-groups-search-input");
+    const rows = () => root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
+    expect(host(root, "sidebar-groups-search").props.style).toMatchObject({ borderRadius: 999, height: touch ? 36 : 28, borderColor: THEME.colors.border });
+    await act(async () => input().props.onFocus());
+    expect(host(root, "sidebar-groups-search").props.style.borderColor).toBe(THEME.colors.foregroundMuted);
+    await act(async () => input().props.onBlur());
+    for (const [icon, query, label] of [
+      ["Bot", "  CODEX ", "Codex 0"],
+      ["FolderKanban", "PAY", "Payments 0"],
+      ["FolderGit2", "payments main", "Main Payments 0"],
+      ["Tag", "FIX bug", "Bug fix 0"],
+    ]) {
+      await act(async () => host(root, `sidebar-group-tab-${icon}`).props.onPress());
+      expect(input().props.value).toBe("");
+      expect(rows()).toHaveLength(2);
+      await act(async () => input().props.onChangeText(query));
+      expect(rows().map((row) => row.props.accessibilityLabel)).toEqual([label]);
+      await act(async () => input().props.onChangeText("missing"));
+      expect(rows()).toHaveLength(0);
+      await act(async () => host(root, "sidebar-groups-search-clear").props.onPress());
+      expect(input().props.value).toBe("");
+      expect(rows()).toHaveLength(2);
+      await act(async () => input().props.onChangeText(query));
+    }
+    await act(async () => host(root, "sidebar-group-tab-Bot").props.onPress());
+    expect(input().props.value).toBe("  CODEX ");
+    await act(async () => rows()[0]!.props.onPress());
+    expect(board.setParams).toHaveBeenCalledOnce();
+  });
+
   it.each(["zh", "en"] as const)("covers every detail action across task states in %s", async (language) => {
     for (const card of previewSampleCards(NOW)) {
       const root = await render(<TaskDetailCards {...details(language, card.id)} />);
@@ -200,6 +247,17 @@ describe("sidebar action tips", () => {
     const tabs = root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "tab");
     expect(tabs).toHaveLength(4);
     for (const tab of tabs) expect(tip(tab)).toBe(tab.props.accessibilityLabel);
+    const iconSizes = () => tabs.map((tab) => tab.find((node) => (node.type as unknown) === "Icon").props.size);
+    expect(iconSizes()).toEqual([18, 18, 18, 18]);
+    await act(async () => {
+      for (const tab of tabs) {
+        tab.props.onLayout({ nativeEvent: { layout: { width: 160 } } });
+        host(tab, "sidebar-group-tab-measure").props.onLayout({ nativeEvent: { layout: { width: 40 } } });
+      }
+    });
+    expect(iconSizes()).toEqual([14, 14, 14, 14]);
+    await act(async () => tabs[0]!.props.onLayout({ nativeEvent: { layout: { width: 30 } } }));
+    expect(iconSizes()).toEqual([18, 18, 18, 18]);
     const filter = root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
     expect(tip(filter)).toBe("Claude");
     await act(async () => filter.props.onPress());
