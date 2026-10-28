@@ -49,7 +49,7 @@ import { AvailabilityCorner, cornerFill, shownIssue } from "./availability-tag";
 import { taskOperationIssue } from "../availability";
 
 import type { FirstPrompt } from "../data/first-prompt";
-import { searchBreadcrumb, searchBranch, searchLabels, taskSearchHits } from "../data/search-hits";
+import { searchBreadcrumb, searchBranch, searchLabels, searchSnippet, taskSearchHits } from "../data/search-hits";
 import { highlightText, SearchHitSummary, useSearchClip } from "./search-highlight";
 
 export interface CardCallbacks {
@@ -1640,13 +1640,14 @@ export function pillStyle(tokens: TaskTokens, compact: boolean, tint: string | n
 function PillContent(props: PillProps) {
   const [width, setWidth] = useState(0);
   const shiftsMatch = props.mono || props.icon === "Folder";
+  const label = props.label !== undefined && props.icon === "FolderOpen" && props.searchQuery ? searchSnippet(props.label, props.searchQuery, "path") : props.label;
   const m = props.compact ? PHONE : DESKTOP;
   const color = props.solid?.text ?? props.color ?? props.tokens.foregroundMuted;
   return (
     <>
       {props.lead ?? null}
       {props.icon ? <Icon name={props.icon} size={m.pillIcon} color={props.solid?.icon ?? color} /> : null}
-      {props.label !== undefined ? (
+      {label !== undefined ? (
         <Text
           numberOfLines={1}
           onLayout={props.searchQuery && shiftsMatch ? (event) => setWidth(event.nativeEvent.layout.width) : undefined}
@@ -1656,7 +1657,7 @@ function PillContent(props: PillProps) {
           props.mono ? { fontFamily: TASK_MONO } : null,
         ]}
         >
-          {highlightText(shiftsMatch && props.searchQuery ? searchBranch(props.label, props.searchQuery, width ? Math.floor(width / (m.pillText * 0.65)) : 32) : props.label, props.searchQuery ?? "", props.tokens.isDark, props.icon === "GitBranch")}
+          {highlightText(shiftsMatch && props.searchQuery ? searchBranch(label, props.searchQuery, width ? Math.floor(width / (m.pillText * 0.65)) : 32) : label, props.searchQuery ?? "", props.tokens.isDark, props.icon === "GitBranch")}
         </Text>
       ) : null}
       {props.children}

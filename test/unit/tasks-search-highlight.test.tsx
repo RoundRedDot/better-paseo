@@ -153,6 +153,20 @@ describe("card search rendering", () => {
     expect(text(host(root, "task-search-summary-trigger"))).toContain("scheduler");
   });
 
+  it("folds a long visible path around its match instead of losing the match to the trailing ellipsis", async () => {
+    const root = await mount(
+      <TaskCardView
+        {...props}
+        card={{ ...card, location: { ...card.location, cwd: "/workspace/rrd/one/two/duo-r12-sched/ios/App" } }}
+        fields={{ ...props.fields, path: true }}
+        searchQuery="sche"
+      />,
+    );
+    expect(text(host(root, "pill-path"))).toContain("/…/");
+    expect(text(host(root, "pill-path"))).toContain("duo-r12-sched/ios/App");
+    expect(root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-search-summary")).toHaveLength(0);
+  });
+
   it("does not offer a search retry for an unavailable parent session", async () => {
     const retry = vi.fn();
     const root = await mount(
