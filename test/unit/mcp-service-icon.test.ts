@@ -76,8 +76,18 @@ describe("mcpServiceIcon", () => {
     ["mcp__time__get_current_time", "Clock"],
     ["mcp__tavily__search", "Search"],
     ["mcp__exa__web_search", "Search"],
-    ["mcp__firecrawl__scrape", "Globe"],
+    ["mcp__firecrawl__scrape", "Flame"],
+    ["mcp__uizze__search", "PanelsTopLeft"],
+    ["mcp__agent-browser__snapshot", "AppWindow"],
     ["mcp__cua-driver__click", "MousePointer2"],
+    ["mcp__cua-studio__click", "MousePointer2"],
+    ["mcp__lcu__click", "MousePointer2"],
+    ["mcp__mcp-server-lcu__click", "MousePointer2"],
+    ["mcp__rea__read_bytes", "Cpu"],
+    ["mcp__rea-server__read_bytes", "Cpu"],
+    ["mcp__andromeld__get_ui_tree", "brand:android"],
+    ["mcp__node_repl__js", "brand:nodejs"],
+    ["mcp__plugin_node_repl_node_repl__js", "brand:nodejs"],
     ["linear / get_issue", "brand:linear"],
   ])("%s draws %s", (name, icon) => {
     const { server, tool } = classifyTool(call(name)).mcp!;
@@ -87,6 +97,8 @@ describe("mcpServiceIcon", () => {
   it("leaves a server it does not know to the plug", () => {
     expect(mcpServiceIcon("devnav")).toBeUndefined();
     expect(mcpServiceIcon("timeline-tools")).toBeUndefined();
+    expect(mcpServiceIcon("unreal")).toBeUndefined();
+    expect(mcpServiceIcon("nuclear")).toBeUndefined();
   });
 
   it("only draws marks the daemon serves, tinted like the other row icons", () => {

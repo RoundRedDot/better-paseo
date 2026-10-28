@@ -75,6 +75,14 @@ describe("Claude task notifications", () => {
 });
 
 describe("Claude tools without a card", () => {
+  it.each([
+    { type: "plain_text", label: "remotion-best-practices" },
+    { type: "unknown", input: { skill: "remotion-best-practices" } },
+    { type: "unknown", input: { command: "/remotion-best-practices" } },
+  ])("uses the skill icon for Claude's input shapes: %j", (detail) => {
+    expect(view({ name: "Skill", detail }).activity?.icon).toBe("Film");
+  });
+
   it("lists the tools ToolSearch loaded", () => {
     const call: Call = { name: "ToolSearch", detail: { type: "unknown",
       input: { query: "select:mcp__cua-driver__list_windows,mcp__cua-driver__run_steps", max_results: 2 },
@@ -213,6 +221,13 @@ describe("Grok tools", () => {
 });
 
 describe("Cursor, OpenCode and Antigravity tools", () => {
+  it("uses the same skill icon for OpenCode and preserves unknown skills", () => {
+    expect(view({ name: "skill", detail: { type: "unknown", input: { id: "impeccable" } } }).activity?.icon)
+      .toBe("Palette");
+    expect(view({ name: "skill", detail: { type: "unknown", input: { id: "qa" } } }).activity?.icon)
+      .toBe("Sparkles");
+  });
+
   it("draws Cursor's MCP calls on the MCP and Paseo cards, and its task as a subtask", () => {
     expect(view({ name: "other", detail: { type: "unknown", input: { providerIdentifier: "github",
       toolName: "search_pull_requests", args: { query: "tab width" } }, output: { success: true } } }))

@@ -8,6 +8,7 @@
  * Pure: no React, no host hooks.
  */
 import { mcpServiceIcon } from "./mcp-service-icon";
+import { skillIcon } from "./skill-icon";
 import { readTaskNotification } from "./task-notification";
 
 export interface ActivitySection {
@@ -151,7 +152,7 @@ function readClaude({ name, status, detail, input }: ActivityInput): ActivityDat
     }
     case "Skill": {
       const skill = text(detail.label) ?? text(input.skill) ?? text(input.command);
-      return { verb: "Skill", target: skill, meta: [], icon: "Sparkles", sections: [] };
+      return { verb: "Skill", target: skill, meta: [], icon: skillIcon(skill), sections: [] };
     }
     case "SendMessage": {
       const to = text(input.to) ?? text(input.recipient);
@@ -371,7 +372,7 @@ function readOpenCode({ name, status, detail, input }: ActivityInput): ActivityD
     };
   }
   if (name === "skill" && text(input.id)) {
-    return { verb: "Skill", target: text(input.id), meta: [], icon: "Sparkles", sections: [] };
+    return { verb: "Skill", target: text(input.id), meta: [], icon: skillIcon(text(input.id)), sections: [] };
   }
   return undefined;
 }

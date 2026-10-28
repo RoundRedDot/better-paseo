@@ -35,6 +35,26 @@ describe("commandIcon", () => {
     ["npx playwright test", "brand:playwright"],
     ["npx --yes playwright install", "brand:playwright"],
     ["playwright test --ui", "brand:playwright"],
+    ["playwright-cli snapshot", "brand:playwright"],
+    ["npx playwright-cli screenshot", "brand:playwright"],
+    ["agent-browser snapshot --delta", "AppWindow"],
+    ["npx agent-browser open https://example.com", "AppWindow"],
+    ["/home/dev/.claude/skills/gstack/browse/dist/browse snapshot", "AppWindow"],
+    ["npx remotion render", "Film"],
+    ["remotion studio", "Film"],
+    ["npx impeccable detect src/", "Palette"],
+    ["gstack --help", "Layers"],
+    ["npx skills find browser", "Blocks"],
+    ["skills add remotion-dev/skills", "Blocks"],
+    ["firecrawl scrape https://example.com", "Flame"],
+    ["npx firecrawl --help", "Flame"],
+    ["bsk evaluate --session x 'document.title' 2>&1 | tail -20", "AppWindow"],
+    ["bsk upload --help 2>&1 | head -25", "AppWindow"],
+    ["bsk snapshot --session x | head -80", "AppWindow"],
+    ["browserskill snapshot --session x", "AppWindow"],
+    ["/usr/local/bin/bsk snapshot", "AppWindow"],
+    ["cd /w && bsk snapshot", "AppWindow"],
+    ["npx browserskill snapshot", "AppWindow"],
     ["pnpm install", "brand:pnpm"],
     ["cd x && npm test", "brand:npm"],
     ["FOO=1 pnpm build || npm test", "brand:pnpm"],
@@ -49,6 +69,24 @@ describe("commandIcon", () => {
     ["kubectl get pods", "ShipWheel"],
     ["gh pr view 1", "brand:GitHub"],
     ["paseo agent ls", "brand:Paseo"],
+    ["lark-cli skills list", "brand:feishu"],
+    ["tccli cvm DescribeInstances", "Cloud"],
+    ["hyperframes render", "Clapperboard"],
+    ["npx hyperframes check", "Clapperboard"],
+    ["cua-driver --help", "MousePointer2"],
+    ["cua-studio --help", "MousePointer2"],
+    ["lcu --chrome", "MousePointer2"],
+    ["rea --help", "Cpu"],
+    ["andromeld --help", "brand:android"],
+    ["grok --help", "provider:grok"],
+    ["pi --help", "provider:pi"],
+    ["omp --help", "provider:omp"],
+    ["agy --help", "provider:antigravity"],
+    ["amp --help", "Zap"],
+    ["kiro-cli --help", "Ghost"],
+    ["kiro-cli-chat --help", "Ghost"],
+    ["/Users/dev/.local/bin/lcu --chrome", "MousePointer2"],
+    ["cd /w && lark-cli skills list 2>&1 | head -25", "brand:feishu"],
     ["psql -c 'select 1'", "brand:postgresql"],
     ["brew install jq", "Beer"],
     ["curl -s https://x", "Globe"],
@@ -101,6 +139,12 @@ describe("commandIcon", () => {
   it("leaves a program it does not know to the terminal", () => {
     expect(commandIcon("ls -la")).toBeUndefined();
     expect(commandIcon("echo hi")).toBeUndefined();
+  });
+
+  it("uses existing daemon marks for the added services and providers", () => {
+    for (const id of ["brand:feishu", "brand:android", "provider:pi", "lobe:grok", "lobe:antigravity"]) {
+      expect(MARK_IDS.has(id)).toBe(true);
+    }
   });
 
   it("only draws marks the daemon serves", () => {

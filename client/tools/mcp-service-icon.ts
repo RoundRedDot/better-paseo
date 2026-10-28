@@ -65,7 +65,9 @@ const MCP_SERVICE_ICONS: readonly (readonly [RegExp, string])[] = [
   [/chrome/, "brand:chrome"],
   [/iossimulator|simulator|simctl|servesim|^mobile/, "Smartphone"],
   [/xcode/, "brand:apple"],
-  [/android|adb/, "brand:android"],
+  [/android|adb|andromeld/, "brand:android"],
+  [/^(mcpserver)?rea(mcp|server)?$/, "Cpu"],
+  [/noderepl/, "brand:nodejs"],
   // Services the shell rows already know, and common utility servers.
   [/docker/, "brand:docker"],
   [/kubernetes|k8s|kubectl/, "ShipWheel"],
@@ -86,10 +88,11 @@ const MCP_SERVICE_ICONS: readonly (readonly [RegExp, string])[] = [
   [/sequentialthinking/, "Lightbulb"],
   [/^(mcpserver)?time(mcp|server)?$/, "Clock"],
   [/tavily|serper|searxng|kagi|^exa/, "Search"],
-  [/firecrawl/, "Globe"],
-  [/browserbase|browseruse|browsermcp|browsertools/, "AppWindow"],
+  [/firecrawl/, "Flame"],
+  [/uizze/, "PanelsTopLeft"],
+  [/browserbase|browseruse|browsermcp|browsertools|agentbrowser/, "AppWindow"],
   [/desktopcommander/, "SquareTerminal"],
-  [/computeruse|cuadriver/, "MousePointer2"],
+  [/computeruse|cuadriver|cuastudio|^(mcpserver)?lcu(mcp|server)?$/, "MousePointer2"],
 ];
 
 /**
