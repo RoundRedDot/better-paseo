@@ -50,11 +50,12 @@ async function fixture() {
   const read = vi.fn(async () => ({ status: "ready" as const, revision: "1", values }));
   const rename = vi.fn(async () => ({ ok: true, error: null as string | null }));
   const canRename = vi.fn(() => true);
-  const service = createTitleGenerator({ settings: { read, subscribe: () => () => {} }, rename, directory, canRename });
+  const delay = vi.fn(async (_ms: number) => {});
+  const service = createTitleGenerator({ settings: { read, subscribe: () => () => {} }, rename, directory, canRename, delay });
   const state = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "status", mode }, api);
   const start = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "start", mode }, api);
   const settle = async (mode: "apply" | "preview" = "apply") => { await expect.poll(() => state(mode).state).not.toBe("running"); return state(mode); };
-  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, refreshWorkspace, timeline, listModels, snapshot, values, read, rename, canRename, state, start, settle };
+  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, refreshWorkspace, timeline, listModels, snapshot, values, read, rename, canRename, delay, state, start, settle };
 }
 
 describe("background title generation", () => {
@@ -382,6 +383,31 @@ describe("background title generation", () => {
     // A late chunk cannot reopen the settled job.
     chunk({ type: "assistant_message", text: " again" });
     expect(f.state()).toEqual({ state: "done", title: "Updated 中文 title" });
+  });
+
+  it("streams the whole title, then saves it a second after the stream ends", async () => {
+    const f = await fixture();
+    let wake!: () => void;
+    f.delay.mockImplementationOnce(() => new Promise<void>((resolve) => (wake = resolve)));
+    // No live chunks reached the job: the settled reply still streams whole before the save.
+    f.subscribe.mockImplementationOnce(() => { throw new Error("No live timeline"); });
+    f.start();
+    await expect.poll(() => f.delay.mock.calls.length).toBe(1);
+    expect(f.delay).toHaveBeenCalledWith(1000);
+    expect(f.state()).toEqual({ state: "running", helperId: "helper", text: "Updated 中文 title" });
+    expect(f.rename).not.toHaveBeenCalled();
+    wake();
+    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
+    // The source is read again after the wait, so a manual rename meanwhile still wins.
+    expect(f.delay.mock.invocationCallOrder[0]).toBeLessThan(f.refresh.mock.invocationCallOrder[1]!);
+  });
+
+  it("does not wait to return a preview", async () => {
+    const f = await fixture();
+    f.start("preview");
+    expect(await f.settle("preview")).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(f.delay).not.toHaveBeenCalled();
   });
 
   it("starts over when the helper begins a different message", async () => {

@@ -15,7 +15,17 @@ interface Dependencies {
   rename(agentId: string, title: string): Promise<{ ok: boolean; error: string | null }>;
   canRename(): boolean;
   directory: string;
+  /** Waits before saving; tests pass their own. */
+  delay?(ms: number): Promise<void>;
 }
+
+/**
+ * How long a generated title waits after its stream ends before it is saved.
+ * Saving renames the agent and sorts its card anew (newest first in the
+ * archived lane); the card first finishes typing the title out in place.
+ */
+export const TITLE_SAVE_DELAY_MS = 1000;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** A round starts with a user message and includes every assistant reply until the next user message. */
 async function readTitleRounds(timeline: PaseoAgentTimelineHandle, direction: "after" | "tail", count: number) {
@@ -137,6 +147,8 @@ export function createTitleGenerator(deps: Dependencies) {
       const parsed = generatedTitle.safeParse(result.lastMessage);
       if (!parsed.success) throw new Error("The model must return one title between 1 and 80 characters, without explanations or line breaks.");
       title = parsed.data;
+      // The whole title streams, even when live chunks were missed, so the card types it out while the save waits.
+      stream({ text: title, helperId: helper.id });
     } catch (error) {
       generationFailure = error;
       throw error;
@@ -147,6 +159,7 @@ export function createTitleGenerator(deps: Dependencies) {
     }
 
     if (mode === "preview") return title;
+    await (deps.delay ?? sleep)(TITLE_SAVE_DELAY_MS);
     const current = await source.refresh();
     if (!current) throw new Error("The original agent no longer exists.");
     const currentIssue = await taskUpdateIssue(current, paseo);
