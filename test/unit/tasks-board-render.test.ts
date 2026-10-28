@@ -3453,10 +3453,11 @@ describe("Tasks board, phone", () => {
     expect(laneCards("running")).toContain("sample-child-1");
   });
 
-  it("pulses a landed card with the lane flash rhythm, without registering animation copies", () => {
+  it.each([false, true])("pulses a landed card in neutral grey with the lane flash rhythm (dark=%s)", (dark) => {
     act(() => { renderer = TestRenderer.create(screen(true)); });
     const cell = renderer!.root.findAllByType(CardCell)[0]!;
     const props = cell.props as React.ComponentProps<typeof CardCell>;
+    const theme = { ...props.theme, colors: { ...props.theme.colors, surface0: dark ? "#121212" : "#ffffff", accent: "#e11d48" } };
     const store = createLaneMotionStore(true);
     const attach = vi.spyOn(store, "attach");
     const timing = vi.spyOn(Animated, "timing");
@@ -3464,14 +3465,14 @@ describe("Tasks board, phone", () => {
     let copy: TestRenderer.ReactTestRenderer | undefined;
     try {
       act(() => {
-        landed = TestRenderer.create(React.createElement(LaneMotionProvider, { value: store }, React.createElement(CardCell, { ...props, fresh: false })));
+        landed = TestRenderer.create(React.createElement(LaneMotionProvider, { value: store }, React.createElement(CardCell, { ...props, theme, fresh: false })));
       });
       const onArrive = attach.mock.calls[0]![3]!;
       timing.mockClear();
       act(() => onArrive());
       const overlay = landed!.root.find((node) => typeof node.type === "string" && node.props.testID === `card-flash-${props.card.id}`);
       expect(overlay.props.pointerEvents).toBe("none");
-      expect(overlay.props.style).toMatchObject({ backgroundColor: props.theme.colors.accent, borderRadius: 8 });
+      expect(overlay.props.style).toMatchObject({ backgroundColor: dark ? "#ffffff" : "#000000", borderRadius: 8 });
       const flash = timing.mock.calls.filter(([value]) => value === overlay.props.style.opacity);
       expect(flash.map(([, config]) => [config.toValue, config.duration])).toEqual([[0.07, 600], [0, 800], [0.07, 600], [0, 800]]);
       timing.mockClear();
@@ -3479,7 +3480,7 @@ describe("Tasks board, phone", () => {
       expect(timing.mock.calls.filter(([value]) => value === overlay.props.style.opacity)).toHaveLength(4);
       attach.mockClear();
       act(() => {
-        copy = TestRenderer.create(React.createElement(LaneMotionProvider, { value: store }, React.createElement(CardCell, { ...props, copy: true, fresh: false })));
+        copy = TestRenderer.create(React.createElement(LaneMotionProvider, { value: store }, React.createElement(CardCell, { ...props, theme, copy: true, fresh: false })));
       });
       expect(attach).not.toHaveBeenCalled();
     } finally {

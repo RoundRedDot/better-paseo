@@ -383,7 +383,7 @@ export function CardCell(props: CardCellProps) {
         <Animated.View
           pointerEvents="none"
           testID={`card-flash-${card.id}`}
-          style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }}
+          style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: taskTokens(props.theme).isDark ? "#ffffff" : "#000000", opacity: flashOpacity }}
         />
       </Animated.View>
     </View>
