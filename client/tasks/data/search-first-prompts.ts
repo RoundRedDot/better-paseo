@@ -92,3 +92,79 @@ export function useSearchFirstPrompts(api: PaseoApi, lanes: Record<LaneId, LaneM
   if (prompts.current.size !== result.prompts.size || [...result.prompts].some(([id, prompt]) => prompts.current.get(id) !== prompt)) prompts.current = result.prompts;
   return { ...result, prompts: prompts.current };
 }
+
+export interface SearchCoverageControl {
+  subscribe(listener: () => void): () => void;
+  read(): SearchCoverage & { retrying: number };
+  retry(): Promise<void>;
+  prompt(card: TaskCard): FirstPrompt;
+}
+
+/** Shared by a card's retry and the board-wide failed batch. Recheck before every page. */
+export function retrySearchPrompt(api: PaseoApi, card: TaskCard, cardById: (id: string) => TaskCard | undefined): Promise<void> {
+  const ownerId = card.subagent ? card.parent?.id : card.id;
+  const canRead = () => Boolean(ownerId && cardById(card.id) && cardById(ownerId) && !cardById(ownerId)!.closed && !cardById(card.id)!.closed);
+  if (!ownerId || !canRead()) return Promise.resolve();
+  return card.subagent
+    ? requestSubagentFirstPrompt(card.id, ownerId, canRead)
+    : firstPromptStoreFor(api).request(card.id, canRead);
+}
+
+/** Leaf subscribers observe counts directly; a loading tick does not invalidate the board. */
+export function createSearchCoverage(api: PaseoApi, getCards: () => readonly TaskCard[], isActive: () => boolean, cardById: (id: string) => TaskCard | undefined, requests = new Set<Promise<void>>()): SearchCoverageControl {
+  const store = firstPromptStoreFor(api);
+  const listeners = new Set<() => void>();
+  let retrying = 0;
+  let snapshot = { pending: 0, unavailable: 0, failed: 0, retrying: 0 };
+  const publish = () => { for (const listener of listeners) listener(); };
+  const pendingPrompt: FirstPrompt = { state: "idle" };
+  return {
+    prompt(card) {
+      const prompt = (card.subagent ? subagentFirstPrompts : store).read(card.id);
+      return prompt.state === "loading" || prompt.state === "idle" ? pendingPrompt : prompt;
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      const own = store.subscribe(listener);
+      const sub = subagentFirstPrompts.subscribe(listener);
+      return () => { listeners.delete(listener); own(); sub(); };
+    },
+    read() {
+      const next = { pending: 0, unavailable: 0, failed: 0, retrying };
+      if (isActive()) for (const card of getCards()) {
+        const prompt = (card.subagent ? subagentFirstPrompts : store).read(card.id);
+        if (prompt.state === "ready" || prompt.state === "none") continue;
+        const owner = cardById(card.subagent ? card.parent?.id ?? "" : card.id);
+        if (card.closed || !owner || owner.closed) next.unavailable++;
+        else if (prompt.state === "error") next.failed++;
+        else next.pending++;
+      }
+      if (Object.keys(next).some((key) => next[key as keyof typeof next] !== snapshot[key as keyof typeof snapshot])) snapshot = next;
+      return snapshot;
+    },
+    async retry() {
+      if (!isActive() || retrying) return;
+      const batch = getCards().filter((card) => {
+        const owner = cardById(card.subagent ? card.parent?.id ?? "" : card.id);
+        return !card.closed && owner && !owner.closed && (card.subagent ? subagentFirstPrompts : store).read(card.id).state === "error";
+      });
+      if (!batch.length) return;
+      retrying = batch.length;
+      publish();
+      let index = 0;
+      const work = async () => {
+        while (isActive() && index < batch.length) {
+          // Retries share the automatic reader's four slots, including reads already in flight.
+          if (requests.size >= 4) { await Promise.race(requests); continue; }
+          const request = retrySearchPrompt(api, batch[index++]!, cardById);
+          requests.add(request);
+          await request;
+          requests.delete(request);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, batch.length) }, () => work()));
+      retrying = 0;
+      publish();
+    },
+  };
+}

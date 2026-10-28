@@ -53,9 +53,9 @@ const messages = createLastMessageStore(api);
 export { prompts as subagentFirstPrompts };
 
 /** Search and details share the first-message cache; a subagent always names its own parent. */
-export function requestSubagentFirstPrompt(subagentId: string, parentAgentId: string): Promise<void> {
+export function requestSubagentFirstPrompt(subagentId: string, parentAgentId: string, canRead?: () => boolean): Promise<void> {
   parents.set(subagentId, parentAgentId);
-  return prompts.request(subagentId);
+  return prompts.request(subagentId, canRead);
 }
 
 /**
