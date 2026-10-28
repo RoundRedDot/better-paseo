@@ -249,12 +249,12 @@ export function DesktopBoard(props: {
     ? tabletSidebarWidth(boardWidth, floatingDragWidth ?? preference.floatingWidth)
     : sidebarWidth(boardWidth, dragWidth ?? preference.width, floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
-  const laneWidth = boardLaneLayout(lanesWidth, laneOrder, collapsed, board.laneWidth).laneWidth;
+  const laneWidth = boardLaneLayout(boardWidth, laneOrder, collapsed, board.laneWidth).laneWidth;
   // What the user sized the lanes with: a change to it eases the lanes to their new widths.
   const sizing = `${collapsedState.filter((id) => id !== "archived").join()}|${board.laneWidth}`;
   const archivedSwitch = useArchivedSwitch(laneOrder, lanes.archived, laneWidth, board.visible);
   // An outgoing lane still occupies its slot until the complete panel has slid out.
-  const layout = boardLaneLayout(lanesWidth, archivedSwitch.drawn, collapsedState, board.laneWidth);
+  const layout = boardLaneLayout(boardWidth, archivedSwitch.drawn, collapsedState, board.laneWidth, lanesWidth);
   // A floating panel covers the lanes' right side: the row scrolls far enough for the last lane to come out from under it.
   const coverRoom = floating && !inSheet ? panelWidth + SIDEBAR.gap : 0;
 
@@ -295,8 +295,8 @@ export function DesktopBoard(props: {
   }, [selectedGone]);
 
   const floatWidth = Platform.OS === "ios" ? tabletSidebarWidth(boardWidth, preference.floatingWidth) : sidebarWidth(boardWidth, preference.width, "floating");
-  const latest = useRef({ board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed });
-  latest.current = { board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, floatWidth, laneWidth: layout.laneWidth, collapsed };
+  const latest = useRef({ board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed });
+  latest.current = { board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed };
   const sheetMode = mode === "sheet";
   const sheetModeRef = useRef(sheetMode);
   sheetModeRef.current = sheetMode;
@@ -341,12 +341,12 @@ export function DesktopBoard(props: {
       const now = latest.current;
       const folded = now.collapsed.includes(lane);
       if (folded) setCollapsed((current) => current.filter((id) => id !== lane));
-      const laneWidth = folded ? boardLaneLayout(lanesWidth, laneOrder, now.collapsed.filter((id) => id !== lane), board.laneWidth).laneWidth : now.laneWidth;
-      const cover = inSheet ? LANES.edge : floating ? now.floatWidth + 2 * SIDEBAR.gap : now.boardWidth - lanesWidth;
+      const laneWidth = folded ? boardLaneLayout(now.boardWidth, now.board.laneOrder, now.collapsed.filter((id) => id !== lane), now.board.laneWidth).laneWidth : now.laneWidth;
+      const cover = now.inSheet ? LANES.edge : now.floating ? now.floatWidth + 2 * SIDEBAR.gap : now.boardWidth - now.lanesWidth;
       const scrolled = uncover(lane, cover, laneWidth);
       setFlash((was) => ({ lane, key: (was?.key ?? 0) + 1, delay: scrolled ? LANE_FLASH.afterScrollMs : 0 }));
     },
-    [setCollapsed, lanesWidth, laneOrder, board.laneWidth, inSheet, floating, uncover],
+    [setCollapsed, uncover],
   );
 
   const reveal = useCallback(
@@ -643,6 +643,7 @@ export function DesktopBoard(props: {
         </Modal.Content>
       </Modal>
       <View
+        testID="tasks-board-area"
         style={{ flex: 1, minHeight: 0, flexDirection: "row", overflow: "hidden" }}
         onLayout={(event) => {
           setBoardWidth(Math.floor(event.nativeEvent.layout.width));
@@ -827,7 +828,7 @@ function LaneGap(props: { onPress(): void }) {
 /**
  * The inline sidebar: a column at the board's right, 12 from its edge, its
  * left inset holding the drag handle on web. A drag
- * resizes the column and the lanes as it goes, at most once a frame; the
+ * resizes the column and the lanes' viewport, at most once a frame; the
  * release keeps the width. A double click puts 380 back.
  */
 function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme; onDrag(width: number | null): void; onResize(width: number): void; children: React.ReactNode }) {
@@ -875,12 +876,14 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
     setResizing(handle, true);
     setDragging(true);
     let frame = 0;
+    let pointerY = event.nativeEvent.clientY;
     const move = (moved: PointerEvent) => {
       width = clampWidth(width0 + (x0 - moved.pageX));
-      follow(moved.clientY);
+      pointerY = moved.clientY;
       if (!frame) {
         frame = requestAnimationFrame(() => {
           frame = 0;
+          follow(pointerY);
           props.onDrag(width);
         });
       }
@@ -902,7 +905,7 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
     <View
       ref={handleRef}
       {...resizeHandleProps}
-      {...({ onPointerDown: start, onPointerMove: (event: { nativeEvent: { clientY: number } }) => follow(event.nativeEvent.clientY) } as object)}
+      {...({ onPointerDown: start, onPointerMove: (event: { nativeEvent: { clientY: number } }) => { if (!dragging) follow(event.nativeEvent.clientY); } } as object)}
       style={{ position: "absolute", left: 0, top: 4, bottom: 12, width: 8, zIndex: 5, ...({ cursor: "col-resize", touchAction: "none" } as object) }}
       testID="sidebar-resize"
     >

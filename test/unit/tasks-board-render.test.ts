@@ -934,9 +934,9 @@ describe("Tasks board, desktop", () => {
     const swap = hostParentOf(pressable("Expand lane: Waiting").findAll((node) => typeof node.type === "string")[0]!)!;
     expect(StyleSheet.flatten(swap.props.style)).toMatchObject({ width: 40, opacity: { __value: 0 } });
     expect(clip("running")).toBe(340);
-    // The board's own width (a window resize, the sidebar's edge dragged) is followed at once.
-    const share = (1400 - 392 - 2 * 12 - 3 * 8 - 40) / 3;
-    layOut(1400);
+    // A window resize changes lane sizing at once, independently of the sidebar.
+    const share = (1100 - 2 * 12 - 3 * 8 - 40) / 3;
+    layOut(1100);
     expect(clip("running")).toBe(share);
     // A lane width the user switched to: every expanded lane eases there.
     const button = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && String(node.props.accessibilityLabel).startsWith("Lanes · "))[0]!;
@@ -1232,8 +1232,12 @@ describe("Tasks board, desktop", () => {
     }
   });
 
-  it("shows the desktop sidebar grabber only while the panel is hovered or dragged", () => {
+  it.each([
+    [1300, "narrow"], [1300, "default"], [1300, "wide"],
+    [1600, "narrow"], [1600, "default"], [1600, "wide"],
+  ] as const)("keeps %s pt %s lanes stable while the desktop sidebar is resized and toggled", (width, size) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true, laneWidth: size } };
     const listeners = new Map<string, (event: { pageX: number; clientY: number }) => void>();
     vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
     vi.stubGlobal("document", {
@@ -1245,7 +1249,9 @@ describe("Tasks board, desktop", () => {
     vi.stubGlobal("cancelAnimationFrame", clearTimeout);
     try {
       act(() => { renderer = TestRenderer.create(screen(false)); });
-      layOut(2000);
+      layOut(width);
+      const laneWidths = () => [...LANE_ORDER, "archived"].map((id) => StyleSheet.flatten(hostsById(`lane-surface-${id}`)[0]!.props.style).width);
+      const originalWidths = laneWidths();
       const handle = hostsById("sidebar-resize")[0]!;
       const panel = StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style);
       const handleStyle = StyleSheet.flatten(handle.props.style);
@@ -1265,12 +1271,28 @@ describe("Tasks board, desktop", () => {
       act(() => handle.props.onPointerDown({ nativeEvent: { pageX: 1000, clientY: 200 } }));
       act(() => hostsById("sidebar-inline")[0]!.props.onPointerLeave());
       expect(grabberOpacity()).toBe(0.5);
-      act(() => listeners.get("pointermove")!({ pageX: 950, clientY: 200 }));
-      act(() => { vi.advanceTimersByTime(16); });
+      const sidebar = () => hostsById("details-sidebar")[0]!;
+      const layoutSidebar = (width: number) => sidebar().props.onLayout({ nativeEvent: { layout: { width, height: 800 } } });
+      act(() => layoutSidebar(380));
+      const content = sidebar().props.children;
+      let redraws = 0;
+      for (let delta = 1; delta <= 50; delta++) {
+        act(() => listeners.get("pointermove")!({ pageX: 1000 - delta, clientY: 200 }));
+        act(() => { vi.advanceTimersByTime(16); });
+        act(() => layoutSidebar(380 + delta));
+        if (sidebar().props.children !== content) redraws++;
+      }
+      expect(redraws).toBe(0);
       expect(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).width).toBe(430);
+      expect(laneWidths()).toEqual(originalWidths);
       act(() => listeners.get("pointerup")!({ pageX: 950, clientY: 200 }));
       expect(grabberOpacity()).toBe(0);
       expect(readSidebarPreference().width).toBe(430);
+      expect(laneWidths()).toEqual(originalWidths);
+      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+      expect(laneWidths()).toEqual(originalWidths);
+      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+      expect(laneWidths()).toEqual(originalWidths);
       expect(listeners.has("pointermove")).toBe(false);
       expect(listeners.has("pointerup")).toBe(false);
     } finally {
@@ -1278,6 +1300,28 @@ describe("Tasks board, desktop", () => {
       renderer = undefined;
       vi.unstubAllGlobals();
     }
+  });
+
+  it.each([false, true])("keeps sidebar content stable during window resizing (selected=%s)", (selected) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1300);
+    if (selected) act(() => cards()[0]!.props.onSelect(cards()[0]!.props.card));
+    const sidebar = () => hostsById("details-sidebar")[0]!;
+    const layoutSidebar = (height: number) => sidebar().props.onLayout({ nativeEvent: { layout: { width: 380, height } } });
+    act(() => layoutSidebar(800));
+    const content = sidebar().props.children;
+    for (let delta = 1; delta <= 50; delta++) {
+      act(() => hostsById("tasks-board-area")[0]!.props.onLayout({ nativeEvent: { layout: { width: 1300 + delta, height: 800 - delta } } }));
+      act(() => layoutSidebar(800 - delta));
+      expect(sidebar().props.children).toBe(content);
+    }
+    // Window resizing still changes lane widths and switches the short-column layout.
+    expect(StyleSheet.flatten(hostsById("lane-surface-running")[0]!.props.style).width).toBe((1350 - 48) / 4);
+    act(() => layoutSidebar(639));
+    expect(hostsById("details-sidebar-scroll")).toHaveLength(1);
+    act(() => layoutSidebar(640));
+    expect(hostsById("details-sidebar-scroll")).toHaveLength(0);
   });
 
   it.each([2000, 600])("preserves the panel silhouette and selected styling at %i pt", (width) => {

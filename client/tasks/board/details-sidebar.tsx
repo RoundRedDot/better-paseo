@@ -53,8 +53,8 @@ export const DetailsSidebar = memo(DetailsSidebarView);
 function DetailsSidebarView(props: DetailsSidebarProps) {
   const { board, theme, selection, dispatch } = props;
   const tokens = taskTokens(theme);
-  const [height, setHeight] = useState(0);
-  const [width, setWidth] = useState(0);
+  // Pixel-by-pixel resizes only change the browser's layout, not this subtree.
+  const [layout, setLayout] = useState({ short: false, wide: false });
   const card = selection.id ? board.cardById(selection.id) : undefined;
   useParentTitle(board, card);
   const shown = card && selection.id ? findCard(board.lanes, selection.id) !== null : false;
@@ -103,8 +103,8 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   // the header still: the fixed part left the sections a strip of 80. There
   // the whole column scrolls as one.
   // A wide sheet lays a card out in two columns that scroll on their own, so the header stays in view.
-  const columns = props.scrollAll === true && detailProps !== null && width >= SHEET_COLUMNS;
-  const short = !columns && (props.scrollAll === true || (height > 0 && height < SHORT_COLUMN));
+  const columns = props.scrollAll === true && detailProps !== null && layout.wide;
+  const short = !columns && (props.scrollAll === true || layout.short);
   const content = (
     <>
       {props.stats === false ? null : <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />}
@@ -116,10 +116,10 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
     </>
   );
   const onLayout = (event: { nativeEvent: { layout: { width: number; height: number } } }) => {
-    const next = Math.round(event.nativeEvent.layout.height);
-    const across = Math.round(event.nativeEvent.layout.width);
-    setHeight((was) => (was === next ? was : next));
-    setWidth((was) => (was === across ? was : across));
+    const height = Math.round(event.nativeEvent.layout.height);
+    const short = height > 0 && height < SHORT_COLUMN;
+    const wide = Math.round(event.nativeEvent.layout.width) >= SHEET_COLUMNS;
+    setLayout((was) => was.short === short && was.wide === wide ? was : { short, wide });
   };
   if (short) {
     return (

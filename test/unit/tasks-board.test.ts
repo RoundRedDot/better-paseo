@@ -616,6 +616,22 @@ describe("stopped manually", () => {
 describe("lane widths", () => {
   const fixed = (lanes: number, collapsed: number) => 2 * LANES.edge + (lanes - 1) * LANES.gap + collapsed * LANES.collapsed;
 
+  it.each(["narrow", "default", "wide"] as const)("sizes %s lanes independently of the sidebar's viewport", (size) => {
+    for (const width of [1020, 1300, 1600, 2000]) {
+      for (const order of [ACTIVE_LANE_ORDER, LANE_ORDER]) {
+        for (const collapsed of [[], ["running"], ACTIVE_LANE_ORDER] as const) {
+          const full = boardLaneLayout(width, order, collapsed, size);
+          for (const sidebar of [0, 272, 392, 612, 812]) {
+            const viewport = width - sidebar;
+            const layout = boardLaneLayout(width, order, collapsed, size, viewport);
+            const extent = fixed(order.length, collapsed.length) + (order.length - collapsed.length) * full.laneWidth;
+            expect(layout).toEqual({ laneWidth: full.laneWidth, contentWidth: Math.max(viewport, extent), scroll: extent > viewport });
+          }
+        }
+      }
+    }
+  });
+
   it.each(["narrow", "default", "wide"] as const)("keeps %s lane widths when archived is shown, hidden or folded", (size) => {
     for (const viewport of [200, 540, 600, 700, 1000, 1120, 1300, 1600, 2000]) {
       for (let count = 0; count < ACTIVE_LANE_ORDER.length; count++) {

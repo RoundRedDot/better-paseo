@@ -10,8 +10,7 @@ type Resize = { from: number; to: number };
 /**
  * A desktop lane's width. It eases to a new width when the user changed the
  * lanes' sizing (`sizing`: a lane collapsed or expanded, the lane width
- * switched), and takes it at once otherwise: the board resized, the
- * sidebar's edge dragged, the sidebar shown or put away. A change that lands
+ * switched), and takes it at once otherwise: the board resized. A change that lands
  * mid-way starts from where the lane is. No motion when reduced.
  *
  * Only the lane's clip moves: its content takes the new width at once, so a
