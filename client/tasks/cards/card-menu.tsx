@@ -14,7 +14,7 @@ import type { CardFilterKind, CardFilterState } from "../board/filter-options";
 import type { cardStrings } from "./strings";
 import { TaskRenameDialog } from "./rename-dialog";
 
-export const CARD_MENU_WIDTH = 240;
+export const CARD_MENU_WIDTH = 280;
 
 export interface CardMenuActions {
   open?(): void;
@@ -53,48 +53,48 @@ export interface CardMenuActions {
  */
 export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof cardStrings>, actions: CardMenuActions): MenuSection[] {
   const location = card.location;
-  const copies: [key: string, label: string, toast: string, icon: string, text: string | null][] = [
+  const copies: [key: string, label: string, toast: string, icon: string, shortcut: string, text: string | null][] = [
     // A provider subagent's id is its tool call's, not a session's.
-    ["copy-id", strings.copySessionId, "Copy session ID", "Hash", card.subagent ? null : card.id],
-    ["copy-title", strings.copyTitle, "Copy title", "Type", card.title.trim() || null],
-    ["copy-workspace", strings.copyWorkspace, "Copy workspace name", "Folder", location.workspaceTitle ?? location.workspaceName],
-    ["copy-project", strings.copyProject, "Copy project name", "Box", location.projectName],
+    ["copy-id", strings.copySessionId, "Copy session ID", "Hash", "I", card.subagent ? null : card.id],
+    ["copy-title", strings.copyTitle, "Copy title", "Type", "C", card.title.trim() || null],
+    ["copy-workspace", strings.copyWorkspace, "Copy workspace name", "Folder", "W", location.workspaceTitle ?? location.workspaceName],
+    ["copy-project", strings.copyProject, "Copy project name", "Box", "P", location.projectName],
   ];
   const stop = actions.stop;
   const filters = actions.filters;
   // Each row's second line names the value it filters to.
-  const filterRows: [CardFilterKind, string, string, string | null][] = [
-    ["agent", strings.filterAgent, "Bot", card.providerLabel || card.provider],
-    ["project", strings.filterProject, "Box", location.projectName],
-    ["workspace", strings.filterWorkspace, "Folder", location.workspaceTitle ?? location.workspaceName ?? location.branch],
+  const filterRows: [CardFilterKind, string, string, string, string | null][] = [
+    ["agent", strings.filterAgent, "Bot", "G", card.providerLabel || card.provider],
+    ["project", strings.filterProject, "Box", "P", location.projectName],
+    ["workspace", strings.filterWorkspace, "Folder", "W", location.workspaceTitle ?? location.workspaceName ?? location.branch],
   ];
   const filterItems = filters
-    ? filterRows.flatMap(([by, label, icon, detail]) => {
+    ? filterRows.flatMap(([by, label, icon, shortcut, detail]) => {
         const on = filters.state[by];
-        return on === null ? [] : [{ key: `filter-${by}`, label, icon, detail: detail ?? undefined, checked: on, onSelect: () => filters.select(by) }];
+        return on === null ? [] : [{ key: `filter-${by}`, label, icon, shortcut, detail: detail ?? undefined, checked: on, onSelect: () => filters.select(by) }];
       })
     : [];
   const sections: MenuSection[] = [
     {
       key: "open",
       items: [
-        ...(actions.open ? [{ key: "open", label: strings.openTab, icon: "ArrowUpRight", onSelect: actions.open }] : []),
-        ...(!card.subagent && actions.rename ? [{ key: "rename", label: strings.renameTitle, icon: "Pencil", keepOpen: true, onSelect: actions.rename }] : []),
-        ...(!card.subagent && actions.autoTitle ? [{ key: "auto-title", label: actions.autoTitlePending ? strings.autoTitlePending : strings.autoTitle, icon: "Sparkles", leading: actions.autoTitleLeading, disabled: actions.autoTitlePending, onSelect: actions.autoTitle }] : []),
-        ...(actions.openParent ? [{ key: "open-parent", label: strings.openParent, icon: "CornerLeftUp", onSelect: actions.openParent }] : []),
-        ...(actions.revealParent ? [{ key: "reveal-parent", label: strings.revealParentCard, icon: "LocateFixed", onSelect: actions.revealParent }] : []),
+        ...(actions.open ? [{ key: "open", label: strings.openTab, icon: "ArrowUpRight", shortcut: "Enter", onSelect: actions.open }] : []),
+        ...(!card.subagent && actions.rename ? [{ key: "rename", label: strings.renameTitle, icon: "Pencil", shortcut: "R", keepOpen: true, onSelect: actions.rename }] : []),
+        ...(!card.subagent && actions.autoTitle ? [{ key: "auto-title", label: actions.autoTitlePending ? strings.autoTitlePending : strings.autoTitle, icon: "Sparkles", shortcut: "T", leading: actions.autoTitleLeading, disabled: actions.autoTitlePending, onSelect: actions.autoTitle }] : []),
+        ...(actions.openParent ? [{ key: "open-parent", label: strings.openParent, icon: "CornerLeftUp", shortcut: "O", onSelect: actions.openParent }] : []),
+        ...(actions.revealParent ? [{ key: "reveal-parent", label: strings.revealParentCard, icon: "LocateFixed", shortcut: "L", onSelect: actions.revealParent }] : []),
       ],
     },
     {
       key: "copy",
       items: copies
-        .filter((entry): entry is [string, string, string, string, string] => !!entry[4])
-        .map(([key, label, toast, icon, text]) => ({ key, label, icon, onSelect: () => actions.copy(text, toast) })),
+        .filter((entry): entry is [string, string, string, string, string, string] => !!entry[5])
+        .map(([key, label, toast, icon, shortcut, text]) => ({ key, label, icon, shortcut, onSelect: () => actions.copy(text, toast) })),
     },
     {
       key: "filter",
       items: filterItems.length
-        ? [{ key: "filter", label: strings.filter, icon: "ListFilter", submenu: [{ key: "filter", items: filterItems }] }]
+        ? [{ key: "filter", label: strings.filter, icon: "ListFilter", shortcut: "F", submenu: [{ key: "filter", items: filterItems }] }]
         : [],
     },
     {
@@ -107,23 +107,24 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
                     key: "stop",
                     label: strings.stop,
                     icon: "Power",
+                    shortcut: "S",
                     danger: true,
                     submenu: [
                       {
                         key: "stop",
                         items: [
-                          { key: "stop-only", label: strings.stopOnlyThis, icon: "Power", danger: true, onSelect: () => stop(false) },
-                          { key: "stop-all", label: strings.stopWithChildren, icon: "ListTree", leading: actions.stopAllLeading, hint: String(actions.children), danger: true, onSelect: () => stop(true) },
+                          { key: "stop-only", label: strings.stopOnlyThis, icon: "Power", shortcut: "S", danger: true, onSelect: () => stop(false) },
+                          { key: "stop-all", label: strings.stopWithChildren, icon: "ListTree", shortcut: "A", leading: actions.stopAllLeading, hint: String(actions.children), danger: true, onSelect: () => stop(true) },
                         ],
                       },
                     ],
                   }
-                : { key: "stop", label: actions.childrenOnly ? strings.stopChildren : strings.stop, icon: "Power", danger: true, onSelect: () => stop(actions.childrenOnly === true) },
+                : { key: "stop", label: actions.childrenOnly ? strings.stopChildren : strings.stop, icon: "Power", shortcut: "S", danger: true, onSelect: () => stop(actions.childrenOnly === true) },
             ]
           : []),
-        ...(actions.read ? [{ key: "read", label: strings.markRead, icon: "CheckCheck", onSelect: actions.read }] : []),
-        ...(actions.unarchive ? [{ key: "unarchive", label: strings.details.unarchive, icon: "ArchiveRestore", onSelect: actions.unarchive }] : []),
-        ...(actions.archive ? [{ key: "archive", label: strings.details.archive, icon: "Archive", onSelect: actions.archive }] : []),
+        ...(actions.read ? [{ key: "read", label: strings.markRead, icon: "CheckCheck", shortcut: "U", onSelect: actions.read }] : []),
+        ...(actions.unarchive ? [{ key: "unarchive", label: strings.details.unarchive, icon: "ArchiveRestore", shortcut: "A", onSelect: actions.unarchive }] : []),
+        ...(actions.archive ? [{ key: "archive", label: strings.details.archive, icon: "Archive", shortcut: "A", onSelect: actions.archive }] : []),
       ],
     },
   ];

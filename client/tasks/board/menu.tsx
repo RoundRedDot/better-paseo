@@ -160,8 +160,12 @@ export function CascadeMenu(props: CascadeMenuProps) {
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
-    const onKey = (event: KeyboardEvent) => {
+    const onKey = (event: KeyboardEvent, ownsActivation = false) => {
+      if ((event.defaultPrevented && !ownsActivation) || event.isComposing || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
       const now = latest.current;
+      const target = event.target as HTMLElement | null;
+      const typing = target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"]');
+      if (typing && !now.searching) return;
       if (event.key === "Escape" && now.query && now.focus.open === null) {
         event.preventDefault();
         event.stopPropagation();
@@ -169,13 +173,19 @@ export function CascadeMenu(props: CascadeMenuProps) {
         searchRef.current?.focus();
         return;
       }
-      const result = menuKeyReducer(now.focus, event.key, now.topItems, now.subItems);
+      const result = menuKeyReducer(now.focus, event.key, now.topItems, now.subItems, !now.searching && !typing);
       if (!result.handled) return;
       event.preventDefault();
       event.stopPropagation();
+      if (event.repeat && !event.key.startsWith("Arrow")) return;
+      clearTimer();
       setFocus(result.focus);
       if (result.effect?.type === "close") now.onClose();
       if (result.effect?.type === "select") choose(result.effect.level, result.effect.index);
+    };
+    // As with card activation, Enter belongs to the menu even if a host shortcut consumed it.
+    const onActivationKey = (event: KeyboardEvent) => {
+      if (event.key === "Enter") onKey(event, true);
     };
     const onPointerDown = (event: PointerEvent) => {
       const menu = containerRef.current as unknown as HTMLElement | null;
@@ -186,9 +196,12 @@ export function CascadeMenu(props: CascadeMenuProps) {
     };
     // Capture, ahead of the board's own keys.
     const doc = document;
+    const view = globalThis.window;
+    view?.addEventListener("keydown", onActivationKey, true);
     doc.addEventListener("keydown", onKey, true);
     doc.addEventListener("pointerdown", onPointerDown, true);
     return () => {
+      view?.removeEventListener("keydown", onActivationKey, true);
       doc.removeEventListener("keydown", onKey, true);
       doc.removeEventListener("pointerdown", onPointerDown, true);
     };
@@ -516,6 +529,7 @@ function MenuRow(props: { item: MenuItem; theme: PluginTheme; chrome: MenuChrome
         </Text>
       )}
       {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}
+      {Platform.OS === "web" && item.shortcut ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{item.shortcut === "Enter" ? "↵" : item.shortcut.toUpperCase()}</Text> : null}
       {item.checked ? <Icon name="Check" size={14} color={colors.accent} /> : item.checked === false ? <View style={{ width: 14 }} /> : null}
       {item.submenu ? <Icon name="ChevronRight" size={12} color={colors.foregroundMuted} /> : null}
     </Pressable>

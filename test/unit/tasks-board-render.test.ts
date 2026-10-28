@@ -1960,6 +1960,47 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it.each(["selected", "virtual", "dom"])("opens the %s card menu with period, Shift+F10 and ContextMenu", (mode) => {
+    try {
+      const browser = renderFocusBoard();
+      const dispatchEvent = vi.fn();
+      const node = { inBoard: true, dispatchEvent, getBoundingClientRect: () => ({ left: 80, top: 120 }) };
+      const lookup = vi.fn(() => node);
+      Object.assign(browser.doc, { getElementById: lookup });
+      vi.stubGlobal("MouseEvent", class {
+        constructor(public type: string, init: object) { Object.assign(this, init); }
+      });
+      expect(browser.key(".").preventDefault).not.toHaveBeenCalled();
+      const selected = cards().find((card) => card.props.card.id === "sample-running")!;
+      if (mode === "selected") act(() => selected.props.onSelect(selected.props.card));
+      if (mode === "virtual") browser.key("j");
+      if (mode === "dom") browser.focus("sample-done");
+      const id = mode === "selected" ? selected.props.card.id : mode === "dom" ? "sample-done" : cards().find((card) => card.props.focused)!.props.card.id;
+      for (const [key, options] of [[".", {}], ["F10", { shiftKey: true }], ["ContextMenu", {}]] as const) {
+        expect(browser.key(key, false, options).preventDefault).toHaveBeenCalledOnce();
+        expect(lookup).toHaveBeenLastCalledWith(`task-card-${id}`);
+        expect(dispatchEvent).toHaveBeenLastCalledWith(expect.objectContaining({ type: "contextmenu", clientX: 96, clientY: 136, bubbles: true, cancelable: true }));
+      }
+      dispatchEvent.mockClear();
+      for (const flags of [{ repeat: true }, { isComposing: true }, { shiftKey: true }, { ctrlKey: true }, { altKey: true }, { metaKey: true }]) browser.key(".", false, flags);
+      expect(dispatchEvent).not.toHaveBeenCalled();
+      browser.doc.activeElement = { inBoard: true, tagName: "INPUT" };
+      expect(browser.key(".").preventDefault).not.toHaveBeenCalled();
+      browser.doc.activeElement = { inBoard: false };
+      expect(browser.key(".").preventDefault).not.toHaveBeenCalled();
+      browser.doc.activeElement = browser.root;
+      Object.assign(browser.root, { querySelector: () => ({}) });
+      expect(browser.key("Enter").preventDefault).not.toHaveBeenCalled();
+      expect(browser.key("a").preventDefault).not.toHaveBeenCalled();
+      expect(browser.key(".").preventDefault).not.toHaveBeenCalled();
+      expect(openAgent).not.toHaveBeenCalled();
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("handles preview and open when the host consumes activation at window capture", () => {
     writeSidebarPreference({ open: false, width: 380 });
     try {

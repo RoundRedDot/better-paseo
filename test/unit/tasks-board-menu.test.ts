@@ -101,6 +101,21 @@ describe("menu geometry and keys", () => {
     { key: "b", title: "Group", items: [leaf("two", { submenu: sub }), leaf("off", { disabled: true }), leaf("three")] },
   ];
 
+  it("selects menu-local keys, enters submenus and leaves disabled or search keys alone", () => {
+    const top = [leaf("open", { shortcut: "Enter" }), leaf("off", { shortcut: "T", disabled: true }), leaf("filter", { shortcut: "F", submenu: sub })];
+    const subs = [leaf("project", { shortcut: "P" }), leaf("workspace", { shortcut: "W" })];
+    expect(menuKeyReducer(MENU_FOCUS, "Enter", top, null).effect).toEqual({ type: "select", level: 0, index: 0 });
+    expect(menuKeyReducer(MENU_FOCUS, "t", top, null).handled).toBe(false);
+    const opened = menuKeyReducer(MENU_FOCUS, "f", top, null);
+    expect(opened.focus).toEqual({ level: 1, top: 2, sub: 0, open: 2 });
+    expect(opened.effect).toBeNull();
+    expect(menuKeyReducer(opened.focus, "w", top, subs).effect).toEqual({ type: "select", level: 1, index: 1 });
+    expect(menuKeyReducer(opened.focus, "f", top, subs).handled).toBe(false);
+    expect(menuKeyReducer(MENU_FOCUS, "f", top, null, false).handled).toBe(false);
+    // Enter continues to activate the highlighted row, instead of always choosing Open.
+    expect(menuKeyReducer({ ...MENU_FOCUS, top: 2 }, "Enter", top, null).focus.open).toBe(2);
+  });
+
   it("places every row from Linear's fixed metrics", () => {
     const { rows, height } = layoutMenu(sections);
     const firstGroup = MENU.padV;
@@ -388,6 +403,84 @@ describe("CascadeMenu", () => {
     const branch = row("Branch");
     expect(branch.findAll((node) => (node.type as unknown) === "Icon").map((icon) => icon.props.name)).toEqual(["GitBranch", "ChevronRight"]);
     expect(textOf(branch)).toBe("BranchA→Z");
+  });
+
+  it.each([LIGHT, DARK])("draws muted shortcut hints beside counts and submenu chevrons", (colors) => {
+    vi.stubGlobal("__rnMockOS", "web");
+    try {
+      render([{ key: "actions", items: [
+        { key: "open", label: "Open", shortcut: "Enter" },
+        { key: "filter", label: "Filter", shortcut: "F", hint: "3", submenu: [] },
+      ] }], colors);
+      expect(textOf(row("Open"))).toBe("Open↵");
+      expect(textOf(row("Filter"))).toBe("Filter3F");
+      const shortcut = row("Filter").findAll((node) => (node.type as unknown) === "Text").at(-1)!;
+      expect(shortcut.props.style.color).toBe(colors.foregroundMuted);
+      expect(row("Filter").findAll((node) => (node.type as unknown) === "Icon").at(-1)!.props.name).toBe("ChevronRight");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("runs shortcuts once through the menu action and ignores modifiers, composition and text entry", () => {
+    const handlers: ((event: unknown) => void)[] = [];
+    vi.stubGlobal("document", {
+      addEventListener: (type: string, fn: (event: unknown) => void) => { if (type === "keydown") handlers.push(fn); },
+      removeEventListener() {},
+    });
+    vi.stubGlobal("__rnMockOS", "web");
+    close.mockClear();
+    picked.mockClear();
+    try {
+      render([{ key: "actions", items: [
+        { key: "filter", label: "Filter", shortcut: "F", submenu: [{ key: "filter", items: [{ key: "workspace", label: "Workspace", shortcut: "W", onSelect: picked }] }] },
+        { key: "read", label: "Read", shortcut: "U", keepOpen: true, onSelect: picked },
+      ] }]);
+      const press = (key: string, flags: object = {}) => {
+        const event = { key, preventDefault: vi.fn(), stopPropagation: vi.fn(), ...flags };
+        act(() => handlers[0]!(event));
+        return event;
+      };
+      for (const flags of [{ ctrlKey: true }, { metaKey: true }, { altKey: true }, { shiftKey: true }, { isComposing: true }, { repeat: true }, { target: { closest: () => ({}) } }]) press("u", flags);
+      expect(picked).not.toHaveBeenCalled();
+      expect(press("u").stopPropagation).toHaveBeenCalledOnce();
+      expect(picked).toHaveBeenCalledOnce();
+      expect(close).not.toHaveBeenCalled();
+      press("f");
+      expect(submenu()).toHaveLength(1);
+      press("w");
+      expect(picked).toHaveBeenCalledTimes(2);
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("owns Enter before host and board activation, including a host-consumed event", () => {
+    const add = vi.fn();
+    const remove = vi.fn();
+    vi.stubGlobal("document", { addEventListener() {}, removeEventListener() {} });
+    vi.stubGlobal("window", { addEventListener: add, removeEventListener: remove });
+    vi.stubGlobal("__rnMockOS", "web");
+    close.mockClear();
+    picked.mockClear();
+    try {
+      render([{ key: "open", items: [{ key: "open", label: "Open", shortcut: "Enter", onSelect: picked }] }]);
+      const [type, handler, capture] = add.mock.calls[0]!;
+      expect([type, capture]).toEqual(["keydown", true]);
+      const event = { key: "Enter", defaultPrevented: true, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+      act(() => handler({ ...event, target: { closest: () => ({}) } }));
+      expect(picked).not.toHaveBeenCalled();
+      act(() => handler(event));
+      expect(picked).toHaveBeenCalledOnce();
+      expect(close).toHaveBeenCalledOnce();
+      expect(event.stopPropagation).toHaveBeenCalledOnce();
+      act(() => renderer!.unmount());
+      renderer = undefined;
+      expect(remove).toHaveBeenCalledWith("keydown", handler, true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("opens a submenu after 150 ms of hover, and fills the hovered row", () => {

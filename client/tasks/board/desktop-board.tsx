@@ -440,11 +440,24 @@ export function DesktopBoard(props: {
       if (event.metaKey || event.ctrlKey || event.altKey || (event.defaultPrevented && !ownsActivation)) return;
       const root = rootRef.current as unknown as HTMLElement | null;
       const active = document.activeElement as HTMLElement | null;
+      if (root?.querySelector?.('[data-testid="task-card-menu"]')) return;
       if (active && active !== document.body && root && !root.contains(active)) return;
       if (isTyping(active)) return;
       const now = latest.current;
       const domCardId = focusedTaskCardId(root);
       const keyFocus = domCardId ? findCard(now.board.lanes, domCardId) : now.focus;
+      if (!event.isComposing && !now.menu && ((event.key === "." && !event.shiftKey) || (event.key === "F10" && event.shiftKey) || event.key === "ContextMenu")) {
+        const card = keyFocus ? now.board.lanes[keyFocus.lane].cards[keyFocus.index] : now.selection.id ? now.board.cardById(now.selection.id) : null;
+        if (!card) return;
+        const node = document.getElementById(`task-card-${card.id}`);
+        if (!node || !root?.contains(node)) return;
+        event.preventDefault();
+        if (event.repeat) return;
+        const rect = node.getBoundingClientRect();
+        // Reuse the card's right-click path and its current action availability.
+        node.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: rect.left + 16, clientY: rect.top + 16 }));
+        return;
+      }
       // Enter and Space on toolbar/sidebar/inner-card controls belong to those controls.
       if ((event.key === "Enter" || event.key === " ") && active && active !== document.body && active !== root && !domCardId) return;
       if (event.key === "Escape" && now.menu) {
@@ -529,6 +542,7 @@ export function DesktopBoard(props: {
     const onCaptureKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.metaKey || event.ctrlKey || event.altKey) return;
       const root = rootRef.current as unknown as HTMLElement | null;
+      if (root?.querySelector?.('[data-testid="task-card-menu"]')) return;
       const active = document.activeElement as HTMLElement | null;
       const inBoard = !!active && !!root && root.contains(active);
       const disarmed = latest.current.board.stop.cancelAll();

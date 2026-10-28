@@ -79,6 +79,9 @@ import { CardButton } from "../../client/tasks/cards/action-buttons";
 import { ActionRow } from "../../client/tasks/cards/action-row";
 import { TasksTypographyScale } from "../../client/tasks/typography";
 import { OVERLAY_ROW_Z } from "../../client/tasks/cards/task-card";
+import { cardMenuSections, type CardMenuActions } from "../../client/tasks/cards/card-menu";
+import { cardStrings } from "../../client/tasks/cards/strings";
+import { MENU_FOCUS, menuKeyReducer, selectableItems, type MenuSection } from "../../client/tasks/board/menu-model";
 
 afterAll(() => {
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
@@ -601,6 +604,49 @@ describe("TaskCardView on web", () => {
 });
 
 describe("TaskCardView right-click menu", () => {
+  it.each(["running", "done", "archived", "child"])("gives every available %s menu row a unique working shortcut in its panel", (state) => {
+    const actions: CardMenuActions = {
+      copy: vi.fn(), children: state === "running" ? 2 : 0,
+      open: state !== "archived" ? vi.fn() : undefined,
+      rename: vi.fn(), autoTitle: vi.fn(), autoTitlePending: true,
+      stop: state === "running" ? vi.fn() : undefined,
+      read: state === "done" ? vi.fn() : undefined,
+      archive: state === "done" ? vi.fn() : undefined,
+      unarchive: state === "archived" ? vi.fn() : undefined,
+      openParent: state === "child" ? vi.fn() : undefined,
+      revealParent: state === "child" ? vi.fn() : undefined,
+      filters: { state: { agent: false, project: true, workspace: false }, select: vi.fn() },
+    };
+    const sections = cardMenuSections(props("sample-running").card, cardStrings("en"), actions);
+    const verify = (sections: MenuSection[]) => {
+      const rows = sections.flatMap((section) => section.items);
+      const shortcuts = rows.map((row) => row.shortcut);
+      expect(shortcuts.every(Boolean)).toBe(true);
+      expect(new Set(shortcuts).size).toBe(shortcuts.length);
+      const enabled = selectableItems(sections);
+      for (const row of rows) {
+        const result = menuKeyReducer(MENU_FOCUS, row.shortcut!.toLowerCase() === "enter" ? "Enter" : row.shortcut!.toLowerCase(), enabled, null);
+        expect(result.handled).toBe(!row.disabled);
+        if (row.disabled) continue;
+        if (row.submenu) {
+          expect(result.focus).toMatchObject({ level: 1, open: enabled.indexOf(row) });
+          verify(row.submenu);
+          continue;
+        }
+        expect(result.effect).toEqual({ type: "select", level: 0, index: enabled.indexOf(row) });
+        row.onSelect!();
+      }
+    };
+    verify(sections);
+    expect(actions.copy).toHaveBeenCalledWith("sample-running", "Copy session ID");
+    expect(actions.rename).toHaveBeenCalledOnce();
+    expect(actions.autoTitle).not.toHaveBeenCalled();
+    if (actions.stop) {
+      expect(actions.stop).toHaveBeenCalledWith(false);
+      expect(actions.stop).toHaveBeenCalledWith(true);
+    }
+  });
+
   const rows = (root: ReactTestInstance) =>
     root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem").map((node) => texts(node)[0]);
   const choose = (root: ReactTestInstance, label: string) =>

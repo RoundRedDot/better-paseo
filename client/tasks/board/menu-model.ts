@@ -57,6 +57,8 @@ export interface MenuItem {
   detail?: string;
   /** Muted text at the right: a count, the active direction. */
   hint?: string;
+  /** A menu-local key, displayed at the right and active while its panel is open. */
+  shortcut?: string;
   /** A check mark at the right: the current choice. `false` keeps its room, so a column of hints stays aligned. */
   checked?: boolean;
   submenu?: MenuSection[];
@@ -224,9 +226,18 @@ export function menuKeyReducer(
   key: string,
   top: readonly MenuItem[],
   sub: readonly MenuItem[] | null,
+  shortcuts = true,
 ): { focus: MenuFocus; effect: MenuKeyEffect; handled: boolean } {
   const step = (index: number, length: number, by: number) => (length === 0 ? -1 : index < 0 ? (by > 0 ? 0 : length - 1) : (index + by + length) % length);
   const inSub = focus.level === 1 && sub !== null;
+  const items = sub ?? top;
+  const index = shortcuts && (key !== "Enter" || (inSub ? focus.sub : focus.top) < 0)
+    ? items.findIndex((item) => !item.disabled && item.shortcut?.toLowerCase() === key.toLowerCase())
+    : -1;
+  if (index >= 0) {
+    if (items[index]!.submenu) return { focus: { level: 1, top: index, sub: 0, open: index }, effect: null, handled: true };
+    return { focus, effect: { type: "select", level: sub ? 1 : 0, index }, handled: true };
+  }
   if (key === "ArrowDown" || key === "ArrowUp") {
     const by = key === "ArrowDown" ? 1 : -1;
     const next = inSub ? { ...focus, sub: step(focus.sub, sub!.length, by) } : { ...focus, top: step(focus.top, top.length, by), open: null };
