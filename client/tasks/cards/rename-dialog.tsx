@@ -16,6 +16,8 @@ export function TaskRenameDialog(props: {
   theme: PluginTheme;
   canAutoTitle?: boolean;
   autoTitlePending?: boolean;
+  blockedReason?: string;
+  autoTitleBlockedReason?: string;
   onClose(): void;
 }) {
   const rename = useRpc(tasksRenameRpc);
@@ -38,7 +40,8 @@ export function TaskRenameDialog(props: {
   const scale = useTasksFontScale();
   const colors = props.theme.colors;
   const inputLineHeight = Math.round(HOST_LINE.base * scale);
-  const disabled = pending || generating || !title.trim() || title.trim() === props.title;
+  const disabled = !!props.blockedReason || pending || generating || !title.trim() || title.trim() === props.title;
+  const autoDisabled = !!props.blockedReason || !!props.autoTitleBlockedReason || pending || generating || props.autoTitlePending === true;
   const save = async () => {
     if (saving.current || disabled) return;
     saving.current = true;
@@ -71,7 +74,7 @@ export function TaskRenameDialog(props: {
               scrollEnabled={false}
               onContentSizeChange={Platform.OS === "web" ? (event) => setContentHeight(event.nativeEvent.contentSize.height) : undefined}
               onChangeText={(value) => { setTitle(value); setError(null); }}
-              editable={!pending && !generating}
+              editable={!props.blockedReason && !pending && !generating}
               autoFocus
               selectTextOnFocus
               returnKeyType="done"
@@ -80,15 +83,16 @@ export function TaskRenameDialog(props: {
               style={{ width: "100%", minHeight: taskControlHeight(44, scale), height: Platform.OS === "web" ? Math.max(taskControlHeight(44, scale), contentHeight) : undefined, textAlignVertical: "center", lineHeight: inputLineHeight, includeFontPadding: false, paddingHorizontal: 12, paddingVertical: Math.max(10, (taskControlHeight(44, scale) - inputLineHeight - 2) / 2), borderWidth: 1, borderRadius: 8, borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface0, fontSize: Math.round(F.base * scale) }}
             />
             {error ? <Text accessibilityRole="alert" style={{ fontSize: F.sm, color: colors.statusDanger }}>{error}</Text> : null}
+            {props.blockedReason || props.autoTitleBlockedReason ? <Text accessibilityRole="alert" testID="task-rename-unavailable" style={{ fontSize: F.sm, color: colors.statusWarning }}>{props.blockedReason ?? props.autoTitleBlockedReason}</Text> : null}
             <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
               {props.canAutoTitle ? <Pressable testID="task-rename-auto-title" accessibilityRole="button" accessibilityLabel={props.strings.generateTitle}
-                accessibilityState={{ disabled: pending || generating || props.autoTitlePending === true, busy: generating || props.autoTitlePending === true }} disabled={pending || generating || props.autoTitlePending === true}
+                accessibilityState={{ disabled: autoDisabled, busy: generating || props.autoTitlePending === true }} disabled={autoDisabled}
                 onPress={() => {
-                  if (saving.current || props.autoTitlePending) return;
+                  if (saving.current || autoDisabled) return;
                   setError(null);
                   preview.start(props.agentId);
                 }}
-                style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8, opacity: pending || generating || props.autoTitlePending ? 0.5 : 1 }}>
+                style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8, opacity: autoDisabled ? 0.5 : 1 }}>
                 {generating ? <ActivityIndicator testID="task-rename-title-loading" size="small" color={colors.foreground} /> : <Icon name="Sparkles" size={18} color={colors.foreground} />}
                 <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{props.strings.generateTitle}</Text>
               </Pressable> : null}

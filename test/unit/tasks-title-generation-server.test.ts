@@ -23,7 +23,7 @@ async function fixture() {
   });
   const create = vi.fn(async () => ({ id: "helper", run, timeline: { subscribe } }));
   const workspace = vi.fn(async () => ({ agents: { create }, archive }));
-  const original = { project: { projectKey: "source-project" } as { projectKey: string } | null, agent: { title: "Original", workspaceId: "source-ws", archivedAt: null as string | null,
+  const original = { project: { projectKey: "source-project" } as { projectKey: string } | null, agent: { title: "Original", cwd: directory, workspaceId: "source-ws", archivedAt: null as string | null,
     provider: "codex", model: "gpt-5.5" as string | null, thinkingOptionId: "high" as string | null, effectiveThinkingOptionId: "xhigh" as string | null } };
   const refresh = vi.fn(async () => original);
   const timeline = vi.fn(async (_options: { direction: string; cursor?: { epoch: string; seq: number } }) => ({
@@ -44,7 +44,8 @@ async function fixture() {
     { id: "claude-haiku-5-5", thinkingOptions: [{ id: "off", label: "Off" }, { id: "high", label: "High" }] },
   ] }));
   const refreshWorkspace = vi.fn(async (): Promise<{ projectId: string } | null> => ({ projectId: "source-project" }));
-  const api = { providers: { listModels }, agents: { ref: vi.fn(() => ({ refresh, timeline: { refetch: timeline } })) }, workspaces: { create: workspace, ref: () => ({ refresh: refreshWorkspace }) } } as unknown as PaseoApi;
+  const snapshot = vi.fn(async () => ({ entries: [{ provider: "codex", enabled: true, status: "ready" }, { provider: "claude", enabled: true, status: "ready" }] }));
+  const api = { providers: { listModels, snapshot }, agents: { ref: vi.fn(() => ({ refresh, timeline: { refetch: timeline } })) }, workspaces: { create: workspace, ref: () => ({ refresh: refreshWorkspace }) } } as unknown as PaseoApi;
   const values = titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "claude", model: "claude-haiku-5-5", prompt: "Use an actionable title" });
   const read = vi.fn(async () => ({ status: "ready" as const, revision: "1", values }));
   const rename = vi.fn(async () => ({ ok: true, error: null as string | null }));
@@ -53,10 +54,39 @@ async function fixture() {
   const state = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "status", mode }, api);
   const start = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "start", mode }, api);
   const settle = async (mode: "apply" | "preview" = "apply") => { await expect.poll(() => state(mode).state).not.toBe("running"); return state(mode); };
-  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, refreshWorkspace, timeline, listModels, values, read, rename, canRename, state, start, settle };
+  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, refreshWorkspace, timeline, listModels, snapshot, values, read, rename, canRename, state, start, settle };
 }
 
 describe("background title generation", () => {
+  it.each(["apply", "preview"] as const)("rejects a recycled workspace before reading history or creating a helper (%s)", async (mode) => {
+    const f = await fixture();
+    f.original.agent.cwd = join(f.directory, "recycled-worktree");
+    f.start(mode);
+    expect(await f.settle(mode)).toMatchObject({ state: "error", error: expect.stringContaining("directory_missing") });
+    expect(f.timeline).not.toHaveBeenCalled();
+    expect(f.create).not.toHaveBeenCalled();
+    expect(f.rename).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the working directory after generation before writing the title", async () => {
+    const f = await fixture();
+    f.run.mockImplementationOnce(async () => {
+      f.original.agent.cwd = join(f.directory, "recycled-during-generation");
+      return { status: "idle", lastMessage: "New title", error: null };
+    });
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "error", error: expect.stringContaining("directory_missing") });
+    expect(f.archive).toHaveBeenCalledTimes(1);
+    expect(f.rename).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unavailable provider without provisioning a helper", async () => {
+    const f = await fixture();
+    f.snapshot.mockResolvedValue({ entries: [{ provider: "claude", enabled: false, status: "unavailable" }] });
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "error", error: expect.stringContaining("provider_unavailable") });
+    expect(f.workspace).not.toHaveBeenCalled();
+  });
   it("streams previews and cleans up without renaming, separately from direct updates", async () => {
     const f = await fixture();
     let finish!: () => void;
@@ -449,21 +479,17 @@ describe("background title generation", () => {
     expect(f.rename).not.toHaveBeenCalled();
   });
 
-  it.each(["apply", "preview"] as const)("generates a title after the source agent and workspace are archived (%s)", async (mode) => {
+  it.each(["apply", "preview"] as const)("blocks title generation when the source workspace is unavailable (%s)", async (mode) => {
     const f = await fixture();
     f.original.agent.archivedAt = "2026-10-27T00:00:00Z";
     f.refreshWorkspace.mockResolvedValue(null);
     f.start(mode);
-    expect(await f.settle(mode)).toEqual({ state: "done", title: "Updated 中文 title" });
-    expect(f.refreshWorkspace).not.toHaveBeenCalled();
-    expect(f.workspace).toHaveBeenCalledExactlyOnceWith({ source: { kind: "directory", path: f.directory, projectId: "source-project" }, background: true, title: "Title generation" });
+    expect(await f.settle(mode)).toEqual({ state: "error", error: expect.stringContaining("workspace_unavailable") });
+    expect(f.refreshWorkspace).toHaveBeenCalledTimes(1);
+    expect(f.workspace).not.toHaveBeenCalled();
     expect(f.original.agent.archivedAt).toBe("2026-10-27T00:00:00Z");
-    expect(f.archive).toHaveBeenCalledTimes(1);
-    if (mode === "preview") {
-      expect(f.rename).not.toHaveBeenCalled();
-      return;
-    }
-    expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
+    expect(f.archive).not.toHaveBeenCalled();
+    expect(f.rename).not.toHaveBeenCalled();
   });
 
   it("reports missing project placement without provisioning a helper", async () => {

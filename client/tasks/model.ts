@@ -1,3 +1,5 @@
+import type { TaskAvailability } from "../../shared/task-availability";
+
 /**
  * The Tasks board's view model: what the data layer (`client/tasks/data/`)
  * produces and the cards, board and settings preview draw. Plain data, no
@@ -194,6 +196,7 @@ export interface TaskChild {
 }
 
 export interface TaskCard {
+  availability?: TaskAvailability;
   id: string;
   /** The agent's title, else a fallback such as the first prompt line or "Untitled". */
   title: string;

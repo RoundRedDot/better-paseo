@@ -29,6 +29,9 @@ import {
 } from "./params";
 import { BOARD_STRINGS, type BoardStrings } from "./strings";
 import { useBoardClock, useBoardVisible } from "./visibility";
+import { useTaskAvailability } from "../availability";
+import { taskIssueText } from "../cards/availability-tag";
+import type { TaskOperation } from "../../../shared/task-availability";
 
 /** What both layouts share: settings, data after the filters, the clock, and the card callbacks. */
 export interface BoardController {
@@ -267,7 +270,9 @@ export function useBoard(
   const laneOrder = boardLaneOrder(showArchived);
   // Closed, the board's data stays warm a while, so a quick reopen sends nothing.
   // After a reconnect the last cards stand in until the store is ready.
-  const tasks = useCarriedTasks(hostId, options, useTasks(paseo, options, lingerBoard));
+  const visible = useBoardVisible(rootRef, compact);
+  const availability = useTaskAvailability(useCarriedTasks(hostId, options, useTasks(paseo, options, lingerBoard)), visible, hostId);
+  const tasks = availability.tasks;
   // A save reads the whole record back as new objects: the fields keep their identity while they hold, so a switch on the board re-renders no card.
   const cardFields = effectiveCard(settings, compact);
   const fieldsRef = useRef(cardFields);
@@ -285,7 +290,6 @@ export function useBoard(
     });
   }, []);
 
-  const visible = useBoardVisible(rootRef, compact);
   const clock = useBoardClock(visible);
   // Whether an agent still runs or waits, for the stop's check that it took.
   const byIdRef = useRef(tasks.byId);
@@ -362,8 +366,19 @@ export function useBoard(
   }, []);
 
   // Callbacks read the latest values through a ref, so the memoized cards see stable functions.
-  const latest = useRef({ props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes });
-  latest.current = { props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes };
+  const latest = useRef({ props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language });
+  latest.current = { props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language };
+  const write = useCallback((agentId: string, operation: TaskOperation, action: () => void) => {
+    const current = latest.current;
+    void current.availability.check(agentId, operation).then((issue) => {
+      if (latest.current.paseo !== current.paseo) return;
+      if (issue) {
+        latest.current.toast.error(taskIssueText(issue, latest.current.language));
+        return;
+      }
+      action();
+    });
+  }, []);
   const setLaneWidth = useCallback((width: LaneWidth) => {
     void updateDevice({ laneWidth: width }).catch(() => latest.current.toast.error(latest.current.strings.laneWidth.saveFailed));
   }, [updateDevice]);
@@ -420,9 +435,9 @@ export function useBoard(
       onStop: stopAvailable ? (card, stopOptions) => latest.current.stop.press(card, stopOptions) : undefined,
       onCancelStop: (agentId) => latest.current.stop.cancel(agentId),
       // The server cannot reach the daemon itself: no Mark read either.
-      onRead: readAvailable ? (card) => latest.current.read.press(card) : undefined,
-      onUnarchive: unarchiveAvailable ? (agentId) => latest.current.unarchive.press(agentId) : undefined,
-      onArchive: (agentId) => latest.current.archive.press(agentId),
+      onRead: readAvailable ? (card) => write(card.id, "read", () => latest.current.read.press(card)) : undefined,
+      onUnarchive: unarchiveAvailable ? (agentId) => write(agentId, "unarchive", () => latest.current.unarchive.press(agentId)) : undefined,
+      onArchive: (agentId) => write(agentId, "archive", () => latest.current.archive.press(agentId)),
       onPermission: (card, button) => {
         if (button.kind === "open") {
           open(card.id);
@@ -430,16 +445,22 @@ export function useBoard(
         }
         const requestId = card.permission?.requestId;
         if (!requestId) return;
-        respondToPermission(latest.current.paseo, card.id, button, requestId).catch((error: unknown) =>
-          latest.current.toast.error(latest.current.strings.answerFailed(errorText(error))),
-        );
+        write(card.id, "permission", () => {
+          void respondToPermission(latest.current.paseo, card.id, button, requestId).catch((error: unknown) =>
+            latest.current.toast.error(latest.current.strings.answerFailed(errorText(error))),
+          );
+        });
       },
       onDetails: (card) => handlers.current?.details(card),
       onFilter: (card, by) => setParams((current) => filterToCard(current, card, latest.current.tasks.workspaces, by)),
       filterState: (card) => cardFilterState(paramsRef.current, card, latest.current.tasks.workspaces),
     }),
-    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates],
+    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates, write],
   );
+
+  const guardedRead = useMemo(() => ({ ...read, press: (card: TaskCard) => write(card.id, "read", () => read.press(card)) }), [read, write]);
+  const guardedUnarchive = useMemo(() => ({ ...unarchive, press: (agentId: string) => write(agentId, "unarchive", () => unarchive.press(agentId)) }), [unarchive, write]);
+  const guardedArchive = useMemo(() => ({ ...archive, press: (agentId: string) => write(agentId, "archive", () => archive.press(agentId)) }), [archive, write]);
 
   return {
     hostId,
@@ -472,9 +493,9 @@ export function useBoard(
     clock,
     visible,
     stop,
-    read,
-    unarchive,
-    archive,
+    read: guardedRead,
+    unarchive: guardedUnarchive,
+    archive: guardedArchive,
     callbacks,
     buttonsFor,
     requestIcon: fields.projectIcon ? requestProjectIcon : undefined,

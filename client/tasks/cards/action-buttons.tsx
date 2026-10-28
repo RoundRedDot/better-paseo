@@ -25,6 +25,7 @@ export function CardButton(props: {
   compact: boolean;
   /** Working: dimmed, a spinner in place of the icon, and no second press. */
   busy?: boolean;
+  disabled?: boolean;
   /** A phone's icon-only button, as wide as it is high; the label is read out. */
   square?: boolean;
   /** On a phone, as wide as its label: "Open tab" beside it takes the rest. */
@@ -38,7 +39,8 @@ export function CardButton(props: {
   const forcedSquare = compact && props.square === true;
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
-  const hovered = hover && !props.busy;
+  const disabled = props.busy || props.disabled;
+  const hovered = hover && !disabled;
   const answer = kind === "answer";
   const hue = buttonHue(tokens, kind);
   const color = hue.color;
@@ -53,8 +55,8 @@ export function CardButton(props: {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.accessibilityLabel ?? props.label}
-      accessibilityState={props.busy ? { disabled: true, busy: true } : undefined}
-      disabled={props.busy}
+      accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
+      disabled={disabled}
       onPress={props.onPress}
       {...hoverProps}
       testID={props.testID}
@@ -71,7 +73,7 @@ export function CardButton(props: {
         alignItems: "center",
         justifyContent: "center",
         gap: 5,
-        opacity: props.busy ? 0.6 : 1,
+        opacity: disabled ? 0.6 : 1,
         ...webTransition,
         ...fit.style,
       }}

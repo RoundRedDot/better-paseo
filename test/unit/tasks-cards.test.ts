@@ -142,6 +142,8 @@ import { providerBrand } from "../../client/components/provider-logo";
 import { seedMarkBitmaps } from "../../client/components/marks";
 import { mix, withAlpha } from "../../client/components/theme-tokens";
 import { identityColor, projectIconRadius, projectInitial, projectViewKey } from "../../client/tasks/cards/project-icon";
+import { unavailableTask } from "../../shared/task-availability";
+import { LANE_ORDER } from "../../client/tasks/model";
 
 const LIGHT = {
   colors: {
@@ -172,6 +174,49 @@ const DARK = {
 };
 
 const NOW = Date.parse("2026-10-20T09:00:00.000Z");
+
+describe("unavailable task operations", () => {
+  it.each(LANE_ORDER)("shows a warning independently of card fields in the %s lane", async (lane) => {
+    const card = { ...sampleCards(NOW)[0]!, lane, availability: unavailableTask({ code: "directory_missing", detail: "/removed/worktree" }) };
+    const tree = await render(cardElement(card, { compact: true, fields: fields("minimal") }));
+    const tag = hostByTestId(tree.root, "task-availability-tag");
+    expect(icons(tag)).toContain("TriangleAlert");
+    expect(texts(tag)).toContain("工作目录不存在");
+    await act(async () => tag.props.onPress({ stopPropagation() {} }));
+    expect(texts(hostByTestId(tree.root, "task-availability-hint")).join("")).toContain("/removed/worktree");
+  });
+
+  it.each([LIGHT, DARK])("uses a readable warning tint and an overlay on hover", async (theme) => {
+    const card = { ...sampleCards(NOW)[0]!, availability: unavailableTask({ code: "directory_inaccessible", detail: "/protected/worktree" }) };
+    const tree = await render(cardElement(card, { theme }));
+    const tag = hostByTestId(tree.root, "task-availability-tag");
+    const color = tag.findByType("Icon" as never).props.color;
+    expect(contrastRatio(color, tag.props.style.backgroundColor)).toBeGreaterThanOrEqual(4.5);
+    await act(async () => tag.props.onHoverIn());
+    expect(hostByTestId(tree.root, "task-availability-hint").props.style.position).toBe("absolute");
+    await act(async () => tag.props.onHoverOut());
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-availability-hint")).toHaveLength(0);
+  });
+
+  it("keeps disabled menu actions visible with reasons and leaves copy and stop available", () => {
+    const card = { ...sampleCards(NOW)[0]!, availability: unavailableTask({ code: "directory_missing", detail: "/removed/worktree" }) };
+    const stop = vi.fn();
+    const items = cardMenuSections(card, cardStrings("en"), { copy() {}, children: 0, rename() {}, autoTitle() {}, archive() {}, unarchive() {}, read() {}, stop }).flatMap((section) => section.items);
+    for (const key of ["rename", "auto-title", "archive", "unarchive", "read"]) {
+      expect(items.find((item) => item.key === key)).toMatchObject({ disabled: true, detail: "Working directory missing\n/removed/worktree", onSelect: undefined });
+    }
+    expect(items.find((item) => item.key === "copy-title")?.disabled).toBeUndefined();
+    expect(items.find((item) => item.key === "stop")?.disabled).toBeUndefined();
+  });
+
+  it.each(["card", "details", "bar"])("disables archive on the %s surface", async (surface) => {
+    const card = { ...sample("sample-done"), availability: unavailableTask({ code: "directory_missing", detail: "/removed/worktree" }) };
+    const archive = { pending: () => false, press: vi.fn() };
+    const props = { card, theme: LIGHT, language: "zh" as const, strings: BOARD_STRINGS.zh.sidebar, archive };
+    const tree = await render(surface === "card" ? cardElement(card, { compact: true, onArchive: archive.press }) : surface === "details" ? React.createElement(TaskDetailCards, props) : React.createElement(DetailActionBar, props));
+    expect(hostByTestId(tree.root, surface === "card" ? "task-card-archive" : surface === "details" ? "detail-archive" : "detail-bar-archive").props.disabled).toBe(true);
+  });
+});
 /** The running sample's start, 12m 30s before NOW, in the machine's time zone. */
 const RUNNING_START = formatClockTime(NOW - 12 * 60_000 - 30_000, NOW);
 

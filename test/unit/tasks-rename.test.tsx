@@ -71,6 +71,27 @@ async function reveal(expected: string) {
 }
 
 describe("task title editor", () => {
+  it("disables an already open editor when the workspace becomes unavailable", async () => {
+    await renderDialog({ canAutoTitle: true });
+    await act(async () => input().props.onChangeText("New title"));
+    await act(async () => tree.update(<TaskRenameDialog agentId="agent-a" title="Original" strings={cardStrings("en")} theme={theme} onClose={onClose} canAutoTitle blockedReason="Working directory missing" />));
+    expect(save().props.disabled).toBe(true);
+    expect(input().props.editable).toBe(false);
+    const automatic = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title");
+    expect(automatic.props.disabled).toBe(true);
+    await act(async () => { save().props.onPress(); automatic.props.onPress(); });
+    expect(rpc.rename).not.toHaveBeenCalled();
+    expect(rpc.generate).not.toHaveBeenCalled();
+  });
+
+  it("keeps manual editing available when only automatic titles are unavailable", async () => {
+    await renderDialog({ canAutoTitle: true, autoTitleBlockedReason: "Title model unavailable" });
+    await act(async () => input().props.onChangeText("New title"));
+    expect(save().props.disabled).toBe(false);
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-auto-title").props.disabled).toBe(true);
+    await act(async () => save().props.onPress());
+    expect(rpc.rename).toHaveBeenCalledWith({ agentId: "agent-a", title: "New title" });
+  });
   it("does not restart the reveal when the final result trims streamed whitespace", async () => {
     rpc.generate.mockResolvedValueOnce({ state: "running", text: "New title\n" })
       .mockResolvedValueOnce({ state: "done", title: "New title" });

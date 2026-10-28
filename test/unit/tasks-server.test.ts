@@ -2,13 +2,14 @@ import { chmod, mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
+import type { PaseoApi } from "@getpaseo/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { subagentTimelineRowSchema } from "../../shared/tasks-rpc";
 
 const { execCommand } = vi.hoisted(() => ({ execCommand: vi.fn() }));
 vi.mock("@getpaseo/plugin/server", () => ({ execCommand }));
 
-type Handler = (input: unknown) => Promise<unknown>;
+type Handler = (input: unknown, context: { paseo: PaseoApi }) => Promise<unknown>;
 
 let tempRoot = "";
 let originalPaseoCli: string | undefined;
@@ -51,7 +52,8 @@ async function registerHandlers(host: HostAccess = noHost): Promise<Map<string, 
 async function invoke<T>(handlers: Map<string, Handler>, name: string, input: unknown): Promise<T> {
   const handler = handlers.get(name);
   if (!handler) throw new Error(`Missing test handler: ${name}`);
-  return await handler(input) as T;
+  const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: tempRoot, workspaceId: "workspace-a" } }) }) }, workspaces: { ref: () => ({ refresh: async () => ({ id: "workspace-a" }) }) } } as unknown as PaseoApi;
+  return await handler(input, { paseo }) as T;
 }
 
 const validJson = JSON.stringify({ stoppedCount: 1, agentIds: ["agent-a"] });
@@ -402,7 +404,7 @@ describe("Tasks server read RPC", () => {
     expect(Number.isFinite(Date.parse(reads[0]!.readAt))).toBe(true);
   });
 
-  it("marks a stored agent whose working directory is gone on the board only: the daemon cannot load it", async () => {
+  it("rejects reads for recycled workspaces without clearing attention or writing local marks", async () => {
     const gone = join(tempRoot, "removed-worktree");
     const { host, clearAgentAttention, close } = fakeHost(async () => {}, {
       "agent-stored": { cwd: gone, status: "closed" },
@@ -411,14 +413,15 @@ describe("Tasks server read RPC", () => {
     });
     const handlers = await registerHandlers(host);
 
-    await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-stored"] })).resolves.toEqual({ ok: true, error: null });
+    await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-stored"] })).resolves.toEqual({ ok: false, error: `Task operation unavailable (directory_missing): ${gone}` });
     expect(clearAgentAttention).not.toHaveBeenCalled();
-    // A loaded agent, or a stored one with its directory, the daemon clears.
-    await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-stored", "agent-live", "agent-kept"] })).resolves.toEqual({ ok: true, error: null });
-    expect(clearAgentAttention).toHaveBeenCalledWith(["agent-live", "agent-kept"]);
-    expect(close).toHaveBeenCalledTimes(2);
+    await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-kept", "agent-live"] })).resolves.toMatchObject({ ok: false });
+    expect(clearAgentAttention).not.toHaveBeenCalled();
+    await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-kept"] })).resolves.toEqual({ ok: true, error: null });
+    expect(clearAgentAttention).toHaveBeenCalledWith(["agent-kept"]);
+    expect(close).toHaveBeenCalledTimes(3);
     const { reads } = await invoke<{ reads: Array<{ agentId: string }> }>(handlers, "tasks.reads", {});
-    expect(reads.map((read) => read.agentId).sort()).toEqual(["agent-kept", "agent-live", "agent-stored"]);
+    expect(reads.map((read) => read.agentId)).toEqual(["agent-kept"]);
   });
 
   it("reports a bad id, an unreachable daemon, and a daemon that never answers", async () => {

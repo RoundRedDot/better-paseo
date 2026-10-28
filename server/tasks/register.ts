@@ -11,6 +11,8 @@ import { createSessionTokenReader, type SessionTokenReader } from "./session-tok
 import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
 import { registerTitleGeneration } from "./title-generation";
+import { tasksAvailabilityRpc } from "../../shared/task-availability";
+import { createTaskAvailability, taskDirectoryIssue, taskIssueError, taskUpdateIssue } from "./availability";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
@@ -211,14 +213,6 @@ async function renameAgent(host: HostDaemonAccess, agentId: string, title: strin
   }
 }
 
-async function directoryExists(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
 type ProjectIconEntry = { projectId: string; icon: { data: string; mimeType: string; color: string | null } | null };
 
 /**
@@ -299,16 +293,6 @@ async function readLabels(host: HostDaemonAccess): Promise<Array<{ name: string;
   }
 }
 
-/**
- * Whether the daemon can clear the agent: it resumes a stored ("closed") agent
- * first, which fails where its working directory is gone (a worktree the
- * agent removed), and then sends no answer at all.
- */
-async function isClearable(daemon: HostDaemon, agentId: string): Promise<boolean> {
-  const agent = (await daemon.fetchAgent(agentId))?.agent;
-  return !agent || agent.status !== "closed" || (await directoryExists(agent.cwd));
-}
-
 async function markRead(host: HostDaemonAccess, agentIds: string[]): Promise<{ ok: boolean; error: string | null }> {
   if (!agentIds.every((agentId) => AGENT_ID_PATTERN.test(agentId))) return { ok: false, error: "Invalid agent ID." };
   const daemon = await host.connect();
@@ -319,13 +303,15 @@ async function markRead(host: HostDaemonAccess, agentIds: string[]): Promise<{ o
       timer = setTimeout(() => reject(new Error("timeout")), READ_TIMEOUT_MS);
     });
     const clear = async () => {
-      const clearable = await Promise.all(agentIds.map((agentId) => isClearable(daemon, agentId)));
-      // One the daemon cannot load keeps its attention there; the board's read mark moves its card.
-      const ids = agentIds.filter((_, index) => clearable[index]);
-      if (ids.length > 0) await daemon.clearAgentAttention(ids);
+      for (const agentId of agentIds) {
+        const source = await daemon.fetchAgent(agentId);
+        const issue = source ? await taskDirectoryIssue(source.agent.cwd) : { code: "agent_missing" as const, detail: null };
+        if (issue) return { ok: false, error: taskIssueError(issue) };
+      }
+      await daemon.clearAgentAttention(agentIds);
+      return { ok: true, error: null };
     };
-    await Promise.race([clear(), timeout]);
-    return { ok: true, error: null };
+    return await Promise.race([clear(), timeout]);
   } catch {
     return { ok: false, error: "The Paseo daemon did not mark the agent read." };
   } finally {
@@ -351,7 +337,9 @@ export function registerTasksServer(
   tokens: SessionTokenReader = createSessionTokenReader(),
 ): void {
   server.registerSettings(TASKS_SETTINGS);
-  registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available);
+  const titleSettings = registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available);
+  const availability = createTaskAvailability(titleSettings, host.available, async () => (await resolveCli()) !== null);
+  server.handle(tasksAvailabilityRpc, (input, { paseo }) => availability(paseo, input.agentIds));
   // A new turn means a new prompt: the agent is no longer "stopped manually", nor read.
   server.on("agent.turn_started", async ({ agent }, context) => {
     void subagents.ensure(context?.paseo);
@@ -380,7 +368,11 @@ export function registerTasksServer(
     return result;
   });
   server.handle(tasksLabelsRpc, async () => ({ labels: await readLabels(host) }));
-  server.handle(tasksRenameRpc, ({ agentId, title }) => renameAgent(host, agentId, title));
+  server.handle(tasksRenameRpc, async ({ agentId, title }, { paseo }) => {
+    const issue = await taskUpdateIssue(await paseo.agents.ref(agentId).refresh(), paseo);
+    if (issue) return { ok: false, error: taskIssueError(issue) };
+    return renameAgent(host, agentId, title);
+  });
   server.handle(tasksProjectIconsRpc, async ({ projectIds }) => ({ icons: await readProjectIcons(host, projectIds) }));
   server.handle(tasksReadsRpc, async () => ({
     reads: (await reads.list()).map(({ agentId, stoppedAt }) => ({ agentId, readAt: stoppedAt })),
@@ -402,9 +394,12 @@ export function registerTasksServer(
 
     return { results };
   });
-  server.handle(tasksUnarchiveRpc, async ({ agentId }) => {
+  server.handle(tasksUnarchiveRpc, async ({ agentId }, { paseo }) => {
     const cli = await resolveCli();
     if (!cli) return { ok: false, error: "Paseo CLI is unavailable." };
+    if (!AGENT_ID_PATTERN.test(agentId)) return { ok: false, error: "Invalid agent ID." };
+    const issue = await taskUpdateIssue(await paseo.agents.ref(agentId).refresh(), paseo);
+    if (issue) return { ok: false, error: taskIssueError(issue) };
     return await unarchiveAgent(cli, agentId);
   });
 }

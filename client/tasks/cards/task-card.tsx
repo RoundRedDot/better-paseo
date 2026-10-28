@@ -45,6 +45,8 @@ import { TagMark } from "./tag-mark";
 import { pillTint, readableOn, taskTokens, type TaskTokens } from "./tokens";
 import { mix, withAlpha } from "../../components/theme-tokens";
 import { useTitleUpdateState, type TitleUpdateControl } from "../actions/title-update";
+import { AvailabilityTag } from "./availability-tag";
+import { taskOperationIssue } from "../availability";
 
 export interface CardCallbacks {
   titleUpdates?: TitleUpdateControl;
@@ -655,7 +657,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const showControl = showStop || showRead || showOpen || showUnarchive || showArchive;
   const reducedMotion = useReducedMotion();
   const controlLeaving = useLeaving(showControl && !TOUCH, reducedMotion ? 0 : STOP_EXIT_MS);
-  const read = { tokens, strings, pending: readPending, unread: !failed, onPress: () => props.onRead?.(card) };
+  const read = { tokens, strings, pending: readPending, disabled: !!taskOperationIssue(card, "read"), unread: !failed, onPress: () => props.onRead?.(card) };
   const pressStop = (withChildren: boolean) => {
     setMenuOpen(false);
     setStopAll(withChildren);
@@ -1155,6 +1157,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       look="plain"
       icon="ArchiveRestore"
       busy={unarchivePending}
+      disabled={!!taskOperationIssue(card, "unarchive")}
       tokens={tokens}
       compact={onPhone}
       onPress={() => props.onUnarchive?.(card.id)}
@@ -1167,6 +1170,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       look="archive"
       icon="Archive"
       busy={archivePending}
+      disabled={!!taskOperationIssue(card, "archive")}
       tokens={tokens}
       compact={onPhone}
       hug={hug}
@@ -1324,6 +1328,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                   button={button}
                   tokens={tokens}
                   compact={false}
+                  disabled={button.kind !== "open" && !!taskOperationIssue(card, "permission")}
                   onPress={() => props.onPermission?.(card, button)}
                 />
               ))}
@@ -1391,6 +1396,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             button={button}
             tokens={tokens}
             compact
+            disabled={button.kind !== "open" && !!taskOperationIssue(card, "permission")}
             onPress={() => props.onPermission?.(card, button)}
           />
         ))}
@@ -1447,6 +1453,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {cornerMark ? <CornerMark color={cornerMark} /> : null}
         {metaRow}
         {titleRow}
+        <AvailabilityTag issue={card.availability?.issue} language={language} tokens={tokens} compact={compact} />
         {titleUpdate.state === "error" ? <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 8 }}>
           <Text accessibilityRole="alert" numberOfLines={3} testID="task-title-update-error" style={[text(F.sm, HOST_LINE.sm, tokens.danger), { flex: 1 }]}>{strings.autoTitleFailed(titleUpdate.error)}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={strings.dismissTitleError} hitSlop={8} style={{ minWidth: taskControlHeight(compact ? 44 : 28, scale), minHeight: taskControlHeight(compact ? 44 : 28, scale), alignItems: "center", justifyContent: "center" }} onPress={() => props.titleUpdates?.dismiss(card.id)}><Icon name="X" size={16} color={tokens.foregroundMuted} /></Pressable>
@@ -1769,6 +1776,7 @@ export function ActionButton(props: {
   button: PermissionButton;
   tokens: TaskTokens;
   compact: boolean;
+  disabled?: boolean;
   onPress(): void;
 }) {
   const { button } = props;
@@ -1782,6 +1790,7 @@ export function ActionButton(props: {
       icon={answer ? null : button.action.behavior === "allow" ? "Check" : "X"}
       tokens={props.tokens}
       compact={props.compact}
+      disabled={props.disabled}
       onPress={props.onPress}
     />
   );
@@ -1800,6 +1809,7 @@ function ReadControl(props: {
   tokens: TaskTokens;
   strings: ReturnType<typeof cardStrings>;
   pending: boolean;
+  disabled?: boolean;
   /** An unread card's green; a failed card's button stays plain. */
   unread: boolean;
   compact: boolean;
@@ -1816,7 +1826,8 @@ function ReadControl(props: {
   const label = strings.markRead;
   const iconSize = compact ? 14 : 13;
   const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, 2 * (compact ? 12 : 10) + iconSize + 6);
-  const hover = hovered && !pending;
+  const disabled = pending || props.disabled;
+  const hover = hovered && !disabled;
   const hue = buttonHue(tokens, props.unread ? "read" : "plain");
   const color = hue.color;
   const fill = hover ? hue.hover : "transparent";
@@ -1824,8 +1835,8 @@ function ReadControl(props: {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={pending ? { disabled: true, busy: true } : undefined}
-      disabled={pending}
+      accessibilityState={disabled ? { disabled: true, busy: pending } : undefined}
+      disabled={disabled}
       onPress={props.onPress}
       {...hoverProps}
       testID="task-card-read"
@@ -1840,7 +1851,7 @@ function ReadControl(props: {
         alignItems: "center",
         justifyContent: "center",
         gap: 5,
-        opacity: pending ? 0.6 : 1,
+        opacity: disabled ? 0.6 : 1,
         ...webTransition,
         ...fit.style,
       }}

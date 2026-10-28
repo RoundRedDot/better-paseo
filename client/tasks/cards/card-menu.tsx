@@ -11,8 +11,11 @@ import { copiedToast, toolbarLabel } from "../../i18n/toolbar-strings";
 import { COPY_FAILED_MESSAGE } from "../../ui/copy-controller";
 import type { TaskCard } from "../model";
 import type { CardFilterKind, CardFilterState } from "../board/filter-options";
-import type { cardStrings } from "./strings";
+import { cardStrings } from "./strings";
 import { TaskRenameDialog } from "./rename-dialog";
+import { taskOperationIssue } from "../availability";
+import { taskIssueText } from "./availability-tag";
+import type { TaskOperation } from "../../../shared/task-availability";
 
 export const CARD_MENU_WIDTH = 280;
 
@@ -128,7 +131,13 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
       ],
     },
   ];
-  return sections.filter((section) => section.items.length > 0);
+  const operations: Record<string, TaskOperation> = { rename: "rename", "auto-title": "autoTitle", unarchive: "unarchive", archive: "archive", read: "read" };
+  const language = strings === cardStrings("en") ? "en" : "zh";
+  return sections.filter((section) => section.items.length > 0).map((section) => ({ ...section, items: section.items.map((item) => {
+    const operation = operations[item.key];
+    const issue = operation && taskOperationIssue(card, operation);
+    return issue ? { ...item, disabled: true, detail: taskIssueText(issue, language), onSelect: undefined } : item;
+  }) }));
 }
 
 /**
@@ -173,6 +182,8 @@ export function CardContextMenu(props: {
   useLayoutEffect(() => point && !editing ? openPointLayer(anchorRef.current, point) : undefined, [point?.x, point?.y, editing]);
   if (editing) {
     return <TaskRenameDialog agentId={props.card.id} title={props.card.title} strings={props.strings} theme={props.theme} onClose={props.onClose}
+      blockedReason={taskOperationIssue(props.card, "rename") ? taskIssueText(taskOperationIssue(props.card, "rename")!, props.strings === cardStrings("en") ? "en" : "zh") : undefined}
+      autoTitleBlockedReason={taskOperationIssue(props.card, "autoTitle") ? taskIssueText(taskOperationIssue(props.card, "autoTitle")!, props.strings === cardStrings("en") ? "en" : "zh") : undefined}
       canAutoTitle={Boolean(props.actions.autoTitle)} autoTitlePending={props.actions.autoTitlePending} />;
   }
   if (!point) {
@@ -197,7 +208,7 @@ export function CardContextMenu(props: {
                           item.onSelect?.();
                           if (!item.keepOpen) props.onClose();
                         }}
-                        style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12 }}
+                        style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, opacity: item.disabled ? 0.5 : 1 }}
                       >
                         {(typeof item.leading === "function" ? item.leading(color) : item.leading) ?? (item.icon ? <Icon name={item.icon} size={18} color={color} /> : null)}
                         <View style={{ flex: 1, minWidth: 0 }}>

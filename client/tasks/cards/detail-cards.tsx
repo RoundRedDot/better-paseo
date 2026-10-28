@@ -67,6 +67,8 @@ import { Chip, ContextBar, SummaryTiles, TimelineChart, TokenBar, TurnHero, deta
 import { detailGutter, detailScrollProps } from "./detail-scrollbar";
 import { sectionClosed, setSectionClosed, useSectionChoices } from "./detail-collapse";
 import { tipProps } from "./card-hints";
+import { AvailabilityTag } from "./availability-tag";
+import { taskOperationIssue } from "../availability";
 
 /**
  * The details as one raised card, after Linear's issue panel
@@ -320,6 +322,7 @@ function DetailHeader(props: Inner) {
       grow={!openButton && !parentOpens}
       onPress={() => unarchive.press(card.id)}
       testID="detail-unarchive"
+      disabled={!!taskOperationIssue(card, "unarchive")}
     />
   ) : null;
   // A done task's Archive sits beside Open tab.
@@ -335,6 +338,7 @@ function DetailHeader(props: Inner) {
       grow={!openButton && !parentOpens}
       onPress={() => archive.press(card.id)}
       testID="detail-archive"
+      disabled={!!taskOperationIssue(card, "archive")}
     />
   ) : null;
   // A subtask's "Open parent" comes before Open tab, as on its card.
@@ -427,6 +431,7 @@ function DetailHeader(props: Inner) {
           />
         ) : null}
       </View>
+      <AvailabilityTag issue={card.availability?.issue} language={props.language} tokens={tokens} compact={touch} />
       {card.labels.length > 0 ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 }} testID="detail-labels">
           {card.labels.map((tag) => (
@@ -469,6 +474,7 @@ function DetailHeader(props: Inner) {
               tokens={tokens}
               onPress={() => read.press(card)}
               testID="detail-read"
+              disabled={!!taskOperationIssue(card, "read")}
             />
           ) : null}
           {archiveButton}
@@ -569,7 +575,7 @@ function PermissionBlock(props: Inner) {
         <View testID="detail-permission-buttons" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
           <ActionRow style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0 }} testID="detail-permission-actions">
             {buttons.map((button) => (
-              <RequestButton key={button.key} button={button} tokens={tokens} height={props.touch ? 36 : 28} onPress={() => props.onPermission?.(button)} />
+              <RequestButton key={button.key} button={button} tokens={tokens} disabled={button.kind !== "open" && !!taskOperationIssue(card, "permission")} height={props.touch ? 36 : 28} onPress={() => props.onPermission?.(button)} />
             ))}
           </ActionRow>
           {waited !== null ? (
@@ -587,7 +593,7 @@ function PermissionBlock(props: Inner) {
 }
 
 /** The card's permission buttons, by `requestLook`: Allow's accent, Deny's danger, "Answer"'s amber, the rest plain. */
-function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; height: number; onPress(): void }) {
+function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; height: number; disabled?: boolean; onPress(): void }) {
   const { button, tokens } = props;
   const { hovered, hoverProps } = useHover();
   const hue = buttonHue(tokens, requestLook(button));
@@ -599,6 +605,8 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={button.label}
+      disabled={props.disabled}
+      accessibilityState={{ disabled: props.disabled }}
       {...tipProps(button.label)}
       onPress={props.onPress}
       {...hoverProps}
@@ -609,7 +617,8 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
         paddingHorizontal: 14,
         borderRadius: 6,
         ...buttonOutline(hue.border),
-        backgroundColor: hovered ? hue.hover : tokens.card.background,
+        opacity: props.disabled ? 0.5 : 1,
+        backgroundColor: hovered && !props.disabled ? hue.hover : tokens.card.background,
         alignItems: "center",
         justifyContent: "center",
         ...fit.style,
@@ -1534,13 +1543,15 @@ function OutlineButton(props: {
   grow?: boolean;
   /** Working: the same label, dimmed, a spinner in place of the icon, and no second press. */
   busy?: boolean;
+  disabled?: boolean;
   onPress(): void;
   testID?: string;
 }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
-  const hovered = hover && !props.busy;
+  const disabled = props.busy || props.disabled;
+  const hovered = hover && !disabled;
   const look = props.look ?? "plain";
   const hue = buttonHue(tokens, look);
   const iconColor = look === "plain" ? tokens.foregroundMuted : hue.color;
@@ -1556,8 +1567,8 @@ function OutlineButton(props: {
       accessibilityRole="button"
       accessibilityLabel={props.label}
       {...tipProps(props.label)}
-      accessibilityState={props.busy ? { disabled: true, busy: true } : undefined}
-      disabled={props.busy}
+      accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
+      disabled={disabled}
       onPress={props.onPress}
       {...hoverProps}
       testID={props.testID}
@@ -1573,7 +1584,7 @@ function OutlineButton(props: {
         flexDirection: "row",
         alignItems: "center",
         gap,
-        opacity: props.busy ? 0.6 : 1,
+        opacity: disabled ? 0.6 : 1,
         justifyContent: "center",
         ...fit.style,
       }}
@@ -1651,6 +1662,7 @@ export function DetailActionBar(props: {
               label={button.label}
               icon={button.action.behavior === "allow" ? "Check" : "X"}
               look={requestLook(button)}
+              disabled={!!taskOperationIssue(card, "permission")}
               onPress={() => props.onPermission?.(button)}
             />
           ))}
@@ -1685,6 +1697,7 @@ export function DetailActionBar(props: {
               grow={!ownOpen && !parentOpens}
               onPress={() => read.press(card)}
               testID="detail-bar-read"
+              disabled={!!taskOperationIssue(card, "read")}
             />
           ) : null}
           {archive ? (
@@ -1697,6 +1710,7 @@ export function DetailActionBar(props: {
               grow={!ownOpen && !parentOpens}
               onPress={() => archive.press(card.id)}
               testID="detail-bar-archive"
+              disabled={!!taskOperationIssue(card, "archive")}
             />
           ) : null}
           {parentOpens ? (
@@ -1711,6 +1725,7 @@ export function DetailActionBar(props: {
               busy={unarchive.pending(card.id)}
               onPress={() => unarchive.press(card.id)}
               testID="detail-bar-unarchive"
+              disabled={!!taskOperationIssue(card, "unarchive")}
             />
           ) : null}
         </>
@@ -1733,7 +1748,7 @@ function archivable(card: TaskCard): boolean {
 
 /** The phone bar's button: the card button's outline (`buttonHue`) at thumb size, tinted while pressed. */
 /** `arrow` ends the button in a ↗ after its label (Open tab); a square shows only the arrow. */
-function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; square?: boolean; grow?: boolean; busy?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
+function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; square?: boolean; grow?: boolean; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const height = taskControlHeight(48, scale);
@@ -1743,12 +1758,13 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const iconColor = look === "plain" ? tokens.foregroundMuted : text;
   const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, 48, 32 + ((props.icon || props.busy) ? 26 : 0) + (props.arrow ? 26 : 0) + 1, props.square, look === "primary");
   const square = fit.iconOnly;
+  const disabled = props.busy || props.disabled;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
-      accessibilityState={props.busy ? { disabled: true, busy: true } : undefined}
-      disabled={props.busy}
+      accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
+      disabled={disabled}
       onPress={props.onPress}
       testID={props.testID}
       style={({ pressed }) => ({
@@ -1759,8 +1775,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         paddingHorizontal: square ? 0 : 16,
         borderRadius: 12,
         ...buttonOutline(hue.border),
-        backgroundColor: pressed && !props.busy ? hue.hover : tokens.card.background,
-        opacity: props.busy ? 0.6 : 1,
+        backgroundColor: pressed && !disabled ? hue.hover : tokens.card.background,
+        opacity: disabled ? 0.6 : 1,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",

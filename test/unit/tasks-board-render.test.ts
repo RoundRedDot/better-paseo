@@ -62,7 +62,7 @@ const paseo = vi.hoisted(() => ({
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => paseo,
-  useRpc: () => () => Promise.resolve({ stop: host.canStop }),
+  useRpc: (contract: { name: string }) => (input: { agentIds?: string[] }) => Promise.resolve(contract.name === "tasks.availability" ? { entries: input.agentIds!.map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) } : { stop: host.canStop }),
   useSettings: () => (host.settings ? { status: "ready", values: host.settings, revision: "1", saving: false, saveError: null, save: host.save, reload: host.reload } : { status: "loading" }),
 }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
