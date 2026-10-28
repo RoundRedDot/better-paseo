@@ -13,6 +13,15 @@
 - 排查车道归错时，先用 `paseo ls` / `paseo inspect` 确认 daemon 的实际状态，再按看板的三个过滤条件（status / attention / done）录下订阅事件，看实际收到的顺序。不要只凭读代码推测。
 - 改动分类或合并逻辑时，测试要覆盖乱序：用 fake 的 `pushAgentSnapshot` 发一份比已应用更旧的快照。
 
+## Tasks 看板：标题显示完成后再应用卡片更新与移动动画
+
+自动生成标题时，服务端完成生成并保存标题的时刻，可能早于客户端逐字显示完整标题的时刻。重命名还会改变 `updatedAt`；若立即采用新快照和排序，卡片会在标题显示到一半时跳到泳道开头，触发移动动画、闪烁或中断显示。这个问题适用于全部五个泳道，不能只修复归档泳道。
+
+- 区分服务端生成完成与客户端显示完成：RPC 返回 `done` 不代表逐字显示已完成。服务端照常保存最终标题，前端等完整标题显示后，再应用这张卡片的新快照、排序和移动动画。
+- 保持显示中的卡片原位；不要靠重载整个泳道解决，也不要在新标题快照提前到达时清除显示进度。正常状态更新、跨泳道移动、其他卡片更新和分页仍按原有逻辑处理。
+- 沿用现有职责：`client/tasks/actions/title-update.ts` 的 `revealing` / `finishReveal` 记录显示阶段；`client/tasks/cards/task-card.tsx` 在完整标题显示后确认完成；`client/tasks/board/use-board.ts` 的 `holdRevealingTitles` 暂缓应用同泳道内的标题更新。流式片段只更新目标卡片，不应逐片段重绘列表。
+- 回归测试必须模拟“daemon 先推送重命名快照，客户端随后收到 `done`，逐字显示仍未结束”的顺序；覆盖全部五个泳道，断言显示期间位置稳定、列表行不重绘，显示完成后才采用最终标题和排序，其他卡片对象保持不变。同时覆盖失败释放、卡片移除及正常状态变化，避免延后标题显示误伤任务状态。
+
 ## 提交身份（commit 与 PR）
 
 推到 GitHub 的提交一律用 `luke <luopeihuan@gmail.com>`。范围包括本仓库、RoundRedDot/plugins 发往 getpaseo/plugins 的 PR，以及从 RoundRedDot/paseo 发往上游 getpaseo/paseo 的 PR。
