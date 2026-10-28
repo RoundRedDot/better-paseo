@@ -149,7 +149,7 @@ function DesktopToolbarView(props: {
           <KeyHint text={strings.keys.lane} theme={theme} />
           <KeyCap label="↵" theme={theme} />
           <KeyHint text={strings.keys.open} theme={theme} />
-          <KeyCap label="Space" theme={theme} />
+          <KeyCap label={strings.keys.space} theme={theme} />
           <KeyHint text={strings.keys.preview} theme={theme} />
           <KeyCap label="/" theme={theme} />
           <KeyHint text={strings.keys.search} theme={theme} last />

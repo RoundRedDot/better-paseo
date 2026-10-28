@@ -350,6 +350,8 @@ describe("Tasks search coverage and centred toolbar", () => {
       expect(hostsById(id)[0]!.props.dataSet.bctip.endsWith(`(${key})`)).toBe(true);
     }
     const toolbarText = textOf(hostsById("desktop-toolbar")[0]!);
+    expect(toolbarText).toContain(language === "zh" ? "空格" : "Space");
+    expect(toolbarText).not.toContain(language === "zh" ? "Space" : "空格");
     expect(toolbarText).toContain(BOARD_STRINGS[language].keys.search);
     expect(toolbarText).not.toContain(BOARD_STRINGS[language].sidebar.key);
   });
