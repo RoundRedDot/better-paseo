@@ -1009,6 +1009,7 @@ describe("TaskCardView rows", () => {
     for (const [testID, text, toast] of [
       ["pill-model", "GPT-5.5 Codex", "Copied model name"],
       ["pill-branch", "feat/tasks-board", "Copied branch name"],
+      ["pill-label-frontend", "frontend", "Copied label name"],
       ["pill-path", "/Users/dev/code/better-paseo/.worktrees/tasks-board", "Copied path"],
     ] as const) {
       const pill = hostByTestId(tree.root, testID);
@@ -1027,8 +1028,9 @@ describe("TaskCardView rows", () => {
     await act(async () => hostByTestId(done.root, "pill-folder").props.onPress());
     expect(clipboard.copyText).toHaveBeenLastCalledWith("scratch");
     expect(clipboard.show).toHaveBeenLastCalledWith("Copied folder name");
-    // Labels do not copy.
-    expect(hostByTestId(done.root, "pill-label-frontend").props.onPress).toBeUndefined();
+    const label = hostByTestId(done.root, "pill-label-frontend");
+    await act(async () => label.props.onHoverIn());
+    expect(flat(hostByTestId(done.root, "pill-label-frontend").props.style).backgroundColor).toBe("transparent");
   });
 
   it("draws the folder as a pill when there is no branch", async () => {

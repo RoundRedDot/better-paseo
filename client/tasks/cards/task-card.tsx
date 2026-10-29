@@ -1094,7 +1094,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           // The pill has no fill, so the tag's hole takes the card's, hovered or not.
           lead={<TagMark size={m.pillIcon} color={label.color ?? tokens.foregroundMuted} hole={background} />}
           label={label.name}
-          hint={hint(`label-${label.name}`, () => pair(strings.hint.label, label.name))}
+          copy={copyOf(label.name, "Copy label name")}
+          onLongPress={longPress}
+          hint={hint(`label-${label.name}`, () => withCopyHint(pair(strings.hint.label, label.name)))}
         />,
       );
     });
@@ -1713,7 +1715,7 @@ function CopyPill(props: PillProps & { copy: NonNullable<PillProps["copy"]> }) {
       testID={props.testID}
       style={[
         base,
-        hovered ? { backgroundColor: mix(base.backgroundColor as string, props.tokens.foreground, 0.06) } : null,
+        props.clear ? { backgroundColor: "transparent" } : hovered ? { backgroundColor: mix(base.backgroundColor as string, props.tokens.foreground, 0.06) } : null,
         WEB && hovered ? { boxShadow: props.tokens.card.buttonShadowHover } : null,
         webTransition,
       ]}
