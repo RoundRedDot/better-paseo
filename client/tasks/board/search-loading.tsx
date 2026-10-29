@@ -7,6 +7,7 @@ import { TaskText as Text } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { tipProps } from "../cards/card-hints";
 import type { PluginTheme } from "@getpaseo/plugin";
+import type { PluginIcon } from "@getpaseo/plugin/client";
 
 export const SearchCoverageContext = createContext<{
   status: SearchCoverageControl;
@@ -124,6 +125,18 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { ic
   </>;
 }
 
+const SVG_HEAD = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
+
+/** Full-text search: a page of text without a folded corner, cut open for a magnifier in the corner. */
+const FULL_TEXT_SEARCH_ICON: PluginIcon = {
+  svg: `${SVG_HEAD}<path d="M10.5 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6.5"/><path d="M8 7h8"/><path d="M8 11h5"/><path d="M8 15h2"/><circle cx="15.5" cy="16.5" r="3.5"/><path d="m21.5 22-3.5-3"/></svg>`,
+};
+
+/** Outline search (task info and first message): Lucide's List, its lower lines shortened for the same magnifier. */
+const OUTLINE_SEARCH_ICON: PluginIcon = {
+  svg: `${SVG_HEAD}<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h3.5"/><path d="M8 19h3.5"/><circle cx="16.5" cy="15.5" r="3.5"/><path d="m22 21-3-3"/></svg>`,
+};
+
 export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme; compact?: boolean }) {
   const { context } = useSearchCoverage();
   const on = context?.fullConversation === true;
@@ -132,6 +145,6 @@ export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme;
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
     accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={toggle} hitSlop={4}
     style={{ flexShrink: 0, width: compact ? 36 : 32, height: compact ? 36 : 32, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: compact ? 18 : 16, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0 }}>
-    <Icon name={on ? "FileText" : "List"} size={16} color={theme.colors.foreground} />
+    <Icon icon={on ? FULL_TEXT_SEARCH_ICON : OUTLINE_SEARCH_ICON} size={16} color={theme.colors.foreground} />
   </Pressable>;
 }
