@@ -37,8 +37,8 @@ const DIVIDER_MARGIN = 4;
 
 /** Round and menu buttons share the same height on each platform. */
 const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
-const roundButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 26 : 36, scale);
-const roundIconSize = (scale: number) => Platform.OS === "web" ? taskControlHeight(16, scale) : Math.round(roundButtonSize(scale) / 2);
+const roundButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 24 : 36, scale);
+const roundIconSize = (scale: number) => Platform.OS === "web" ? taskControlHeight(14, scale) : Math.round(roundButtonSize(scale) / 2);
 const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale));
 
 export type EmptyLanes = { collapsed: boolean; disabled: boolean; onToggle(): void };
@@ -355,6 +355,7 @@ function PanelMark(props: { open: boolean; side: "right" | "bottom"; color: stri
       style={{
         width: 16,
         height: 13,
+        transform: Platform.OS === "web" ? [{ scale: 14 / 16 }] : undefined,
         borderWidth: 1.5,
         borderRadius: 2.5,
         borderColor: props.color,
@@ -563,7 +564,7 @@ function DesktopFilterBarView(props: {
                 </>
               ) : (
                 <MenuButton
-                  icon={<LaneWidthMark laneWidth={board.laneWidth} size={laneWidthIconSize(scale)} color={colors.foreground} />}
+                  icon={<LaneWidthMark laneWidth={board.laneWidth} size={Platform.OS === "web" ? roundIconSize(scale) : laneWidthIconSize(scale)} color={colors.foreground} />}
                   label={words.laneWidth}
                   compact
                   accessibilityLabel={strings.laneWidth.button(words.laneWidth)}

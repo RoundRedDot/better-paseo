@@ -378,8 +378,8 @@ describe("Tasks search coverage and centred toolbar", () => {
     const field = hostsById("desktop-toolbar-search")[0]!;
     expect(field.findAll((node) => node.props.testID === "search-full-conversation-toggle")).toHaveLength(0);
     const toggle = hostsById("search-full-conversation-toggle")[0]!;
-    // The fixture uses a 15/14 font scale, so the 26-point button rounds to 28.
-    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ width: 28, height: 28, borderRadius: 14 });
+    // The fixture uses a 15/14 font scale, so the 24-point button rounds to 26.
+    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ width: 26, height: 26, borderRadius: 13 });
     expect(toggle.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(false));
     expect(toggle.props.accessibilityState.selected).toBe(false);
     act(() => toggle.props.onPress());
@@ -2393,7 +2393,7 @@ describe("Tasks board, desktop", () => {
     expect(words()).toEqual([]);
     // Circular buttons retain their geometry while labels wait for enough room.
     for (const button of controls().findAll((node) => (node.type as unknown) === "Pressable")) {
-      expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: 26, height: 26, borderRadius: 13 });
+      expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: 24, height: 24, borderRadius: 12 });
       expect(button.findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(1);
     }
     lay(group(), { width: 630 });

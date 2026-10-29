@@ -17,10 +17,10 @@ describe("RoundButton", () => {
   it("renders an explicitly sized circle and icon independently", () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     const theme = { colors: { border: "gray", foreground: "black" } } as PluginTheme;
-    act(() => { renderer = TestRenderer.create(<RoundButton icon="Bolt" label="Settings" theme={theme} onPress={() => {}} size={26} iconSize={16} />); });
-    const circle = renderer.root.findAll((node) => (node.type as unknown) === "View").find((node) => node.props.style?.borderRadius === 13);
-    expect(circle?.props.style).toMatchObject({ width: 26, height: 26 });
-    expect(renderer.root.find((node) => (node.type as unknown) === "Icon").props.size).toBe(16);
+    act(() => { renderer = TestRenderer.create(<RoundButton icon="Bolt" label="Settings" theme={theme} onPress={() => {}} size={24} iconSize={14} />); });
+    const circle = renderer.root.findAll((node) => (node.type as unknown) === "View").find((node) => node.props.style?.borderRadius === 12);
+    expect(circle?.props.style).toMatchObject({ width: 24, height: 24 });
+    expect(renderer.root.find((node) => (node.type as unknown) === "Icon").props.size).toBe(14);
     act(() => renderer.unmount());
   });
 });

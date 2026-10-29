@@ -140,8 +140,8 @@ const OUTLINE_SEARCH_ICON: PluginIcon = {
 export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme; compact?: boolean }) {
   const { context } = useSearchCoverage();
   const scale = useTasksFontScale();
-  const size = !compact && Platform.OS === "web" ? taskControlHeight(26, scale) : compact ? 36 : 32;
-  const iconSize = !compact && Platform.OS === "web" ? taskControlHeight(16, scale) : 16;
+  const size = !compact && Platform.OS === "web" ? taskControlHeight(24, scale) : compact ? 36 : 32;
+  const iconSize = !compact && Platform.OS === "web" ? taskControlHeight(14, scale) : 16;
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);
   if (!context?.onFullConversationChange) return null;
