@@ -3324,7 +3324,7 @@ describe("Tasks board, tablet filters", () => {
       expect(hostsById("filter-bar-end")[0]!.findAll((node) => node.props.testID === "empty-groups-toggle")).toHaveLength(0);
       act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === `Filter by ${menu}`).props.onPress());
       const rowsOf = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
-      const toggle = () => rowsOf().find((node) => textOf(node).startsWith("Show groups with no active tasks"))!;
+      const toggle = () => rowsOf().find((node) => textOf(node).startsWith("Show all"))!;
       const icon = () => toggle().findAll((node) => (node.type as unknown) === "Icon")[0]!.props.name;
       const groups = () => renderer!.root.findByProps({ testID: "sidebar-groups" });
       const rows = () => groups().findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);
@@ -3361,7 +3361,7 @@ describe("Tasks board, tablet filters", () => {
       const rows = () => renderer!.root.findByProps({ testID: "sidebar-groups" }).findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);
       const toolbar = renderer!.root.findByType(DesktopToolbar);
       expect(toolbar.findAll((node) => node === toggle())).toHaveLength(1);
-      expect(toggle().props).toMatchObject({ accessibilityRole: "switch", accessibilityLabel: "Show groups with no active tasks", accessibilityState: { checked: true } });
+      expect(toggle().props).toMatchObject({ accessibilityRole: "switch", accessibilityLabel: "Show all", accessibilityState: { checked: true } });
       expect(toggle().props.dataSet?.bctip).toBe("Hide groups with no active tasks (G)");
       // The same round size as the sidebar switch beside it.
       const size = (testID: string) => StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID).props.style).width;
@@ -3402,7 +3402,7 @@ describe("Tasks board, tablet filters", () => {
     if (os === "web") {
       expect(hostsById("empty-groups-toggle")[0]!.props.accessibilityState).toEqual({ checked: false });
       act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === "Filter by project").props.onPress());
-      const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith("Show groups with no active tasks"));
+      const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith("Show all"));
       expect(row[0]!.props.accessibilityState).toMatchObject({ checked: false });
     } else {
       expect(hostsById("filter-sheet-empty-groups")[0]!.props.accessibilityState).toEqual({ checked: false });
@@ -4173,7 +4173,7 @@ describe("Tasks board, phone", () => {
       const icon = () => button().find((node) => (node.type as unknown) === "Icon").props.name;
       // On by default: the whole list.
       expect(button().props).toMatchObject({ accessibilityRole: "switch", accessibilityState: { checked: true } });
-      expect(textOf(button())).toContain("Show groups with no active tasks");
+      expect(textOf(button())).toContain("Show all");
       expect(icon()).toBe("Layers");
       const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
       expect(sheet().findAll((node) => node === button())).toHaveLength(1);

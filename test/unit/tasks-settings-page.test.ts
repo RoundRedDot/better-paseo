@@ -182,8 +182,8 @@ describe("Tasks half of the settings page", () => {
   it("turns off the groups with no active tasks from the board options, on by default", async () => {
     const api = makeSettings();
     const r = panel(false);
-    expect(byLabel(r, "Show groups with no active tasks").props["aria-checked"]).toBe(true);
-    await act(async () => byLabel(r, "Show groups with no active tasks").props.onPress());
+    expect(byLabel(r, "Show all").props["aria-checked"]).toBe(true);
+    await act(async () => byLabel(r, "Show all").props.onPress());
     expect(api.save).not.toHaveBeenCalled();
     expect(deviceTasksStore().snapshot().values?.showEmptyGroups).toBe(false);
   });
@@ -249,7 +249,7 @@ describe("Tasks half of the settings page", () => {
     await act(async () => deviceTasksStore().update({ showArchived: true, hideSubtasks: true, showEmptyGroups: false, laneWidth: "wide" }));
     expect(byLabel(r, "Show the archived lane").props["aria-checked"]).toBe(true);
     expect(byLabel(r, "Show subtasks").props["aria-checked"]).toBe(false);
-    expect(byLabel(r, "Show groups with no active tasks").props["aria-checked"]).toBe(false);
+    expect(byLabel(r, "Show all").props["aria-checked"]).toBe(false);
     makeSettings({ values: { ...DEFAULT_TASKS_SETTINGS }, save: api.save });
     act(() => r.update(React.createElement(TasksSettingsPanel, { look: look(), theme: theme as never, side: false })));
     expect(byLabel(r, "Show the archived lane").props["aria-checked"]).toBe(true);

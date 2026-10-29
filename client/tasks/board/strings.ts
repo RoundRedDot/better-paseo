@@ -141,7 +141,7 @@ const en = {
   },
   emptyGroups: {
     /** The round switch's name, in the filter bar and the phone and narrow board headers. */
-    row: "Show groups with no active tasks",
+    row: "Show all",
     hint: (on: boolean): string => (on ? "Agents, projects, workspaces and labels with no active task are listed" : "Only Agents, projects, workspaces and labels with an active task are listed"),
     saveFailed: "Couldn't save the empty groups setting",
   },
@@ -322,7 +322,7 @@ const zh: typeof en = {
     cannotOpen: "已归档的任务需要先取消归档，才能在 Paseo 中打开",
   },
   emptyGroups: {
-    row: "显示数量为 0 的分组",
+    row: "显示全部",
     hint: (on) => (on ? "没有进行中任务的 Agent、项目、工作区和标签也会列出" : "只列出有进行中任务的 Agent、项目、工作区和标签"),
     saveFailed: "数量为 0 的分组设置没有保存成功",
   },
