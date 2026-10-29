@@ -144,6 +144,19 @@ describe("Tasks board preview", () => {
     expect(previewLanes(Date.now(), "zh").done.find((card) => card.stoppedManually)!.error).not.toBe("Stopped manually");
   });
 
+  it("uses several long titles in the settings preview to demonstrate title line limits", () => {
+    const lanes = previewLanes(0, "en");
+    const longTitles = Object.values(lanes).flat().filter((card) => card.title.length >= 120);
+    expect(longTitles.map((card) => card.id)).toEqual([
+      "sample-input",
+      "sample-question",
+      "sample-running",
+      "sample-failed",
+      "sample-done",
+      "sample-archived",
+    ]);
+  });
+
   it("wide, draws the four lanes side by side in the board's order", () => {
     const r = draw({}, 1400);
     expect(byTestID(r.root, "tasks-preview-lanes")).toHaveLength(1);

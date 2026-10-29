@@ -20,12 +20,24 @@ import { previewSampleCards } from "../sample-cards";
 export const PREVIEW_LANES_MAX_HEIGHT = 440;
 
 const noop = () => {};
+const SETTING_PREVIEW_TITLES: Record<string, string> = {
+  "sample-input": "Run the staging database migration after confirming the rollback plan with every service owner, checking all affected deployment targets, and recording recovery steps for the release",
+  "sample-question": "Choose a consistent date format for CSV exports across locales, then confirm it reads clearly in spreadsheets and matches each region's expected display preferences",
+  "sample-running": "Port the task status ring to React Native while preserving its accessible labels, animation behavior, and layout on small phone screens with larger text settings",
+  "sample-failed": "Regenerate the Shiki syntax highlighting baselines after the renderer upgrade and compare every changed theme against the release snapshots in supported browsers",
+  "sample-done": "Upgrade the plugin SDK to its latest stable release and verify that existing task cards still render all metadata fields correctly on desktop and mobile",
+  "sample-archived": "Investigate sidebar drag behavior across desktop, tablet, and mobile layouts, then document which interaction should stay consistent in every supported interface",
+};
 
 /** The sample cards by lane, in the board's order, the stopped one saying so in the board's words. */
 export function previewLanes(now: number, language: TasksLanguage): Record<LaneId, TaskCard[]> {
   const stopped = BOARD_STRINGS[language].stoppedManually;
   const lanes = { needs_input: [], running: [], review: [], done: [], archived: [] } as Record<LaneId, TaskCard[]>;
-  for (const card of previewSampleCards(now)) lanes[card.lane].push(card.stoppedManually ? { ...card, error: stopped } : card);
+  for (const card of previewSampleCards(now)) {
+    const title = SETTING_PREVIEW_TITLES[card.id];
+    const sample = title ? { ...card, title } : card;
+    lanes[card.lane].push(sample.stoppedManually ? { ...sample, error: stopped } : sample);
+  }
   return lanes;
 }
 
