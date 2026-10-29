@@ -167,12 +167,12 @@ async function render(element: React.ReactElement) {
 
 describe("TaskCardView on web", () => {
   it.each([
-    ["#ffffff", "0px 2px 6px rgba(0, 0, 0, 0.14)", "0px 2px 6px rgba(0, 0, 0, 0.07)"],
-    ["#181b1a", "0px 2px 6px rgba(0, 0, 0, 0.38)", "0px 2px 6px rgba(0, 0, 0, 0.26)"],
-  ])("uses a stronger button shadow on surface %s", (surface0, buttonShadow, cardShadow) => {
+    ["#ffffff", "0px 2px 6px rgba(0, 0, 0, 0.14)"],
+    ["#181b1a", "0px 2px 6px rgba(0, 0, 0, 0.38)"],
+  ])("shares the hover shadow between cards and buttons on surface %s", (surface0, shadow) => {
     const tokens = taskTokens({ colors: { ...THEME.colors, surface0 } });
-    expect(tokens.card.buttonShadowHover).toBe(buttonShadow);
-    expect(tokens.card.shadowHover).toBe(cardShadow);
+    expect(tokens.card.buttonShadowHover).toBe(shadow);
+    expect(tokens.card.shadowHover).toBe(shadow);
   });
   it("adds the card hover shadow to an action without losing its outline", async () => {
     const tokens = taskTokens(THEME);
