@@ -691,7 +691,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const showControl = showStop || showRead || showOpen || showUnarchive || showArchive;
   const reducedMotion = useReducedMotion();
   const controlLeaving = useLeaving(showControl && !TOUCH, reducedMotion ? 0 : STOP_EXIT_MS);
-  const read = { tokens, strings, pending: readPending, disabled: !!taskOperationIssue(card, "read"), unread: !failed, onPress: () => props.onRead?.(card) };
+  const read = {
+    tokens,
+    strings,
+    pending: readPending,
+    disabled: !!taskOperationIssue(card, "read"),
+    unread: !failed,
+    hint: hint("action-read", () => strings.markRead),
+    onPress: () => props.onRead?.(card),
+  };
   const pressStop = (withChildren: boolean) => {
     setMenuOpen(false);
     setStopAll(withChildren);
@@ -706,6 +714,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     parent: parentStop,
     count: activeChildren,
     menuOpen,
+    hint: hint("action-stop", () => props.stopPhase === "confirming" ? (stopAll ? strings.confirmStopAll : strings.confirmStop) : childrenOnly ? strings.stopChildren : strings.stop),
     onPress: () => pressStop(props.stopPhase === "confirming" ? stopAll : childrenOnly),
     onToggleMenu: () => setMenuOpen((open) => !open),
     onCloseMenu: () => setMenuOpen(false),
@@ -1204,6 +1213,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       icon="ArchiveRestore"
       busy={unarchivePending}
       disabled={!!taskOperationIssue(card, "unarchive")}
+      hint={hint("action-unarchive", () => strings.details.unarchive)}
       tokens={tokens}
       compact={onPhone}
       onPress={() => props.onUnarchive?.(card.id)}
@@ -1217,6 +1227,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       icon="Archive"
       busy={archivePending}
       disabled={!!taskOperationIssue(card, "archive")}
+      hint={hint("action-archive", () => strings.details.archive)}
       tokens={tokens}
       compact={onPhone}
       hug={hug}
@@ -1230,6 +1241,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       look="plain"
       icon="CornerLeftUp"
       square={square}
+      hint={hint("action-open-parent", () => strings.openParent)}
       tokens={tokens}
       compact={onPhone}
       onPress={() => props.onOpen?.(card.parent!.id)}
@@ -1247,6 +1259,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           label={strings.openTab}
           look="plain"
           arrow
+          hint={hint("action-open", () => strings.openTab)}
           tokens={tokens}
           compact={false}
           onPress={() => props.onOpen?.(card.id)}
@@ -1376,6 +1389,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                   tokens={tokens}
                   compact={false}
                   disabled={button.kind !== "open" && !!taskOperationIssue(card, "permission")}
+                  hint={hint(`action-permission-${button.key}`, () => button.label)}
                   onPress={() => props.onPermission?.(card, button)}
                 />
               ))}
@@ -1444,6 +1458,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             tokens={tokens}
             compact
             disabled={button.kind !== "open" && !!taskOperationIssue(card, "permission")}
+            hint={hint(`action-permission-${button.key}`, () => button.label)}
             onPress={() => props.onPermission?.(card, button)}
           />
         ))}
@@ -1458,6 +1473,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             look="plain"
             arrow
             square={openSquare}
+            hint={hint("action-open", () => strings.openTab)}
             tokens={tokens}
             compact
             onPress={() => props.onOpen?.(card.id)}
@@ -1874,6 +1890,7 @@ export function ActionButton(props: {
   tokens: TaskTokens;
   compact: boolean;
   disabled?: boolean;
+  hint?: string;
   onPress(): void;
 }) {
   const { button } = props;
@@ -1888,6 +1905,7 @@ export function ActionButton(props: {
       tokens={props.tokens}
       compact={props.compact}
       disabled={props.disabled}
+      hint={props.hint}
       onPress={props.onPress}
     />
   );
@@ -1914,6 +1932,8 @@ function ReadControl(props: {
   hug?: boolean;
   /** The line it sits on, so it centres without growing the row. */
   line: number;
+  /** The parent card's hover-hint key while this action has no visible label. */
+  hint?: string;
   onPress(): void;
 }) {
   const { tokens, strings, pending, compact } = props;
@@ -1936,6 +1956,7 @@ function ReadControl(props: {
       disabled={disabled}
       onPress={props.onPress}
       {...hoverProps}
+      {...hintProps(fit.iconOnly ? props.hint : undefined)}
       testID="task-card-read"
       style={{
         ...(compact ? { flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height, ...(props.hug ? { flexGrow: 0 } : null), minHeight: height, paddingVertical: 4 } : { flexShrink: 0, height }),
@@ -1976,6 +1997,8 @@ interface StopControlProps {
   parent: boolean;
   count: number;
   menuOpen: boolean;
+  /** The parent card's hover-hint key while this action has no visible label. */
+  hint?: string;
   compact: boolean;
   /** On a phone, as wide as its label: "Open tab" beside it takes the rest. */
   hug?: boolean;
@@ -2103,6 +2126,7 @@ function StopControl(props: StopControlProps) {
         disabled={stopping}
         onPress={props.onPress}
         {...stopHover.hoverProps}
+        {...hintProps(fit.iconOnly ? props.hint : undefined)}
         style={[
           segment,
           props.parent ? null : buttonOutline(tokens.danger),

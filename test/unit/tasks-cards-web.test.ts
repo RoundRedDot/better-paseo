@@ -973,6 +973,52 @@ describe("TaskCardView hover hints", () => {
       vi.useRealTimers();
     }
   });
+
+  it("names a card action only after its label folds into an icon", async () => {
+    vi.useFakeTimers();
+    try {
+      const { card: host, listeners } = fakeCard("task-card-sample-child-1");
+      const child = { ...props("sample-child-1").card, stoppable: false, children: [] };
+      let renderer!: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TaskCardView, props(child.id, { card: child })), {
+          createNodeMock: (node) => {
+            const nodeProps = node.props as Record<string, unknown>;
+            return nodeProps.testID === "task-card-sample-child-1" ? host : { props: nodeProps };
+          },
+        });
+      });
+      const root = renderer.root;
+      await act(async () => hovers.get("task-card-sample-child-1")!.enter());
+      const row = root
+        .find((node) => typeof node.type === "string" && node.props.testID === "task-card-open-overlay")
+        .find((node) => typeof node.type === "string" && typeof node.props.onLayout === "function");
+      const keys = () => root
+        .findAll((node) => typeof node.type === "string" && node.props.dataSet?.bchint !== undefined)
+        .map((node) => node.props.dataSet.bchint as string);
+      expect(keys()).not.toEqual(expect.arrayContaining(["action-open-parent", "action-open"]));
+
+      await act(async () => {
+        row.props.onLayout({ nativeEvent: { layout: { width: 72 } } });
+        for (const label of row.findAll((node) => (node.type as unknown) === "Text" && typeof node.props.onLayout === "function")) {
+          label.props.onLayout({ nativeEvent: { layout: { width: texts(label).join("").includes("父") ? 96 : 32 } } });
+        }
+      });
+      expect(keys()).toEqual(expect.arrayContaining(["action-open-parent", "action-open"]));
+
+      await act(async () => listeners.get("pointerover")!({ pointerType: "mouse", target: mark("action-open-parent", { left: 300, top: 230, width: 28, height: 28 }) }));
+      await act(async () => { vi.advanceTimersByTime(400); });
+      const hint = root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-hint");
+      expect(texts(hint).join("")).toBe("打开父任务");
+
+      await act(async () => row.props.onLayout({ nativeEvent: { layout: { width: 900 } } }));
+      expect(keys()).not.toEqual(expect.arrayContaining(["action-open-parent", "action-open"]));
+      await act(async () => renderer.unmount());
+      expect(listeners.size).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("card action leaf migration", () => {

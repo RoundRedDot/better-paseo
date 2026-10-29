@@ -6,6 +6,7 @@ import { useHover } from "../../ui/use-hover";
 import { buttonOutline } from "../board/board-style";
 import { useActionFit } from "./action-row";
 import { arrowInset, buttonHue, CARD_BUTTON_HEIGHT, COMPACT_CARD_BUTTON_HEIGHT, webTransition, type CardButtonLook } from "./action-style";
+import { hintProps } from "./card-hints";
 import { SpinnerRing } from "./status-icon";
 import type { TaskTokens } from "./tokens";
 
@@ -32,6 +33,8 @@ export function CardButton(props: {
   hug?: boolean;
   /** Ends in the ↗ after its label, as "Open tab" does; a square shows only the arrow. */
   arrow?: boolean;
+  /** The parent card's hover-hint key while this action has no visible label. */
+  hint?: string;
   onPress(): void;
   testID?: string;
 }) {
@@ -59,6 +62,7 @@ export function CardButton(props: {
       disabled={disabled}
       onPress={props.onPress}
       {...hoverProps}
+      {...hintProps(square ? props.hint : undefined)}
       testID={props.testID}
       style={{
         // A phone's button grows with a large system font.
