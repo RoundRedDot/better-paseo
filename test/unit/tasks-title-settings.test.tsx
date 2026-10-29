@@ -77,7 +77,7 @@ describe("automatic title settings", () => {
     expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "关闭标题生成思考模式").props.accessibilityState.checked).toBe(true);
     expect(tree.root.findByType("TextInput" as never).props.value).toBe(titleGenerationSettingsSchema.parse({}).prompt);
     expect(tree.root.findByType("TextInput" as never).props.value).toContain("Use the language of the first user message.");
-    expect(tree.root.findByType("TextInput" as never).props.value).toContain("Limit the title to 80 characters including spaces.");
+    expect(tree.root.findByType("TextInput" as never).props.value).toContain("Limit the title to 60 characters including spaces.");
     expect(tree.root.findAllByType(ProviderLogo)).toHaveLength(0);
   });
 
