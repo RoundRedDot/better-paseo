@@ -11,7 +11,7 @@ import { laneWidthMenuSections, sortMenuSections } from "./board-menus";
 import { CascadeMenu, type MenuSection } from "./menu";
 import { activeFilterCount, resolveBoardParams } from "./params";
 import type { BoardController } from "./use-board";
-import { SearchInput } from "./search-loading";
+import { FullConversationSwitch, SearchInput } from "./search-loading";
 import { SearchCoverageItems } from "./search-coverage";
 import { SearchQueryChip } from "./filter-bar";
 
@@ -88,7 +88,8 @@ export function TabletToolbar(props: {
     ...level.map((section) => ({ ...section, items: section.items.map((item) => item.submenu ? { ...item, submenu: undefined, hint: "›", keepOpen: true, onSelect: () => setTrail([...trail, item.key]) } : item) })),
   ];
   const search = (
-    <View testID="tablet-toolbar-search" style={{ flex: 1, minWidth: 0, maxWidth: inlineSearch ? 320 : undefined, height: target, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
+    <View testID="tablet-toolbar-search-group" style={{ flex: 1, minWidth: 0, maxWidth: inlineSearch ? 400 : undefined, flexDirection: "row", alignItems: "center", gap: 8 }}>
+    <View testID="tablet-toolbar-search" style={{ flex: 1, minWidth: 0, height: target, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
       <SearchInput iconSize={16} iconColor={colors.foregroundMuted}
         ref={props.searchRef}
         value={board.params.query}
@@ -105,6 +106,8 @@ export function TabletToolbar(props: {
         style={{ flex: 1, minWidth: 0, padding: 0, fontSize: compact ? Math.round(F.sm * scale) : Math.max(16, Math.round(F.base * scale)), color: colors.foreground }}
       />
       {board.params.query ? <ToolbarButton compact={compact} icon="X" label={strings.menuSearch.clear} theme={theme} onPress={() => board.setParams((p) => ({ ...p, query: "" }))} testID="tablet-search-clear" /> : null}
+    </View>
+    <FullConversationSwitch theme={theme} />
     </View>
   );
   return (

@@ -16,6 +16,15 @@ function fakeApi(pages: (Page | Error)[]) {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("first prompt", () => {
+  it("ignores tool data before the first user message", async () => {
+    const { api } = fakeApi([{ error: null, entries: [
+      { item: { type: "tool_call", text: "tool-only keyword" } },
+      { item: { type: "user_message", text: "user prompt" } },
+    ] }]);
+    const store = createFirstPromptStore(api as never);
+    await store.request("a");
+    expect(store.read("a")).toMatchObject({ state: "ready", text: "user prompt" });
+  });
   it.each([
     "Working directory does not exist: /repo/.worktrees/removed: ENOENT: no such file or directory",
     "Agent old-agent references unavailable provider 'cursor'",

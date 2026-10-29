@@ -6,6 +6,9 @@ import type { BoardStrings } from "./strings";
 import { TaskText as Text } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { tipProps } from "../cards/card-hints";
+import type { PluginTheme } from "@getpaseo/plugin";
+import { SwitchTrack } from "../../ui/switch-track";
+import { useSwitchSpace } from "../../ui/use-switch-space";
 
 export const SearchCoverageContext = createContext<{
   status: SearchCoverageControl;
@@ -15,10 +18,11 @@ export const SearchCoverageContext = createContext<{
   fullConversation?: boolean;
   onFullConversationChange?(on: boolean): void;
   fullConversationLabel?: string;
+  fullConversationHint?: string;
 } | null>(null);
 
-export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; query: string; strings: BoardStrings["searchCoverage"]; total: number; fullConversation?: boolean; onFullConversationChange?(on: boolean): void; fullConversationLabel?: string }>) {
-  const value = useMemo(() => ({ status: props.status, query: props.query, strings: props.strings, total: props.total, fullConversation: props.fullConversation, onFullConversationChange: props.onFullConversationChange, fullConversationLabel: props.fullConversationLabel }), [props.status, props.query, props.strings, props.total, props.fullConversation, props.onFullConversationChange, props.fullConversationLabel]);
+export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; query: string; strings: BoardStrings["searchCoverage"]; total: number; fullConversation?: boolean; onFullConversationChange?(on: boolean): void; fullConversationLabel?: string; fullConversationHint?: string }>) {
+  const value = useMemo(() => ({ status: props.status, query: props.query, strings: props.strings, total: props.total, fullConversation: props.fullConversation, onFullConversationChange: props.onFullConversationChange, fullConversationLabel: props.fullConversationLabel, fullConversationHint: props.fullConversationHint }), [props.status, props.query, props.strings, props.total, props.fullConversation, props.onFullConversationChange, props.fullConversationLabel, props.fullConversationHint]);
   return <SearchCoverageContext.Provider value={value}>{props.children}</SearchCoverageContext.Provider>;
 }
 
@@ -117,19 +121,20 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { ic
       {input.value?.trim() && (shown || present === input.value) ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
     </View>
     <TextInput {...input} accessibilityState={{ ...input.accessibilityState, busy: loading }} />
-    {context?.onFullConversationChange ? <Pressable
-      testID="search-full-conversation-toggle"
-      accessibilityRole="switch"
-      accessibilityLabel={context.fullConversationLabel}
-      accessibilityState={{ checked: context.fullConversation === true }}
-      {...tipProps(context.fullConversationLabel)}
-      onPress={() => context.onFullConversationChange?.(!context.fullConversation)}
-      hitSlop={4}
-      style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: 24, paddingHorizontal: 4, borderRadius: 4, borderWidth: 1, borderColor: context.fullConversation ? iconColor : "transparent", opacity: context.fullConversation ? 1 : 0.65 }}
-    >
-      <Icon name="MessagesSquare" size={13} color={iconColor} />
-      <Text style={{ fontSize: 12, color: iconColor, fontWeight: context.fullConversation ? "600" : "400" }}>{context.fullConversationLabel}</Text>
-    </Pressable> : null}
     <Text testID="search-announcement" accessibilityLiveRegion="polite" role="status" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}>{announcement}</Text>
   </>;
+}
+
+export function FullConversationSwitch({ theme }: { theme: PluginTheme }) {
+  const { context } = useSearchCoverage();
+  const on = context?.fullConversation === true;
+  const toggle = () => context?.onFullConversationChange?.(!on);
+  const spaceKeys = useSwitchSpace(toggle);
+  if (!context?.onFullConversationChange) return null;
+  return <Pressable testID="search-full-conversation-toggle" accessibilityRole="switch" accessibilityLabel={context.fullConversationLabel}
+    accessibilityState={{ checked: on }} aria-checked={on} {...tipProps(context.fullConversationHint)} {...spaceKeys} onPress={toggle} hitSlop={4}
+    style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, minHeight: 32 }}>
+    <Text style={{ fontSize: 12, color: theme.colors.foregroundMuted }}>{context.fullConversationLabel}</Text>
+    <SwitchTrack value={on} colors={theme.colors} />
+  </Pressable>;
 }

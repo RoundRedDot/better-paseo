@@ -29,11 +29,11 @@ describe("bounded conversation page search", () => {
     expect(f.refetch).toHaveBeenCalledWith({ direction: "after", limit: 16, projection: "projected" });
   });
 
-  it("searches nested tool inputs and outputs without serializing the transcript", async () => {
+  it("ignores tool inputs and outputs while continuing to search subsequent messages", async () => {
     const f = fixture();
     for (const detail of [{ type: "shell", command: "echo Dragonfruit", output: "ok" }, { type: "unknown", input: {}, output: { content: [{ text: "Dragonfruit found" }] } }]) {
       f.refetch.mockResolvedValueOnce({ entries: [{ item: { type: "tool_call", detail } }], error: null, hasNewer: false, endCursor: null, reset: false });
-      expect((await f.search({ agentId: "a", query: "dragonfruit" })).match).toContain("Dragonfruit");
+      expect((await f.search({ agentId: "a", query: "dragonfruit" })).match).toBeNull();
     }
     expect(conversationExcerpt({ type: "user_message", messageId: "secret-id", text: "ordinary" }, "secret-id")).toBeNull();
     expect(conversationExcerpt("x".repeat(4094) + "Dragonfruit", "dragonfruit")).toContain("Dragonfruit");
@@ -61,11 +61,11 @@ describe("bounded conversation page search", () => {
     expect(f.refetch).not.toHaveBeenCalled();
   });
 
-  it("pages a subagent's own tool content and always closes the daemon connection", async () => {
+  it("skips a subagent's tool content, searches its messages and closes the daemon connection", async () => {
     const f = fixture();
     f.fetchProviderSubagentTimeline.mockResolvedValueOnce({ rows: [], hasNewer: true, endCursor: cursor, error: null });
     expect((await f.search({ agentId: "child", parentAgentId: "parent", query: "target" })).nextCursor).toEqual(cursor);
-    f.fetchProviderSubagentTimeline.mockResolvedValueOnce({ rows: [{ item: { type: "tool_call", detail: { output: "target result" } } }], hasNewer: false, endCursor: { ...cursor, seq: 32 }, error: null });
+    f.fetchProviderSubagentTimeline.mockResolvedValueOnce({ rows: [{ item: { type: "tool_call", detail: { output: "target tool result" } } }, { item: { type: "assistant_message", text: "target result" } }], hasNewer: false, endCursor: { ...cursor, seq: 32 }, error: null });
     expect((await f.search({ agentId: "child", parentAgentId: "parent", query: "target", cursor })).match).toBe("target result");
     expect(f.fetchProviderSubagentTimeline).toHaveBeenLastCalledWith("parent", "child", { direction: "after", limit: 16, cursor });
     expect(f.close).toHaveBeenCalledTimes(2);

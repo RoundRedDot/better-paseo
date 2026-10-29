@@ -7,7 +7,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: rn.View, TextInput: rn.TextInput };
 });
-import { SearchCoverageProvider, SearchInput } from "../../client/tasks/board/search-loading";
+import { FullConversationSwitch, SearchCoverageProvider, SearchInput } from "../../client/tasks/board/search-loading";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { useSearchFirstPrompts } from "../../client/tasks/data/search-first-prompts";
 import { setConversationSearchLoader, useSearchConversations } from "../../client/tasks/data/search-conversations";
@@ -39,8 +39,9 @@ describe("full conversation switch", () => {
       const conversation = useSearchConversations(api, lanes, full ? query : "");
       const search = full ? conversation : first;
       shown = search.messages;
-      return <SearchCoverageProvider status={search.status} query={query} total={shown.size} strings={full ? BOARD_STRINGS[language].conversationSearchCoverage : BOARD_STRINGS[language].searchCoverage} fullConversation={full} onFullConversationChange={setFull} fullConversationLabel={BOARD_STRINGS[language].fullConversationSearch}>
+      return <SearchCoverageProvider status={search.status} query={query} total={shown.size} strings={full ? BOARD_STRINGS[language].conversationSearchCoverage : BOARD_STRINGS[language].searchCoverage} fullConversation={full} onFullConversationChange={setFull} fullConversationLabel={BOARD_STRINGS[language].fullConversationSearch} fullConversationHint={BOARD_STRINGS[language].fullConversationHint}>
         <SearchInput value={query} onChangeText={setQuery} iconSize={13} iconColor="#777777" />
+        <FullConversationSwitch theme={{ colors: { accent: "blue", accentForeground: "white", surface0: "white", surface2: "gray", border: "gray", foregroundMuted: "gray" } } as never} />
       </SearchCoverageProvider>;
     }
     act(() => { tree = TestRenderer.create(<Probe />); });

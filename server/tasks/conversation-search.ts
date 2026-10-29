@@ -40,7 +40,9 @@ function searchPage(
   if (page.error) return { ...empty, unavailable: unavailableConversationError(page.error), error: page.error };
   if (input.cursor && (page.reset || page.gap || page.staleCursor || page.endCursor && page.endCursor.epoch !== input.cursor.epoch)) return { ...empty, error: "History changed; search again." };
   for (const row of rows) {
-    const match = conversationExcerpt(row.item, input.query);
+    const item = row.item as { type: string; text?: string };
+    if (item.type !== "user_message" && item.type !== "assistant_message" && item.type !== "reasoning") continue;
+    const match = conversationExcerpt(item.text, input.query);
     if (match !== null) return { ...empty, match };
   }
   if (page.hasNewer === undefined) return { ...empty, error: "The host did not return timeline pagination." };

@@ -365,6 +365,18 @@ describe("search coverage render isolation", () => {
 });
 
 describe("Tasks search coverage and centred toolbar", () => {
+  it("places the full-text switch outside the search field with an explanatory hover tip", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1200);
+    const field = hostsById("desktop-toolbar-search")[0]!;
+    expect(field.findAll((node) => node.props.testID === "search-full-conversation-toggle")).toHaveLength(0);
+    const toggle = hostsById("search-full-conversation-toggle")[0]!;
+    expect(toggle.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint);
+    expect(toggle.props.accessibilityState.checked).toBe(false);
+    act(() => toggle.props.onPress());
+    expect(hostsById("search-full-conversation-toggle")[0]!.props.accessibilityState.checked).toBe(true);
+  });
   it.each(["en", "zh"] as const)("shows all six toolbar shortcuts in %s hover tips without a sidebar key hint", (language) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     updateEnhancerPreferences({ language });
@@ -2966,7 +2978,8 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     const search = () => hostsById("tablet-toolbar-search")[0]!;
     expect(hostsById("tablet-search-popover")).toHaveLength(0);
-    expect(hostParentOf(search())).toBe(hostsById("tablet-toolbar-start")[0]);
+    expect(hostParentOf(search())?.props.testID).toBe("tablet-toolbar-search-group");
+    expect(hostParentOf(hostsById("tablet-toolbar-search-group")[0]!)?.props.testID).toBe("tablet-toolbar-start");
     expect(bar().findAll((node) => node === search())).toHaveLength(1);
     expect(style(search())).toMatchObject({ height: Math.round(28 * base / 14), flex: 1, minWidth: 0 });
     expect(style(search()).position).toBeUndefined();
@@ -3180,7 +3193,7 @@ describe("Tasks board, tablet filters", () => {
     if (!hostsById("tablet-search-toggle").length) return;
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     expect(hostsById("tablet-search-popover")).toHaveLength(0);
-    expect(hostParentOf(hostsById("tablet-toolbar-search")[0]!)).toBe(hostsById("tablet-toolbar-start")[0]);
+    expect(hostParentOf(hostsById("tablet-toolbar-search")[0]!)?.props.testID).toBe("tablet-toolbar-search-group");
     expect(StyleSheet.flatten(hostsById("tablet-toolbar")[0]!.props.style).height).toBe(height);
     const field = renderer!.root.find((n) => (n.type as unknown) === "TextInput");
     act(() => field.props.onChangeText("ping"));

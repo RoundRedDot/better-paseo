@@ -19,7 +19,7 @@ import { LABEL_GAP, nextBarLayout, type BarBoxes, type BarLayout, type Box } fro
 import type { BoardController } from "./use-board";
 import { LaneWidthMark } from "./lane-width-mark";
 import { useSwitchSpace } from "../../ui/use-switch-space";
-import { SearchInput } from "./search-loading";
+import { FullConversationSwitch, SearchInput } from "./search-loading";
 import { SearchCoverageItems } from "./search-coverage";
 import { tasksSettingsOpener } from "./enabled";
 
@@ -84,7 +84,7 @@ function DesktopToolbarView(props: {
   const compactActions = actionWidth > 0 && actionWidth < actionCount * toolbarButtonSize(scale) + (actionCount - 1) * TOOLBAR_GAP;
   return (
     <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
-      <View testID="desktop-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, alignItems: "flex-start" }}>
+      <View testID="desktop-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 }}>
       <View
         testID="desktop-toolbar-search"
         {...tipProps(`${strings.search} (/)`)}
@@ -118,6 +118,7 @@ function DesktopToolbarView(props: {
           <ClearButton label={strings.menuSearch.clear} onPress={() => board.setParams((params) => ({ ...params, query: "" }))} theme={theme} />
         ) : null}
       </View>
+      <FullConversationSwitch theme={theme} />
       </View>
       <View testID="desktop-toolbar-total" pointerEvents="none" style={{ flexShrink: 0, alignItems: "center" }}>
         <RollingTotal board={board} style={{ fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />

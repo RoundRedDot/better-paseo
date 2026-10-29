@@ -4,7 +4,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { HOST_FONT as F, useTasksFontScale } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { SearchInput } from "./search-loading";
+import { FullConversationSwitch, SearchInput } from "./search-loading";
 import { HAIRLINE, MOTION } from "./board-style";
 
 /** Owns its height and exit lifetime instead of relying on a host layout transaction. */
@@ -77,7 +77,8 @@ export function PhoneSearch(props: {
           onLayout={(event) => setHeight(event.nativeEvent.layout.height)}
           style={{ position: natural ? "relative" : "absolute", left: 0, right: 0, top: 0, paddingHorizontal: 16, paddingBottom: 10 }}
         >
-          <View style={{ minHeight: 36, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 18 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <View style={{ flex: 1, minWidth: 0, minHeight: 36, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 18 }}>
             <SearchInput iconSize={15} iconColor={colors.foregroundMuted}
               autoFocus={props.autoFocus}
               value={props.query}
@@ -93,6 +94,8 @@ export function PhoneSearch(props: {
                 <Icon name="X" size={15} color={colors.foregroundMuted} />
               </Pressable>
             ) : null}
+          </View>
+          <FullConversationSwitch theme={theme} />
           </View>
         </View>
       ) : null}

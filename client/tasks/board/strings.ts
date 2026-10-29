@@ -33,7 +33,8 @@ const en = {
   /** `total` without its number, for a count that rolls on its own. */
   totalUnit: (count: number): string => (count === 1 ? "task" : "tasks"),
   search: "Search tasks",
-  fullConversationSearch: "Full text",
+  fullConversationSearch: "Full search",
+  fullConversationHint: "Search messages and reasoning in available conversations. Full search loads content gradually, so results may take time.",
   conversationSearchCoverage: {
     unavailable: (count: number) => `${count} not searched`,
     failed: (count: number) => `${count} failed`,
@@ -42,7 +43,7 @@ const en = {
     title: "Full conversation search",
     close: "Tap outside to close",
     reading: (count: number) => `Searching ${count}…`,
-    readingHint: "Messages and tool content are searched page by page. Results appear as matches are found.",
+    readingHint: "Messages and reasoning are searched page by page. Results appear as matches are found.",
     unavailableHint: "Closed sessions, missing working directories and unavailable providers are skipped. Metadata is still searched for every loaded task.",
     failedHint: "Retry searches only the failed conversations. Your search stays.",
     tip: (count: number) => `Searching conversations for ${count} tasks`,
@@ -223,7 +224,8 @@ const zh: typeof en = {
   total: (count) => `${count} 个任务`,
   totalUnit: () => "个任务",
   search: "搜索任务",
-  fullConversationSearch: "全文",
+  fullConversationSearch: "全文搜索",
+  fullConversationHint: "搜索可用会话中的消息和思考内容。开启后会逐步加载，搜索结果可能需要等待。",
   conversationSearchCoverage: {
     unavailable: (count) => `${count} 个未搜全文`,
     failed: (count) => `${count} 个读取失败`,
@@ -232,7 +234,7 @@ const zh: typeof en = {
     title: "会话全文搜索",
     close: "点空白处关闭",
     reading: (count) => `正在搜索 ${count} 个`,
-    readingHint: "逐页搜索消息和工具内容，找到匹配后实时加入结果。",
+    readingHint: "逐页搜索消息和思考内容，找到匹配后实时加入结果。",
     unavailableHint: "跳过已关闭的会话、工作目录不存在或 provider 不可用的任务。所有已加载任务的元数据仍正常搜索。",
     failedHint: "重试只重新搜索失败的会话，搜索条件保留。",
     tip: (count) => `正在搜索 ${count} 个任务的完整会话`,
