@@ -386,15 +386,18 @@ describe("Tasks search coverage and centred toolbar", () => {
   });
   it("keeps the active search summary beside the desktop search field", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
-    act(() => { renderer = TestRenderer.create(screen(false, { q: "status", agent: "claude" })); });
+    act(() => { renderer = TestRenderer.create(screen(false, { q: "status", label: "api" })); });
     layOut(1600);
     const start = hostsById("desktop-toolbar-start")[0]!;
     const summary = hostsById("desktop-toolbar-search-summary")[0]!;
     expect(hostParentOf(summary)).toBe(start);
     expect(textOf(summary)).toContain("Contains「status」");
+    expect(textOf(summary)).toContain("api");
+    expect(summary.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Labels")).toBeDefined();
     expect(textOf(summary)).toContain("Clear all");
     const filterBar = hostsById("filter-bar")[0]!;
     expect(textOf(filterBar)).not.toContain("Contains");
+    expect(textOf(filterBar)).not.toContain("api");
     expect(textOf(filterBar)).not.toContain("Clear all");
   });
   it.each(["en", "zh"] as const)("shows all six toolbar shortcuts in %s hover tips without a sidebar key hint", (language) => {
@@ -2480,14 +2483,11 @@ describe("Tasks board, sorting", () => {
       renderer = TestRenderer.create(screen(false, { agent: "claude,codex", label: "api", sub: "1", win: "7d" }));
     });
     layOut(1600);
-    const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
-    let bar = end.parent!;
-    while (typeof bar.type !== "string") bar = bar.parent!;
-    const filters = bar.findAll((node) => (node.type as unknown) === "View" && hostParentOf(node) === bar).find((child) => child !== end)!;
-    const text = textOf(filters);
+    const summary = hostsById("desktop-toolbar-search-summary")[0]!;
+    const text = textOf(summary);
     // A single pick's chip draws its filter's icon, not the word, and reads the word out; a label's is its own solid tag.
-    expect(text).toContain("Labels · 1api");
-    const kind = filters.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Labels");
+    expect(text).toContain("api");
+    const kind = summary.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Labels");
     expect(kind.findAllByType(TagMark)).toHaveLength(1);
     // The switch and the done window show themselves: no chip, no hint line.
     expect(text).not.toContain("still show");
@@ -2509,8 +2509,8 @@ describe("Tasks board, sorting", () => {
     expect(lastBoardParams("host-1").providers).toEqual(["codex"]);
     // One left: a plain chip again, and the menu closed with the group.
     expect(renderer!.root.findAll((node) => node.props.testID === "chip-group-menu")).toHaveLength(0);
-    expect(textOf(filters)).toContain("apiCodex");
-    expect(filters.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Agent").findAll((node) => node.props.name === "Bot")).not.toHaveLength(0);
+    expect(textOf(summary)).toContain("apiCodex");
+    expect(summary.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Agent").findAll((node) => node.props.name === "Bot")).not.toHaveLength(0);
   });
 
   it("leaves out Clear all while only the switches or the done window are set", () => {

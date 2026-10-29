@@ -46,8 +46,8 @@ export const KEY_HINTS_MIN_WIDTH = 1200;
 
 /**
  * The desktop board's two bars (prototype 01): the count, key hints and
- * search at the left, count in the centre, actions at the right; then the
- * filters, applied-filter chips and done window. Equal side slots keep
+ * search and applied filters at the left, count in the centre, actions at
+ * the right; then the filter controls and done window. Equal side slots keep
  * the count centred regardless of the search and actions' actual widths.
  */
 export const DesktopToolbar = memo(DesktopToolbarView);
@@ -57,6 +57,9 @@ function DesktopToolbarView(props: {
   theme: PluginTheme;
   searchRef: Ref<NativeTextInput>;
   keyHints: boolean;
+  filterOptions?: FilterOptions;
+  menu: FilterMenu | null;
+  setMenu(menu: FilterMenu | null): void;
   /** The details sidebar's switch at the bar's right end; `sheet` when the details rise from the bottom. */
   sidebar?: { open: boolean; onToggle(): void; sheet?: boolean };
   emptyLanes: EmptyLanes;
@@ -75,7 +78,15 @@ function DesktopToolbarView(props: {
   const scale = useTasksFontScale();
   const colors = theme.colors;
   const strings = board.strings;
-  const searching = Boolean(board.params.query.trim());
+  const chips = props.filterOptions
+    ? groupChips(activeChips(board.params, board.defaults, props.filterOptions, strings).filter((chip) => !BAR_OWN_CONTROLS.has(chip.key)), strings)
+    : [];
+  const chipMenu = props.menu?.startsWith("chips:") ? props.menu : null;
+  const groupGone = !!chipMenu && !chips.some((entry) => entry.key === `group:${chipMenu.slice(6)}`);
+  useEffect(() => {
+    if (groupGone) props.setMenu(null);
+  }, [groupGone, props.setMenu]);
+  const toggle = (menuId: FilterMenu) => props.setMenu(props.menu === menuId ? null : menuId);
   const [searchFocused, setSearchFocused] = useState(false);
   const [actionWidth, setActionWidth] = useState(0);
   const [viewOpen, setViewOpen] = useState(false);
@@ -120,10 +131,38 @@ function DesktopToolbarView(props: {
         ) : null}
       </View>
       <FullConversationSwitch theme={theme} />
-      {searching ? (
+      {chips.length ? (
         <View testID="desktop-toolbar-search-summary" style={{ flexDirection: "row", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 1, gap: 10 }}>
-          <SearchQueryChip board={board} theme={theme} />
-          <SearchCoverageItems theme={theme} />
+          {chips.map((entry) =>
+            isChipGroup(entry) ? (
+              <GroupChip
+                key={entry.key}
+                group={entry}
+                open={props.menu === `chips:${entry.kind}`}
+                onPress={() => toggle(`chips:${entry.kind}`)}
+                onClear={() => board.setParams(entry.clear)}
+                clearLabel={`${strings.clear} ${entry.label}`}
+                theme={theme}
+              >
+                <CascadeMenu
+                  sections={chipGroupMenuSections(entry, theme, strings, board.setParams)}
+                  theme={theme}
+                  width={320}
+                  top={toolbarButtonSize(scale) + 6}
+                  align="left"
+                  onClose={() => props.setMenu(null)}
+                  testID="chip-group-menu"
+                />
+              </GroupChip>
+            ) : (
+              entry.key === "q" ? (
+                <View key={entry.key} style={{ flexDirection: "row", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 1, gap: 10 }}>
+                  <Chip chip={entry} onClear={() => board.setParams(entry.clear)} clearLabel={`${strings.clear} ${entry.value}`} theme={theme} />
+                  <SearchCoverageItems theme={theme} />
+                </View>
+              ) : <Chip key={entry.key} chip={entry} onClear={() => board.setParams(entry.clear)} clearLabel={`${strings.clear} ${entry.value}`} theme={theme} />
+            ),
+          )}
           <ClearAllButton board={board} theme={theme} />
         </View>
       ) : null}
@@ -372,13 +411,6 @@ function DesktopFilterBarView(props: {
   const strings = board.strings;
   const { params, setParams, defaults } = board;
   const resolved = resolveBoardParams(params, defaults);
-  // Desktop controls show their own state; tablet panel choices keep their chips visible.
-  const chips = groupChips(activeChips(params, defaults, options, strings).filter((chip) => tablet || (chip.key !== "q" && !BAR_OWN_CONTROLS.has(chip.key))), strings);
-  // A folded chip whose picks dropped to one is a plain chip again: its menu goes with it.
-  const groupGone = !!menu?.startsWith("chips:") && !chips.some((entry) => entry.key === `group:${menu.slice(6)}`);
-  useEffect(() => {
-    if (groupGone) setMenu(null);
-  }, [groupGone, setMenu]);
   const count = (list: readonly unknown[]) => (list.length ? ` · ${list.length}` : "");
   const toggle = (menuId: FilterMenu) => setMenu(menu === menuId ? null : menuId);
   const shown = shownFilterOptions(options, board.showEmptyGroups);
@@ -453,8 +485,8 @@ function DesktopFilterBarView(props: {
         zIndex: 10,
       }}
     >
-      {/* The filters and their chips wrap among themselves; the done window
-          and the sort keep the first row's right end while the filters have
+      {/* The filter controls keep the first row's left end; the done window
+          and the sort keep the right end while the filters have
           FILTERS_MIN_WIDTH beside them, and wrap below them, still at the
           right, when they do not. */}
       <View pointerEvents="box-none" onLayout={fit.box("filters")} style={{ flex: 1, minWidth: tablet ? 4 * toolbarButtonSize(scale) + 3 * TOOLBAR_GAP : FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
@@ -503,45 +535,6 @@ function DesktopFilterBarView(props: {
             />
           </MenuButton>
         </View>
-        {/* "Clear all" follows the chips: with only the switches or the done
-            window set, it would stand alone beside controls that already
-            show their state. */}
-        {chips.length ? (
-          <>
-            <Divider theme={theme} />
-            {chips.map((entry) =>
-              isChipGroup(entry) ? (
-                <GroupChip
-                  key={entry.key}
-                  group={entry}
-                  open={menu === `chips:${entry.kind}`}
-                  onPress={() => toggle(`chips:${entry.kind}`)}
-                  onClear={() => setParams(entry.clear)}
-                  clearLabel={`${strings.clear} ${entry.label}`}
-                  theme={theme}
-                >
-                  <CascadeMenu
-                    sections={chipGroupMenuSections(entry, theme, strings, setParams)}
-                    theme={theme}
-                    width={320}
-                    top={toolbarButtonSize(scale) + 6}
-                    align="left"
-                    onClose={() => setMenu(null)}
-                    testID="chip-group-menu"
-                  />
-                </GroupChip>
-              ) : (
-                entry.key === "q" ? (
-                  <View key={entry.key} style={{ flexDirection: "row", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 1, gap: 10 }}>
-                    <Chip chip={entry} onClear={() => setParams(entry.clear)} clearLabel={`${strings.clear} ${entry.value}`} theme={theme} />
-                    <SearchCoverageItems theme={theme} />
-                  </View>
-                ) : <Chip key={entry.key} chip={entry} onClear={() => setParams(entry.clear)} clearLabel={`${strings.clear} ${entry.value}`} theme={theme} />
-              ),
-            )}
-            {params.query.trim() && !tablet ? null : <ClearAllButton board={board} theme={theme} />}
-          </>
-        ) : null}
       </View>
       <View testID="filter-bar-end" pointerEvents="box-none" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
         {tablet ? null : (

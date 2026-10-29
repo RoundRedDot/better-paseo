@@ -609,6 +609,9 @@ export function DesktopBoard(props: {
         theme={theme}
         searchRef={searchRef}
         keyHints={boardWidth === 0 || boardWidth >= KEY_HINTS_MIN_WIDTH * Math.max(1, scale)}
+        filterOptions={options ?? undefined}
+        menu={menu}
+        setMenu={setMenu}
         sidebar={sidebarToggle}
         emptyLanes={emptyLanesSwitch}
         filters={sheetFilters}
