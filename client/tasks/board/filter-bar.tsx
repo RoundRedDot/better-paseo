@@ -230,7 +230,7 @@ function DesktopToolbarView(props: {
           onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
           label={strings.emptyGroups.row}
           hint={strings.emptyGroups.hint(board.showEmptyGroups)}
-          tip={`${strings.emptyGroups.row} (G)`}
+          tip={`${board.showEmptyGroups ? strings.emptyGroups.hide : strings.emptyGroups.row} (G)`}
           theme={theme}
           testID="empty-groups-toggle"
         />

@@ -3362,7 +3362,7 @@ describe("Tasks board, tablet filters", () => {
       const toolbar = renderer!.root.findByType(DesktopToolbar);
       expect(toolbar.findAll((node) => node === toggle())).toHaveLength(1);
       expect(toggle().props).toMatchObject({ accessibilityRole: "switch", accessibilityLabel: "Show all", accessibilityState: { checked: true } });
-      expect(toggle().props.dataSet?.bctip).toBe("Show all (G)");
+      expect(toggle().props.dataSet?.bctip).toBe("Don't show all (G)");
       // The same round size as the sidebar switch beside it.
       const size = (testID: string) => StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID).props.style).width;
       expect(size("empty-groups-toggle")).toBe(size("sidebar-switch"));
@@ -3372,6 +3372,7 @@ describe("Tasks board, tablet filters", () => {
       expect(host.save).not.toHaveBeenCalled();
       expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
       expect(toggle().props.accessibilityState).toEqual({ checked: false });
+      expect(toggle().props.dataSet?.bctip).toBe("Show all (G)");
       expect(icon()).toBe("ListFilter");
       expect(rows()).not.toContain("Pi 0");
     } finally {
