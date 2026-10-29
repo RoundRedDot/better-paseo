@@ -131,7 +131,7 @@ export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme;
   if (!context?.onFullConversationChange) return null;
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
     accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps([context.fullConversationLabel, context.fullConversationHint].filter(Boolean).join("\n"))} onPress={toggle} hitSlop={4}
-    style={{ flexShrink: 0, width: compact ? 36 : 32, height: compact ? 36 : 32, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: compact ? 18 : 6, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0 }}>
+    style={{ flexShrink: 0, width: compact ? 36 : 32, height: compact ? 36 : 32, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: compact ? 18 : 16, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0 }}>
     <Icon name={on ? "FileText" : "List"} size={16} color={theme.colors.foreground} />
   </Pressable>;
 }
