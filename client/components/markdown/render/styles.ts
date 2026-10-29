@@ -195,10 +195,10 @@ export const TABLE_DIVIDER_WIDTH = 1;
 /**
  * Room under a table for the platform's scroll indicator, which iOS and the
  * browsers draw over the bottom of the scroller: there it would cover the
- * last row. The scroller gives the same height back below, so the room sits
- * in the gap to the next block and the reply keeps its layout.
+ * last row. Part of the room sits in the gap to the next block, while the
+ * remainder keeps the indicator clear of the table border.
  */
-export const TABLE_SCROLL_GUTTER = space.sm;
+export const TABLE_SCROLL_GUTTER = space.lg;
 
 /** Every style the renderer draws with, so callers never infer it from the builder. */
 export interface MarkdownStyles {
@@ -470,7 +470,7 @@ export function buildStyles(
     },
     tableScroll: {
       alignSelf: "stretch",
-      marginBottom: -TABLE_SCROLL_GUTTER,
+      marginBottom: -space.sm,
     },
     tableContent: {
       paddingRight: space.xs,
