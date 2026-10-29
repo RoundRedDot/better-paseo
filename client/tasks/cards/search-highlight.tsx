@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, ScrollView, View, type LayoutChangeEvent, type TextLayoutEvent } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, TASK_MONO, useTasksFontScale } from "../typography";
 import { orderedSearchHits, searchRanges, type SearchField, type SearchHit } from "../data/search-hits";
@@ -98,9 +99,13 @@ export function useSearchClip(text: string, query: string, lines: number) {
   };
 }
 
-const ICONS: Record<SearchField, string> = {
+const FIRST_MESSAGE_SEARCH_ICON: PluginIcon = {
+  svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M11.6 20H5.5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v5.9"/><path d="M7 7.5h6M7 11h6M7 14.5h3"/><circle cx="16" cy="16.5" r="3"/><path d="m18.1 18.6 2.4 2.4"/></svg>',
+};
+
+const ICONS: Record<SearchField, PluginIcon> = {
   title: "Type",
-  prompt: "MessageSquare",
+  prompt: FIRST_MESSAGE_SEARCH_ICON,
   conversation: "MessagesSquare",
   pr: "GitPullRequest",
   label: "Tag",
@@ -202,14 +207,14 @@ export function SearchHitSummary(props: {
     >
       {full ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Icon name={ICONS[hit.field]} size={13} color={tokens.foregroundMuted} />
+          <Icon icon={ICONS[hit.field]} size={13} color={tokens.foregroundMuted} />
           <Text style={{ fontSize: 12, lineHeight: 18, color: tokens.foregroundMuted, fontWeight: "600" }}>
             {strings.fields[hit.field]}
           </Text>
         </View>
       ) : (
         <>
-          <Icon name={ICONS[hit.field]} size={13} color={tokens.foregroundMuted} />
+          <Icon icon={ICONS[hit.field]} size={13} color={tokens.foregroundMuted} />
           <Text style={{ fontSize: 12, lineHeight: 18, color: tokens.foregroundMuted, fontWeight: "600" }}>{strings.fields[hit.field]}</Text>
         </>
       )}
@@ -330,7 +335,7 @@ export function SearchHitSummary(props: {
       </Pressable>
       {open && touch ? <View testID="task-search-expanded">{all}</View> : null}
       {open && !touch ? (
-        <View ref={panel} collapsable={false} style={{ position: "absolute", top: "100%", left: 0, paddingTop: 8, width: 336 }}>
+        <View ref={panel} collapsable={false} testID="task-search-popover-layer" style={{ position: "absolute", top: "100%", left: "50%", marginLeft: -168, paddingTop: 8, width: 336 }}>
           <View
             role="dialog"
             accessibilityLabel={strings.dialog}

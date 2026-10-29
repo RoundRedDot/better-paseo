@@ -4,9 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import "./helpers/quiet-renderer";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => vi.fn() }));
+const iconCalls = vi.hoisted(() => [] as Array<{ icon?: unknown }>);
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
-  return { Icon: () => null, ScrollView: rn.ScrollView, copyText: vi.fn(), useToast: () => ({ show() {}, error() {} }) };
+  return { Icon: (props: { icon?: unknown }) => { iconCalls.push(props); return null; }, ScrollView: rn.ScrollView, copyText: vi.fn(), useToast: () => ({ show() {}, error() {} }) };
 });
 const pointer = vi.hoisted(() => ({ touch: true }));
 vi.mock("../../client/ui/use-input-capabilities", () => ({
@@ -89,6 +90,7 @@ afterEach(async () => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   resetSectionChoices();
+  iconCalls.length = 0;
   pointer.touch = true;
 });
 
@@ -97,6 +99,17 @@ describe("card search rendering", () => {
     const root = await mount(<TaskCardView {...props} searchQuery="sche" searchPrompt={{ state: "ready", text: "Schedule tool output", field: "conversation" }} />);
     expect(text(host(root, "task-search-summary-trigger"))).toContain("会话内容");
     expect(text(host(root, "task-search-summary-trigger"))).not.toContain("首条消息");
+  });
+
+  it("uses the custom document-search icon for first-message hits", async () => {
+    await mount(<TaskCardView {...props} searchQuery="sche" searchPrompt={{ state: "ready", text: "Schedule prompt" }} />);
+    const firstMessageIcon = iconCalls.find((call) => typeof call.icon === "object" && call.icon !== null);
+    expect(firstMessageIcon).toMatchObject({
+      icon: {
+        svg: expect.stringContaining('viewBox="0 0 24 24"'),
+      },
+    });
+    expect((firstMessageIcon!.icon as { svg: string }).svg).toContain('<circle cx="16" cy="16.5" r="3"/>');
   });
 
   it("does not offer a retry for a conversation with missing prerequisites", async () => {
@@ -223,6 +236,7 @@ describe("card search rendering", () => {
       vi.advanceTimersByTime(1);
     });
     expect(host(root, "task-search-popover").props.accessibilityLabel).toBe("搜索命中");
+    expect(host(root, "task-search-popover-layer").props.style).toMatchObject({ left: "50%", marginLeft: -168, width: 336 });
     await act(async () => summary.props.onHoverOut());
     await act(async () => {
       vi.advanceTimersByTime(150);
