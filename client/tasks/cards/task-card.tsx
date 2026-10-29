@@ -435,14 +435,11 @@ export const OVERLAY_ROW_Z = 2;
 /** The card's corner radius (Linear's card). */
 const CARD_RADIUS = 8;
 /**
- * The subtask mark: a small dot by the top-right corner, this wide, its
- * centre this far in from both edges. Past the corner's 8 pt curve, so the
- * top and right edges are nearest: its edge keeps 7 pt clear of both (7.5
- * along the diagonal). The context ring sits on the same diagonal
- * (`ringNudge`), about 4 pt beyond it on a desktop card. On a folded card the
- * dot sits between the flap's tip and the context ring (`warningCorner`).
+ * The subtask mark: a small dot by the top-right corner, this wide. Its centre
+ * sits on the corner's diagonal, with the fold and the context ring
+ * (`cornerLayout`), in the same place whether or not the corner is folded.
  */
-export const MARK_DOT = { size: 3.5, inset: 8.75 } as const;
+export const MARK_DOT = { size: 3.5 } as const;
 /**
  * The box the mark is drawn in, then scaled down to `MARK_DOT.size`.
  * On the web, Chrome snaps each edge of a box to whole pixels on its own, so
@@ -499,9 +496,9 @@ const ariaHidden = (): ViewProps =>
  * A subtask card's mark (`MARK_DOT`), its centre `inset` in from the top and
  * right. It is decoration, so neither touch nor a screen reader finds it.
  */
-function CornerMark(props: { color: string; inset?: number }) {
+function CornerMark(props: { color: string; inset: number }) {
   const { size } = MARK_DOT;
-  const inset = props.inset ?? MARK_DOT.inset;
+  const { inset } = props;
   const box = MARK_DOT_BOX;
   return (
     <View
@@ -722,11 +719,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A subtask's card (a Paseo agent with a parent, or a provider subagent's dashed card) marks its
   // top-right corner in its project's colour. Grey at rest; the project's colour while the card is
   // hovered, chosen in the sidebar or focused.
-  // An unavailable card folds its top-right corner over; its dot stays on the card, past the flap.
+  // An unavailable card folds its top-right corner over; its dot, in the same place, sits on the flap.
   const issue = shownIssue(card.availability?.issue);
+  const fold = issue ? mix(background, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light) : null;
   const markActive = lit || props.current || props.focused;
   const cornerMark = card.parent !== null
-    ? markActive ? markHue(card.location, props.hostId, tokens, issue ? [background] : undefined) : markRest(tokens, background)
+    ? markActive ? markHue(card.location, props.hostId, tokens, fold ? [fold] : undefined) : markRest(tokens, fold ?? background)
     : null;
   const shadows = lit ? [look.shadowHover] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
@@ -774,7 +772,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   if (layout.workspace && location.workspaceName) metaParts.push(location.workspaceName);
   const metaText = query ? searchBreadcrumb(layout.project ? location.projectName ?? "" : "", layout.workspace ? location.workspaceName ?? "" : "", query, metaWidth ? Math.floor(metaWidth / (m.metaSize * scale * 0.65)) : 35) : metaParts.join(SEPARATOR);
   const hasMeta = metaText !== "" || card.parent !== null;
-  const corner = issue ? warningCorner(m, hasMeta ? m.metaLine : m.titleLine, scale) : null;
+  const corner = cornerLayout(m, scale, borderWidth);
+  const hit = issue ? warningHit(m, hasMeta ? m.metaLine : m.titleLine, scale) : null;
 
   // The context ring at the top right: on the meta row, or on the title row
   // when the meta row has nothing to say. Its details card opens downwards
@@ -1499,18 +1498,18 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         style={cardStyle}
         testID={`task-card-${card.id}`}
       >
-        {corner ? <CutCardSurface size={corner.size} radius={CARD_RADIUS} background={background} borderColor={borderColor} borderWidth={borderWidth} dashed={dashed} shadow={shadow} fold={mix(background, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light)} /> : null}
-        {issue && corner ? (
+        {fold ? <CutCardSurface size={corner.fold} radius={CARD_RADIUS} background={background} borderColor={borderColor} borderWidth={borderWidth} dashed={dashed} shadow={shadow} fold={fold} /> : null}
+        {issue && hit !== null ? (
           <AvailabilityCorner
             issue={issue}
             language={language}
             theme={theme}
             tokens={tokens}
-            hit={corner.hit}
+            hit={hit}
             onOpenChange={setCornerOpen}
           />
         ) : null}
-        {cornerMark ? <CornerMark color={cornerMark} inset={corner?.dot} /> : null}
+        {cornerMark ? <CornerMark color={cornerMark} inset={corner.dot} /> : null}
         {metaRow}
         {titleRow}
         {titleUpdate.state === "error" ? <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 8 }}>
@@ -1767,24 +1766,35 @@ export function ringNudge(m: Pick<Metrics, "padH" | "padTop">, line: number, sca
 
 /** The folded flap's fill: the card's fill this far towards the foreground. */
 export const FOLD_TINT = { light: 0.06, dark: 0.09 } as const;
-/** The least room between the subtask dot and the flap's tip, and the dot and the context ring. */
-export const FOLD_GAP = 0.6;
-
 /**
- * A small fold scales with the interface; its flap's tip keeps the card's
- * radius, so along the diagonal it reaches (size - radius) * sqrt 2 + radius,
- * about twice as far as the cut. The ring moves in more slowly, so the fold
- * stops growing where the dot would no longer fit between them. The subtask
- * dot stays midway between that tip and the context ring; the hint target
- * stops 1 pt short of the ring.
+ * The fold, the subtask dot and the context ring sit on the top-right
+ * corner's diagonal, measured along it from the card's outer corner, as the
+ * fold is drawn; the ring and the dot sit `border` further in. A
+ * fold of `size` creases at size / sqrt 2; its flap's tip, keeping the card's
+ * radius, reaches (size - radius) * sqrt 2 + radius. The dot sits midway
+ * across the flap, and the flap is as large as leaves the same room on both
+ * sides of the dot as between its tip and the ring's outer edge: 15 pt on a
+ * desktop card at the default size, 17 on a phone's. Both follow the meta
+ * row's ring, where a subtask's ring always is, so a card's fold and dot are
+ * the same with or without a ring, and the dot does not move when the corner
+ * folds. A ring on the title row is centred on that row, further along the
+ * diagonal.
  */
-export function warningCorner(m: Pick<Metrics, "padTop">, line: number, scale: number): { size: number; hit: number; dot: number } {
-  const ring = m.padTop + Math.round(line * scale) / 2;
-  const ringEdge = ring * Math.SQRT2 - CONTEXT_RING_BITMAPS.card.size / 2;
-  const room = ringEdge - MARK_DOT.size - 2 * FOLD_GAP;
-  const size = Math.min(Math.round(12 * scale + m.padTop - DESKTOP.padTop), Math.floor((room - CARD_RADIUS) / Math.SQRT2 + CARD_RADIUS));
-  const tip = (size - CARD_RADIUS) * Math.SQRT2 + CARD_RADIUS;
-  return { size, hit: Math.floor((ringEdge - 1) * Math.SQRT2), dot: (tip + ringEdge) / (2 * Math.SQRT2) };
+export function cornerLayout(m: Pick<Metrics, "padTop" | "metaLine">, scale: number, border: number): { fold: number; dot: number } {
+  const ringEdge = (m.padTop + Math.round(m.metaLine * scale) / 2 + border) * Math.SQRT2 - CONTEXT_RING_BITMAPS.card.size / 2;
+  // Room on the flap: tip - crease - dot = size / sqrt 2 - lift - dot, halved on each side;
+  // room to the ring: ringEdge - tip. Equal when size * 5 / (2 sqrt 2) = ringEdge + 1.5 * lift + dot / 2.
+  const lift = CARD_RADIUS * (Math.SQRT2 - 1);
+  const fold = Math.round(((ringEdge + 1.5 * lift + MARK_DOT.size / 2) * 2 * Math.SQRT2) / 5);
+  const crease = fold / Math.SQRT2;
+  const tip = fold * Math.SQRT2 - lift;
+  return { fold, dot: (crease + tip) / 2 / Math.SQRT2 - border };
+}
+
+/** The warning hint's target, to 1 pt short of the context ring on `line`, so the ring keeps its own hover. */
+export function warningHit(m: Pick<Metrics, "padTop">, line: number, scale: number): number {
+  const ringEdge = (m.padTop + Math.round(line * scale) / 2) * Math.SQRT2 - CONTEXT_RING_BITMAPS.card.size / 2;
+  return Math.floor((ringEdge - 1) * Math.SQRT2);
 }
 
 /**

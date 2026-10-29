@@ -121,7 +121,7 @@ import type { TitleUpdateState } from "../../shared/title-generation";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { FLASH } from "../../client/tasks/board/breathing";
-import { FOLD_GAP, FOLD_TINT, MARK_DOT, MARK_DOT_BOX, markHue, markRest, OVERLAY_ROW_Z, ringNudge, warningCorner } from "../../client/tasks/cards/task-card";
+import { cornerLayout, FOLD_TINT, MARK_DOT, MARK_DOT_BOX, markHue, markRest, OVERLAY_ROW_Z, ringNudge, warningHit } from "../../client/tasks/cards/task-card";
 import { SubtaskRow, SubtaskMetadata } from "../../client/tasks/cards/subtask-row";
 import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
@@ -240,12 +240,12 @@ describe("unavailable task operations", () => {
     }
     const edge = flat(hostByTestId(tree.root, "task-card-cut-edge").props.style);
     expect(edge).toMatchObject({ borderRadius: 1, transform: [{ rotate: "45deg" }] });
-    expect(edge.width).toBeCloseTo((12 + 2) * Math.SQRT2);
+    expect(edge.width).toBeCloseTo((15 + 2) * Math.SQRT2);
     expect(edge.height).toBe(edge.width);
     // The folded flap: flat, outlined on its two inner legs, its tip at the card's radius.
     const fold = () => flat(hostByTestId(tree.root, "task-card-fold").props.style);
     expect(fold()).toMatchObject({
-      width: 12, height: 12, transform: [{ rotate: "-45deg" }],
+      width: 15, height: 15, transform: [{ rotate: "-45deg" }],
       backgroundColor: mix(tokens.card.background, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light),
       borderColor: tokens.card.border, borderLeftWidth: 1, borderBottomWidth: 1, borderBottomLeftRadius: 8,
     });
@@ -257,12 +257,13 @@ describe("unavailable task operations", () => {
     expect(dot.width).toBe(dot.height);
     expect(dot.borderRadius).toBe((dot.width as number) / 2);
     expect((dot.width as number) * (dot.transform as Array<{ scale: number }>)[0]!.scale).toBe(MARK_DOT.size);
-    const centre = (dot.top as number) + (dot.width as number) / 2;
-    expect(centre * Math.SQRT2 - MARK_DOT.size / 2).toBeGreaterThan((12 - 8) * Math.SQRT2 + 8);
+    // On the flap, midway between its crease and its tip (from the outer corner, a 1 pt border further out).
+    const centre = ((dot.top as number) + (dot.width as number) / 2 + 1) * Math.SQRT2;
+    expect(centre - MARK_DOT.size / 2 - 15 / Math.SQRT2).toBeCloseTo((15 - 8) * Math.SQRT2 + 8 - centre - MARK_DOT.size / 2);
     const order = rows(tree.root, "sample-child-1");
     expect(order.indexOf("task-card-cut-surface")).toBeLessThan(order.indexOf("task-card-subtask-mark"));
     await act(async () => root.props.onHoverIn());
-    expect(String(flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style).backgroundColor)).toBe(markHue(card.location, "host-1", tokens, [tokens.card.hoverBackground]));
+    expect(String(flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style).backgroundColor)).toBe(markHue(card.location, "host-1", tokens, [mix(tokens.card.hoverBackground, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light)]));
     for (const part of ["body", "top", "edge"]) {
       expect(flat(hostByTestId(tree.root, `task-card-cut-${part}`).props.style)).toMatchObject({ backgroundColor: tokens.card.hoverBackground, boxShadow: tokens.card.shadowHover });
     }
@@ -334,43 +335,66 @@ describe("unavailable task operations", () => {
     expect(flat(hostByTestId(tree.root, `task-card-${card.id}`).props.style).zIndex).toBe(1);
   });
 
-  it("scales a small fold and keeps the dot between its flap's tip and the context ring", async () => {
+  it("sizes the fold so the dot sits midway across its flap, as far from its crease and tip as the tip is from the ring", async () => {
     for (const padTop of [10, 12]) {
-      for (const line of [16, 18, 20]) {
+      for (const metaLine of [16, 18]) {
         for (const scale of [0.85, 1, 15 / 14, 1.25, 1.5, 2]) {
-          const ringEdge = (padTop + Math.round(line * scale) / 2) * Math.SQRT2 - 7;
-          const { size, hit, dot } = warningCorner({ padTop }, line, scale);
-          // The flap's rounded tip, along the diagonal from the corner.
-          const tip = (size - 8) * Math.SQRT2 + 8;
-          const centre = dot * Math.SQRT2;
-          expect(Number.isInteger(size) && Number.isInteger(hit)).toBe(true);
-          expect(centre - MARK_DOT.size / 2 - tip).toBeGreaterThanOrEqual(FOLD_GAP - 1e-9);
-          expect(ringEdge - centre - MARK_DOT.size / 2).toBeGreaterThanOrEqual(FOLD_GAP - 1e-9);
-          expect(centre - tip).toBeCloseTo(ringEdge - centre);
-          expect(hit).toBeGreaterThanOrEqual(size);
-          expect(hit / Math.SQRT2).toBeLessThanOrEqual(ringEdge - 1);
+          for (const border of [1 / 3, 0.5, 1]) {
+            // Along the diagonal from the card's outer corner.
+            const ringEdge = (padTop + Math.round(metaLine * scale) / 2 + border) * Math.SQRT2 - 7;
+            const { fold, dot } = cornerLayout({ padTop, metaLine }, scale, border);
+            const crease = fold / Math.SQRT2;
+            const tip = (fold - 8) * Math.SQRT2 + 8;
+            const centre = (dot + border) * Math.SQRT2;
+            expect(Number.isInteger(fold)).toBe(true);
+            expect(centre - MARK_DOT.size / 2 - crease).toBeCloseTo(tip - centre - MARK_DOT.size / 2);
+            const room = centre - MARK_DOT.size / 2 - crease;
+            expect(room).toBeGreaterThanOrEqual(1.5);
+            // A whole-point fold leaves the ring within a point of the room around the dot.
+            expect(Math.abs(ringEdge - tip - room)).toBeLessThan(1);
+            for (const line of [metaLine, 20, 22]) {
+              const hit = warningHit({ padTop }, line, scale);
+              expect(Number.isInteger(hit)).toBe(true);
+              expect(hit).toBeGreaterThanOrEqual(fold - 1);
+              expect(hit / Math.SQRT2).toBeLessThanOrEqual((padTop + Math.round(line * scale) / 2) * Math.SQRT2 - 7 - 1);
+            }
+          }
         }
       }
     }
-    expect(warningCorner({ padTop: 10 }, 16, 1).size).toBe(12);
-    expect(warningCorner({ padTop: 12 }, 16, 1).size).toBe(14);
-    const card = { ...sample("sample-child-1"), availability: unavailableTask({ code: "workspace_unavailable", detail: null }) };
+    expect(cornerLayout({ padTop: 10, metaLine: 16 }, 1, 1).fold).toBe(15);
+    expect(cornerLayout({ padTop: 12, metaLine: 16 }, 1, 1).fold).toBe(17);
+  });
+
+  it("keeps the fold and the dot in one place across a card's states", async () => {
+    const gone = unavailableTask({ code: "workspace_unavailable", detail: null });
+    const child = sample("sample-child-1");
     const dotCentre = (tree: ReactTestRenderer) => {
       const dot = flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style);
       return [(dot.top as number) + (dot.width as number) / 2, (dot.right as number) + (dot.width as number) / 2];
     };
-    const tree = await render(cardElement(card, { compact: true }));
-    expect(flat(hostByTestId(tree.root, "task-card-cut-edge").props.style).width).toBeCloseTo((14 + 2) * Math.SQRT2);
-    const phone = warningCorner({ padTop: 12 }, 16, 1);
-    expect(dotCentre(tree)).toEqual([phone.dot, phone.dot]);
-    await act(async () => tree.update(React.createElement(TasksTypographyScale, { factor: 1.5, children: cardElement(card) })));
-    const large = warningCorner({ padTop: 10 }, 16, 1.5);
-    expect(flat(hostByTestId(tree.root, "task-card-cut-edge").props.style).width).toBeCloseTo((large.size + 2) * Math.SQRT2);
-    expect(large.size).toBeGreaterThan(12);
-    expect(dotCentre(tree)).toEqual([large.dot, large.dot]);
-    await act(async () => tree.update(cardElement(sample("sample-child-1"))));
-    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-availability-corner")).toHaveLength(0);
-    expect(dotCentre(tree)).toEqual([MARK_DOT.inset, MARK_DOT.inset]);
+    const foldSize = (tree: ReactTestRenderer) => flat(hostByTestId(tree.root, "task-card-fold").props.style).width;
+    for (const [compact, scale] of [[false, 1], [true, 1], [false, 1.5]] as const) {
+      const metrics = compact ? { padTop: 12, metaLine: 16 } : { padTop: 10, metaLine: 16 };
+      const { fold, dot } = cornerLayout(metrics, scale, 1);
+      const element = (card: TaskCard, props: Partial<TaskCardViewProps> = {}) =>
+        scale === 1 ? cardElement(card, { compact, ...props }) : React.createElement(TasksTypographyScale, { factor: scale, children: cardElement(card, { compact, ...props }) });
+      const tree = await render(element(child));
+      // The dot does not move when the corner folds, with or without a ring.
+      expect(dotCentre(tree)).toEqual([dot, dot]);
+      for (const card of [{ ...child, availability: gone }, { ...child, context: null, availability: gone }]) {
+        await act(async () => tree.update(element(card)));
+        expect(dotCentre(tree)).toEqual([dot, dot]);
+        expect(foldSize(tree)).toBe(fold);
+      }
+      // A top-level card's fold is the same, its ring on the meta row or, with nothing to say there, the title row.
+      for (const props of [{}, { fields: { ...CARD_PRESETS.standard.fields, labelLimit: CARD_PRESETS.standard.labelLimit, project: false, projectIcon: false, workspace: false } }]) {
+        await act(async () => tree.update(element({ ...sample("sample-running"), availability: gone }, props)));
+        expect(foldSize(tree)).toBe(fold);
+        expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark")).toHaveLength(0);
+      }
+      await act(async () => tree.unmount());
+    }
   });
 
   it("hides writes the task cannot take from the menu and drops the groups they empty", () => {
@@ -1376,10 +1400,10 @@ describe("ProjectIcon", () => {
     const light = taskTokens(LIGHT);
     const tree = await render(cardElement(child, { hostId: "host-1" }));
     const mark = marks(tree)[0]!;
-    // A 3.5 pt dot, its edge 7 pt clear of the top and right: no layout, no touch, no screen reader.
-    const { size, inset } = MARK_DOT;
-    expect(MARK_DOT).toEqual({ size: 3.5, inset: 8.75 });
-    expect(inset - size / 2).toBe(7);
+    // A 3.5 pt dot on the corner's diagonal, where a fold's flap would hold it: no layout, no touch, no screen reader.
+    const { size } = MARK_DOT;
+    const inset = cornerLayout({ padTop: 10, metaLine: 16 }, 1, 1).dot;
+    expect(MARK_DOT).toEqual({ size: 3.5 });
     // Drawn in a square box whose side is whole in points and in pixels at the common densities, then
     // scaled: a 3.5 pt box has each edge snapped on its own and drew a 3 x 4 oval at a fractional offset.
     expect(MARK_DOT_BOX).toBe(8);
@@ -1522,7 +1546,8 @@ describe("TaskCardView context ring", () => {
     const meter = hostByTestId(hostByTestId(tree.root, "task-card-meta"), "task-card-context");
     expect(flat(meter.props.style)).toMatchObject({ height: 16, marginRight: -1 });
     // Its centre: 18 pt in from the right and 18 down from the top, on the diagonal through the dot.
-    expect(12 + 7 - 1 - MARK_DOT.inset).toBe(10 + 16 / 2 - MARK_DOT.inset);
+    const { dot } = cornerLayout({ padTop: 10, metaLine: 16 }, 1, 1);
+    expect(12 + 7 - 1 - dot).toBe(10 + 16 / 2 - dot);
   });
 
   it.each([
