@@ -1,6 +1,7 @@
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act } from "react-test-renderer";
+import { Animated } from "react-native";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
@@ -66,6 +67,7 @@ describe("filter sheet groups", () => {
   it("folds each group independently without changing selected filters", () => {
     const params = { ...EMPTY_PARAMS, providers: ["codex"], labels: ["bug"] };
     const setParams = vi.fn();
+    const timing = vi.spyOn(Animated, "timing");
     render({ ...board, params, setParams }, {
       agents: [{ id: "codex", label: "Codex", count: 1, on: true }],
       labels: [{ id: "bug", label: "bug", count: 1, on: true }],
@@ -77,14 +79,17 @@ describe("filter sheet groups", () => {
     act(() => toggle("filter-sheet-agents-toggle").props.onPress());
     expect(toggle("filter-sheet-agents-toggle").props.accessibilityState.expanded).toBe(false);
     expect(toggle("filter-sheet-labels-toggle").props.accessibilityState.expanded).toBe(true);
-    expect(choices()).toHaveLength(1);
+    expect(toggle("filter-sheet-agents-content").props.accessibilityElementsHidden).toBe(true);
+    expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 0, duration: 140, useNativeDriver: false }));
     act(() => toggle("filter-sheet-labels-toggle").props.onPress());
-    expect(choices()).toHaveLength(0);
+    expect(choices()).toHaveLength(2);
     act(() => toggle("filter-sheet-agents-toggle").props.onPress());
     act(() => toggle("filter-sheet-labels-toggle").props.onPress());
     expect(choices()).toHaveLength(2);
     expect(choices().every((choice) => choice.props.accessibilityState.checked)).toBe(true);
     expect(setParams).not.toHaveBeenCalled();
+    expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1, duration: 180 }));
+    timing.mockRestore();
   });
 });
 

@@ -1,5 +1,5 @@
-import React, { useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, View, type LayoutChangeEvent, type ScrollView as NativeScrollView } from "react-native";
+import React, { useEffect, useRef, useState, type ReactNode } from "react";
+import { Animated, Platform, Pressable, View, type LayoutChangeEvent, type ScrollView as NativeScrollView } from "react-native";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
@@ -9,6 +9,8 @@ import { Segments, WindowSegments } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { SwitchTrack } from "../../ui/switch-track";
 import { useSwitchSpace } from "../../ui/use-switch-space";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { easing } from "../../ui/tokens/motion";
 import { clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, type FilterOption, type FilterOptions } from "./filter-options";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { detailScrollProps } from "../cards/detail-scrollbar";
@@ -121,7 +123,7 @@ export function FilterSheetBody(props: {
             />
           ) : null}
           <CollapsibleTitle text={strings.agent} theme={theme} open={agentsOpen} onPress={() => setAgentsOpen(!agentsOpen)} testID="filter-sheet-agents-toggle" />
-          {agentsOpen ? <>
+          <CollapsibleContent open={agentsOpen} testID="filter-sheet-agents-content">
             {shown.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
             <ChipWrap>
               {shown.agents.map((agent) => (
@@ -135,9 +137,9 @@ export function FilterSheetBody(props: {
                 />
               ))}
             </ChipWrap>
-          </> : null}
+          </CollapsibleContent>
           <CollapsibleTitle text={strings.labels} theme={theme} open={labelsOpen} onPress={() => setLabelsOpen(!labelsOpen)} testID="filter-sheet-labels-toggle" />
-          {labelsOpen ? <>
+          <CollapsibleContent open={labelsOpen} testID="filter-sheet-labels-content">
             {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
             <ChipWrap>
               {shown.labels.map((label) => (
@@ -150,7 +152,7 @@ export function FilterSheetBody(props: {
                 />
               ))}
             </ChipWrap>
-          </> : null}
+          </CollapsibleContent>
           <SectionTitle text={strings.doneRange} theme={theme} />
           <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
           {props.laneWidth ? (
@@ -275,6 +277,35 @@ function SheetSearch(props: { value: string; onChange(text: string): void; place
 function SectionTitle({ text, theme, first }: { text: string; theme: PluginTheme; first?: boolean }) {
   return (
     <Text style={{ paddingTop: first ? 0 : 16, paddingBottom: 8, fontSize: F.sm, fontWeight: "500", color: theme.colors.foregroundMuted }}>{text}</Text>
+  );
+}
+
+function CollapsibleContent({ open, children, testID }: { open: boolean; children: ReactNode; testID: string }) {
+  const reduced = useReducedMotion();
+  const progress = useRef(new Animated.Value(open ? 1 : 0)).current;
+  const [height, setHeight] = useState<number | null>(null);
+  useEffect(() => {
+    if (reduced) {
+      progress.setValue(open ? 1 : 0);
+      return;
+    }
+    const animation = Animated.timing(progress, { toValue: open ? 1 : 0, duration: open ? 180 : 140, easing: easing.out, useNativeDriver: false, isInteraction: false });
+    animation.start();
+    return () => animation.stop();
+  }, [open, progress, reduced]);
+  return (
+    <Animated.View
+      testID={testID}
+      pointerEvents={open ? "auto" : "none"}
+      accessibilityElementsHidden={!open}
+      aria-hidden={!open || undefined}
+      importantForAccessibility={open ? "auto" : "no-hide-descendants"}
+      style={{ overflow: "hidden", height: height === null ? (open ? undefined : 0) : progress.interpolate({ inputRange: [0, 1], outputRange: [0, height] }) }}
+    >
+      <View onLayout={(event: LayoutChangeEvent) => setHeight(event.nativeEvent.layout.height)} style={height === null ? undefined : { position: "absolute", top: 0, left: 0, right: 0 }}>
+        {children}
+      </View>
+    </Animated.View>
   );
 }
 
