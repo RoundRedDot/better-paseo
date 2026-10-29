@@ -4131,7 +4131,9 @@ describe("Tasks board, phone", () => {
       const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
       const workspaces = () => sheet().find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-workspaces");
       const chips = () => workspaces().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox").map(textOf);
-      const field = () => workspaces().find((node) => (node.type as unknown) === "TextInput");
+      const header = () => sheet().find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-workspace-header");
+      const field = () => header().find((node) => (node.type as unknown) === "TextInput");
+      expect(sheet().props.stickyHeaderIndices).toEqual([1]);
       expect(field().props.placeholder).toBe("Search projects and workspaces");
       expect(chips().map((chip) => chip.replace(/\d+$/, ""))).toEqual(["tasks-board", "idle-branch"]);
       // A project's name keeps its whole group; every word must match.
@@ -4141,7 +4143,7 @@ describe("Tasks board, phone", () => {
       act(() => field().props.onChangeText("nothing-here"));
       expect(chips()).toEqual([]);
       expect(textOf(workspaces())).toContain("No matches");
-      act(() => workspaces().find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-search-clear").props.onPress());
+      act(() => header().find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-search-clear").props.onPress());
       expect(field().props.value).toBe("");
       expect(chips()).toHaveLength(2);
       // Focused, the workspaces fill the scroller at least, so the field can stay at its top above the keyboard.

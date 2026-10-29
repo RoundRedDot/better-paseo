@@ -79,10 +79,11 @@ export function FilterSheetBody(props: {
         {...detailScrollProps("inset")}
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
+        stickyHeaderIndices={[1]}
         onLayout={(event: LayoutChangeEvent) => setViewport(event.nativeEvent.layout.height)}
         testID="filter-sheet-scroll"
       >
-        <View style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4, paddingBottom: 8 }}>
+        <View onLayout={(event: LayoutChangeEvent) => setWorkspacesY(event.nativeEvent.layout.height)} style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4 }}>
           {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
           {props.hideSubtasksToggle ? null : (
             <ToggleRow
@@ -162,48 +163,46 @@ export function FilterSheetBody(props: {
             </>
           ) : null}
           {sortFirst ? null : sort}
-          <View
-            testID="filter-sheet-workspaces"
-            onLayout={(event: LayoutChangeEvent) => setWorkspacesY(event.nativeEvent.layout.y)}
-            style={holdTop && viewport > 0 ? { minHeight: viewport } : undefined}
-          >
-            <SectionTitle text={strings.workspace} theme={theme} />
-            {shown.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-            {shown.workspaceGroups.length > 0 ? (
-              <SheetSearch
-                value={query}
-                onChange={setQuery}
-                placeholder={strings.sheetSearch}
-                clear={strings.menuSearch.clear}
-                theme={theme}
-                // The keyboard covers the sheet's lower half, where the workspaces sit: bring the field to the top.
-                onFocus={() => {
-                  setSearching(true);
-                  setTimeout(() => scrollRef.current?.scrollTo({ y: workspacesY, animated: true }), 0);
-                }}
-                onBlur={() => setSearching(false)}
-              />
-            ) : null}
-            {shown.workspaceGroups.length > 0 && groups.length === 0 ? <Muted text={strings.menuSearch.empty} theme={theme} /> : null}
-            {groups.map((group, index) => (
-              <View key={group.projectId || "missing"}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: index === 0 ? 0 : 10, paddingBottom: 6 }}>
-                  {group.projectId ? <ProjectIcon location={group} size={16} hostId={board.hostId} /> : null}
-                  <Text style={{ fontSize: F.sm, color: colors.foreground }}>{group.projectName}</Text>
-                </View>
-                <ChipWrap>
-                  {group.items.map((item) => (
-                    <Chip
-                      key={item.id}
-                      option={item}
-                      theme={theme}
-                      onPress={() => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, item.id) }))}
-                    />
-                  ))}
-                </ChipWrap>
+        </View>
+        <View testID="filter-sheet-workspace-header" style={{ paddingHorizontal: 16, backgroundColor: colors.surface0 }}>
+          <SectionTitle text={strings.workspace} theme={theme} />
+          {shown.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+          {shown.workspaceGroups.length > 0 ? (
+            <SheetSearch
+              value={query}
+              onChange={setQuery}
+              placeholder={strings.sheetSearch}
+              clear={strings.menuSearch.clear}
+              theme={theme}
+              // The keyboard covers the sheet's lower half, where the workspaces sit: bring the field to the top.
+              onFocus={() => {
+                setSearching(true);
+                setTimeout(() => scrollRef.current?.scrollTo({ y: workspacesY, animated: true }), 0);
+              }}
+              onBlur={() => setSearching(false)}
+            />
+          ) : null}
+        </View>
+        <View testID="filter-sheet-workspaces" style={{ paddingHorizontal: 16, paddingBottom: 8, ...(holdTop && viewport > 0 ? { minHeight: viewport } : null) }}>
+          {shown.workspaceGroups.length > 0 && groups.length === 0 ? <Muted text={strings.menuSearch.empty} theme={theme} /> : null}
+          {groups.map((group, index) => (
+            <View key={group.projectId || "missing"}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: index === 0 ? 0 : 10, paddingBottom: 6 }}>
+                {group.projectId ? <ProjectIcon location={group} size={16} hostId={board.hostId} /> : null}
+                <Text style={{ fontSize: F.sm, color: colors.foreground }}>{group.projectName}</Text>
               </View>
-            ))}
-          </View>
+              <ChipWrap>
+                {group.items.map((item) => (
+                  <Chip
+                    key={item.id}
+                    option={item}
+                    theme={theme}
+                    onPress={() => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, item.id) }))}
+                  />
+                ))}
+              </ChipWrap>
+            </View>
+          ))}
         </View>
       </ScrollView>
       <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: 16, flexDirection: "row", gap: 10, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
