@@ -487,12 +487,6 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         first
         stacked
       />
-      <ModuleResetRow
-        module={strings.sidebarTitle}
-        strings={strings}
-        look={look}
-        onRestore={() => void form.restoreSidebarDefaults()}
-      />
     </Section>
   );
 
