@@ -28,13 +28,12 @@ export interface SearchVisibility {
   labelLimit: number;
 }
 
-/** Literal whole-query matching, just like taskSearchText; never tokenize the query. */
+/** Highlight each literal keyword, merging overlaps. */
 export function searchRanges(text: string, query: string): SearchRange[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return [];
+  const needles = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!needles.length) return [];
   // Lowercasing can expand a Unicode character (İ); retain original UTF-16 offsets.
   const folded = text.toLowerCase();
-  if (!folded.includes(needle)) return [];
   const offsets: number[] = [];
   let offset = 0;
   for (const char of text) {
@@ -43,15 +42,24 @@ export function searchRanges(text: string, query: string): SearchRange[] {
   }
   offsets.push(text.length);
   const ranges: SearchRange[] = [];
-  let from = 0;
-  for (;;) {
-    const start = folded.indexOf(needle, from);
-    if (start < 0) return ranges;
-    const last = start + needle.length - 1;
-    const end = offsets[last]! + (text.codePointAt(offsets[last]!)! > 0xffff ? 2 : 1);
-    if (ranges.at(-1)?.end !== end) ranges.push({ start: offsets[start]!, end });
-    from = start + needle.length;
+  for (const needle of needles) {
+    let from = 0;
+    for (;;) {
+      const start = folded.indexOf(needle, from);
+      if (start < 0) break;
+      const last = start + needle.length - 1;
+      const end = offsets[last]! + (text.codePointAt(offsets[last]!)! > 0xffff ? 2 : 1);
+      ranges.push({ start: offsets[start]!, end });
+      from = start + needle.length;
+    }
   }
+  ranges.sort((a, b) => a.start - b.start || a.end - b.end);
+  return ranges.reduce<SearchRange[]>((merged, range) => {
+    const previous = merged.at(-1);
+    if (previous && range.start <= previous.end) previous.end = Math.max(previous.end, range.end);
+    else merged.push(range);
+    return merged;
+  }, []);
 }
 
 /** Promote only as many matches as there are slots, keeping the original order within each group. */

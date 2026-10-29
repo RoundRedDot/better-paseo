@@ -40,6 +40,16 @@ describe("bounded conversation page search", () => {
     expect(conversationExcerpt("İ preceding Dragonfruit", "dragonfruit")).toContain("Dragonfruit");
   });
 
+  it("matches all keywords in a message in any order and returns bounded excerpts", async () => {
+    const f = fixture();
+    f.refetch.mockResolvedValueOnce({ entries: [{ item: { type: "assistant_message", text: "refresh " + "x".repeat(5000) + "firmware" } }], error: null, hasNewer: false, endCursor: null, reset: false });
+    const result = await f.search({ agentId: "a", query: "firmware refresh" });
+    expect(result.match).toContain("firmware");
+    expect(result.match).toContain("refresh");
+    expect(conversationSearchRpc.output.parse(result)).toEqual(result);
+    expect(conversationExcerpt("firmware only", "firmware refresh")).toBeNull();
+  });
+
   it("returns a cursor after a nonmatching page, then finds a later reply", async () => {
     const f = fixture();
     f.refetch.mockResolvedValueOnce({ entries: [{ item: { type: "user_message", text: "first message" } }], error: null, hasNewer: true, endCursor: cursor, reset: false });

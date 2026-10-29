@@ -14,6 +14,25 @@ export type ConversationCursor = z.output<typeof cursorSchema>;
 /** Scan strings in bounded windows rather than lowercasing or serializing a whole tool output. */
 export function conversationExcerpt(value: unknown, query: string): string | null {
   if (typeof value === "string") {
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (words.length > 1) {
+      const excerpts = words.map((word) => conversationExcerpt(value, word));
+      if (excerpts.some((excerpt) => excerpt === null)) return null;
+      const context = Math.floor((1202 - query.length) / words.length / 2);
+      return excerpts.map((excerpt, i) => {
+        const text = excerpt!;
+        const foldedIndex = text.toLowerCase().indexOf(words[i]!);
+        let folded = 0;
+        let start = 0;
+        let end = 0;
+        for (const char of text) {
+          if (folded < foldedIndex) start += char.length;
+          if (folded < foldedIndex + words[i]!.length) end += char.length;
+          folded += char.toLowerCase().length;
+        }
+        return text.slice(Math.max(0, start - context), end + context);
+      }).join(" ");
+    }
     const needle = query.toLowerCase();
     for (let offset = 0; offset < value.length; offset += 4096) {
       const chunk = value.slice(offset, offset + 4096 + query.length);

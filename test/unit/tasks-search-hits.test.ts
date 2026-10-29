@@ -133,7 +133,8 @@ describe("search model boundaries", () => {
     hits(base);
     expect(JSON.stringify(base)).toBe(before);
     expect(searchRanges("Fix search", "fix.*search")).toEqual([]);
-    expect(searchRanges("hello world", "world hello")).toEqual([]);
+    expect(searchRanges("hello world", "world hello")).toEqual([{ start: 0, end: 5 }, { start: 6, end: 11 }]);
+    expect(searchRanges("hello", "he hello he")).toEqual([{ start: 0, end: 5 }]);
     expect(searchRanges("SCHE sche", " sche ")).toEqual([
       { start: 0, end: 4 },
       { start: 5, end: 9 },

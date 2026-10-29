@@ -37,6 +37,16 @@ describe("incremental conversation search", () => {
     expect(store.prompt(cards[0]!)).toMatchObject({ state: "ready", field: "conversation" });
   });
 
+  it("searches conversation for keywords missing from card metadata", async () => {
+    const load = vi.fn(async () => ({ ...page, match: "refresh" }));
+    const store = createConversationSearch(load);
+    const task = { ...card("a"), title: "firmware task" };
+    store.configure([task], "firmware refresh");
+    await settle();
+    expect(load).toHaveBeenCalledWith({ agentId: "a", query: "refresh" });
+    expect(store.messages().get("a")).toBe("refresh");
+  });
+
   it("drops old query results and shares its two slots across replacement searches", async () => {
     const first = deferred();
     const second = deferred();

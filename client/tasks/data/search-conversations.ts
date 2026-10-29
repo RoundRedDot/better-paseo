@@ -2,6 +2,7 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { PaseoApi } from "@getpaseo/client";
 import type { ConversationCursor, ConversationSearchInput, ConversationSearchPage } from "../../../shared/conversation-search";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../model";
+import { taskSearchText } from "./search";
 import type { SearchCoverageControl, SearchPrompt } from "./search-first-prompts";
 
 type Loader = (input: ConversationSearchInput) => Promise<ConversationSearchPage>;
@@ -55,7 +56,8 @@ export function createConversationSearch(load: Loader): SearchCoverageControl & 
       const currentQuery = query;
       const request = Promise.resolve().then(() => {
         if (query !== currentQuery || records.get(id) !== record) return null;
-        return load({ agentId: id, ...(card.subagent ? { parentAgentId: card.parent!.id } : {}), query: currentQuery, ...(record.cursor ? { cursor: record.cursor } : {}) });
+        const remaining = currentQuery.split(/\s+/).filter((word) => !taskSearchText(card).includes(word)).join(" ");
+        return load({ agentId: id, ...(card.subagent ? { parentAgentId: card.parent!.id } : {}), query: remaining || currentQuery, ...(record.cursor ? { cursor: record.cursor } : {}) });
       }).then((page) => {
         if (!page) return;
         if (query !== currentQuery || records.get(id) !== record) return;

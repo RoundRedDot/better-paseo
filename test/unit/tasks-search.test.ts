@@ -58,9 +58,12 @@ describe("task search fields", () => {
     expect(filterLanes(lanesFor(card), { ...EMPTY_FILTERS, query: `  ${query.toUpperCase()}  ` })[card.lane].cards).toEqual([card]);
   });
 
-  it("keeps substring matching and does not split words or interpret regex syntax", () => {
+  it("matches every keyword in any order across fields without interpreting regex syntax", () => {
     expect(matchesTaskSearch(card, "fix search")).toBe(true);
-    expect(matchesTaskSearch(card, "behavior fix")).toBe(false);
+    expect(matchesTaskSearch(card, "behavior fix")).toBe(true);
+    expect(matchesTaskSearch(card, "apple   behavior")).toBe(true);
+    expect(matchesTaskSearch(card, "apple missing")).toBe(false);
+    expect(matchesTaskSearch(card, "fix dragonfruit", "Dragonfruit")).toBe(true);
     expect(matchesTaskSearch(card, "fix.*behavior")).toBe(false);
     expect(matchesTaskSearch(card, "")).toBe(true);
     const unknown = { ...card, model: null, modelLabel: null, labels: [], location: { ...card.location, pullRequest: null } };
