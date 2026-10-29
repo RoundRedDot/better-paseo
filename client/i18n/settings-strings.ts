@@ -72,6 +72,9 @@ const en = {
     "Done. Paths in tool rows are now **relative to the workspace**, and copying one still gives the absolute path.\n\n- Fixed the missing `trim()` in `formatPath`\n- Added a test for a path outside the worktree\n\n| Check | Before | After |\n| --- | ---: | ---: |\n| Type check | 1 error | 0 |\n| Path tests | 30 / 31 | 31 / 31 |\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```\n\nThe options are listed under [Settings](https://github.com/RoundRedDot/better-paseo#settings).",
 
   sectionGeneral: "General",
+  chatEnabledTitle: "Enable Better Paseo chat",
+  chatEnabledDescription:
+    "Draws the chat with this plugin: tool calls, reasoning, checklists, notices, compaction rows, prompts and replies. Off leaves the whole chat to Paseo and other plugins. The Tasks board works either way.",
   languageTitle: "Language",
   languageDescription:
     "For this page, the toolbar tooltips and the Tasks board. Follow Paseo uses the language set in Paseo, or the device's when Paseo follows the system.",
@@ -242,6 +245,8 @@ const zh: SettingsStrings = {
     "改好了。工具行里的路径现在**相对于工作区**显示，复制时仍然是绝对路径。\n\n- 补上了 `formatPath` 里漏掉的 `trim()`\n- 为 worktree 之外的路径补了测试\n\n| 检查 | 修改前 | 修改后 |\n| --- | ---: | ---: |\n| 类型检查 | 1 个错误 | 0 |\n| 路径测试 | 30 / 31 | 31 / 31 |\n\n```ts\nformatPath(raw, { mode: \"relative\", roots })\n```\n\n各项选项的说明见 [设置文档](https://github.com/RoundRedDot/better-paseo/blob/main/README-zh.md#设置)。",
 
   sectionGeneral: "通用",
+  chatEnabledTitle: "启用 Better Paseo 聊天",
+  chatEnabledDescription: "使用本插件绘制聊天：工具调用、思考、待办清单、提示、上下文压缩行、提问和回复。关闭后整个聊天交给 Paseo 和其他插件。无论开关状态如何，Tasks 看板都能正常工作。",
   languageTitle: "语言",
   languageDescription: "本页、工具栏提示和任务看板使用的语言。“跟随 Paseo”使用 Paseo 里设置的语言；Paseo 跟随系统时按设备语言判断。",
   languageSystem: "跟随 Paseo",

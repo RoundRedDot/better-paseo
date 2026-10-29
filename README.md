@@ -972,11 +972,15 @@ open in it. On web and desktop a **Desktop / Mobile** switch draws the same turn
 with iOS styling and the inline-code colour you picked. Options whose parent is off are dimmed,
 options a platform cannot use are hidden there, and **Reset** asks for a second press.
 
+**General → Enable Better Paseo chat** is on by default. Off leaves the whole chat to Paseo and other plugins,
+and hides the Tool calls, Spacing, Messages and Hover previews groups. The Tasks board does not depend on it.
+
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-dark.png"><img alt="Settings page with its live preview" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-light.png"></picture>
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-tools-dark.png"><img alt="Block text size setting with its live preview" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-tools-light.png"></picture>
 
 | Group | Setting | Default | Effect |
 | --- | --- | --- | --- |
+| General | Enable Better Paseo chat | On | Draws tool calls, reasoning, checklists, notices, compaction rows, prompts and replies with this plugin. Off leaves the whole chat to Paseo, so its Summary tool call display can fold tool calls. |
 | General | Language | Follow Paseo | English or 简体中文 for the settings page, the Tasks board and the timeline's own words. Follow Paseo uses Paseo's language, or the device's when Paseo follows the system. |
 | Appearance | Accent colour | Theme | Follow the Paseo theme, or Jade, Violet, Amber or Rose. Only the accent changes. |
 | Appearance | Interface font | Follow Paseo | Paseo's interface font, Inter (web only, fetched from the daemon) or the system face. |

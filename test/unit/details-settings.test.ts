@@ -117,6 +117,18 @@ describe("block details settings", () => {
     act(() => renderer.unmount());
   });
 
+  it("hides the chat-only options, keyboard included, while the chat switch is off", () => {
+    updateEnhancerPreferences({ chatEnabled: false });
+    const renderer = renderPage();
+    const switches = () => renderer.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "switch");
+    const chatOnly = () => switches().filter((node) => ["Block details panel (preview)", "Enhanced prompt bubble", "Tight rows"].includes(node.props.accessibilityLabel));
+    expect(chatOnly()).toEqual([]);
+    act(() => switchControl(renderer.root, "Enable Better Paseo chat").props.onPress());
+    expect(getEnhancerPreferences().chatEnabled).toBe(true);
+    expect(chatOnly()).toHaveLength(3);
+    act(() => renderer.unmount());
+  });
+
   it("translates the block-details toolbar labels and streamed line count", () => {
     const labels = [
       "Open details", "Expand in timeline", "Collapse in timeline", "View image", "Copy title", "Close menu", "Code",
