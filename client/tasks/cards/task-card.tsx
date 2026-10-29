@@ -439,8 +439,8 @@ const CARD_RADIUS = 8;
  * centre this far in from both edges. Past the corner's 8 pt curve, so the
  * top and right edges are nearest: its edge keeps 7 pt clear of both (7.5
  * along the diagonal). The context ring sits on the same diagonal
- * (`ringNudge`), about 4 pt beyond it on a desktop card. On a cut card the
- * dot sits between the cut edge and the context ring (`warningCorner`).
+ * (`ringNudge`), about 4 pt beyond it on a desktop card. On a folded card the
+ * dot sits between the flap's tip and the context ring (`warningCorner`).
  */
 export const MARK_DOT = { size: 3.5, inset: 8.75 } as const;
 /**
@@ -722,7 +722,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A subtask's card (a Paseo agent with a parent, or a provider subagent's dashed card) marks its
   // top-right corner in its project's colour. Grey at rest; the project's colour while the card is
   // hovered, chosen in the sidebar or focused.
-  // An unavailable card loses its top-right corner; its dot stays on the card, inside the cut.
+  // An unavailable card folds its top-right corner over; its dot stays on the card, past the flap.
   const issue = shownIssue(card.availability?.issue);
   const markActive = lit || props.current || props.focused;
   const cornerMark = card.parent !== null
@@ -1499,7 +1499,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         style={cardStyle}
         testID={`task-card-${card.id}`}
       >
-        {corner ? <CutCardSurface size={corner.size} radius={CARD_RADIUS} background={background} borderColor={borderColor} borderWidth={borderWidth} dashed={dashed} shadow={shadow} /> : null}
+        {corner ? <CutCardSurface size={corner.size} radius={CARD_RADIUS} background={background} borderColor={borderColor} borderWidth={borderWidth} dashed={dashed} shadow={shadow} fold={mix(background, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light)} /> : null}
         {issue && corner ? (
           <AvailabilityCorner
             issue={issue}
@@ -1765,15 +1765,26 @@ export function ringNudge(m: Pick<Metrics, "padH" | "padTop">, line: number, sca
   return m.padH + CONTEXT_RING_BITMAPS.card.size / 2 - (m.padTop + Math.round(line * scale) / 2);
 }
 
+/** The folded flap's fill: the card's fill this far towards the foreground. */
+export const FOLD_TINT = { light: 0.06, dark: 0.09 } as const;
+/** The least room between the subtask dot and the flap's tip, and the dot and the context ring. */
+export const FOLD_GAP = 0.6;
+
 /**
- * A small cut scales with the interface. The subtask dot stays midway between
- * the cut and the context ring; the hint target stops 1 pt short of the ring.
+ * A small fold scales with the interface; its flap's tip keeps the card's
+ * radius, so along the diagonal it reaches (size - radius) * sqrt 2 + radius,
+ * about twice as far as the cut. The ring moves in more slowly, so the fold
+ * stops growing where the dot would no longer fit between them. The subtask
+ * dot stays midway between that tip and the context ring; the hint target
+ * stops 1 pt short of the ring.
  */
 export function warningCorner(m: Pick<Metrics, "padTop">, line: number, scale: number): { size: number; hit: number; dot: number } {
   const ring = m.padTop + Math.round(line * scale) / 2;
   const ringEdge = ring * Math.SQRT2 - CONTEXT_RING_BITMAPS.card.size / 2;
-  const size = Math.round(12 * scale + m.padTop - DESKTOP.padTop);
-  return { size, hit: Math.floor((ringEdge - 1) * Math.SQRT2), dot: (size + ringEdge * Math.SQRT2) / 4 };
+  const room = ringEdge - MARK_DOT.size - 2 * FOLD_GAP;
+  const size = Math.min(Math.round(12 * scale + m.padTop - DESKTOP.padTop), Math.floor((room - CARD_RADIUS) / Math.SQRT2 + CARD_RADIUS));
+  const tip = (size - CARD_RADIUS) * Math.SQRT2 + CARD_RADIUS;
+  return { size, hit: Math.floor((ringEdge - 1) * Math.SQRT2), dot: (tip + ringEdge) / (2 * Math.SQRT2) };
 }
 
 /**

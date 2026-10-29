@@ -9,6 +9,8 @@ const GUTTER = 12;
  * Three adjoining sections draw one cut silhouette without clipping the card's
  * controls or hints. Each section keeps only its outside shadow; the diagonal
  * is the edge of a rotated square, so it casts the same shadow as the card.
+ * Inside the cut lies the corner folded over it: a flat flap in `fold`, the
+ * cut-off square's lower-left half, its tip keeping the card's own radius.
  */
 export function CutCardSurface(props: {
   size: number;
@@ -18,10 +20,13 @@ export function CutCardSurface(props: {
   borderWidth: number;
   dashed: boolean;
   shadow: string;
+  /** The folded flap's fill. */
+  fold: string;
 }) {
   const { size, radius, borderWidth } = props;
   // Extend the diagonal past both joins so its rounded ends cannot leave a gap.
   const side = (size + 2) * Math.SQRT2;
+  const clip = (size - borderWidth * Math.SQRT2) * Math.SQRT2;
   const surface: ViewStyle = {
     position: "absolute",
     backgroundColor: props.background,
@@ -51,6 +56,25 @@ export function CutCardSurface(props: {
           borderRadius: 1,
           transform: [{ rotate: "45deg" }],
         }]} />
+      </View>
+      <View style={{ position: "absolute", top: 0, right: 0, width: size, height: size }}>
+        {/* A diamond centred on the corner square's lower-left vertex keeps the square's lower-left half, inside the cut's border. */}
+        <View style={{ position: "absolute", left: -clip / 2, top: size - clip / 2, width: clip, height: clip, overflow: "hidden", transform: [{ rotate: "45deg" }] }}>
+          <View testID="task-card-fold" style={{
+            position: "absolute",
+            left: clip / 2 - size / 2,
+            top: clip / 2 - (size / 2) * Math.SQRT2 - size / 2,
+            width: size,
+            height: size,
+            transform: [{ rotate: "-45deg" }],
+            backgroundColor: props.fold,
+            borderColor: props.borderColor,
+            borderLeftWidth: borderWidth,
+            borderBottomWidth: borderWidth,
+            borderBottomLeftRadius: radius,
+            ...webTransition,
+          }} />
+        </View>
       </View>
     </View>
   );

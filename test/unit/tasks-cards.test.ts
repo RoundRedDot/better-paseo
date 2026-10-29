@@ -121,7 +121,7 @@ import type { TitleUpdateState } from "../../shared/title-generation";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { FLASH } from "../../client/tasks/board/breathing";
-import { MARK_DOT, MARK_DOT_BOX, markHue, markRest, OVERLAY_ROW_Z, ringNudge, warningCorner } from "../../client/tasks/cards/task-card";
+import { FOLD_GAP, FOLD_TINT, MARK_DOT, MARK_DOT_BOX, markHue, markRest, OVERLAY_ROW_Z, ringNudge, warningCorner } from "../../client/tasks/cards/task-card";
 import { SubtaskRow, SubtaskMetadata } from "../../client/tasks/cards/subtask-row";
 import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
@@ -242,6 +242,14 @@ describe("unavailable task operations", () => {
     expect(edge).toMatchObject({ borderRadius: 1, transform: [{ rotate: "45deg" }] });
     expect(edge.width).toBeCloseTo((12 + 2) * Math.SQRT2);
     expect(edge.height).toBe(edge.width);
+    // The folded flap: flat, outlined on its two inner legs, its tip at the card's radius.
+    const fold = () => flat(hostByTestId(tree.root, "task-card-fold").props.style);
+    expect(fold()).toMatchObject({
+      width: 12, height: 12, transform: [{ rotate: "-45deg" }],
+      backgroundColor: mix(tokens.card.background, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light),
+      borderColor: tokens.card.border, borderLeftWidth: 1, borderBottomWidth: 1, borderBottomLeftRadius: 8,
+    });
+    expect(fold().boxShadow).toBeUndefined();
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-availability-corner-fill")).toHaveLength(0);
     const marks = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
     expect(marks).toHaveLength(1);
@@ -250,7 +258,7 @@ describe("unavailable task operations", () => {
     expect(dot.borderRadius).toBe((dot.width as number) / 2);
     expect((dot.width as number) * (dot.transform as Array<{ scale: number }>)[0]!.scale).toBe(MARK_DOT.size);
     const centre = (dot.top as number) + (dot.width as number) / 2;
-    expect(centre * Math.SQRT2 - MARK_DOT.size / 2).toBeGreaterThan(12 / Math.SQRT2);
+    expect(centre * Math.SQRT2 - MARK_DOT.size / 2).toBeGreaterThan((12 - 8) * Math.SQRT2 + 8);
     const order = rows(tree.root, "sample-child-1");
     expect(order.indexOf("task-card-cut-surface")).toBeLessThan(order.indexOf("task-card-subtask-mark"));
     await act(async () => root.props.onHoverIn());
@@ -258,6 +266,7 @@ describe("unavailable task operations", () => {
     for (const part of ["body", "top", "edge"]) {
       expect(flat(hostByTestId(tree.root, `task-card-cut-${part}`).props.style)).toMatchObject({ backgroundColor: tokens.card.hoverBackground, boxShadow: tokens.card.shadowHover });
     }
+    expect(fold().backgroundColor).toBe(mix(tokens.card.hoverBackground, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light));
   });
 
   it.each([["light", LIGHT], ["dark", DARK]] as const)("preserves selected, highlighted, failed and subagent surfaces on %s cut cards", async (_name, theme) => {
@@ -272,6 +281,7 @@ describe("unavailable task operations", () => {
     ]) {
       await act(async () => tree.update(cardElement(state.card, { theme, ...state.props })));
       for (const part of ["body", "top", "edge"]) expect(flat(hostByTestId(tree.root, `task-card-cut-${part}`).props.style)).toMatchObject({ backgroundColor: state.backgroundColor, borderColor: state.borderColor });
+      expect(flat(hostByTestId(tree.root, "task-card-fold").props.style)).toMatchObject({ backgroundColor: mix(state.backgroundColor, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light), borderColor: state.borderColor });
     }
     const subagent = { ...base, subagent: { subtitle: "general-purpose · High", type: "general-purpose" } };
     await act(async () => tree.update(cardElement({ ...subagent, availability: base.availability }, { theme })));
@@ -324,18 +334,19 @@ describe("unavailable task operations", () => {
     expect(flat(hostByTestId(tree.root, `task-card-${card.id}`).props.style).zIndex).toBe(1);
   });
 
-  it("scales a small cut and keeps the dot between its edge and the context ring", async () => {
+  it("scales a small fold and keeps the dot between its flap's tip and the context ring", async () => {
     for (const padTop of [10, 12]) {
       for (const line of [16, 18, 20]) {
         for (const scale of [0.85, 1, 15 / 14, 1.25, 1.5, 2]) {
           const ringEdge = (padTop + Math.round(line * scale) / 2) * Math.SQRT2 - 7;
           const { size, hit, dot } = warningCorner({ padTop }, line, scale);
-          const cutEdge = size / Math.SQRT2;
+          // The flap's rounded tip, along the diagonal from the corner.
+          const tip = (size - 8) * Math.SQRT2 + 8;
           const centre = dot * Math.SQRT2;
           expect(Number.isInteger(size) && Number.isInteger(hit)).toBe(true);
-          expect(centre - MARK_DOT.size / 2).toBeGreaterThan(cutEdge);
-          expect(centre + MARK_DOT.size / 2).toBeLessThan(ringEdge);
-          expect(centre - cutEdge).toBeCloseTo(ringEdge - centre);
+          expect(centre - MARK_DOT.size / 2 - tip).toBeGreaterThanOrEqual(FOLD_GAP - 1e-9);
+          expect(ringEdge - centre - MARK_DOT.size / 2).toBeGreaterThanOrEqual(FOLD_GAP - 1e-9);
+          expect(centre - tip).toBeCloseTo(ringEdge - centre);
           expect(hit).toBeGreaterThanOrEqual(size);
           expect(hit / Math.SQRT2).toBeLessThanOrEqual(ringEdge - 1);
         }
