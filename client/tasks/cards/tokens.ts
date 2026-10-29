@@ -68,6 +68,8 @@ export interface CardTokens {
   /** CSS box-shadow at rest and on hover: short and mostly downward, fainter on a dark theme. */
   shadow: string;
   shadowHover: string;
+  /** A stronger shadow for hovered action buttons. */
+  buttonShadowHover: string;
   /** Neutral pill and secondary-button outline: the border a step towards the foreground. */
   pillBorder: string;
   /**
@@ -212,8 +214,8 @@ export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
 // Shadows are the one place the card darkens with plain black: a shadow is the
 // absence of light whatever the palette. Only its strength follows the theme.
 const SHADOW = {
-  light: { rest: "0px 1px 2px rgba(0, 0, 0, 0.06)", hover: "0px 2px 6px rgba(0, 0, 0, 0.07)" },
-  dark: { rest: "0px 1px 2px rgba(0, 0, 0, 0.18)", hover: "0px 2px 6px rgba(0, 0, 0, 0.26)" },
+  light: { rest: "0px 1px 2px rgba(0, 0, 0, 0.06)", hover: "0px 2px 6px rgba(0, 0, 0, 0.07)", buttonHover: "0px 2px 6px rgba(0, 0, 0, 0.14)" },
+  dark: { rest: "0px 1px 2px rgba(0, 0, 0, 0.18)", hover: "0px 2px 6px rgba(0, 0, 0, 0.26)", buttonHover: "0px 2px 6px rgba(0, 0, 0, 0.38)" },
 } as const;
 
 function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: string, amber: string, green: string): CardTokens {
@@ -232,6 +234,7 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     border: colors.border,
     shadow: SHADOW[isDark ? "dark" : "light"].rest,
     shadowHover: SHADOW[isDark ? "dark" : "light"].hover,
+    buttonShadowHover: SHADOW[isDark ? "dark" : "light"].buttonHover,
     pillBorder: mix(colors.border, fg, isDark ? 0.08 : 0.05),
     buttonBorder: mix(colors.border, fg, isDark ? 0.2 : 0.05),
     pillFill: mix(background, fg, isDark ? 0.06 : 0.035),

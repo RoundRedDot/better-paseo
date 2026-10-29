@@ -630,7 +630,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
         gap: 6,
         paddingHorizontal: 14,
         borderRadius: 6,
-        ...buttonOutline(hue.border, {}, hovered && !props.disabled ? tokens.card.shadowHover : undefined),
+        ...buttonOutline(hue.border, {}, hovered && !props.disabled ? tokens.card.buttonShadowHover : undefined),
         opacity: props.disabled ? 0.5 : 1,
         backgroundColor: hovered && !props.disabled ? hue.hover : tokens.card.background,
         alignItems: "center",
@@ -1197,7 +1197,7 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
         props.onPress();
       }}
       {...hoverProps}
-      style={{ width: 24, height: 24, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? detailColors(props.tokens).track : "transparent", boxShadow: Platform.OS === "web" && hovered ? props.tokens.card.shadowHover : undefined }}
+      style={{ width: 24, height: 24, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? detailColors(props.tokens).track : "transparent", boxShadow: Platform.OS === "web" && hovered ? props.tokens.card.buttonShadowHover : undefined }}
     >
       <Icon name={props.icon} size={14} color={hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
     </Pressable>
@@ -1537,7 +1537,7 @@ export function RoundIcon(props: { icon: string; label: string; size: number; to
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: fill,
-        boxShadow: Platform.OS === "web" && hovered ? props.tokens.card.shadowHover : undefined,
+        boxShadow: Platform.OS === "web" && hovered ? props.tokens.card.buttonShadowHover : undefined,
       }}
     >
       <Icon name={props.icon} size={15} color={props.active ? props.tokens.accent : hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
@@ -1604,7 +1604,7 @@ function OutlineButton(props: {
         height: taskControlHeight(props.height, scale),
         paddingHorizontal: props.grow ? 10 : 12,
         borderRadius: 8,
-        ...buttonOutline(hue.border, {}, hovered ? tokens.card.shadowHover : undefined),
+        ...buttonOutline(hue.border, {}, hovered ? tokens.card.buttonShadowHover : undefined),
         backgroundColor: hovered ? hue.hover : tokens.card.background,
         flexDirection: "row",
         alignItems: "center",

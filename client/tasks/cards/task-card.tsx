@@ -1714,7 +1714,7 @@ function CopyPill(props: PillProps & { copy: NonNullable<PillProps["copy"]> }) {
       style={[
         base,
         hovered ? { backgroundColor: mix(base.backgroundColor as string, props.tokens.foreground, 0.06) } : null,
-        WEB && hovered ? { boxShadow: props.tokens.card.shadowHover } : null,
+        WEB && hovered ? { boxShadow: props.tokens.card.buttonShadowHover } : null,
         webTransition,
       ]}
     >
@@ -1738,7 +1738,7 @@ function PillButton(props: PillProps & { expanded: boolean; onPress(): void }) {
       style={[
         pillStyle(props.tokens, props.compact, props.tint ?? null, undefined, scale),
         hovered || props.expanded ? { backgroundColor: mix(pillTint(props.tokens, props.tint ?? null).background, props.tokens.foreground, 0.06) } : null,
-        WEB && hovered ? { boxShadow: props.tokens.card.shadowHover } : null,
+        WEB && hovered ? { boxShadow: props.tokens.card.buttonShadowHover } : null,
         webTransition,
       ]}
     >
@@ -1965,7 +1965,7 @@ function ReadControl(props: {
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         paddingHorizontal: compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,
-        ...buttonOutline(hue.border, {}, hover ? tokens.card.shadowHover : undefined),
+        ...buttonOutline(hue.border, {}, hover ? tokens.card.buttonShadowHover : undefined),
         backgroundColor: fill,
         flexDirection: "row",
         alignItems: "center",
@@ -2131,7 +2131,7 @@ function StopControl(props: StopControlProps) {
         {...hintProps(fit.iconOnly ? props.hint : undefined)}
         style={[
           segment,
-          props.parent ? null : buttonOutline(tokens.danger, {}, stopHover.hovered && !stopping ? tokens.card.shadowHover : undefined),
+          props.parent ? null : buttonOutline(tokens.danger, {}, stopHover.hovered && !stopping ? tokens.card.buttonShadowHover : undefined),
           {
             flexGrow: 1, flexShrink: 0, flexBasis: "auto",
             gap: 5,
@@ -2189,7 +2189,7 @@ function StopControl(props: StopControlProps) {
         <View
           pointerEvents="none"
           testID="task-card-stop-outline"
-          style={[StyleSheet.absoluteFill, buttonOutline(tokens.danger, {}, !stopping && (stopHover.hovered || chevronHover.hovered) ? tokens.card.shadowHover : undefined), { borderRadius: round, opacity: stopping ? 0.6 : 1 }]}
+          style={[StyleSheet.absoluteFill, buttonOutline(tokens.danger, {}, !stopping && (stopHover.hovered || chevronHover.hovered) ? tokens.card.buttonShadowHover : undefined), { borderRadius: round, opacity: stopping ? 0.6 : 1 }]}
         />
       ) : null}
       {props.parent && props.menuOpen ? Platform.OS === "web" ? (

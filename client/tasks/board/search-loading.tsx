@@ -150,7 +150,7 @@ export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme;
   if (!context?.onFullConversationChange) return null;
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
     accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={toggle} hitSlop={4} {...hoverProps}
-    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: size / 2, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0, boxShadow: Platform.OS === "web" && hovered ? taskTokens(theme).card.shadowHover : undefined }}>
+    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: size / 2, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0, boxShadow: Platform.OS === "web" && hovered ? taskTokens(theme).card.buttonShadowHover : undefined }}>
     <Icon icon={on ? FULL_TEXT_SEARCH_ICON : OUTLINE_SEARCH_ICON} size={iconSize} color={theme.colors.foreground} />
   </Pressable>;
 }

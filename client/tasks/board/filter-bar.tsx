@@ -286,7 +286,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
         borderWidth: HAIRLINE,
         borderColor: colors.border,
         backgroundColor: props.open ? colors.surface2 : hovered ? colors.surface1 : colors.surface0,
-        boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.shadowHover : undefined,
+        boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
         alignItems: "center",
         justifyContent: "center",
       }}
@@ -332,7 +332,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
         borderWidth: HAIRLINE,
         borderColor: colors.border,
         backgroundColor: background,
-        boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.shadowHover : undefined,
+        boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
         alignItems: "center",
         justifyContent: "center",
       }}
@@ -820,7 +820,7 @@ function GroupChip(props: { group: ChipGroup; open: boolean; onPress(): void; on
             borderTopLeftRadius: 6,
             borderBottomLeftRadius: 6,
             backgroundColor: hovered && !props.open ? colors.surface1 : "transparent",
-            boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.shadowHover : undefined,
+            boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
           })}
         >
           {props.group.counts.map(({ unit, count }) => (
@@ -846,7 +846,7 @@ function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme
       accessibilityLabel={props.label}
       {...tipProps(props.label)}
       onPress={props.onPress}
-      style={(hovered) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? colors.surface2 : "transparent", boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.shadowHover : undefined })}
+      style={(hovered) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? colors.surface2 : "transparent", boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined })}
     >
       <Icon name="X" size={12} color={colors.foregroundMuted} />
     </HoverPressable>
@@ -856,7 +856,7 @@ function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme
 function ClearAllButton(props: { board: BoardController; theme: PluginTheme }) {
   const scale = useTasksFontScale();
   return (
-    <HoverPressable accessibilityRole="button" onPress={() => props.board.setParams(clearedParams)} style={(hovered) => ({ height: toolbarButtonSize(scale), paddingHorizontal: 4, justifyContent: "center", boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.shadowHover : undefined })}>
+    <HoverPressable accessibilityRole="button" onPress={() => props.board.setParams(clearedParams)} style={(hovered) => ({ height: toolbarButtonSize(scale), paddingHorizontal: 4, justifyContent: "center", boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined })}>
       <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: props.theme.colors.foregroundMuted }}>{props.board.strings.clearAll}</Text>
     </HoverPressable>
   );
@@ -896,7 +896,7 @@ function MenuButton(props: { icon: string | React.ReactElement; label: string; c
           borderWidth: HAIRLINE,
           borderColor: colors.border,
           backgroundColor: hovered || props.open ? colors.surface1 : "transparent",
-          boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.shadowHover : undefined,
+          boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
           flexDirection: "row",
           alignItems: "center",
           gap: LABEL_GAP,

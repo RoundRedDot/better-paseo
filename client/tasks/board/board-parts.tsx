@@ -146,7 +146,7 @@ export function Segments<T extends string>(props: {
               paddingHorizontal: mark ? 6 : props.large ? 12 : 9,
               borderRadius: round(inner),
               backgroundColor: on ? colors.surface2 : "transparent",
-              boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.shadowHover : undefined,
+              boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
               alignItems: "center",
               justifyContent: "center",
             })}
@@ -576,7 +576,7 @@ export function RoundButton(props: {
           borderRadius: size / 2,
           borderWidth: HAIRLINE,
           borderColor: props.active ? colors.accent : colors.border,
-          boxShadow: Platform.OS === "web" && hovered && !props.disabled ? taskTokens(props.theme).card.shadowHover : undefined,
+          boxShadow: Platform.OS === "web" && hovered && !props.disabled ? taskTokens(props.theme).card.buttonShadowHover : undefined,
           alignItems: "center",
           justifyContent: "center",
         }}
