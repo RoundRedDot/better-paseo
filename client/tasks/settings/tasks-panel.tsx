@@ -281,8 +281,8 @@ function ResetRows({ strings, look, hint, onRestore }: { strings: TasksSettingsS
 
 /**
  * The Tasks half of the settings page: the switch, the preview, and the
- * options. Wide, the card options sit beside the board and sidebar ones under
- * the preview, so a switch and its effect share a screen.
+ * options. Wide, board display options sit beside title generation under the
+ * preview, so a switch and its effect share a screen.
  */
 export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLook; theme: PluginTheme; side: boolean; hostId?: string }) {
   const { strings, language } = useStrings();
@@ -406,83 +406,8 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
     </Section>
   );
 
-  const rest = (
+  const sidebarAndPhone = (
     <>
-      <TitleGenerationSettings look={look} />
-      <Section title={strings.boardTitle} look={look}>
-        <SettingRow
-          title={strings.doneWindow}
-          control={
-            <Segmented<DoneWindow>
-              label={strings.doneWindow}
-              value={values.board.doneWindow}
-              options={options(DONE_WINDOWS, strings.doneWindows)}
-              onChange={(next) => void commit({ ...values, board: { ...values.board, doneWindow: next } })}
-              look={look}
-            />
-          }
-          look={look}
-          first
-          stacked
-        />
-        {/* A phone shows one lane at a time: its lane width has nothing to change there. */}
-        {look.compact ? null : (
-          <SettingRow
-            title={strings.laneWidth}
-            description={strings.laneWidthHint}
-            control={
-              <Segmented<LaneWidth>
-                label={strings.laneWidth}
-                value={values.board.laneWidth}
-                options={options(LANE_WIDTHS, strings.laneWidths)}
-                onChange={(next) => void commit({ ...values, board: { ...values.board, laneWidth: next } })}
-                look={look}
-              />
-            }
-            look={look}
-            stacked
-          />
-        )}
-        <SettingRow
-          title={strings.showSubtasks}
-          description={strings.showSubtasksHint}
-          control={
-            <Toggle
-              value={!values.board.hideSubtasks}
-              onChange={(next) => void commit({ ...values, board: { ...values.board, hideSubtasks: !next } })}
-              label={strings.showSubtasks}
-              look={look}
-            />
-          }
-          look={look}
-        />
-        <SettingRow
-          title={strings.showEmptyGroups}
-          description={strings.showEmptyGroupsHint}
-          control={
-            <Toggle
-              value={values.board.showEmptyGroups}
-              onChange={(next) => void commit({ ...values, board: { ...values.board, showEmptyGroups: next } })}
-              label={strings.showEmptyGroups}
-              look={look}
-            />
-          }
-          look={look}
-        />
-        <SettingRow
-          title={strings.confirmStop}
-          control={
-            <Toggle
-              value={values.board.confirmStop}
-              onChange={(next) => void commit({ ...values, board: { ...values.board, confirmStop: next } })}
-              label={strings.confirmStop}
-              look={look}
-            />
-          }
-          look={look}
-        />
-      </Section>
-
       <Section title={strings.sidebarTitle} look={look}>
         <SettingRow
           title={strings.sidebarCount}
@@ -517,10 +442,85 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
           first
         />
       </Section>
-
-      <ResetRows strings={strings} look={look} hint={strings.resetHint} onRestore={() => void form.restoreDefaults()} />
     </>
   );
+
+  const board = (
+    <Section title={strings.boardTitle} look={look}>
+      <SettingRow
+        title={strings.doneWindow}
+        control={
+          <Segmented<DoneWindow>
+            label={strings.doneWindow}
+            value={values.board.doneWindow}
+            options={options(DONE_WINDOWS, strings.doneWindows)}
+            onChange={(next) => void commit({ ...values, board: { ...values.board, doneWindow: next } })}
+            look={look}
+          />
+        }
+        look={look}
+        first
+        stacked
+      />
+      {/* A phone shows one lane at a time: its lane width has nothing to change there. */}
+      {look.compact ? null : (
+        <SettingRow
+          title={strings.laneWidth}
+          description={strings.laneWidthHint}
+          control={
+            <Segmented<LaneWidth>
+              label={strings.laneWidth}
+              value={values.board.laneWidth}
+              options={options(LANE_WIDTHS, strings.laneWidths)}
+              onChange={(next) => void commit({ ...values, board: { ...values.board, laneWidth: next } })}
+              look={look}
+            />
+          }
+          look={look}
+          stacked
+        />
+      )}
+      <SettingRow
+        title={strings.showSubtasks}
+        description={strings.showSubtasksHint}
+        control={
+          <Toggle
+            value={!values.board.hideSubtasks}
+            onChange={(next) => void commit({ ...values, board: { ...values.board, hideSubtasks: !next } })}
+            label={strings.showSubtasks}
+            look={look}
+          />
+        }
+        look={look}
+      />
+      <SettingRow
+        title={strings.showEmptyGroups}
+        description={strings.showEmptyGroupsHint}
+        control={
+          <Toggle
+            value={values.board.showEmptyGroups}
+            onChange={(next) => void commit({ ...values, board: { ...values.board, showEmptyGroups: next } })}
+            label={strings.showEmptyGroups}
+            look={look}
+          />
+        }
+        look={look}
+      />
+      <SettingRow
+        title={strings.confirmStop}
+        control={
+          <Toggle
+            value={values.board.confirmStop}
+            onChange={(next) => void commit({ ...values, board: { ...values.board, confirmStop: next } })}
+            label={strings.confirmStop}
+            look={look}
+          />
+        }
+        look={look}
+      />
+    </Section>
+  );
+  const reset = <ResetRows strings={strings} look={look} hint={strings.resetHint} onRestore={() => void form.restoreDefaults()} />;
 
   return (
     <View style={styles.panel} testID="tasks-settings-panel">
@@ -528,13 +528,16 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
       <PreviewCard look={look} theme={theme} values={values} strings={strings} language={language} hostId={hostId} />
       {side ? (
         <View style={styles.columns}>
-          <View style={styles.column}>{cards}</View>
-          <View style={styles.column}>{rest}</View>
+          <View style={styles.column}>{cards}{board}{sidebarAndPhone}</View>
+          <View style={styles.column}><TitleGenerationSettings look={look} />{reset}</View>
         </View>
       ) : (
         <>
           {cards}
-          {rest}
+          <TitleGenerationSettings look={look} />
+          {board}
+          {sidebarAndPhone}
+          {reset}
         </>
       )}
     </View>
