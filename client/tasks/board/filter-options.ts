@@ -227,11 +227,10 @@ export const FILTER_ICONS: Readonly<Record<FilterUnit, string>> = {
 };
 
 /**
- * The empty groups' switch draws its state as its icon: the whole list while
- * groups without an active task show, Lucide's narrowing list while they
- * are left out.
+ * The empty groups' switch uses a groups icon while all groups show and a
+ * narrowing list while groups without an active task are left out.
  */
-export const EMPTY_GROUPS_ICONS = { shown: "List", hidden: "ListFilter" } as const;
+export const EMPTY_GROUPS_ICONS = { shown: "Layers", hidden: "ListFilter" } as const;
 
 export function emptyGroupsIcon(showEmpty: boolean): string {
   return showEmpty ? EMPTY_GROUPS_ICONS.shown : EMPTY_GROUPS_ICONS.hidden;

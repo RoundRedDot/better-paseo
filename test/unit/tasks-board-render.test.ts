@@ -3288,7 +3288,7 @@ describe("Tasks board, tablet filters", () => {
       const rows = () => groups().findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);
       expect(rowsOf().at(-1)).toBe(toggle());
       expect(toggle().props.accessibilityState).toMatchObject({ checked: true });
-      expect(icon()).toBe("List");
+      expect(icon()).toBe("Layers");
       // Busy first, the empty ones after them.
       expect(rows().at(-1)).toBe("Pi 0");
       await act(async () => toggle().props.onPress());
@@ -3324,7 +3324,7 @@ describe("Tasks board, tablet filters", () => {
       // The same round size as the sidebar switch beside it.
       const size = (testID: string) => StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID).props.style).width;
       expect(size("empty-groups-toggle")).toBe(size("sidebar-switch"));
-      expect(icon()).toBe("List");
+      expect(icon()).toBe("Layers");
       expect(rows().at(-1)).toBe("Pi 0");
       await act(async () => toggle().props.onPress());
       expect(host.save).not.toHaveBeenCalled();
@@ -4132,7 +4132,7 @@ describe("Tasks board, phone", () => {
       // On by default: the whole list.
       expect(button().props).toMatchObject({ accessibilityRole: "switch", accessibilityState: { checked: true } });
       expect(textOf(button())).toContain("Show groups with no active tasks");
-      expect(icon()).toBe("List");
+      expect(icon()).toBe("Layers");
       const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
       expect(sheet().findAll((node) => node === button())).toHaveLength(1);
       const chips = () => sheet().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox").map(textOf);

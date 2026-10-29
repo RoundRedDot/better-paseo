@@ -378,7 +378,7 @@ describe("filter options", () => {
     expect(picked.agents.map((agent) => agent.id)).toContain("pi");
     expect(picked.labels.map((label) => label.id)).toContain("unused");
     expect(picked.projects.map((project) => project.id)).toEqual(["prj_sample", "prj_quiet"]);
-    expect(emptyGroupsIcon(true)).toBe("List");
+    expect(emptyGroupsIcon(true)).toBe("Layers");
     expect(emptyGroupsIcon(false)).toBe("ListFilter");
   });
 
