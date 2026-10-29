@@ -21,6 +21,16 @@ afterEach(() => { act(() => tree?.unmount()); tree = undefined; setConversationS
 const nodes = (id: string) => tree!.root.findAll((node) => typeof node.type === "string" && node.props.testID === id);
 
 describe("full conversation switch", () => {
+  it("uses the short label on phones while retaining the full accessibility label", () => {
+    const counts = { pending: 0, unavailable: 0, failed: 0, retrying: 0 };
+    const status = { read: () => counts, subscribe: () => () => {}, retry: async () => {}, prompt: () => ({ state: "idle" as const }) };
+    act(() => { tree = TestRenderer.create(<SearchCoverageProvider status={status} query="" total={0} strings={BOARD_STRINGS.zh.searchCoverage} fullConversation={false} onFullConversationChange={() => {}} fullConversationLabel={BOARD_STRINGS.zh.fullConversationSearch} fullConversationShortLabel={BOARD_STRINGS.zh.fullConversationShort}>
+      <FullConversationSwitch compact theme={{ colors: { accent: "blue", accentForeground: "white", surface0: "white", surface2: "gray", border: "gray", foregroundMuted: "gray" } } as never} />
+    </SearchCoverageProvider>); });
+    const toggle = nodes("search-full-conversation-toggle")[0]!;
+    expect(toggle.props.accessibilityLabel).toBe("全文搜索");
+    expect(toggle.findAll((node) => String(node.type) === "Text")[0]!.children).toEqual(["全文"]);
+  });
   it.each(["en", "zh"] as const)("defaults off, toggles incrementally and releases results on clear (%s)", async (language) => {
     const card = { ...sampleCards()[0]!, id: "target-task", closed: false };
     const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: id === card.lane ? [card] : [], hasMore: false, loading: false }])) as Record<LaneId, LaneModel>;

@@ -18,11 +18,12 @@ export const SearchCoverageContext = createContext<{
   fullConversation?: boolean;
   onFullConversationChange?(on: boolean): void;
   fullConversationLabel?: string;
+  fullConversationShortLabel?: string;
   fullConversationHint?: string;
 } | null>(null);
 
-export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; query: string; strings: BoardStrings["searchCoverage"]; total: number; fullConversation?: boolean; onFullConversationChange?(on: boolean): void; fullConversationLabel?: string; fullConversationHint?: string }>) {
-  const value = useMemo(() => ({ status: props.status, query: props.query, strings: props.strings, total: props.total, fullConversation: props.fullConversation, onFullConversationChange: props.onFullConversationChange, fullConversationLabel: props.fullConversationLabel, fullConversationHint: props.fullConversationHint }), [props.status, props.query, props.strings, props.total, props.fullConversation, props.onFullConversationChange, props.fullConversationLabel, props.fullConversationHint]);
+export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; query: string; strings: BoardStrings["searchCoverage"]; total: number; fullConversation?: boolean; onFullConversationChange?(on: boolean): void; fullConversationLabel?: string; fullConversationShortLabel?: string; fullConversationHint?: string }>) {
+  const value = useMemo(() => ({ status: props.status, query: props.query, strings: props.strings, total: props.total, fullConversation: props.fullConversation, onFullConversationChange: props.onFullConversationChange, fullConversationLabel: props.fullConversationLabel, fullConversationShortLabel: props.fullConversationShortLabel, fullConversationHint: props.fullConversationHint }), [props.status, props.query, props.strings, props.total, props.fullConversation, props.onFullConversationChange, props.fullConversationLabel, props.fullConversationShortLabel, props.fullConversationHint]);
   return <SearchCoverageContext.Provider value={value}>{props.children}</SearchCoverageContext.Provider>;
 }
 
@@ -125,7 +126,7 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { ic
   </>;
 }
 
-export function FullConversationSwitch({ theme }: { theme: PluginTheme }) {
+export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme; compact?: boolean }) {
   const { context } = useSearchCoverage();
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);
@@ -134,7 +135,7 @@ export function FullConversationSwitch({ theme }: { theme: PluginTheme }) {
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="switch" accessibilityLabel={context.fullConversationLabel}
     accessibilityState={{ checked: on }} aria-checked={on} {...tipProps(context.fullConversationHint)} {...spaceKeys} onPress={toggle} hitSlop={4}
     style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, minHeight: 32 }}>
-    <Text style={{ fontSize: 12, color: theme.colors.foregroundMuted }}>{context.fullConversationLabel}</Text>
+    <Text style={{ fontSize: 12, color: theme.colors.foregroundMuted }}>{compact ? context.fullConversationShortLabel : context.fullConversationLabel}</Text>
     <SwitchTrack value={on} colors={theme.colors} />
   </Pressable>;
 }
