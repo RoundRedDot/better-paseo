@@ -13,6 +13,7 @@ import { perfSlashCommand } from "./client/debug/perf-command";
 import { transformCompaction, transformToolCall } from "./client/tools/transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
 import { assistantRows } from "./client/assistant-transform";
+import { externalHistoryRows } from "./client/external-history";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
 import { setMarkLoader } from "./client/components/marks";
@@ -215,7 +216,7 @@ export default function contribute(client: PluginClientContext) {
         if (item.type !== "assistant_message") return undefined;
         if (!getEnhancerPreferences().assistantMarkdown) return undefined;
         if (!item.text.trim()) return undefined;
-        return { items: assistantRows(item.text, phase) };
+        return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
       },
     }),
   );
