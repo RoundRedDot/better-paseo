@@ -3362,7 +3362,7 @@ describe("Tasks board, tablet filters", () => {
       const toolbar = renderer!.root.findByType(DesktopToolbar);
       expect(toolbar.findAll((node) => node === toggle())).toHaveLength(1);
       expect(toggle().props).toMatchObject({ accessibilityRole: "switch", accessibilityLabel: "Show all", accessibilityState: { checked: true } });
-      expect(toggle().props.dataSet?.bctip).toBe("Hide groups with no active tasks (G)");
+      expect(toggle().props.dataSet?.bctip).toBe("Show all (G)");
       // The same round size as the sidebar switch beside it.
       const size = (testID: string) => StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID).props.style).width;
       expect(size("empty-groups-toggle")).toBe(size("sidebar-switch"));
