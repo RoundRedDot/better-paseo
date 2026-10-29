@@ -130,9 +130,8 @@ export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme;
   const toggle = () => context?.onFullConversationChange?.(!on);
   if (!context?.onFullConversationChange) return null;
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
-    accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={toggle} hitSlop={4}
-    style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 32, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 6, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0 }}>
-    <Icon name="FileText" size={14} color={on ? theme.colors.foreground : theme.colors.foregroundMuted} />
-    <Text style={{ fontSize: 12, color: on ? theme.colors.foreground : theme.colors.foregroundMuted }}>{compact ? context.fullConversationShortLabel : context.fullConversationLabel}</Text>
+    accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps([context.fullConversationLabel, context.fullConversationHint].filter(Boolean).join("\n"))} onPress={toggle} hitSlop={4}
+    style={{ flexShrink: 0, width: compact ? 36 : 32, height: compact ? 36 : 32, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: compact ? 18 : 6, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0 }}>
+    <Icon name={on ? "FileText" : "List"} size={16} color={theme.colors.foreground} />
   </Pressable>;
 }
