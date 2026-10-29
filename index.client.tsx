@@ -1,4 +1,4 @@
-import type { PluginClientContext } from "@getpaseo/plugin/client";
+import type { PluginClientContext, PluginTimelineTransformerContribution } from "@getpaseo/plugin/client";
 import { z } from "zod";
 import { contributeSettingsScreen } from "./client/settings-screen";
 import { removeEmbeddedFonts, setEmbeddedFontLoader } from "./client/components/embed-fonts";
@@ -39,6 +39,14 @@ export default function contribute(client: PluginClientContext) {
   // below (`followPreference`) as soon as it answers, not one projection later.
   const stopPreferenceRead = readPreferencesAtStartup(client);
 
+  // Every chat contribution follows General → Enable Better Paseo chat. Off
+  // leaves the whole timeline to Paseo; the Tasks board does not depend on it.
+  const followChat = (install: () => () => void) =>
+    followPreference("chatEnabled", () => (getEnhancerPreferences().chatEnabled ? install() : () => {}));
+  const addChatTransformer = <ItemType extends PluginTimelineTransformerContribution["query"]["itemType"]>(
+    contribution: PluginTimelineTransformerContribution<ItemType>,
+  ) => followChat(() => client.addTimelineTransformer(contribution));
+
   // The embedded Inter faces are read from the daemon and installed on first
   // use by a reader who picks them (`ensureEmbeddedFonts`); unloading
   // removes them.
@@ -50,9 +58,9 @@ export default function contribute(client: PluginClientContext) {
   // Brand marks are read from the daemon by id, batched per tick, as rows draw them.
   setMarkLoader((ids) => client.rpc(markBitmapsRpc, { ids }).then((result) => result.bitmaps));
   // The host draws  rows itself; this only re-chromes them.
-  const removeNoticeStyle = installHostNoticeStyle();
+  const removeNoticeStyle = followChat(installHostNoticeStyle);
   // Paseo's Ctrl+F cannot reveal rows this plugin draws; this bar can.
-  const removeChatFind = installChatFind();
+  const removeChatFind = followChat(installChatFind);
   // A clicked row, chip or button keeps no focus ring; Tab focus does.
   const removeFocusRing = installPointerFocusRing();
 
@@ -61,14 +69,14 @@ export default function contribute(client: PluginClientContext) {
   const removeSettings = contributeSettingsScreen(client);
 
   // Live chat timeline interception: render real tool calls, reasoning, and todos with enhanced UI.
-  const removeToolTransformer = client.addTimelineTransformer({
+  const removeToolTransformer = addChatTransformer({
     id: "omp-enhanced-tool-call",
     query: { itemType: "tool_call" },
     transform: transformToolCall,
   });
 
   // Drawn by the tool row renderer, as a row like a call's.
-  const removeCompactionTransformer = client.addTimelineTransformer({
+  const removeCompactionTransformer = addChatTransformer({
     id: "omp-enhanced-compaction",
     query: { itemType: "compaction" },
     transform: transformCompaction,
@@ -92,7 +100,7 @@ export default function contribute(client: PluginClientContext) {
     Component: LiveToolCallRenderer,
   });
 
-  const removeReasoningTransformer = client.addTimelineTransformer({
+  const removeReasoningTransformer = addChatTransformer({
     id: "omp-enhanced-reasoning",
     query: { itemType: "reasoning" },
     transform({ item, phase }) {
@@ -123,7 +131,7 @@ export default function contribute(client: PluginClientContext) {
     Component: LiveReasoningRenderer,
   });
 
-  const removeTodoTransformer = client.addTimelineTransformer({
+  const removeTodoTransformer = addChatTransformer({
     id: "omp-enhanced-todo",
     query: { itemType: "todo" },
     transform({ item, phase }) {
@@ -157,7 +165,7 @@ export default function contribute(client: PluginClientContext) {
   // Registered again when the preference changes, so prompts already
   // projected follow it (see `followPreference`).
   const removeUserTransformer = followPreference("enhancedUserBubble", () =>
-    client.addTimelineTransformer({
+    addChatTransformer({
       id: "omp-enhanced-user-message",
       query: { itemType: "user_message" },
       transform({ item }) {
@@ -208,7 +216,7 @@ export default function contribute(client: PluginClientContext) {
   // transformer is registered again when it changes, so replies already shown
   // follow it too; a reply the plugin should not own is left to the host.
   const removeAssistantTransformer = followPreference("assistantMarkdown", () =>
-    client.addTimelineTransformer({
+    addChatTransformer({
       id: "omp-enhanced-assistant",
       query: { itemType: "assistant_message" },
       transform({ item, phase }) {
@@ -237,7 +245,7 @@ export default function contribute(client: PluginClientContext) {
   // plugin installs and the whole chat falls back to native styling. Add the
   // notification transformer the day the host accepts the type, not before.
 
-  const removeErrorTransformer = client.addTimelineTransformer({
+  const removeErrorTransformer = addChatTransformer({
     id: "omp-enhanced-error",
     query: { itemType: "error" },
     transform({ item }) {

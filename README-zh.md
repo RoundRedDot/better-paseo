@@ -661,11 +661,14 @@ Paseo 仍会绘制原生权限提示，并负责允许和拒绝操作。agent �
 
 **设置 → 插件 → Better Paseo**，页面 **设置**。页面分「聊天展示」和「任务看板」两个标签，两边顶部都有任务看板的开关。在聊天展示标签里，一段用时间线组件绘制的示例对话会实时跟随每一项修改：宽窗口下显示在选项旁边，其他情况显示在选项上方；其中 Read 行的悬停预览常驻展开。在网页和桌面上，预览标题栏的「桌面端 / 移动端」切换可以按 iOS 样式、手机宽度绘制同一段对话，并使用你选的行内代码颜色。父选项关闭时，子选项变灰；某个平台用不上的选项在该平台上隐藏；「恢复全部默认设置」需要再点一次确认。
 
+**通用 → 启用 Better Paseo 聊天** 默认开启。关闭后整个聊天交给 Paseo 和其他插件，并隐藏工具调用、间距、消息和悬停预览分组。Tasks 看板不受此设置影响。
+
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-zh-dark.png"><img alt="设置页与实时预览" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-zh-light.png"></picture>
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-tools-zh-dark.png"><img alt="块字号设置与实时预览" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-tools-zh-light.png"></picture>
 
 | 分组 | 设置 | 默认 | 作用 |
 | --- | --- | --- | --- |
+| 通用 | 启用 Better Paseo 聊天 | 开 | 使用本插件绘制工具调用、思考、待办清单、提示、上下文压缩行、提问和回复。关闭后整个聊天交给 Paseo，其 Summary 工具调用显示模式可以折叠工具调用。 |
 | 通用 | 语言 | 跟随 Paseo | 设置页、Tasks 看板和时间线上插件自己的文字使用英文或简体中文。跟随 Paseo 时使用 Paseo 的语言；Paseo 跟随系统时使用设备语言。 |
 | 外观 | 强调色 | 主题 | 跟随 Paseo 主题，或选翠绿、紫罗兰、琥珀、玫瑰。只替换强调色。 |
 | 外观 | 界面字体 | 跟随 Paseo | Paseo 的界面字体、Inter（仅网页，由 daemon 下发）或系统字体。 |

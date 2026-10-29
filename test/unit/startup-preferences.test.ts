@@ -117,6 +117,23 @@ describe("preferences read while the plugin loads", () => {
     cleanup();
   });
 
+  it("leaves the chat to Paseo while the chat switch is off", async () => {
+    const { contribute, preferences } = await load();
+    const plugin = fakeClient(() => Promise.resolve({ status: "ready", revision: "r1", values: { chatEnabled: false } }));
+    const cleanup = contribute(plugin.client as never);
+    await flush();
+    for (const id of TRANSFORMERS) expect(plugin.active(id)).toEqual([]);
+
+    // Nested preferences no longer register while the switch is off.
+    preferences.updateEnhancerPreferences({ assistantMarkdown: false });
+    expect(plugin.active("omp-enhanced-assistant")).toEqual([]);
+
+    preferences.updateEnhancerPreferences({ chatEnabled: true });
+    for (const id of TRANSFORMERS) expect(plugin.active(id)).toHaveLength(1);
+    cleanup();
+    expect(plugin.registrations.every((entry) => entry.removed)).toBe(true);
+  });
+
   it("leaves a daemon with no record yet to the settings hook", async () => {
     const { contribute, preferences } = await load();
     const plugin = fakeClient(() =>
