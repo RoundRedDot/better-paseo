@@ -5,7 +5,7 @@ import { readDevicePreference, writeDevicePreference } from "../web";
 import { createDeviceTasksStore, DEFAULT_CARD_TITLE_LINES, deviceBoardPreferences, type DevicePreferenceStorage, type DeviceTasksStore } from "./device-store";
 
 const STORAGE_KEY = "paseo/better-chat/tasks/device-board/v1";
-const RUNTIME_KEY = "__betterPaseoDeviceTasksV1";
+const RUNTIME_KEY = "__betterPaseoDeviceTasksV2";
 
 interface NativeStorage {
   multiGet(keys: string[], done: (errors?: unknown[] | null, values?: [string, string | null][]) => void): void;

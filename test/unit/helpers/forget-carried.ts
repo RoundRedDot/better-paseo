@@ -8,6 +8,7 @@ beforeEach(() => {
   const holder = globalThis as Record<string, unknown>;
   delete holder.__betterPaseoTasksCarry;
   delete holder.__betterPaseoDeviceTasksV1;
+  delete holder.__betterPaseoDeviceTasksV2;
   let stored: string | null = null;
   holder.__betterPaseoDeviceTasksStorageForTests = { read: () => stored, write: (value: string) => { stored = value; } };
 });
