@@ -36,6 +36,8 @@ export function FilterSheetBody(props: {
   onDone(): void;
   /** Phones keep the subtasks switch in their toolbar. */
   hideSubtasksToggle?: boolean;
+  /** Use pill-shaped agent and label options on phones. */
+  phone?: boolean;
   /** Phones and tablets keep the empty-groups switch here instead of the toolbar. */
   showEmptyGroupsToggle?: boolean;
   /** Tablet toolbars keep the archived-lane control in this panel. */
@@ -131,6 +133,7 @@ export function FilterSheetBody(props: {
                   key={agent.id}
                   option={agent}
                   theme={theme}
+                  pill={props.phone}
                   leading={<BrandMark provider={agent.id} size={16} tokens={taskTokens(theme)} />}
                   hideCount
                   onPress={() => setParams((p) => ({ ...p, providers: toggleItem(p.providers, agent.id) }))}
@@ -147,6 +150,7 @@ export function FilterSheetBody(props: {
                   key={label.id}
                   option={label}
                   theme={theme}
+                  pill={props.phone}
                   leading={<TagMark size={14} color={label.color ?? colors.foregroundMuted} hole={label.on ? taskTokens(theme).accentSoft : colors.surface0} />}
                   onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
                 />
@@ -326,7 +330,7 @@ function ChipWrap({ children }: { children: ReactNode }) {
   return <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>{children}</View>;
 }
 
-function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void; leading?: ReactNode; hideCount?: boolean }) {
+function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void; leading?: ReactNode; hideCount?: boolean; pill?: boolean }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const on = props.option.on;
@@ -342,7 +346,7 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
         paddingRight: 12,
         borderWidth: HAIRLINE,
         borderColor: on ? colors.accent : colors.border,
-        borderRadius: 4,
+        borderRadius: props.pill ? taskControlHeight(32, scale) / 2 : 4,
         backgroundColor: on ? taskTokens(props.theme).accentSoft : "transparent",
         flexDirection: "row",
         alignItems: "center",

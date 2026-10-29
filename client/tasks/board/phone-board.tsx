@@ -520,7 +520,7 @@ export function PhoneBoard(props: {
       <Modal title={strings.filters} open={sheet?.kind === "filters"} onOpenChange={(open) => !open && setSheet(null)}>
         <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
-            {sheet?.kind === "filters" && options ? <FilterSheetBody board={board} theme={theme} options={options} hideSubtasksToggle showEmptyGroupsToggle focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
+            {sheet?.kind === "filters" && options ? <FilterSheetBody board={board} theme={theme} options={options} phone hideSubtasksToggle showEmptyGroupsToggle focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
           </TasksTypography>
         </Modal.Content>
       </Modal>
