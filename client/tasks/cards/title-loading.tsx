@@ -21,6 +21,7 @@ const SWEEP_ATTR = "bctitlesweep";
  */
 export function TitleLoading(props: {
   title: string;
+  titleLines?: number;
   highlightColor: string;
   mutedColor: string;
   style: StyleProp<TextStyle>;
@@ -97,7 +98,7 @@ function WebSweep(props: SweepProps) {
   useSweepRules(props.mutedColor, props.active);
   return (
     <View {...containerProps(props)}>
-      <TaskText numberOfLines={2} ellipsizeMode="tail" testID="task-card-title"
+      <TaskText numberOfLines={props.titleLines ?? 2} ellipsizeMode="tail" testID="task-card-title"
         {...(props.active ? { dataSet: { [SWEEP_ATTR]: "" } } : null)}
         style={[props.style, { color: props.active ? props.highlightColor : props.mutedColor }]}>{props.title}</TaskText>
     </View>
@@ -137,7 +138,7 @@ function NativeSweep(props: SweepProps) {
   const counterTravel = { inputRange: travel.inputRange, outputRange: [-start, -width, -width] };
   return (
     <View {...containerProps(props)} onLayout={(event) => setSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}>
-      <TaskText numberOfLines={2} ellipsizeMode="tail" style={[props.style, { color: props.mutedColor }]} testID="task-card-title">{props.title}</TaskText>
+      <TaskText numberOfLines={props.titleLines ?? 2} ellipsizeMode="tail" style={[props.style, { color: props.mutedColor }]} testID="task-card-title">{props.title}</TaskText>
       {active && width > 0 ? (
         <Animated.View pointerEvents="none" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID="task-title-update-sheen"
           style={{ position: "absolute", top: 0, bottom: 0, width: BAND_WIDTH, overflow: "hidden", transformOrigin: SHEAR.transformOrigin, transform: [{ translateX: progress.interpolate(travel) }, ...SHEAR.skew] }}>
@@ -145,7 +146,7 @@ function NativeSweep(props: SweepProps) {
             <View key={index} style={{ position: "absolute", top: 0, bottom: 0, left: index * SLICE_WIDTH, width: SLICE_WIDTH, overflow: "hidden" }}>
               {/* Counter-motion keeps every clipped copy aligned with the in-flow title. */}
               <Animated.View style={{ width, marginLeft: -index * SLICE_WIDTH, opacity, transformOrigin: SHEAR.transformOrigin, transform: [{ translateX: progress.interpolate(counterTravel) }, ...UNSHEAR] }}>
-                <TaskText numberOfLines={2} ellipsizeMode="tail" style={[props.style, { color: props.highlightColor }]}>{props.title}</TaskText>
+                <TaskText numberOfLines={props.titleLines ?? 2} ellipsizeMode="tail" style={[props.style, { color: props.highlightColor }]}>{props.title}</TaskText>
               </Animated.View>
             </View>
           ))}

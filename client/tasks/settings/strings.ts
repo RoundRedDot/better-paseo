@@ -1,4 +1,5 @@
 import type { CardField, Density, DoneWindow, LabelLimit, LaneWidth, SidebarCount } from "../../../shared/tasks-settings";
+import type { CardTitleLineCount } from "../device-store";
 import type { TasksLanguage } from "../i18n";
 
 /** The words of the Tasks board's half of the settings page. */
@@ -31,6 +32,9 @@ export interface TasksSettingsStrings {
   fields: Record<CardField, string>;
   labelLimit: string;
   labelLimits: Record<LabelLimit, string>;
+  titleLines: string;
+  titleLinesHint: string;
+  titleLineCounts: Record<CardTitleLineCount, string>;
   phoneTitle: string;
   compactCards: string;
   compactCardsHint: string;
@@ -106,6 +110,9 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     },
     labelLimit: "Labels shown",
     labelLimits: { "1": "1", "2": "2", "3": "3", all: "All" },
+    titleLines: "Title lines",
+    titleLinesHint: "Saved on this device only.",
+    titleLineCounts: { "1": "1", "2": "2", "3": "3", "4": "4" },
     phoneTitle: "Phone",
     compactCards: "Use minimal cards on phones",
     compactCardsHint: "Phones draw the Minimal card whatever the density above.",
@@ -177,6 +184,9 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     },
     labelLimit: "标签数量",
     labelLimits: { "1": "1 个", "2": "2 个", "3": "3 个", all: "全部" },
+    titleLines: "标题行数",
+    titleLinesHint: "仅保存在当前设备。",
+    titleLineCounts: { "1": "1 行", "2": "2 行", "3": "3 行", "4": "4 行" },
     phoneTitle: "手机",
     compactCards: "手机上使用精简卡片",
     compactCardsHint: "手机上无论上面选哪种密度，都按精简卡片显示。",

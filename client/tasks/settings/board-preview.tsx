@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { effectiveCard, type TasksSettings } from "../../../shared/tasks-settings";
+import { DEFAULT_CARD_TITLE_LINES, type CardTitleLineCount } from "../device-store";
 import { permissionButtons } from "../actions";
 import { HAIRLINE, PANEL_RADIUS, boardPalette } from "../board/board-style";
 import { LANES, boardLaneLayout } from "../board/navigation";
@@ -40,6 +41,7 @@ export function previewLanes(now: number, language: TasksLanguage): Record<LaneI
 export function TasksBoardPreview(props: {
   theme: PluginTheme;
   values: TasksSettings;
+  titleLines?: CardTitleLineCount;
   language: TasksLanguage;
   /** Phone layout: the phone's tabs and its card (`mobile.compactCards`). */
   phone: boolean;
@@ -48,6 +50,7 @@ export function TasksBoardPreview(props: {
   hostId?: string;
 }) {
   const { theme, values, language, phone } = props;
+  const titleLines = props.titleLines ?? DEFAULT_CARD_TITLE_LINES;
   const colors = theme.colors;
   const scale = useTasksFontScale();
   const title = laneTitle();
@@ -68,6 +71,7 @@ export function TasksBoardPreview(props: {
       key={item.id}
       card={item}
       fields={fields}
+      titleLines={Number(titleLines)}
       theme={theme}
       compact={phone}
       permissionButtons={item.permission ? permissionButtons(item.permission, language) : []}

@@ -24,7 +24,7 @@ it.each(["ios", "android"])("persists the four preferences through %s AsyncStora
   const store = deviceTasksStore();
   store.load(seed);
   await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
-  const saved = { hideSubtasks: true, showArchived: false, showEmptyGroups: false, laneWidth: "wide" as const };
+  const saved = { hideSubtasks: true, showArchived: false, showEmptyGroups: false, laneWidth: "wide" as const, titleLines: "4" as const };
   await store.update(saved);
   expect(NativeModules.RNCAsyncStorage.multiSet).toHaveBeenCalledTimes(2);
   delete holder.__betterPaseoDeviceTasksV1;
@@ -46,4 +46,5 @@ it("persists the same device record with web localStorage", async () => {
   const restarted = deviceTasksStore();
   restarted.load(seed);
   expect(restarted.snapshot().values?.hideSubtasks).toBe(true);
+  expect(restarted.snapshot().values?.titleLines).toBe("2");
 });

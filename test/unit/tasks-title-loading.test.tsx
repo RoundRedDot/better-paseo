@@ -13,7 +13,7 @@ import { TitleLoading } from "../../client/tasks/cards/title-loading";
 
 let tree: TestRenderer.ReactTestRenderer;
 const title = "/Users/example/Downloads/飞书 20261027-193857.mp4";
-const renderTitle = (animated = true, mutedColor = "#666666") => <TitleLoading title={title} highlightColor="#111111" mutedColor={mutedColor} style={{ fontSize: 16, lineHeight: 24 }} animated={animated} accessibilityLabel="正在更新标题…" />;
+const renderTitle = (animated = true, mutedColor = "#666666", titleLines = 2) => <TitleLoading title={title} titleLines={titleLines} highlightColor="#111111" mutedColor={mutedColor} style={{ fontSize: 16, lineHeight: 24 }} animated={animated} accessibilityLabel="正在更新标题…" />;
 const host = (testID: string) => tree.root.find((node) => typeof node.type === "string" && node.props.testID === testID);
 const hosts = (testID: string) => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === testID);
 const measure = async (width: number) => { await act(async () => host("task-title-update-shimmer").props.onLayout({ nativeEvent: { layout: { width, height: 48 } } })); };
@@ -75,6 +75,14 @@ describe.each(["ios", "android"])("native title sweep (%s)", (os) => {
     expect(hosts("task-title-update-sheen")).toHaveLength(0);
     expect(host("task-card-title").children.join("")).toBe(title);
     expect(host("task-title-update-shimmer").props.accessibilityState.busy).toBe(true);
+  });
+
+  it("applies the configured line limit to the title and every native shimmer copy", async () => {
+    await act(async () => { tree = TestRenderer.create(renderTitle(true, "#666666", 4)); });
+    await measure(240);
+    expect(host("task-card-title").props.numberOfLines).toBe(4);
+    expect(host("task-title-update-sheen").findAll((node) => String(node.type) === "Text").every((node) => node.props.numberOfLines === 4)).toBe(true);
+    await act(async () => tree.unmount());
   });
 });
 

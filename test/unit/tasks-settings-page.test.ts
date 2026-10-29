@@ -243,6 +243,19 @@ describe("Tasks half of the settings page", () => {
     expect(deviceTasksStore().snapshot().values?.laneWidth).toBe("wide");
   });
 
+  it("saves title line limits on this device and updates the preview immediately", async () => {
+    const api = makeSettings();
+    const r = panel();
+    expect(byLabel(r, "Title lines").props.accessibilityRole).toBe("radiogroup");
+    expect(radio(r, "Title lines", "2").props["aria-checked"]).toBe(true);
+    expect(state.previews.some((preview) => preview.titleLines === 2)).toBe(true);
+    await act(async () => radio(r, "Title lines", "4").props.onPress());
+    expect(deviceTasksStore().snapshot().values?.titleLines).toBe("4");
+    expect(api.save).not.toHaveBeenCalled();
+    expect(state.previews.some((preview) => preview.titleLines === 4)).toBe(true);
+    act(() => r.unmount());
+  });
+
   it("shows local changes from another surface and ignores later host layout values", async () => {
     const api = makeSettings();
     const r = panel();

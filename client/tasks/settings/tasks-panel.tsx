@@ -18,6 +18,7 @@ import {
   type SidebarCount,
   type TasksSettings,
 } from "../../../shared/tasks-settings";
+import { CARD_TITLE_LINE_COUNTS } from "../device-store";
 import { mix, radiusV2, space } from "../../components/theme-tokens";
 import { PHONE_PREVIEW_WIDTH, PlainButton, Section, Segmented, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "../../settings-controls";
 import { TasksTypography } from "../typography";
@@ -152,6 +153,7 @@ function PreviewCard(props: {
   look: PageLook;
   theme: PluginTheme;
   values: TasksSettings;
+  titleLines: TasksForm["titleLines"];
   strings: TasksSettingsStrings;
   language: "en" | "zh";
   hostId?: string;
@@ -197,6 +199,7 @@ function PreviewCard(props: {
           <TasksBoardPreview
             theme={props.theme}
             values={values}
+            titleLines={props.titleLines}
             language={props.language}
             phone
             listMaxHeight={PREVIEW_LANES_MAX_HEIGHT}
@@ -206,7 +209,7 @@ function PreviewCard(props: {
       </View>
     ) : (
       <View style={[styles.previewBoard, frame]}>
-        <TasksBoardPreview theme={props.theme} values={values} language={props.language} phone={phone} hostId={props.hostId} />
+        <TasksBoardPreview theme={props.theme} values={values} titleLines={props.titleLines} language={props.language} phone={phone} hostId={props.hostId} />
       </View>
     );
   return (
@@ -287,7 +290,7 @@ function ResetRows({ strings, look, hint, onRestore }: { strings: TasksSettingsS
 export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLook; theme: PluginTheme; side: boolean; hostId?: string }) {
   const { strings, language } = useStrings();
   const form = useTasksForm();
-  const { settings, commit } = form;
+  const { settings, commit, titleLines, setTitleLines } = form;
 
   const switchSection = (
     <View style={styles.section}>
@@ -402,6 +405,21 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         look={look}
         stacked={look.compact}
         disabled={!card.labels}
+      />
+      <SettingRow
+        title={strings.titleLines}
+        description={strings.titleLinesHint}
+        control={
+          <Segmented
+            label={strings.titleLines}
+            value={titleLines}
+            options={options(CARD_TITLE_LINE_COUNTS, strings.titleLineCounts)}
+            onChange={(next) => void setTitleLines(next)}
+            look={look}
+          />
+        }
+        look={look}
+        stacked={look.compact}
       />
     </Section>
   );
@@ -525,7 +543,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
   return (
     <View style={styles.panel} testID="tasks-settings-panel">
       {switchSection}
-      <PreviewCard look={look} theme={theme} values={values} strings={strings} language={language} hostId={hostId} />
+      <PreviewCard look={look} theme={theme} values={values} titleLines={titleLines} strings={strings} language={language} hostId={hostId} />
       {side ? (
         <View style={styles.columns}>
           <View style={styles.column}>{cards}{board}{sidebarAndPhone}</View>

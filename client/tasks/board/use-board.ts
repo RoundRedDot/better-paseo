@@ -13,6 +13,7 @@ import { useSearchConversations } from "../data/search-conversations";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { LANE_ORDER, boardLaneOrder, opensInPaseo, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
 import { useDeviceTasksPreferences } from "../device-preferences";
+import { DEFAULT_CARD_TITLE_LINES, type CardTitleLineCount } from "../device-store";
 import { MOTION } from "./board-style";
 import { carriedSettings, useCarriedTasks } from "./carry";
 import { lingerBoard } from "./prefetch";
@@ -85,6 +86,7 @@ export interface BoardController {
   laneOrder: readonly LaneId[];
   total: number;
   fields: CardSettings;
+  titleLines: CardTitleLineCount;
   /** Shared by virtualised cards and their lane-motion copies. */
   expandedSubtasks: ReadonlySet<string>;
   setSubtasksExpanded(agentId: string, expanded: boolean): void;
@@ -278,6 +280,7 @@ export function useBoard(
   const tasks = availability.tasks;
   // A save reads the whole record back as new objects: the fields keep their identity while they hold, so a switch on the board re-renders no card.
   const cardFields = effectiveCard(settings, compact);
+  const titleLines = device.values?.titleLines ?? DEFAULT_CARD_TITLE_LINES;
   const fieldsRef = useRef(cardFields);
   if (!sameFields(fieldsRef.current, cardFields)) fieldsRef.current = cardFields;
   const fields = fieldsRef.current;
@@ -507,6 +510,7 @@ export function useBoard(
     laneOrder,
     total,
     fields,
+    titleLines,
     expandedSubtasks,
     setSubtasksExpanded,
     clock,

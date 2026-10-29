@@ -25,6 +25,14 @@ describe("device Tasks preferences", () => {
     expect(storage.write).toHaveBeenCalledTimes(2);
   });
 
+  it("defaults the title line preference when reading an older device record", () => {
+    const storage = disk(JSON.stringify({ hideSubtasks: defaults.hideSubtasks, showArchived: defaults.showArchived, showEmptyGroups: defaults.showEmptyGroups, laneWidth: defaults.laneWidth }));
+    const store = createDeviceTasksStore(storage);
+    store.load(defaults);
+    expect(store.snapshot().values).toEqual(defaults);
+    expect(storage.write).not.toHaveBeenCalled();
+  });
+
   it("keeps two devices isolated even when their host seed is identical", async () => {
     const first = createDeviceTasksStore(disk());
     const second = createDeviceTasksStore(disk());
@@ -33,7 +41,7 @@ describe("device Tasks preferences", () => {
     const listener = vi.fn();
     const unsubscribe = first.subscribe(listener);
     await first.update({ showArchived: false, showEmptyGroups: false, hideSubtasks: true, laneWidth: "narrow" });
-    expect(first.snapshot().values).toEqual({ showArchived: false, showEmptyGroups: false, hideSubtasks: true, laneWidth: "narrow" });
+    expect(first.snapshot().values).toEqual({ showArchived: false, showEmptyGroups: false, hideSubtasks: true, laneWidth: "narrow", titleLines: "2" });
     expect(second.snapshot().values).toEqual(defaults);
     expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();
@@ -89,6 +97,15 @@ describe("device Tasks preferences", () => {
 
   it.each(["not json", "{}", JSON.stringify({ ...defaults, showArchived: "yes" })])("rejects an invalid record without overwriting it: %s", (raw) => {
     const storage = disk(raw);
+    const store = createDeviceTasksStore(storage);
+    store.load(defaults);
+    expect(store.snapshot().ready).toBe(false);
+    expect(store.snapshot().error).toBeTruthy();
+    expect(storage.write).not.toHaveBeenCalled();
+  });
+
+  it("rejects an out-of-range title line preference without overwriting it", () => {
+    const storage = disk(JSON.stringify({ ...defaults, titleLines: "5" }));
     const store = createDeviceTasksStore(storage);
     store.load(defaults);
     expect(store.snapshot().ready).toBe(false);

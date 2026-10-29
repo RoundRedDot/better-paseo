@@ -203,6 +203,13 @@ describe("TaskCardView on web", () => {
     await act(async () => renderer.unmount());
   });
 
+  it("uses the device's configured title line limit", async () => {
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running", { titleLines: 4 })));
+    const title = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-title");
+    expect(title.props.numberOfLines).toBe(4);
+    await act(async () => renderer.unmount());
+  });
+
   it.each(["light", "dark"])("distinguishes keyboard focus from selection in the %s theme", async (appearance) => {
     const theme = appearance === "light" ? THEME : {
       colors: { ...THEME.colors, surface0: "#181b1a", surface1: "#1e2120", surface2: "#272a29", border: "#252b2a", foreground: "#fafafa", foregroundMuted: "#a1a5a4" },

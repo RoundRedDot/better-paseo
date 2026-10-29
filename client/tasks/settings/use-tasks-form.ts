@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useSettings } from "@getpaseo/plugin/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, type TasksSettings } from "../../../shared/tasks-settings";
 import { useDeviceTasksPreferences } from "../device-preferences";
-import { DEVICE_BOARD_FIELDS, deviceBoardPreferences, sharedTasksSettings } from "../device-store";
+import { DEVICE_BOARD_FIELDS, deviceBoardPreferences, sharedTasksSettings, type CardTitleLineCount } from "../device-store";
 import { setTasksEnabled } from "../board/enabled";
 
 /**
@@ -97,13 +97,18 @@ export function useTasksForm() {
     if (enabled === null) await reset();
     else await commit({ ...DEFAULT_TASKS_SETTINGS, enabled });
   }, [reset, commit, enabled, device.restore]);
+  const setTitleLines = useCallback(async (titleLines: CardTitleLineCount) => {
+    setLocalError(null);
+    try { await device.update({ titleLines }); }
+    catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); }
+  }, [device.update]);
   useEffect(() => {
     if (enabled !== null) setTasksEnabled(enabled);
     // Turned off elsewhere: the hint about the entry no longer holds.
     if (enabled === false) setTurnedOnHere(false);
   }, [enabled]);
 
-  return { settings, localError: localError ?? device.error, conflict, commit, setEnabled, restoreDefaults, turnedOn: turnedOn && enabled === true };
+  return { settings, titleLines: device.titleLines, setTitleLines, localError: localError ?? device.error, conflict, commit, setEnabled, restoreDefaults, turnedOn: turnedOn && enabled === true };
 }
 
 export type TasksForm = ReturnType<typeof useTasksForm>;

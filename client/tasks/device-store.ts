@@ -1,27 +1,31 @@
 import { LANE_WIDTHS, type TasksSettings } from "../../shared/tasks-settings";
 
 export const DEVICE_BOARD_FIELDS = ["hideSubtasks", "showArchived", "showEmptyGroups", "laneWidth"] as const;
-export type DeviceBoardPreferences = Pick<TasksSettings["board"], (typeof DEVICE_BOARD_FIELDS)[number]>;
+export const CARD_TITLE_LINE_COUNTS = ["1", "2", "3", "4"] as const;
+const DEVICE_PREFERENCE_FIELDS = [...DEVICE_BOARD_FIELDS, "titleLines"] as const;
+export type CardTitleLineCount = (typeof CARD_TITLE_LINE_COUNTS)[number];
+export const DEFAULT_CARD_TITLE_LINES: CardTitleLineCount = "2";
+export type DeviceBoardPreferences = Pick<TasksSettings["board"], (typeof DEVICE_BOARD_FIELDS)[number]> & { titleLines: CardTitleLineCount };
 export interface DevicePreferenceStorage {
   read(): string | null | Promise<string | null>;
   write(value: string): void | Promise<void>;
 }
 
 export function deviceBoardPreferences(board: TasksSettings["board"]): DeviceBoardPreferences {
-  return { hideSubtasks: board.hideSubtasks, showArchived: board.showArchived, showEmptyGroups: board.showEmptyGroups, laneWidth: board.laneWidth };
+  return { hideSubtasks: board.hideSubtasks, showArchived: board.showArchived, showEmptyGroups: board.showEmptyGroups, laneWidth: board.laneWidth, titleLines: DEFAULT_CARD_TITLE_LINES };
 }
 
 function decode(raw: string): DeviceBoardPreferences {
-  const value = JSON.parse(raw) as DeviceBoardPreferences;
-  if (!value || typeof value.hideSubtasks !== "boolean" || typeof value.showArchived !== "boolean" || typeof value.showEmptyGroups !== "boolean" || !LANE_WIDTHS.includes(value.laneWidth)) {
+  const value = JSON.parse(raw) as Partial<DeviceBoardPreferences>;
+  if (!value || typeof value.hideSubtasks !== "boolean" || typeof value.showArchived !== "boolean" || typeof value.showEmptyGroups !== "boolean" || !LANE_WIDTHS.includes(value.laneWidth!) || value.titleLines !== undefined && !CARD_TITLE_LINE_COUNTS.includes(value.titleLines)) {
     throw new Error("Invalid device Tasks preferences");
   }
-  return deviceBoardPreferences(value as TasksSettings["board"]);
+  return { hideSubtasks: value.hideSubtasks, showArchived: value.showArchived, showEmptyGroups: value.showEmptyGroups, laneWidth: value.laneWidth!, titleLines: value.titleLines ?? DEFAULT_CARD_TITLE_LINES };
 }
 
 /** The old host fields are migration input only; never send a device edit back to the daemon. */
 export function sharedTasksSettings(next: TasksSettings, saved: TasksSettings): TasksSettings {
-  return { ...next, board: { ...next.board, ...deviceBoardPreferences(saved.board) } };
+  return { ...next, board: { ...next.board, hideSubtasks: saved.board.hideSubtasks, showArchived: saved.board.showArchived, showEmptyGroups: saved.board.showEmptyGroups, laneWidth: saved.board.laneWidth } };
 }
 
 export function createDeviceTasksStore(storage: DevicePreferenceStorage) {
@@ -85,7 +89,7 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage) {
       if (!state.ready || !state.values) return Promise.reject(new Error(state.error ?? "Device Tasks preferences are still loading"));
       const previous = state.values;
       const values = { ...previous, ...patch };
-      if (DEVICE_BOARD_FIELDS.every((key) => previous[key] === values[key])) return Promise.resolve();
+      if (DEVICE_PREFERENCE_FIELDS.every((key) => previous[key] === values[key])) return Promise.resolve();
       const ownRevision = ++revision;
       accept(values);
       const pending = writes.then(() => storage.write(JSON.stringify(values)));

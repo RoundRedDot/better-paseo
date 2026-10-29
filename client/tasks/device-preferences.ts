@@ -2,7 +2,7 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { NativeModules, Platform, TurboModuleRegistry } from "react-native";
 import type { TasksSettings } from "../../shared/tasks-settings";
 import { readDevicePreference, writeDevicePreference } from "../web";
-import { createDeviceTasksStore, deviceBoardPreferences, type DevicePreferenceStorage, type DeviceTasksStore } from "./device-store";
+import { createDeviceTasksStore, DEFAULT_CARD_TITLE_LINES, deviceBoardPreferences, type DevicePreferenceStorage, type DeviceTasksStore } from "./device-store";
 
 const STORAGE_KEY = "paseo/better-chat/tasks/device-board/v1";
 const RUNTIME_KEY = "__betterPaseoDeviceTasksV1";
@@ -38,6 +38,16 @@ export function useDeviceTasksPreferences(settings: TasksSettings | null) {
   const store = deviceTasksStore();
   const state = useSyncExternalStore(store.subscribe, store.snapshot, store.snapshot);
   useEffect(() => { if (settings) store.load(deviceBoardPreferences(settings.board)); }, [store, settings]);
-  const values = useMemo(() => settings ? { ...settings, board: { ...settings.board, ...(state.values ?? {}) } } : null, [settings, state.values]);
-  return { ...state, settings: values, update: store.update, restore: store.restore };
+  const values = useMemo(() => {
+    if (!settings) return null;
+    const local = state.values;
+    return {
+      ...settings,
+      board: {
+        ...settings.board,
+        ...(local ? { hideSubtasks: local.hideSubtasks, showArchived: local.showArchived, showEmptyGroups: local.showEmptyGroups, laneWidth: local.laneWidth } : {}),
+      },
+    };
+  }, [settings, state.values]);
+  return { ...state, settings: values, titleLines: state.values?.titleLines ?? DEFAULT_CARD_TITLE_LINES, update: store.update, restore: store.restore };
 }
