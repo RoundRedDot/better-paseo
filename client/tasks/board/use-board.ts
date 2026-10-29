@@ -319,7 +319,7 @@ export function useBoard(
   const stoppedIds = useMemo(() => restoredStops(stoppedManually, restored, tasks.byId), [stoppedManually, restored, tasks.byId]);
   // Every card the board can draw: the store's, with a card for each provider subagent.
   const unfiltered = useMemo(() => withSubagentCards(withStopReasons(titleLanes, stoppedIds, strings.stoppedManually)), [titleLanes, stoppedIds, strings.stoppedManually]);
-  const [fullConversationSearch, setFullConversationSearch] = useState(false);
+  const [fullConversationSearch, setFullConversationSearchState] = useState(false);
   const firstPrompts = useSearchFirstPrompts(paseo, unfiltered, fullConversationSearch ? "" : filters.query);
   const conversations = useSearchConversations(paseo, unfiltered, fullConversationSearch ? filters.query : "");
   const search = fullConversationSearch ? conversations : firstPrompts;
@@ -374,6 +374,10 @@ export function useBoard(
   // Callbacks read the latest values through a ref, so the memoized cards see stable functions.
   const latest = useRef({ props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search });
   latest.current = { props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search };
+  const setFullConversationSearch = useCallback((on: boolean) => {
+    setFullConversationSearchState(on);
+    latest.current.toast.show(latest.current.strings.fullConversationToast(on));
+  }, []);
   const write = useCallback((agentId: string, operation: TaskOperation, action: () => void) => {
     const current = latest.current;
     void current.availability.check(agentId, operation).then((issue) => {

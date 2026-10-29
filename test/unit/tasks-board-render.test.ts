@@ -383,6 +383,28 @@ describe("Tasks search coverage and centred toolbar", () => {
     act(() => toggle.props.onPress());
     expect(hostsById("search-full-conversation-toggle")[0]!.props.accessibilityState.selected).toBe(true);
     expect(hostsById("search-full-conversation-toggle")[0]!.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(true));
+    expect(host.toast).toHaveBeenLastCalledWith(BOARD_STRINGS.en.fullConversationToast(true));
+  });
+  it.each(["en", "zh"] as const)("toasts the full-search mode just entered (%s)", (language) => {
+    updateEnhancerPreferences({ language });
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1200);
+    const toggle = () => hostsById("search-full-conversation-toggle")[0]!;
+    act(() => toggle().props.onPress());
+    expect(host.toast).toHaveBeenLastCalledWith(BOARD_STRINGS[language].fullConversationToast(true));
+    expect(toggle().props.accessibilityState.selected).toBe(true);
+    act(() => toggle().props.onPress());
+    expect(host.toast).toHaveBeenLastCalledWith(BOARD_STRINGS[language].fullConversationToast(false));
+    expect(toggle().props.accessibilityState.selected).toBe(false);
+  });
+  it("shows the full-search notice on the phone board instead of the host toast", () => {
+    act(() => { renderer = TestRenderer.create(screen(true)); });
+    act(() => pressable("Search").props.onPress());
+    act(() => hostsById("search-full-conversation-toggle")[0]!.props.onPress());
+    expect(host.toast).not.toHaveBeenCalled();
+    const notice = renderer!.root.find((node) => node.props.testID === "phone-board-notice");
+    expect(textOf(notice)).toBe(BOARD_STRINGS.en.fullConversationToast(true));
   });
   it("keeps the active search summary beside the desktop search field", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
@@ -2369,8 +2391,8 @@ describe("Tasks board, desktop", () => {
     expect(words()).toEqual([]);
     // Circular buttons retain their geometry while labels wait for enough room.
     for (const button of controls().findAll((node) => (node.type as unknown) === "Pressable")) {
-      expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: 28, height: 28, borderRadius: 14 });
-      expect(button.findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(1);
+      expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: 26, height: 26, borderRadius: 13 });
+      expect(button.findAll((node) => (node.type as unknown) === "Icon").map((icon) => icon.props.size)).toEqual([16]);
     }
     lay(group(), { width: 630 });
     expect(words()).toEqual([]);

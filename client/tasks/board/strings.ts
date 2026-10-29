@@ -38,6 +38,8 @@ const en = {
   fullConversationHint: (on: boolean): string => on
     ? "Turn off full search\nSearch task details and first messages only."
     : "Turn on full search\nSearch messages and reasoning in available conversations. Results appear as content loads.",
+  /** Shown when the switch is pressed, for the mode just entered. */
+  fullConversationToast: (on: boolean): string => on ? "Full search is on" : "Full search is off",
   conversationSearchCoverage: {
     unavailable: (count: number) => `${count} not searched`,
     failed: (count: number) => `${count} failed`,
@@ -232,6 +234,7 @@ const zh: typeof en = {
   fullConversationHint: (on) => on
     ? "关闭全文搜索\n仅搜索任务信息和首条消息。"
     : "开启全文搜索\n搜索可用会话中的消息和思考内容，结果会随着内容加载逐步显示。",
+  fullConversationToast: (on) => on ? "已开启全文搜索" : "已关闭全文搜索",
   conversationSearchCoverage: {
     unavailable: (count) => `${count} 个未搜全文`,
     failed: (count) => `${count} 个读取失败`,
