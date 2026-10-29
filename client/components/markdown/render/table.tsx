@@ -145,7 +145,7 @@ export function MdTable({
     cellStyle: TextStyle,
     last: boolean,
   ) => (
-    <View key={key} ref={(node) => { rowRefs.current[row] = node; }} style={[rowStyle, last && styles.tableRowLast]}>
+    <View key={key} ref={(node) => { rowRefs.current[row] = node; }} style={[rowStyle, row > 0 && row % 2 === 0 && styles.tableRowAlternate, last && styles.tableRowLast]}>
       {cells.map((cell, column) => {
         const cellKey = `${cellPrefix}${column}`;
         // One Text per cell: on iOS and Android the frame takes the touches

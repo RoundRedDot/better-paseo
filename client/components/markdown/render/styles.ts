@@ -241,6 +241,7 @@ export interface MarkdownStyles {
   tableRowLast: ViewStyle;
   tableHeaderRow: ViewStyle;
   tableRow: ViewStyle;
+  tableRowAlternate: ViewStyle;
   tableHeaderCell: TextStyle;
   tableCell: TextStyle;
   /** The rule between two columns, on the left edge of every cell but the first. */
@@ -491,6 +492,9 @@ export function buildStyles(
       flexDirection: "row",
       borderBottomWidth: 1,
       borderBottomColor: tokens.v2.borderSubtle,
+    },
+    tableRowAlternate: {
+      backgroundColor: tokens.v2.surface1,
     },
     tableRowLast: {
       borderBottomWidth: 0,

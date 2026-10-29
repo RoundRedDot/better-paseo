@@ -91,4 +91,16 @@ describe("a native table's host views", () => {
     act(() => renderer.unmount());
     delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
   });
+
+  it("alternates body row backgrounds without changing the header", () => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(view(TABLE)); });
+    const cells = renderer.root.findAll((node) => String(node.type) === "Text"
+      && node.props.testID === "markdown-table-cell");
+    const backgrounds = Array.from({ length: 6 }, (_, row) =>
+      Object.assign({}, ...cells[row * 3]!.parent!.parent!.props.style.filter(Boolean)).backgroundColor);
+    expect(backgrounds[0]).toBeDefined();
+    expect(backgrounds.slice(1)).toEqual([undefined, tokens.v2.surface1, undefined, tokens.v2.surface1, undefined]);
+    act(() => renderer.unmount());
+  });
 });
