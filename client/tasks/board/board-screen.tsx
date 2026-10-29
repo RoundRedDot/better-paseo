@@ -70,7 +70,7 @@ function BoardContent(props: PluginScreenProps) {
   return (
     <TasksTypography theme={props.theme}>
       <View {...pluginRoot} style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }}>
-        <SearchCoverageProvider status={board.searchStatus} query={board.params.query} strings={board.strings.searchCoverage} total={board.total}>
+        <SearchCoverageProvider status={board.searchStatus} query={board.params.query} strings={board.fullConversationSearch ? board.strings.conversationSearchCoverage : board.strings.searchCoverage} total={board.total} fullConversation={board.fullConversationSearch} onFullConversationChange={board.setFullConversationSearch} fullConversationLabel={board.strings.fullConversationSearch}>
           <MenuBoundsContext.Provider value={rootRef}>
             {layout}
           </MenuBoundsContext.Provider>

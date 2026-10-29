@@ -16,7 +16,7 @@ export type FirstPrompt =
   | { state: "ready"; text: string; timestamp?: string }
   /** The timeline's head holds no prompt (or the daemon dropped it). */
   | { state: "none" }
-  | { state: "error" };
+  | { state: "error"; unavailable?: true };
 
 type Api = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "refetch"> } } };
 
@@ -51,7 +51,8 @@ export function createFirstPromptStore(api: Api): Store {
         const page = await api.agents.ref(agentId).timeline.refetch({
           direction: "after", projection: "projected", limit: HEAD_LIMIT, ...(cursor ? { cursor } : {}),
         });
-        if (page.error || page.reset && cursor) return set(agentId, { state: "error" });
+        if (page.error) return set(agentId, firstPromptError(page.error));
+        if (page.reset && cursor) return set(agentId, { state: "error" });
         // An empty first user message is still the first; never substitute a later prompt.
         if (page.entries.some((entry) => entry.item.type === "user_message")) {
           return set(agentId, firstPromptMessage(page.entries) ?? { state: "none" });
@@ -61,8 +62,8 @@ export function createFirstPromptStore(api: Api): Store {
         if (!next || cursor && (next.epoch !== cursor.epoch || next.seq <= cursor.seq)) return set(agentId, { state: "error" });
         cursor = next;
       }
-    } catch {
-      set(agentId, { state: "error" });
+    } catch (error) {
+      set(agentId, firstPromptError(error instanceof Error ? error.message : String(error)));
     }
   };
   return {
@@ -86,6 +87,13 @@ export function createFirstPromptStore(api: Api): Store {
       };
     },
   };
+}
+
+/** The daemon cannot load these sessions; retrying cannot repair their prerequisites. */
+function firstPromptError(message: string): Extract<FirstPrompt, { state: "error" }> {
+  return /^(Working directory does not exist: |Agent \S+ references unavailable provider ')/.test(message)
+    ? { state: "error", unavailable: true }
+    : { state: "error" };
 }
 
 /** The first user message and its own timestamp among a timeline's head rows. */

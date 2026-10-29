@@ -4,6 +4,8 @@ import { tasksLabelsRpc, tasksProjectIconsRpc, tasksReadsRpc, tasksSessionTokens
 import { setLabelDefinitionsLoader, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader } from "../data";
 import { setSessionTokensLoader } from "../data/session-tokens";
 import { setSubagentTimelineLoader } from "../data/subagent-timeline";
+import { conversationSearchRpc } from "../../../shared/conversation-search";
+import { setConversationSearchLoader } from "../data/search-conversations";
 
 /**
  * The Tasks code the board, its sidebar entry and its settings draw with:
@@ -34,6 +36,7 @@ export function startTasksData(client: PluginClientContext): () => void {
   setSessionTokensLoader((agentId) => client.rpc(tasksSessionTokensRpc, { agentId }).then((result) => result.tokens));
   // A provider subagent's prompt and reply for its details, which the server reads off the daemon.
   setSubagentTimelineLoader((input) => client.rpc(tasksSubagentTimelineRpc, input));
+  setConversationSearchLoader((input) => client.rpc(conversationSearchRpc, input));
   return () => {
     setLastTurnLoader(null);
     setSubagentLoader(null);
@@ -42,5 +45,6 @@ export function startTasksData(client: PluginClientContext): () => void {
     setProjectIconsLoader(null);
     setSessionTokensLoader(null);
     setSubagentTimelineLoader(null);
+    setConversationSearchLoader(null);
   };
 }

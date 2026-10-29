@@ -2754,9 +2754,9 @@ describe("Tasks board, archived lane switch", () => {
     const outline = () => StyleSheet.flatten(toggle().props.style).borderColor;
     const offOutline = outline();
     expect(hostsById("lane-archived")).toHaveLength(0);
-    // The top toolbar keeps the empty-groups and sidebar switches; the board's other switches sit left of the lane width.
+    // Full-text search sits beside the input; board visibility controls retain their order.
     const toolbar = renderer!.root.findByType(DesktopToolbar);
-    expect(toolbar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(["empty-groups-toggle", "sidebar-switch"]);
+    expect(toolbar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(["search-full-conversation-toggle", "empty-groups-toggle", "sidebar-switch"]);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
     expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle"]);
     expect(hostsById("toolbar-archived")).toHaveLength(0);
@@ -3037,7 +3037,7 @@ describe("Tasks board, tablet filters", () => {
     const bar = hostsById("tablet-toolbar")[0]!;
     const compact = width < 680 * Math.max(1, base / 14);
     expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ height: Math.round((compact ? 36 : 56) * Math.max(1, base / 14)), flexDirection: "row", flexShrink: 0 });
-    const buttons = bar.findAll((n) => (n.type as unknown) === "Pressable");
+    const buttons = bar.findAll((n) => (n.type as unknown) === "Pressable" && n.props.testID !== "search-full-conversation-toggle");
     for (const button of buttons) {
       const style = StyleSheet.flatten(button.props.style);
       expect(style.height).toBe(Math.round((compact ? 28 : 44) * Math.max(1, base / 14)));
@@ -3356,7 +3356,7 @@ describe("Tasks board, tablet filters", () => {
     const archived = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived");
     // The folded web header keeps the filter bar's order: empty lanes, then the archived lane, then the filters.
     const header = renderer!.root.findByType(DesktopToolbar).findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID !== "sidebar-switch");
-    expect(header.map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "toolbar-archived", "toolbar-filters"]);
+    expect(header.map((node) => node.props.testID)).toEqual(["search-full-conversation-toggle", "empty-lanes-toggle", "toolbar-archived", "toolbar-filters"]);
     expect(textOf(archived())).toBe("");
     expect(archived().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Archive");
     expect(hostsById("archived-lane-toggle")).toHaveLength(0);
@@ -3419,8 +3419,8 @@ describe("Tasks board, tablet filters", () => {
     const look = () => toggle().props.style as { borderColor: string; backgroundColor: string };
     expect(textOf(renderer!.root)).not.toContain("Open tabs only");
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more")).toHaveLength(0);
-    // Every switch on the bar is a round one left of the lane width.
-    const barSwitches = new Set(["archived-lane-toggle", "subtasks-toggle", "empty-groups-toggle"]);
+    // Search has its own switch; board visibility switches stay left of the lane width.
+    const barSwitches = new Set(["search-full-conversation-toggle", "archived-lane-toggle", "subtasks-toggle", "empty-groups-toggle"]);
     const switches = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
     expect(switches.filter((node) => !barSwitches.has(node.props.testID))).toHaveLength(0);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");

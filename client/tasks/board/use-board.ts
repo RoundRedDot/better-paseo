@@ -9,6 +9,7 @@ import { permissionButtons, respondToPermission, useArchiveControl, useReadContr
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, setTasksArchivedLane, useTasks, withSubagentCards, type TasksHandle } from "../data";
 import { useSearchFirstPrompts, retrySearchPrompt, type SearchCoverageControl } from "../data/search-first-prompts";
+import { useSearchConversations } from "../data/search-conversations";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { LANE_ORDER, boardLaneOrder, opensInPaseo, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
 import { useDeviceTasksPreferences } from "../device-preferences";
@@ -72,6 +73,8 @@ export interface BoardController {
   lanes: Record<LaneId, LaneModel>;
   /** First messages still loading or not covered by this search. Other metadata is searched for every card. */
   searchStatus: SearchCoverageControl;
+  fullConversationSearch: boolean;
+  setFullConversationSearch(on: boolean): void;
   /** A card by id, a provider subagent's included (`tasks.byId` has only the agents'), filtered out or not. */
   cardById(id: string): TaskCard | undefined;
   /** Per lane, the cards the filters leave out, so the lane can say why its count is below the sidebar's. */
@@ -316,8 +319,11 @@ export function useBoard(
   const stoppedIds = useMemo(() => restoredStops(stoppedManually, restored, tasks.byId), [stoppedManually, restored, tasks.byId]);
   // Every card the board can draw: the store's, with a card for each provider subagent.
   const unfiltered = useMemo(() => withSubagentCards(withStopReasons(titleLanes, stoppedIds, strings.stoppedManually)), [titleLanes, stoppedIds, strings.stoppedManually]);
-  const firstPrompts = useSearchFirstPrompts(paseo, unfiltered, filters.query);
-  const filtered = useMemo(() => filterLanes(unfiltered, filters, firstPrompts.messages), [unfiltered, filters, firstPrompts.messages]);
+  const [fullConversationSearch, setFullConversationSearch] = useState(false);
+  const firstPrompts = useSearchFirstPrompts(paseo, unfiltered, fullConversationSearch ? "" : filters.query);
+  const conversations = useSearchConversations(paseo, unfiltered, fullConversationSearch ? filters.query : "");
+  const search = fullConversationSearch ? conversations : firstPrompts;
+  const filtered = useMemo(() => filterLanes(unfiltered, filters, search.messages), [unfiltered, filters, search.messages]);
   // The order is taken when the sort or the cards change, never on a clock
   // tick, so a duration sort does not reshuffle every second.
   const sort = params.sort;
@@ -332,8 +338,8 @@ export function useBoard(
   const hidden = useMemo(() => keepSameCounts(hiddenRef.current, hiddenCounts(unfiltered, filtered)), [unfiltered, filtered]);
   hiddenRef.current = hidden;
   const hiddenSubtasks = useMemo(
-    () => (filters.hideSubtasks ? hiddenSubtaskCount(unfiltered, filtered, filters, firstPrompts.messages) : 0),
-    [unfiltered, filtered, filters, firstPrompts.messages],
+    () => (filters.hideSubtasks ? hiddenSubtaskCount(unfiltered, filtered, filters, search.messages) : 0),
+    [unfiltered, filtered, filters, search.messages],
   );
   const total = laneOrder.reduce((sum, id) => sum + lanes[id].cards.length, 0);
   // Switching the archived lane rearranges the lanes as a filter does, twice when it turns on: at once, and when the list with archived agents lands.
@@ -341,7 +347,7 @@ export function useBoard(
   // A filter is one press, and its cards move: a search would be slow to read if every keystroke slid them, and a new sort reorders every lane.
   const query = params.query.trim();
   const sortKey = encodeSort(params.sort);
-  const scope = useMemo(() => ({ query, sortKey, showArchived, archivedSettling }), [query, sortKey, showArchived, archivedSettling]);
+  const scope = useMemo(() => ({ query, sortKey, showArchived, archivedSettling, fullConversationSearch }), [query, sortKey, showArchived, archivedSettling, fullConversationSearch]);
   // A stop whose agents have left running is done; a card stopped from the
   // board that runs again drops its "Stopped manually".
   useEffect(() => {
@@ -366,8 +372,8 @@ export function useBoard(
   }, []);
 
   // Callbacks read the latest values through a ref, so the memoized cards see stable functions.
-  const latest = useRef({ props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language });
-  latest.current = { props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language };
+  const latest = useRef({ props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search });
+  latest.current = { props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search };
   const write = useCallback((agentId: string, operation: TaskOperation, action: () => void) => {
     const current = latest.current;
     void current.availability.check(agentId, operation).then((issue) => {
@@ -426,6 +432,10 @@ export function useBoard(
     () => ({
       titleUpdates,
       onSearchPromptRetry: (card) => {
+        if (latest.current.fullConversationSearch) {
+          void conversations.status.retryCard(card);
+          return;
+        }
         void retrySearchPrompt(latest.current.paseo, card, cardById);
       },
       onOpen: hasNavigation ? open : undefined,
@@ -458,7 +468,7 @@ export function useBoard(
       onFilter: (card, by) => setParams((current) => filterToCard(current, card, latest.current.tasks.workspaces, by)),
       filterState: (card) => cardFilterState(paramsRef.current, card, latest.current.tasks.workspaces),
     }),
-    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates, write, cardById],
+    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates, write, cardById, conversations.status],
   );
 
   const guardedRead = useMemo(() => ({ ...read, press: (card: TaskCard) => write(card.id, "read", () => read.press(card)) }), [read, write]);
@@ -484,7 +494,9 @@ export function useBoard(
     tasks,
     paseo,
     lanes,
-    searchStatus: firstPrompts.status,
+    searchStatus: search.status,
+    fullConversationSearch,
+    setFullConversationSearch,
     cardById,
     hidden,
     hiddenSubtasks,

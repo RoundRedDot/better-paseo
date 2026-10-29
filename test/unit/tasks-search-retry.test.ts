@@ -9,6 +9,28 @@ const page = (text: string) => ({ entries: [{ item: { type: "user_message", text
 afterEach(() => setSubagentTimelineLoader(null));
 
 describe("failed first-message batch retry", () => {
+  it("counts missing worktrees and unavailable providers as unsearched, retaining retries for temporary errors", async () => {
+    const failures = new Map([
+      ["removed", "Working directory does not exist: /repo/.worktrees/removed: ENOENT"],
+      ["provider", "Agent provider references unavailable provider 'cursor'"],
+      ["offline", "Connection lost"],
+    ]);
+    const read = vi.fn(async (id: string) => ({ error: failures.get(id) ?? null, entries: [] }));
+    const api = { agents: { ref: (id: string) => ({ timeline: { refetch: () => read(id) } }) } } as never;
+    const cards = [...failures.keys()].map((id) => card(id));
+    const byId = new Map(cards.map((item) => [item.id, item]));
+    await Promise.all(cards.map((item) => firstPromptStoreFor(api).request(item.id)));
+    const status = createSearchCoverage(api, () => cards, () => true, (id) => byId.get(id));
+    expect(status.read()).toEqual({ pending: 0, unavailable: 2, failed: 1, retrying: 0 });
+    read.mockClear();
+    failures.delete("offline");
+    await status.retry();
+    expect(read.mock.calls).toEqual([["offline"]]);
+    expect(status.read()).toEqual({ pending: 0, unavailable: 2, failed: 0, retrying: 0 });
+    await status.retry();
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
   it.each([false, true])("retains search and ends with all-success=%s", async (success) => {
     const read = vi.fn<(id: string) => Promise<unknown>>().mockRejectedValue(new Error("offline"));
     const api = { agents: { ref: (id: string) => ({ timeline: { refetch: () => read(id) } }) } } as never;

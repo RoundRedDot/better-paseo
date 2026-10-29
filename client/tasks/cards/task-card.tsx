@@ -49,7 +49,7 @@ import { AvailabilityCorner, shownIssue } from "./availability-tag";
 import { taskOperationIssue } from "../availability";
 import { CutCardSurface } from "./cut-card-surface";
 
-import type { FirstPrompt } from "../data/first-prompt";
+import type { SearchPrompt } from "../data/search-first-prompts";
 import { searchBreadcrumb, searchBranch, searchLabels, searchSnippet, taskSearchHits } from "../data/search-hits";
 import { highlightText, SearchHitSummary, useSearchClip } from "./search-highlight";
 
@@ -96,7 +96,7 @@ export interface CardCallbacks {
 export interface TaskCardViewProps extends CardCallbacks {
   card: TaskCard;
   searchQuery?: string;
-  searchPrompt?: FirstPrompt;
+  searchPrompt?: SearchPrompt;
   searchPromptUnavailable?: boolean;
   /** Field switches after `effectiveCard`. */
   fields: CardSettings;
@@ -587,11 +587,13 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const layout = cardLayout(card, fields, compact);
   const query = props.searchQuery ?? "";
   const titleClip = useSearchClip(shownTitle, updatingTitle ? "" : query, 2);
-  const searchHits = useMemo(() => taskSearchHits(card, query, { ...cardLayout(card, fields, compact), path: layout.path && tildePath(card.location.cwd).toLowerCase().includes(query), title: !updatingTitle && titleClip.visible }, props.searchPrompt?.state === "ready" ? props.searchPrompt.text : undefined), [card, card.title, fields, compact, query, props.searchPrompt, updatingTitle, titleClip.visible]);
+  const searchHits = useMemo(() => taskSearchHits(card, query, { ...cardLayout(card, fields, compact), path: layout.path && tildePath(card.location.cwd).toLowerCase().includes(query), title: !updatingTitle && titleClip.visible }, props.searchPrompt?.state === "ready" ? props.searchPrompt.text : undefined, props.searchPrompt?.field), [card, card.title, fields, compact, query, props.searchPrompt, updatingTitle, titleClip.visible]);
   const hasHiddenHits = searchHits.some((hit) => !hit.visible);
   const minimalSummary = densityOf(fields) === "minimal" && hasHiddenHits;
   const promptNote = query && props.searchPrompt && props.searchPrompt.state !== "ready" && props.searchPrompt.state !== "none"
-    ? props.searchPrompt.state === "error" || props.searchPromptUnavailable || card.closed ? strings.searchHits.unavailable : strings.searchHits.loading : undefined;
+    ? props.searchPrompt.state === "error" || props.searchPromptUnavailable || card.closed
+      ? props.searchPrompt.field === "conversation" ? strings.searchHits.conversationUnavailable : strings.searchHits.unavailable
+      : props.searchPrompt.field === "conversation" ? strings.searchHits.conversationLoading : strings.searchHits.loading : undefined;
   const mark = (value: string, branch = false) => highlightText(value, query, tokens.isDark, branch);
   const [searchOpen, setSearchOpen] = useState(false);
   const [metaWidth, setMetaWidth] = useState(0);
@@ -1516,13 +1518,13 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           <Pressable accessibilityRole="button" accessibilityLabel={strings.dismissTitleError} hitSlop={8} style={{ minWidth: taskControlHeight(compact ? 44 : 28, scale), minHeight: taskControlHeight(compact ? 44 : 28, scale), alignItems: "center", justifyContent: "center" }} onPress={() => props.titleUpdates?.dismiss(card.id)}><Icon name="X" size={16} color={tokens.foregroundMuted} /></Pressable>
         </View> : null}
         {pillRow}
-        {minimalSummary ? <View style={{ marginTop: m.rowGap, minHeight: footHeight, zIndex: footerZ, flexDirection: "row", alignItems: "center" }}><SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal rowHeight={footHeight} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} />{footerContent}</View> : footer}
+        {minimalSummary ? <View style={{ marginTop: m.rowGap, minHeight: footHeight, zIndex: footerZ, flexDirection: "row", alignItems: "center" }}><SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal rowHeight={footHeight} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPrompt.unavailable && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} />{footerContent}</View> : footer}
         {answerRow ? null : controlRow}
         {permissionBlock}
         {failure}
         {subtaskList}
         {actionBar}
-        {hasHiddenHits && !minimalSummary ? <SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal={false} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} /> : null}
+        {hasHiddenHits && !minimalSummary ? <SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal={false} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPrompt.unavailable && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} /> : null}
         {WEB ? <CardHints root={rootRef} texts={hintTexts} theme={theme} color={tokens.foreground} /> : null}
       </Pressable>
       {menuAt ? (

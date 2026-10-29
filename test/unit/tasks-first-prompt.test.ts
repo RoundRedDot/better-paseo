@@ -16,6 +16,27 @@ function fakeApi(pages: (Page | Error)[]) {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("first prompt", () => {
+  it.each([
+    "Working directory does not exist: /repo/.worktrees/removed: ENOENT: no such file or directory",
+    "Agent old-agent references unavailable provider 'cursor'",
+  ])("recognizes unavailable session prerequisites from returned and thrown errors: %s", async (message) => {
+    for (const failure of [new Error(message), { error: message, entries: [] }]) {
+      const { api } = fakeApi([failure, { error: null, entries: [{ item: { type: "user_message", text: "Restored prompt" } }] }]);
+      const store = createFirstPromptStore(api as never);
+      await store.request("a");
+      expect(store.read("a")).toEqual({ state: "error", unavailable: true });
+      await store.request("a");
+      expect(store.read("a")).toMatchObject({ state: "ready", text: "Restored prompt" });
+    }
+  });
+
+  it.each(["offline", "Request timed out", "Permission denied", "Unknown provider error"])("keeps transient and unknown failures retryable: %s", async (message) => {
+    const { api } = fakeApi([{ error: message, entries: [] }]);
+    const store = createFirstPromptStore(api as never);
+    await store.request("a");
+    expect(store.read("a")).toEqual({ state: "error" });
+  });
+
   it("pages past harness rows, preserving the first user's complete message", async () => {
     const { api, refetch } = fakeApi([
       { error: null, entries: Array.from({ length: 8 }, () => ({ item: { type: "tool_call" } })), hasNewer: true, endCursor: { epoch: "history", seq: 8 } },

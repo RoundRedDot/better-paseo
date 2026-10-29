@@ -95,8 +95,10 @@ export interface SearchCoverageControl {
   subscribe(listener: () => void): () => void;
   read(): SearchCoverage & { retrying: number };
   retry(): Promise<void>;
-  prompt(card: TaskCard): FirstPrompt;
+  prompt(card: TaskCard): SearchPrompt;
 }
+
+export type SearchPrompt = FirstPrompt & { field?: "conversation" };
 
 /** Shared by a card's retry and the board-wide failed batch. Recheck before every page. */
 export function retrySearchPrompt(api: PaseoApi, card: TaskCard, cardById: (id: string) => TaskCard | undefined): Promise<void> {
@@ -133,7 +135,7 @@ export function createSearchCoverage(api: PaseoApi, getCards: () => readonly Tas
         const prompt = (card.subagent ? subagentFirstPrompts : store).read(card.id);
         if (prompt.state === "ready" || prompt.state === "none") continue;
         const owner = cardById(card.subagent ? card.parent?.id ?? "" : card.id);
-        if (card.closed || !owner || owner.closed) next.unavailable++;
+        if (card.closed || !owner || owner.closed || prompt.state === "error" && prompt.unavailable) next.unavailable++;
         else if (prompt.state === "error") next.failed++;
         else next.pending++;
       }
@@ -144,7 +146,8 @@ export function createSearchCoverage(api: PaseoApi, getCards: () => readonly Tas
       if (!isActive() || retrying) return;
       const batch = getCards().filter((card) => {
         const owner = cardById(card.subagent ? card.parent?.id ?? "" : card.id);
-        return !card.closed && owner && !owner.closed && (card.subagent ? subagentFirstPrompts : store).read(card.id).state === "error";
+        const prompt = (card.subagent ? subagentFirstPrompts : store).read(card.id);
+        return !card.closed && owner && !owner.closed && prompt.state === "error" && !prompt.unavailable;
       });
       if (!batch.length) return;
       retrying = batch.length;

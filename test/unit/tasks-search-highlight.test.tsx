@@ -93,6 +93,19 @@ afterEach(async () => {
 });
 
 describe("card search rendering", () => {
+  it("labels later-message and tool matches as conversation content", async () => {
+    const root = await mount(<TaskCardView {...props} searchQuery="sche" searchPrompt={{ state: "ready", text: "Schedule tool output", field: "conversation" }} />);
+    expect(text(host(root, "task-search-summary-trigger"))).toContain("会话内容");
+    expect(text(host(root, "task-search-summary-trigger"))).not.toContain("首条消息");
+  });
+
+  it("does not offer a retry for a conversation with missing prerequisites", async () => {
+    const root = await mount(<TaskCardView {...props} searchQuery="sche" searchPrompt={{ state: "error", unavailable: true, field: "conversation" }} onSearchPromptRetry={vi.fn()} />);
+    expect(text(host(root, "task-search-prompt-note"))).toBe("会话内容无法读取");
+    await act(async () => host(root, "task-search-summary-trigger").props.onPress({ stopPropagation() {} }));
+    expect(text(host(root, "task-search-expanded"))).not.toContain("重试");
+  });
+
   it("renders an empty search identically, with no extra text wrappers or summary", async () => {
     await mount(<TaskCardView {...props} />);
     const before = JSON.stringify(tree!.toJSON());

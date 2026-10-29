@@ -13,6 +13,8 @@ import { TASKS_CHUNK } from "../tasks-chunk";
 import { registerTitleGeneration } from "./title-generation";
 import { tasksAvailabilityRpc } from "../../shared/task-availability";
 import { createTaskAvailability, taskDirectoryIssue, taskIssueError, taskUpdateIssue } from "./availability";
+import { conversationSearchRpc } from "../../shared/conversation-search";
+import { searchConversationPage } from "./conversation-search";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
@@ -340,6 +342,7 @@ export function registerTasksServer(
   const titleSettings = registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available);
   const availability = createTaskAvailability(titleSettings, host.available, async () => (await resolveCli()) !== null);
   server.handle(tasksAvailabilityRpc, (input, { paseo }) => availability(paseo, input.agentIds));
+  server.handle(conversationSearchRpc, (input, { paseo }) => searchConversationPage(paseo, host, input));
   // A new turn means a new prompt: the agent is no longer "stopped manually", nor read.
   server.on("agent.turn_started", async ({ agent }, context) => {
     void subagents.ensure(context?.paseo);

@@ -9,6 +9,7 @@ import { StatusIcon, useTaskTokens } from "../cards";
 import { useTaskCounts, type CountScope } from "../data";
 import { firstPromptStoreFor } from "../data/first-prompt";
 import { subagentFirstPrompts } from "../data/subagent-timeline";
+import { conversationSearchFor } from "../data/search-conversations";
 import { useDeviceTasksPreferences } from "../device-preferences";
 import { LANE_STATUS, type TaskCard } from "../model";
 import { HOST_FONT, TaskText as Text, TasksTypography } from "../typography";
@@ -73,6 +74,8 @@ function useBoardCountScope(paseo: PaseoApi, hostId: string, settings: TasksSett
   const board = device.settings?.board ?? settings.board;
   const searching = params.query.trim() !== "";
   const prompts = firstPromptStoreFor(paseo);
+  const conversations = conversationSearchFor(paseo);
+  const conversationVersion = useSyncExternalStore(conversations.subscribe, conversations.version, conversations.version);
   const subscribePrompts = useMemo(() => (listener: () => void) => {
     if (!searching) return () => {};
     const own = prompts.subscribe(listener);
@@ -86,11 +89,12 @@ function useBoardCountScope(paseo: PaseoApi, hostId: string, settings: TasksSett
     const { filters } = resolveBoardParams(params, { hideSubtasks: board.hideSubtasks, doneWindow: board.doneWindow });
     if (!searching) return { filters };
     const firstMessage = (card: TaskCard) => {
+      if (conversations.query() === params.query.trim().toLowerCase()) return conversations.messages().get(card.id);
       const prompt = (card.subagent ? subagentFirstPrompts : prompts).read(card.id);
       return prompt.state === "ready" ? prompt.text : undefined;
     };
     return { filters, firstMessage };
-  }, [params, board.hideSubtasks, board.doneWindow, searching, prompts, promptsVersion]);
+  }, [params, board.hideSubtasks, board.doneWindow, searching, prompts, promptsVersion, conversations, conversationVersion]);
 }
 
 /** Needs input, running and review, in the board's lane order, as the board's filters leave them; needs input in the warning colour. */

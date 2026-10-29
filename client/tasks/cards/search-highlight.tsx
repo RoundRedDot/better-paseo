@@ -101,6 +101,7 @@ export function useSearchClip(text: string, query: string, lines: number) {
 const ICONS: Record<SearchField, string> = {
   title: "Type",
   prompt: "MessageSquare",
+  conversation: "MessagesSquare",
   pr: "GitPullRequest",
   label: "Tag",
   branch: "GitBranch",

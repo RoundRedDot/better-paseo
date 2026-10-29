@@ -1,6 +1,6 @@
 import type { TaskCard, TaskLabel } from "../model";
 
-export type SearchField = "title" | "prompt" | "pr" | "label" | "branch" | "folder" | "project" | "workspace" | "path" | "model" | "id";
+export type SearchField = "title" | "prompt" | "conversation" | "pr" | "label" | "branch" | "folder" | "project" | "workspace" | "path" | "model" | "id";
 export interface SearchRange {
   start: number;
   end: number;
@@ -135,7 +135,7 @@ export function searchBreadcrumb(project: string, workspace: string, query: stri
 }
 
 /** One entry per field (labels per value); matching aliases in the same field share a row. */
-export function taskSearchHits(card: TaskCard, query: string, visibility: SearchVisibility, prompt?: string): SearchHit[] {
+export function taskSearchHits(card: TaskCard, query: string, visibility: SearchVisibility, prompt?: string, messageField: "prompt" | "conversation" = "prompt"): SearchHit[] {
   if (!query.trim()) return [];
   const location = card.location;
   const pr = location.pullRequest;
@@ -162,7 +162,7 @@ export function taskSearchHits(card: TaskCard, query: string, visibility: Search
     });
   };
   add("title", [card.title], visibility.title ? [card.title] : []);
-  add("prompt", [prompt]);
+  add(messageField, [prompt]);
   add(
     "pr",
     [pr?.number == null ? null : `#${pr.number}`, pr?.title, pr?.url],
@@ -187,7 +187,7 @@ export function taskSearchHits(card: TaskCard, query: string, visibility: Search
 
 /** Visible fields follow the card's reading order; hidden fields retain the summary priority. */
 export function orderedSearchHits(hits: SearchHit[]): SearchHit[] {
-  const order: SearchField[] = ["project", "workspace", "title", "model", "branch", "folder", "path", "label", "pr", "id", "prompt"];
+  const order: SearchField[] = ["project", "workspace", "title", "model", "branch", "folder", "path", "label", "pr", "id", "prompt", "conversation"];
   return [
     ...hits.filter((hit) => hit.visible).sort((a, b) => order.indexOf(a.field) - order.indexOf(b.field)),
     ...hits.filter((hit) => !hit.visible),

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { AccessibilityInfo, Animated, Platform, View, type TextInput as NativeTextInput } from "react-native";
+import { AccessibilityInfo, Animated, Platform, Pressable, View, type TextInput as NativeTextInput } from "react-native";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { SearchCoverageControl } from "../data/search-first-prompts";
 import type { BoardStrings } from "./strings";
@@ -12,10 +12,13 @@ export const SearchCoverageContext = createContext<{
   query: string;
   strings: BoardStrings["searchCoverage"];
   total: number;
+  fullConversation?: boolean;
+  onFullConversationChange?(on: boolean): void;
+  fullConversationLabel?: string;
 } | null>(null);
 
-export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; query: string; strings: BoardStrings["searchCoverage"]; total: number }>) {
-  const value = useMemo(() => ({ status: props.status, query: props.query, strings: props.strings, total: props.total }), [props.status, props.query, props.strings, props.total]);
+export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; query: string; strings: BoardStrings["searchCoverage"]; total: number; fullConversation?: boolean; onFullConversationChange?(on: boolean): void; fullConversationLabel?: string }>) {
+  const value = useMemo(() => ({ status: props.status, query: props.query, strings: props.strings, total: props.total, fullConversation: props.fullConversation, onFullConversationChange: props.onFullConversationChange, fullConversationLabel: props.fullConversationLabel }), [props.status, props.query, props.strings, props.total, props.fullConversation, props.onFullConversationChange, props.fullConversationLabel]);
   return <SearchCoverageContext.Provider value={value}>{props.children}</SearchCoverageContext.Provider>;
 }
 
@@ -114,6 +117,19 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { ic
       {input.value?.trim() && (shown || present === input.value) ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
     </View>
     <TextInput {...input} accessibilityState={{ ...input.accessibilityState, busy: loading }} />
+    {context?.onFullConversationChange ? <Pressable
+      testID="search-full-conversation-toggle"
+      accessibilityRole="switch"
+      accessibilityLabel={context.fullConversationLabel}
+      accessibilityState={{ checked: context.fullConversation === true }}
+      {...tipProps(context.fullConversationLabel)}
+      onPress={() => context.onFullConversationChange?.(!context.fullConversation)}
+      hitSlop={4}
+      style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: 24, paddingHorizontal: 4, borderRadius: 4, borderWidth: 1, borderColor: context.fullConversation ? iconColor : "transparent", opacity: context.fullConversation ? 1 : 0.65 }}
+    >
+      <Icon name="MessagesSquare" size={13} color={iconColor} />
+      <Text style={{ fontSize: 12, color: iconColor, fontWeight: context.fullConversation ? "600" : "400" }}>{context.fullConversationLabel}</Text>
+    </Pressable> : null}
     <Text testID="search-announcement" accessibilityLiveRegion="polite" role="status" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}>{announcement}</Text>
   </>;
 }

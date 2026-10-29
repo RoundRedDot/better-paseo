@@ -42,8 +42,8 @@ export interface HostDaemon extends SeedDaemon {
   fetchProviderSubagentTimeline?(
     parentAgentId: string,
     subagentId: string,
-    options: { direction: "after" | "tail"; limit: number },
-  ): Promise<{ rows: Array<{ timestamp?: string; item: { type: string; text?: unknown } }> }>;
+    options: { direction: "after" | "tail"; limit: number; cursor?: { epoch: string; seq: number } },
+  ): Promise<{ rows: Array<{ timestamp?: string; item: { type: string; text?: unknown } }>; error?: string | null; reset?: boolean; gap?: boolean; staleCursor?: boolean; hasNewer?: boolean; startCursor?: { epoch: string; seq: number } | null; endCursor?: { epoch: string; seq: number } | null }>;
 }
 
 /** A failure stays on the board this long at most; a new prompt to the parent clears it sooner. */
