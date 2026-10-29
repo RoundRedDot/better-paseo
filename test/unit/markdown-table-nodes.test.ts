@@ -100,7 +100,23 @@ describe("a native table's host views", () => {
     const backgrounds = Array.from({ length: 6 }, (_, row) =>
       Object.assign({}, ...cells[row * 3]!.parent!.parent!.props.style.filter(Boolean)).backgroundColor);
     expect(backgrounds[0]).toBeDefined();
-    expect(backgrounds.slice(1)).toEqual([undefined, tokens.v2.surface1, undefined, tokens.v2.surface1, undefined]);
+    expect(backgrounds.slice(1)).toEqual([undefined, "rgba(27, 27, 31, 0.08)", undefined, "rgba(27, 27, 31, 0.08)", undefined]);
+    act(() => renderer.unmount());
+  });
+
+  it("uses a visible alternate background in dark themes", () => {
+    const darkTokens = buildThemeTokens({
+      surface0: "#161616", surface1: "#202020", surface2: "#292929", border: "#383838",
+      foreground: "#eeeeee", foregroundMuted: "#aaaaaa", accent: "#7799ff",
+      accentForeground: "#ffffff", statusSuccess: "#1f8a5b", statusWarning: "#a36a00",
+      statusDanger: "#d23c3c",
+    });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(MarkdownView, { text: TABLE, tokens: darkTokens, variant: "document" })); });
+    const cells = renderer.root.findAll((node) => String(node.type) === "Text"
+      && node.props.testID === "markdown-table-cell");
+    const rowStyle = cells[6]!.parent!.parent!.props.style;
+    expect(Object.assign({}, ...rowStyle.filter(Boolean)).backgroundColor).toBe("rgba(238, 238, 238, 0.1)");
     act(() => renderer.unmount());
   });
 });

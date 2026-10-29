@@ -5,7 +5,7 @@
  */
 import { StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
-import { mix, radiusV2, space, type ExtendedThemeTokens } from "../../theme-tokens";
+import { mix, radiusV2, space, withAlpha, type ExtendedThemeTokens } from "../../theme-tokens";
 import { hairline } from "../../../ui/tokens/platform";
 import { even, proseScale } from "../../../ui/tokens/typography";
 import { selectableSurface, unselectable } from "../../selection";
@@ -494,7 +494,7 @@ export function buildStyles(
       borderBottomColor: tokens.v2.borderSubtle,
     },
     tableRowAlternate: {
-      backgroundColor: tokens.v2.surface1,
+      backgroundColor: withAlpha(tokens.foreground, tokens.isDark ? 0.1 : 0.08),
     },
     tableRowLast: {
       borderBottomWidth: 0,
