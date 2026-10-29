@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useSettings } from "@getpaseo/plugin/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, type TasksSettings } from "../../../shared/tasks-settings";
 import { useDeviceTasksPreferences } from "../device-preferences";
-import { DEVICE_BOARD_FIELDS, deviceBoardPreferences, sharedTasksSettings, type CardTitleLineCount } from "../device-store";
+import { DEFAULT_CARD_TITLE_LINES, DEVICE_BOARD_FIELDS, deviceBoardPreferences, sharedTasksSettings, type CardTitleLineCount } from "../device-store";
 import { setTasksEnabled } from "../board/enabled";
 
 /**
@@ -97,6 +97,31 @@ export function useTasksForm() {
     if (enabled === null) await reset();
     else await commit({ ...DEFAULT_TASKS_SETTINGS, enabled });
   }, [reset, commit, enabled, device.restore]);
+  const restoreEnabledDefaults = useCallback(async () => {
+    if (settings.status !== "ready") return;
+    setTurnedOnHere(false);
+    await commit({ ...settings.values, enabled: DEFAULT_TASKS_SETTINGS.enabled });
+  }, [commit, settings]);
+  const restoreCardDefaults = useCallback(async () => {
+    if (settings.status !== "ready") return;
+    setConflict(false);
+    setLocalError(null);
+    try { await device.update({ titleLines: DEFAULT_CARD_TITLE_LINES }); }
+    catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); return; }
+    await commit({ ...settings.values, density: DEFAULT_TASKS_SETTINGS.density, card: DEFAULT_TASKS_SETTINGS.card, mobile: DEFAULT_TASKS_SETTINGS.mobile });
+  }, [commit, device.update, settings]);
+  const restoreBoardDefaults = useCallback(async () => {
+    if (settings.status !== "ready") return;
+    setConflict(false);
+    setLocalError(null);
+    try { await device.restore({ ...deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board), titleLines: device.titleLines }); }
+    catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); return; }
+    await commit({ ...settings.values, board: DEFAULT_TASKS_SETTINGS.board });
+  }, [commit, device.restore, device.titleLines, settings]);
+  const restoreSidebarDefaults = useCallback(async () => {
+    if (settings.status !== "ready") return;
+    await commit({ ...settings.values, sidebar: DEFAULT_TASKS_SETTINGS.sidebar });
+  }, [commit, settings]);
   const setTitleLines = useCallback(async (titleLines: CardTitleLineCount) => {
     setLocalError(null);
     try { await device.update({ titleLines }); }
@@ -108,7 +133,7 @@ export function useTasksForm() {
     if (enabled === false) setTurnedOnHere(false);
   }, [enabled]);
 
-  return { settings, titleLines: device.titleLines, setTitleLines, localError: localError ?? device.error, conflict, commit, setEnabled, restoreDefaults, turnedOn: turnedOn && enabled === true };
+  return { settings, titleLines: device.titleLines, setTitleLines, localError: localError ?? device.error, conflict, commit, setEnabled, restoreDefaults, restoreEnabledDefaults, restoreCardDefaults, restoreBoardDefaults, restoreSidebarDefaults, turnedOn: turnedOn && enabled === true };
 }
 
 export type TasksForm = ReturnType<typeof useTasksForm>;

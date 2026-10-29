@@ -30,12 +30,16 @@ export interface TasksSettingsStrings {
   fieldsTitle: string;
   fieldsHint: string;
   fields: Record<CardField, string>;
+  moduleReset: (module: string) => string;
+  moduleResetHint: string;
+  moduleResetAction: (module: string) => string;
+  moduleResetConfirm: (module: string) => string;
+  moduleResetConfirmHint: string;
   labelLimit: string;
   labelLimits: Record<LabelLimit, string>;
   titleLines: string;
   titleLinesHint: string;
   titleLineCounts: Record<CardTitleLineCount, string>;
-  phoneTitle: string;
   compactCards: string;
   compactCardsHint: string;
   boardTitle: string;
@@ -91,6 +95,11 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     cardTitle: "Cards",
     fieldsTitle: "Fields",
     fieldsHint: "What each card shows. Phones keep the essentials whatever is picked here.",
+    moduleReset: (module) => `Reset ${module} settings`,
+    moduleResetHint: "Only settings in this section will be restored.",
+    moduleResetAction: (module) => `Reset ${module}`,
+    moduleResetConfirm: (module) => `Confirm reset ${module}`,
+    moduleResetConfirmHint: "This restores only this section's settings to their defaults.",
     fields: {
       provider: "Agent brand mark",
       model: "Model",
@@ -113,7 +122,6 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     titleLines: "Title lines",
     titleLinesHint: "Saved on this device only.",
     titleLineCounts: { "1": "1", "2": "2", "3": "3", "4": "4" },
-    phoneTitle: "Phone",
     compactCards: "Use minimal cards on phones",
     compactCardsHint: "Phones draw the Minimal card whatever the density above.",
     boardTitle: "Board",
@@ -165,6 +173,11 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     cardTitle: "卡片",
     fieldsTitle: "显示字段",
     fieldsHint: "每张卡片显示哪些信息。手机上始终保留最关键的几项。",
+    moduleReset: (module) => `恢复「${module}」默认设置`,
+    moduleResetHint: "只恢复本组设置，不影响其他组。",
+    moduleResetAction: (module) => `恢复${module}`,
+    moduleResetConfirm: (module) => `确认恢复${module}`,
+    moduleResetConfirmHint: "这只会把本组设置恢复为默认值。",
     fields: {
       provider: "Agent 品牌标识",
       model: "模型",
@@ -187,7 +200,6 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     titleLines: "标题行数",
     titleLinesHint: "仅保存在当前设备。",
     titleLineCounts: { "1": "1 行", "2": "2 行", "3": "3 行", "4": "4 行" },
-    phoneTitle: "手机",
     compactCards: "手机上使用精简卡片",
     compactCardsHint: "手机上无论上面选哪种密度，都按精简卡片显示。",
     boardTitle: "看板",

@@ -282,6 +282,33 @@ function ResetRows({ strings, look, hint, onRestore }: { strings: TasksSettingsS
   );
 }
 
+/** A two-step reset that stays inside its settings module. */
+function ModuleResetRow({ module, strings, look, onRestore }: { module: string; strings: TasksSettingsStrings; look: PageLook; onRestore(): void }) {
+  const [armed, setArmed] = useState(false);
+  return (
+    <SettingRow
+      title={strings.moduleReset(module)}
+      description={armed ? strings.moduleResetConfirmHint : strings.moduleResetHint}
+      control={
+        <View style={styles.buttons}>
+          {armed ? <PlainButton label={strings.resetCancel} accessibilityLabel={`${strings.resetCancel} ${module}`} onPress={() => setArmed(false)} look={look} /> : null}
+          <PlainButton
+            label={armed ? strings.resetConfirm : strings.moduleResetAction(module)}
+            accessibilityLabel={armed ? strings.moduleResetConfirm(module) : strings.moduleResetAction(module)}
+            onPress={() => {
+              if (!armed) return setArmed(true);
+              setArmed(false);
+              onRestore();
+            }}
+            look={look}
+          />
+        </View>
+      }
+      look={look}
+    />
+  );
+}
+
 /**
  * The Tasks half of the settings page: the switch, the preview, and the
  * options. Wide, board display options sit beside title generation under the
@@ -302,6 +329,12 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         ]}
       >
         <EnabledRow form={form} strings={strings} look={look} />
+        <ModuleResetRow
+          module={language === "zh" ? "任务看板" : "Tasks board"}
+          strings={strings}
+          look={look}
+          onRestore={() => void form.restoreEnabledDefaults()}
+        />
         {form.turnedOn ? <EnabledNotice strings={strings} look={look} /> : null}
       </View>
       {settings.status === "ready" ? (
@@ -421,46 +454,52 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         look={look}
         stacked={look.compact}
       />
+      <SettingRow
+        title={strings.compactCards}
+        description={strings.compactCardsHint}
+        control={
+          <Toggle
+            value={values.mobile.compactCards}
+            onChange={(next) => void commit({ ...values, mobile: { ...values.mobile, compactCards: next } })}
+            label={strings.compactCards}
+            look={look}
+          />
+        }
+        look={look}
+      />
+      <ModuleResetRow
+        module={strings.cardTitle}
+        strings={strings}
+        look={look}
+        onRestore={() => void form.restoreCardDefaults()}
+      />
     </Section>
   );
 
-  const sidebarAndPhone = (
-    <>
-      <Section title={strings.sidebarTitle} look={look}>
-        <SettingRow
-          title={strings.sidebarCount}
-          control={
-            <Segmented<SidebarCount>
-              label={strings.sidebarCount}
-              value={values.sidebar.count}
-              options={options(SIDEBAR_COUNTS, strings.sidebarCounts)}
-              onChange={(next) => void commit({ ...values, sidebar: { count: next } })}
-              look={look}
-            />
-          }
-          look={look}
-          first
-          stacked
-        />
-      </Section>
-
-      <Section title={strings.phoneTitle} look={look}>
-        <SettingRow
-          title={strings.compactCards}
-          description={strings.compactCardsHint}
-          control={
-            <Toggle
-              value={values.mobile.compactCards}
-              onChange={(next) => void commit({ ...values, mobile: { ...values.mobile, compactCards: next } })}
-              label={strings.compactCards}
-              look={look}
-            />
-          }
-          look={look}
-          first
-        />
-      </Section>
-    </>
+  const sidebar = (
+    <Section title={strings.sidebarTitle} look={look}>
+      <SettingRow
+        title={strings.sidebarCount}
+        control={
+          <Segmented<SidebarCount>
+            label={strings.sidebarCount}
+            value={values.sidebar.count}
+            options={options(SIDEBAR_COUNTS, strings.sidebarCounts)}
+            onChange={(next) => void commit({ ...values, sidebar: { count: next } })}
+            look={look}
+          />
+        }
+        look={look}
+        first
+        stacked
+      />
+      <ModuleResetRow
+        module={strings.sidebarTitle}
+        strings={strings}
+        look={look}
+        onRestore={() => void form.restoreSidebarDefaults()}
+      />
+    </Section>
   );
 
   const board = (
@@ -536,6 +575,12 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         }
         look={look}
       />
+      <ModuleResetRow
+        module={strings.boardTitle}
+        strings={strings}
+        look={look}
+        onRestore={() => void form.restoreBoardDefaults()}
+      />
     </Section>
   );
   const reset = <ResetRows strings={strings} look={look} hint={strings.resetHint} onRestore={() => void form.restoreDefaults()} />;
@@ -546,7 +591,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
       <PreviewCard look={look} theme={theme} values={values} titleLines={titleLines} strings={strings} language={language} hostId={hostId} />
       {side ? (
         <View style={styles.columns}>
-          <View style={styles.column}>{cards}{board}{sidebarAndPhone}</View>
+          <View style={styles.column}>{cards}{board}{sidebar}</View>
           <View style={styles.column}><TitleGenerationSettings look={look} />{reset}</View>
         </View>
       ) : (
@@ -554,7 +599,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
           {cards}
           <TitleGenerationSettings look={look} />
           {board}
-          {sidebarAndPhone}
+          {sidebar}
           {reset}
         </>
       )}
