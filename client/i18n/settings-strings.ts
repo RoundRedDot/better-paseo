@@ -37,7 +37,7 @@ const en = {
   tabTasks: "Tasks board",
   pageTitle: "Chat presentation",
   pageIntro:
-    "Saved on this Paseo host and shared by every client connected to it: desktop, web, iOS and Android. An option a platform cannot draw falls back there.",
+    "Saved on this Paseo host and shared across its clients. Unsupported options fall back on each platform.",
   syncFailed:
     "Your last change could not be saved to this Paseo host. It applies on this client until the next change or reload.",
   syncInvalid: (error: string) =>
@@ -51,9 +51,9 @@ const en = {
   system: "System",
 
   previewTitle: "Preview",
-  previewHintPointer: "A sample turn that follows every change here, with the Read row's hover preview drawn open. Click a row to open it.",
-  previewHintTouch: "A sample turn that follows every change here, with the Read row's preview drawn open. Tap a row to open it.",
-  previewHintMobile: "The same turn as iOS draws it: a phone's width, the system monospace, and inline code in the colour picked above, without a fill.",
+  previewHintPointer: "A sample conversation that updates with these settings.",
+  previewHintTouch: "A sample conversation that updates with these settings.",
+  previewHintMobile: "The sample conversation in the iOS phone style.",
   previewDevice: "Preview for",
   previewDesktop: "Desktop",
   previewMobile: "Mobile",
@@ -101,9 +101,9 @@ const en = {
 
   sectionCode: "Code font",
   paseoFontsNative:
-    "This Paseo does not share its font settings with plugins, so Follow Paseo means the system monospace face at 12px.",
+    "Paseo does not share its font settings; Follow Paseo uses the system monospace at 12px.",
   paseoFontsWeb:
-    "This Paseo does not share its font settings with plugins. Follow Paseo reads the monospace font and size from Paseo's Appearance settings on this computer, or uses Paseo's default (SF Mono, Menlo, Monaco or Consolas at 12px).",
+    "Follow Paseo reads this computer's Appearance settings, or uses Paseo's default monospace at 12px.",
   monoTitle: "Monospace font",
   monoNative:
     "For code, diffs, terminal output and paths. Custom lists only faces this device is known to have.",
@@ -127,13 +127,13 @@ const en = {
   sectionTools: "Tool calls",
   blockSizeTitle: "Block text size",
   blockSizeDescription: (min: number, max: number) =>
-    `${min}–${max}px for tool rows, thoughts, checklists and notices. Text inside those blocks grows with it. Code, diffs and terminal output keep the code font size.`,
+    `${min}–${max}px for tool rows, thoughts, checklists and notices. Code uses the code font size.`,
   blockSizeSmaller: "Smaller block text",
   blockSizeLarger: "Larger block text",
   blockSizeValue: (size: number) => `Block text size ${size} pixels`,
   rowLabelsTitle: "Row icons and labels",
   rowLabelsDescription:
-    "What a tool or thought row starts with: an icon, a name such as Bash or Read, or both. Icon only leaves the most room for the command or path.",
+    "Show an icon, name or both at the start of tool and thought rows.",
   rowLabelsIcon: "Icon",
   rowLabelsLabel: "Label",
   rowLabelsBoth: "Both",
@@ -148,15 +148,15 @@ const en = {
   sectionSpacing: "Spacing",
   rowSpacingTitle: "Tight rows",
   rowSpacingDescription:
-    "Reduces the gap under a plugin row from 16pt to 4pt when another row follows. Rows Paseo already stacks are left alone. Turn it off if rows overlap.",
+    "Reduce spacing after plugin rows. Turn off if rows overlap.",
   replySpacingTitle: "Tight reply",
   replySpacingDescription:
-    "Reduces the gap from 16pt to 4pt when a finished reply is followed by a plugin row, including a checklist. Turn it off if they overlap.",
+    "Reduce spacing between a finished reply and the next plugin row. Turn off if they overlap.",
 
   sectionMessages: "Messages",
   bubbleTitle: "Enhanced prompt bubble",
   bubbleDescription:
-    "Shows the turn's token usage and keeps Copy visible. Pasted images it can read are drawn; prompts with other attachments stay with Paseo. Changing it updates existing prompts too. Rewind stays wherever this Paseo provides it.",
+    "Show token usage and a Copy button. Supported pasted images are displayed; other attachments stay with Paseo.",
   markdownTitle: "Plugin markdown for replies",
   markdownDescription:
     "Headings, lists and highlighted code blocks drawn by the plugin. It has no mermaid diagrams, images or Paseo's file-path links; turn it off when a reply needs them.",
@@ -173,12 +173,12 @@ const en = {
   sectionPreview: "Hover previews",
   hoverPreviewTitle: "Hover previews",
   hoverPreviewDescription:
-    "Rest the pointer on a collapsed row or a file path on desktop, or long-press a collapsed row on a phone, to see its content.",
+    "Hover over a collapsed row or file path on desktop to preview it.",
   blockDetailsTitle: "Block details panel (preview)",
-  blockDetailsDescription: "Tap a row to read it in a drawer or panel; long-press shows actions.",
+  blockDetailsDescription: "Mobile: tap a block for details; long-press for actions. Desktop: open details from the preview or right-click menu.",
   detailsSizeTitle: "Details font size",
   detailsSizeDescription: (min: number, max: number, initial: number) =>
-    `${min}–${max}px for details on phones and tablets. Independent of timeline text and code sizes. Default: ${initial}px. Pinch and the size pill change this same setting.`,
+    `${min}–${max}px for native mobile details, scaled with timeline text. Default: ${initial}px. Also adjustable in details.`,
   detailsSizeSmaller: "Smaller details text",
   detailsSizeLarger: "Larger details text",
   detailsSizeValue: (size: number) => `Details font size ${size} pixels`,
@@ -189,15 +189,15 @@ const en = {
   hoverDelayUnit: "seconds",
   previewWrapTitle: "Wrap lines",
   previewWrapDescription:
-    "Off, long lines keep their length and the preview scrolls sideways. The button at the left of a preview's toolbar switches it for that preview.",
+    "Wrap supported text in previews and details. The toolbar can toggle the current panel; some content always wraps.",
   previewLineNumbersTitle: "Line numbers",
-  previewLineNumbersDescription: "Beside a file, diff or command output. A diff shows the file's own line numbers.",
+  previewLineNumbersDescription: "Show line numbers in file, diff, command and raw code previews. Diffs use file line numbers.",
   previewStripesTitle: "Alternating line shading",
   previewStripesDescription: "Shades every other line, so a wrapped line is easy to follow.",
 
   resetDefaults: "Reset all settings",
   resetConfirm: "Press again to reset",
-  resetDescription: "Puts every option on this page back to its default, on every client of this host.",
+  resetDescription: "Resets chat presentation options for every client of this host. Tasks board settings are separate.",
 };
 
 export type SettingsStrings = typeof en;
@@ -208,7 +208,7 @@ const zh: SettingsStrings = {
   tabDisplay: "聊天展示",
   tabTasks: "任务看板",
   pageTitle: "聊天展示",
-  pageIntro: "保存在这台 Paseo 主机上，连接它的桌面、网页、iOS 和 Android 客户端共用。某个平台不支持的选项会在该平台自动回退。",
+  pageIntro: "设置保存在当前 Paseo 主机，各客户端共用；平台不支持的选项会自动回退。",
   syncFailed: "上一次修改没能保存到这台 Paseo 主机，只在当前客户端生效，直到下一次修改或重新加载。",
   syncInvalid: (error: string) =>
     `这台 Paseo 主机上保存的设置无法读取，当前显示的是默认值。修改任意一项都会覆盖已保存的记录。（${error}）`,
@@ -221,9 +221,9 @@ const zh: SettingsStrings = {
   system: "系统",
 
   previewTitle: "效果预览",
-  previewHintPointer: "一段示例对话，随这里的设置实时变化；Read 行的悬停预览常驻展开。点击行可展开。",
-  previewHintTouch: "一段示例对话，随这里的设置实时变化；Read 行的预览常驻展开。点按行可展开。",
-  previewHintMobile: "同一段对话按 iOS 的样子绘制：手机宽度、系统等宽字体，行内代码没有底色、使用上面选的颜色。",
+  previewHintPointer: "示例对话随设置实时变化。",
+  previewHintTouch: "示例对话随设置实时变化。",
+  previewHintMobile: "按 iOS 手机样式显示示例对话。",
   previewDevice: "预览端",
   previewDesktop: "桌面端",
   previewMobile: "移动端",
@@ -269,9 +269,9 @@ const zh: SettingsStrings = {
   uiFontDescription: "用于行标题、按钮和说明文字。",
 
   sectionCode: "代码字体",
-  paseoFontsNative: "当前 Paseo 不向插件提供字体设置，“跟随 Paseo”即系统等宽字体，12px。",
+  paseoFontsNative: "Paseo 不提供字体设置；“跟随 Paseo”使用系统等宽字体，12px。",
   paseoFontsWeb:
-    "当前 Paseo 不向插件提供字体设置。“跟随 Paseo”会读取这台电脑上 Paseo 外观设置里的等宽字体和字号，读不到时使用 Paseo 默认值（SF Mono、Menlo、Monaco 或 Consolas，12px）。",
+    "“跟随 Paseo”读取本机外观设置；读不到时使用 Paseo 默认等宽字体，12px。",
   monoTitle: "等宽字体",
   monoNative: "用于代码、diff、终端输出和路径。“自定义”只列出这台设备确定已安装的字体。",
   monoWeb: "用于代码、diff、终端输出和路径。",
@@ -294,12 +294,12 @@ const zh: SettingsStrings = {
   sectionTools: "工具调用",
   blockSizeTitle: "块字号",
   blockSizeDescription: (min: number, max: number) =>
-    `${min}–${max}px，用于工具行、思考、待办和提示。这些块里的文字一起变化。代码、diff 和终端输出仍用代码字号。`,
+    `${min}–${max}px，用于工具行、思考、待办和提示；代码使用代码字号。`,
   blockSizeSmaller: "减小块字号",
   blockSizeLarger: "增大块字号",
   blockSizeValue: (size: number) => `块字号 ${size} 像素`,
   rowLabelsTitle: "行首标识",
-  rowLabelsDescription: "工具行和思考行开头显示图标、名称（如 Bash、Read），或两者都显示。只显示图标时，命令和路径能占用最多宽度。",
+  rowLabelsDescription: "工具行和思考行开头显示图标、名称或两者。",
   rowLabelsIcon: "图标",
   rowLabelsLabel: "名称",
   rowLabelsBoth: "两者",
@@ -312,13 +312,13 @@ const zh: SettingsStrings = {
 
   sectionSpacing: "间距",
   rowSpacingTitle: "紧凑行距",
-  rowSpacingDescription: "插件行后面还有一行时，下方间距从 16pt 缩到 4pt；Paseo 已经把插件行紧挨着排好时，不再额外收紧。行间重叠时请关闭。",
+  rowSpacingDescription: "缩小插件行下方的间距；行间重叠时请关闭。",
   replySpacingTitle: "紧凑回复间距",
-  replySpacingDescription: "已完成的回复后紧跟插件行（包括待办行）时，把间距从 16pt 缩到 4pt。重叠时请关闭。",
+  replySpacingDescription: "缩小已完成回复与后续插件行的间距；重叠时请关闭。",
 
   sectionMessages: "消息",
   bubbleTitle: "增强提问气泡",
-  bubbleDescription: "显示本轮 token 用量，复制按钮常驻；能读取的粘贴图片会一并显示，其他附件仍交给 Paseo。切换后已有的提问也会更新。回退菜单按当前 Paseo 提供的方式显示。",
+  bubbleDescription: "显示 token 用量和复制按钮；支持的粘贴图片一并显示，其他附件交给 Paseo。",
   markdownTitle: "回复使用插件 Markdown",
   markdownDescription: "由插件绘制标题、列表和语法高亮代码块。不支持 mermaid 图表、图片和 Paseo 的文件路径链接，需要时请关闭。",
   markdownStyleTitle: "Markdown 样式",
@@ -331,12 +331,12 @@ const zh: SettingsStrings = {
 
   sectionPreview: "悬停预览",
   hoverPreviewTitle: "悬停预览",
-  hoverPreviewDescription: "桌面端鼠标停在折叠行或文件路径上、手机上长按折叠行时，弹出内容预览。",
+  hoverPreviewDescription: "桌面端鼠标停在折叠行或文件路径上时显示预览。",
   blockDetailsTitle: "区块详情面板（预览）",
-  blockDetailsDescription: "点按行可在抽屉或面板中阅读；长按可显示操作。",
+  blockDetailsDescription: "移动端点按区块打开详情，长按显示菜单；桌面端从预览或右键菜单打开详情。",
   detailsSizeTitle: "详情字号",
   detailsSizeDescription: (min: number, max: number, initial: number) =>
-    `${min}–${max}px，用于手机和平板的详情面板，独立于正文和代码字号。默认为 ${initial}px；双指缩放和字号胶囊也修改这一项。`,
+    `${min}–${max}px，用于移动端详情，随时间线正文字号缩放；默认 ${initial}px，也可在详情中调整。`,
   detailsSizeSmaller: "减小详情字号",
   detailsSizeLarger: "增大详情字号",
   detailsSizeValue: (size: number) => `详情字号 ${size} 像素`,
@@ -345,15 +345,15 @@ const zh: SettingsStrings = {
   hoverDelayDescription: (min: number, max: number) => `桌面端鼠标在行上停留多少秒后弹出预览，可填 ${min}–${max}。`,
   hoverDelayUnit: "秒",
   previewWrapTitle: "自动换行",
-  previewWrapDescription: "关闭后长行保持原样，预览可以横向滚动。预览工具栏左侧的按钮可临时切换当前预览。",
+  previewWrapDescription: "预览和详情中支持换行的文本自动换行，可在工具栏临时切换；部分内容始终换行。",
   previewLineNumbersTitle: "显示行号",
-  previewLineNumbersDescription: "在文件、diff 和命令输出左侧显示行号；diff 显示的是文件中的行号。",
+  previewLineNumbersDescription: "在文件、diff、命令输出和代码原文预览中显示行号；diff 使用文件行号。",
   previewStripesTitle: "奇偶行底色",
   previewStripesDescription: "隔行加一层底色，长行折行后也容易分清是哪一行。",
 
   resetDefaults: "恢复全部默认设置",
   resetConfirm: "再点一次确认恢复",
-  resetDescription: "把本页所有选项恢复为默认值，这台主机的所有客户端都会生效。",
+  resetDescription: "把聊天展示选项恢复为默认值，这台主机的所有客户端都会生效。任务看板设置单独恢复。",
 };
 
 export const SETTINGS_STRINGS: Readonly<Record<SettingsLanguage, SettingsStrings>> = { en, zh };

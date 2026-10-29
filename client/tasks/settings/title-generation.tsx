@@ -10,19 +10,19 @@ import { useTasksLanguage } from "../i18n";
 
 const WORDS = {
   en: {
-    disableThinking: "Disable title thinking", thinkingHint: "Disable thinking when supported; otherwise use the lowest supported level. Turn off to follow the agent or custom thinking level.", automaticThinking: "Off or lowest supported level",
-    customModel: "Custom automatic title model", followSource: "Off: follow the card agent's provider, model and thinking level. Save to sync these settings across devices connected to this host.",
+    disableThinking: "Disable title thinking", thinkingHint: "Use off or the lowest supported level. Otherwise follow the agent or custom level.", automaticThinking: "Off or lowest supported level",
+    customModel: "Custom automatic title model", followSource: "Off: follow the card agent's provider, model and thinking level. Saved settings sync across this host's clients.",
     title: "Automatic titles", provider: "Provider", model: "Model", thinkingOptionId: "Thinking level", modelDefault: "Model default", noThinking: "Not supported", choose: "Choose…", prompt: "Prompt",
-    hint: "Recommended custom model: Oh My Pi / DeepSeek Flash (deepseek/deepseek-flash), thinking low. Alternative: Claude / Haiku 5.5 (claude-haiku-5-5), thinking off.\nChoose models available on this host; actual speed also depends on agent startup and host load. The background task stays off the board, retains history and may trigger host notifications.",
+    hint: "Recommended: Oh My Pi / DeepSeek Flash (deepseek/deepseek-flash), thinking low; or Claude / Haiku 5.5 (claude-haiku-5-5), thinking off. Choose a model available on this host.\nTitle tasks stay off the board, retain history and may trigger host notifications.",
     save: "Save title settings", reset: "Reset title settings", resetNow: "Reset now", resetCancel: "Cancel", resetConfirmHint: "This restores only automatic title settings to their defaults.", saving: "Saving…", loading: "Loading…", retry: "Retry", refresh: "Refresh models", loadError: "Could not load title settings.",
     saveError: "Settings changed elsewhere or could not be saved. Reloaded the latest.",
     notRecommended: "Not recommended",
   },
   zh: {
-    disableThinking: "关闭标题生成思考模式", thinkingHint: "模型支持时关闭思考，否则使用支持的最低等级。关闭此开关后，跟随 agent 或自定义的思考等级。", automaticThinking: "关闭或最低支持等级",
-    customModel: "自定义自动标题模型", followSource: "关闭时跟随卡片所属 agent 的 Provider、模型和思考等级。保存后，设置同步至连接此主机的各端。",
+    disableThinking: "关闭标题生成思考模式", thinkingHint: "关闭思考或使用最低支持等级；关闭此开关则跟随 agent 或自定义等级。", automaticThinking: "关闭或最低支持等级",
+    customModel: "自定义自动标题模型", followSource: "关闭时跟随卡片所属 agent 的 Provider、模型和思考等级；保存后同步至主机各端。",
     title: "自动更新标题", provider: "Provider", model: "模型", thinkingOptionId: "思考等级", modelDefault: "模型默认", noThinking: "不支持", choose: "请选择…", prompt: "Prompt",
-    hint: "自定义模型推荐：Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low；备选：Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off。\n请选择当前主机可用的模型；实际速度也受 agent 启动和主机负载影响。后台任务不进入看板，仍保留历史，并可能触发宿主通知。",
+    hint: "推荐 Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low；或 Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off。请选择主机可用的模型。\n后台任务不进入看板，保留历史，可能触发宿主通知。",
     save: "保存标题设置", reset: "重置标题设置", resetNow: "确认重置", resetCancel: "取消", resetConfirmHint: "这只会把自动标题设置恢复为默认值。", saving: "正在保存…", loading: "正在加载…", retry: "重试", refresh: "刷新模型", loadError: "标题设置加载失败。",
     saveError: "设置已在别处更改或保存失败，已重新加载最新内容。",
     notRecommended: "不推荐使用",

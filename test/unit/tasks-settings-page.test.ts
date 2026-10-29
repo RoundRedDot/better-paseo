@@ -384,7 +384,7 @@ describe("Tasks half of the settings page", () => {
     const r = panel();
     await act(async () => button(r, "Restore").props.onPress());
     expect(api.save).not.toHaveBeenCalled();
-    expect(textOf(r.root)).toContain("This replaces all Tasks options with the defaults.");
+    expect(textOf(r.root)).toContain("This restores card, board and sidebar options to their defaults.");
     await act(async () => button(r, "Restore now").props.onPress());
     expect(api.reset).not.toHaveBeenCalled();
     expect(lastSaved(api)).toEqual({ ...STOCK_SETTINGS, board: { ...STOCK_SETTINGS.board, showArchived: false }, enabled: true });

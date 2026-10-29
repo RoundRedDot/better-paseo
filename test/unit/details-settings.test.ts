@@ -112,7 +112,7 @@ describe("block details settings", () => {
     const renderer = renderPage();
     const text = renderer.root.findAll((node) => typeof node.type === "string" && (node.type as unknown) === "Text").map(textOf).join("\n");
     expect(text).toContain("区块详情面板（预览）");
-    expect(text).toContain("点按行可在抽屉或面板中阅读；长按可显示操作。");
+    expect(text).toContain("移动端点按区块打开详情，长按显示菜单；桌面端从预览或右键菜单打开详情。");
     expect(text).not.toContain("点击行身");
     act(() => renderer.unmount());
   });
