@@ -545,6 +545,7 @@ export function RoundButton(props: {
   slashed?: boolean;
   /** The circle's size, with no target padding around it. */
   size?: number;
+  iconSize?: number;
   /** Its hover tip, where a pointer can rest on it (a narrow tablet board on the web). */
   tip?: string;
 }) {
@@ -552,7 +553,7 @@ export function RoundButton(props: {
   const scale = useTasksFontScale();
   const size = props.size ?? 36;
   const pad = props.size === undefined ? 4 : 0;
-  const icon = Math.round(size / 2);
+  const icon = props.iconSize ?? Math.round(size / 2);
   return (
     <Pressable
       accessibilityRole="button"

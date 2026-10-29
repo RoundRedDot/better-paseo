@@ -37,6 +37,8 @@ const DIVIDER_MARGIN = 4;
 
 /** Round and menu buttons share the same height on each platform. */
 const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
+const roundButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 26 : 36, scale);
+const roundIconSize = (scale: number) => Platform.OS === "web" ? taskControlHeight(16, scale) : Math.round(roundButtonSize(scale) / 2);
 const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale));
 
 export type EmptyLanes = { collapsed: boolean; disabled: boolean; onToggle(): void };
@@ -93,7 +95,7 @@ function DesktopToolbarView(props: {
   const openSettings = tasksSettingsOpener();
   // Include settings when deciding whether the actions fit beside the centred count.
   const actionCount = (props.filters ? 3 : 1) + Number(!!openSettings) + Number(!!props.sidebar);
-  const compactActions = actionWidth > 0 && actionWidth < actionCount * toolbarButtonSize(scale) + (actionCount - 1) * TOOLBAR_GAP;
+  const compactActions = actionWidth > 0 && actionWidth < actionCount * roundButtonSize(scale) + (actionCount - 1) * TOOLBAR_GAP;
   return (
     <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
       <View testID="desktop-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -173,9 +175,9 @@ function DesktopToolbarView(props: {
       <View testID="desktop-toolbar-end" onLayout={(event) => setActionWidth(event.nativeEvent.layout.width)} style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: TOOLBAR_GAP }}>
       {compactActions ? (
         <>
-          {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} testID="toolbar-filters" /> : null}
+          {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} testID="toolbar-filters" /> : null}
           <View style={{ zIndex: 20 }}>
-            <RoundButton icon="SlidersHorizontal" label={strings.view} selected={viewOpen} theme={theme} onPress={() => setViewOpen(!viewOpen)} size={toolbarButtonSize(scale)} testID="desktop-toolbar-view" />
+            <RoundButton icon="SlidersHorizontal" label={strings.view} selected={viewOpen} theme={theme} onPress={() => setViewOpen(!viewOpen)} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} testID="desktop-toolbar-view" />
             {viewOpen ? <CascadeMenu theme={theme} width={260} top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setViewOpen(false)} sections={[{ key: "view", items: [
               ...(props.filters ? [
                 { key: "empty", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, disabled: props.emptyLanes.disabled, onSelect: props.emptyLanes.onToggle },
@@ -214,11 +216,11 @@ function DesktopToolbarView(props: {
             slashed={!board.showArchived}
             theme={theme}
             onPress={() => board.setShowArchived(!board.showArchived)}
-            size={toolbarButtonSize(scale)}
+            size={roundButtonSize(scale)} iconSize={roundIconSize(scale)}
             tip={`${board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row} (A)`}
             testID="toolbar-archived"
           />
-          <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={toolbarButtonSize(scale)} tip={strings.filters} testID="toolbar-filters" />
+          <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} tip={strings.filters} testID="toolbar-filters" />
         </>
       ) : null}
       {props.filters ? null : (
@@ -233,7 +235,7 @@ function DesktopToolbarView(props: {
           testID="empty-groups-toggle"
         />
       )}
-      {openSettings ? <RoundButton icon="Bolt" label={strings.openSettings} theme={theme} onPress={openSettings} size={toolbarButtonSize(scale)} tip={`${strings.openSettings} (,)`} testID="toolbar-settings" /> : null}
+      {openSettings ? <RoundButton icon="Bolt" label={strings.openSettings} theme={theme} onPress={openSettings} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} tip={`${strings.openSettings} (,)`} testID="toolbar-settings" /> : null}
       {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
       </>}
       </View>
@@ -244,6 +246,7 @@ function DesktopToolbarView(props: {
 /** Folds the empty lanes to slim strips, or opens them again. */
 function EmptyLanesButton({ emptyLanes, strings, theme }: { emptyLanes: EmptyLanes; strings: BoardController["strings"]; theme: PluginTheme }) {
   const label = emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse;
+  const scale = useTasksFontScale();
   return (
     <RoundButton
       icon={emptyLanes.collapsed ? "UnfoldHorizontal" : "FoldHorizontal"}
@@ -252,7 +255,7 @@ function EmptyLanesButton({ emptyLanes, strings, theme }: { emptyLanes: EmptyLan
       disabled={emptyLanes.disabled}
       theme={theme}
       onPress={emptyLanes.onToggle}
-      size={toolbarButtonSize(useTasksFontScale())}
+      size={roundButtonSize(scale)} iconSize={roundIconSize(scale)}
       tip={`${label} (E)`}
       testID="empty-lanes-toggle"
     />
@@ -263,7 +266,7 @@ function EmptyLanesButton({ emptyLanes, strings, theme }: { emptyLanes: EmptyLan
 function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void; theme: PluginTheme; label: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
-  const size = toolbarButtonSize(scale);
+  const size = roundButtonSize(scale);
   const [hovered, setHovered] = useState(false);
   return (
     <Pressable
@@ -302,8 +305,8 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
   const colors = props.theme.colors;
   const spaceKeys = useSwitchSpace(props.onPress);
   const scale = useTasksFontScale();
-  const size = toolbarButtonSize(scale);
-  const icon = Math.round(size / 2);
+  const size = roundButtonSize(scale);
+  const icon = roundIconSize(scale);
   const [hovered, setHovered] = useState(false);
   const background = hovered ? colors.surface1 : colors.surface0;
   return (
@@ -620,7 +623,7 @@ function DesktopFilterBarView(props: {
         {tablet ? (
           <>
             {Platform.OS === "ios" ? null : archivedSwitch}
-            <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={activeFilterCount(params, defaults)} onPress={props.onMore} size={toolbarButtonSize(scale)} tip={strings.filters} testID="filter-bar-more" />
+            <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={activeFilterCount(params, defaults)} onPress={props.onMore} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} tip={strings.filters} testID="filter-bar-more" />
           </>
         ) : null}
       </View>
@@ -869,7 +872,7 @@ function MenuButton(props: { icon: string | React.ReactElement; label: string; c
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const iconOnly = !!props.compact;
-  const size = toolbarButtonSize(scale);
+  const size = iconOnly ? roundButtonSize(scale) : toolbarButtonSize(scale);
   return (
     <View pointerEvents="box-none" style={{ zIndex: props.open ? 20 : 0, maxWidth: Platform.OS === "web" ? "100%" : undefined, flexShrink: Platform.OS === "web" ? 1 : 0 }}>
       <HoverPressable
@@ -894,7 +897,7 @@ function MenuButton(props: { icon: string | React.ReactElement; label: string; c
           gap: LABEL_GAP,
         })}
       >
-        {typeof props.icon === "string" ? <Icon name={props.icon} size={iconOnly ? Math.round(size / 2) : MENU_ICON} color={iconOnly ? colors.foreground : colors.foregroundMuted} /> : props.icon}
+        {typeof props.icon === "string" ? <Icon name={props.icon} size={iconOnly ? roundIconSize(scale) : MENU_ICON} color={iconOnly ? colors.foreground : colors.foregroundMuted} /> : props.icon}
         {props.compact ? null : (
           <Text numberOfLines={1} style={{ flexShrink: Platform.OS === "web" ? 1 : 0, maxWidth: props.labelMaxWidth, fontSize: toolbarFontSize(), fontWeight: "500", color: colors.foreground }}>{props.label}</Text>
         )}

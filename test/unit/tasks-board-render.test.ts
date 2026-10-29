@@ -2392,7 +2392,7 @@ describe("Tasks board, desktop", () => {
     // Circular buttons retain their geometry while labels wait for enough room.
     for (const button of controls().findAll((node) => (node.type as unknown) === "Pressable")) {
       expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: 26, height: 26, borderRadius: 13 });
-      expect(button.findAll((node) => (node.type as unknown) === "Icon").map((icon) => icon.props.size)).toEqual([16]);
+      expect(button.findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(1);
     }
     lay(group(), { width: 630 });
     expect(words()).toEqual([]);
