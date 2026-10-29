@@ -382,6 +382,10 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ width: 26, height: 26, borderRadius: 13 });
     expect(toggle.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(false));
     expect(toggle.props.accessibilityState.selected).toBe(false);
+    act(() => toggle.props.onHoverIn());
+    expect(StyleSheet.flatten(hostsById("search-full-conversation-toggle")[0]!.props.style).boxShadow).toBe(taskTokens(theme).card.shadowHover);
+    act(() => toggle.props.onHoverOut());
+    expect(StyleSheet.flatten(hostsById("search-full-conversation-toggle")[0]!.props.style).boxShadow).toBeUndefined();
     act(() => toggle.props.onPress());
     expect(hostsById("search-full-conversation-toggle")[0]!.props.accessibilityState.selected).toBe(true);
     expect(hostsById("search-full-conversation-toggle")[0]!.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(true));

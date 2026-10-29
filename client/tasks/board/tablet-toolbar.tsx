@@ -1,10 +1,11 @@
 import React, { useState, type Ref } from "react";
-import { Pressable, View, type LayoutRectangle, type TextInput as NativeTextInput } from "react-native";
+import { Platform, Pressable, View, type LayoutRectangle, type TextInput as NativeTextInput } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, useTasksFontScale, taskControlHeight } from "../typography";
 import { tipProps } from "../cards/card-hints";
+import { taskTokens } from "../cards/tokens";
 import { CornerBadge, HoverPressable, RollingTotal, SlashMark } from "./board-parts";
 import { HAIRLINE } from "./board-style";
 import { laneWidthMenuSections, sortMenuSections } from "./board-menus";
@@ -156,7 +157,7 @@ function ToolbarButton(props: { icon: string; label: string; theme: PluginTheme;
   const target = taskControlHeight(props.compact ? 28 : 44, scale);
   const iconSize = props.compact ? 16 : 18;
   return (
-    <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered) => ({ minWidth: target, height: target, flexShrink: 0, paddingHorizontal: props.showLabel ? 10 : 0, borderRadius: 7, backgroundColor: hovered || props.expanded || props.selected ? colors.surface1 : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
+    <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered) => ({ minWidth: target, height: target, flexShrink: 0, paddingHorizontal: props.showLabel ? 10 : 0, borderRadius: 7, backgroundColor: hovered || props.expanded || props.selected ? colors.surface1 : "transparent", boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.shadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
       <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
         <Icon name={props.icon} size={iconSize} color={colors.foreground} />
         {props.slashed ? <SlashMark size={iconSize} color={colors.foreground} gap={colors.surface0} /> : null}

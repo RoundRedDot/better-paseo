@@ -5,6 +5,8 @@ import type { SearchCoverageControl } from "../data/search-first-prompts";
 import type { BoardStrings } from "./strings";
 import { TaskText as Text, taskControlHeight, useTasksFontScale } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { useHover } from "../../ui/use-hover";
+import { taskTokens } from "../cards/tokens";
 import { tipProps } from "../cards/card-hints";
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { PluginIcon } from "@getpaseo/plugin/client";
@@ -139,6 +141,7 @@ const OUTLINE_SEARCH_ICON: PluginIcon = {
 
 export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme; compact?: boolean }) {
   const { context } = useSearchCoverage();
+  const { hovered, hoverProps } = useHover();
   const scale = useTasksFontScale();
   const size = !compact && Platform.OS === "web" ? taskControlHeight(24, scale) : compact ? 36 : 32;
   const iconSize = !compact && Platform.OS === "web" ? taskControlHeight(14, scale) : 16;
@@ -146,8 +149,8 @@ export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme;
   const toggle = () => context?.onFullConversationChange?.(!on);
   if (!context?.onFullConversationChange) return null;
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
-    accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={toggle} hitSlop={4}
-    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: size / 2, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0 }}>
+    accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={toggle} hitSlop={4} {...hoverProps}
+    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: size / 2, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0, boxShadow: Platform.OS === "web" && hovered ? taskTokens(theme).card.shadowHover : undefined }}>
     <Icon icon={on ? FULL_TEXT_SEARCH_ICON : OUTLINE_SEARCH_ICON} size={iconSize} color={theme.colors.foreground} />
   </Pressable>;
 }

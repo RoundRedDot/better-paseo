@@ -71,7 +71,7 @@ export function CardButton(props: {
         ...(square ? { width: taskControlHeight(COMPACT_CARD_BUTTON_HEIGHT, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
         paddingHorizontal: square ? 0 : compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,
-        ...buttonOutline(border),
+        ...buttonOutline(border, {}, hovered ? tokens.card.shadowHover : undefined),
         backgroundColor: fill,
         flexDirection: "row",
         alignItems: "center",

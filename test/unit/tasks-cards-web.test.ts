@@ -166,6 +166,22 @@ async function render(element: React.ReactElement) {
 }
 
 describe("TaskCardView on web", () => {
+  it("adds the card hover shadow to an action without losing its outline", async () => {
+    const tokens = taskTokens(THEME);
+    const element = (disabled = false) => React.createElement(CardButton, { label: "Open", look: "plain", tokens, compact: false, disabled, onPress: () => {} });
+    const renderer = await render(element());
+    const button = () => renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Open");
+    expect(button().props.style.boxShadow).toContain("inset");
+    await act(async () => button().props.onHoverIn());
+    expect(button().props.style.boxShadow).toContain(tokens.card.shadowHover);
+    expect(button().props.style.boxShadow).toContain("inset");
+    await act(async () => button().props.onHoverOut());
+    expect(button().props.style.boxShadow).not.toContain(tokens.card.shadowHover);
+    await act(async () => renderer.update(element(true)));
+    await act(async () => button().props.onHoverIn());
+    expect(button().props.style.boxShadow).not.toContain(tokens.card.shadowHover);
+    await act(async () => renderer.unmount());
+  });
   it.each([false, true])("constrains long URL titles and retains two-line truncation (compact=%s)", async (compact) => {
     const card = { ...props("sample-running").card, title: `https://roundreddot.feishu.cn/wiki/${"a".repeat(120)}` };
     const renderer = await render(React.createElement(TaskCardView, props(card.id, { card, compact })));

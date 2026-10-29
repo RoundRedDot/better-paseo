@@ -132,23 +132,24 @@ export function Segments<T extends string>(props: {
         const on = window === props.value;
         const inner = (props.stretch ? taskControlHeight(36, scale) : outer) - 6;
         return (
-          <Pressable
+          <HoverPressable
             key={window}
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
             accessibilityLabel={mark ? props.label(window) : undefined}
             {...tipProps(mark ? props.label(window) : undefined)}
             onPress={() => props.onChange(window)}
-            style={{
+            style={(hovered) => ({
               height: inner,
               flex: props.stretch ? 1 : undefined,
               minWidth: mark ? inner + 8 : undefined,
               paddingHorizontal: mark ? 6 : props.large ? 12 : 9,
               borderRadius: round(inner),
               backgroundColor: on ? colors.surface2 : "transparent",
+              boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.shadowHover : undefined,
               alignItems: "center",
               justifyContent: "center",
-            }}
+            })}
           >
             {mark ? (
               mark(window, on)
@@ -157,7 +158,7 @@ export function Segments<T extends string>(props: {
                 {props.label(window)}
               </Text>
             )}
-          </Pressable>
+          </HoverPressable>
         );
       })}
     </View>
@@ -554,6 +555,7 @@ export function RoundButton(props: {
   const size = props.size ?? 36;
   const pad = props.size === undefined ? 4 : 0;
   const icon = props.iconSize ?? Math.round(size / 2);
+  const { hovered, hoverProps } = useHover();
   return (
     <Pressable
       accessibilityRole="button"
@@ -562,6 +564,7 @@ export function RoundButton(props: {
       disabled={props.disabled}
       {...tipProps(props.tip)}
       onPress={props.onPress}
+      {...hoverProps}
       hitSlop={pad || Platform.OS === "web" ? 0 : 4}
       testID={props.testID}
       style={{ width: size + 2 * pad, height: size + 2 * pad, alignItems: "center", justifyContent: "center", opacity: props.disabled ? 0.4 : 1 }}
@@ -573,6 +576,7 @@ export function RoundButton(props: {
           borderRadius: size / 2,
           borderWidth: HAIRLINE,
           borderColor: props.active ? colors.accent : colors.border,
+          boxShadow: Platform.OS === "web" && hovered && !props.disabled ? taskTokens(props.theme).card.shadowHover : undefined,
           alignItems: "center",
           justifyContent: "center",
         }}

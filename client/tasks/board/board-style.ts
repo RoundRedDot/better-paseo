@@ -38,7 +38,7 @@ const INSET = { top: `0 ${BUTTON_LINE}px`, right: `-${BUTTON_LINE}px 0`, bottom:
  * one, two device pixels at 2x, so on the web the line is an inset box-shadow
  * instead, which keeps its half pixel. Read at render, as the platform is.
  */
-export function buttonOutline(color: string, sides: Partial<Record<Side, string | null>> = {}): ViewStyle {
+export function buttonOutline(color: string, sides: Partial<Record<Side, string | null>> = {}, shadow?: string): ViewStyle {
   const colorOf = (side: Side) => (side in sides ? sides[side]! : color);
   const uniform = SIDES.every((side) => colorOf(side) === color);
   if (Platform.OS !== "web") {
@@ -53,7 +53,7 @@ export function buttonOutline(color: string, sides: Partial<Record<Side, string 
   const shadows = uniform
     ? [`inset 0 0 0 ${BUTTON_LINE}px ${color}`]
     : SIDES.flatMap((side) => (colorOf(side) === null ? [] : [`inset ${INSET[side]} 0 0 ${colorOf(side)}`]));
-  return { borderWidth: 0, boxShadow: shadows.join(", ") } as ViewStyle;
+  return { borderWidth: 0, boxShadow: [...shadows, ...(shadow ? [shadow] : [])].join(", ") } as ViewStyle;
 }
 
 /** Letter-avatar outlines are part of the glyph, not a divider: a full point keeps them legible. */
