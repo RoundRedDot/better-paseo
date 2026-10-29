@@ -198,7 +198,7 @@ export function SearchHitSummary(props: {
       key={`${hit.field}-${index}`}
       role={full ? "listitem" : undefined}
       {...(full && Platform.OS === "web" ? { tabIndex: -1 } : {})}
-      style={full ? { paddingVertical: 6, paddingHorizontal: 8, gap: 3 } : { flexDirection: "row", alignItems: "center", gap: 6 }}
+      style={full ? { paddingVertical: 6, paddingHorizontal: 8, gap: 3, ...(Platform.OS === "web" ? { outlineWidth: 0.5, outlineColor: tokens.isDark ? "#777777" : "#B0B0B0" } : null) } : { flexDirection: "row", alignItems: "center", gap: 6 }}
     >
       {full ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
