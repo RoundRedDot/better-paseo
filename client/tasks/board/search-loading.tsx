@@ -7,8 +7,6 @@ import { TaskText as Text } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { tipProps } from "../cards/card-hints";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { SwitchTrack } from "../../ui/switch-track";
-import { useSwitchSpace } from "../../ui/use-switch-space";
 
 export const SearchCoverageContext = createContext<{
   status: SearchCoverageControl;
@@ -130,12 +128,11 @@ export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme;
   const { context } = useSearchCoverage();
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);
-  const spaceKeys = useSwitchSpace(toggle);
   if (!context?.onFullConversationChange) return null;
-  return <Pressable testID="search-full-conversation-toggle" accessibilityRole="switch" accessibilityLabel={context.fullConversationLabel}
-    accessibilityState={{ checked: on }} aria-checked={on} {...tipProps(context.fullConversationHint)} {...spaceKeys} onPress={toggle} hitSlop={4}
-    style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, minHeight: 32 }}>
-    <Text style={{ fontSize: 12, color: theme.colors.foregroundMuted }}>{compact ? context.fullConversationShortLabel : context.fullConversationLabel}</Text>
-    <SwitchTrack value={on} colors={theme.colors} />
+  return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
+    accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={toggle} hitSlop={4}
+    style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, minHeight: 32, paddingHorizontal: 10, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 6, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0 }}>
+    <Icon name="FileText" size={14} color={on ? theme.colors.foreground : theme.colors.foregroundMuted} />
+    <Text style={{ fontSize: 12, color: on ? theme.colors.foreground : theme.colors.foregroundMuted }}>{compact ? context.fullConversationShortLabel : context.fullConversationLabel}</Text>
   </Pressable>;
 }

@@ -55,12 +55,12 @@ describe("full conversation switch", () => {
       </SearchCoverageProvider>;
     }
     act(() => { tree = TestRenderer.create(<Probe />); });
-    expect(nodes("search-full-conversation-toggle")[0]!.props.accessibilityState.checked).toBe(false);
+    expect(nodes("search-full-conversation-toggle")[0]!.props.accessibilityState.selected).toBe(false);
     await act(async () => { await vi.advanceTimersByTimeAsync(600); });
     expect(load).not.toHaveBeenCalled();
     expect(refetch).toHaveBeenCalledTimes(1);
     act(() => nodes("search-full-conversation-toggle")[0]!.props.onPress());
-    expect(nodes("search-full-conversation-toggle")[0]!.props.accessibilityState.checked).toBe(true);
+    expect(nodes("search-full-conversation-toggle")[0]!.props.accessibilityState.selected).toBe(true);
     await act(async () => { await vi.advanceTimersByTimeAsync(600); });
     expect(load).toHaveBeenCalledWith({ agentId: card.id, query: "target" });
     expect(nodes("search-spinner")).toHaveLength(1);
