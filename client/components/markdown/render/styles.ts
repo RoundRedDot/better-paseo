@@ -494,7 +494,7 @@ export function buildStyles(
       borderBottomColor: tokens.v2.borderSubtle,
     },
     tableRowAlternate: {
-      backgroundColor: withAlpha(tokens.foreground, tokens.isDark ? 0.1 : 0.08),
+      backgroundColor: withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04),
     },
     tableRowLast: {
       borderBottomWidth: 0,

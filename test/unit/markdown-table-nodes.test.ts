@@ -100,7 +100,7 @@ describe("a native table's host views", () => {
     const backgrounds = Array.from({ length: 6 }, (_, row) =>
       Object.assign({}, ...cells[row * 3]!.parent!.parent!.props.style.filter(Boolean)).backgroundColor);
     expect(backgrounds[0]).toBeDefined();
-    expect(backgrounds.slice(1)).toEqual([undefined, "rgba(27, 27, 31, 0.08)", undefined, "rgba(27, 27, 31, 0.08)", undefined]);
+    expect(backgrounds.slice(1)).toEqual([undefined, "rgba(27, 27, 31, 0.04)", undefined, "rgba(27, 27, 31, 0.04)", undefined]);
     act(() => renderer.unmount());
   });
 
@@ -116,7 +116,7 @@ describe("a native table's host views", () => {
     const cells = renderer.root.findAll((node) => String(node.type) === "Text"
       && node.props.testID === "markdown-table-cell");
     const rowStyle = cells[6]!.parent!.parent!.props.style;
-    expect(Object.assign({}, ...rowStyle.filter(Boolean)).backgroundColor).toBe("rgba(238, 238, 238, 0.1)");
+    expect(Object.assign({}, ...rowStyle.filter(Boolean)).backgroundColor).toBe("rgba(238, 238, 238, 0.045)");
     act(() => renderer.unmount());
   });
 });
