@@ -360,8 +360,10 @@ export function PhoneBoard(props: {
         clear={strings.menuSearch.clear}
         theme={theme}
       />
-      {board.params.query.trim() ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ paddingHorizontal: 16 }}><SearchQueryChip board={board} theme={theme} /></ScrollView> : null}
-      <SearchCoverageItems theme={theme} phone />
+      {board.params.query.trim() ? <ScrollView testID="phone-search-summary" horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <SearchQueryChip board={board} theme={theme} />
+        <SearchCoverageItems theme={theme} phone />
+      </ScrollView> : null}
       <View
         onLayout={(event: LayoutChangeEvent) => setBarWidth(event.nativeEvent.layout.width)}
         style={{ borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 5, backgroundColor: palette.panel }}

@@ -355,6 +355,12 @@ describe("search coverage render isolation", () => {
       expect(host.rowRenders).toBe(before);
       await act(async () => { finish(); await request; });
       expect(textOf(hostsById("search-coverage-failure")[0]!)).toContain("1 failed");
+      if (phone) {
+        const summary = hostsById("phone-search-summary")[0]!;
+        expect(summary.props.horizontal).toBe(true);
+        expect(summary.findAll((node) => node.props.testID === "search-coverage-failure").length).toBeGreaterThan(0);
+        expect(textOf(summary)).toContain("coverage probe");
+      }
       expect(host.rowRenders).toBe(before);
       expect(hostsById("tasks-search-coverage")).toHaveLength(0);
     } finally {
@@ -372,10 +378,10 @@ describe("Tasks search coverage and centred toolbar", () => {
     const field = hostsById("desktop-toolbar-search")[0]!;
     expect(field.findAll((node) => node.props.testID === "search-full-conversation-toggle")).toHaveLength(0);
     const toggle = hostsById("search-full-conversation-toggle")[0]!;
-    expect(toggle.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint);
-    expect(toggle.props.accessibilityState.checked).toBe(false);
+    expect(toggle.props.dataSet?.bctip).toBe(`${BOARD_STRINGS.en.fullConversationSearch}\n${BOARD_STRINGS.en.fullConversationHint}`);
+    expect(toggle.props.accessibilityState.selected).toBe(false);
     act(() => toggle.props.onPress());
-    expect(hostsById("search-full-conversation-toggle")[0]!.props.accessibilityState.checked).toBe(true);
+    expect(hostsById("search-full-conversation-toggle")[0]!.props.accessibilityState.selected).toBe(true);
   });
   it.each(["en", "zh"] as const)("shows all six toolbar shortcuts in %s hover tips without a sidebar key hint", (language) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";

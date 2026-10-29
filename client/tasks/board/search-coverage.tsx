@@ -104,7 +104,7 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
       </View>
     </View>)}
   </View>;
-  return <Animated.View testID="search-coverage-items" ref={anchor} collapsable={false} {...(Platform.OS === "web" ? {} : hoverProps)} onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: 1, height: props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 32] }) : 28, opacity, marginTop: props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 6] }) : 0, marginHorizontal: props.phone ? 8 : 0, zIndex: open ? 40 : 1 }}>
+  return <Animated.View testID="search-coverage-items" ref={anchor} collapsable={false} {...(Platform.OS === "web" ? {} : hoverProps)} onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: 1, height: props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 32] }) : 28, opacity, zIndex: open ? 40 : 1 }}>
     {counts.unavailable ? <Pressable testID="search-coverage-unavailable" accessibilityRole="button" accessibilityLabel={strings.unavailable(counts.unavailable)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={toggle} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: "100%", borderRadius: 7, backgroundColor: open || hovered ? colors.surface1 : "transparent" }}>
       <Icon name="MessageSquareOff" size={15} color={colors.foregroundMuted} />
       <Text numberOfLines={1} style={textStyle}>{squeeze ? counts.unavailable : strings.unavailable(counts.unavailable)}</Text>
