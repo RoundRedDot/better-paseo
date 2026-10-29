@@ -56,6 +56,8 @@ export function FilterSheetBody(props: {
   const resolved = resolveBoardParams(board.params, defaults);
   const shown = shownFilterOptions(options, board.showEmptyGroups);
   useRequestProjectIcons(iconlessProjects(shown.workspaceGroups), board.tasks.requestProjectIcon);
+  const [agentsOpen, setAgentsOpen] = useState(true);
+  const [labelsOpen, setLabelsOpen] = useState(true);
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const scrollRef = useRef<NativeScrollView>(null);
@@ -118,33 +120,37 @@ export function FilterSheetBody(props: {
               testID="filter-sheet-empty-groups"
             />
           ) : null}
-          <SectionTitle text={strings.agent} theme={theme} />
-          {shown.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-          <ChipWrap>
-            {shown.agents.map((agent) => (
-              <Chip
-                key={agent.id}
-                option={agent}
-                theme={theme}
-                leading={<BrandMark provider={agent.id} size={16} tokens={taskTokens(theme)} />}
-                hideCount
-                onPress={() => setParams((p) => ({ ...p, providers: toggleItem(p.providers, agent.id) }))}
-              />
-            ))}
-          </ChipWrap>
-          <SectionTitle text={strings.labels} theme={theme} />
-          {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-          <ChipWrap>
-            {shown.labels.map((label) => (
-              <Chip
-                key={label.id}
-                option={label}
-                theme={theme}
-                leading={<TagMark size={14} color={label.color ?? colors.foregroundMuted} hole={label.on ? taskTokens(theme).accentSoft : colors.surface0} />}
-                onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
-              />
-            ))}
-          </ChipWrap>
+          <CollapsibleTitle text={strings.agent} theme={theme} open={agentsOpen} onPress={() => setAgentsOpen(!agentsOpen)} testID="filter-sheet-agents-toggle" />
+          {agentsOpen ? <>
+            {shown.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+            <ChipWrap>
+              {shown.agents.map((agent) => (
+                <Chip
+                  key={agent.id}
+                  option={agent}
+                  theme={theme}
+                  leading={<BrandMark provider={agent.id} size={16} tokens={taskTokens(theme)} />}
+                  hideCount
+                  onPress={() => setParams((p) => ({ ...p, providers: toggleItem(p.providers, agent.id) }))}
+                />
+              ))}
+            </ChipWrap>
+          </> : null}
+          <CollapsibleTitle text={strings.labels} theme={theme} open={labelsOpen} onPress={() => setLabelsOpen(!labelsOpen)} testID="filter-sheet-labels-toggle" />
+          {labelsOpen ? <>
+            {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+            <ChipWrap>
+              {shown.labels.map((label) => (
+                <Chip
+                  key={label.id}
+                  option={label}
+                  theme={theme}
+                  leading={<TagMark size={14} color={label.color ?? colors.foregroundMuted} hole={label.on ? taskTokens(theme).accentSoft : colors.surface0} />}
+                  onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
+                />
+              ))}
+            </ChipWrap>
+          </> : null}
           <SectionTitle text={strings.doneRange} theme={theme} />
           <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
           {props.laneWidth ? (
@@ -269,6 +275,15 @@ function SheetSearch(props: { value: string; onChange(text: string): void; place
 function SectionTitle({ text, theme, first }: { text: string; theme: PluginTheme; first?: boolean }) {
   return (
     <Text style={{ paddingTop: first ? 0 : 16, paddingBottom: 8, fontSize: F.sm, fontWeight: "500", color: theme.colors.foregroundMuted }}>{text}</Text>
+  );
+}
+
+function CollapsibleTitle(props: { text: string; theme: PluginTheme; open: boolean; onPress(): void; testID: string }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={props.text} accessibilityState={{ expanded: props.open }} onPress={props.onPress} testID={props.testID} style={{ paddingTop: 16, paddingBottom: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+      <Text style={{ fontSize: F.sm, fontWeight: "500", color: props.theme.colors.foregroundMuted }}>{props.text}</Text>
+      <Icon name={props.open ? "ChevronUp" : "ChevronDown"} size={16} color={props.theme.colors.foregroundMuted} />
+    </Pressable>
   );
 }
 

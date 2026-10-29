@@ -13,6 +13,7 @@ vi.mock("@getpaseo/plugin/client", () => ({ usePaseo: () => ({}), useRpc: () => 
 import { FilterSheetBody } from "../../client/tasks/board/filter-sheet";
 import { EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
+import type { FilterOptions } from "../../client/tasks/board/filter-options";
 import type { BoardController } from "../../client/tasks/board/use-board";
 
 const theme = {
@@ -35,10 +36,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function render(controller = board) {
+function render(controller = board, options: FilterOptions = { agents: [], labels: [], workspaceGroups: [] }) {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   act(() => {
-    renderer = TestRenderer.create(<FilterSheetBody board={controller} theme={theme} options={{ agents: [], labels: [], workspaceGroups: [] }} onDone={() => {}} />);
+    renderer = TestRenderer.create(<FilterSheetBody board={controller} theme={theme} options={options} onDone={() => {}} />);
   });
   return renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-scroll");
 }
@@ -58,6 +59,32 @@ describe("filter sheet reset", () => {
     act(() => reset.props.onPress());
     expect(setParams).toHaveBeenCalledOnce();
     expect(setParams.mock.calls[0]![0](params)).toEqual({ ...EMPTY_PARAMS, sort: params.sort });
+  });
+});
+
+describe("filter sheet groups", () => {
+  it("folds each group independently without changing selected filters", () => {
+    const params = { ...EMPTY_PARAMS, providers: ["codex"], labels: ["bug"] };
+    const setParams = vi.fn();
+    render({ ...board, params, setParams }, {
+      agents: [{ id: "codex", label: "Codex", count: 1, on: true }],
+      labels: [{ id: "bug", label: "bug", count: 1, on: true }],
+      workspaceGroups: [],
+    });
+    const toggle = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    const choices = () => renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
+    expect(choices()).toHaveLength(2);
+    act(() => toggle("filter-sheet-agents-toggle").props.onPress());
+    expect(toggle("filter-sheet-agents-toggle").props.accessibilityState.expanded).toBe(false);
+    expect(toggle("filter-sheet-labels-toggle").props.accessibilityState.expanded).toBe(true);
+    expect(choices()).toHaveLength(1);
+    act(() => toggle("filter-sheet-labels-toggle").props.onPress());
+    expect(choices()).toHaveLength(0);
+    act(() => toggle("filter-sheet-agents-toggle").props.onPress());
+    act(() => toggle("filter-sheet-labels-toggle").props.onPress());
+    expect(choices()).toHaveLength(2);
+    expect(choices().every((choice) => choice.props.accessibilityState.checked)).toBe(true);
+    expect(setParams).not.toHaveBeenCalled();
   });
 });
 
