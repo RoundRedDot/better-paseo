@@ -60,13 +60,14 @@ export function FilterSheetBody(props: {
   const resolved = resolveBoardParams(board.params, defaults);
   const shown = shownFilterOptions(options, board.showEmptyGroups);
   useRequestProjectIcons(iconlessProjects(shown.workspaceGroups), board.tasks.requestProjectIcon);
-  const [agentsOpen, setAgentsOpen] = useState(true);
-  const [labelsOpen, setLabelsOpen] = useState(true);
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const scrollRef = useRef<NativeScrollView>(null);
-  // Where the workspaces start in the scroll, and the scroller's height.
-  const [workspacesY, setWorkspacesY] = useState(0);
+  // Where the workspaces start in the scroll: read only when the search field
+  // takes focus. A ref, not state: it changes on every frame while a group
+  // folds, and a render per frame of the whole sheet drops the fold's frames.
+  const workspacesY = useRef(0);
+  // The scroller's height.
   const [viewport, setViewport] = useState(0);
   const groups = searchWorkspaceGroups(shown.workspaceGroups, query);
   // While searching, the workspaces fill the scroller at least, so their field
@@ -89,7 +90,7 @@ export function FilterSheetBody(props: {
         onLayout={(event: LayoutChangeEvent) => setViewport(event.nativeEvent.layout.height)}
         testID="filter-sheet-scroll"
       >
-        <View onLayout={(event: LayoutChangeEvent) => setWorkspacesY(event.nativeEvent.layout.height)} style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4 }}>
+        <View onLayout={(event: LayoutChangeEvent) => (workspacesY.current = event.nativeEvent.layout.height)} style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4 }}>
           {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
           {props.hideSubtasksToggle ? null : (
             <ToggleRow
@@ -124,8 +125,7 @@ export function FilterSheetBody(props: {
               testID="filter-sheet-empty-groups"
             />
           ) : null}
-          <CollapsibleTitle text={strings.agent} theme={theme} open={agentsOpen} onPress={() => setAgentsOpen(!agentsOpen)} testID="filter-sheet-agents-toggle" />
-          <CollapsibleContent open={agentsOpen} testID="filter-sheet-agents-content">
+          <CollapsibleGroup title={strings.agent} theme={theme} testID="filter-sheet-agents">
             {shown.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
             <ChipWrap>
               {shown.agents.map((agent) => (
@@ -140,9 +140,8 @@ export function FilterSheetBody(props: {
                 />
               ))}
             </ChipWrap>
-          </CollapsibleContent>
-          <CollapsibleTitle text={strings.labels} theme={theme} open={labelsOpen} onPress={() => setLabelsOpen(!labelsOpen)} testID="filter-sheet-labels-toggle" />
-          <CollapsibleContent open={labelsOpen} testID="filter-sheet-labels-content">
+          </CollapsibleGroup>
+          <CollapsibleGroup title={strings.labels} theme={theme} testID="filter-sheet-labels">
             {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
             <ChipWrap>
               {shown.labels.map((label) => (
@@ -156,7 +155,7 @@ export function FilterSheetBody(props: {
                 />
               ))}
             </ChipWrap>
-          </CollapsibleContent>
+          </CollapsibleGroup>
           <SectionTitle text={strings.doneRange} theme={theme} />
           <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
           {props.laneWidth ? (
@@ -189,7 +188,7 @@ export function FilterSheetBody(props: {
               // The keyboard covers the sheet's lower half, where the workspaces sit: bring the field to the top.
               onFocus={() => {
                 setSearching(true);
-                setTimeout(() => scrollRef.current?.scrollTo({ y: workspacesY, animated: true }), 0);
+                setTimeout(() => scrollRef.current?.scrollTo({ y: workspacesY.current, animated: true }), 0);
               }}
               onBlur={() => setSearching(false)}
             />
@@ -281,6 +280,23 @@ function SheetSearch(props: { value: string; onChange(text: string): void; place
 function SectionTitle({ text, theme, first }: { text: string; theme: PluginTheme; first?: boolean }) {
   return (
     <Text style={{ paddingTop: first ? 0 : 16, paddingBottom: 8, fontSize: F.sm, fontWeight: "500", color: theme.colors.foregroundMuted }}>{text}</Text>
+  );
+}
+
+/**
+ * A titled group that folds. It holds its own open state, so a fold renders
+ * the group alone: the sheet's other rows, often dozens of workspaces, stay
+ * as they are.
+ */
+function CollapsibleGroup({ title, theme, testID, children }: { title: string; theme: PluginTheme; testID: string; children: ReactNode }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <>
+      <CollapsibleTitle text={title} theme={theme} open={open} onPress={() => setOpen((value) => !value)} testID={`${testID}-toggle`} />
+      <CollapsibleContent open={open} testID={`${testID}-content`}>
+        {children}
+      </CollapsibleContent>
+    </>
   );
 }
 

@@ -10,6 +10,18 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   return { ScrollView: rn.ScrollView, TextInput: rn.TextInput, Icon: () => null };
 });
 vi.mock("@getpaseo/plugin/client", () => ({ usePaseo: () => ({}), useRpc: () => vi.fn() }));
+// Each render of the sheet body draws its done-range segments once: counting them counts the body's renders.
+const sheetRenders = vi.hoisted(() => ({ count: 0 }));
+vi.mock("../../client/tasks/board/board-parts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../client/tasks/board/board-parts")>();
+  return {
+    ...actual,
+    WindowSegments: (props: Parameters<typeof actual.WindowSegments>[0]) => {
+      sheetRenders.count++;
+      return actual.WindowSegments(props);
+    },
+  };
+});
 
 import { FilterSheetBody } from "../../client/tasks/board/filter-sheet";
 import { EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
@@ -90,6 +102,40 @@ describe("filter sheet groups", () => {
     expect(setParams).not.toHaveBeenCalled();
     expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1, duration: 180 }));
     timing.mockRestore();
+  });
+});
+
+describe("filter sheet group folding cost", () => {
+  it("folds a group and follows its height change without rendering the rest of the sheet", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const scrollTo = vi.fn();
+    const options: FilterOptions = {
+      agents: [{ id: "codex", label: "Codex", count: 1, on: false }],
+      labels: [{ id: "bug", label: "bug", count: 1, on: false }],
+      workspaceGroups: [{ projectId: "p", projectName: "Project", items: [{ id: "w", label: "main", count: 1, on: false }] }] as FilterOptions["workspaceGroups"],
+    };
+    act(() => {
+      renderer = TestRenderer.create(<FilterSheetBody board={board} theme={theme} options={options} onDone={() => {}} />, { createNodeMock: () => ({ scrollTo }) });
+    });
+    const find = (match: (props: Record<string, unknown>) => boolean) => renderer!.root.find((node) => typeof node.type === "string" && match(node.props));
+    const before = sheetRenders.count;
+    expect(before).toBeGreaterThan(0);
+
+    act(() => (find((props) => props.testID === "filter-sheet-agents-toggle").props.onPress as () => void)());
+    expect(find((props) => props.testID === "filter-sheet-agents-toggle").props.accessibilityState).toEqual({ expanded: false });
+    // While the group folds, the block above the workspaces reports a new height on every frame.
+    const top = find((props) => typeof props.onLayout === "function" && (props.style as { paddingHorizontal?: number } | undefined)?.paddingHorizontal === 16);
+    for (const height of [520, 470, 430]) act(() => (top.props.onLayout as (event: unknown) => void)({ nativeEvent: { layout: { height } } }));
+    expect(sheetRenders.count).toBe(before);
+
+    // The search still scrolls to where the workspaces start now.
+    const field = find((props) => props.accessibilityLabel === BOARD_STRINGS.en.sheetSearch);
+    act(() => (field.props.onFocus as () => void)());
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 430, animated: true });
   });
 });
 
