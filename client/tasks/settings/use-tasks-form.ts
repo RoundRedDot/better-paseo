@@ -97,11 +97,6 @@ export function useTasksForm() {
     if (enabled === null) await reset();
     else await commit({ ...DEFAULT_TASKS_SETTINGS, enabled });
   }, [reset, commit, enabled, device.restore]);
-  const restoreEnabledDefaults = useCallback(async () => {
-    if (settings.status !== "ready") return;
-    setTurnedOnHere(false);
-    await commit({ ...settings.values, enabled: DEFAULT_TASKS_SETTINGS.enabled });
-  }, [commit, settings]);
   const restoreCardDefaults = useCallback(async () => {
     if (settings.status !== "ready") return;
     setConflict(false);
@@ -133,7 +128,7 @@ export function useTasksForm() {
     if (enabled === false) setTurnedOnHere(false);
   }, [enabled]);
 
-  return { settings, titleLines: device.titleLines, setTitleLines, localError: localError ?? device.error, conflict, commit, setEnabled, restoreDefaults, restoreEnabledDefaults, restoreCardDefaults, restoreBoardDefaults, restoreSidebarDefaults, turnedOn: turnedOn && enabled === true };
+  return { settings, titleLines: device.titleLines, setTitleLines, localError: localError ?? device.error, conflict, commit, setEnabled, restoreDefaults, restoreCardDefaults, restoreBoardDefaults, restoreSidebarDefaults, turnedOn: turnedOn && enabled === true };
 }
 
 export type TasksForm = ReturnType<typeof useTasksForm>;

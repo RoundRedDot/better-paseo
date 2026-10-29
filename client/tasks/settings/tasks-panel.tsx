@@ -310,9 +310,9 @@ function ModuleResetRow({ module, strings, look, onRestore }: { module: string; 
 }
 
 /**
- * The Tasks half of the settings page: the switch, the preview, and the
- * options. Wide, board display options sit beside title generation under the
- * preview, so a switch and its effect share a screen.
+ * The Tasks half of the settings page: the switch, sidebar counts, preview,
+ * and the board options. Wide, board display options sit beside title
+ * generation under the preview, so a switch and its effect share a screen.
  */
 export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLook; theme: PluginTheme; side: boolean; hostId?: string }) {
   const { strings, language } = useStrings();
@@ -329,12 +329,6 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         ]}
       >
         <EnabledRow form={form} strings={strings} look={look} />
-        <ModuleResetRow
-          module={language === "zh" ? "任务看板" : "Tasks board"}
-          strings={strings}
-          look={look}
-          onRestore={() => void form.restoreEnabledDefaults()}
-        />
         {form.turnedOn ? <EnabledNotice strings={strings} look={look} /> : null}
       </View>
       {settings.status === "ready" ? (
@@ -588,10 +582,11 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
   return (
     <View style={styles.panel} testID="tasks-settings-panel">
       {switchSection}
+      {sidebar}
       <PreviewCard look={look} theme={theme} values={values} titleLines={titleLines} strings={strings} language={language} hostId={hostId} />
       {side ? (
         <View style={styles.columns}>
-          <View style={styles.column}>{cards}{board}{sidebar}</View>
+          <View style={styles.column}>{cards}{board}</View>
           <View style={styles.column}><TitleGenerationSettings look={look} />{reset}</View>
         </View>
       ) : (
@@ -599,7 +594,6 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
           {cards}
           <TitleGenerationSettings look={look} />
           {board}
-          {sidebar}
           {reset}
         </>
       )}

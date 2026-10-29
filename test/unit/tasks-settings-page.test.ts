@@ -156,14 +156,15 @@ describe("Tasks settings entry", () => {
 });
 
 describe("Tasks half of the settings page", () => {
-  it.each([false, true])("places the archived lane switch between enable and preview (compact=%s)", async (compact) => {
+  it.each([false, true])("places sidebar settings before preview and archive control with enable (compact=%s)", async (compact) => {
     const api = makeSettings();
     const r = panel(compact);
     const host = byTestID(r, "tasks-settings-panel")[0]!;
     const content = host.children as Node[];
     const switchSection = content[0]!;
     expect(textOf(switchSection)).toContain("Show the archived lane");
-    expect(content[1]!.findAll((node) => typeof node.type === "string" && node.props.testID === "tasks-preview-card")).toHaveLength(1);
+    expect(textOf(content[1]!)).toContain("Sidebar entry count");
+    expect(content[2]!.findAll((node) => typeof node.type === "string" && node.props.testID === "tasks-preview-card")).toHaveLength(1);
     expect(byLabel(r, "Show the archived lane").props["aria-checked"]).toBe(false);
     await act(async () => byLabel(r, "Show the archived lane").props.onPress());
     expect(api.save).not.toHaveBeenCalled();
@@ -417,7 +418,7 @@ describe("Tasks half of the settings page", () => {
     expect(textOf(r.root)).toContain("reloaded the latest");
   });
 
-  it("wide, puts the card options beside the board and sidebar ones", () => {
+  it("wide, keeps the option columns below the preview", () => {
     makeSettings();
     const r = panel(false, true);
     const host = r.root.find((node) => node.props.testID === "tasks-settings-panel");
