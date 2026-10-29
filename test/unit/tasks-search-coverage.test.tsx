@@ -194,3 +194,17 @@ it("returns from retrying to partial failure or fades out after complete success
   act(() => { vi.advanceTimersByTime(120); });
   expect(hosts("search-coverage-items")).toHaveLength(0);
 });
+
+it("uses the JS driver for both animations on the phone coverage row", () => {
+  const timing = vi.spyOn(Animated, "timing");
+  try {
+    const mounted = mount(state(), "zh", true);
+    timing.mockClear();
+    mounted.update(state(0, 1));
+    const rowAnimations = timing.mock.calls.filter(([, config]) => config.duration === 120 || config.duration === 160);
+    expect(rowAnimations.map(([, config]) => config.useNativeDriver)).toEqual([false, false]);
+    timing.mockClear();
+    mounted.update(state());
+    expect(timing.mock.calls.filter(([, config]) => config.duration === 120 || config.duration === 160).map(([, config]) => config.useNativeDriver)).toEqual([false, false]);
+  } finally { timing.mockRestore(); }
+});

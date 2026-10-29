@@ -24,7 +24,7 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
     if (!active) { setPresent(false); opacity.setValue(0); height.setValue(0); return; }
     if (visible) setPresent(true);
     const animation = Animated.parallel([
-      Animated.timing(opacity, { toValue: visible ? 1 : 0, duration: 120, useNativeDriver: Platform.OS !== "web", isInteraction: false }),
+      Animated.timing(opacity, { toValue: visible ? 1 : 0, duration: 120, useNativeDriver: false, isInteraction: false }),
       Animated.timing(height, { toValue: visible ? 1 : 0, duration: 160, useNativeDriver: false, isInteraction: false }),
     ]);
     const timer = setTimeout(() => { if (!visible) setPresent(false); }, props.phone ? 160 : 120);
