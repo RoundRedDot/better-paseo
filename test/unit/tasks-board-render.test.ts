@@ -378,10 +378,11 @@ describe("Tasks search coverage and centred toolbar", () => {
     const field = hostsById("desktop-toolbar-search")[0]!;
     expect(field.findAll((node) => node.props.testID === "search-full-conversation-toggle")).toHaveLength(0);
     const toggle = hostsById("search-full-conversation-toggle")[0]!;
-    expect(toggle.props.dataSet?.bctip).toBe(`${BOARD_STRINGS.en.fullConversationSearch}\n${BOARD_STRINGS.en.fullConversationHint}`);
+    expect(toggle.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(false));
     expect(toggle.props.accessibilityState.selected).toBe(false);
     act(() => toggle.props.onPress());
     expect(hostsById("search-full-conversation-toggle")[0]!.props.accessibilityState.selected).toBe(true);
+    expect(hostsById("search-full-conversation-toggle")[0]!.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(true));
   });
   it.each(["en", "zh"] as const)("shows all six toolbar shortcuts in %s hover tips without a sidebar key hint", (language) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
@@ -3427,7 +3428,7 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById("filter-sheet-archived")[0]!.props.accessibilityState.checked).toBe(true);
   });
 
-  it("web switches between hierarchy and flat list icons for subtask visibility", () => {
+  it("web switches between hierarchy and tree list icons for subtask visibility", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -3452,7 +3453,7 @@ describe("Tasks board, tablet filters", () => {
     expect(lastBoardParams("host-1")).toMatchObject({ hideSubtasks: null });
     expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(true);
     expect(toggle().props.accessibilityState).toEqual({ checked: false });
-    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("List");
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("ListTree");
     expect(slashed()).toBe(false);
     // Only the icon changes: the outline and fill stay.
     expect(look()).toMatchObject(on);

@@ -417,7 +417,7 @@ function DesktopFilterBarView(props: {
   ];
   const subtasksSwitch = (
     <BarSwitch
-      icon={resolved.filters.hideSubtasks ? "List" : "Network"}
+      icon={resolved.filters.hideSubtasks ? "ListTree" : "Network"}
       on={!resolved.filters.hideSubtasks}
       badge={board.hiddenSubtasks}
       onPress={() => setParams((p) => ({ ...p, hideSubtasks: !(p.hideSubtasks ?? defaults.hideSubtasks) }))}

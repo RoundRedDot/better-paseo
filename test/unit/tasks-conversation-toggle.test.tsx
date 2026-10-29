@@ -33,6 +33,7 @@ describe("full conversation switch", () => {
     expect(toggle.findAll((node) => node.props.name === "List")).not.toHaveLength(0);
   });
   it.each(["en", "zh"] as const)("defaults off, toggles incrementally and releases results on clear (%s)", async (language) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const card = { ...sampleCards()[0]!, id: "target-task", closed: false };
     const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: id === card.lane ? [card] : [], hasMore: false, loading: false }])) as Record<LaneId, LaneModel>;
     const refetch = vi.fn(async () => ({ error: null, entries: [{ item: { type: "user_message", text: "first prompt" } }] }));
@@ -50,18 +51,20 @@ describe("full conversation switch", () => {
       const conversation = useSearchConversations(api, lanes, full ? query : "");
       const search = full ? conversation : first;
       shown = search.messages;
-      return <SearchCoverageProvider status={search.status} query={query} total={shown.size} strings={full ? BOARD_STRINGS[language].conversationSearchCoverage : BOARD_STRINGS[language].searchCoverage} fullConversation={full} onFullConversationChange={setFull} fullConversationLabel={BOARD_STRINGS[language].fullConversationSearch} fullConversationHint={BOARD_STRINGS[language].fullConversationHint}>
+      return <SearchCoverageProvider status={search.status} query={query} total={shown.size} strings={full ? BOARD_STRINGS[language].conversationSearchCoverage : BOARD_STRINGS[language].searchCoverage} fullConversation={full} onFullConversationChange={setFull} fullConversationLabel={BOARD_STRINGS[language].fullConversationSearch} fullConversationHint={BOARD_STRINGS[language].fullConversationHint(full)}>
         <SearchInput value={query} onChangeText={setQuery} iconSize={13} iconColor="#777777" />
         <FullConversationSwitch theme={{ colors: { accent: "blue", accentForeground: "white", surface0: "white", surface2: "gray", border: "gray", foregroundMuted: "gray" } } as never} />
       </SearchCoverageProvider>;
     }
     act(() => { tree = TestRenderer.create(<Probe />); });
     expect(nodes("search-full-conversation-toggle")[0]!.props.accessibilityState.selected).toBe(false);
+    expect(nodes("search-full-conversation-toggle")[0]!.props.dataSet.bctip).toBe(BOARD_STRINGS[language].fullConversationHint(false));
     await act(async () => { await vi.advanceTimersByTimeAsync(600); });
     expect(load).not.toHaveBeenCalled();
     expect(refetch).toHaveBeenCalledTimes(1);
     act(() => nodes("search-full-conversation-toggle")[0]!.props.onPress());
     expect(nodes("search-full-conversation-toggle")[0]!.props.accessibilityState.selected).toBe(true);
+    expect(nodes("search-full-conversation-toggle")[0]!.props.dataSet.bctip).toBe(BOARD_STRINGS[language].fullConversationHint(true));
     expect(nodes("search-full-conversation-toggle")[0]!.findAll((node) => node.props.name === "FileText")).not.toHaveLength(0);
     await act(async () => { await vi.advanceTimersByTimeAsync(600); });
     expect(load).toHaveBeenCalledWith({ agentId: card.id, query: "target" });
