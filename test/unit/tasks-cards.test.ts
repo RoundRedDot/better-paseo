@@ -121,7 +121,7 @@ import type { TitleUpdateState } from "../../shared/title-generation";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { FLASH } from "../../client/tasks/board/breathing";
-import { FOLD_DOT_MARGIN, FOLD_GAP, FOLD_TINT, FOLD_UNDER_RING, MARK_DOT, MARK_DOT_BOX, markHue, markRest, OVERLAY_ROW_Z, ringNudge, warningCorner } from "../../client/tasks/cards/task-card";
+import { FOLD_GAP, FOLD_TINT, MARK_DOT, MARK_DOT_BOX, markHue, markRest, OVERLAY_ROW_Z, ringNudge, warningCorner } from "../../client/tasks/cards/task-card";
 import { SubtaskRow, SubtaskMetadata } from "../../client/tasks/cards/subtask-row";
 import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
@@ -240,15 +240,12 @@ describe("unavailable task operations", () => {
     }
     const edge = flat(hostByTestId(tree.root, "task-card-cut-edge").props.style);
     expect(edge).toMatchObject({ borderRadius: 1, transform: [{ rotate: "45deg" }] });
-    const ring = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "context-ring").length > 0;
-    const { size } = warningCorner({ padTop: 10 }, 16, 1, 1, ring);
-    expect(size).toBe(18);
-    expect(edge.width).toBeCloseTo((size + 2) * Math.SQRT2);
+    expect(edge.width).toBeCloseTo((12 + 2) * Math.SQRT2);
     expect(edge.height).toBe(edge.width);
     // The folded flap: flat, outlined on its two inner legs, its tip at the card's radius.
     const fold = () => flat(hostByTestId(tree.root, "task-card-fold").props.style);
     expect(fold()).toMatchObject({
-      width: size, height: size, transform: [{ rotate: "-45deg" }],
+      width: 12, height: 12, transform: [{ rotate: "-45deg" }],
       backgroundColor: mix(tokens.card.background, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light),
       borderColor: tokens.card.border, borderLeftWidth: 1, borderBottomWidth: 1, borderBottomLeftRadius: 8,
     });
@@ -261,13 +258,11 @@ describe("unavailable task operations", () => {
     expect(dot.borderRadius).toBe((dot.width as number) / 2);
     expect((dot.width as number) * (dot.transform as Array<{ scale: number }>)[0]!.scale).toBe(MARK_DOT.size);
     const centre = (dot.top as number) + (dot.width as number) / 2;
-    // The dot sits on the flap, between its crease and its rounded tip, both measured from the outer corner.
-    expect((centre + 1) * Math.SQRT2 - MARK_DOT.size / 2 - size / Math.SQRT2).toBeGreaterThanOrEqual(FOLD_DOT_MARGIN);
-    expect((size - 8) * Math.SQRT2 + 8 - (centre + 1) * Math.SQRT2 - MARK_DOT.size / 2).toBeGreaterThanOrEqual(FOLD_DOT_MARGIN);
+    expect(centre * Math.SQRT2 - MARK_DOT.size / 2).toBeGreaterThan((12 - 8) * Math.SQRT2 + 8);
     const order = rows(tree.root, "sample-child-1");
     expect(order.indexOf("task-card-cut-surface")).toBeLessThan(order.indexOf("task-card-subtask-mark"));
     await act(async () => root.props.onHoverIn());
-    expect(String(flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style).backgroundColor)).toBe(markHue(card.location, "host-1", tokens, [mix(tokens.card.hoverBackground, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light)]));
+    expect(String(flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style).backgroundColor)).toBe(markHue(card.location, "host-1", tokens, [tokens.card.hoverBackground]));
     for (const part of ["body", "top", "edge"]) {
       expect(flat(hostByTestId(tree.root, `task-card-cut-${part}`).props.style)).toMatchObject({ backgroundColor: tokens.card.hoverBackground, boxShadow: tokens.card.shadowHover });
     }
@@ -339,67 +334,39 @@ describe("unavailable task operations", () => {
     expect(flat(hostByTestId(tree.root, `task-card-${card.id}`).props.style).zIndex).toBe(1);
   });
 
-  it("scales the fold around the dot's place and lets its tip tuck only a little under the context ring", async () => {
-    // The small fold the dot was placed by, and the dot's place: midway between that flap's tip and the ring.
-    const smallFold = (padTop: number, line: number, scale: number) => {
-      const ringEdge = (padTop + Math.round(line * scale) / 2) * Math.SQRT2 - 7;
-      return Math.min(Math.round(12 * scale + padTop - 10), Math.floor((ringEdge - MARK_DOT.size - 2 * FOLD_GAP - 8) / Math.SQRT2 + 8));
-    };
-    const placedDot = (padTop: number, line: number, scale: number) => {
-      const ringEdge = (padTop + Math.round(line * scale) / 2) * Math.SQRT2 - 7;
-      return ((smallFold(padTop, line, scale) - 8) * Math.SQRT2 + 8 + ringEdge) / (2 * Math.SQRT2);
-    };
+  it("scales a small fold and keeps the dot between its flap's tip and the context ring", async () => {
     for (const padTop of [10, 12]) {
       for (const line of [16, 18, 20]) {
         for (const scale of [0.85, 1, 15 / 14, 1.25, 1.5, 2]) {
-          for (const border of [1 / 3, 0.5, 1]) {
-            for (const ring of [true, false]) {
-              // The dot and the ring sit inside the border; the fold is drawn from the outer edge.
-              const ringEdge = (padTop + Math.round(line * scale) / 2) * Math.SQRT2 - 7;
-              const outerRingEdge = (padTop + Math.round(line * scale) / 2 + border) * Math.SQRT2 - 7;
-              const { size, hit, dot } = warningCorner({ padTop }, line, scale, border, ring);
-              // Along the diagonal from the outer corner: the crease, and the flap's rounded tip.
-              const crease = size / Math.SQRT2;
-              const tip = (size - 8) * Math.SQRT2 + 8;
-              const centre = (dot + border) * Math.SQRT2;
-              expect(Number.isInteger(size) && Number.isInteger(hit)).toBe(true);
-              expect(dot).toBeCloseTo(placedDot(padTop, line, scale));
-              expect(size).toBeGreaterThanOrEqual(smallFold(padTop, line, scale) + 3);
-              expect(centre - MARK_DOT.size / 2 - crease).toBeGreaterThanOrEqual(FOLD_DOT_MARGIN);
-              expect(tip - centre - MARK_DOT.size / 2).toBeGreaterThanOrEqual(FOLD_DOT_MARGIN);
-              expect(ringEdge - dot * Math.SQRT2 - MARK_DOT.size / 2).toBeGreaterThanOrEqual(FOLD_GAP - 1e-9);
-              if (ring) expect(tip - outerRingEdge).toBeLessThanOrEqual(FOLD_UNDER_RING + 1e-9);
-              expect(hit).toBeGreaterThanOrEqual(size);
-              expect(hit / Math.SQRT2).toBeLessThanOrEqual(ringEdge - 1);
-            }
-          }
+          const ringEdge = (padTop + Math.round(line * scale) / 2) * Math.SQRT2 - 7;
+          const { size, hit, dot } = warningCorner({ padTop }, line, scale);
+          // The flap's rounded tip, along the diagonal from the corner.
+          const tip = (size - 8) * Math.SQRT2 + 8;
+          const centre = dot * Math.SQRT2;
+          expect(Number.isInteger(size) && Number.isInteger(hit)).toBe(true);
+          expect(centre - MARK_DOT.size / 2 - tip).toBeGreaterThanOrEqual(FOLD_GAP - 1e-9);
+          expect(ringEdge - centre - MARK_DOT.size / 2).toBeGreaterThanOrEqual(FOLD_GAP - 1e-9);
+          expect(centre - tip).toBeCloseTo(ringEdge - centre);
+          expect(hit).toBeGreaterThanOrEqual(size);
+          expect(hit / Math.SQRT2).toBeLessThanOrEqual(ringEdge - 1);
         }
       }
     }
-    // The default sizes, with a 1 pt border: desktop by a meta or title row; phone by a meta row beside a ring, without one, and by a title row.
-    expect([
-      warningCorner({ padTop: 10 }, 16, 1, 1, true).size, warningCorner({ padTop: 10 }, 20, 1, 1, true).size,
-      warningCorner({ padTop: 12 }, 16, 1, 1, true).size, warningCorner({ padTop: 12 }, 16, 1, 1, false).size, warningCorner({ padTop: 12 }, 20, 1, 1, true).size,
-    ]).toEqual([18, 18, 20, 21, 21]);
-    // The dot keeps the place it had beside the 12 pt fold.
-    expect(warningCorner({ padTop: 10 }, 16, 1).dot).toBeCloseTo(11.354, 2);
-    expect(warningCorner({ padTop: 10 }, 18, 1).dot).toBeCloseTo(11.854, 2);
+    expect(warningCorner({ padTop: 10 }, 16, 1).size).toBe(12);
+    expect(warningCorner({ padTop: 12 }, 16, 1).size).toBe(14);
     const card = { ...sample("sample-child-1"), availability: unavailableTask({ code: "workspace_unavailable", detail: null }) };
     const dotCentre = (tree: ReactTestRenderer) => {
       const dot = flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style);
       return [(dot.top as number) + (dot.width as number) / 2, (dot.right as number) + (dot.width as number) / 2];
     };
     const tree = await render(cardElement(card, { compact: true }));
+    expect(flat(hostByTestId(tree.root, "task-card-cut-edge").props.style).width).toBeCloseTo((14 + 2) * Math.SQRT2);
     const phone = warningCorner({ padTop: 12 }, 16, 1);
-    const phoneFold = flat(hostByTestId(tree.root, "task-card-fold").props.style).width as number;
-    expect([20, 21]).toContain(phoneFold);
-    expect(flat(hostByTestId(tree.root, "task-card-cut-edge").props.style).width).toBeCloseTo((phoneFold + 2) * Math.SQRT2);
     expect(dotCentre(tree)).toEqual([phone.dot, phone.dot]);
     await act(async () => tree.update(React.createElement(TasksTypographyScale, { factor: 1.5, children: cardElement(card) })));
     const large = warningCorner({ padTop: 10 }, 16, 1.5);
-    const largeFold = flat(hostByTestId(tree.root, "task-card-fold").props.style).width as number;
-    expect(largeFold).toBeGreaterThan(18);
-    expect(flat(hostByTestId(tree.root, "task-card-cut-edge").props.style).width).toBeCloseTo((largeFold + 2) * Math.SQRT2);
+    expect(flat(hostByTestId(tree.root, "task-card-cut-edge").props.style).width).toBeCloseTo((large.size + 2) * Math.SQRT2);
+    expect(large.size).toBeGreaterThan(12);
     expect(dotCentre(tree)).toEqual([large.dot, large.dot]);
     await act(async () => tree.update(cardElement(sample("sample-child-1"))));
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-availability-corner")).toHaveLength(0);

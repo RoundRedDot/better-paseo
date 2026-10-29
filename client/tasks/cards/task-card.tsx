@@ -440,7 +440,7 @@ const CARD_RADIUS = 8;
  * top and right edges are nearest: its edge keeps 7 pt clear of both (7.5
  * along the diagonal). The context ring sits on the same diagonal
  * (`ringNudge`), about 4 pt beyond it on a desktop card. On a folded card the
- * dot sits on the flap, just short of the context ring (`warningCorner`).
+ * dot sits between the flap's tip and the context ring (`warningCorner`).
  */
 export const MARK_DOT = { size: 3.5, inset: 8.75 } as const;
 /**
@@ -722,12 +722,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A subtask's card (a Paseo agent with a parent, or a provider subagent's dashed card) marks its
   // top-right corner in its project's colour. Grey at rest; the project's colour while the card is
   // hovered, chosen in the sidebar or focused.
-  // An unavailable card folds its top-right corner over; its dot sits on the flap.
+  // An unavailable card folds its top-right corner over; its dot stays on the card, past the flap.
   const issue = shownIssue(card.availability?.issue);
-  const fold = issue ? mix(background, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light) : null;
   const markActive = lit || props.current || props.focused;
   const cornerMark = card.parent !== null
-    ? markActive ? markHue(card.location, props.hostId, tokens, fold ? [fold] : undefined) : markRest(tokens, fold ?? background)
+    ? markActive ? markHue(card.location, props.hostId, tokens, issue ? [background] : undefined) : markRest(tokens, background)
     : null;
   const shadows = lit ? [look.shadowHover] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
@@ -775,12 +774,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   if (layout.workspace && location.workspaceName) metaParts.push(location.workspaceName);
   const metaText = query ? searchBreadcrumb(layout.project ? location.projectName ?? "" : "", layout.workspace ? location.workspaceName ?? "" : "", query, metaWidth ? Math.floor(metaWidth / (m.metaSize * scale * 0.65)) : 35) : metaParts.join(SEPARATOR);
   const hasMeta = metaText !== "" || card.parent !== null;
+  const corner = issue ? warningCorner(m, hasMeta ? m.metaLine : m.titleLine, scale) : null;
 
   // The context ring at the top right: on the meta row, or on the title row
   // when the meta row has nothing to say. Its details card opens downwards
   // over the rows below, so the ring's row is raised above them while it shows.
   const ratio = contextRatio(card.context);
-  const corner = issue ? warningCorner(m, hasMeta ? m.metaLine : m.titleLine, scale, borderWidth, Boolean(layout.context && ratio !== null && card.context)) : null;
   const ringFor = (line: number) =>
     layout.context && ratio !== null && card.context ? (
       <ContextMeter
@@ -1500,7 +1499,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         style={cardStyle}
         testID={`task-card-${card.id}`}
       >
-        {corner ? <CutCardSurface size={corner.size} radius={CARD_RADIUS} background={background} borderColor={borderColor} borderWidth={borderWidth} dashed={dashed} shadow={shadow} fold={fold ?? background} /> : null}
+        {corner ? <CutCardSurface size={corner.size} radius={CARD_RADIUS} background={background} borderColor={borderColor} borderWidth={borderWidth} dashed={dashed} shadow={shadow} fold={mix(background, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light)} /> : null}
         {issue && corner ? (
           <AvailabilityCorner
             issue={issue}
@@ -1768,39 +1767,24 @@ export function ringNudge(m: Pick<Metrics, "padH" | "padTop">, line: number, sca
 
 /** The folded flap's fill: the card's fill this far towards the foreground. */
 export const FOLD_TINT = { light: 0.06, dark: 0.09 } as const;
-/** The least room between the subtask dot and the context ring, and the dot and the small fold that places it. */
+/** The least room between the subtask dot and the flap's tip, and the dot and the context ring. */
 export const FOLD_GAP = 0.6;
-/** The fold drawn, against the small fold that places the dot. */
-export const FOLD_GROWTH = 1.5;
-/** How far the flap's tip may tuck under the context ring's near edge. */
-export const FOLD_UNDER_RING = 2.5;
-/** The least room between the subtask dot and the flap's crease or tip. */
-export const FOLD_DOT_MARGIN = 1.5;
 
 /**
- * The fold and the subtask dot, from the same metrics as the ring. Along the
- * diagonal a fold of `size` creases at size / sqrt 2 and its flap's tip,
- * keeping the card's radius, reaches (size - radius) * sqrt 2 + radius.
- * The dot (inside the border, as the ring) keeps its place midway between the
- * ring and the tip of a small fold: 12 pt at the default desktop size, kept
- * FOLD_GAP clear of both. The fold drawn (from the card's outer edge,
- * `border` further out) is FOLD_GROWTH times the small one, so the dot sits
- * on its flap, and at least FOLD_DOT_MARGIN short of its tip; beside a
- * shown ring its tip may tuck under the ring by FOLD_UNDER_RING, no further. At the default size: 18 pt by a desktop row,
- * 21 by a phone's title row. The hint target stops 1 pt short of the ring, so
- * the ring keeps its own hover.
+ * A small fold scales with the interface; its flap's tip keeps the card's
+ * radius, so along the diagonal it reaches (size - radius) * sqrt 2 + radius,
+ * about twice as far as the cut. The ring moves in more slowly, so the fold
+ * stops growing where the dot would no longer fit between them. The subtask
+ * dot stays midway between that tip and the context ring; the hint target
+ * stops 1 pt short of the ring.
  */
-export function warningCorner(m: Pick<Metrics, "padTop">, line: number, scale: number, border = 0, ring = true): { size: number; hit: number; dot: number } {
-  const centre = m.padTop + Math.round(line * scale) / 2;
-  const ringEdge = centre * Math.SQRT2 - CONTEXT_RING_BITMAPS.card.size / 2;
+export function warningCorner(m: Pick<Metrics, "padTop">, line: number, scale: number): { size: number; hit: number; dot: number } {
+  const ring = m.padTop + Math.round(line * scale) / 2;
+  const ringEdge = ring * Math.SQRT2 - CONTEXT_RING_BITMAPS.card.size / 2;
   const room = ringEdge - MARK_DOT.size - 2 * FOLD_GAP;
-  const small = Math.min(Math.round(12 * scale + m.padTop - DESKTOP.padTop), Math.floor((room - CARD_RADIUS) / Math.SQRT2 + CARD_RADIUS));
-  const dot = ((small - CARD_RADIUS) * Math.SQRT2 + CARD_RADIUS + ringEdge) / (2 * Math.SQRT2);
-  // Sizes whose tip reaches `along` the diagonal from the outer corner.
-  const reaching = (along: number) => (along - CARD_RADIUS) / Math.SQRT2 + CARD_RADIUS;
-  const covering = Math.ceil(reaching((dot + border) * Math.SQRT2 + MARK_DOT.size / 2 + FOLD_DOT_MARGIN));
-  const tucked = ring ? Math.floor(reaching((centre + border) * Math.SQRT2 - CONTEXT_RING_BITMAPS.card.size / 2 + FOLD_UNDER_RING)) : Infinity;
-  return { size: Math.min(Math.max(Math.round(small * FOLD_GROWTH), covering), tucked), hit: Math.floor((ringEdge - 1) * Math.SQRT2), dot };
+  const size = Math.min(Math.round(12 * scale + m.padTop - DESKTOP.padTop), Math.floor((room - CARD_RADIUS) / Math.SQRT2 + CARD_RADIUS));
+  const tip = (size - CARD_RADIUS) * Math.SQRT2 + CARD_RADIUS;
+  return { size, hit: Math.floor((ringEdge - 1) * Math.SQRT2), dot: (tip + ringEdge) / (2 * Math.SQRT2) };
 }
 
 /**
