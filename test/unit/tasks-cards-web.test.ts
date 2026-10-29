@@ -959,7 +959,7 @@ describe("TaskCardView hover hints", () => {
       const keys = root
         .findAll((node) => typeof node.type === "string" && node.props.dataSet?.bchint !== undefined)
         .map((node) => node.props.dataSet.bchint as string);
-      expect(keys).toEqual(expect.arrayContaining(["project", "location", "status", "model", "branch", "subtasks", "started", "timer"]));
+      expect(keys).toEqual(expect.arrayContaining(["project", "location", "status", "title", "model", "branch", "subtasks", "started", "timer"]));
 
       const hint = () => root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-hint");
       const show = async (key: string, box: { left: number; top: number; width: number; height: number }) => {
@@ -977,6 +977,7 @@ describe("TaskCardView hover hints", () => {
       expect(await show("model", { left: 112, top: 140, width: 100, height: 20 })).toBe("模型：Codex GPT-5.5 Codex\n思考强度：Medium\n点击复制");
       expect(texts(root.find((node) => typeof node.type === "string" && node.props.testID === "agent-pill-thinking"))).toEqual(["Medium"]);
       expect(await show("status", { left: 112, top: 80, width: 16, height: 20 })).toBe("状态：运行中");
+      expect(await show("title", { left: 134, top: 80, width: 260, height: 40 })).toBe(props("sample-running").card.title);
       expect(await show("timer", { left: 180, top: 230, width: 60, height: 18 })).toBe("本轮已运行：12m 30s");
       expect(await show("subtasks", { left: 112, top: 166, width: 80, height: 20 })).toBe("3 个子任务：2 运行中 · 1 已完成");
 

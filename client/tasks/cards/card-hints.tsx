@@ -215,7 +215,7 @@ function HintLayer(props: {
       ]}
       testID={props.testID}
     >
-      <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.color }}>
+      <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.color, ...(Platform.OS === "web" ? { overflowWrap: "anywhere" } : null) }}>
         {shortcut ? <>{shortcut[1]}<Text style={{ fontFamily: TASK_MONO }}>{shortcut[2]}</Text>{shortcut[3]}</> : shown.text}
       </Text>
     </View>

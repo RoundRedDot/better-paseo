@@ -942,6 +942,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         onLayout={titleClip.onLayout}
         onTextLayout={titleClip.onTextLayout}
         testID="task-card-title"
+        {...hintProps(hint("title", () => shownTitle))}
       >
         {mark(shownTitle)}
       </Text>}
