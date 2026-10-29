@@ -33,7 +33,7 @@ export function previewLanes(now: number, language: TasksLanguage): Record<LaneI
  * from the made-up agents in `sample-cards.ts`, with the density and field
  * switches being edited. Static: it reads no agents, opens no subscription
  * and sends nothing (the data layer is never imported here), its times are
- * frozen at mount, and its buttons do nothing. Desktop and tablet previews
+ * frozen at mount, and its action buttons do nothing. Copyable pills copy their sample values. Desktop and tablet previews
  * keep the real board's lane widths and scroll sideways when needed; only
  * the phone preview draws one lane under tabs.
  */
@@ -79,7 +79,6 @@ export function TasksBoardPreview(props: {
       hostId={props.hostId}
       onReveal={noop}
       animated={false}
-      copyable={false}
     />
   );
 

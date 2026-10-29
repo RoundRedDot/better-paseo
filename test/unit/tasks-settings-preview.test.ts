@@ -9,7 +9,7 @@ import React from "react";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const spy = vi.hoisted(() => ({ dataLoaded: false, dataCalls: [] as string[], hostCalls: [] as string[] }));
+const spy = vi.hoisted(() => ({ dataLoaded: false, dataCalls: [] as string[], hostCalls: [] as string[], copyText: vi.fn(async (_text: string) => {}), show: vi.fn() }));
 
 vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -23,7 +23,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const react = await import("react");
   return {
     Icon: (props: Record<string, unknown>) => react.createElement("Icon", props),
-    useToast: () => (spy.hostCalls.push("useToast"), { show() {} }),
+    copyText: spy.copyText,
+    useToast: () => ({ show: spy.show, error: vi.fn() }),
   };
 });
 // Every host hook a board reader would reach for; the preview calls none.
@@ -100,6 +101,20 @@ beforeEach(() => {
 });
 
 describe("Tasks board preview", () => {
+  it("copies sample labels and other copyable pills", async () => {
+    spy.copyText.mockClear();
+    spy.show.mockClear();
+    const r = draw({ values: applyDensity(DEFAULT_TASKS_SETTINGS, "full") }, 1400);
+    const label = byTestID(r.root, "pill-label-frontend")[0]!;
+    expect(label.props.accessibilityRole).toBe("button");
+    await act(async () => label.props.onHoverIn());
+    expect(StyleSheet.flatten(label.props.style).backgroundColor).toBe("transparent");
+    await act(async () => label.props.onPress());
+    expect(spy.copyText).toHaveBeenCalledWith("frontend");
+    expect(spy.show).toHaveBeenCalledWith("Copied label name");
+    await act(async () => byTestID(r.root, "pill-branch")[0]!.props.onPress());
+    expect(spy.copyText).toHaveBeenLastCalledWith("feat/tasks-board");
+  });
   it.each(["narrow", "default", "wide"] as const)("keeps %s preview lane widths across archived switches", (laneWidth) => {
     for (const width of [540, 1120, 1300, 1600, 2000]) {
       const off = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, laneWidth } };
