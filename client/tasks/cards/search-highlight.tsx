@@ -203,15 +203,14 @@ export function SearchHitSummary(props: {
       {full ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Icon name={ICONS[hit.field]} size={13} color={tokens.foregroundMuted} />
-          <Text style={{ fontSize: 12, lineHeight: 18, color: tokens.foregroundMuted }}>
+          <Text style={{ fontSize: 12, lineHeight: 18, color: tokens.foregroundMuted, fontWeight: "600" }}>
             {strings.fields[hit.field]}
-            {hit.visible ? ` · ${strings.visible}` : ""}
           </Text>
         </View>
       ) : (
         <>
           <Icon name={ICONS[hit.field]} size={13} color={tokens.foregroundMuted} />
-          <Text style={{ fontSize: 12, lineHeight: 18, color: tokens.foregroundMuted }}>{strings.fields[hit.field]}</Text>
+          <Text style={{ fontSize: 12, lineHeight: 18, color: tokens.foregroundMuted, fontWeight: "600" }}>{strings.fields[hit.field]}</Text>
         </>
       )}
       <Text

@@ -136,7 +136,11 @@ describe("card search rendering", () => {
     const stopPropagation = vi.fn();
     await act(async () => host(root, "task-search-summary-trigger").props.onPress({ stopPropagation }));
     expect(stopPropagation).toHaveBeenCalledOnce();
-    expect(text(host(root, "task-search-expanded"))).toContain("卡片上可见");
+    const expanded = host(root, "task-search-expanded");
+    expect(text(expanded)).not.toContain("卡片上可见");
+    for (const label of ["标题", "首条消息", "路径"]) {
+      expect(expanded.findAll((node) => typeof node.type === "string" && text(node) === label && node.props.style?.fontWeight === "600").length).toBeGreaterThan(0);
+    }
   });
   it("shows one summary row with overflow on phones and replaces the timer for minimal density", async () => {
     const root = await mount(
