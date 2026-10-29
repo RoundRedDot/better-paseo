@@ -41,6 +41,13 @@ describe("preferences v2 defaults", () => {
     expect(parsePreferences({ hoverPreview: false }).hoverPreview).toBe(false);
     expect(parsePreferences({ hoverPreview: "no" }).hoverPreview).toBe(true);
   });
+  it("keeps the chat on for old records and preserves an explicit opt-out", () => {
+    expect(DEFAULT_PREFERENCES.chatEnabled).toBe(true);
+    const { chatEnabled: _chat, ...older } = storedPart(DEFAULT_PREFERENCES);
+    expect(parsePreferences(older).chatEnabled).toBe(true);
+    expect(parsePreferences({ chatEnabled: false }).chatEnabled).toBe(false);
+    expect(parsePreferences({ chatEnabled: "no" }).chatEnabled).toBe(true);
+  });
   it("defaults the hover delay to one second and keeps a typed value to a tenth, within 0-10", () => {
     expect(HOVER_DELAY_DEFAULT).toBe(1);
     expect(DEFAULT_PREFERENCES.hoverDelaySeconds).toBe(1);
