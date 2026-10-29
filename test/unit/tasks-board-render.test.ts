@@ -378,6 +378,8 @@ describe("Tasks search coverage and centred toolbar", () => {
     const field = hostsById("desktop-toolbar-search")[0]!;
     expect(field.findAll((node) => node.props.testID === "search-full-conversation-toggle")).toHaveLength(0);
     const toggle = hostsById("search-full-conversation-toggle")[0]!;
+    // The fixture uses a 15/14 font scale, so the 26-point button rounds to 28.
+    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ width: 28, height: 28, borderRadius: 14 });
     expect(toggle.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(false));
     expect(toggle.props.accessibilityState.selected).toBe(false);
     act(() => toggle.props.onPress());

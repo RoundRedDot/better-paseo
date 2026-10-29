@@ -3,7 +3,7 @@ import { AccessibilityInfo, Animated, Platform, Pressable, View, type TextInput 
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { SearchCoverageControl } from "../data/search-first-prompts";
 import type { BoardStrings } from "./strings";
-import { TaskText as Text } from "../typography";
+import { TaskText as Text, taskControlHeight, useTasksFontScale } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { tipProps } from "../cards/card-hints";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -139,12 +139,15 @@ const OUTLINE_SEARCH_ICON: PluginIcon = {
 
 export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme; compact?: boolean }) {
   const { context } = useSearchCoverage();
+  const scale = useTasksFontScale();
+  const size = !compact && Platform.OS === "web" ? taskControlHeight(26, scale) : compact ? 36 : 32;
+  const iconSize = !compact && Platform.OS === "web" ? taskControlHeight(16, scale) : 16;
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);
   if (!context?.onFullConversationChange) return null;
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
     accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={toggle} hitSlop={4}
-    style={{ flexShrink: 0, width: compact ? 36 : 32, height: compact ? 36 : 32, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: compact ? 18 : 16, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0 }}>
-    <Icon icon={on ? FULL_TEXT_SEARCH_ICON : OUTLINE_SEARCH_ICON} size={16} color={theme.colors.foreground} />
+    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: size / 2, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0 }}>
+    <Icon icon={on ? FULL_TEXT_SEARCH_ICON : OUTLINE_SEARCH_ICON} size={iconSize} color={theme.colors.foreground} />
   </Pressable>;
 }
