@@ -148,6 +148,19 @@ describe.each(["web", "ios", "android"])("code wrapping on %s", (os) => {
   });
 });
 
+it("allows long unbroken web tool results to wrap within the code row", async () => {
+  (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  const code = `{"content":"${"a".repeat(500)}"}`;
+  const renderer = await render(code, { language: "text", bare: true, highlight: false });
+  const row = renderer.root.findAll((node) =>
+    (node.type as unknown) === "Text" && styleObject(node.props.style).overflowWrap === "anywhere",
+  );
+  expect(row).toHaveLength(1);
+  expect(styleObject(row[0]!.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
+  expect(textContent(renderer.toJSON())).toContain(code);
+  act(() => renderer.unmount());
+});
+
 describe("maxLineNumber", () => {
   it("matches Math.max null and empty-array gutter semantics", () => {
     expect(maxLineNumber([])).toBe(Number.NEGATIVE_INFINITY);

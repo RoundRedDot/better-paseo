@@ -650,6 +650,8 @@ export function SyntaxHighlightBlock({
         },
         lineContent: {
           flex: 1,
+          minWidth: 0,
+          ...(Platform.OS === "web" ? { overflowWrap: "anywhere" } as TextStyle : {}),
           fontSize: mono.size,
           lineHeight: mono.lineHeight,
           fontFamily: tokens.fontMono,
