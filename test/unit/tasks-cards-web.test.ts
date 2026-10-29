@@ -34,10 +34,11 @@ const hovers = vi.hoisted(() => new Map<string, { enter(): void; leave(): void }
 /** The right-click handlers the cards bind, by the bound element's testID. */
 const contextMenus = vi.hoisted(() => new Map<string, (point: { x: number; y: number }, target: unknown) => void>());
 const copies = vi.hoisted(() => [] as string[]);
+const openDetailsLayer = vi.hoisted(() => vi.fn(() => () => {}));
 
 vi.mock("../../client/web", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  openToolbarDetailsLayer: () => () => {},
+  openToolbarDetailsLayer: openDetailsLayer,
   bindContextMenu: (node: { props?: Record<string, unknown> } | null, open: (point: { x: number; y: number }, target: unknown) => void) => {
     const key = String(node?.props?.testID ?? "?");
     contextMenus.set(key, open);
@@ -978,6 +979,7 @@ describe("TaskCardView hover hints", () => {
       expect(texts(root.find((node) => typeof node.type === "string" && node.props.testID === "agent-pill-thinking"))).toEqual(["Medium"]);
       expect(await show("status", { left: 112, top: 80, width: 16, height: 20 })).toBe("状态：运行中");
       expect(await show("title", { left: 134, top: 80, width: 260, height: 40 })).toBe(props("sample-running").card.title);
+      expect(openDetailsLayer).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ isConnected: true }), "below");
       expect(await show("timer", { left: 180, top: 230, width: 60, height: 18 })).toBe("本轮已运行：12m 30s");
       expect(await show("subtasks", { left: 112, top: 166, width: 80, height: 20 })).toBe("3 个子任务：2 运行中 · 1 已完成");
 

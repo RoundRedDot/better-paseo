@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { bindPreviewPointer, dropSelectionIn, linesFit, openPreviewLayer, PREVIEW_GROW, PREVIEW_REVEAL, scrollsWithin } from "../../client/web";
+import { bindPreviewPointer, dropSelectionIn, linesFit, openPreviewLayer, openToolbarDetailsLayer, PREVIEW_GROW, PREVIEW_REVEAL, scrollsWithin } from "../../client/web";
 
 /** The system's reduce-motion setting and the anchor row's top, for the next `layer`. */
 let reduceMotion = false;
@@ -15,6 +15,25 @@ afterEach(() => {
 
 /** A node under the panel, in the timeline. */
 const OUTSIDE = { nodeType: 1 };
+
+describe("toolbar layer window edges", () => {
+  it.each([
+    { left: 0, top: 0, expectedLeft: "8px", expectedTop: "40px" },
+    { left: 780, top: 0, expectedLeft: "492px", expectedTop: "40px" },
+    { left: 0, top: 570, expectedLeft: "8px", expectedTop: "470px" },
+    { left: 780, top: 570, expectedLeft: "492px", expectedTop: "470px" },
+  ])("keeps a panel within the viewport at $left, $top", ({ left, top, expectedLeft, expectedTop }) => {
+    const view = { innerWidth: 800, innerHeight: 600, addEventListener: vi.fn(), removeEventListener: vi.fn(), ResizeObserver: class { observe() {} disconnect() {} } };
+    const panel = { ownerDocument: { defaultView: view }, style: {} as Record<string, string>, getAttribute: () => null,
+      setAttribute: vi.fn(), removeAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(), matches: () => true,
+      getBoundingClientRect: () => ({ left, width: 300, height: 100 }) };
+    const anchor = { getBoundingClientRect: () => ({ left, top, bottom: top + 40 }) };
+    const release = openToolbarDetailsLayer(panel, anchor, "below");
+    expect(panel.style.left).toBe(expectedLeft);
+    expect(panel.style.top).toBe(expectedTop);
+    release();
+  });
+});
 
 function listener(target: { addEventListener: { mock: { calls: unknown[][] } } }, name: string) {
   return target.addEventListener.mock.calls.find(([event]) => event === name)![1] as (event: unknown) => void;

@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState, type RefObject } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Platform, StyleSheet, View, type ViewProps, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, TASK_MONO } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { PREVIEW_REVEAL } from "../../ui/tokens/motion";
 import { panelChrome } from "./panel";
+import { openToolbarDetailsLayer } from "../../web";
 
 /**
  * Hover hints on a desktop card: a pointer resting on a pill, the status
@@ -93,6 +94,7 @@ function alongside(anchor: HintBox, width: number): Pick<HintPlace, "left" | "ri
 interface Shown {
   text: string;
   place: HintPlace;
+  titleAnchor: Element | null;
 }
 
 /** The card's hint layer: render it last in the card, with the card's root and its texts. */
@@ -140,6 +142,11 @@ function HintLayer(props: {
   testID: string;
 }) {
   const [shown, setShown] = useState<Shown | null>(null);
+  const titleLayer = useRef<View>(null);
+  useLayoutEffect(() => {
+    if (!shown?.titleAnchor) return;
+    return openToolbarDetailsLayer(titleLayer.current, shown.titleAnchor, "below");
+  }, [shown]);
   const { root, attribute, place } = props;
   const read = useRef(props.read);
   read.current = props.read;
@@ -168,7 +175,7 @@ function HintLayer(props: {
         const mark = next.getBoundingClientRect();
         // Absolute children sit inside the card's border.
         const anchor = { left: mark.left - box.left - card.clientLeft, top: mark.top - box.top - card.clientTop, width: mark.width, height: mark.height };
-        setShown({ text, place: place(anchor, { width: card.clientWidth, height: card.clientHeight }) });
+        setShown({ text, place: place(anchor, { width: card.clientWidth, height: card.clientHeight }), titleAnchor: attribute === "bchint" && next.getAttribute("data-bchint") === "title" ? next : null });
       }, HINT_DELAY_MS);
     };
     const leave = () => {
@@ -194,17 +201,17 @@ function HintLayer(props: {
   const { place: at } = shown;
   // Board controls append their keyboard shortcut in parentheses; card hints remain prose.
   const shortcut = attribute === "bctip" ? /^([\s\S]* \()([A-Z/,\]]|Esc|Space|\u7a7a\u683c)(\))$/.exec(shown.text) : null;
-  return (
+  const content = (
     <View
       pointerEvents="none"
       style={[
         {
-          position: "absolute",
+          position: shown.titleAnchor ? "relative" : "absolute",
           zIndex: 40,
-          left: at.left,
-          right: at.right,
-          top: at.top,
-          bottom: at.bottom,
+          left: shown.titleAnchor ? undefined : at.left,
+          right: shown.titleAnchor ? undefined : at.right,
+          top: shown.titleAnchor ? undefined : at.top,
+          bottom: shown.titleAnchor ? undefined : at.bottom,
           maxWidth: at.maxWidth,
           paddingHorizontal: 8,
           paddingVertical: 4,
@@ -220,6 +227,8 @@ function HintLayer(props: {
       </Text>
     </View>
   );
+  if (!shown.titleAnchor) return content;
+  return <View ref={titleLayer} pointerEvents="none" style={{ position: "absolute", left: at.left, right: at.right, top: at.top, bottom: at.bottom, maxWidth: at.maxWidth }}>{content}</View>;
 }
 
 /** The toolbars' preview entrance: a fade with a short drift away from the mark. RNW compiles keyframes only through `StyleSheet.create`. */
