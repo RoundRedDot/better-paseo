@@ -384,6 +384,19 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(hostsById("search-full-conversation-toggle")[0]!.props.accessibilityState.selected).toBe(true);
     expect(hostsById("search-full-conversation-toggle")[0]!.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(true));
   });
+  it("keeps the active search summary beside the desktop search field", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false, { q: "status", agent: "claude" })); });
+    layOut(1600);
+    const start = hostsById("desktop-toolbar-start")[0]!;
+    const summary = hostsById("desktop-toolbar-search-summary")[0]!;
+    expect(hostParentOf(summary)).toBe(start);
+    expect(textOf(summary)).toContain("Contains「status」");
+    expect(textOf(summary)).toContain("Clear all");
+    const filterBar = hostsById("filter-bar")[0]!;
+    expect(textOf(filterBar)).not.toContain("Contains");
+    expect(textOf(filterBar)).not.toContain("Clear all");
+  });
   it.each(["en", "zh"] as const)("shows all six toolbar shortcuts in %s hover tips without a sidebar key hint", (language) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     updateEnhancerPreferences({ language });
@@ -2286,7 +2299,8 @@ describe("Tasks board, desktop", () => {
     expect(groups).toHaveLength(2);
     const filters = groups.find((child) => child !== end)!;
     expect(StyleSheet.flatten(filters.props.style)).toMatchObject({ flex: 1, minWidth: 240, flexWrap: "wrap" });
-    expect(textOf(filters)).toContain("Clear all");
+    expect(textOf(filters)).not.toContain("Clear all");
+    expect(textOf(hostsById("desktop-toolbar")[0]!)).toContain("Clear all");
   });
 
   it("ends a long sort and every filter label in an ellipsis rather than overlap", () => {

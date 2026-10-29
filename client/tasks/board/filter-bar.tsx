@@ -75,6 +75,7 @@ function DesktopToolbarView(props: {
   const scale = useTasksFontScale();
   const colors = theme.colors;
   const strings = board.strings;
+  const searching = Boolean(board.params.query.trim());
   const [searchFocused, setSearchFocused] = useState(false);
   const [actionWidth, setActionWidth] = useState(0);
   const [viewOpen, setViewOpen] = useState(false);
@@ -119,6 +120,13 @@ function DesktopToolbarView(props: {
         ) : null}
       </View>
       <FullConversationSwitch theme={theme} />
+      {searching ? (
+        <View testID="desktop-toolbar-search-summary" style={{ flexDirection: "row", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 1, gap: 10 }}>
+          <SearchQueryChip board={board} theme={theme} />
+          <SearchCoverageItems theme={theme} />
+          <ClearAllButton board={board} theme={theme} />
+        </View>
+      ) : null}
       </View>
       <View testID="desktop-toolbar-total" pointerEvents="none" style={{ flexShrink: 0, alignItems: "center" }}>
         <RollingTotal board={board} style={{ fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />
@@ -365,7 +373,7 @@ function DesktopFilterBarView(props: {
   const { params, setParams, defaults } = board;
   const resolved = resolveBoardParams(params, defaults);
   // Desktop controls show their own state; tablet panel choices keep their chips visible.
-  const chips = groupChips(activeChips(params, defaults, options, strings).filter((chip) => tablet || !BAR_OWN_CONTROLS.has(chip.key)), strings);
+  const chips = groupChips(activeChips(params, defaults, options, strings).filter((chip) => tablet || (chip.key !== "q" && !BAR_OWN_CONTROLS.has(chip.key))), strings);
   // A folded chip whose picks dropped to one is a plain chip again: its menu goes with it.
   const groupGone = !!menu?.startsWith("chips:") && !chips.some((entry) => entry.key === `group:${menu.slice(6)}`);
   useEffect(() => {
@@ -531,9 +539,7 @@ function DesktopFilterBarView(props: {
                 ) : <Chip key={entry.key} chip={entry} onClear={() => setParams(entry.clear)} clearLabel={`${strings.clear} ${entry.value}`} theme={theme} />
               ),
             )}
-            <HoverPressable accessibilityRole="button" onPress={() => setParams(clearedParams)} style={() => ({ height: toolbarButtonSize(scale), paddingHorizontal: 4, justifyContent: "center" })}>
-              <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: colors.foregroundMuted }}>{strings.clearAll}</Text>
-            </HoverPressable>
+            {params.query.trim() && !tablet ? null : <ClearAllButton board={board} theme={theme} />}
           </>
         ) : null}
       </View>
@@ -843,6 +849,15 @@ function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme
       style={(hovered) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? colors.surface2 : "transparent" })}
     >
       <Icon name="X" size={12} color={colors.foregroundMuted} />
+    </HoverPressable>
+  );
+}
+
+function ClearAllButton(props: { board: BoardController; theme: PluginTheme }) {
+  const scale = useTasksFontScale();
+  return (
+    <HoverPressable accessibilityRole="button" onPress={() => props.board.setParams(clearedParams)} style={() => ({ height: toolbarButtonSize(scale), paddingHorizontal: 4, justifyContent: "center" })}>
+      <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: props.theme.colors.foregroundMuted }}>{props.board.strings.clearAll}</Text>
     </HoverPressable>
   );
 }
