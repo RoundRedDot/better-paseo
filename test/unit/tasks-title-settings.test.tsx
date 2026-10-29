@@ -71,6 +71,9 @@ describe("automatic title settings", () => {
     const reset = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "重置标题设置");
     expect(reset.props.disabled).toBe(false);
     await act(async () => reset.props.onPress());
+    expect(settings.reset).not.toHaveBeenCalled();
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.children.join("") === "这只会把自动标题设置恢复为默认值。")).toHaveLength(1);
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认重置").props.onPress());
     expect(settings.reset).toHaveBeenCalledExactlyOnceWith();
     expect(settings.save).not.toHaveBeenCalled();
     expect(customToggle().props.accessibilityState.checked).toBe(false);
@@ -85,6 +88,7 @@ describe("automatic title settings", () => {
     await mount({ reset: vi.fn(async () => false), saveError: "Reset failed" });
     await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("Keep this prompt"));
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "重置标题设置").props.onPress());
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认重置").props.onPress());
     expect(customToggle().props.accessibilityState.checked).toBe(true);
     expect(tree.root.findByType("TextInput" as never).props.value).toBe("Keep this prompt");
     expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert").children.join("")).toContain("Reset failed");
