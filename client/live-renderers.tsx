@@ -56,6 +56,7 @@ import {
   toolPropsEqual,
   userMessagePropsEqual,
 } from "./state/render-equality";
+import { loadMark } from "./debug/load-marks";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -152,6 +153,7 @@ function BlockPlacement({ agentId, timestamp, kind, children }: {
 }) {
   const at = timestamp.getTime();
   const value = useMemo(() => ({ agentId, at, kind }), [agentId, at, kind]);
+  useEffect(() => loadMark("row.first"), []);
   return <BlockPlacementContext.Provider value={value}>{children}</BlockPlacementContext.Provider>;
 }
 

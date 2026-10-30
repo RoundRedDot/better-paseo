@@ -15,6 +15,7 @@ import { subscribeHostLanguage } from "../i18n/host-language";
 import { onTasksLanguageChange, resolveTasksLanguage } from "./i18n";
 import { SETTINGS_SCREEN_ID, setSettingsTab } from "../settings-tab";
 import { TasksBoardScreen, TasksSidebarEntry, chunkNow, requestChunk, setChunkClient, subscribeChunk } from "./chunk/load";
+import { loadMark } from "../debug/load-marks";
 
 /** The board's screen id; `openScreen({ screenId: TASKS_SCREEN_ID })` opens it. */
 export const TASKS_SCREEN_ID = "tasks";
@@ -92,6 +93,7 @@ export function contributeTasks(client: PluginClientContext): () => void {
   const applyEnabled = () => {
     const on = live && tasksEnabled() === true;
     if (on && !removeBoard) {
+      loadMark("tasks.enabled");
       removeBoard = registerBoard();
       // The sidebar entry draws with the chunk: ask for it now.
       requestChunk();

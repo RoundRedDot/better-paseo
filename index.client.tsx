@@ -10,6 +10,8 @@ import { getEnhancerPreferences } from "./client/preferences";
 import { followPreference } from "./client/state/follow-preference";
 import { readPreferencesAtStartup } from "./client/state/preference-sync-slot";
 import { perfSlashCommand } from "./client/debug/perf-command";
+import { loadMark } from "./client/debug/load-marks";
+import { scheduleLoadTraceDump } from "./client/debug/load-trace";
 import { transformCompaction, transformToolCall } from "./client/tools/transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
 import { assistantRows } from "./client/assistant-transform";
@@ -34,6 +36,7 @@ function toJsonValue(value: unknown): JsonValue {
 }
 
 export default function contribute(client: PluginClientContext) {
+  loadMark("contribute.start");
   // The daemon's preferences, asked for before anything else: iOS and Android
   // have no local copy, and a row's settings hook would ask only once rows
   // mount. A record that differs from the defaults reaches the transformers
@@ -274,7 +277,12 @@ export default function contribute(client: PluginClientContext) {
   // its options are the Tasks half of the settings page (docs/tasks-board.md).
   const removeTasks = contributeTasks(client);
 
+  // Bench builds send this load's timing marks to the daemon machine.
+  const stopLoadTrace = scheduleLoadTraceDump(client);
+  loadMark("contribute.end");
+
   return () => {
+    stopLoadTrace();
     stopPreferenceRead();
     removeTasks();
     removeSettings();

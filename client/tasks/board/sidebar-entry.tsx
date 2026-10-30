@@ -19,6 +19,7 @@ import { sidebarCountParts, sidebarCountText } from "./navigation";
 import { encodeBoardParams, lastBoardParams, resolveBoardParams, subscribeBoardParams } from "./params";
 import { useBoardIntent } from "./prefetch";
 import { BOARD_STRINGS } from "./strings";
+import { loadMark } from "../../debug/load-marks";
 
 /** The board's screen id; mirrors `TASKS_SCREEN_ID` in `contribute.tsx`, which imports this file. */
 const SCREEN_ID = "tasks";
@@ -37,6 +38,7 @@ export function TasksSidebarEntry(props: PluginSidebarItemProps) {
   const settings = useTasksSettings(props.host.id);
   const language = useTasksLanguage();
   if (!settings?.enabled) return null;
+  loadMark("sidebar.full");
   const mode = settings.sidebar.count;
   const label = BOARD_STRINGS[language].name;
   return mode === "none" ? <TasksRow {...props} label={label} /> : <CountedTasksRow {...props} label={label} mode={mode} settings={settings} />;
@@ -102,6 +104,7 @@ function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: 
   const paseo = usePaseo();
   const scope = useBoardCountScope(paseo, props.host.id, props.settings);
   const counts = useTaskCounts(paseo, props.mode === "all", scope);
+  if (counts.ready) loadMark("counts.ready");
   const language = useTasksLanguage();
   const parts = sidebarCountParts(counts, counts.ready ? props.mode : "none");
   const colors = props.theme.colors;

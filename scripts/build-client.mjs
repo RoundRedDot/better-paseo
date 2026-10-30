@@ -104,7 +104,11 @@ async function buildMain(esbuild, root, shared, chunkId) {
   const result = await esbuild.build({
     ...hostOptions(root),
     entryPoints: [path.join(root, "index.client.tsx")],
-    define: { __BC_TASKS_CHUNK_ID__: JSON.stringify(chunkId) },
+    define: {
+      __BC_TASKS_CHUNK_ID__: JSON.stringify(chunkId),
+      // Bench builds send their load timing marks on their own (`client/debug/load-trace.ts`).
+      __BC_LOAD_TRACE__: process.env.BC_LOAD_TRACE === "1" ? "true" : "false",
+    },
     plugins: [
       {
         name: "bc-tasks-remote",
@@ -182,7 +186,13 @@ export function clientEntry(main) {
     "// passes it through as it is; see the script.",
     "declare const require: (id: string) => unknown;",
     "const bundle = { exports: {} as { default?: unknown } };",
-    `new Function("require", "module", "exports", ${JSON.stringify(main)})(require, bundle, bundle.exports);`,
+    // A fresh record of this load's timing marks (`client/debug/load-marks.ts`).
+    "const marks: Record<string, number> = { \"entry.start\": Date.now() };",
+    "(globalThis as Record<string, unknown>).__bcLoadMarks = marks;",
+    `const factory = new Function("require", "module", "exports", ${JSON.stringify(main)});`,
+    "marks[\"entry.compiled\"] = Date.now();",
+    "factory(require, bundle, bundle.exports);",
+    "marks[\"entry.evaluated\"] = Date.now();",
     // A function declaration, not `export default bundle.exports.default`: the
     // host's eager interop copies the exports before this module's body runs,
     // when only hoisted declarations hold their value.

@@ -9,6 +9,7 @@ import type { PluginClientSlashCommandContribution } from "@getpaseo/plugin/clie
 import { perfDumpRpc } from "../../shared/perf-rpc";
 import { disablePerf, enablePerf, perfOn, perfSnapshot, resetPerf } from "./perf";
 import { fontProbeSnapshot } from "./font-probe-store";
+import { loadMarks } from "./load-marks";
 
 function heapBytes(): number | null {
   const memory = (globalThis.performance as { memory?: { usedJSHeapSize: number } } | undefined)
@@ -49,6 +50,7 @@ export const perfSlashCommand: PluginClientSlashCommandContribution = {
             heapBytes: heapBytes(),
             commandFont: fontProbeSnapshot(),
             snapshot: perfSnapshot(),
+            loadMarks: loadMarks(),
           },
         });
         console.info("[better-paseo] perf dump", result);

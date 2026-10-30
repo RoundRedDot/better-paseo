@@ -1,5 +1,6 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { tasksChunkRpc } from "../../../shared/tasks-rpc";
+import { loadMark } from "../../debug/load-marks";
 import type { TasksChunk } from "./types";
 
 /**
@@ -47,7 +48,10 @@ export function createRemoteChunk({ id, shared, hostRequire, retryMs = RETRY_MS 
   const evaluate = (code: string): TasksChunk => {
     const module = { exports: {} as Record<string, unknown> };
     const load = (name: string) => (name in shared ? shared[name] : hostRequire(name));
-    new Function("require", "module", "exports", code)(load, module, module.exports);
+    const factory = new Function("require", "module", "exports", code);
+    loadMark("chunk.compiled");
+    factory(load, module, module.exports);
+    loadMark("chunk.evaluated");
     return module.exports as unknown as TasksChunk;
   };
 
@@ -65,11 +69,13 @@ export function createRemoteChunk({ id, shared, hostRequire, retryMs = RETRY_MS 
     if (chunkNow() || loading || !client) return;
     const from = client;
     loading = true;
+    loadMark("chunk.request");
     void from
       .rpc(tasksChunkRpc, { id })
       .then((result) => {
         if (client !== from) return;
         if (typeof result.code !== "string") throw new Error("the plugin server holds another Tasks build");
+        loadMark("chunk.response");
         chunk = evaluate(result.code);
         (globalThis as Record<string, unknown>)[CHUNK_CACHE] = { id, code: result.code };
         for (const listener of [...listeners]) listener();
