@@ -41,6 +41,11 @@ export const MENU = {
   maxHeight: 420,
 } as const;
 
+/** Keep authored breathing room at small text sizes, grow with large text, and fit the available surface. */
+export function menuWidth(base: number, scale: number, available: number): number {
+  return Math.min(Math.round(base * Math.max(1, scale)), available);
+}
+
 export interface MenuItem {
   key: string;
   label: string;

@@ -862,7 +862,8 @@ apply to all three.
 - Tablet: keep at most three buttons on the right. From `680 * max(1, scale)` they are Filters,
   View and Sidebar; below that they are Subtasks, Filters and View. The View menu orders
   Collapse empty lanes, Subtasks, Archived and Sidebar after its layout choices; empty groups
-  belongs only in the filter panel. The menu is at most 230 wide, with 44 pt rows and in-panel
+  belongs only in the filter panel. The menu starts at 220 wide and follows the menu width
+  calculation below, with 44 pt rows and in-panel
   drill-down. Below `560 * max(1, scale)`, Search expands in the header, hides the total and
   keeps the right actions available. From `1000 * max(1, scale)`, Filters and View show labels
   together. If the noncompact action slot cannot fit Filters beside View, View includes Filters.
@@ -883,6 +884,33 @@ apply to all three.
 
 ### Menus and sheets
 
+- Toolbar dropdown widths share `menuWidth(base, scale, available)` in
+  `client/tasks/board/menu-model.ts`: `min(round(base * max(1, scale)), available)`.
+  `scale` is the host interface font size divided by 14. Smaller text keeps the authored
+  width and its breathing room; larger text grows the panel. Desktop dropdowns reserve
+  8 pt at each window edge (`available = window.width - 16`); the tablet View panel reserves
+  12 pt on each side of its board (`available = board.width - 24`). Do not estimate width
+  from character counts or choose different widths for Chinese and English.
+
+  | Dropdown | Base width (pt) | Content allowance |
+  | --- | --- | --- |
+  | More actions | 200 maximum, fitted to content on web | Action labels and shortcuts; fitted rows retain `round(32 * max(1, scale))` after the label |
+  | Agent | 240 | Provider mark, name, count and selection check |
+  | Project | 280 | Project name and folded path, count and check; `PROJECT_PATH_COLUMNS` uses this same base width |
+  | Workspace | 260 | Project heading, workspace names, counts and checks |
+  | Label | 200 | Tag mark, name, count and check |
+  | Lane width | 180 | Width mark, translated name and check |
+  | Sort fields | 220 | Field icon, translated name, active direction and submenu chevron |
+  | Sort directions | 190 | Direction icon, translated direction and check |
+  | Selected-filter group | 280 | Selected values, optional kind hints, checks and Clear filters |
+  | Tablet View and its drill-down pages | 220 | Translated actions and layout choices in one touch panel |
+
+  Keep the existing row gutters (6 pt), horizontal padding (8 pt) and column gaps (8 pt).
+  Ordinary dropdowns use the full calculated width instead of hugging short labels; long
+  labels keep their existing one-line ellipsis and cannot displace counts, checks or
+  chevrons. Project and workspace search fields share their panel width. Verify both
+  supported languages (`en`, `zh`) at UI sizes 14 and 21, and narrow windows; switching
+  language must not change padding, hide actions or break submenu placement.
 - `CascadeMenu` (`board/menu.tsx`, `MENU`): menu chrome, radius 12, rows 32 (44 with a detail
   line) of radius 6 with 16 icons, at most 420 tall, 8 from the screen's edge. A submenu opens
   after 150 ms of hover or on a click, aligned to its row's top and overlapping the parent by 4,

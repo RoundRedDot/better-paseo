@@ -16,7 +16,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 
 import { Dimensions, StyleSheet } from "react-native";
 import { CascadeMenu, MenuBoundsContext } from "../../client/tasks/board/menu";
-import { MENU, MENU_EDGE, MENU_FOCUS, filterMenuSections, layoutMenu, menuChrome, menuRowHeight, menuKeyReducer, panelMaxHeight, selectableItems, submenuPlacement, type MenuItem, type MenuSection } from "../../client/tasks/board/menu-model";
+import { MENU, MENU_EDGE, MENU_FOCUS, filterMenuSections, layoutMenu, menuChrome, menuRowHeight, menuWidth, menuKeyReducer, panelMaxHeight, selectableItems, submenuPlacement, type MenuItem, type MenuSection } from "../../client/tasks/board/menu-model";
 import { SORT_GROUPS, SORT_ICONS, projectMenuSections, sortMenuSections } from "../../client/tasks/board/board-menus";
 import { SORT_KEYS, type BoardSort } from "../../client/tasks/board/sort";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -41,6 +41,16 @@ it("uses touch row heights in both menu layout and scaled hit targets", () => {
   expect(layout.rows.map((row) => row.top)).toEqual([MENU.padV, MENU.padV + 44]);
   expect(layout.height).toBe(2 * MENU.padV + 88);
   expect(menuRowHeight({ key: "desktop", label: "View" })).toBe(MENU.rowHeight);
+});
+
+it.each([
+  [280, 1, 800, 280],
+  [280, 0.75, 800, 280],
+  [280, 1.5, 800, 420],
+  [280, 1.5, 300, 300],
+  [220, 1.25, 400, 275],
+])("sizes a %i pt dropdown at scale %s within %i pt", (base, scale, available, expected) => {
+  expect(menuWidth(base, scale, available)).toBe(expected);
 });
 
 describe("the sort menu's structure", () => {
@@ -148,7 +158,7 @@ describe("menu geometry and keys", () => {
       project("none", null),
     ];
     const [section] = projectMenuSections({ workspaceGroups: [], projects, agents: [], labels: [] }, BOARD_STRINGS.en, "host", () => {});
-    expect(section!.items.map((item) => item.detail)).toEqual(["~/workspace/rrd/beautiful-chat", "/srv/app", "~/workspace/…/services/billing", undefined]);
+    expect(section!.items.map((item) => item.detail)).toEqual(["~/workspace/…/beautiful-chat", "/srv/app", "~/workspace/…/billing", undefined]);
   });
 
   it("searches the label, the detail and the group title, every word, ignoring case", () => {

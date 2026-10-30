@@ -105,7 +105,7 @@ function emptySection(text: string): MenuSection[] {
   return [{ key: "empty", items: [{ key: "empty", label: text, disabled: true }] }];
 }
 
-export const PROJECT_MENU_WIDTH = 300;
+export const PROJECT_MENU_WIDTH = 280;
 
 /**
  * The 12 pt Latin characters a project row's second line holds: the menu's

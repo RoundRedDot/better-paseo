@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
-import { Platform, Pressable, View, type LayoutChangeEvent, type TextInput as NativeTextInput } from "react-native";
+import { Platform, Pressable, View, useWindowDimensions, type LayoutChangeEvent, type TextInput as NativeTextInput } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS } from "../../../shared/tasks-settings";
@@ -14,7 +14,7 @@ import { activeFilterCount, resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
 import { PROJECT_MENU_WIDTH, agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
 import { CascadeMenu, MenuBoundsContext } from "./menu";
-import type { MenuSection } from "./menu-model";
+import { MENU_EDGE, menuWidth, type MenuSection } from "./menu-model";
 import { LABEL_GAP, nextBarLayout, type BarBoxes, type BarLayout, type Box } from "./label-fit";
 import type { BoardController } from "./use-board";
 import { LaneWidthMark } from "./lane-width-mark";
@@ -44,6 +44,7 @@ export type EmptyLanes = { collapsed: boolean; disabled: boolean; onToggle(): vo
 
 function MoreActions({ board, theme, items }: { board: BoardController; theme: PluginTheme; items: MenuSection["items"] }) {
   const scale = useTasksFontScale();
+  const window = useWindowDimensions();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const bounds = useContext(MenuBoundsContext);
@@ -76,7 +77,7 @@ function MoreActions({ board, theme, items }: { board: BoardController; theme: P
       tip={busy ? `${board.strings.refreshTasks} (⌥R)` : board.strings.more}
       testID="desktop-toolbar-more"
     />
-    {open ? <CascadeMenu theme={theme} width={200} fitContent top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setOpen(false)} testID="desktop-more-menu" sections={[{ key: "more", items: [
+    {open ? <CascadeMenu theme={theme} width={menuWidth(200, scale, window.width - MENU_EDGE * 2)} fitContent top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setOpen(false)} testID="desktop-more-menu" sections={[{ key: "more", items: [
       { key: "refresh", label: board.strings.refreshTasks, icon: "RefreshCw", shortcut: "⌥R", disabled: busy, onSelect: press },
       ...items,
     ] }]} /> : null}
@@ -119,6 +120,7 @@ function DesktopToolbarView(props: {
 }) {
   const { board, theme } = props;
   const scale = useTasksFontScale();
+  const window = useWindowDimensions();
   const colors = theme.colors;
   const strings = board.strings;
   const chips = props.filterOptions
@@ -197,7 +199,7 @@ function DesktopToolbarView(props: {
                 <CascadeMenu
                   sections={chipGroupMenuSections(entry, theme, strings, board.setParams)}
                   theme={theme}
-                  width={320}
+                  width={menuWidth(280, scale, window.width - MENU_EDGE * 2)}
                   top={toolbarButtonSize(scale) + 6}
                   align="left"
                   onClose={() => props.setMenu(null)}
@@ -437,6 +439,7 @@ function DesktopFilterBarView(props: {
   const { board, theme, options, menu, setMenu } = props;
   const tablet = Platform.OS !== "web";
   const scale = useTasksFontScale();
+  const window = useWindowDimensions();
   const colors = theme.colors;
   const strings = board.strings;
   const { params, setParams, defaults } = board;
@@ -526,7 +529,7 @@ function DesktopFilterBarView(props: {
             <CascadeMenu
               sections={withEmptyGroups(agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) }))))}
               theme={theme}
-              width={Math.round(240 * Math.max(1, scale))}
+              width={menuWidth(240, scale, window.width - MENU_EDGE * 2)}
               top={toolbarButtonSize(scale) + 6}
               align="left"
               onClose={() => setMenu(null)}
@@ -536,7 +539,7 @@ function DesktopFilterBarView(props: {
             <CascadeMenu
               sections={withEmptyGroups(projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project))))}
               theme={theme}
-              width={PROJECT_MENU_WIDTH}
+              width={menuWidth(PROJECT_MENU_WIDTH, scale, window.width - MENU_EDGE * 2)}
               top={toolbarButtonSize(scale) + 6}
               align="left"
               search={strings.menuSearch}
@@ -547,7 +550,7 @@ function DesktopFilterBarView(props: {
             <CascadeMenu
               sections={withEmptyGroups(workspaceMenuSections(shown, theme, strings, board.hostId, (id) => setParams((p) => ({ ...p, workspaceIds: toggleItem(p.workspaceIds, id) }))))}
               theme={theme}
-              width={300}
+              width={menuWidth(260, scale, window.width - MENU_EDGE * 2)}
               top={toolbarButtonSize(scale) + 6}
               align="left"
               search={strings.menuSearch}
@@ -558,7 +561,7 @@ function DesktopFilterBarView(props: {
             <CascadeMenu
               sections={labelMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
               theme={theme}
-              width={200}
+              width={menuWidth(200, scale, window.width - MENU_EDGE * 2)}
               top={toolbarButtonSize(scale) + 6}
               align="left"
               onClose={() => setMenu(null)}
@@ -602,7 +605,7 @@ function DesktopFilterBarView(props: {
                   <CascadeMenu
                     sections={laneWidthMenuSections(board.laneWidth, theme, strings, board.setLaneWidth)}
                     theme={theme}
-                    width={180}
+                    width={menuWidth(180, scale, window.width - MENU_EDGE * 2)}
                     top={toolbarButtonSize(scale) + 6}
                     align="left"
                     onClose={() => setMenu(null)}
@@ -639,8 +642,8 @@ function DesktopFilterBarView(props: {
           <CascadeMenu
             sections={sortMenuSections(params.sort, strings, (sort) => setParams((p) => ({ ...p, sort })))}
             theme={theme}
-            width={Math.round(220 * Math.max(1, scale))}
-            submenuWidth={200}
+            width={menuWidth(220, scale, window.width - MENU_EDGE * 2)}
+            submenuWidth={menuWidth(190, scale, window.width - MENU_EDGE * 2)}
             top={toolbarButtonSize(scale) + 6}
             align="right"
             onClose={() => setMenu(null)}

@@ -2510,18 +2510,38 @@ describe("Tasks board, sorting", () => {
     const strings = BOARD_STRINGS[language];
     act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
     layOut(2400);
-    act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === strings.tips.agent).props.onPress());
-    const panel = hostsById("menu-panel")[0]!;
-    expect(StyleSheet.flatten(panel.props.style).width).toBe(Math.round(240 * base / 14));
+    const toggle = (tip: string) => act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === tip).props.onPress());
+    toggle(strings.tips.agent);
+    expect(StyleSheet.flatten(hostsById("menu-panel")[0]!.props.style).width).toBe(Math.round(240 * base / 14));
     expect(menuOption(strings.emptyGroups.row)).toBeDefined();
     expect(menuOption("Claude")).toBeDefined();
     const rowStyle = StyleSheet.flatten(menuOption("Claude").props.style);
     expect(rowStyle).toMatchObject({ paddingHorizontal: 8, marginHorizontal: 6, gap: 8 });
-    act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === strings.tips.sort).props.onPress());
+    for (const [tip, width] of [[strings.tips.project, 280], [strings.tips.workspace, 260], [strings.tips.labels, 200]] as const) {
+      toggle(tip);
+      expect(StyleSheet.flatten(hostsById("menu-panel")[0]!.props.style).width).toBe(Math.min(Math.round(width * base / 14), 390 - 16));
+      expect(hostsById("menu-search")).toHaveLength(tip === strings.tips.labels ? 0 : 1);
+    }
+    const laneWidth = hostsById("lane-width-control")[0]!.find((node) => (node.type as unknown) === "Pressable");
+    act(() => laneWidth.props.onPress());
+    expect(StyleSheet.flatten(hostsById("lane-width-menu")[0]!.props.style).width).toBe(Math.round(180 * base / 14));
+    toggle(strings.tips.sort);
     expect(StyleSheet.flatten(hostsById("sort-menu")[0]!.props.style).width).toBe(Math.round(220 * base / 14));
     for (const label of Object.values(strings.sortKeys)) expect(menuOption(label)).toBeDefined();
     act(() => menuOption(strings.sortKeys.context).props.onPress());
     expect(hostsById("menu-submenu-panel")).toHaveLength(1);
+    expect(StyleSheet.flatten(hostsById("menu-submenu-panel")[0]!.props.style).width).toBe(Math.round(190 * base / 14));
+    act(() => menuOption(strings.sortDefault).props.onPress());
+    act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
+    expect(StyleSheet.flatten(hostsById("desktop-more-menu")[0]!.props.style).maxWidth).toBe(Math.round(200 * base / 14));
+  });
+
+  it.each([14, 21])("sizes selected-filter groups with the same width rule at UI%i", (base) => {
+    act(() => { renderer = TestRenderer.create(screen(false, { agent: "claude,codex" }, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
+    layOut(2400);
+    act(() => hostsById("chip-group-agent")[0]!.props.onPress());
+    expect(StyleSheet.flatten(hostsById("chip-group-menu")[0]!.props.style).width).toBe(Math.min(Math.round(280 * base / 14), 390 - 16));
+    expect(menuOption(BOARD_STRINGS.en.clearFilters)).toBeDefined();
   });
 
   beforeEach(() => {
@@ -2923,7 +2943,7 @@ describe("Tasks board, desktop refresh button", () => {
     expect(refreshButton().props.dataSet.bctip).toBe(BOARD_STRINGS[language].more);
     expect(refreshButton().find((node) => (node.type as unknown) === "Icon").props.name).toBe("MoreVertical");
     act(() => refreshButton().props.onPress());
-    expect(StyleSheet.flatten(hostsById("desktop-more-menu")[0]!.props.style)).toMatchObject({ width: "max-content", maxWidth: 200 });
+    expect(StyleSheet.flatten(hostsById("desktop-more-menu")[0]!.props.style)).toMatchObject({ width: "max-content", maxWidth: NATIVE(200) });
     expect(textOf(menuOption(BOARD_STRINGS[language].refreshTasks))).toContain("⌥R");
     expect(menuOption(BOARD_STRINGS[language].emptyGroups.row)).toBeDefined();
   });
@@ -3300,7 +3320,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
       const oldTop = endY + viewY + target + 6;
       const menuStyle = style(menu);
       expect(toolbarWidth - (style(overlay).right as number)).toBe(oldRightEdge);
-      expect(menuStyle).toMatchObject({ position: "absolute", top: oldTop, right: 0, width: 230, zIndex: 30 });
+      expect(menuStyle).toMatchObject({ position: "absolute", top: oldTop, right: 0, width: Math.min(Math.round(220 * base / 14), width - 24), zIndex: 30 });
     };
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     compare(width, width / 2, 6, 80, 2, target);
