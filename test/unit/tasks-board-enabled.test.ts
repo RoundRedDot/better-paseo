@@ -134,6 +134,18 @@ describe("Tasks sidebar entry, opt-in", () => {
     expect(tasksEnabled()).toBeNull();
   });
 
+  it("keeps the bundle's plain row while the settings load, subscribing to nothing, and drops it once the board is off", async () => {
+    const placeholder = React.createElement("Placeholder");
+    const withPlaceholder = () =>
+      React.createElement(TasksSidebarEntry, { ...hostProps, currentScreen: null, openScreen: vi.fn(), openPopover: vi.fn(), placeholder });
+    await mount(withPlaceholder());
+    expect(renderer!.root.findAllByType("Placeholder" as never)).toHaveLength(1);
+    expect(fake.openSubscriptions()).toBe(0);
+    host.settings = { ...DEFAULT_TASKS_SETTINGS };
+    await act(async () => renderer!.update(withPlaceholder()));
+    expect(renderer!.toJSON()).toBeNull();
+  });
+
   it("draws nothing and subscribes to nothing while the board is off", async () => {
     host.settings = { ...DEFAULT_TASKS_SETTINGS };
     await mount(sidebar());

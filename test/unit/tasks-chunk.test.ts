@@ -23,8 +23,32 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function make(shared: Record<string, unknown> = { "bc-shared:client/tasks/board/enabled.ts": { tasksEnabled: () => true } }, retryMs?: number[]) {
-  return createRemoteChunk({ id: "build-1", shared, hostRequire: (id) => ({ host: id }), retryMs });
+/** A scheduler the test fires by hand: `fire()` runs every pending background fetch. */
+function fakeLater() {
+  const pending = new Set<() => void>();
+  const later = vi.fn((run: () => void) => {
+    pending.add(run);
+    return () => {
+      pending.delete(run);
+    };
+  });
+  return {
+    later,
+    pending: () => pending.size,
+    fire() {
+      const runs = [...pending];
+      pending.clear();
+      for (const run of runs) run();
+    },
+  };
+}
+
+function make(
+  shared: Record<string, unknown> = { "bc-shared:client/tasks/board/enabled.ts": { tasksEnabled: () => true } },
+  retryMs?: number[],
+  later: (run: () => void) => () => void = fakeLater().later,
+) {
+  return createRemoteChunk({ id: "build-1", shared, hostRequire: (id) => ({ host: id }), retryMs, later });
 }
 
 describe("remote Tasks chunk", () => {
@@ -90,5 +114,87 @@ describe("remote Tasks chunk", () => {
     answer({ code: CODE });
     await settle();
     expect(remote.chunkNow()).toBeNull();
+  });
+});
+
+describe("remote Tasks chunk, asked for later", () => {
+  it("waits for the scheduler: no request at the time, one when startup has settled", async () => {
+    const timing = fakeLater();
+    const remote = make(undefined, undefined, timing.later);
+    const client = fakeClient(async () => ({ code: CODE }));
+    remote.setChunkClient(client);
+    remote.requestChunkLater();
+    await settle();
+    expect(client.rpc).not.toHaveBeenCalled();
+    timing.fire();
+    await settle();
+    expect(client.rpc).toHaveBeenCalledTimes(1);
+    expect(remote.chunkNow()).not.toBeNull();
+  });
+
+  it("keeps one schedule however many places ask later", () => {
+    const timing = fakeLater();
+    const remote = make(undefined, undefined, timing.later);
+    remote.setChunkClient(fakeClient(async () => ({ code: CODE })));
+    remote.requestChunkLater();
+    remote.requestChunkLater();
+    remote.requestChunkLater();
+    expect(timing.later).toHaveBeenCalledTimes(1);
+    expect(timing.pending()).toBe(1);
+  });
+
+  it("fetches at once when someone asks now, and drops the pending later fetch", async () => {
+    const timing = fakeLater();
+    const remote = make(undefined, undefined, timing.later);
+    const client = fakeClient(async () => ({ code: CODE }));
+    remote.setChunkClient(client);
+    remote.requestChunkLater();
+    remote.requestChunk();
+    expect(timing.pending()).toBe(0);
+    await settle();
+    timing.fire();
+    await settle();
+    expect(client.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends one request when a later fetch fires while one asked now is in flight", async () => {
+    const timing = fakeLater();
+    const remote = make(undefined, undefined, timing.later);
+    let answer: ((value: { code: string }) => void) | null = null;
+    const client = fakeClient(() => new Promise((resolve) => { answer = resolve; }));
+    remote.setChunkClient(client);
+    remote.requestChunk();
+    remote.requestChunkLater();
+    timing.fire();
+    answer!({ code: CODE });
+    await settle();
+    expect(client.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it("schedules nothing once the chunk is here, or without a client", () => {
+    const timing = fakeLater();
+    const remote = make(undefined, undefined, timing.later);
+    remote.requestChunkLater();
+    expect(timing.later).not.toHaveBeenCalled();
+    (globalThis as Record<string, unknown>)[CHUNK_CACHE] = { id: "build-1", code: CODE };
+    remote.setChunkClient(fakeClient(async () => ({ code: CODE })));
+    remote.requestChunkLater();
+    expect(timing.later).not.toHaveBeenCalled();
+  });
+
+  it("drops the pending later fetch when the board is turned off or the client goes", async () => {
+    const timing = fakeLater();
+    const remote = make(undefined, undefined, timing.later);
+    const client = fakeClient(async () => ({ code: CODE }));
+    remote.setChunkClient(client);
+    remote.requestChunkLater();
+    remote.cancelChunkLater();
+    expect(timing.pending()).toBe(0);
+    remote.requestChunkLater();
+    remote.setChunkClient(null);
+    expect(timing.pending()).toBe(0);
+    timing.fire();
+    await settle();
+    expect(client.rpc).not.toHaveBeenCalled();
   });
 });

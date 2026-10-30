@@ -11,6 +11,13 @@ import type { TasksChunk } from "./types";
  * evaluates the code again: its imports of modules the bundle holds
  * (`shared`) must reach this evaluation's instances, or the two would keep
  * apart copies of one store.
+ *
+ * Two ways to ask: `requestChunk` fetches now (someone opened the board,
+ * its settings or the Command Center item), `requestChunkLater` once
+ * startup has settled (`afterStartup`: the sidebar row, mounted though
+ * hidden on phones, and the board being on), so the chunk's transfer and
+ * evaluation stay off the first chat rows. An asking-now cancels a pending
+ * later; either way one fetch at a time.
  */
 export interface RemoteChunkOptions {
   /** The chunk build this bundle was made with. */
@@ -21,11 +28,16 @@ export interface RemoteChunkOptions {
   hostRequire(id: string): unknown;
   /** Waits before trying a failed fetch again; past the last one it stops. */
   retryMs?: readonly number[];
+  /** Schedules a background fetch; returns a cancel (`afterStartup` in an install). */
+  later: (run: () => void) => () => void;
 }
 
 export interface RemoteChunk {
   chunkNow(): TasksChunk | null;
   requestChunk(): void;
+  requestChunkLater(): void;
+  /** Drops a pending later fetch (the board was turned off). */
+  cancelChunkLater(): void;
   subscribeChunk(listener: () => void): () => void;
   setChunkClient(client: unknown): void;
 }
@@ -33,11 +45,12 @@ export interface RemoteChunk {
 export const CHUNK_CACHE = "__betterPaseoTasksChunk";
 const RETRY_MS = [1_000, 3_000, 10_000];
 
-export function createRemoteChunk({ id, shared, hostRequire, retryMs = RETRY_MS }: RemoteChunkOptions): RemoteChunk {
+export function createRemoteChunk({ id, shared, hostRequire, retryMs = RETRY_MS, later }: RemoteChunkOptions): RemoteChunk {
   let chunk: TasksChunk | null = null;
   let client: PluginClientContext | null = null;
   let loading = false;
   let failures = 0;
+  let cancelLater: (() => void) | null = null;
   const listeners = new Set<() => void>();
 
   const cached = (): string | null => {
@@ -65,7 +78,13 @@ export function createRemoteChunk({ id, shared, hostRequire, retryMs = RETRY_MS 
     return chunk;
   };
 
+  const dropLater = () => {
+    cancelLater?.();
+    cancelLater = null;
+  };
+
   const requestChunk = (): void => {
+    dropLater();
     if (chunkNow() || loading || !client) return;
     const from = client;
     loading = true;
@@ -90,9 +109,20 @@ export function createRemoteChunk({ id, shared, hostRequire, retryMs = RETRY_MS 
       });
   };
 
+  const requestChunkLater = (): void => {
+    if (cancelLater || chunkNow() || loading || !client) return;
+    loadMark("chunk.scheduled");
+    cancelLater = later(() => {
+      cancelLater = null;
+      requestChunk();
+    });
+  };
+
   return {
     chunkNow,
     requestChunk,
+    requestChunkLater,
+    cancelChunkLater: dropLater,
     subscribeChunk(listener) {
       listeners.add(listener);
       return () => {
@@ -101,6 +131,8 @@ export function createRemoteChunk({ id, shared, hostRequire, retryMs = RETRY_MS 
     },
     setChunkClient(next) {
       client = next as PluginClientContext | null;
+      // A later fetch belongs to the client that asked for it.
+      if (!client) dropLater();
     },
   };
 }

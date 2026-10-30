@@ -1,7 +1,8 @@
 import React, { useEffect, useSyncExternalStore, type ComponentProps } from "react";
 import { View } from "react-native";
 import type { PluginScreenProps, PluginSidebarItemProps } from "@getpaseo/plugin/client";
-import { chunkNow, requestChunk, subscribeChunk } from "./source";
+import { chunkNow, requestChunk, requestChunkLater, subscribeChunk } from "./source";
+import { TasksSidebarPlaceholder } from "./sidebar-placeholder";
 import type { TasksChunk } from "./types";
 
 /**
@@ -9,14 +10,19 @@ import type { TasksChunk } from "./types";
  * and its settings, as stand-ins that draw the chunk's components once it
  * is here (at once in a checkout; see `entry.ts`) and ask for it when it is
  * not. `source.ts` is the one place that says how it arrives.
+ *
+ * A screen someone opened asks `now`; the sidebar row, which a phone keeps
+ * mounted while hidden, asks `later`, once startup has settled.
  */
-export { chunkNow, requestChunk, setChunkClient, subscribeChunk } from "./source";
+export { cancelChunkLater, chunkNow, requestChunk, requestChunkLater, setChunkClient, subscribeChunk } from "./source";
 
-export function useTasksChunk(): TasksChunk | null {
+export function useTasksChunk(when: "now" | "later" = "now"): TasksChunk | null {
   const chunk = useSyncExternalStore(subscribeChunk, chunkNow, chunkNow);
   useEffect(() => {
-    if (!chunk) requestChunk();
-  }, [chunk]);
+    if (chunk) return;
+    if (when === "now") requestChunk();
+    else requestChunkLater();
+  }, [chunk, when]);
   return chunk;
 }
 
@@ -27,10 +33,11 @@ export function TasksBoardScreen(props: PluginScreenProps) {
   return <chunk.TasksBoardScreen {...props} />;
 }
 
-/** The sidebar's Tasks row; no row until its code is here. */
+/** The sidebar's Tasks row: a plain row until the chunk's row, with its counts, can draw. */
 export function TasksSidebarEntry(props: PluginSidebarItemProps) {
-  const chunk = useTasksChunk();
-  return chunk ? <chunk.TasksSidebarEntry {...props} /> : null;
+  const chunk = useTasksChunk("later");
+  const placeholder = <TasksSidebarPlaceholder {...props} />;
+  return chunk ? <chunk.TasksSidebarEntry {...props} placeholder={placeholder} /> : placeholder;
 }
 
 export function TasksSettingsPanel(props: ComponentProps<TasksChunk["TasksSettingsPanel"]>) {

@@ -14,7 +14,16 @@ import { BOARD_STRINGS } from "./board/strings";
 import { subscribeHostLanguage } from "../i18n/host-language";
 import { onTasksLanguageChange, resolveTasksLanguage } from "./i18n";
 import { SETTINGS_SCREEN_ID, setSettingsTab } from "../settings-tab";
-import { TasksBoardScreen, TasksSidebarEntry, chunkNow, requestChunk, setChunkClient, subscribeChunk } from "./chunk/load";
+import {
+  TasksBoardScreen,
+  TasksSidebarEntry,
+  cancelChunkLater,
+  chunkNow,
+  requestChunk,
+  requestChunkLater,
+  setChunkClient,
+  subscribeChunk,
+} from "./chunk/load";
 import { loadMark } from "../debug/load-marks";
 
 /** The board's screen id; `openScreen({ screenId: TASKS_SCREEN_ID })` opens it. */
@@ -38,8 +47,9 @@ const boardRoute = () => ({ screenId: TASKS_SCREEN_ID, params: encodeBoardParams
 export function contributeTasks(client: PluginClientContext): () => void {
   let live = true;
   // The board's code comes in a chunk (`chunk/entry.ts`): here at once in a
-  // checkout, or after a reconnect; otherwise fetched once something shows
-  // it. Its data layer reads from this host's plugin server once it is here.
+  // checkout, or after a reconnect; otherwise fetched when someone opens the
+  // board, or after startup for the sidebar row. Its data layer reads from
+  // this host's plugin server once it is here.
   setChunkClient(client);
   let stopData: (() => void) | null = null;
   const startData = () => {
@@ -63,7 +73,10 @@ export function contributeTasks(client: PluginClientContext): () => void {
         // The context names no host; this bundle runs per host, so the last board shown is this host's.
         // The board's requests leave before its screen mounts (`prefetch.ts`).
         onSelect: (context) => {
-          chunkNow()?.prefetchBoardFromCommand();
+          // A cold chunk is fetched now: the board is on its way.
+          const chunk = chunkNow();
+          if (chunk) chunk.prefetchBoardFromCommand();
+          else requestChunk();
           context.openScreen(boardRoute());
         },
       }),
@@ -95,11 +108,13 @@ export function contributeTasks(client: PluginClientContext): () => void {
     if (on && !removeBoard) {
       loadMark("tasks.enabled");
       removeBoard = registerBoard();
-      // The sidebar entry draws with the chunk: ask for it now.
-      requestChunk();
+      // The sidebar row's counts draw with the chunk; it is fetched once
+      // startup has settled, so it stays off the first chat rows.
+      requestChunkLater();
     } else if (!on && removeBoard) {
       removeBoard();
       removeBoard = null;
+      cancelChunkLater();
       // No warm subscription outlives the entry points.
       chunkNow()?.releaseBoardPrefetch();
     }

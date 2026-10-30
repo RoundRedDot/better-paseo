@@ -56,7 +56,7 @@ import {
   toolPropsEqual,
   userMessagePropsEqual,
 } from "./state/render-equality";
-import { loadMark } from "./debug/load-marks";
+import { noteTimelineRowShown } from "./state/startup-settled";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -153,7 +153,8 @@ function BlockPlacement({ agentId, timestamp, kind, children }: {
 }) {
   const at = timestamp.getTime();
   const value = useMemo(() => ({ agentId, at, kind }), [agentId, at, kind]);
-  useEffect(() => loadMark("row.first"), []);
+  // Work held back until the chat has drawn waits for the first row (`startup-settled.ts`).
+  useEffect(noteTimelineRowShown, []);
   return <BlockPlacementContext.Provider value={value}>{children}</BlockPlacementContext.Provider>;
 }
 

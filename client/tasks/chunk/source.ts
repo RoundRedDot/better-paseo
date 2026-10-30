@@ -13,6 +13,10 @@ export function chunkNow(): TasksChunk | null {
 
 export function requestChunk(): void {}
 
+export function requestChunkLater(): void {}
+
+export function cancelChunkLater(): void {}
+
 export function subscribeChunk(_listener: () => void): () => void {
   return () => {};
 }

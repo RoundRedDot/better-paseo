@@ -29,15 +29,18 @@ const SCREEN_ID = "tasks";
  * open, with "input · running · review" counts on the right per `sidebar.count`.
  * Opens the board with the filters it showed last in this session.
  *
- * Nothing at all while the settings load or the board is off: no row, and
- * no agent subscription (the counts live in a child that mounts only when
- * the row shows counts; only `all` lists the unread and failed agents).
- * The host wraps an item only in providers, so a null item leaves no gap.
+ * While the settings load it draws `placeholder` (the bundle's plain row,
+ * `chunk/sidebar-placeholder.tsx`), so the row that showed before this
+ * chunk arrived stays; nothing once the board is off. Neither subscribes to
+ * agents (the counts live in a child that mounts only when the row shows
+ * counts; only `all` lists the unread and failed agents). The host wraps an
+ * item only in providers, so a null item leaves no gap.
  */
-export function TasksSidebarEntry(props: PluginSidebarItemProps) {
+export function TasksSidebarEntry(props: PluginSidebarItemProps & { placeholder?: ReactNode }) {
   const settings = useTasksSettings(props.host.id);
   const language = useTasksLanguage();
-  if (!settings?.enabled) return null;
+  if (!settings) return props.placeholder ?? null;
+  if (!settings.enabled) return null;
   loadMark("sidebar.full");
   const mode = settings.sidebar.count;
   const label = BOARD_STRINGS[language].name;
