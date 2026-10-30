@@ -4899,7 +4899,7 @@ describe("Tasks board, phone", () => {
     expect(switches().flatMap((node) => node.findAll((child) => (child.type as unknown) === "Icon" && child.props.name === "Check"))).toHaveLength(0);
   });
 
-  it("orders filter groups like the desktop bar and keeps Reset in the footer", () => {
+  it("places the expanded time range after the switch and keeps Reset in the footer", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
@@ -4909,11 +4909,19 @@ describe("Tasks board, phone", () => {
     const at = (label: string) => text.indexOf(label);
     expect(at(BOARD_STRINGS.en.refreshTasks)).toBe(-1);
     expect(at(BOARD_STRINGS.en.emptyGroups.row)).toBeGreaterThanOrEqual(0);
+    expect(at(BOARD_STRINGS.en.emptyGroups.row)).toBeLessThan(at("Time range"));
+    expect(at("Time range")).toBeLessThan(at("Agent"));
     expect(at("Agent")).toBeLessThan(at("Workspace"));
     expect(at("Workspace")).toBeLessThan(at("Labels"));
-    expect(at("Labels")).toBeLessThan(at("Time range"));
-    expect(at("Time range")).toBeLessThan(at("Sort"));
-    for (const id of ["agents", "workspaces", "labels", "range", "sort-group"]) expect(hostsById(`filter-sheet-${id}-toggle`)[0]!.props.accessibilityState.expanded).toBe(false);
+    expect(at("Labels")).toBeLessThan(at("Sort"));
+    const range = () => hostsById("filter-sheet-range-toggle")[0]!;
+    expect(range().props.accessibilityState.expanded).toBe(true);
+    expect(hostsById("filter-sheet-range-content")[0]!.props.accessibilityElementsHidden).toBe(false);
+    act(() => range().props.onPress());
+    expect(range().props.accessibilityState.expanded).toBe(false);
+    act(() => range().props.onPress());
+    expect(range().props.accessibilityState.expanded).toBe(true);
+    for (const id of ["agents", "workspaces", "labels", "sort-group"]) expect(hostsById(`filter-sheet-${id}-toggle`)[0]!.props.accessibilityState.expanded).toBe(false);
     // Reset sits by the sheet's button, not on a row of its own over the options.
     expect(scroll.findAll((node) => (node.type as unknown) === "Pressable" && textOf(node) === "Reset")).toHaveLength(0);
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-reset")).toHaveLength(1);

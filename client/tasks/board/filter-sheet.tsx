@@ -76,7 +76,7 @@ export function FilterSheetBody(props: {
   // can stay at its top above the keyboard however few rows match.
   const holdTop = searching || query.trim() !== "";
   const range = (
-    <CollapsibleGroup title={strings.doneRange} icon="Clock" theme={theme} testID="filter-sheet-range" initiallyOpen={Boolean(props.laneWidth)}>
+    <CollapsibleGroup title={strings.doneRange} icon="Clock" theme={theme} testID="filter-sheet-range" initiallyOpen={Boolean(props.phone || props.laneWidth)}>
       <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
     </CollapsibleGroup>
   );
@@ -133,6 +133,7 @@ export function FilterSheetBody(props: {
               testID="filter-sheet-empty-groups"
             />
           ) : null}
+          {props.phone ? range : null}
           {props.laneWidth ? (
             <>
               <SectionTitle text={strings.laneWidth.title} icon="Columns3" theme={theme} />
@@ -148,7 +149,7 @@ export function FilterSheetBody(props: {
               />
             </>
           ) : null}
-          {props.laneWidth ? range : null}
+          {!props.phone && props.laneWidth ? range : null}
           <CollapsibleGroup title={strings.agent} icon="Bot" theme={theme} testID="filter-sheet-agents">
             {shown.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
             <ChipWrap>
@@ -224,7 +225,7 @@ export function FilterSheetBody(props: {
               ))}
             </ChipWrap>
           </CollapsibleGroup>
-          {props.laneWidth ? null : range}
+          {!props.phone && !props.laneWidth ? range : null}
           {sortFirst ? null : sort}
         </View>
       </ScrollView>
