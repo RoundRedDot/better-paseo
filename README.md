@@ -1,5 +1,7 @@
 # Better Paseo
 
+<img src="assets/icon.png" width="96" height="96" alt="Better Paseo icon: a lilac rounded square with three timeline nodes, the middle one lime, and white message bars">
+
 **English** | [简体中文](README-zh.md)
 
 A [Paseo](https://paseo.sh) plugin that redraws the chat timeline of every agent Paseo runs,
