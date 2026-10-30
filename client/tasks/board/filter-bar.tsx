@@ -64,7 +64,7 @@ function MoreActions({ board, theme, items }: { board: BoardController; theme: P
   return (
     <View style={{ zIndex: 20 }}>
     <RoundButton
-      icon={busy ? "RefreshCw" : "Ellipsis"}
+      icon={busy ? "RefreshCw" : "MoreVertical"}
       label={board.strings.more}
       theme={theme}
       onPress={() => setOpen(!open)}

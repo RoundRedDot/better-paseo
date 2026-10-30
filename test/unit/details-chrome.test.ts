@@ -416,6 +416,7 @@ describe("copy overflow", () => {
     layout(root, 360, 200);
     expect(copyLabels(root)).toEqual(["Copy command"]);
     expect(labels(byId(root, "details-toolbar-end"))).toEqual(["Copy command", "More", "Full screen"]);
+    expect(find(root, "More").findByProps({ name: "MoreVertical" })).toBeDefined();
     act(() => find(root, "More").props.onPress());
     const menu = byId(root, "details-copy-menu");
     expect(labels(menu)).toEqual(["Copy output", "Copy command and output"]);

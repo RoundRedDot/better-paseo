@@ -2875,6 +2875,7 @@ describe("Tasks board, desktop refresh button", () => {
     expect(textOf(middle)).toContain(BOARD_STRINGS[language].totalUnit(6).trim());
     expect(middle.props.pointerEvents).toBe("none");
     expect(refreshButton().props.dataSet.bctip).toBe(BOARD_STRINGS[language].more);
+    expect(refreshButton().find((node) => (node.type as unknown) === "Icon").props.name).toBe("MoreVertical");
     act(() => refreshButton().props.onPress());
     expect(menuOption(BOARD_STRINGS[language].refreshTasks)).toBeDefined();
     expect(menuOption(BOARD_STRINGS[language].emptyGroups.row)).toBeDefined();

@@ -117,7 +117,7 @@ export function CopyOverflowMenu({ items, tokens }: { items: readonly CopyOverfl
   const menu = <CopyMenu items={items} tokens={tokens} close={close} />;
   return (
     <View ref={anchorRef} collapsable={false} testID="details-copy-overflow" style={styles.anchor}>
-      <ToolbarButton icon="Ellipsis" label="More" checked={open} onPress={() => setOpen((value) => !value)} tokens={tokens} align="end" />
+      <ToolbarButton icon="MoreVertical" label="More" checked={open} onPress={() => setOpen((value) => !value)} tokens={tokens} align="end" />
       {open ? Platform.OS === "web" ? (
         <View style={[styles.dropdown, menuLook(tokens)]}>{menu}</View>
       ) : (
