@@ -441,7 +441,7 @@ function PreviewPanel({
     <SettingsPreview tokens={tokens} preferences={preferences} compact={compact} t={t} />
   );
   return (
-    <View style={[styles.previewCard, compact ? styles.previewCardInset : null, { borderColor: tokens.v2.border }]}>
+    <View style={[styles.previewCard, { borderColor: tokens.v2.border }]}>
       <View
         style={[
           styles.previewHeader,
@@ -502,7 +502,7 @@ function ResetButton({ look }: { look: PageLook }) {
     return () => clearTimeout(timer);
   }, [armed]);
   return (
-    <View style={[styles.reset, look.compact ? styles.introInset : null]}>
+    <View style={styles.reset}>
       <PlainButton
         label={armed ? t.resetConfirm : t.resetDefaults}
         onPress={() => {
@@ -960,9 +960,9 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
       ref={rootRef}
       {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)}
       onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
-      style={[styles.container, { backgroundColor: tokens.v2.surface0 }]}
+      style={[styles.container, compact ? styles.pageInset : null, { backgroundColor: tokens.v2.surface0 }]}
     >
-      <View style={compact ? styles.introInset : styles.introDesktop}>
+      <View style={compact ? null : styles.introDesktop}>
         <View style={tab === "display" ? styles.tabs : null}>
           <Segmented<SettingsTab>
             label={t.tabsLabel}
@@ -1039,11 +1039,14 @@ const styles = {
     // column `View` (app `plugins/settings/index.tsx:107`), and React Native Web
     // compiles `flex: 1` to `flex: 1 1 0%`: a zero basis in a container that
     // sizes to its content, so the whole page collapses to nothing.
-    // No side padding on desktop either: the host's content column (`PageLayout`)
+    // Desktop has no side padding: the host's content column (`PageLayout`)
     // already pads the page, so the cards line up with the page title. Its 720
     // cap is lifted on desktop web (`useWideHostColumn`).
+    // Touch adds this one inset for the whole page. The tab, both previews and
+    // the section cards then share one edge. Insetting only the tab and the
+    // chat preview left the Tasks cards 16 wider on each side.
     container: { alignSelf: "stretch", paddingVertical: space.lg, gap: space.xl },
-    introInset: { paddingHorizontal: space.lg },
+    pageInset: { paddingHorizontal: space.lg },
     introDesktop: { paddingHorizontal: space.xs },
     title: {
       fontSize: TYPE.title.size,
@@ -1100,7 +1103,6 @@ const styles = {
     preview: { alignSelf: "stretch", borderRadius: radiusV2.block, padding: space.md, gap: 2 },
     previewMeta: { fontSize: TYPE.caption.size, marginTop: space.xs },
     previewCard: { borderWidth: 1, borderRadius: radiusV2.card, overflow: "hidden" },
-    previewCardInset: { marginHorizontal: space.lg },
     previewHeader: {
       flexDirection: "row",
       alignItems: "center",

@@ -48,6 +48,7 @@ const { BetterPaseoSettingsPage } = await import("../../client/settings-page");
 const { setSettingsTab } = await import("../../client/settings-tab");
 const { resetEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
 const { TASKS_SETTINGS_STRINGS } = await import("../../client/tasks/settings/strings");
+const { StyleSheet } = await import("react-native");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 type Renderer = ReturnType<typeof TestRenderer.create>;
@@ -152,6 +153,39 @@ describe("Tasks settings entry", () => {
       expect(byTestID(r, "tasks-preview-card")).toHaveLength(1);
       expect(api.save).not.toHaveBeenCalled();
       expect(api.reset).not.toHaveBeenCalled();
+    } finally {
+      act(() => r.unmount());
+    }
+  });
+
+  it.each([true, false])("shares one horizontal edge across both tabs (compact=%s)", (compact) => {
+    makeSettings();
+    updateEnhancerPreferences({ language: "en" });
+    const t = SETTINGS_STRINGS.en;
+    let r!: Renderer;
+    act(() => {
+      r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
+        theme: theme as never,
+        layout: { platform: "web", compact } as never,
+        host: {} as never,
+      }));
+    });
+    try {
+      const flat = (node: Node) => StyleSheet.flatten(node.props.style) ?? {};
+      const root = r.root.find((node) => typeof node.type === "string" && typeof node.props.onLayout === "function");
+      const cardAround = (text: string) => {
+        let node = r.root.find((item) => (item.type as unknown) === "Text" && textOf(item) === text).parent as Node | null;
+        while (node && flat(node).borderWidth !== 1) node = node.parent as Node | null;
+        if (!node) throw new Error(`no card around ${text}`);
+        return node;
+      };
+      // Touch insets the page once. Desktop leaves the edge to the host column.
+      expect(flat(root).paddingHorizontal).toBe(compact ? 16 : undefined);
+      expect(flat(cardAround(t.previewTitle)).marginHorizontal).toBeUndefined();
+      act(() => radio(r, t.tabsLabel, t.tabTasks).props.onPress());
+      const tasksPreview = byTestID(r, "tasks-preview-card")[0]!;
+      expect(flat(tasksPreview).marginHorizontal).toBeUndefined();
+      expect(flat(root).paddingHorizontal).toBe(compact ? 16 : undefined);
     } finally {
       act(() => r.unmount());
     }

@@ -1064,6 +1064,8 @@ with a Chat and a Tasks tab.
 - From 960 wide the page has two columns: the preview takes 44% (380 to 640) and stays in view on
   the web. The preview card has a `surface1` header with a Desktop / Mobile control; Mobile draws a
   390-wide phone frame of radius 16.
+- On touch the page insets 16 on each side, so the tab, both previews and the section cards share
+  one edge. Desktop adds none: the host column already pads the page.
 - Accent swatches are 22 in 44 targets. Tasks field chips are pills at least 28 high (34 compact),
   with the accent border and a 10% (20% dark) accent fill when on.
 - Resetting asks twice: Reset needs a second press within 4 s and its note turns warning while

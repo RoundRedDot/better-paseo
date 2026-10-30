@@ -223,7 +223,6 @@ function PreviewCard(props: {
       testID="tasks-preview-card"
       style={[
         styles.previewCard,
-        compact ? styles.previewCardInset : null,
         { borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface1 },
       ]}
     >
@@ -629,7 +628,6 @@ const styles = StyleSheet.create({
   noticeDot: { width: 8, height: 8, borderRadius: 4 },
   noticeText: { flexGrow: 1, flexShrink: 1, flexBasis: 200, minWidth: 0, gap: 2 },
   previewCard: { borderWidth: 1, borderRadius: radiusV2.card, overflow: "hidden" },
-  previewCardInset: { marginHorizontal: space.sm },
   previewHeader: { flexDirection: "row", alignItems: "center", gap: space.md, paddingTop: space.md, paddingHorizontal: space.lg },
   previewHeaderText: { flex: 1, minWidth: 0, gap: 2 },
   previewBoard: { margin: space.md, marginTop: space.md, padding: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
