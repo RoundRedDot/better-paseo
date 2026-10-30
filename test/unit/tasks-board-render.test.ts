@@ -2867,6 +2867,27 @@ describe("Tasks board, desktop refresh button", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   });
 
+  it.each([600, 1600])("keeps the more menu above the filter bar and lanes at %i pt", (width) => {
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(width);
+    act(() => refreshButton().props.onPress());
+    const toolbar = hostsById("desktop-toolbar")[0]!;
+    const area = hostsById("tasks-board-area")[0]!;
+    const filterBar = hostsById("filter-bar")[0];
+    const layer = StyleSheet.flatten(toolbar.props.style).zIndex ?? 0;
+    expect(hostParentOf(toolbar)).toBe(hostParentOf(area));
+    expect(layer).toBeGreaterThan(StyleSheet.flatten(area.props.style).zIndex ?? 0);
+    if (width === 1600) {
+      expect(filterBar).toBeDefined();
+      expect(hostParentOf(filterBar!)).toBe(hostParentOf(toolbar));
+      expect(layer).toBeGreaterThan(StyleSheet.flatten(filterBar!.props.style).zIndex ?? 0);
+    }
+    expect(toolbar.findAll((node) => typeof node.type === "string" && node.props.testID === "desktop-more-menu")).toHaveLength(1);
+    expect(menuOption(BOARD_STRINGS.en.refreshTasks)).toBeDefined();
+    act(() => refreshButton().props.onPress());
+    expect(hostsById("desktop-more-menu")).toHaveLength(0);
+  });
+
   it.each(["en", "zh"] as const)("keeps the count centred and offers refresh in the %s more menu", (language) => {
     updateEnhancerPreferences({ language });
     act(() => { renderer = TestRenderer.create(screen(false)); });
