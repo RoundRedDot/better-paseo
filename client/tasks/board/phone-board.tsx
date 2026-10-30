@@ -763,7 +763,6 @@ const PhoneLane = memo(function PhoneLane(props: {
   const [viewportHeight, setViewportHeight] = useState(0);
   // The list's content height without the end space it was measured with.
   const [contentHeight, setContentHeight] = useState(0);
-  const [footerHeight, setFooterHeight] = useState(0);
   const offset = useRef(0);
   const [edges, setEdges] = useState({ top: true, bottom: false });
   const updateEdges = (y: number, height: number, viewport: number) => {
@@ -898,7 +897,7 @@ const PhoneLane = memo(function PhoneLane(props: {
         </BoardEmptyState>
       }
       ListFooterComponent={
-        <View testID="phone-lane-footer" onLayout={(event: LayoutChangeEvent) => setFooterHeight(event.nativeEvent.layout.height)}>
+        <View testID="phone-lane-footer">
           {isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
             <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} large />
           ) : null}
@@ -916,10 +915,7 @@ const PhoneLane = memo(function PhoneLane(props: {
           { visible: !edges.bottom, icon: "ArrowDownToLine", label: loadedEnd ? strings.scrollLoadedEnd : strings.scrollBottom, testID: "phone-scroll-bottom", press: () => {
             cancelScroll();
             if (count === 0) return;
-            const params = { index: count - 1, viewPosition: 1, viewOffset: -(endSpace + footerHeight), animated: !reduced };
-            scrollRetry.current = { params, attempts: 0 };
-            listRef.current?.scrollToIndex(params);
-            if (scrollTimer.current === null) scrollRetry.current = null;
+            listRef.current?.scrollToOffset({ offset: Math.max(0, contentHeight + endSpace - viewportHeight), animated: !reduced });
           } },
         ]).filter((action) => action.visible).map((action) => (
           <Pressable key={action.testID} testID={action.testID} accessibilityRole="button" accessibilityLabel={action.label} onPress={action.press} style={{ width: SCROLL_ACTION.size, height: SCROLL_ACTION.size, borderRadius: SCROLL_ACTION.size / 2, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? { boxShadow: "0 3px 10px rgba(0, 0, 0, 0.2)" } : { elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 3 } }) }}>

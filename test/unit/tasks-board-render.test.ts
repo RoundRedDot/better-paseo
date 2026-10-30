@@ -4434,14 +4434,16 @@ describe("Tasks board, phone", () => {
     act(() => hostsById("phone-scroll-top")[0]!.props.onPress());
     act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
     expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: true });
-    expect(scrollToIndex).toHaveBeenCalledWith({ index: list().props.data.length - 1, viewPosition: 1, viewOffset: -endSpace(), animated: true });
+    expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 778, animated: true });
+    expect(scrollToIndex).not.toHaveBeenCalled();
     act(() => container().props.onLayout({ nativeEvent: { layout: { height: 600 } } }));
     expect(hostsById("phone-scroll-actions")).toHaveLength(0);
   });
 
   it("names the bottom shortcut for the loaded end of a lane with more pages, and loads no page itself", () => {
+    const scrollToOffset = vi.fn();
     const scrollToIndex = vi.fn();
-    act(() => { renderer = TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "FlatList" ? { scrollToOffset: vi.fn(), scrollToIndex } : null }); });
+    act(() => { renderer = TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "FlatList" ? { scrollToOffset, scrollToIndex } : null }); });
     const pager = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "phone-lane-pager");
     act(() => pager().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 600 } } }));
     const laneList = (lane: string) => hostsById(`phone-lane-${lane}`)[0]!.find((node) => (node.type as unknown) === "FlatList");
@@ -4459,12 +4461,24 @@ describe("Tasks board, phone", () => {
     expect(bottom("done").props.accessibilityLabel).toBe("Scroll to the end of loaded tasks");
     const loadMore = (data as unknown as { __handle: { loadMoreDone: ReturnType<typeof vi.fn> } }).__handle.loadMoreDone;
     loadMore.mockClear();
-    act(() => hostsById("phone-lane-done")[0]!.find((node) => typeof node.type === "string" && node.props.testID === "phone-lane-footer").props.onLayout({ nativeEvent: { layout: { height: 64 } } }));
     act(() => bottom("done").props.onPress());
-    expect(scrollToIndex).toHaveBeenCalledExactlyOnceWith({ index: laneList("done").props.data.length - 1, viewPosition: 1, viewOffset: -(124 + 64), animated: true });
+    expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 978, animated: true });
+    expect(scrollToIndex).not.toHaveBeenCalled();
     expect(loadMore).not.toHaveBeenCalled();
     act(() => laneList("done").props.onEndReached());
     expect(loadMore).toHaveBeenCalledTimes(1);
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }> } }).__handle;
+    const saved = handle.lanes;
+    try {
+      handle.lanes = { ...saved, done: { ...saved.done!, cards: [...saved.done!.cards, { ...saved.done!.cards[0]!, id: "next-page" }] } };
+      act(() => renderer!.update(screen(true)));
+      act(() => laneList("done").props.onContentSizeChange(390, 1800));
+      act(() => { vi.advanceTimersByTime(1000); });
+      expect(scrollToOffset).toHaveBeenCalledTimes(1);
+      expect(scrollToIndex).not.toHaveBeenCalled();
+    } finally {
+      handle.lanes = saved;
+    }
   });
 
   it("jumps without animation when reduced motion is on", () => {
@@ -4486,47 +4500,43 @@ describe("Tasks board, phone", () => {
       act(() => hostsById("phone-scroll-top")[0]!.props.onPress());
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
       expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: false });
-      expect(scrollToIndex).toHaveBeenCalledWith({ index: list.props.data.length - 1, viewPosition: 1, viewOffset: -124, animated: false });
+      expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 978, animated: false });
+      expect(scrollToIndex).not.toHaveBeenCalled();
     } finally {
       act(() => onReduce(false));
       subscription.mockRestore();
     }
   });
 
-  it.each(["ios", "android", "web"])("%s advances a windowed list until the last loaded card is measured", (os) => {
+  it.each(["ios", "android", "web"])("%s scrolls once to the loaded end without chasing newly loaded pages", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }> } }).__handle;
     const saved = handle.lanes;
-    handle.lanes = { ...saved, needs_input: { ...saved.needs_input!, cards: Array.from({ length: 90 }, (_, index) => ({ ...saved.needs_input!.cards[0]!, id: `windowed-${index}` })) } };
+    const cards = Array.from({ length: 90 }, (_, index) => ({ ...saved.needs_input!.cards[0]!, id: `windowed-${index}` }));
+    handle.lanes = { ...saved, needs_input: { ...saved.needs_input!, cards } };
     try {
       const list = () => renderer!.root.findAll((node) => (node.type as unknown) === "FlatList")[0]!;
-      let measured = 5;
       const scrollToOffset = vi.fn();
-      const scrollToIndex = vi.fn((params: { index: number }) => {
-        if (params.index > measured) list().props.onScrollToIndexFailed({ index: params.index, averageItemLength: 120, highestMeasuredFrameIndex: measured });
-      });
+      const scrollToIndex = vi.fn((params: { index: number }) => list().props.onScrollToIndexFailed({ index: params.index, averageItemLength: 120, highestMeasuredFrameIndex: 5 }));
       act(() => { renderer = TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "FlatList" ? { scrollToOffset, scrollToIndex } : null }); });
       act(() => hostParentOf(list())!.props.onLayout({ nativeEvent: { layout: { height: 500 } } }));
       act(() => list().props.onContentSizeChange(390, 1400));
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
-      expect(scrollToIndex).toHaveBeenCalledExactlyOnceWith({ index: 89, viewPosition: 1, viewOffset: -124, animated: true });
-      for (const next of [23, 41, 59, 77, 89]) {
-        expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: measured * 120, animated: false });
-        // Scrolling to the measured edge lets the next render batch extend the window.
-        measured = next;
-        act(() => { vi.advanceTimersByTime(100); });
-      }
-      expect(scrollToIndex).toHaveBeenCalledTimes(6);
-      expect(scrollToIndex.mock.calls.every(([params]) => params.index === 89)).toBe(true);
-      act(() => { vi.advanceTimersByTime(1000); });
-      expect(scrollToIndex).toHaveBeenCalledTimes(6);
+      expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 978, animated: true });
+      expect(scrollToIndex).not.toHaveBeenCalled();
+      handle.lanes = { ...handle.lanes, needs_input: { ...saved.needs_input!, cards: [...cards, { ...cards[0]!, id: "new-page" }] } };
+      act(() => renderer!.update(screen(true)));
+      act(() => list().props.onContentSizeChange(390, 1700));
+      act(() => { vi.advanceTimersByTime(10000); });
+      expect(scrollToOffset).toHaveBeenCalledTimes(1);
+      expect(scrollToIndex).not.toHaveBeenCalled();
     } finally {
       act(() => renderer?.unmount()); renderer = undefined;
       handle.lanes = saved;
     }
   });
 
-  it("bounds retries when measurement stalls, and the top shortcut cancels a pending bottom jump", () => {
+  it("bounds retries when measurement stalls, and the top shortcut cancels a pending reveal", () => {
     const list = () => hostsById("phone-lane-running")[0]!.find((node) => (node.type as unknown) === "FlatList");
     const scrollToOffset = vi.fn();
     const scrollToIndex = vi.fn((params: { index: number }) => list().props.onScrollToIndexFailed({ index: params.index, averageItemLength: 100, highestMeasuredFrameIndex: 0 }));
@@ -4534,18 +4544,18 @@ describe("Tasks board, phone", () => {
     act(() => pressable("Running 2").props.onPress());
     act(() => hostParentOf(list())!.props.onLayout({ nativeEvent: { layout: { height: 500 } } }));
     act(() => list().props.onContentSizeChange(390, 1400));
-    act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
+    act(() => list().props.onScrollToIndexFailed({ index: 1, averageItemLength: 100, highestMeasuredFrameIndex: 0 }));
     act(() => { vi.advanceTimersByTime(10000); });
-    expect(scrollToIndex).toHaveBeenCalledTimes(51);
+    expect(scrollToIndex).toHaveBeenCalledTimes(50);
     expect(scrollToOffset).toHaveBeenCalledTimes(50);
     act(() => { vi.advanceTimersByTime(10000); });
-    expect(scrollToIndex).toHaveBeenCalledTimes(51);
-    act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
+    expect(scrollToIndex).toHaveBeenCalledTimes(50);
+    act(() => list().props.onScrollToIndexFailed({ index: 1, averageItemLength: 100, highestMeasuredFrameIndex: 0 }));
     act(() => list().props.onScroll({ nativeEvent: { contentOffset: { y: 100 }, contentSize: { height: 1400 }, layoutMeasurement: { height: 500 } } }));
     act(() => hostsById("phone-scroll-top")[0]!.props.onPress());
     expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: true });
     act(() => { vi.advanceTimersByTime(1000); });
-    expect(scrollToIndex).toHaveBeenCalledTimes(52);
+    expect(scrollToIndex).toHaveBeenCalledTimes(50);
   });
 
   it("retries a reveal's failed index through the inactive lane's own ref and cancels on unmount", () => {
