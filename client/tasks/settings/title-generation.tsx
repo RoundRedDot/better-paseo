@@ -15,7 +15,7 @@ const WORDS = {
     customModel: "Custom automatic title model", followSource: "Off: follow the card agent's provider, model and thinking level. Saved settings sync across this host's clients.",
     title: "Automatic titles", provider: "Provider", model: "Model", thinkingOptionId: "Thinking level", modelDefault: "Model default", noThinking: "Not supported", choose: "Choose…", prompt: "Prompt",
     hint: "Recommended: Oh My Pi / DeepSeek Flash (deepseek/deepseek-flash), thinking low; or Claude / Haiku 5.5 (claude-haiku-5-5), thinking off. Choose a model available on this host.\nTitle tasks stay off the board, retain history and may trigger host notifications.",
-    save: "Save title settings", reset: "Reset title settings", resetNow: "Reset now", resetCancel: "Cancel", resetConfirmHint: "This restores only automatic title settings to their defaults.", saving: "Saving…", loading: "Loading…", retry: "Retry", refresh: "Refresh models", loadError: "Could not load title settings.",
+    resetTitle: "Reset automatic title settings", resetHint: "Only settings in this section will be restored.", reset: "Reset titles", resetNow: "Reset now", resetCancel: "Cancel", resetConfirmHint: "This restores only automatic title settings to their defaults.", loading: "Loading…", retry: "Retry", refresh: "Refresh models", loadError: "Could not load title settings.",
     saveError: "Settings changed elsewhere or could not be saved. Reloaded the latest.",
     notRecommended: "Not recommended",
   },
@@ -25,7 +25,7 @@ const WORDS = {
     customModel: "自定义自动标题模型", followSource: "关闭时跟随卡片所属 agent 的 Provider、模型和思考等级；保存后同步至主机各端。",
     title: "自动更新标题", provider: "Provider", model: "模型", thinkingOptionId: "思考等级", modelDefault: "模型默认", noThinking: "不支持", choose: "请选择…", prompt: "Prompt",
     hint: "推荐 Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low；或 Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off。请选择主机可用的模型。\n后台任务不进入看板，保留历史，可能触发宿主通知。",
-    save: "保存标题设置", reset: "重置标题设置", resetNow: "确认重置", resetCancel: "取消", resetConfirmHint: "这只会把自动标题设置恢复为默认值。", saving: "正在保存…", loading: "正在加载…", retry: "重试", refresh: "刷新模型", loadError: "标题设置加载失败。",
+    resetTitle: "恢复「自动标题」默认设置", resetHint: "只恢复本组设置，不影响其他组。", reset: "恢复自动标题", resetNow: "确认重置", resetCancel: "取消", resetConfirmHint: "这只会把自动标题设置恢复为默认值。", loading: "正在加载…", retry: "重试", refresh: "刷新模型", loadError: "标题设置加载失败。",
     saveError: "设置已在别处更改或保存失败，已重新加载最新内容。",
     notRecommended: "不推荐使用",
   },
@@ -47,6 +47,20 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   useEffect(() => {
     if (settings.status === "ready") setDraft(settings.values);
   }, [revision]);
+  useEffect(() => {
+    if (settings.status !== "ready" || settings.saving || confirmingReset || (draft.customModel && (!draft.provider || !draft.model)) || !draft.prompt.trim() || JSON.stringify(draft) === JSON.stringify(settings.values)) return;
+    const timer = setTimeout(() => {
+      setSaveError(null);
+      void settings.save(draft, settings.revision).then(async (saved) => {
+        if (saved) return;
+        await settings.reload();
+        setSaveError(words.saveError);
+      }).catch((failure: unknown) => {
+        setSaveError(failure instanceof Error ? failure.message : String(failure));
+      });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [draft, revision, settings.status, settings.saving, confirmingReset]);
   useEffect(() => {
     setError(null);
     setLoading(false);
@@ -87,17 +101,6 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
       </View>
     );
   }
-  const save = async () => {
-    setSaveError(null);
-    try {
-      if (await settings.save(draft, settings.revision)) return;
-      await settings.reload();
-      setSaveError(words.saveError);
-    } catch (failure) {
-      setSaveError(failure instanceof Error ? failure.message : String(failure));
-    }
-  };
-  const canSave = (!draft.customModel || draft.provider && draft.model) && draft.prompt.trim() && !settings.saving;
   const reset = async () => {
     setSaveError(null);
     if (!await settings.reset()) return;
@@ -138,14 +141,15 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
               : draft.disableThinking ? words.automaticThinking
               : draft.thinkingOptionId ? thinkingOptions.find((option) => option.id === draft.thinkingOptionId)?.label ?? draft.thinkingOptionId
                 : thinkingOptions.length > 0 ? modelDefault : draft.model && selectedModel ? words.noThinking : words.choose;
-          return <SettingRow key={field} title={words[field]} look={look} control={
+          return <SettingRow key={field} title={words[field]} look={look} control={<View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+            {field === "model" ? <Pressable accessibilityRole="button" accessibilityLabel={words.refresh} accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => setRefresh((value) => value + 1)} style={{ width: 40, height: 44, alignItems: "center", justifyContent: "center", opacity: loading ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable> : null}
             <Pressable accessibilityRole="button" accessibilityLabel={words[field]} accessibilityState={{ expanded: choosing === field, disabled }}
               disabled={disabled} onPress={() => setChoosing(field)}
               style={{ minHeight: 44, maxWidth: "100%", flexShrink: 1, paddingHorizontal: space.md, flexDirection: "row", alignItems: "center", gap: space.sm, borderWidth: 1, borderRadius: 8, borderColor: look.tokens.v2.border, opacity: disabled ? 0.5 : 1 }}>
               {field === "provider" && draft.provider ? <ProviderLogo provider={draft.provider} size={18} color={providerBrand(draft.provider).monochrome ? look.tokens.foreground : undefined} /> : null}
               <Text numberOfLines={1} style={[textStyle, { flexShrink: 1 }]}>{label || words.choose}</Text>
               <Icon name="ChevronDown" size={16} color={look.tokens.foregroundMuted} />
-            </Pressable>
+            </Pressable></View>
           } />;
         })}
         <SettingRow title={words.prompt} look={look} below={
@@ -153,12 +157,8 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
             editable={!settings.saving} maxLength={8000} onChangeText={(prompt) => setDraft({ ...draft, prompt })}
             style={[textStyle, { width: "100%", minHeight: 130, borderWidth: 1, borderRadius: 8, borderColor: look.tokens.v2.border, backgroundColor: look.tokens.v2.surface0, padding: space.md, textAlignVertical: "top" }]} />
         } />
-        <View style={{ marginLeft: look.compact ? space.lg : 0, paddingLeft: look.compact ? 0 : space.lg, paddingRight: space.lg, paddingVertical: 14, gap: space.sm, borderTopWidth: 1, borderTopColor: look.tokens.v2.border }}>
-          {error || saveError || settings.saveError ? <Text accessibilityRole="alert" style={[textStyle, { color: look.tokens.warning }]}>{error || saveError || settings.saveError}</Text> : null}
-          {confirmingReset ? <Text accessibilityLiveRegion="polite" style={[textStyle, { color: look.tokens.foregroundMuted }]}>{words.resetConfirmHint}</Text> : null}
+        <SettingRow title={words.resetTitle} description={confirmingReset ? words.resetConfirmHint : words.resetHint} look={look} control={
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
-            {draft.customModel ? <PlainButton label={error ? words.retry : words.refresh} disabled={loading} look={look} onPress={() => setRefresh((value) => value + 1)} /> : null}
-            <PlainButton label={settings.saving ? words.saving : words.save} disabled={!canSave} look={look} onPress={() => void save()} />
             {confirmingReset ? <PlainButton label={words.resetCancel} look={look} onPress={() => setConfirmingReset(false)} /> : null}
             <PlainButton
               label={confirmingReset ? words.resetNow : words.reset}
@@ -167,12 +167,11 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
               look={look}
               onPress={() => {
                 if (!confirmingReset) return setConfirmingReset(true);
-                setConfirmingReset(false);
-                void reset();
+                void reset().finally(() => setConfirmingReset(false));
               }}
             />
-          </View>
-        </View>
+          </View> } />
+        {error || saveError || settings.saveError ? <Text accessibilityRole="alert" style={[textStyle, { color: look.tokens.warning, padding: space.lg }]}>{error || saveError || settings.saveError}</Text> : null}
       </Section>
       <SectionNote text={words.hint} look={look} />
       {draft.customModel && choosing ? <Modal title={words[choosing]} open onOpenChange={(open) => { if (!open) setChoosing(null); }}>
