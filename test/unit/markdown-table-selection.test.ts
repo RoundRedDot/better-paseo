@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 import { addsCellRange, bindTableCellSelection, HOLD_MS, TABLE_CELL_TEST_ID } from "../../client/components/markdown/render/table-selection";
 import { alignColumns, cellRange, indexAt, rangeHas, rangeText, rowSpan } from "../../client/components/markdown/render/table-range";
-import { marked, type Tokens } from "../../client/vendor/marked";
+import { Lexer, type Tokens } from "../../client/vendor/marked";
 
 afterEach(() => {
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
@@ -223,7 +223,7 @@ describe("Markdown table cell ranges added with Command or Ctrl", () => {
 });
 
 describe("Markdown table cell ranges", () => {
-  const table = marked.lexer("| a | b \\| c | d |\n|:--|:-:|--:|\n| 1 | **2** | 3 |\n| 4 | `5 \\| 6` | 7 |\n")[0] as Tokens.Table;
+  const table = Lexer.lex("| a | b \\| c | d |\n|:--|:-:|--:|\n| 1 | **2** | 3 |\n| 4 | `5 \\| 6` | 7 |\n")[0] as Tokens.Table;
 
   it("normalises the rectangle from either corner", () => {
     const range = cellRange({ row: 2, column: 0 }, { row: 1, column: 2 });
