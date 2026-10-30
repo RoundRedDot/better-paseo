@@ -191,6 +191,8 @@ export interface TaskDetailCardsProps extends TimeSource {
    * card fills its parent.
    */
   columns?: boolean;
+  /** The iPad floating sidebar separates task information and messages. */
+  tabs?: boolean;
   /** False when the actions live elsewhere (the phone's bar under the sheet). */
   actions?: boolean;
   testID?: string;
@@ -213,6 +215,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   // The caller's source, for what ticks each second: `now` below is whole minutes.
   const time: TimeSource = { now: props.now, clock: props.clock };
   const choices = useSectionChoices();
+  const [tab, setTab] = useState<"info" | "messages">("info");
   const query = props.searchQuery?.trim().toLowerCase() ?? "";
   const prompt = props.firstPrompt?.prompt;
   const metadataHits = taskSearchHits(card, query, { title: true, project: true, workspace: true, branch: true, folder: true, path: true, modelPill: true, model: true, pullRequest: true, labels: card.labels.length, labelLimit: Infinity });
@@ -225,7 +228,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const leftSections: DetailSection[] = props.columns ? order.filter((section) => section === "properties" || section === "subtasks") : [];
   const rightOrder = order.filter((section) => !leftSections.includes(section));
   // A scroller's content gives its scrollbar the right edge of its padding (`detail-scrollbar.ts`).
-  const gutter = props.columns || props.scrollBody ? detailGutter("inset") : 0;
+  const gutter = props.columns || props.scrollBody || props.tabs ? detailGutter("inset") : 0;
   const sectionView = (section: DetailSection, divider: boolean) => (
     <Section
       key={section}
@@ -242,6 +245,32 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     />
   );
   const sections = order.map((section) => sectionView(section, true));
+  if (props.tabs) {
+    const messages: DetailSection[] = order.filter((section) => section === "prompt" || section === "human" || section === "message");
+    const info = order.filter((section) => !messages.includes(section));
+    return (
+      <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), { flex: 1, minHeight: 0 }]}>
+        <View accessibilityRole="tablist" style={{ flexDirection: "row", paddingHorizontal: 8 }}>
+          {(["info", "messages"] as const).map((id) => (
+            <Pressable key={id} testID={`detail-tab-${id}`} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} onPress={() => setTab(id)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderBottomWidth: tab === id ? 2 : 0, borderColor: tokens.foreground }}>
+              <Text style={{ color: tokens.foreground, fontSize: F.sm }}>{id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}{id === "messages" && matching.includes("prompt") ? " ·" : ""}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <View style={{ flex: 1, minHeight: 0, display: tab === "info" ? "flex" : "none" }}>
+          <ScrollView key={`${card.id}-info`} style={{ flex: 1 }} {...detailScrollProps("inset")} testID="detail-tab-info-scroll">
+            <DetailHeader {...props} m={m} tokens={tokens} now={now} time={time} gutter={gutter} />
+            {info.map((section) => sectionView(section, true))}
+          </ScrollView>
+        </View>
+        <View style={{ flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" }}>
+          <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} testID="detail-tab-messages-scroll">
+            {messages.map((section, index) => sectionView(section, index > 0))}
+          </ScrollView>
+        </View>
+      </View>
+    );
+  }
   if (props.columns) {
     return (
       <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), { flex: 1, minHeight: 0, flexDirection: "row" }]}>

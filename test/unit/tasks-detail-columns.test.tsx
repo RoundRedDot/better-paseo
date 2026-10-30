@@ -57,6 +57,18 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it("separates iPad information and messages into independently mounted scrollers", async () => {
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(true)} columns={false} tabs />); });
+    const root = renderer!.root;
+    const info = host(root, "detail-tab-info-scroll");
+    const messages = host(root, "detail-tab-messages-scroll");
+    expect(order(info)).toEqual(["detail-header", "detail-location", "detail-subtasks", "detail-usage", "detail-activity"]);
+    expect(order(messages)).toEqual(["detail-prompt", "detail-message"]);
+    expect(host(root, "detail-tab-info").props.accessibilityState.selected).toBe(true);
+    await act(async () => host(root, "detail-tab-messages").props.onPress());
+    expect(host(root, "detail-tab-messages").props.accessibilityState.selected).toBe(true);
+    expect(host(root, "detail-tab-info-scroll")).toBe(info);
+  });
   it.each(["web", "ios", "android"])("keeps properties above subtasks in separate scrollers on %s", async (os) => {
     vi.stubGlobal("__rnMockOS", os);
     for (const children of [true, false]) {

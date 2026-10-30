@@ -41,7 +41,7 @@ export function TabletToolbar(props: {
   const target = taskControlHeight(compact ? 28 : 44, scale);
   const height = taskControlHeight(compact ? 36 : 56, scale);
   const labels = props.width >= 1000 * Math.max(1, scale);
-  const inlineSearch = props.width >= 560 * Math.max(1, scale);
+  const inlineSearch = Platform.OS !== "ios" && props.width >= 560 * Math.max(1, scale);
   const shortcuts = props.width >= 680 * Math.max(1, scale);
   const [page, setPage] = useState<ViewPage | null>(null);
   const [trail, setTrail] = useState<string[]>([]);

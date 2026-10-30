@@ -692,6 +692,7 @@ describe("Tasks board, desktop", () => {
     updateEnhancerPreferences({ language });
     await act(async () => { renderer = TestRenderer.create(screen(false, { agent: "codex", ws: "wks_sample", win: "7d", sort: "title-asc" })); });
     layOut(width);
+    if (os === "ios") act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     const field = () => renderer!.root.find((node) => (node.type as unknown) === "TextInput" && node.props.accessibilityLabel === BOARD_STRINGS[language].search);
     const clear = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === BOARD_STRINGS[language].menuSearch.clear);
     const before = lastBoardParams("host-1");
@@ -1836,6 +1837,7 @@ describe("Tasks board, desktop", () => {
     layOut(900);
     toggleSidebarControl();
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width).toBe(340);
+    expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).right).toBe(0);
     expect(StyleSheet.flatten(hostsById("sidebar-stat-label-running")[0]!.props.style).fontSize).toBe(Math.round(12 * base / 14 * 0.9));
     expect(hostsById("floating-sidebar-grabber")).toHaveLength(1);
     layOut(1600);
@@ -1895,6 +1897,7 @@ describe("Tasks board, desktop", () => {
     layOut(900);
     toggleSidebarControl();
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width).toBe(380);
+    expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).right).toBe(12);
     expect(hostsById("floating-sidebar-resize")).toHaveLength(0);
   });
 
@@ -3059,6 +3062,14 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostsById("tablet-toolbar-search")).toHaveLength(0);
     expect(hostsById("tablet-toolbar-total")).toHaveLength(1);
     expect(style(bar()).height).toBe(height);
+  });
+
+  it("starts iPad search collapsed on a wide toolbar", () => {
+    mount("ios", 1000);
+    expect(hostsById("tablet-toolbar-search")).toHaveLength(0);
+    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
+    expect(hostParentOf(hostsById("tablet-toolbar-search-group")[0]!)?.props.testID).toBe("tablet-toolbar-start");
   });
 
   it.each(["android", "ios"])("%s preserves keepOpen, drill-down, Back and selection close", (os) => {

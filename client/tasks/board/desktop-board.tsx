@@ -256,7 +256,7 @@ export function DesktopBoard(props: {
   // An outgoing lane still occupies its slot until the complete panel has slid out.
   const layout = boardLaneLayout(boardWidth, archivedSwitch.drawn, collapsedState, board.laneWidth, lanesWidth);
   // A floating panel covers the lanes' right side: the row scrolls far enough for the last lane to come out from under it.
-  const coverRoom = floating && !inSheet ? panelWidth + SIDEBAR.gap : 0;
+  const coverRoom = floating && !inSheet ? panelWidth + (ipadFloating ? 0 : SIDEBAR.gap) : 0;
 
   const toggleSidebar = useCallback(() => {
     if (shown) setShown(null);
@@ -342,7 +342,7 @@ export function DesktopBoard(props: {
       const folded = now.collapsed.includes(lane);
       if (folded) setCollapsed((current) => current.filter((id) => id !== lane));
       const laneWidth = folded ? boardLaneLayout(now.boardWidth, now.board.laneOrder, now.collapsed.filter((id) => id !== lane), now.board.laneWidth).laneWidth : now.laneWidth;
-      const cover = now.inSheet ? LANES.edge : now.floating ? now.floatWidth + 2 * SIDEBAR.gap : now.boardWidth - now.lanesWidth;
+      const cover = now.inSheet ? LANES.edge : now.floating ? now.floatWidth + (Platform.OS === "ios" ? SIDEBAR.gap : 2 * SIDEBAR.gap) : now.boardWidth - now.lanesWidth;
       const scrolled = uncover(lane, cover, laneWidth);
       setFlash((was) => ({ lane, key: (was?.key ?? 0) + 1, delay: scrolled ? LANE_FLASH.afterScrollMs : 0 }));
     },
@@ -392,7 +392,7 @@ export function DesktopBoard(props: {
         if (location) setTimeout(() => scrollTo(location.lane, location.index, 0.05), 80);
         uncover(card.lane, LANES.edge);
       } else {
-        uncover(card.lane, now.floatWidth + 2 * SIDEBAR.gap);
+        uncover(card.lane, now.floatWidth + (Platform.OS === "ios" ? SIDEBAR.gap : 2 * SIDEBAR.gap));
       }
     },
     [touch, uncover, scrollTo],
@@ -590,6 +590,7 @@ export function DesktopBoard(props: {
       touch={touch}
       stats={!(inSheet && selection.id !== null)}
       scrollAll={inSheet}
+      tabs={ipadFloating}
     />
   );
   const activeCardId = focus ? `task-card-${lanes[focus.lane].cards[focus.index]!.id}` : undefined;
@@ -727,6 +728,7 @@ export function DesktopBoard(props: {
           <FloatingSidebar
             width={panelWidth}
             theme={theme}
+            flushRight={ipadFloating}
             resize={ipadFloating ? {
               label: strings.sidebar.resize,
               max: tabletSidebarWidth(boardWidth, TABLET_SIDEBAR.max),
@@ -970,6 +972,7 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
 function FloatingSidebar(props: {
   width: number;
   theme: PluginTheme;
+  flushRight?: boolean;
   resize?: { label: string; max: number; onDrag(width: number | null): void; onResize(width: number): void };
   children: React.ReactNode;
 }) {
@@ -1027,12 +1030,13 @@ function FloatingSidebar(props: {
       style={{
         position: "absolute",
         top: 4,
-        right: SIDEBAR.gap,
+        right: props.flushRight ? 0 : SIDEBAR.gap,
         bottom: 12,
         width: props.width,
         padding: 8,
         paddingLeft: props.resize ? 24 : 8,
         borderRadius: 16,
+        ...(props.flushRight ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRightWidth: 0 } : null),
         borderWidth: HAIRLINE,
         borderColor: chrome.border,
         backgroundColor: boardPalette(props.theme).panel,
