@@ -40,6 +40,11 @@ const nativeDriver = Platform.OS !== "web";
 /** iOS and Android page the lanes natively; web swipes them with pointer events. */
 const isNative = () => Platform.OS === "ios" || Platform.OS === "android";
 const Separator = () => <View style={{ height: 12 }} />;
+/** A lane list's end space without the scroll shortcuts. */
+const LANE_END_SPACE = 46;
+const SCROLL_ACTION = { size: 44, gap: 8, bottom: 16 } as const;
+/** With the shortcuts shown, the list ends this far down, so its last card and Load more scroll clear of them. */
+const LANE_END_SPACE_WITH_ACTIONS = SCROLL_ACTION.bottom + SCROLL_ACTION.size * 2 + SCROLL_ACTION.gap + 12;
 
 /** A touch (native) or pointer (web) event; both carry page coordinates. */
 type PointEvent = { nativeEvent: { pageX: number; pageY: number } };
@@ -755,6 +760,11 @@ const PhoneLane = memo(function PhoneLane(props: {
 }) {
   const { lane, board, theme } = props;
   const [refreshing, setRefreshing] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  // The list's content height without the end space it was measured with.
+  const [contentHeight, setContentHeight] = useState(0);
+  const [footerHeight, setFooterHeight] = useState(0);
+  const reduced = useReducedMotion();
   const colors = theme.colors;
   const strings = board.strings;
   const ready = board.tasks.ready;
@@ -768,6 +778,14 @@ const PhoneLane = memo(function PhoneLane(props: {
   const covered = useLaneCovered(lane.id);
   // Its list is what the lane shows: a card that leaves its end lets the list scroll back.
   const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
+  const scrollRetry = useRef<{ params: Parameters<NativeFlatList<TaskCard>["scrollToIndex"]>[0]; attempts: number } | null>(null);
+  const scrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelScroll = useCallback(() => {
+    if (scrollTimer.current !== null) clearTimeout(scrollTimer.current);
+    scrollTimer.current = null;
+    scrollRetry.current = null;
+  }, []);
+  useEffect(() => cancelScroll, [cancelScroll, count]);
   useLaneTarget(lane.id, () => scrollNode(listRef.current), (offset) => listRef.current?.scrollToOffset({ offset, animated: false }));
   const { listRef: shared } = props;
   const setList = useCallback(
@@ -795,9 +813,15 @@ const PhoneLane = memo(function PhoneLane(props: {
     );
   }
   const filtered = activeFilterCount(board.params, board.defaults) > 0;
+  const scrollActions = props.active !== false && viewportHeight > 0 && contentHeight > viewportHeight * 2;
+  const endSpace = scrollActions ? LANE_END_SPACE_WITH_ACTIONS : LANE_END_SPACE;
+  // A history lane with more pages ends at its loaded cards, and reaching them loads one more page as scrolling there does.
+  const loadedEnd = isHistoryLane(lane.id) && (lane.hasMore || lane.loading);
   return (
+    <View style={{ flex: 1, minHeight: 0 }} onLayout={(event: LayoutChangeEvent) => setViewportHeight(event.nativeEvent.layout.height)}>
     <FlatList<TaskCard>
       ref={setList}
+      onContentSizeChange={(_width, height) => setContentHeight(height - endSpace)}
       refreshing={refreshing}
       onRefresh={() => {
         if (refreshing) return;
@@ -811,12 +835,27 @@ const PhoneLane = memo(function PhoneLane(props: {
       extraData={extraData}
       renderItem={renderItem}
       ItemSeparatorComponent={Separator}
-      contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 12, paddingBottom: 46 }}
+      contentContainerStyle={{ paddingTop: 12, paddingHorizontal: 12, paddingBottom: endSpace }}
       initialNumToRender={6}
       maxToRenderPerBatch={6}
       windowSize={7}
-      onScrollToIndexFailed={({ index, averageItemLength }) => {
-        props.listRef?.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
+      onScrollToIndexFailed={({ index, averageItemLength, highestMeasuredFrameIndex }) => {
+        if (scrollTimer.current !== null) clearTimeout(scrollTimer.current);
+        scrollTimer.current = null;
+        const retry = scrollRetry.current?.params.index === index ? scrollRetry.current : {
+          params: { index, viewPosition: 0, viewOffset: 12, animated: !reduced },
+          attempts: 0,
+        };
+        scrollRetry.current = retry;
+        if (retry.attempts >= 50) return;
+        retry.attempts += 1;
+        // Advance the measured window before retrying variable-height cards.
+        listRef.current?.scrollToOffset({ offset: averageItemLength * Math.max(0, highestMeasuredFrameIndex), animated: false });
+        scrollTimer.current = setTimeout(() => {
+          scrollTimer.current = null;
+          listRef.current?.scrollToIndex(retry.params);
+          if (scrollTimer.current === null) scrollRetry.current = null;
+        }, 100);
       }}
       onEndReachedThreshold={0.5}
       onEndReached={() => {
@@ -842,13 +881,36 @@ const PhoneLane = memo(function PhoneLane(props: {
         </BoardEmptyState>
       }
       ListFooterComponent={
-        <>
+        <View testID="phone-lane-footer" onLayout={(event: LayoutChangeEvent) => setFooterHeight(event.nativeEvent.layout.height)}>
           {isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
             <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} large />
           ) : null}
           <LaneFilterHint board={board} lane={lane.id} count={board.hidden[lane.id]} theme={theme} />
-        </>
+        </View>
       }
     />
+    {scrollActions ? (
+      <View testID="phone-scroll-actions" style={{ position: "absolute", right: 12, bottom: SCROLL_ACTION.bottom, gap: SCROLL_ACTION.gap }}>
+        {([
+          { icon: "ArrowUpToLine", label: strings.scrollTop, testID: "phone-scroll-top", press: () => {
+            cancelScroll();
+            listRef.current?.scrollToOffset({ offset: 0, animated: !reduced });
+          } },
+          { icon: "ArrowDownToLine", label: loadedEnd ? strings.scrollLoadedEnd : strings.scrollBottom, testID: "phone-scroll-bottom", press: () => {
+            cancelScroll();
+            if (count === 0) return;
+            const params = { index: count - 1, viewPosition: 1, viewOffset: -(endSpace + footerHeight), animated: !reduced };
+            scrollRetry.current = { params, attempts: 0 };
+            listRef.current?.scrollToIndex(params);
+            if (scrollTimer.current === null) scrollRetry.current = null;
+          } },
+        ]).map((action) => (
+          <Pressable key={action.testID} testID={action.testID} accessibilityRole="button" accessibilityLabel={action.label} onPress={action.press} style={{ width: SCROLL_ACTION.size, height: SCROLL_ACTION.size, borderRadius: SCROLL_ACTION.size / 2, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center", elevation: 3 }}>
+            <Icon name={action.icon} size={20} color={colors.foreground} />
+          </Pressable>
+        ))}
+      </View>
+    ) : null}
+    </View>
   );
 });

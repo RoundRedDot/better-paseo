@@ -102,6 +102,10 @@ const en = {
   filters: "Filters",
   more: "More",
   refreshTasks: "Refresh tasks",
+  scrollTop: "Scroll to top",
+  scrollBottom: "Scroll to bottom",
+  /** A lane with more pages to load: the shortcut reaches the loaded cards' end. */
+  scrollLoadedEnd: "Scroll to the end of loaded tasks",
   view: "View",
   reset: "Reset",
   /** The phone sheet folds the workspaces without an active task under this. */
@@ -298,6 +302,9 @@ const zh: typeof en = {
   filters: "筛选",
   more: "更多",
   refreshTasks: "刷新任务",
+  scrollTop: "回到顶部",
+  scrollBottom: "滚动到底部",
+  scrollLoadedEnd: "滚动到已加载任务的末尾",
   view: "视图",
   reset: "重置",
   show: (count) => `显示 ${count} 个任务`,
