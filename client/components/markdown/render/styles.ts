@@ -506,7 +506,7 @@ export function buildStyles(
       paddingVertical: TABLE_CELL_PADDING_Y,
       paddingHorizontal: TABLE_CELL_PADDING + metrics.tableGap / 2,
       fontWeight: "500",
-      color: tokens.foregroundMuted,
+      color: tokens.foreground,
     },
     tableCell: {
       fontFamily: bodyFont,

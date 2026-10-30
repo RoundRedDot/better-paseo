@@ -119,4 +119,21 @@ describe("a native table's host views", () => {
     expect(Object.assign({}, ...rowStyle.filter(Boolean)).backgroundColor).toBe("rgba(238, 238, 238, 0.045)");
     act(() => renderer.unmount());
   });
+
+  it.each([
+    ["light", tokens],
+    ["dark", buildThemeTokens({
+      surface0: "#161616", surface1: "#202020", surface2: "#292929", border: "#383838",
+      foreground: "#eeeeee", foregroundMuted: "#aaaaaa", accent: "#7799ff",
+      accentForeground: "#ffffff", statusSuccess: "#1f8a5b", statusWarning: "#a36a00",
+      statusDanger: "#d23c3c",
+    })],
+  ])("uses the theme foreground for the table header in %s mode", (_, theme) => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(MarkdownView, { text: TABLE, tokens: theme, variant: "document" })); });
+    const cells = renderer.root.findAll((node) => String(node.type) === "Text"
+      && node.props.testID === "markdown-table-cell");
+    expect(Object.assign({}, ...cells[0]!.props.style.filter(Boolean)).color).toBe(theme.foreground);
+    act(() => renderer.unmount());
+  });
 });
