@@ -278,6 +278,9 @@ export function useBoard(
   const visible = useBoardVisible(rootRef, compact);
   const availability = useTaskAvailability(useCarriedTasks(hostId, options, useTasks(paseo, options, lingerBoard)), visible, hostId);
   const tasks = availability.tasks;
+  useEffect(() => {
+    if (tasks.error) toast.error(tasks.error);
+  }, [tasks.error]);
   // A save reads the whole record back as new objects: the fields keep their identity while they hold, so a switch on the board re-renders no card.
   const cardFields = effectiveCard(settings, compact);
   const titleLines = device.values?.titleLines ?? DEFAULT_CARD_TITLE_LINES;

@@ -91,6 +91,7 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
     labels: [{ name: "frontend", color: "#8b5cf6" }],
     ready: true,
     error: null,
+    refresh: vi.fn(),
     loadMoreDone: vi.fn(),
     resolveParent: vi.fn(),
     refreshParent: vi.fn(async () => false),
@@ -2582,7 +2583,7 @@ describe("Tasks board, sorting", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true, { sort: "branch-desc" }));
     });
-    act(() => pressable("Filters").props.onPress());
+    act(() => pressable("More").props.onPress());
     const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "Modal");
     const rows = (testID: string) =>
       sheet().find((node) => node.props.testID === testID).findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
@@ -3696,6 +3697,21 @@ describe("Tasks board, the 1 s clock", () => {
 });
 
 describe("Tasks board, phone", () => {
+  it("puts settings at the bottom of More and opens it", () => {
+    const openSettings = vi.fn();
+    setTasksSettingsOpener(openSettings);
+    act(() => { renderer = TestRenderer.create(screen(true)); });
+    act(() => pressable("More").props.onPress());
+    const button = hostsById("filter-sheet-settings")[0]!;
+    const footer = hostsById("filter-sheet-footer")[0]!;
+    expect(footer.findAll((node) => node === button)).toHaveLength(0);
+    expect(hostParentOf(button)).toBe(hostParentOf(footer));
+    const controls = hostParentOf(button)!.findAll((node) => node.props.testID === "filter-sheet-footer" || node.props.testID === "filter-sheet-settings");
+    expect(controls.indexOf(button)).toBeGreaterThan(controls.indexOf(footer));
+    act(() => button.props.onPress());
+    expect(openSettings).toHaveBeenCalledOnce();
+    expect(hostsById("filter-sheet-scroll")).toHaveLength(0);
+  });
   it.each(["ios", "android", "web"])("%s keeps lane rows still while opening and closing sheets", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
@@ -3712,7 +3728,7 @@ describe("Tasks board, phone", () => {
       expect(renderer!.root.findByType(TaskDetailCards).props.card.id).toBe(card.id);
       expect(host.rowRenders).toBe(before);
       await close();
-      await act(async () => pressable("Filters").props.onPress());
+      await act(async () => pressable("More").props.onPress());
       expect(hostsById("filter-sheet-scroll")).toHaveLength(1);
       expect(host.rowRenders).toBe(before);
       await close();
@@ -3744,41 +3760,33 @@ describe("Tasks board, phone", () => {
     }
   });
 
-  it.each(["ios", "android", "web"])("%s toggles subtasks from the toolbar and remembers the device preference", async (os) => {
+  it.each(["ios", "android", "web"])("%s changes subtasks in More and remembers the preference", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
-    const button = () => hostsById("phone-subtasks")[0]!;
-    const icon = () => button().find((node) => (node.type as unknown) === "Icon").props.name;
-    expect(button().props.accessibilityState).toEqual({ selected: true });
-    expect(icon()).toBe("Network");
+    act(() => pressable("More").props.onPress());
+    const button = () => hostsById("filter-sheet-subtasks")[0]!;
+    expect(button().props.accessibilityState).toEqual({ checked: true });
     await act(async () => button().props.onPress());
-    expect(button().props.accessibilityState).toEqual({ selected: false });
-    expect(icon()).toBe("List");
+    expect(button().props.accessibilityState).toEqual({ checked: false });
     expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(true);
     expect(lastBoardParams("host-1").hideSubtasks).toBeNull();
-    act(() => pressable("Filters").props.onPress());
-    expect(hostsById("filter-sheet-subtasks")).toHaveLength(0);
     act(() => renderer!.unmount());
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
-    expect(button().props.accessibilityState).toEqual({ selected: false });
-    expect(icon()).toBe("List");
+    act(() => pressable("More").props.onPress());
+    expect(button().props.accessibilityState).toEqual({ checked: false });
     await act(async () => button().props.onPress());
-    expect(button().props.accessibilityState).toEqual({ selected: true });
-    expect(icon()).toBe("Network");
     expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(false);
     expect(host.save).not.toHaveBeenCalled();
   });
 
-  it.each(["ios", "android"])("%s brings the page beside the shown lane up to date after the subtasks switch", async (os) => {
+  it.each(["ios", "android"])("%s updates the adjacent lane after the subtasks switch", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
-    // Waiting is shown; Running, beside it, is mounted and holds a subtask whose parent is in the same lane.
-    expect(pressable("Waiting 1").props.accessibilityState).toEqual({ selected: true });
     expect(laneCards("running")).toContain("sample-child-1");
-    await act(async () => hostsById("phone-subtasks")[0]!.props.onPress());
+    act(() => pressable("More").props.onPress());
+    await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
     expect(laneCards("running")).not.toContain("sample-child-1");
-    expect(laneCards("running")).toContain("sample-running");
-    await act(async () => hostsById("phone-subtasks")[0]!.props.onPress());
+    await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
     expect(laneCards("running")).toContain("sample-child-1");
   });
 
@@ -3970,14 +3978,14 @@ describe("Tasks board, phone", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true, { agent: "claude,codex", sub: "1" }));
     });
-    const filters = pressable("Filters");
+    const filters = pressable("More");
     // Two agents; showing subtasks does not count.
     expect(textOf(filters)).toBe("2");
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
     act(() => filters.props.onPress());
     const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
-    expect(sheet.props.title).toBe("Filters");
-    expect(hostsById("filter-sheet-subtasks")).toHaveLength(0);
+    expect(sheet.props.title).toBe("More");
+    expect(hostsById("filter-sheet-subtasks")).toHaveLength(1);
     expect(textOf(sheet)).not.toContain("Open tabs only");
   });
 
@@ -4015,14 +4023,14 @@ describe("Tasks board, phone", () => {
     const hint = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-sort-hint");
     expect(textOf(hint)).toBe("Branch Z→A");
     act(() => hint.props.onPress());
-    expect(renderer!.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe("Filters");
+    expect(renderer!.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe("More");
   });
 
   it("pins the filter sheet's button under its scrolling options, and keeps the sort's height when drilling in", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
-    act(() => pressable("Filters").props.onPress());
+    act(() => pressable("More").props.onPress());
     const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
     const scroll = sheet.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
     const footer = sheet.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-footer");
@@ -4057,29 +4065,28 @@ describe("Tasks board, phone", () => {
     expect(notice()).toHaveLength(0);
   });
 
-  it("shows the archived lane's tab from the header's round button left of the filters, and saves it", async () => {
-    act(() => {
-      renderer = TestRenderer.create(screen(true));
-    });
-    expect(renderer!.root.findAll((node) => node.props.testID === "phone-stat-archived")).toHaveLength(0);
-    const button = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "phone-archived");
-    const labels = hostParentOf(button())!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel);
-    expect(labels).toEqual(["Search", "Show subtasks", "Show the archived lane", "Filters"]);
-    const slashed = () => button().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
-    expect(button().props.accessibilityState).toEqual({ selected: false });
-    expect(slashed()).toBe(true);
-    const outline = () => StyleSheet.flatten(button().findAll((node) => (node.type as unknown) === "View")[0]!.props.style).borderColor;
-    const offOutline = outline();
-    await act(async () => button().props.onPress());
-    expect(button().props.accessibilityState).toEqual({ selected: true });
-    expect(slashed()).toBe(false);
-    expect(outline()).toBe(offOutline);
-    // The filter sheet no longer carries the switch.
-    act(() => pressable("Filters").props.onPress());
-    expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-archived")).toHaveLength(0);
-    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "phone-stat-archived")).toHaveLength(1);
-    expect(host.save).not.toHaveBeenCalled();
+  it("shows the archived lane from More and saves it", async () => {
+    act(() => { renderer = TestRenderer.create(screen(true)); });
+    expect(hostsById("phone-stat-archived")).toHaveLength(0);
+    act(() => pressable("More").props.onPress());
+    const button = hostsById("filter-sheet-archived")[0]!;
+    expect(button.props.accessibilityState).toEqual({ checked: false });
+    await act(async () => button.props.onPress());
+    expect(hostsById("filter-sheet-archived")[0]!.props.accessibilityState).toEqual({ checked: true });
+    expect(hostsById("phone-stat-archived")).toHaveLength(1);
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
+  });
+
+  it("refreshes from the More panel", () => {
+    act(() => { renderer = TestRenderer.create(screen(true)); });
+    const more = hostsById("phone-more")[0]!;
+    expect(more.find((node) => (node.type as unknown) === "Icon").props.name).toBe("MoreVertical");
+    act(() => more.props.onPress());
+    const handle = (data as unknown as { __handle: { refresh: ReturnType<typeof vi.fn> } }).__handle;
+    handle.refresh.mockClear();
+    act(() => hostsById("filter-sheet-refresh")[0]!.props.onPress());
+    expect(handle.refresh).toHaveBeenCalledOnce();
+    expect(hostsById("filter-sheet-scroll")).toHaveLength(0);
   });
 
   it("opens the filter sheet with the sort first from the header's sort pill, and with the switches first from the filters button", () => {
@@ -4096,7 +4103,7 @@ describe("Tasks board, phone", () => {
     expect(order().sort).toBeLessThan(order().switches);
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-sort")).toHaveLength(1);
     act(() => renderer!.root.find((node) => (node.type as unknown) === "Modal").props.onOpenChange?.(false));
-    act(() => pressable("Filters").props.onPress());
+    act(() => pressable("More").props.onPress());
     expect(order().switches).toBeLessThan(order().sort);
     expect(order().workspace).toBeLessThan(order().sort);
   });
@@ -4105,11 +4112,11 @@ describe("Tasks board, phone", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
-    act(() => pressable("Filters").props.onPress());
+    act(() => pressable("More").props.onPress());
     const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
     const switches = () => scroll.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
-    expect(switches()).toHaveLength(1);
-    expect(switches().map((node) => node.props.accessibilityState)).toEqual([{ checked: true }]);
+    expect(switches()).toHaveLength(3);
+    expect(switches().map((node) => node.props.accessibilityState)).toEqual([{ checked: true }, { checked: false }, { checked: true }]);
     act(() => switches()[0]!.props.onPress());
     expect(switches()[0]!.props.accessibilityState).toEqual({ checked: false });
     expect(switches().flatMap((node) => node.findAll((child) => (child.type as unknown) === "Icon" && child.props.name === "Check"))).toHaveLength(0);
@@ -4119,11 +4126,12 @@ describe("Tasks board, phone", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
-    act(() => pressable("Filters").props.onPress());
+    act(() => pressable("More").props.onPress());
     const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
     const text = textOf(scroll);
     const at = (label: string) => text.indexOf(label);
-    expect(at(BOARD_STRINGS.en.emptyGroups.row)).toBe(0);
+    expect(at(BOARD_STRINGS.en.refreshTasks)).toBe(0);
+    expect(at(BOARD_STRINGS.en.emptyGroups.row)).toBeGreaterThan(0);
     expect(at("Agent")).toBeLessThan(at("Workspace"));
     expect(at("Workspace")).toBeLessThan(at("Labels"));
     expect(at("Labels")).toBeLessThan(at("Time range"));
@@ -4142,7 +4150,7 @@ describe("Tasks board, phone", () => {
       act(() => {
         renderer = TestRenderer.create(screen(true));
       });
-      act(() => pressable("Filters").props.onPress());
+      act(() => pressable("More").props.onPress());
       const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
       const workspaces = () => sheet().find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-workspaces");
       const chips = () => workspaces().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox").map(textOf);
@@ -4186,7 +4194,7 @@ describe("Tasks board, phone", () => {
       });
       expect(hostsById("phone-empty-groups")).toHaveLength(0);
       expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
-      act(() => pressable("Filters").props.onPress());
+      act(() => pressable("More").props.onPress());
       const button = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-empty-groups");
       const icon = () => button().find((node) => (node.type as unknown) === "Icon").props.name;
       // On by default: the whole list.
@@ -4215,7 +4223,7 @@ describe("Tasks board, phone", () => {
       act(() => {
         renderer = TestRenderer.create(screen(true));
       });
-      act(() => pressable("Filters").props.onPress());
+      act(() => pressable("More").props.onPress());
       expect(chips()).toContain("Pi");
       expect(chips()).not.toContain("idle-branch0");
     } finally {

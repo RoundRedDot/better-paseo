@@ -99,6 +99,23 @@ async function mountTasks(fake: Fake, doneWindow: "24h" | "7d" | "all" = "24h", 
   return { get current() { return current; }, renderer, unmount: () => act(() => renderer.unmount()) };
 }
 
+it("refreshes subscriptions to recover an agent missed by live updates", async () => {
+  const fake = createFakePaseo({ agents: [], workspaces: [workspace()] });
+  const mounted = await mountTasks(fake);
+  try {
+    fake.setAgentSilently(activeAgent("missed", { status: "running" }));
+    expect(mounted.current.byId.has("missed")).toBe(false);
+    await act(async () => {
+      mounted.current.refresh();
+      for (let index = 0; index < 12; index += 1) await Promise.resolve();
+    });
+    expect(mounted.current.lanes.running.cards.map((card) => card.id)).toContain("missed");
+    expect(mounted.current.ready).toBe(true);
+  } finally {
+    mounted.unmount();
+  }
+});
+
 function recentIso(ageMs: number) {
   return new Date(Date.now() - ageMs).toISOString();
 }

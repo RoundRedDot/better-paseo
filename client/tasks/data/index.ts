@@ -85,6 +85,8 @@ export interface TasksSnapshot {
 }
 
 export interface TasksHandle extends TasksSnapshot {
+  /** Reopen the board's subscriptions and read fresh snapshots. */
+  refresh(): void;
   /** Fetch the done lane's next page (50), which the archived lane shares. */
   loadMoreDone(): void;
   /** Resolve a parent that is not on the board (archived, or an old done task): `agents.ref(id).refresh()`. */
@@ -1622,6 +1624,7 @@ function createStore(api: PaseoApi): TaskStore {
     } catch (caught) {
       if (isCurrent(run)) {
         // A failed list must not hold the board on its skeleton.
+        if (key === STATUS_KEY) statusReady = true;
         if (key === ATTENTION_KEY) attentionReady = true;
         if (key === DONE_SUBSCRIPTION) doneListLanded();
         subscriptionError(caught);
@@ -2177,6 +2180,7 @@ function createStore(api: PaseoApi): TaskStore {
       labels: [...labelsByName.values()].sort((a, b) => a.name.localeCompare(b.name)),
       ready: statusReady && attentionReady && workspacesReady,
       error,
+      refresh,
       loadMoreDone: () => { if (options.includeDone) loadMoreDone(options.doneWindow); },
       resolveParent,
       refreshParent,
@@ -2401,6 +2405,15 @@ function createStore(api: PaseoApi): TaskStore {
       }
       if (consumers === 0) stopAll();
     };
+  }
+
+  function refresh() {
+    if (consumers === 0) return;
+    stopAll();
+    startBase();
+    if (attentionConsumers > 0) startAttention();
+    if (boardConsumers > 0) startBoard();
+    if (doneConsumers > 0) startDone();
   }
 
   /**

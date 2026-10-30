@@ -314,6 +314,7 @@ function handle(): TasksHandle {
     ],
     ready: true,
     error: null,
+    refresh() {},
     loadMoreDone() {},
     resolveParent() {},
     refreshParent: async () => false,
