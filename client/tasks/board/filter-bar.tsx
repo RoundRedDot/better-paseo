@@ -43,16 +43,10 @@ const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale))
 
 export type EmptyLanes = { collapsed: boolean; disabled: boolean; onToggle(): void };
 
-const TOTAL_GAP = 8;
-
-/**
- * Beside the count: reads the board's lists again (`tasks.refresh`), the
- * cards changing in place. The icon turns until the read ends, either way;
- * a failure shows as the board's error toast.
- */
-function RefreshTasksButton({ board, theme }: { board: BoardController; theme: PluginTheme }) {
+function MoreActions({ board, theme, items }: { board: BoardController; theme: PluginTheme; items: MenuSection["items"] }) {
   const scale = useTasksFontScale();
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -68,17 +62,23 @@ function RefreshTasksButton({ board, theme }: { board: BoardController; theme: P
       .finally(() => { if (mounted.current) setBusy(false); });
   };
   return (
+    <View style={{ zIndex: 20 }}>
     <RoundButton
-      icon="RefreshCw"
-      label={board.strings.refreshTasks}
+      icon={busy ? "RefreshCw" : "Ellipsis"}
+      label={board.strings.more}
       theme={theme}
-      onPress={press}
+      onPress={() => setOpen(!open)}
       spinning={busy}
       size={roundButtonSize(scale)}
       iconSize={roundIconSize(scale)}
-      tip={board.strings.refreshTasks}
-      testID="toolbar-refresh"
+      tip={board.strings.more}
+      testID="desktop-toolbar-more"
     />
+    {open ? <CascadeMenu theme={theme} width={260} top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setOpen(false)} testID="desktop-more-menu" sections={[{ key: "more", items: [
+      { key: "refresh", label: board.strings.refreshTasks, icon: "RefreshCw", disabled: busy, onSelect: press },
+      ...items,
+    ] }]} /> : null}
+    </View>
   );
 }
 
@@ -130,11 +130,18 @@ function DesktopToolbarView(props: {
   const toggle = (menuId: FilterMenu) => props.setMenu(props.menu === menuId ? null : menuId);
   const [searchFocused, setSearchFocused] = useState(false);
   const [actionWidth, setActionWidth] = useState(0);
-  const [viewOpen, setViewOpen] = useState(false);
   const openSettings = tasksSettingsOpener();
-  // Include settings when deciding whether the actions fit beside the centred count.
-  const actionCount = (props.filters ? 3 : 1) + Number(!!openSettings) + Number(!!props.sidebar);
+  const actionCount = (props.filters ? 4 : 1) + Number(!!props.sidebar);
   const compactActions = actionWidth > 0 && actionWidth < actionCount * roundButtonSize(scale) + (actionCount - 1) * TOOLBAR_GAP;
+  const moreItems: MenuSection["items"] = [
+    ...(compactActions && props.filters ? [
+      { key: "empty", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, disabled: props.emptyLanes.disabled, onSelect: props.emptyLanes.onToggle },
+      { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
+    ] : []),
+    { key: "empty-groups", label: strings.emptyGroups.row, icon: emptyGroupsIcon(board.showEmptyGroups), checked: board.showEmptyGroups, shortcut: "G", onSelect: () => board.setShowEmptyGroups(!board.showEmptyGroups) },
+    ...(openSettings ? [{ key: "settings", label: strings.openSettings, icon: "Bolt", shortcut: ",", onSelect: openSettings }] : []),
+    ...(compactActions && props.sidebar ? [{ key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, onSelect: props.sidebar.onToggle }] : []),
+  ];
   return (
     <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
       <View testID="desktop-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -208,30 +215,13 @@ function DesktopToolbarView(props: {
         </View>
       ) : null}
       </View>
-      <View testID="desktop-toolbar-total" pointerEvents="box-none" style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOTAL_GAP }}>
-        {/* The refresh button's width on the other side, so the count stays centred. */}
-        <View testID="desktop-toolbar-total-balance" pointerEvents="none" style={{ width: roundButtonSize(scale) }} />
-        <View pointerEvents="none">
-          <RollingTotal board={board} style={{ fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />
-        </View>
-        <RefreshTasksButton board={board} theme={theme} />
+      <View testID="desktop-toolbar-total" pointerEvents="none" style={{ flexShrink: 0, alignItems: "center" }}>
+        <RollingTotal board={board} style={{ fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />
       </View>
       <View testID="desktop-toolbar-end" onLayout={(event) => setActionWidth(event.nativeEvent.layout.width)} style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: TOOLBAR_GAP }}>
       {compactActions ? (
         <>
           {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} testID="toolbar-filters" /> : null}
-          <View style={{ zIndex: 20 }}>
-            <RoundButton icon="SlidersHorizontal" label={strings.view} selected={viewOpen} theme={theme} onPress={() => setViewOpen(!viewOpen)} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} testID="desktop-toolbar-view" />
-            {viewOpen ? <CascadeMenu theme={theme} width={260} top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setViewOpen(false)} sections={[{ key: "view", items: [
-              ...(props.filters ? [
-                { key: "empty", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, disabled: props.emptyLanes.disabled, onSelect: props.emptyLanes.onToggle },
-                { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
-              ] : []),
-              ...(props.filters ? [] : [{ key: "empty-groups", label: strings.emptyGroups.row, checked: board.showEmptyGroups, onSelect: () => board.setShowEmptyGroups(!board.showEmptyGroups) }]),
-              ...(openSettings ? [{ key: "settings", label: strings.openSettings, icon: "Bolt", onSelect: openSettings }] : []),
-              ...(props.sidebar ? [{ key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, onSelect: props.sidebar.onToggle }] : []),
-            ] }]} /> : null}
-          </View>
         </>
       ) : <>
       {Platform.OS === "web" && props.keyHints ? (
@@ -267,21 +257,9 @@ function DesktopToolbarView(props: {
           <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} tip={strings.filters} testID="toolbar-filters" />
         </>
       ) : null}
-      {props.filters ? null : (
-        <BarSwitch
-          icon={emptyGroupsIcon(board.showEmptyGroups)}
-          on={board.showEmptyGroups}
-          onPress={() => board.setShowEmptyGroups(!board.showEmptyGroups)}
-          label={strings.emptyGroups.row}
-          hint={strings.emptyGroups.hint(board.showEmptyGroups)}
-          tip={`${board.showEmptyGroups ? strings.emptyGroups.hide : strings.emptyGroups.row} (G)`}
-          theme={theme}
-          testID="empty-groups-toggle"
-        />
-      )}
-      {openSettings ? <RoundButton icon="Bolt" label={strings.openSettings} theme={theme} onPress={openSettings} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} tip={`${strings.openSettings} (,)`} testID="toolbar-settings" /> : null}
-      {props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
       </>}
+      <MoreActions board={board} theme={theme} items={moreItems} />
+      {!compactActions && props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
       </View>
     </View>
   );

@@ -442,10 +442,13 @@ describe("Tasks search coverage and centred toolbar", () => {
     layOut(2400);
     for (const [id, key] of [
       ["empty-lanes-toggle", "E"], ["subtasks-toggle", "S"], ["archived-lane-toggle", "A"],
-      ["empty-groups-toggle", "G"], ["toolbar-settings", ","], ["sidebar-switch", "]"],
+      ["sidebar-switch", "]"],
     ] as const) {
       expect(hostsById(id)[0]!.props.dataSet.bctip.endsWith(`(${key})`)).toBe(true);
     }
+    act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
+    expect(textOf(menuOption(BOARD_STRINGS[language].emptyGroups.row))).toContain("G");
+    expect(textOf(menuOption(BOARD_STRINGS[language].openSettings))).toContain(",");
     const toolbarText = textOf(hostsById("desktop-toolbar")[0]!);
     expect(toolbarText).toContain(language === "zh" ? "空格" : "Space");
     expect(toolbarText).not.toContain(language === "zh" ? "Space" : "空格");
@@ -470,13 +473,18 @@ describe("Tasks search coverage and centred toolbar", () => {
       expect(selected("sidebar-switch")).toBe(initialSidebar);
       browser.key(",");
       expect(openSettings).toHaveBeenCalledTimes(1);
-      for (const [key, id] of [["s", "subtasks-toggle"], ["a", "archived-lane-toggle"], ["g", "empty-groups-toggle"]] as const) {
+      for (const [key, id] of [["s", "subtasks-toggle"], ["a", "archived-lane-toggle"]] as const) {
         const initial = checked(id);
         await act(async () => { browser.key(key); });
         expect(checked(id)).toBe(!initial);
         await act(async () => { browser.key(key); });
         expect(checked(id)).toBe(initial);
       }
+      const groups = deviceTasksStore().snapshot().values?.showEmptyGroups;
+      await act(async () => { browser.key("g"); });
+      expect(deviceTasksStore().snapshot().values?.showEmptyGroups).toBe(!groups);
+      await act(async () => { browser.key("g"); });
+      expect(deviceTasksStore().snapshot().values?.showEmptyGroups).toBe(groups);
       act(() => renderer!.root.findByType(DesktopToolbar).props.board.setParams((params: object) => ({ ...params, query: "no matching tasks" })));
       expect(hostsById("empty-lanes-toggle")[0]!.props.disabled).toBe(false);
       browser.key("e");
@@ -496,7 +504,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const browser = renderFocusBoard();
     try {
-      const state = () => ["sidebar-switch", "subtasks-toggle", "archived-lane-toggle", "empty-groups-toggle"].map((id) => hostsById(id)[0]!.props.accessibilityState);
+      const state = () => [...["sidebar-switch", "subtasks-toggle", "archived-lane-toggle"].map((id) => hostsById(id)[0]!.props.accessibilityState), deviceTasksStore().snapshot().values?.showEmptyGroups];
       const initial = state();
       for (const key of ["]", ",", "e", "s", "a", "g"]) {
         for (const active of [{ tagName: "INPUT", inBoard: true }, { tagName: "TEXTAREA", inBoard: true }, { isContentEditable: true, inBoard: true }, { inBoard: false }]) {
@@ -525,20 +533,14 @@ describe("Tasks search coverage and centred toolbar", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(2400);
-    const button = hostsById("toolbar-settings")[0]!;
     const controls = hostsById("desktop-toolbar-end")[0]!.findAll((node) => (node.type as unknown) === "Pressable");
-    expect(controls.map((node) => node.props.testID)).toEqual(["empty-groups-toggle", "toolbar-settings", "sidebar-switch"]);
-    expect(button.props.accessibilityRole).toBe("button");
-    expect(button.props.accessibilityLabel).toBe(BOARD_STRINGS[language].openSettings);
-    expect(button.props.dataSet?.bctip).toBe(`${BOARD_STRINGS[language].openSettings} (,)`);
-    expect(StyleSheet.flatten(button.props.style).width).toBe(StyleSheet.flatten(hostsById("sidebar-switch")[0]!.props.style).width);
-    expect(button.find((node) => (node.type as unknown) === "Icon").props.name).toBe("Bolt");
-    act(() => button.props.onPress());
+    expect(controls.map((node) => node.props.testID)).toEqual(["desktop-toolbar-more", "sidebar-switch"]);
+    act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
+    act(() => menuOption(BOARD_STRINGS[language].openSettings).props.onPress());
     expect(openSettings).toHaveBeenCalledTimes(1);
     // Two controls fit in this slot; adding settings must fold the actions.
-    act(() => hostsById("desktop-toolbar-end")[0]!.props.onLayout({ nativeEvent: { layout: { width: 90 } } }));
-    expect(hostsById("toolbar-settings")).toHaveLength(0);
-    act(() => hostsById("desktop-toolbar-view")[0]!.props.onPress());
+    act(() => hostsById("desktop-toolbar-end")[0]!.props.onLayout({ nativeEvent: { layout: { width: 20 } } }));
+    act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
     act(() => menuOption(BOARD_STRINGS[language].openSettings).props.onPress());
     expect(openSettings).toHaveBeenCalledTimes(2);
   });
@@ -549,7 +551,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     layOut(400);
     const prefix = os === "web" ? "desktop" : "tablet";
     act(() => hostsById(`${prefix}-toolbar-end`)[0]!.props.onLayout({ nativeEvent: { layout: { width: os === "web" ? 100 : 70 } } }));
-    const open = hostsById(os === "web" ? "desktop-toolbar-view" : "tablet-view")[0]!;
+    const open = hostsById(os === "web" ? "desktop-toolbar-more" : "tablet-view")[0]!;
     act(() => open.props.onPress());
     expect(menuOption(BOARD_STRINGS.en.archivedLane.row)).toBeDefined();
     expect(menuOption(BOARD_STRINGS.en.emptyLanes.collapse)).toBeDefined();
@@ -2826,7 +2828,7 @@ describe("Tasks board, archived lane switch", () => {
     expect(hostsById("lane-archived")).toHaveLength(0);
     // Full-text search sits beside the input; board visibility controls retain their order.
     const toolbar = renderer!.root.findByType(DesktopToolbar);
-    expect(toolbar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(["search-full-conversation-toggle", "toolbar-refresh", "empty-groups-toggle", "sidebar-switch"]);
+    expect(toolbar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(["search-full-conversation-toggle", "desktop-toolbar-more", "sidebar-switch"]);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
     expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle"]);
     expect(hostsById("toolbar-archived")).toHaveLength(0);
@@ -2860,27 +2862,22 @@ describe("Tasks board, archived lane switch", () => {
 
 describe("Tasks board, desktop refresh button", () => {
   const handle = () => (data as unknown as { __handle: { refresh: ReturnType<typeof vi.fn> } }).__handle;
-  const refreshButton = () => hostsById("toolbar-refresh")[0]!;
+  const refreshButton = () => hostsById("desktop-toolbar-more")[0]!;
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   });
 
-  it.each(["en", "zh"] as const)("sits right of the centred count, balanced on its left, with a %s hover tip", (language) => {
+  it.each(["en", "zh"] as const)("keeps the count centred and offers refresh in the %s more menu", (language) => {
     updateEnhancerPreferences({ language });
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(1600);
     const middle = hostsById("desktop-toolbar-total")[0]!;
-    const slots = middle.children.filter((child): child is ReactTestInstance => typeof child !== "string");
-    expect(slots).toHaveLength(3);
-    expect(slots[0]!.props.testID).toBe("desktop-toolbar-total-balance");
-    expect(textOf(slots[1]!)).toContain(BOARD_STRINGS[language].totalUnit(6).trim());
-    expect(slots[2]!.findAll((node) => node.props.testID === "toolbar-refresh").length).toBeGreaterThan(0);
-    // The balance is as wide as the button, so the count is the middle of the slot.
-    expect(StyleSheet.flatten(slots[0]!.props.style).width).toBe(StyleSheet.flatten(refreshButton().props.style).width);
-    expect(middle.props.pointerEvents).toBe("box-none");
-    expect(slots[1]!.props.pointerEvents).toBe("none");
-    expect(refreshButton().props.dataSet.bctip).toBe(BOARD_STRINGS[language].refreshTasks);
-    expect(refreshButton().props.accessibilityLabel).toBe(BOARD_STRINGS[language].refreshTasks);
+    expect(textOf(middle)).toContain(BOARD_STRINGS[language].totalUnit(6).trim());
+    expect(middle.props.pointerEvents).toBe("none");
+    expect(refreshButton().props.dataSet.bctip).toBe(BOARD_STRINGS[language].more);
+    act(() => refreshButton().props.onPress());
+    expect(menuOption(BOARD_STRINGS[language].refreshTasks)).toBeDefined();
+    expect(menuOption(BOARD_STRINGS[language].emptyGroups.row)).toBeDefined();
   });
 
   it.each(["done", "failed", "rejected"] as const)("turns while the refresh runs and rests once it ends (%s), without redrawing a row", async (outcome) => {
@@ -2895,12 +2892,15 @@ describe("Tasks board, desktop refresh button", () => {
     await act(async () => {});
     const rows = host.rowRenders;
     const cardsBefore = cards().map((card) => card.props.card);
-    await act(async () => { refreshButton().props.onPress(); });
+    act(() => refreshButton().props.onPress());
+    await act(async () => { menuOption(BOARD_STRINGS.en.refreshTasks).props.onPress(); });
     expect(handle().refresh).toHaveBeenCalledTimes(1);
     expect(refreshButton().props.accessibilityState).toEqual({ busy: true });
     expect(hostsById("spinning-icon")).toHaveLength(1);
     // A second press while it runs asks nothing more.
-    await act(async () => { refreshButton().props.onPress(); });
+    act(() => refreshButton().props.onPress());
+    expect(menuOption(BOARD_STRINGS.en.refreshTasks).props.disabled).toBe(true);
+    act(() => refreshButton().props.onPress());
     expect(handle().refresh).toHaveBeenCalledTimes(1);
     await act(async () => { finish(); await Promise.resolve(); });
     expect(refreshButton().props.accessibilityState).toEqual({ busy: false });
@@ -2908,7 +2908,8 @@ describe("Tasks board, desktop refresh button", () => {
     expect(cards()).toHaveLength(cardsBefore.length);
     cards().forEach((card, index) => expect(card.props.card).toBe(cardsBefore[index]));
     // It can run again.
-    await act(async () => { refreshButton().props.onPress(); });
+    act(() => refreshButton().props.onPress());
+    await act(async () => { menuOption(BOARD_STRINGS.en.refreshTasks).props.onPress(); });
     expect(handle().refresh).toHaveBeenCalledTimes(2);
     await act(async () => { finish(); await Promise.resolve(); });
   });
@@ -2947,8 +2948,9 @@ describe("Tasks board, refresh during a title reveal", () => {
     const laneCards = () => cards().filter((card) => card.props.card.lane === lane);
     const ids = () => laneCards().map((card) => card.props.card.id);
     const pressRefresh = async () => {
+      act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
       await act(async () => {
-        hostsById("toolbar-refresh")[0]!.props.onPress();
+        menuOption(BOARD_STRINGS.en.refreshTasks).props.onPress();
         await vi.advanceTimersByTimeAsync(0);
       });
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
@@ -2967,7 +2969,7 @@ describe("Tasks board, refresh during a title reveal", () => {
       // The daemon saved the rename before the client hears the title is done; the refresh brings it.
       live.fake.setAgentSilently(agentIn(lane, "title-target", title, 0));
       await live.pressRefresh();
-      expect(hostsById("toolbar-refresh")[0]!.props.accessibilityState).toEqual({ busy: false });
+      expect(hostsById("desktop-toolbar-more")[0]!.props.accessibilityState).toEqual({ busy: false });
       expect(live.ids()).toEqual(["title-first", "title-target"]);
       expect(live.laneCards()[0]!.props.card).toBe(firstCard);
       expect(live.laneCards()[1]!.props.card).toBe(targetCard);
@@ -3535,7 +3537,7 @@ describe("Tasks board, tablet filters", () => {
     }
   });
 
-  it("flips the groups at 0 from the top row's switch, left of the sidebar's, and saves it", async () => {
+  it("flips the groups at 0 from the more menu and saves it", async () => {
     const handle = (data as unknown as { __handle: { providers: object[] } }).__handle;
     const saved = handle.providers;
     handle.providers = [...saved, { id: "pi", label: "Pi" }];
@@ -3545,24 +3547,17 @@ describe("Tasks board, tablet filters", () => {
         renderer = TestRenderer.create(screen(false));
       });
       layOut(2400);
-      const toggle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "empty-groups-toggle");
-      const icon = () => toggle().find((node) => (node.type as unknown) === "Icon").props.name;
       const rows = () => renderer!.root.findByProps({ testID: "sidebar-groups" }).findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);
-      const toolbar = renderer!.root.findByType(DesktopToolbar);
-      expect(toolbar.findAll((node) => node === toggle())).toHaveLength(1);
-      expect(toggle().props).toMatchObject({ accessibilityRole: "switch", accessibilityLabel: "Show all", accessibilityState: { checked: true } });
-      expect(toggle().props.dataSet?.bctip).toBe("Don't show all (G)");
-      // The same round size as the sidebar switch beside it.
-      const size = (testID: string) => StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID).props.style).width;
-      expect(size("empty-groups-toggle")).toBe(size("sidebar-switch"));
-      expect(icon()).toBe("Layers");
+      act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
+      expect(menuOption("Show all").props.accessibilityState.checked).toBe(true);
+      expect(menuOption("Show all").findAll((node) => (node.type as unknown) === "Icon")[0]!.props.name).toBe("Layers");
       expect(rows().at(-1)).toBe("Pi 0");
-      await act(async () => toggle().props.onPress());
+      await act(async () => menuOption("Show all").props.onPress());
       expect(host.save).not.toHaveBeenCalled();
       expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
-      expect(toggle().props.accessibilityState).toEqual({ checked: false });
-      expect(toggle().props.dataSet?.bctip).toBe("Show all (G)");
-      expect(icon()).toBe("ListFilter");
+      act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
+      expect(menuOption("Show all").props.accessibilityState.checked).toBe(false);
+      expect(menuOption("Show all").findAll((node) => (node.type as unknown) === "Icon")[0]!.props.name).toBe("ListFilter");
       expect(rows()).not.toContain("Pi 0");
     } finally {
       handle.providers = saved;
@@ -3576,7 +3571,7 @@ describe("Tasks board, tablet filters", () => {
     });
     layOut(width);
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && /^toolbar-/.test(node.props.testID ?? ""));
-    expect(buttons.map((node) => node.props.testID)).toEqual(os === "web" ? ["toolbar-refresh", "toolbar-archived", "toolbar-filters"] : ["toolbar-filters"]);
+    expect(buttons.map((node) => node.props.testID)).toEqual(os === "web" ? ["toolbar-archived", "toolbar-filters"] : ["toolbar-filters"]);
     expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
     expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
@@ -3590,7 +3585,9 @@ describe("Tasks board, tablet filters", () => {
     // Native keeps the open panel and its value while resizing; a wide web board has it in its top row and filter menus.
     layOut(1600);
     if (os === "web") {
-      expect(hostsById("empty-groups-toggle")[0]!.props.accessibilityState).toEqual({ checked: false });
+      act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
+      expect(menuOption("Show all").props.accessibilityState.checked).toBe(false);
+      act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
       act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === "Filter by project").props.onPress());
       const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith("Show all"));
       expect(row[0]!.props.accessibilityState).toMatchObject({ checked: false });
@@ -3608,7 +3605,7 @@ describe("Tasks board, tablet filters", () => {
     const archived = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived");
     // The folded web header keeps the filter bar's order: empty lanes, then the archived lane, then the filters.
     const header = renderer!.root.findByType(DesktopToolbar).findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID !== "sidebar-switch");
-    expect(header.map((node) => node.props.testID)).toEqual(["search-full-conversation-toggle", "toolbar-refresh", "empty-lanes-toggle", "toolbar-archived", "toolbar-filters"]);
+    expect(header.map((node) => node.props.testID)).toEqual(["search-full-conversation-toggle", "empty-lanes-toggle", "toolbar-archived", "toolbar-filters", "desktop-toolbar-more"]);
     expect(textOf(archived())).toBe("");
     expect(archived().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Archive");
     expect(hostsById("archived-lane-toggle")).toHaveLength(0);
