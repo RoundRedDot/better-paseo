@@ -19,6 +19,8 @@ export { TasksBoardScreen } from "../board/board-screen";
 export { TasksSidebarEntry } from "../board/sidebar-entry";
 export { prefetchBoardFromCommand, releaseBoardPrefetch } from "../board/prefetch";
 export { TasksSettingsPanel } from "../settings/tasks-panel";
+// Better Paseo's settings page (chat options and the board's), opened from the host's settings.
+export { BetterPaseoSettingsPage } from "../../settings-page";
 
 /** Points the data layer at this host's plugin server; returns the cleanup. */
 export function startTasksData(client: PluginClientContext): () => void {

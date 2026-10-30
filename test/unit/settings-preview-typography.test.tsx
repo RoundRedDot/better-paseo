@@ -16,7 +16,7 @@ vi.mock("../../client/ui/wide-host-column", () => ({ useWideHostColumn() {} }));
 import { BetterPaseoSettingsPage } from "../../client/settings-page";
 import { SettingsPreview } from "../../client/settings-preview";
 import { resetEnhancerPreferences } from "../../client/preferences";
-import { SETTINGS_STRINGS } from "../../client/i18n/settings-strings";
+import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { StyleSheet } from "./helpers/rn-mock";
 import { setSettingsTab } from "../../client/settings-tab";
 import {

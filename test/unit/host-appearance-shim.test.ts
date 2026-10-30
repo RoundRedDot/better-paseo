@@ -28,10 +28,10 @@ import {
 } from "../../client/ui/tokens/host-appearance-shim";
 import {
   DEFAULT_WEB_MONO_STACK,
-  describeMonoSource,
   resolveTypography,
   type TypographyPreferences,
 } from "../../client/ui/tokens/typography";
+import { describeMonoSource } from "../../client/settings-mono-source";
 
 await import("./helpers/quiet-renderer");
 const TestRenderer = (await import("react-test-renderer")).default;

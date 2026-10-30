@@ -34,7 +34,6 @@ import {
   DEFAULT_WEB_MONO_STACK,
   NATIVE_MONO_CHOICES,
   TYPE,
-  describeMonoSource,
   readHostTypography,
 } from "./ui/tokens/typography";
 import { usePreferenceSettings } from "./state/preference-sync-slot";
@@ -42,14 +41,11 @@ import { useWideHostColumn } from "./ui/wide-host-column";
 import { SettingsPreview } from "./settings-preview";
 import { PHONE_PREVIEW_WIDTH, PlainButton, Section, SectionNote, Segmented, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "./settings-controls";
 import { setSettingsTab, useSettingsTab, type SettingsTab } from "./settings-tab";
-import { TasksSettingsPanel } from "./tasks/chunk/load";
+import { TasksSettingsPanel } from "./tasks/settings/tasks-panel";
 import type { SyncStatus } from "./state/preference-sync";
-import {
-  SETTINGS_STRINGS,
-  resolveLanguage,
-  type SettingsLanguagePreference,
-  type SettingsStrings,
-} from "./i18n/settings-strings";
+import { resolveLanguage, type SettingsLanguagePreference } from "./i18n/settings-strings";
+import { SETTINGS_STRINGS, type SettingsStrings } from "./i18n/settings-page-strings";
+import { describeMonoSource } from "./settings-mono-source";
 
 /** What the settings page says about the daemon store, or null when all is well. */
 function storageHint(sync: SyncStatus, t: SettingsStrings): string | null {

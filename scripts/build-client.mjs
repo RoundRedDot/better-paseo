@@ -17,9 +17,10 @@
 //    As code the host would print it back out (about a third larger); as a
 //    string it travels as is.
 // 2. `server/tasks-chunk.ts`: the Tasks board's code (`client/tasks/chunk/
-//    entry.ts`), left out of the bundle; the plugin server sends it when the
-//    board, its sidebar entry or its settings first show (`tasksChunkRpc`),
-//    and the client keeps it across reconnects (`chunk/remote.ts`).
+//    entry.ts`) and Better Paseo's settings page, left out of the bundle; the
+//    plugin server sends it when the board, its sidebar entry or the
+//    settings page first show (`tasksChunkRpc`), and the client keeps it
+//    across reconnects (`chunk/remote.ts`).
 //
 // The chunk must not hold copies of modules the bundle holds (one enabled
 // store, one board session, one language), so every module both would

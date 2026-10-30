@@ -1,15 +1,16 @@
 import React, { useEffect, useSyncExternalStore, type ComponentProps } from "react";
 import { View } from "react-native";
-import type { PluginScreenProps, PluginSidebarItemProps } from "@getpaseo/plugin/client";
+import type { PluginScreenProps, PluginSidebarItemProps, PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { chunkNow, requestChunk, requestChunkLater, subscribeChunk } from "./source";
 import { TasksSidebarPlaceholder } from "./sidebar-placeholder";
 import type { TasksChunk } from "./types";
 
 /**
- * The Tasks chunk for the rest of the bundle: the board, its sidebar entry
- * and its settings, as stand-ins that draw the chunk's components once it
- * is here (at once in a checkout; see `entry.ts`) and ask for it when it is
- * not. `source.ts` is the one place that says how it arrives.
+ * The Tasks chunk for the rest of the bundle: the board, its sidebar entry,
+ * its settings and Better Paseo's settings page, as stand-ins that draw the
+ * chunk's components once it is here (at once in a checkout; see
+ * `entry.ts`) and ask for it when it is not. `source.ts` is the one place
+ * that says how it arrives.
  *
  * A screen someone opened asks `now`; the sidebar row, which a phone keeps
  * mounted while hidden, asks `later`, once startup has settled.
@@ -24,6 +25,13 @@ export function useTasksChunk(when: "now" | "later" = "now"): TasksChunk | null 
     else requestChunkLater();
   }, [chunk, when]);
   return chunk;
+}
+
+/** Better Paseo's settings page (`settings-page.tsx`); an empty page until its code is here, asked for at once. */
+export function BetterPaseoSettingsPage(props: PluginSurfaceProps) {
+  const chunk = useTasksChunk();
+  if (!chunk) return <View style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }} />;
+  return <chunk.BetterPaseoSettingsPage {...props} />;
 }
 
 /** The board's screen; an empty page until its code is here. */

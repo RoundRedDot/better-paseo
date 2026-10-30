@@ -3,7 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // Better Paseo's one settings screen: titled for Paseo's plugin menu in the
 // host's language, registered again (same component) when the language changes.
 
-vi.mock("../../client/settings-page", () => ({ BetterPaseoSettingsPage: function BetterPaseoSettingsPage() { return null; } }));
+// The registered component is the bundle's stand-in for the page in the Tasks chunk.
+vi.mock("../../client/tasks/chunk/load", () => ({ BetterPaseoSettingsPage: function BetterPaseoSettingsPage() { return null; } }));
 
 const { contributeSettingsScreen } = await import("../../client/settings-screen");
 const { SETTINGS_SCREEN_ID } = await import("../../client/settings-tab");

@@ -39,7 +39,7 @@ await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
 const { TasksSettingsPanel } = await import("../../client/tasks/settings/tasks-panel");
 const { resetTasksEnabled, setTasksBoardOpener, tasksEnabled } = await import("../../client/tasks/board/enabled");
-const { SETTINGS_STRINGS } = await import("../../client/i18n/settings-strings");
+const { SETTINGS_STRINGS } = await import("../../client/i18n/settings-page-strings");
 const { resetEnabledNotice } = await import("../../client/tasks/settings/use-tasks-form");
 const { BetterPaseoSettingsPage } = await import("../../client/settings-page");
 const { setSettingsTab } = await import("../../client/settings-tab");

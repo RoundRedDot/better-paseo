@@ -30,7 +30,15 @@ describe("install build", () => {
   it("splits the Tasks board off, shares every module both sides need, and copies none", async () => {
     const { buildClient, clientEntry, chunkModule } = await import("../../scripts/build-client.mjs");
     const built = await buildClient();
-    for (const file of ["client/tasks/board/board-screen.tsx", "client/tasks/data/index.ts", "client/tasks/cards/task-card.tsx"]) {
+    for (const file of [
+      "client/tasks/board/board-screen.tsx",
+      "client/tasks/data/index.ts",
+      "client/tasks/cards/task-card.tsx",
+      // Better Paseo's settings page and its text ride in the chunk too.
+      "client/settings-page.tsx",
+      "client/settings-preview.tsx",
+      "client/i18n/settings-page-strings.ts",
+    ]) {
       expect(built.mainInputs.has(file)).toBe(false);
       expect(built.chunkInputs.has(file)).toBe(true);
     }

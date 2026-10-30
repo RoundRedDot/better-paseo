@@ -35,7 +35,7 @@ vi.mock("../../client/tasks/chunk/source", () => ({
   subscribeChunk: () => () => {},
 }));
 
-import { TasksBoardScreen, TasksSettingsPanel, TasksSidebarEntry } from "../../client/tasks/chunk/load";
+import { BetterPaseoSettingsPage, TasksBoardScreen, TasksSettingsPanel, TasksSidebarEntry } from "../../client/tasks/chunk/load";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { resetTasksEnabled, setTasksEnabled } from "../../client/tasks/board/enabled";
 import { DEFAULT_TASKS_SETTINGS } from "../../shared/tasks-settings";
@@ -136,6 +136,24 @@ describe("Tasks chunk timing, components", () => {
     });
     expect(source.requestChunk).toHaveBeenCalledTimes(2);
     expect(source.requestChunkLater).not.toHaveBeenCalled();
+  });
+
+  it("Better Paseo's settings page asks now, with the board off too, and draws an empty page until the chunk is here", () => {
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, enabled: false };
+    let tree!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme } as never));
+    });
+    expect(source.requestChunk).toHaveBeenCalledTimes(1);
+    expect(source.requestChunkLater).not.toHaveBeenCalled();
+    expect(tree.toJSON()).toMatchObject({ props: { style: { flex: 1, backgroundColor: "#fff" } } });
+    const Page = vi.fn(() => React.createElement("Page"));
+    source.chunk = { BetterPaseoSettingsPage: Page };
+    act(() => {
+      tree.update(React.createElement(BetterPaseoSettingsPage, { theme } as never));
+    });
+    expect(Page).toHaveBeenCalled();
+    expect(tree.root.findAllByType("Page" as never)).toHaveLength(1);
   });
 
   it("the sidebar row asks later and draws a plain row meanwhile, while the settings load", () => {

@@ -60,7 +60,7 @@ vi.mock("../../client/image-file", async (original) => ({
 
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { SettingsPreview } from "../../client/settings-preview";
-import { SETTINGS_STRINGS } from "../../client/i18n/settings-strings";
+import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { DEFAULT_PREFERENCES } from "../../client/preferences";
 import { LiveToolCallRenderer, type LiveToolCallPayload } from "../../client/live-renderers";
 

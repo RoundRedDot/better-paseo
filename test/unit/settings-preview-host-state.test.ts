@@ -29,7 +29,7 @@ vi.mock("@getpaseo/plugin/client", () => ({
 }));
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { SettingsPreview } from "../../client/settings-preview";
-import { SETTINGS_STRINGS } from "../../client/i18n/settings-strings";
+import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { DEFAULT_PREFERENCES } from "../../client/preferences";
 import { ToolPreviewContent } from "../../client/components/tool-callouts";
 import { classifyTool } from "../../client/tools/classify";

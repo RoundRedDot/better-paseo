@@ -18,7 +18,7 @@ import { PathContext, type PathContextValue } from "./ui/path-text";
 import { PreviewPanelSample } from "./ui/hover-preview";
 import type { EnhancerPreferences } from "./preferences";
 import type { TaskListData } from "../shared/contracts";
-import type { SettingsStrings } from "./i18n/settings-strings";
+import type { SettingsStrings } from "./i18n/settings-page-strings";
 
 /**
  * A made-up turn drawn with the timeline's own components, so a change on the

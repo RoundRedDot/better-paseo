@@ -4,7 +4,7 @@ import { radiusV2, space, type ExtendedThemeTokens } from "./components/theme-to
 import { TYPE } from "./ui/tokens/typography";
 import { SwitchTrack } from "./ui/switch-track";
 import { useSwitchSpace } from "./ui/use-switch-space";
-import type { SettingsStrings } from "./i18n/settings-strings";
+import type { SettingsStrings } from "./i18n/settings-page-strings";
 
 /**
  * The settings page's controls, drawn the way Paseo draws its own settings:

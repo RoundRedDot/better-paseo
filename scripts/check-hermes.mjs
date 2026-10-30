@@ -282,6 +282,9 @@ if (!hermes || !existsSync(hermes)) {
   process.exit(0);
 }
 
+// The names the host's react module exports, as the installed react reports them.
+const reactKeys = Object.keys(createRequire(path.join(root, "package.json"))("react")).sort();
+
 // Stub modules: a callable proxy answers any property read or call, so
 // module-level code (StyleSheet.create, z.object, ...) runs; the few values
 // whose shape matters (Platform.OS, React.memo) are spelled out.
@@ -302,6 +305,11 @@ function makeStub(name) {
   });
 }
 var React = makeStub("react");
+// The real module's own keys, read once so the proxy reports them: esbuild's
+// interop copies a required module's own properties when it is first
+// required (eagerly, with the Hermes interop change), and a stub that had
+// not been read yet would miss \`createContext\` and the like.
+for (var r = 0; r < REACT_KEYS.length; r++) void React[REACT_KEYS[r]];
 // Element types React builds as objects, not functions: the host rejects
 // these as timeline renderers, so they must not look callable here.
 React.memo = function (type) { return { $$typeof: "react.memo", type: type }; };
@@ -376,7 +384,7 @@ try {
     new Function("require", "module", "exports", CHUNK)(function (id) {
       return id.indexOf("bc-shared:") === 0 ? makeStub(id) : runtimeRequire(id);
     }, chunk, chunk.exports);
-    var names = ["TasksBoardScreen", "TasksSidebarEntry", "TasksSettingsPanel", "startTasksData", "prefetchBoardFromCommand", "releaseBoardPrefetch"];
+    var names = ["TasksBoardScreen", "TasksSidebarEntry", "TasksSettingsPanel", "BetterPaseoSettingsPage", "startTasksData", "prefetchBoardFromCommand", "releaseBoardPrefetch"];
     for (var n = 0; n < names.length; n++) {
       if (typeof chunk.exports[names[n]] !== "function") problems.push("Tasks chunk exports no " + names[n]);
     }
@@ -396,7 +404,10 @@ for (var i = 0; i < problems.length; i++) print("PROBLEM " + problems[i]);
 // header hook (bc/sticky): feature detection must work both ways.
 for (const shape of ["stock", "sticky"]) {
   const harnessPath = path.join(dir, `harness-${shape}.js`);
-  writeFileSync(harnessPath, `var SOURCE = ${JSON.stringify(bundle)};\nvar SHAPE = ${JSON.stringify(shape)};\nvar CHUNK = ${JSON.stringify(installBuild ? installBuild.chunk : null)};\n${harness}`);
+  writeFileSync(
+    harnessPath,
+    `var SOURCE = ${JSON.stringify(bundle)};\nvar SHAPE = ${JSON.stringify(shape)};\nvar CHUNK = ${JSON.stringify(installBuild ? installBuild.chunk : null)};\nvar REACT_KEYS = ${JSON.stringify(reactKeys)};\n${harness}`,
+  );
   const ran = spawnSync(hermes, [harnessPath], { encoding: "utf8" });
   const output = `${ran.stdout ?? ""}${ran.stderr ?? ""}`.trim();
   const problems = output.split("\n").filter((line) => line.startsWith("PROBLEM "));

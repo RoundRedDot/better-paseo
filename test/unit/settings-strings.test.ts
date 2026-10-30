@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { SETTINGS_STRINGS, resolveLanguage, systemLanguage } from "../../client/i18n/settings-strings";
+import { SETTINGS_SCREEN_TITLES, resolveLanguage, systemLanguage } from "../../client/i18n/settings-strings";
+import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { parsePreferences, DEFAULT_PREFERENCES } from "../../client/preferences";
 
 describe("settings language", () => {
@@ -18,6 +19,10 @@ describe("settings language", () => {
     expect(resolveLanguage("system", "en-GB")).toBe("en");
     expect(resolveLanguage("system", "ja-JP")).toBe("en");
     expect(resolveLanguage("system", null)).toBe("en");
+  });
+
+  it("titles the screen in the bundle as the page does in the chunk", () => {
+    expect(SETTINGS_SCREEN_TITLES).toEqual({ en: SETTINGS_STRINGS.en.screenTitle, zh: SETTINGS_STRINGS.zh.screenTitle });
   });
 
   it("finds a system locale in the test runtime", () => {
