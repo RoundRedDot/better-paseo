@@ -94,6 +94,25 @@ describe("filter sheet reset", () => {
 });
 
 describe("filter sheet groups", () => {
+  it.each([
+    { phone: false, dark: false },
+    { phone: false, dark: true },
+    { phone: true, dark: false },
+    { phone: true, dark: true },
+  ])("matches the modal surface for the sticky workspace header ($phone, dark: $dark)", ({ phone, dark }) => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const palette = dark ? { ...theme, colors: { ...theme.colors, surface0: "#181818", surface1: "#202020" } } : theme;
+    act(() => {
+      renderer = TestRenderer.create(<FilterSheetBody board={board} theme={palette} options={{ agents: [], labels: [], workspaceGroups: [] }} phone={phone} onDone={() => {}} />);
+    });
+    const find = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    const background = phone ? palette.colors.surface0 : palette.colors.surface1;
+    expect(find("filter-sheet-scroll").props.stickyHeaderIndices).toEqual([1, 3]);
+    expect(find("filter-sheet-workspace-header").props.style.backgroundColor).toBe(background);
+    act(() => find("filter-sheet-workspaces-toggle").props.onPress());
+    expect(find("filter-sheet-workspace-header").props.style.backgroundColor).toBe(background);
+  });
+
   it("places lane width and time range between switches and agents on the board filter panel", () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     act(() => {
