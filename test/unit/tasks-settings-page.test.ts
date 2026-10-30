@@ -179,13 +179,15 @@ describe("Tasks settings entry", () => {
         if (!node) throw new Error(`no card around ${text}`);
         return node;
       };
-      // Touch insets the page once. Desktop leaves the edge to the host column.
-      expect(flat(root).paddingHorizontal).toBe(compact ? 16 : undefined);
+      // Touch pulls the page out by 4, so a host column padded 16 meets the
+      // phone board's 12. Desktop leaves the edge to that column.
+      expect(flat(root).marginHorizontal).toBe(compact ? -4 : undefined);
+      expect(flat(root).paddingHorizontal).toBeUndefined();
       expect(flat(cardAround(t.previewTitle)).marginHorizontal).toBeUndefined();
       act(() => radio(r, t.tabsLabel, t.tabTasks).props.onPress());
       const tasksPreview = byTestID(r, "tasks-preview-card")[0]!;
       expect(flat(tasksPreview).marginHorizontal).toBeUndefined();
-      expect(flat(root).paddingHorizontal).toBe(compact ? 16 : undefined);
+      expect(flat(root).marginHorizontal).toBe(compact ? -4 : undefined);
     } finally {
       act(() => r.unmount());
     }

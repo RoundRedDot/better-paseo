@@ -1042,11 +1042,11 @@ const styles = {
     // Desktop has no side padding: the host's content column (`PageLayout`)
     // already pads the page, so the cards line up with the page title. Its 720
     // cap is lifted on desktop web (`useWideHostColumn`).
-    // Touch adds this one inset for the whole page. The tab, both previews and
-    // the section cards then share one edge. Insetting only the tab and the
-    // chat preview left the Tasks cards 16 wider on each side.
+    // Touch shares one edge across the tab, both previews and the section
+    // cards. The host column pads 16, and the phone board's cards sit 12 from
+    // the screen, so the page pulls outward by 4 to meet that edge.
     container: { alignSelf: "stretch", paddingVertical: space.lg, gap: space.xl },
-    pageInset: { paddingHorizontal: space.lg },
+    pageInset: { marginHorizontal: -space.xs },
     introDesktop: { paddingHorizontal: space.xs },
     title: {
       fontSize: TYPE.title.size,
