@@ -4,6 +4,10 @@ import { Lexer } from "../../client/vendor/marked";
 import { nativeProseSource, escapeProse, groupNativeParagraphs, nativeBlockSource, nativeList } from "../../client/components/markdown/render/native-prose-source";
 
 const copy = vi.hoisted(() => vi.fn(async () => true));
+const input = vi.hoisted(() => ({ hover: false }));
+vi.mock("../../client/ui/use-input-capabilities", () => ({
+  useInputCapabilities: () => ({ hover: input.hover, touch: !input.hover, compact: false, native: !input.hover }),
+}));
 vi.mock("react-native", async () => ({ ...await import("./helpers/rn-mock"), UIManager: { hasViewManagerConfig: () => true } }));
 vi.mock("../../client/ui/use-copy", () => ({ useCopy: () => ({ copy }) }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
@@ -23,7 +27,7 @@ const { Linking } = await import("react-native");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const os = globalThis as { __rnMockOS?: string };
-afterEach(() => { os.__rnMockOS = undefined; vi.clearAllMocks(); });
+afterEach(() => { os.__rnMockOS = undefined; input.hover = false; vi.clearAllMocks(); });
 const colors = { surface0: "#181818", surface1: "#222222", surface2: "#333333", border: "#444444",
   foreground: "#eeeeee", foregroundMuted: "#999999", accent: "#6688ff", accentForeground: "#ffffff",
   statusSuccess: "#00aa00", statusWarning: "#ffaa00", statusDanger: "#ff0000" };
@@ -50,7 +54,7 @@ describe("native prose source", () => {
     const source = nativeProseSource(inline("[**docs**](https://example.com) `src/a.ts:42` [file](file:///tmp/a%20b.md) ![alt](https://example.com/a.png) [bad](javascript:alert)"));
     expect(source.links).toEqual([
       { kind: "url", target: "https://example.com" }, { kind: "path", target: "src/a.ts:42" },
-      { kind: "path", target: "/tmp/a b.md" }, { kind: "url", target: "https://example.com/a.png" },
+      { kind: "file", target: "/tmp/a b.md" }, { kind: "url", target: "https://example.com/a.png" },
       { kind: "url", target: "javascript:alert" },
     ]);
     expect(source.markdown).toContain("[**docs**](bc-prose://0)");
@@ -161,6 +165,30 @@ describe("iOS Markdown prose", () => {
     expect(open).toHaveBeenCalledWith("https://example.com");
     press({ nativeEvent: { url: "bc-prose://999" } });
     expect(open).toHaveBeenCalledTimes(1);
+    await act(async () => renderer.unmount());
+  });
+  it("preserves spaces in a local Markdown link when pressed", async () => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(PathContext.Provider,
+      { value: { roots: [], mode: "relative", cwd: "/project" } },
+      React.createElement(MarkdownProse, { context, tokens: inline("[preview](<docs/Better Paseo Icon.html>)") })));
+    });
+    await act(async () => native(renderer)[0]!.props.onLinkPress({ nativeEvent: { url: "bc-prose://0" } }));
+    expect(copy).toHaveBeenCalledWith("/project/docs/Better Paseo Icon.html", expect.objectContaining({ label: "Copy path" }));
+    await act(async () => renderer.unmount());
+  });
+  it("opens the complete local Markdown destination on desktop", async () => {
+    os.__rnMockOS = "web";
+    input.hover = true;
+    const reveal = vi.fn();
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(PathContext.Provider,
+      { value: { roots: [], mode: "relative", cwd: "/project", reveal } },
+      React.createElement(MarkdownProse, { context, tokens: inline("[preview](</tmp/Better Paseo Icon.html>)") })));
+    });
+    const link = renderer.root.findAll((node) => node.props.accessibilityRole === "link" && node.props.onPress)[0]!;
+    await act(async () => link.props.onPress());
+    expect(reveal).toHaveBeenCalledWith("/tmp/Better Paseo Icon.html");
     await act(async () => renderer.unmount());
   });
   for (const platform of ["web", "android"]) it(`keeps ${platform} on the existing inline renderer`, async () => {

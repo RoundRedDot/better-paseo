@@ -4,7 +4,7 @@ import { decodeEntities, isPathLike, softBreaks } from "./text";
 import { localImagePath, localPath } from "./local-path";
 import { lexBlock } from "../lex";
 
-export type ProseLink = { kind: "path" | "url"; target: string };
+export type ProseLink = { kind: "path" | "file" | "url"; target: string };
 export interface NativeProseSource { markdown: string; links: ProseLink[] }
 
 /** Visible text cannot introduce new Markdown syntax in the native parser. */
@@ -39,13 +39,13 @@ function proseWriter() {
       case "del": return `~~${walk(token.tokens)}~~`;
       case "link": {
         const path = localPath(token.href);
-        return link(walk(token.tokens), path === null ? "url" : "path", path ?? token.href);
+        return link(walk(token.tokens), path === null ? "url" : "file", path ?? token.href);
       }
       case "image": {
         const label = escapeProse(token.text || token.href);
         if (token.href === INCOMPLETE_IMAGE_PLACEHOLDER) return label;
         const path = localPath(token.href);
-        return link(label, path === null ? "url" : "path", path ?? token.href);
+        return link(label, path === null ? "url" : "file", path ?? token.href);
       }
       default: return escapeProse((token as Tokens.Generic).raw ?? "");
     }

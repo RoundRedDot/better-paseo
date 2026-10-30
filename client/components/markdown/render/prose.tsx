@@ -13,6 +13,7 @@ import { MARKER_GAP } from "./styles";
 import { BlockSelectionContext } from "./block-selection";
 import { renderInline } from "./inline";
 import { escapeProse, nativeBlockSource, nativeProseSource, type NativeProseSource } from "./native-prose-source";
+import { resolveLocalLink } from "./local-path";
 
 // Paseo 0.12 registers this Fabric component and its view config before rendering plugins.
 // Use the host's native view without bundling a second Markdown runtime or native library.
@@ -89,7 +90,7 @@ function IOSProse({ context, tokens, text, prefix, style, blockTokens, gap, ...r
     md4cFlags: blockTokens ? GROUP_FLAGS : FLAGS,
     selectionMenuConfig: { copyAsMarkdown: false, copyImageUrl: false, copyLabel: "Copy" } };
   // Ordinary prose carries no clipboard controllers, effects, or path-context subscriptions.
-  return source.links.some((link) => link.kind === "path")
+  return source.links.some((link) => link.kind !== "url")
     ? <IOSProseWithPaths component={Component} nativeProps={props} source={source} context={context} />
     : <Component {...props} onLinkPress={({ nativeEvent }: LinkEvent) => {
       selection?.cancel();
@@ -115,7 +116,7 @@ function IOSProseWithPaths({ component: Component, nativeProps, source, context 
     const link = source.links[linkIndex(nativeEvent.url)];
     if (!link) return;
     if (link.kind === "url") { openLink(link.target); return; }
-    const absolutePath = formatPath(link.target, paths).absolutePath;
+    const absolutePath = link.kind === "file" ? resolveLocalLink(link.target, paths.cwd) : formatPath(link.target, paths).absolutePath;
     const reveal = context.onRevealPath ?? paths.reveal;
     if ((capabilities.touch && !capabilities.hover) || !reveal) {
       void copy(absolutePath, { feedback: "toast", label: "Copy path" });

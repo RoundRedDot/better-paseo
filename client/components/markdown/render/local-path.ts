@@ -1,5 +1,12 @@
 import type { Token } from "../../../vendor/marked";
 import { isImagePath } from "../../../image-file";
+import { normalizePath } from "../../../paths/format-path";
+
+/** Resolve a Markdown destination without stripping characters that may belong to its filename. */
+export function resolveLocalLink(path: string, cwd?: string): string {
+  if (!cwd || /^(?:[\\/]|[A-Za-z]:[\\/])/.test(path)) return normalizePath(path);
+  return normalizePath(`${cwd}/${path}`);
+}
 
 /**
  * The filesystem path a link points at, or null for a web or mail address.

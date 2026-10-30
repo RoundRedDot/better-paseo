@@ -16,6 +16,7 @@ let root = "";
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), "file-reveal-"));
   await writeFile(join(root, "notes.md"), "# notes\n");
+  await writeFile(join(root, "Better Paseo Icon.html"), "<html></html>");
   await writeFile(join(root, "run"), "#!/bin/sh\n");
   await chmod(join(root, "run"), 0o755);
 });
@@ -41,9 +42,11 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
     const reveal = await revealHandler();
     await expect(reveal({ cwd: root, path: "notes.md:3" })).resolves.toEqual({ revealed: join(root, "notes.md"), error: null });
     expect(spawn).toHaveBeenLastCalledWith("open", [join(root, "notes.md")], expect.objectContaining({ detached: true }));
+    await reveal({ cwd: root, path: "Better Paseo Icon.html" });
+    expect(spawn).toHaveBeenLastCalledWith("open", [join(root, "Better Paseo Icon.html")], expect.objectContaining({ detached: true }));
     await reveal({ cwd: root, path: join(root, "run") });
     expect(spawn).toHaveBeenLastCalledWith("open", ["-R", join(root, "run")], expect.objectContaining({ detached: true }));
     await expect(reveal({ cwd: root, path: "missing.md" })).resolves.toMatchObject({ revealed: null });
-    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(spawn).toHaveBeenCalledTimes(3);
   }, 30_000);
 });

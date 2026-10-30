@@ -1,6 +1,6 @@
 import React, { useContext, type ReactNode } from "react";
 import { ProseSpan } from "../../../ui/prose-text";
-import { formatPath } from "../../../paths/format-path";
+import { resolveLocalLink } from "./local-path";
 import { PathContext } from "../../../ui/path-text";
 import { useCopy } from "../../../ui/use-copy";
 import { useInputCapabilities } from "../../../ui/use-input-capabilities";
@@ -24,7 +24,7 @@ export function LocalLink({
   const pathContext = useContext(PathContext);
   const capabilities = useInputCapabilities();
   const { copy } = useCopy();
-  const absolutePath = formatPath(path, pathContext).absolutePath;
+  const absolutePath = resolveLocalLink(path, pathContext.cwd);
   const reveal = context.onRevealPath ?? pathContext.reveal;
   const copies = (capabilities.touch && !capabilities.hover) || !reveal;
   // `onPress` on a Text, as for a web link: a View mid sentence would break
