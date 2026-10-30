@@ -1,7 +1,7 @@
 import type { PaseoApi } from "@getpaseo/client";
-import { useRpc } from "@getpaseo/plugin/client";
+import { usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, Platform } from "react-native";
 import { tasksCapabilitiesRpc, tasksReadRpc, tasksStopRpc, tasksStoppedRpc, tasksUnarchiveRpc } from "../../../shared/tasks-rpc";
 import type { TaskCard, TaskPermission, TaskPermissionAction } from "../model";
@@ -125,6 +125,62 @@ export interface StopControl {
   restored: ReadonlyMap<string, string>;
 }
 
+type Capabilities = { stop: boolean; read?: boolean };
+const NO_STOPS: ReadonlyMap<string, string> = new Map();
+
+/**
+ * What the plugin server says about Stop and Mark read, per client: its
+ * capabilities and its record of earlier stops. Each board that mounts asks
+ * again, and boards mounting together share the request; until an answer, the
+ * last one stands. A failed read means no capability and no earlier stops.
+ */
+function createServerActionStore() {
+  let capabilities: Capabilities | null = null;
+  let restored = NO_STOPS;
+  let capabilitiesRead: Promise<void> | null = null;
+  let restoredRead: Promise<void> | null = null;
+  const listeners = new Set<() => void>();
+  const publish = () => { for (const listener of listeners) listener(); };
+  return {
+    capabilities: () => capabilities,
+    restored: () => restored,
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+    readCapabilities(load: () => Promise<Capabilities>) {
+      capabilitiesRead ??= Promise.resolve().then(load).catch(() => null).then((next) => {
+        capabilitiesRead = null;
+        if (JSON.stringify(next) === JSON.stringify(capabilities)) return;
+        capabilities = next;
+        publish();
+      });
+    },
+    // A server without the RPC (an older plugin) or a failed read leaves only the board's own.
+    readRestored(load: () => Promise<{ stops?: unknown } | null | undefined>) {
+      restoredRead ??= Promise.resolve().then(load).then((result) => {
+        const stops = Array.isArray(result?.stops) ? result.stops as Array<{ agentId?: unknown; stoppedAt?: unknown } | null> : [];
+        return new Map(stops.filter((stop): stop is { agentId: string; stoppedAt: string } =>
+          typeof stop?.agentId === "string" && typeof stop.stoppedAt === "string").map((stop) => [stop.agentId, stop.stoppedAt]));
+      }, () => new Map<string, string>()).then((next) => {
+        restoredRead = null;
+        if (next.size === restored.size && [...next].every(([id, at]) => restored.get(id) === at)) return;
+        restored = next.size ? next : NO_STOPS;
+        publish();
+      });
+    },
+  };
+}
+
+const serverActionStores = new WeakMap<PaseoApi, ReturnType<typeof createServerActionStore>>();
+
+function useServerActions() {
+  const paseo = usePaseo();
+  let store = serverActionStores.get(paseo);
+  if (!store) serverActionStores.set(paseo, store = createServerActionStore());
+  return store;
+}
+
 const CONFIRMATION_MS = 3_000;
 /** A stop the daemon accepted must show in the agent's state within this long, or it did not take. */
 export const STOP_VERIFY_MS = 10_000;
@@ -208,10 +264,11 @@ export function useStopControl(options: {
   const toast = options.toast ?? hostToast;
   const language = useTasksLanguage();
 
-  const [available, setAvailable] = useState(false);
+  const server = useServerActions();
+  const available = useSyncExternalStore(server.subscribe, () => server.capabilities()?.stop === true);
+  const restored = useSyncExternalStore(server.subscribe, server.restored);
   const [phases, setPhases] = useState<Record<string, StopPhase>>({});
   const [stoppedManually, setStoppedManually] = useState<ReadonlySet<string>>(() => new Set());
-  const [restored, setRestored] = useState<ReadonlyMap<string, string>>(() => new Map());
   const stoppedRpcRef = useRef(stoppedRpc);
   stoppedRpcRef.current = stoppedRpc;
   const phasesRef = useRef<Record<string, StopPhase>>({});
@@ -219,7 +276,6 @@ export function useStopControl(options: {
   const stoppedRef = useRef(new Set<string>());
   const mountedRef = useRef(false);
   const capabilitiesRef = useRef(capabilitiesRpc);
-  const capabilitiesPromiseRef = useRef<Promise<{ stop: boolean }> | null>(null);
   const stopRpcRef = useRef(stopRpc);
   const toastRef = useRef(toast);
   const languageRef = useRef(language);
@@ -261,40 +317,11 @@ export function useStopControl(options: {
     };
   }, []);
 
+  // Asked once per board; the server's record of earlier stops too.
   useEffect(() => {
-    let active = true;
-    if (!capabilitiesPromiseRef.current) {
-      capabilitiesPromiseRef.current = Promise.resolve().then(() => capabilitiesRef.current({}));
-    }
-    void capabilitiesPromiseRef.current.then(
-      (result) => {
-        if (active) setAvailable(result.stop);
-      },
-      () => {
-        if (active) setAvailable(false);
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // The server's record of earlier stops, once per board. A server without
-  // the RPC (an older plugin) or a failed read leaves only this board's own.
-  useEffect(() => {
-    let active = true;
-    void Promise.resolve()
-      .then(() => stoppedRpcRef.current({}))
-      .then((result) => {
-        const stops = Array.isArray(result?.stops) ? result.stops : [];
-        if (!active || stops.length === 0) return;
-        setRestored(new Map(stops.filter((stop) => typeof stop?.agentId === "string" && typeof stop.stoppedAt === "string").map((stop) => [stop.agentId, stop.stoppedAt])));
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, []);
+    server.readCapabilities(() => capabilitiesRef.current({}));
+    server.readRestored(() => stoppedRpcRef.current({}));
+  }, [server]);
 
   const addStoppedIds = useCallback((agentIds: string[]) => {
     if (agentIds.length === 0) return;
@@ -496,7 +523,8 @@ export function useReadControl(options: {
   const toast = options.toast ?? hostToast;
   const language = useTasksLanguage();
 
-  const [available, setAvailable] = useState(false);
+  const server = useServerActions();
+  const available = useSyncExternalStore(server.subscribe, () => server.capabilities()?.read === true);
   const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
   const pendingRef = useRef<ReadonlySet<string>>(pendingIds);
   /** Reads the daemon accepted, until their card leaves review. */
@@ -525,21 +553,8 @@ export function useReadControl(options: {
   }, []);
 
   useEffect(() => {
-    let active = true;
-    void Promise.resolve()
-      .then(() => latest.current.capabilitiesRpc({}))
-      .then(
-        (result) => {
-          if (active) setAvailable(result.read === true);
-        },
-        () => {
-          if (active) setAvailable(false);
-        },
-      );
-    return () => {
-      active = false;
-    };
-  }, []);
+    server.readCapabilities(() => latest.current.capabilitiesRpc({}));
+  }, [server]);
 
   const failed = useCallback((detail: string) => {
     const zh = latest.current.language === "zh";

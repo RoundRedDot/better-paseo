@@ -10,9 +10,9 @@ import { TASK_AVAILABILITY_REFRESH_MS, useTaskAvailability } from "../../client/
 
 const rpc = vi.hoisted(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-  return { load: vi.fn() };
+  return { load: vi.fn(), paseo: {} as object };
 });
-vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => rpc.load }));
+vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => rpc.load, usePaseo: () => rpc.paseo }));
 
 function fixture() {
   const cards = sampleCards(0);
@@ -33,6 +33,8 @@ function Harness(props: { tasks: TasksHandle; visible: boolean; hostId?: string 
 let states: Map<string, TaskAvailability>;
 beforeEach(() => {
   vi.useFakeTimers();
+  // A fresh client per test: the last availability is kept per client and host.
+  rpc.paseo = {};
   states = new Map();
   rpc.load.mockReset().mockImplementation(async ({ agentIds }: { agentIds: string[] }) => ({ entries: agentIds.map((agentId) => ({ agentId, availability: states.get(agentId) ?? { issue: null, blocked: {} } })) }));
 });
@@ -93,5 +95,26 @@ describe("board availability checks", () => {
     for (const card of state.tasks.byId.values()) expect(card.availability?.issue?.code).toBe("host_unavailable");
     await act(async () => { await vi.advanceTimersByTimeAsync(TASK_AVAILABILITY_REFRESH_MS); });
     for (const [id, card] of state.tasks.byId) expect(card).toBe(tasks.byId.get(id));
+  });
+
+  it("shows the last answer at once when the board mounts again, kept per client", async () => {
+    const tasks = fixture();
+    const first = [...tasks.byId.keys()][0]!;
+    states.set(first, unavailableTask({ code: "directory_missing", detail: "/removed/worktree" }));
+    await act(async () => { tree = TestRenderer.create(<Harness tasks={tasks} visible />); });
+    await act(async () => tree.unmount());
+    const seen: Array<string | undefined> = [];
+    function Probe() {
+      seen.push(useTaskAvailability(tasks, false, "test-host").tasks.byId.get(first)?.availability?.issue?.code);
+      return null;
+    }
+    await act(async () => { tree = TestRenderer.create(<Probe />); });
+    expect(seen[0]).toBe("directory_missing");
+    expect(rpc.load).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+    rpc.paseo = {};
+    seen.length = 0;
+    await act(async () => { tree = TestRenderer.create(<Probe />); });
+    expect(seen[0]).toBe("checking");
   });
 });

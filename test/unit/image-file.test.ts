@@ -284,7 +284,7 @@ describe("useImageFile", () => {
     expect(frames.size).toBe(0);
   });
 
-  it("drops the settled read even while an earlier joiner is waiting for its frame", async () => {
+  it("hands a held completed read to a later mount after the earlier joiner, without a second RPC", async () => {
     const pending = deferred<ImageRpcOutput>();
     mockLoad.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(secondResult);
     const first = mount(["starter", "waiting"].map((id) => ({
@@ -295,10 +295,55 @@ describe("useImageFile", () => {
 
     const later = mount([{ id: "later", path: "shot.png", cwd: "/workspace" }]);
     await flushResolvedReads();
-    expect(mockLoad).toHaveBeenCalledTimes(2);
-    expect(fileFor(later, "later")).toEqual(secondFile);
+    expect(mockLoad).toHaveBeenCalledTimes(1);
+    expect(fileFor(later, "later")).toBeNull();
     await advanceFrame();
     expect(fileFor(first, "waiting")).toEqual(firstFile);
+    expect(fileFor(later, "later")).toBeNull();
+    await advanceFrame();
+    expect(fileFor(later, "later")).toEqual(firstFile);
+    expect(frames.size).toBe(0);
+  });
+
+  it("never renders the previous image for a changed path, even on its first render", async () => {
+    const next = deferred<ImageRpcOutput>();
+    mockLoad.mockResolvedValueOnce(firstResult).mockReturnValueOnce(next.promise);
+    const seen: Array<ImageFile | null> = [];
+    const consumer = (path: string): ConsumerProps => ({ id: "image", path, cwd: "/workspace", onRender: (file) => seen.push(file) });
+    const renderer = mount([consumer("old.png")]);
+    await flushResolvedReads();
+    expect(fileFor(renderer, "image")).toEqual(firstFile);
+    seen.length = 0;
+    update(renderer, [consumer("new.png")]);
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((file) => file === null)).toBe(true);
+    await act(async () => { next.resolve(secondResult); await next.promise; });
+    expect(fileFor(renderer, "image")).toEqual(secondFile);
+    // Switching back reads the old path again: the released read was dropped, not cached.
+    seen.length = 0;
+    mockLoad.mockResolvedValueOnce(firstResult);
+    update(renderer, [consumer("old.png")]);
+    expect(seen.every((file) => file === null)).toBe(true);
+    await flushResolvedReads();
+    expect(mockLoad).toHaveBeenCalledTimes(3);
+    expect(fileFor(renderer, "image")).toEqual(firstFile);
+  });
+
+  it("releases a cancelled joiner's hold so the next mount reads afresh once the last holder leaves", async () => {
+    const pending = deferred<ImageRpcOutput>();
+    mockLoad.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(secondResult);
+    const starter: ConsumerProps = { id: "starter", path: "shot.png", cwd: "/workspace" };
+    const renderer = mount([starter, { ...starter, id: "joiner" }]);
+    update(renderer, [starter]);
+    await act(async () => { pending.resolve(firstResult); await pending.promise; });
+    expect(fileFor(renderer, "starter")).toEqual(firstFile);
+    expect(frames.size).toBe(0);
+    unmount(renderer);
+
+    const again = mount([{ id: "again", path: "shot.png", cwd: "/workspace" }]);
+    await flushResolvedReads();
+    expect(mockLoad).toHaveBeenCalledTimes(2);
+    expect(fileFor(again, "again")).toEqual(secondFile);
   });
 
   it("clears an already loaded file before reading a changed path", async () => {

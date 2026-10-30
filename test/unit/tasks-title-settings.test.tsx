@@ -20,7 +20,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   ) };
 });
 vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => state.language }));
-import { TitleGenerationSettings } from "../../client/tasks/settings/title-generation";
+import { TitleGenerationSettings, resetTitleCatalogs } from "../../client/tasks/settings/title-generation";
 import { ProviderLogo } from "../../client/components/provider-logo";
 
 const look = {
@@ -30,6 +30,7 @@ const look = {
 let tree: TestRenderer.ReactTestRenderer;
 beforeEach(() => {
   vi.useFakeTimers();
+  resetTitleCatalogs();
   state.catalog.mockReset().mockResolvedValue({ providers: ["claude", "codex"], models: [{ id: "haiku", label: "Haiku", thinkingOptions: [], defaultThinkingOptionId: null }], error: null });
 });
 afterEach(async () => {
@@ -323,5 +324,22 @@ describe("automatic title settings", () => {
     await flushSave();
     expect(settings.save).toHaveBeenCalledTimes(1);
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert")[0]!.children.join("")).toContain("Save offline");
+  });
+
+  it("shows the last catalog at once when the section mounts again, while it reads the catalog anew", async () => {
+    state.catalog.mockResolvedValue({ providers: ["claude", "codex"], models: [{ id: "haiku", label: "Haiku 5.5", thinkingOptions: [], defaultThinkingOptionId: null }], error: null });
+    await mount();
+    await act(async () => tree.unmount());
+    let finish!: (value: unknown) => void;
+    state.catalog.mockReset().mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+    await mount();
+    const model = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "模型");
+    const refresh = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "刷新模型");
+    expect(model().findAllByType("Text" as never).some((node) => node.children.join("") === "Haiku 5.5")).toBe(true);
+    expect(refresh().props.disabled).toBe(true);
+    expect(state.catalog).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ providers: ["claude"], models: [], error: "Provider offline" }));
+    expect(refresh().props.disabled).toBe(false);
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert")[0]!.children.join("")).toContain("Provider offline");
   });
 });

@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
+import type { output as ZodOutput } from "zod";
 import { Icon, Modal, TextInput } from "@getpaseo/plugin/client/react-native";
 import { space } from "../../components/theme-tokens";
 import { ProviderLogo, providerBrand } from "../../components/provider-logo";
@@ -31,19 +32,69 @@ const WORDS = {
   },
 };
 
+type TitleModels = ZodOutput<typeof titleModelsRpc.output>;
+interface TitleCatalog {
+  providers: string[];
+  models: TitleModels["models"];
+  loading: boolean;
+  error: string | null;
+}
+
+const NO_CATALOG: TitleCatalog = { providers: [], models: [], loading: false, error: null };
+
+// The host's model catalog for automatic titles, by provider: one snapshot
+// per read's start, success and failure. Module-level state is connection-local
+// because Paseo evaluates this client bundle once per serverId/pluginId.
+const titleCatalogs = new Map<string, TitleCatalog>();
+const titleCatalogReads = new Map<string, number>();
+const titleCatalogListeners = new Set<() => void>();
+
+function publishTitleCatalog(provider: string, next: TitleCatalog): void {
+  titleCatalogs.set(provider, next);
+  for (const listener of titleCatalogListeners) listener();
+}
+
+function subscribeTitleCatalogs(listener: () => void): () => void {
+  titleCatalogListeners.add(listener);
+  return () => { titleCatalogListeners.delete(listener); };
+}
+
+/** Reads the catalog again; resolves with the result when it is still the latest read, else null. */
+function readTitleCatalog(provider: string, load: () => Promise<TitleModels>): Promise<TitleModels | null> {
+  const ticket = (titleCatalogReads.get(provider) ?? 0) + 1;
+  titleCatalogReads.set(provider, ticket);
+  const latest = () => titleCatalogReads.get(provider) === ticket;
+  publishTitleCatalog(provider, { ...(titleCatalogs.get(provider) ?? NO_CATALOG), loading: true, error: null });
+  return Promise.resolve().then(load).then((result) => {
+    if (!latest()) return null;
+    publishTitleCatalog(provider, { providers: result.providers, models: result.models, loading: false, error: result.error });
+    return result;
+  }, (failure: unknown) => {
+    if (latest()) publishTitleCatalog(provider, { ...(titleCatalogs.get(provider) ?? NO_CATALOG), loading: false, error: failure instanceof Error ? failure.message : String(failure) });
+    return null;
+  });
+}
+
+/** Test seam: forget every catalog. */
+export function resetTitleCatalogs(): void {
+  titleCatalogs.clear();
+  titleCatalogReads.clear();
+}
+
 export function TitleGenerationSettings({ look }: { look: PageLook }) {
   const words = WORDS[useTasksLanguage()];
   const settings = useSettings(TITLE_GENERATION_SETTINGS);
   const loadCatalog = useRpc(titleModelsRpc);
   const [draft, setDraft] = useState(() => settings.status === "ready" ? settings.values : titleGenerationSettingsSchema.parse({}));
-  const [catalog, setCatalog] = useState<{ providers: string[]; models: Array<{ id: string; label: string; thinkingOptions: Array<{ id: string; label: string }>; defaultThinkingOptionId: string | null }> }>({ providers: [], models: [] });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [choosing, setChoosing] = useState<"provider" | "model" | "thinkingOptionId" | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const revision = settings.status === "ready" ? settings.revision : null;
+  const catalogShown = revision !== null && draft.customModel;
+  const readCatalog = useCallback(() => (catalogShown ? titleCatalogs.get(draft.provider) ?? NO_CATALOG : NO_CATALOG), [catalogShown, draft.provider]);
+  const catalog = useSyncExternalStore(subscribeTitleCatalogs, readCatalog, readCatalog);
+  const { loading, error } = catalog;
   useEffect(() => {
     if (settings.status === "ready") setDraft(settings.values);
   }, [revision]);
@@ -62,31 +113,22 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
     return () => clearTimeout(timer);
   }, [draft, revision, settings.status, settings.saving, confirmingReset]);
   useEffect(() => {
-    setError(null);
-    setLoading(false);
-    if (revision === null || !draft.customModel) return;
+    if (!catalogShown) return;
     let live = true;
-    setLoading(true);
-    setError(null);
-    void Promise.resolve().then(() => loadCatalog({ provider: draft.provider })).then((result) => {
-      if (!live) return;
-      setCatalog({ providers: result.providers, models: result.models });
-      setError(result.error);
+    const provider = draft.provider;
+    void readTitleCatalog(provider, () => loadCatalog({ provider })).then((result) => {
+      if (!live || !result || result.error) return;
       const firstProvider = [...result.providers].sort((a, b) => Number(a === "cursor") - Number(b === "cursor"))[0];
       const firstModel = result.models[0];
-      if (!result.error) {
-        setDraft((current) => {
-          if (!current.customModel || current.provider !== draft.provider) return current;
-          if (!current.provider && firstProvider) return { ...current, provider: firstProvider, model: "", thinkingOptionId: "" };
-          if (current.provider && !current.model && firstModel) return { ...current, model: firstModel.id, thinkingOptionId: "" };
-          return current;
-        });
-      }
-    }).catch((failure: unknown) => {
-      if (live) setError(failure instanceof Error ? failure.message : String(failure));
-    }).finally(() => { if (live) setLoading(false); });
+      setDraft((current) => {
+        if (!current.customModel || current.provider !== provider) return current;
+        if (!current.provider && firstProvider) return { ...current, provider: firstProvider, model: "", thinkingOptionId: "" };
+        if (current.provider && !current.model && firstModel) return { ...current, model: firstModel.id, thinkingOptionId: "" };
+        return current;
+      });
+    });
     return () => { live = false; };
-  }, [loadCatalog, draft.customModel, draft.provider, revision !== null, refresh]);
+  }, [loadCatalog, catalogShown, draft.provider, refresh]);
 
   const textStyle = { ...settingsTextStyle(look.tokens), color: look.tokens.foreground, fontFamily: look.tokens.fontUi };
   if (settings.status !== "ready") {

@@ -66,4 +66,51 @@ describe("session tokens hook", () => {
     expect(failed.current).toBeNull();
     failed.unmount();
   });
+
+  it("never shows the previous agent's figure on the first render after switching", async () => {
+    setSessionTokensLoader(async (agentId) => (agentId === "switch-a" ? { total: 11, cached: 1 } : null));
+    const seen: Array<SessionTokens | null> = [];
+    function Probe(props: { agentId: string }) {
+      seen.push(useSessionTokens(props.agentId, true));
+      return null;
+    }
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(Probe, { agentId: "switch-a" })); });
+    await flush();
+    expect(seen.at(-1)).toEqual({ total: 11, cached: 1 });
+    setSessionTokensLoader(() => new Promise(() => {}));
+    seen.length = 0;
+    await act(async () => renderer.update(React.createElement(Probe, { agentId: "switch-b" })));
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((tokens) => tokens === null)).toBe(true);
+    act(() => renderer.unmount());
+  });
+
+  it("polls once per agent and updates every card showing it together", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let total = 100;
+    const loader = vi.fn(async () => ({ total, cached: 0 }));
+    setSessionTokensLoader(loader);
+    const current: Record<string, SessionTokens | null> = {};
+    function Probe(props: { id: string }) {
+      current[props.id] = useSessionTokens("shared", true);
+      return null;
+    }
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        React.createElement(Probe, { id: "card" }), React.createElement(Probe, { id: "details" })));
+    });
+    await flush();
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(current).toEqual({ card: { total: 100, cached: 0 }, details: { total: 100, cached: 0 } });
+    total = 200;
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+    await flush();
+    expect(loader).toHaveBeenCalledTimes(2);
+    expect(current).toEqual({ card: { total: 200, cached: 0 }, details: { total: 200, cached: 0 } });
+    act(() => renderer.unmount());
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(loader).toHaveBeenCalledTimes(2);
+  });
 });

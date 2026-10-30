@@ -26,6 +26,7 @@ import { useEnhancerPreferences } from "./preferences";
 import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { useIsLatestPrompt } from "./state/latest-prompt";
 import { useTurnFooter } from "./state/turn-footers";
+import { setPromptUsage, usePromptUsage } from "./state/prompt-usage";
 import { useAgentMessageSender } from "./state/agent-message-senders";
 import { useFooterModel } from "./state/footer-model";
 import type { AssistantRowData } from "./assistant-transform";
@@ -767,8 +768,11 @@ const LivePromptUsage = memo(function LivePromptUsage({
   const paseo = usePaseo();
   const handle = useMemo(() => paseo.agents.ref(agentId), [paseo, agentId]);
   const latest = useIsLatestPrompt(agentId, promptKey, at);
-  const [usage, setUsage] = useState<TurnUsage | null>(null);
-  const [frozen, setFrozen] = useState(false);
+  // In a store, not the row: an older prompt remounted after a newer one
+  // arrived no longer reads the agent, and must keep its own final figures.
+  const record = usePromptUsage(paseo, agentId, promptKey);
+  const usage = record?.usage ?? null;
+  const frozen = record?.frozen ?? false;
   const tracking = latest && !frozen;
   const liveKey = useAgent(agentId, (agent) =>
     tracking ? `${agent.status}|${agent.updatedAt}` : null,
@@ -783,15 +787,14 @@ const LivePromptUsage = memo(function LivePromptUsage({
       .then((result) => {
         if (cancelled || !result) return;
         const next = result.agent.lastUsage;
-        if (next) setUsage(next);
         // The turn has settled, so this reading is final.
-        if (next && !running) setFrozen(true);
+        if (next) setPromptUsage(paseo, agentId, promptKey, { usage: next, frozen: !running });
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [handle, tracking, running, liveKey]);
+  }, [paseo, agentId, promptKey, handle, tracking, running, liveKey]);
 
   return <TurnUsageRow usage={usage} pending={running && tracking} tokens={tokens} />;
 });

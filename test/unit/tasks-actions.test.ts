@@ -32,11 +32,14 @@ const mocks = vi.hoisted(() => ({
   language: vi.fn((): "en" | "zh" => "en"),
   platform: { OS: "web" as string },
   alert: vi.fn(),
+  /** A fresh client per test: server capabilities and earlier stops are kept per client. */
+  paseo: {} as object,
 }));
 
 vi.mock("react-native", () => ({ Platform: mocks.platform, Alert: { alert: mocks.alert } }));
 
 vi.mock("@getpaseo/plugin/client", () => ({
+  usePaseo: () => mocks.paseo,
   useRpc(contract: { name: string }) {
     if (contract.name === "tasks.unarchive") return mocks.unarchive;
     if (contract.name === "tasks.read") return mocks.read;
@@ -63,6 +66,8 @@ function action(overrides: Partial<TaskPermissionAction> = {}): TaskPermissionAc
     ...overrides,
   };
 }
+
+beforeEach(() => { mocks.paseo = {}; });
 
 describe("Tasks permission actions", () => {
   it.each(["tool", "plan", "mode"] as const)("uses request actions for %s permissions", (kind) => {
@@ -652,6 +657,45 @@ describe("Tasks stop control", () => {
     mocks.stopped.mockRejectedValue(new Error("Unknown RPC tasks.stopped"));
     const old = await mount(true);
     expect(old.control().restored.size).toBe(0);
+  });
+
+  it("keeps the server's capabilities and earlier stops per client, shown at once when the board mounts again", async () => {
+    mocks.capabilities.mockResolvedValue({ stop: true, read: true });
+    mocks.stopped.mockResolvedValue({ stops: [{ agentId: "agent-a", stoppedAt: "2026-10-20T10:00:00.000Z" }] });
+    const seen: Array<{ stop: boolean; read: boolean; restored: number }> = [];
+    function Both() {
+      const stop = useStopControl({ confirmStop: false, cardById: (id) => cards.get(id) });
+      const read = useReadControl({});
+      seen.push({ stop: stop.available, read: read.available, restored: stop.restored.size });
+      return React.createElement("probe");
+    }
+    const mountBoth = async () => {
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(Both));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      return renderer;
+    };
+    const first = await mountBoth();
+    // Stop and Mark read share one capabilities request.
+    expect(mocks.capabilities).toHaveBeenCalledTimes(1);
+    expect(seen.at(-1)).toEqual({ stop: true, read: true, restored: 1 });
+    act(() => first.unmount());
+
+    mocks.capabilities.mockReturnValue(new Promise(() => {}));
+    mocks.stopped.mockReturnValue(new Promise(() => {}));
+    seen.length = 0;
+    const again = await mountBoth();
+    expect(seen[0]).toEqual({ stop: true, read: true, restored: 1 });
+    expect(mocks.capabilities).toHaveBeenCalledTimes(2);
+    act(() => again.unmount());
+
+    mocks.paseo = {};
+    seen.length = 0;
+    const otherClient = await mountBoth();
+    expect(seen[0]).toEqual({ stop: false, read: false, restored: 0 });
+    act(() => otherClient.unmount());
   });
 
   it("surfaces per-agent and rejected RPC failures through the toast", async () => {
