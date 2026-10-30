@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import {
   CARD_FIELDS,
   DENSITY_PRESETS,
@@ -21,7 +22,12 @@ import {
 import { CARD_TITLE_LINE_COUNTS } from "../device-store";
 import { mix, radiusV2, space } from "../../components/theme-tokens";
 import { PHONE_PREVIEW_WIDTH, PlainButton, Section, Segmented, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "../../settings-controls";
-import { TasksTypography } from "../typography";
+import { HOST_FONT, TaskText, TasksTypography } from "../typography";
+import { StatusIcon } from "../cards";
+import { taskTokens } from "../cards/tokens";
+import { LANE_STATUS } from "../model";
+import { sidebarCountParts, sidebarCountText } from "../board/navigation";
+import { BOARD_STRINGS } from "../board/strings";
 import { tasksBoardOpener } from "../board/enabled";
 import { useTasksLanguage } from "../i18n";
 import { PREVIEW_LANES_MAX_HEIGHT, TasksBoardPreview } from "./board-preview";
@@ -208,7 +214,7 @@ function PreviewCard(props: {
         </View>
       </View>
     ) : (
-      <View style={[styles.previewBoard, frame]}>
+      <View style={[styles.previewBoard, compact ? styles.previewBoardCompact : null, frame]}>
         <TasksBoardPreview theme={props.theme} values={values} titleLines={props.titleLines} language={props.language} phone={phone} hostId={props.hostId} />
       </View>
     );
@@ -486,6 +492,27 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         look={look}
         first
         stacked
+        below={
+          <TasksTypography theme={theme}>
+            <View testID="tasks-sidebar-preview" pointerEvents="none" style={{ borderWidth: 1, borderColor: look.tokens.v2.border, borderRadius: radiusV2.block, backgroundColor: theme.colors.surface0, overflow: "hidden" }}>
+              <SidebarRow
+                icon="SquareKanban"
+                label={BOARD_STRINGS[language].name}
+                onPress={() => {}}
+                trailing={
+                  <View accessibilityLabel={sidebarCountText(sidebarCountParts({ needsInput: 2, running: 1, review: 1 }, values.sidebar.count), language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    {sidebarCountParts({ needsInput: 2, running: 1, review: 1 }, values.sidebar.count).map((part) => (
+                      <View key={part.lane} testID={`tasks-sidebar-preview-${part.lane}`} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                        <StatusIcon kind={LANE_STATUS[part.lane]} size={14} theme={theme} animated={false} />
+                        <TaskText style={{ fontSize: HOST_FONT.sm, fontWeight: part.lane === "needs_input" ? "600" : "400", color: part.lane === "needs_input" ? taskTokens(theme).status.warning : theme.colors.foregroundMuted }}>{part.count}</TaskText>
+                      </View>
+                    ))}
+                  </View>
+                }
+              />
+            </View>
+          </TasksTypography>
+        }
       />
     </Section>
   );
@@ -605,10 +632,11 @@ const styles = StyleSheet.create({
   noticeDot: { width: 8, height: 8, borderRadius: 4 },
   noticeText: { flexGrow: 1, flexShrink: 1, flexBasis: 200, minWidth: 0, gap: 2 },
   previewCard: { borderWidth: 1, borderRadius: radiusV2.card, overflow: "hidden" },
-  previewCardInset: { marginHorizontal: space.lg },
+  previewCardInset: { marginHorizontal: space.sm },
   previewHeader: { flexDirection: "row", alignItems: "center", gap: space.md, paddingTop: space.md, paddingHorizontal: space.lg },
   previewHeaderText: { flex: 1, minWidth: 0, gap: 2 },
   previewBoard: { margin: space.md, marginTop: space.md, padding: space.sm, borderWidth: 1, borderRadius: radiusV2.block },
+  previewBoardCompact: { margin: space.sm, padding: 0, overflow: "hidden" },
   previewPhoneStage: { margin: space.md, alignItems: "center" },
   previewPhone: {
     width: "100%",

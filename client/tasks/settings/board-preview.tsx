@@ -9,6 +9,7 @@ import { LANES, boardLaneLayout } from "../board/navigation";
 import { TaskText as Text, HOST_FONT as F, laneTitle, taskControlHeight, useTasksFontScale } from "../typography";
 import { BOARD_STRINGS } from "../board/strings";
 import { StatusIcon, TaskCardView } from "../cards";
+import { taskTokens } from "../cards/tokens";
 import type { TasksLanguage } from "../i18n";
 import { LANE_STATUS, boardLaneOrder, isHistoryLane, type LaneId, type TaskCard } from "../model";
 import { previewSampleCards } from "../sample-cards";
@@ -137,9 +138,14 @@ export function TasksBoardPreview(props: {
   } else {
     body = (
       <View testID="tasks-preview-tabs">
-        <View
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          testID="tasks-preview-tabs-scroll"
+          style={{ flexGrow: 0, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, backgroundColor: palette.panel }}
+          contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}
           accessibilityRole="tablist"
-          style={{ flexDirection: "row", borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}
         >
           {order.map((id) => {
             const on = id === selected;
@@ -152,29 +158,34 @@ export function TasksBoardPreview(props: {
                 accessibilityLabel={`${strings.lanes[id]} ${lanes[id].length}`}
                 onPress={() => setSelected(id)}
                 style={{
-                  flex: 1,
-                  minHeight: taskControlHeight(40, scale),
+                  flexGrow: 1,
+                  flexShrink: 0,
+                  minHeight: taskControlHeight(36, scale),
+                  paddingHorizontal: 10,
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 4,
-                  borderBottomWidth: 2,
-                  borderBottomColor: on ? colors.accent : "transparent",
+                  borderRadius: 8,
+                  borderWidth: HAIRLINE,
+                  borderColor: on ? taskTokens(theme).card.border : "transparent",
+                  backgroundColor: on ? taskTokens(theme).card.background : "transparent",
+                  boxShadow: on ? taskTokens(theme).card.shadow : undefined,
                 }}
               >
                 <StatusIcon kind={LANE_STATUS[id]} size={13} theme={theme} animated={false} />
-                <Text numberOfLines={1} style={{ fontSize: F.sm + 1, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
+                <Text numberOfLines={1} style={{ fontSize: F.base, fontWeight: on ? "600" : "500", color: on ? colors.foreground : colors.foregroundMuted }}>
                   {strings.tabs[id]}
                 </Text>
-                <Text style={{ fontSize: F.sm, fontVariant: ["tabular-nums"], color: on ? colors.foreground : colors.foregroundMuted }}>
+                <Text style={{ fontSize: F.base, fontVariant: ["tabular-nums"], color: on ? colors.foreground : colors.foregroundMuted }}>
                   {lanes[id].length}
                 </Text>
               </Pressable>
             );
           })}
-        </View>
+        </ScrollView>
         <ScrollView style={props.listMaxHeight ? { maxHeight: props.listMaxHeight } : null} nestedScrollEnabled>
-          <View style={{ paddingTop: 10, gap: 10 }} testID={`tasks-preview-lane-${selected}`}>
+          <View style={{ padding: 12, gap: 10, backgroundColor: palette.panel }} testID={`tasks-preview-lane-${selected}`}>
             {lanes[selected].map(card)}
           </View>
         </ScrollView>
