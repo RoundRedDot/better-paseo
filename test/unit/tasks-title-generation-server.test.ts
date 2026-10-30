@@ -544,182 +544,131 @@ describe("background title generation", () => {
   });
 });
 
-describe("title after the first reply", () => {
-  const FIRST_ROUND = [
-    { item: { type: "user_message", text: "  Fix the   card title\nwith details" } },
-    { item: { type: "tool_call", text: "PRIVATE_TOOL_OUTPUT" } },
-    { item: { type: "assistant_message", text: "Fixed the card title" } },
-  ];
-  async function first(entries: { item: { type: string; text: string } }[] = FIRST_ROUND) {
+describe("title when the first message starts", () => {
+  const FIRST_PROMPT = "  Fix the   card title\nwith details";
+  async function first(entries = [{ turnId: "t1" as string | undefined, item: { type: "user_message", text: FIRST_PROMPT } }]) {
     const f = await fixture();
     f.values.afterFirstReply = true;
     f.original.agent.title = "Fix the card title";
     f.timeline.mockResolvedValue({ error: null, hasOlder: false, hasNewer: false, endCursor: null, startCursor: null, entries: entries.map((entry, index) => ({ ...entry, seqStart: index + 1 })) } as never);
-    const ended = (outcome: { kind: "completed" } | { kind: "failed"; error: { message: string } } | { kind: "canceled"; reason: string } = { kind: "completed" }, agent: { cwd?: string; provider?: string } = {}) =>
-      f.service.afterTurn({ agent: { id: "source", workspaceId: "source-ws", parentAgentId: null, provider: agent.provider ?? "codex", cwd: agent.cwd ?? "/projects/app", title: f.original.agent.title }, outcome }, f.api);
-    return { ...f, ended };
+    const started = (turnId: string | null = "t1", cwd = "/projects/app") =>
+      f.service.afterTurnStart({ agent: { id: "source", workspaceId: "source-ws", parentAgentId: null, provider: "codex", cwd, title: f.original.agent.title }, turnId }, f.api);
+    return { ...f, started };
   }
 
-  it("is off by default", async () => {
+  it("is off by default and does not read the agent when disabled", async () => {
     expect(titleGenerationSettingsSchema.parse({}).afterFirstReply).toBe(false);
     const f = await first();
     f.values.afterFirstReply = false;
-    expect(await f.ended()).toBe(false);
+    expect(await f.started()).toBe(false);
     expect(f.refresh).not.toHaveBeenCalled();
-    expect(f.workspace).not.toHaveBeenCalled();
   });
 
-  it.each(["Fix the card title", "", null])("titles a first round that ended with a reply under a provisional title (%j)", async (title) => {
+  it.each(["Fix the card title", "", null])("starts without waiting for an assistant reply (%j)", async (title) => {
     const f = await first();
     (f.original.agent as { title: string | null }).title = title;
-    expect(await f.ended()).toBe(true);
-    expect(f.state()).toMatchObject({ state: "running" });
-    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(await f.started()).toBe(true);
+    expect(await f.settle()).toMatchObject({ state: "done" });
     expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
-    expect(f.run.mock.calls[0]![0]).toContain("Fixed the card title");
+    expect(f.run.mock.calls[0]![0]).toBe(`${f.values.prompt}\n\n${JSON.stringify({ messages: [{ role: "user_message", text: FIRST_PROMPT }] })}`);
   });
 
-  it("keeps a title that was named rather than taken from the first prompt", async () => {
+  it("uses at most 2000 characters of only the first message despite steer and replies", async () => {
+    const text = FIRST_PROMPT + "x".repeat(3000);
+    const f = await first([
+      { turnId: "t1", item: { type: "user_message", text } },
+      { turnId: "t1", item: { type: "assistant_message", text: "PRIVATE_PROGRESS" } },
+      { turnId: "t1", item: { type: "user_message", text: "PRIVATE_STEER" } },
+      { turnId: "t1", item: { type: "assistant_message", text: "PRIVATE_FINAL" } },
+    ]);
+    expect(await f.started()).toBe(true);
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.run.mock.calls[0]![0]).toBe(`${f.values.prompt}\n\n${JSON.stringify({ messages: [{ role: "user_message", text: text.slice(0, 2000) }] })}`);
+    expect(f.timeline).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["t2", null])("skips a later or unidentified turn (%j)", async (turnId) => {
+    const f = await first();
+    expect(await f.started(turnId)).toBe(false);
+    expect(f.workspace).not.toHaveBeenCalled();
+  });
+
+  it.each([{ entries: [] }, { entries: [{ turnId: undefined, item: { type: "user_message", text: FIRST_PROMPT } }] }])("skips missing prompt identity without consuming the attempt", async ({ entries }) => {
+    const f = await first(entries);
+    expect(await f.started()).toBe(false);
+    f.timeline.mockResolvedValue({ error: null, hasOlder: false, hasNewer: false, endCursor: null, startCursor: null,
+      entries: [{ turnId: "t1", seqStart: 1, item: { type: "user_message", text: FIRST_PROMPT } }] } as never);
+    expect(await f.started()).toBe(true);
+    expect(await f.settle()).toMatchObject({ state: "done" });
+  });
+
+  it("pages forward to the first user message", async () => {
+    const f = await first();
+    f.timeline.mockResolvedValueOnce({ error: null, hasOlder: false, hasNewer: true, startCursor: { epoch: "timeline", seq: 1 }, endCursor: { epoch: "timeline", seq: 12 },
+      entries: [{ seqStart: 1, item: { type: "tool_call", text: "PRIVATE_TOOL_OUTPUT" } }] } as never);
+    expect(await f.started()).toBe(true);
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.timeline).toHaveBeenLastCalledWith({ direction: "after", projection: "projected", limit: 12, cursor: { epoch: "timeline", seq: 12 } });
+  });
+
+  it("preserves explicit names and names changed before generation", async () => {
     const f = await first();
     f.original.agent.title = "Release checklist";
-    expect(await f.ended()).toBe(false);
-    expect(f.workspace).not.toHaveBeenCalled();
-    expect(f.state()).toEqual({ state: "idle" });
-  });
-
-  it("keeps a title renamed between the check and the job", async () => {
-    const f = await first();
-    expect(await f.ended()).toBe(true);
+    expect(await f.started()).toBe(false);
+    f.original.agent.title = "Fix the card title";
+    expect(await f.started()).toBe(true);
     f.original.agent.title = "Named by hand";
     expect(await f.settle()).toMatchObject({ state: "error", error: expect.stringContaining("title changed") });
-    expect(f.workspace).not.toHaveBeenCalled();
     expect(f.rename).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["codex", "[System Error] workspace routing discovery timed out"],
-    ["claude", "You've hit your session limit · resets 3pm"],
-  ])("titles the first successful reply after a failed %s round", async (provider, error) => {
-    const f = await first([
-      FIRST_ROUND[0]!,
-      { item: { type: "assistant_message", text: "Checking the task" } },
-      { item: { type: "assistant_message", text: error } },
-      { item: { type: "user_message", text: "Continue" } },
-      { item: { type: "assistant_message", text: "Fixed the card title" } },
-    ]);
-    expect(await f.ended({ kind: "completed" }, { provider })).toBe(true);
-    expect(await f.settle()).toMatchObject({ state: "done" });
-    expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
-    expect(await f.ended({ kind: "completed" }, { provider })).toBe(false);
-  });
-
-  it("reads repeated failed rounds across pages and keeps manually named titles", async () => {
+  it("excludes helpers and hosts that cannot rename", async () => {
     const f = await first();
-    const entries = [
-      FIRST_ROUND[0]!,
-      ...Array.from({ length: 3 }, () => [
-        { item: { type: "assistant_message", text: "[System Error] workspace routing discovery timed out" } },
-        { item: { type: "user_message", text: "Continue" } },
-      ]).flat(),
-      FIRST_ROUND[2]!,
-    ].map((entry, index) => ({ ...entry, seqStart: index + 1 }));
-    f.timeline.mockImplementation(async ({ direction, cursor }) => {
-      const start = direction === "after" ? cursor?.seq ?? 0 : Math.max(0, (cursor ? cursor.seq - 1 : entries.length) - 3);
-      const end = Math.min(entries.length, start + 3);
-      const page = entries.slice(start, end);
-      return { error: null, hasOlder: start > 0, hasNewer: end < entries.length,
-        startCursor: { epoch: "timeline", seq: page[0]!.seqStart }, endCursor: { epoch: "timeline", seq: page.at(-1)!.seqStart }, entries: page };
-    });
-    f.original.agent.title = "Release checklist";
-    expect(await f.ended()).toBe(false);
-    expect(f.rename).not.toHaveBeenCalled();
-    f.original.agent.title = "Fix the card title";
-    expect(await f.ended()).toBe(true);
-    expect(f.timeline.mock.calls.some(([options]) => options.direction === "before" && options.cursor)).toBe(true);
-    expect(await f.settle()).toMatchObject({ state: "done" });
-  });
-
-  it.each([
-    ["a second round", [...FIRST_ROUND, { item: { type: "user_message", text: "Next" } }, { item: { type: "assistant_message", text: "Done" } }]],
-    ["a second prompt still running", [...FIRST_ROUND, { item: { type: "user_message", text: "Next" } }]],
-    ["no reply", FIRST_ROUND.slice(0, 2)],
-    ["a blank reply", [FIRST_ROUND[0]!, { item: { type: "assistant_message", text: "  " } }]],
-    ["no prompt", []],
-    ["a system error reply", [FIRST_ROUND[0]!, { item: { type: "assistant_message", text: "[System Error] workspace routing discovery timed out" } }]],
-  ])("skips %s", async (_name, entries) => {
-    const f = await first(entries);
-    expect(await f.ended()).toBe(false);
-    expect(f.workspace).not.toHaveBeenCalled();
-  });
-
-  it("skips a Claude reply that is the provider's error", async () => {
-    const f = await first([FIRST_ROUND[0]!, { item: { type: "assistant_message", text: "You've hit your session limit · resets 3pm" } }]);
-    expect(await f.ended({ kind: "completed" }, { provider: "claude" })).toBe(false);
-    expect(f.workspace).not.toHaveBeenCalled();
-  });
-
-  it.each([{ kind: "failed", error: { message: "Provider failed" } }, { kind: "canceled", reason: "user" }] as const)("skips a turn that did not complete ($kind)", async (outcome) => {
-    const f = await first();
-    expect(await f.ended(outcome)).toBe(false);
+    expect(await f.started("t1", f.directory)).toBe(false);
     expect(f.read).not.toHaveBeenCalled();
-  });
-
-  it("skips the title helpers' own turns by directory and by label", async () => {
-    const f = await first();
-    expect(await f.ended({ kind: "completed" }, { cwd: f.directory })).toBe(false);
-    expect(f.read).not.toHaveBeenCalled();
+    f.canRename.mockReturnValue(false);
+    expect(await f.started()).toBe(false);
+    expect(f.refresh).not.toHaveBeenCalled();
+    f.canRename.mockReturnValue(true);
     (f.original.agent as { labels?: Record<string, string> }).labels = { "better-paseo.purpose": "title-generation" };
-    expect(await f.ended()).toBe(false);
+    expect(await f.started()).toBe(false);
     expect(f.timeline).not.toHaveBeenCalled();
-    expect(f.workspace).not.toHaveBeenCalled();
   });
 
-  it("starts one job for repeated and concurrent turn ends", async () => {
+  it("deduplicates concurrent starts and later replacement turns", async () => {
     const f = await first();
-    expect(await Promise.all([f.ended(), f.ended()])).toEqual([true, false]);
+    expect(await Promise.all([f.started(), f.started()])).toEqual([true, false]);
     expect(await f.settle()).toMatchObject({ state: "done" });
-    expect(await f.ended()).toBe(false);
+    expect(await f.started()).toBe(false);
+    expect(await f.started("t2")).toBe(false);
     expect(f.create).toHaveBeenCalledTimes(1);
-    expect(f.rename).toHaveBeenCalledTimes(1);
   });
 
-  it("does not try again in this process after a failed job", async () => {
+  it("does not automatically retry a failed title job", async () => {
     const f = await first();
     f.run.mockResolvedValueOnce({ status: "error", lastMessage: "", error: "Provider failed" });
-    expect(await f.ended()).toBe(true);
+    expect(await f.started()).toBe(true);
     expect(await f.settle()).toEqual({ state: "error", error: "Provider failed" });
-    expect(await f.ended()).toBe(false);
+    expect(await f.started()).toBe(false);
     expect(f.create).toHaveBeenCalledTimes(1);
-    expect(f.original.agent.title).toBe("Fix the card title");
   });
 
-  it("shares one job with the menu", async () => {
+  it("shares the running job with the menu", async () => {
     const f = await first();
     let finish!: () => void;
     f.run.mockImplementationOnce(() => new Promise((resolve) => { finish = () => resolve({ status: "idle", lastMessage: "Menu title", error: null }); }));
-    expect(await f.ended()).toBe(true);
+    expect(await f.started()).toBe(true);
     expect(f.start()).toMatchObject({ state: "running" });
-    await expect.poll(() => f.create.mock.calls.length).toBe(1);
+    await expect.poll(() => f.run.mock.calls.length).toBe(1);
     finish();
     expect(await f.settle()).toEqual({ state: "done", title: "Menu title" });
     expect(f.create).toHaveBeenCalledTimes(1);
-
-    const g = await first();
-    let release!: () => void;
-    g.run.mockImplementationOnce(() => new Promise((resolve) => { release = () => resolve({ status: "idle", lastMessage: "Menu title", error: null }); }));
-    g.start();
-    expect(await g.ended()).toBe(false);
-    await expect.poll(() => g.create.mock.calls.length).toBe(1);
-    release();
-    expect(await g.settle()).toMatchObject({ state: "done" });
-    expect(g.create).toHaveBeenCalledTimes(1);
   });
 
-  it("registers a turn hook that returns before the title is written", async () => {
+  it("registers only a turn-start hook and returns before title generation", () => {
     const on = vi.fn();
     registerTitleGeneration({ registerSettings: vi.fn(() => ({ read: async () => ({ status: "ready", revision: "1", values: titleGenerationSettingsSchema.parse({}) }) })), handle: vi.fn(), on } as unknown as Parameters<typeof registerTitleGeneration>[0], vi.fn(), () => true);
-    const [name, handler] = on.mock.calls[0]!;
-    expect(name).toBe("agent.turn_ended");
-    expect(handler({ agent: { id: "a", cwd: "/x", provider: "codex" }, outcome: { kind: "completed" } }, { paseo: {} })).toBeUndefined();
+    expect(on.mock.calls.map(([name]) => name)).toEqual(["agent.turn_started"]);
+    expect(on.mock.calls[0]![1]({ agent: { id: "a", cwd: "/x", provider: "codex" }, turnId: "t1" }, { paseo: {} })).toBeUndefined();
   });
 });

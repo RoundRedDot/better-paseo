@@ -55,9 +55,9 @@ const customToggle = () => tree.root.find((node) => typeof node.type === "string
 
 describe("automatic title settings", () => {
   it.each([
-    ["zh", "首轮回复后自动更新标题", "AI 完成第一轮回复后，自动根据对话内容生成标题。", "保存标题设置"],
-    ["en", "Update title after the first reply", "When the AI finishes its first reply, generate a title from the conversation automatically.", "Save title settings"],
-  ] as const)("offers the title after the first reply off by default and saves it (%s)", async (language, title, description, save) => {
+    ["zh", "任务开始时自动生成标题", "任务开始时，自动根据第一条消息的前 2000 个字符生成一次标题。", "保存标题设置"],
+    ["en", "Generate title when the task starts", "When the task starts, automatically generate one title from the first 2000 characters of the first message.", "Save title settings"],
+  ] as const)("offers automatic titles at task start off by default and saves the setting (%s)", async (language, title, description, save) => {
     state.language = language;
     const settings = await mount({ values: titleGenerationSettingsSchema.parse({}) });
     const row = tree.root.findAllByType(SettingRow)[0]!;
@@ -128,7 +128,7 @@ describe("automatic title settings", () => {
     expect(TITLE_GENERATION_SETTINGS.scope).toBe("host");
     expect(customToggle().props.accessibilityState.checked).toBe(false);
     expect(state.catalog).not.toHaveBeenCalled();
-    expect(tree.root.findAllByType(SettingRow).map((row) => row.props.title)).toEqual(["首轮回复后自动更新标题", "自定义自动标题模型", "关闭标题生成思考模式", "Prompt", "恢复「自动标题」默认设置"]);
+    expect(tree.root.findAllByType(SettingRow).map((row) => row.props.title)).toEqual(["任务开始时自动生成标题", "自定义自动标题模型", "关闭标题生成思考模式", "Prompt", "恢复「自动标题」默认设置"]);
     await flushSave();
     expect(settings.save).not.toHaveBeenCalled();
     await act(async () => customToggle().props.onPress());
@@ -282,7 +282,7 @@ describe("automatic title settings", () => {
     expect(tree.root.findByType(SectionNote).props.text).toContain("Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off");
     expect(tree.root.findByType(SectionNote).props.text).not.toContain("建议在默认 prompt 末尾补充");
     expect(section.findAllByType(SettingRow).map((row) => [row.props.title, row.props.first === true])).toEqual([
-      ["首轮回复后自动更新标题", true], ["自定义自动标题模型", false], ["关闭标题生成思考模式", false], ["Provider", false], ["模型", false], ["思考等级", false], ["Prompt", false], ["恢复「自动标题」默认设置", false],
+      ["任务开始时自动生成标题", true], ["自定义自动标题模型", false], ["关闭标题生成思考模式", false], ["Provider", false], ["模型", false], ["思考等级", false], ["Prompt", false], ["恢复「自动标题」默认设置", false],
     ]);
   });
 

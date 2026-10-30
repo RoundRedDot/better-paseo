@@ -5,7 +5,6 @@ import type { PluginLifecycleEvents, PluginServerContext, PluginSettings } from 
 import { z } from "zod";
 import { TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema, titleModelsRpc, titleUpdateRpc, type TitleUpdateState } from "../../shared/title-generation";
 import { pluginDataDir } from "../plugin-data";
-import { turnError } from "../turn-usage";
 import { taskIssueError, taskUpdateIssue } from "./availability";
 
 const generatedTitle = z.string().trim().min(1).max(80).refine((title) => !/[\r\n]/.test(title), "Expected a single-line title.");
@@ -83,33 +82,18 @@ export function provisionalTitle(prompt: string): string | null {
   return line?.replace(/\s+/g, " ").trim().slice(0, 60).trim() || null;
 }
 
-/**
- * The original prompt once the first successful reply arrives. Earlier
- * attempts ending in errors or without a reply do not consume that chance.
- */
-export async function firstRoundPrompt(timeline: PaseoAgentTimelineHandle, provider: string, outcome: PluginLifecycleEvents["agent.turn_ended"]["outcome"]): Promise<string | null> {
+/** The first submitted prompt identifies its actual turn, including steered turns. */
+async function readFirstPrompt(timeline: PaseoAgentTimelineHandle) {
   let cursor: NonNullable<Parameters<PaseoAgentTimelineHandle["refetch"]>[0]>["cursor"];
-  let prompt: string | null = null;
-  let reply: string | undefined;
-  let latest = true;
-  const successfulReply = (text: string | undefined) => !!text?.trim() && !text.trim().startsWith("[System Error]") &&
-    turnError(provider, outcome, [{ type: "assistant_message", text }]) === undefined;
   for (;;) {
-    const page = await timeline.refetch({ direction: cursor ? "before" : "tail", projection: "projected", limit: 12, ...(cursor ? { cursor } : {}) });
+    const page = await timeline.refetch({ direction: "after", projection: "projected", limit: 12, ...(cursor ? { cursor } : {}) });
     if (page.error || page.reset && cursor) throw new Error(page.error || "Could not read the conversation.");
-    for (const entry of [...page.entries].reverse()) {
-      const item = entry.item;
-      if (item.type === "assistant_message") reply ??= item.text;
-      if (item.type !== "user_message") continue;
-      // Only the last reply in each round decides whether that round failed.
-      if (latest ? !successfulReply(reply) : successfulReply(reply)) return null;
-      latest = false;
-      prompt = item.text.slice(0, 4000);
-      reply = undefined;
+    for (const entry of page.entries) {
+      if (entry.item.type === "user_message") return { text: entry.item.text, turnId: entry.turnId };
     }
-    if (!page.hasOlder) return prompt;
-    const next = page.startCursor;
-    if (!next || cursor && (next.epoch !== cursor.epoch || next.seq >= cursor.seq)) throw new Error("Could not read the conversation.");
+    if (!page.hasNewer || !cursor && page.entries.length === 0 && !page.endCursor) return null;
+    const next = page.endCursor;
+    if (!next || cursor && (next.epoch !== cursor.epoch || next.seq <= cursor.seq)) throw new Error("Could not read the conversation.");
     cursor = next;
   }
 }
@@ -121,7 +105,7 @@ export function createTitleGenerator(deps: Dependencies) {
   const checking = new Set<string>();
   const attempted = new Set<string>();
 
-  async function generate(agentId: string, paseo: PaseoApi, stream: (update: { text?: string; helperId: string }) => void, mode: "apply" | "preview", keepTitle?: string): Promise<string> {
+  async function generate(agentId: string, paseo: PaseoApi, stream: (update: { text?: string; helperId: string }) => void, mode: "apply" | "preview", keepTitle?: string, firstPrompt?: string): Promise<string> {
     if (!deps.canRename()) throw new Error("This host cannot update agent titles.");
     const settings = await deps.settings.read();
     if (settings.status !== "ready") throw new Error("Title generation settings are invalid.");
@@ -153,12 +137,17 @@ export function createTitleGenerator(deps: Dependencies) {
     }
     if (!original.agent.workspaceId) throw new Error("The original agent has no workspace.");
     if (!original.project) throw new Error("The original agent has no project placement.");
-    const [first, recent] = await Promise.all([
-      readTitleRounds(source.timeline, "after", 1),
-      readTitleRounds(source.timeline, "tail", 4),
-    ]);
-    const messages = [...new Map([...first, ...recent].map((message) => [message.seq, message])).values()]
-      .sort((a, b) => a.seq - b.seq).map(({ role, text }) => ({ role, text }));
+    let messages: { role: "user_message" | "assistant_message"; text: string }[];
+    if (firstPrompt !== undefined) {
+      messages = [{ role: "user_message", text: firstPrompt.slice(0, 2000) }];
+    } else {
+      const [first, recent] = await Promise.all([
+        readTitleRounds(source.timeline, "after", 1),
+        readTitleRounds(source.timeline, "tail", 4),
+      ]);
+      messages = [...new Map([...first, ...recent].map((message) => [message.seq, message])).values()]
+        .sort((a, b) => a.seq - b.seq).map(({ role, text }) => ({ role, text }));
+    }
     if (messages.length === 0) throw new Error("This agent has no conversation to summarize.");
 
     // A neutral directory avoids running the source project's workspace setup or loading its instructions.
@@ -218,7 +207,7 @@ export function createTitleGenerator(deps: Dependencies) {
     return title;
   }
 
-  function start(agentId: string, paseo: PaseoApi, mode: "apply" | "preview", keepTitle?: string): TitleUpdateState {
+  function start(agentId: string, paseo: PaseoApi, mode: "apply" | "preview", keepTitle?: string, firstPrompt?: string): TitleUpdateState {
     const key = `${mode}:${agentId}`;
     const known = jobs.get(key);
     if (known?.state === "running") return known;
@@ -231,7 +220,7 @@ export function createTitleGenerator(deps: Dependencies) {
       latest = { ...latest, ...update } as TitleUpdateState;
       jobs.set(key, latest);
     };
-    void generate(agentId, paseo, stream, mode, keepTitle).then(
+    void generate(agentId, paseo, stream, mode, keepTitle, firstPrompt).then(
       (title) => jobs.set(key, { state: "done", title }),
       (error: unknown) => jobs.set(key, { state: "error", error: error instanceof Error ? error.message : String(error) }),
     );
@@ -243,17 +232,10 @@ export function createTitleGenerator(deps: Dependencies) {
       if (input.action === "status") return jobs.get(`${input.mode ?? "apply"}:${input.agentId}`) ?? { state: "idle" };
       return start(input.agentId, paseo, input.mode ?? "apply");
     },
-    /**
-     * With the setting on, starts the same job as the menu's once an agent's
-     * first successful reply arrives, unless its title was named rather than
-     * taken from the first prompt. The job runs as the menu's does, so a board
-     * that asks for its status follows it. Resolves once the job has started
-     * or been skipped; it never waits for the title.
-     */
-    async afterTurn(event: Pick<PluginLifecycleEvents["agent.turn_ended"], "agent" | "outcome">, paseo: PaseoApi): Promise<boolean> {
-      const { agent, outcome } = event;
-      // The helpers' own turns end in the helper directory.
-      if (outcome.kind !== "completed" || agent.cwd === deps.directory) return false;
+    /** Starts once for the first prompt's turn, independently of replies or steer. */
+    async afterTurnStart(event: Pick<PluginLifecycleEvents["agent.turn_started"], "agent" | "turnId">, paseo: PaseoApi): Promise<boolean> {
+      const { agent, turnId } = event;
+      if (!turnId || agent.cwd === deps.directory || !deps.canRename()) return false;
       if (checking.has(agent.id) || attempted.has(agent.id) || jobs.get(`apply:${agent.id}`)?.state === "running") return false;
       checking.add(agent.id);
       try {
@@ -262,13 +244,13 @@ export function createTitleGenerator(deps: Dependencies) {
         const source = paseo.agents.ref(agent.id);
         const snapshot = await source.refresh();
         if (!snapshot || snapshot.agent.labels?.[PURPOSE_LABEL]) return false;
-        const prompt = await firstRoundPrompt(source.timeline, agent.provider, outcome);
-        if (prompt === null) return false;
+        const prompt = await readFirstPrompt(source.timeline);
+        if (!prompt || prompt.turnId !== turnId) return false;
         const title = snapshot.agent.title ?? "";
-        if (title.trim() && title.trim() !== provisionalTitle(prompt)) return false;
+        if (title.trim() && title.trim() !== provisionalTitle(prompt.text)) return false;
         attempted.add(agent.id);
         if (jobs.get(`apply:${agent.id}`)?.state === "running") return false;
-        start(agent.id, paseo, "apply", title);
+        start(agent.id, paseo, "apply", title, prompt.text);
         return true;
       } finally {
         checking.delete(agent.id);
@@ -282,9 +264,9 @@ export function registerTitleGeneration(server: PluginServerContext, rename: Dep
   const generator = createTitleGenerator({ settings, rename, canRename, directory: join(pluginDataDir(), "title-helper") });
   server.handle(titleUpdateRpc, (input, { paseo }) => generator.request(input, paseo));
   // Not awaited: the title takes longer than the host's 30-second hook limit.
-  server.on("agent.turn_ended", (event, context) => {
+  server.on("agent.turn_started", (event, context) => {
     if (!context?.paseo) return;
-    void generator.afterTurn(event, context.paseo).catch((error: unknown) => {
+    void generator.afterTurnStart(event, context.paseo).catch((error: unknown) => {
       console.error(`Automatic title check failed for ${event.agent.id}: ${error instanceof Error ? error.message : String(error)}`);
     });
   });

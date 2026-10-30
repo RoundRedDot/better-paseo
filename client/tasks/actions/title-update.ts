@@ -66,10 +66,10 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
       follow(agentId, false);
     },
     /**
-     * Follows a job the daemon started on its own (a title after the first
-     * reply) as `start` does, with the same sweep and the card held in place.
+     * Follows a job the daemon started on its own (a title from the first
+     * message) as `start` does, with the same sweep and the card held in place.
      * Asks a few times, since the daemon starts it a moment after the turn
-     * ends; a job that is not running by then, or that fails, leaves the
+     * starts; a job that is not running by then, or that fails, leaves the
      * card as it was. Another call while it waits starts the asks over.
      */
     attach(agentId: string) {

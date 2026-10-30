@@ -318,21 +318,23 @@ export function useBoard(
   const unarchive = useUnarchiveControl({ available: stop.available, verify: verifyUnarchive, toast });
   const archive = useArchiveControl({ paseo, toast });
   const titleUpdates = useTitleUpdateControl(paseo);
-  // A turn that ends may start the daemon's title after the first reply: its card follows the job as after a click.
+  // Follow automatic titles while their source tasks are running.
   const titleSettings = useSettings(TITLE_GENERATION_SETTINGS);
-  const titleAfterFirstReply = titleSettings.status === "ready" && titleSettings.values.afterFirstReply;
-  const turnsRunning = useRef<ReadonlySet<string>>(new Set());
+  const automaticTitles = titleSettings.status === "ready" && titleSettings.values.afterFirstReply;
+  const turnsRunning = useRef<ReadonlySet<string> | null>(null);
   useEffect(() => {
+    if (!tasks.ready) return;
     const running = new Set<string>();
     for (const [id, card] of tasks.byId) if (turnRunning(card)) running.add(id);
-    for (const id of turnsRunning.current) {
-      if (running.has(id)) continue;
-      // A turn's end leaves the running list a moment before it joins the next one: still running until it lands.
-      if (!tasks.byId.has(id)) running.add(id);
-      else if (titleAfterFirstReply) titleUpdates.attach(id);
+    if (turnsRunning.current) {
+      for (const id of running) {
+        if (!turnsRunning.current.has(id) && automaticTitles) titleUpdates.attach(id);
+      }
+      // Filtered subscriptions can remove a card before its next snapshot arrives.
+      for (const id of turnsRunning.current) if (!tasks.byId.has(id)) running.add(id);
     }
     turnsRunning.current = running;
-  }, [tasks.byId, titleAfterFirstReply, titleUpdates]);
+  }, [tasks.byId, tasks.ready, automaticTitles, titleUpdates]);
   const revealingTitles = useSyncExternalStore(titleUpdates.subscribe, titleUpdates.revealing, titleUpdates.revealing);
   const previousTitleLanes = useRef(tasks.lanes);
   const titleLanes = useMemo(() => holdRevealingTitles(previousTitleLanes.current, tasks.lanes, revealingTitles), [tasks.lanes, revealingTitles]);

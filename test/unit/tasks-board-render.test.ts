@@ -3165,7 +3165,7 @@ describe("Tasks board, refresh during a title reveal", () => {
   });
 });
 
-describe("Tasks board, a title the daemon starts after the first reply", () => {
+describe("Tasks board, a title the daemon starts with the first message", () => {
   type Answer = (state: TitleUpdateState) => void;
   const LANES = ["needs_input", "running", "review", "done", "archived"] as const;
   type Lane = (typeof LANES)[number];
@@ -3210,14 +3210,12 @@ describe("Tasks board, a title the daemon starts after the first reply", () => {
     return { control, call, fake, laneCards, target, push, reply, restore: () => titleControl.mockRestore() };
   }
 
-  it.each(LANES.filter((lane) => lane !== "running"))("follows the job once the first turn ends, sweeping the title (running → %s)", async (to) => {
-    const live = await mountLive("running");
+  it.each(LANES.filter((lane) => lane !== "running"))("follows a title when a task starts (%s → running)", async (from) => {
+    const live = await mountLive(from);
     try {
       expect(live.call).not.toHaveBeenCalled();
-      await live.push(agentIn(to, "title-target", "Fix the card title", 0));
-      expect(live.target().props.card.lane).toBe(to);
+      await live.push(agentIn("running", "title-target", "Fix the card title", 0));
       expect(live.call).toHaveBeenLastCalledWith({ agentId: "title-target", action: "status" });
-      // The daemon starts the job a moment after the turn ends.
       await live.reply({ state: "idle" }, 1000);
       expect(sweeping(live.target())).toBe(false);
       await live.reply({ state: "running", helperId: "helper" });
@@ -3229,32 +3227,50 @@ describe("Tasks board, a title the daemon starts after the first reply", () => {
     }
   });
 
-  it("follows when the turn's end leaves the running list a render before it joins the next", async () => {
+  it("does not attach initial running cards, updates within running, or turn endings", async () => {
     const live = await mountLive("running");
     try {
-      // The daemon's status list drops the agent first; its next list takes it after a render.
+      expect(live.call).not.toHaveBeenCalled();
+      await live.push(agentIn("running", "title-target", "Fix the card title", 0));
+      await live.push(agentIn("review", "title-target", "Fix the card title", 0));
+      expect(live.call).not.toHaveBeenCalled();
+    } finally {
+      live.restore();
+    }
+  });
+
+  it("does not treat a filtered-list removal and return as a new start", async () => {
+    const live = await mountLive("running");
+    try {
       await act(async () => { live.fake.removeAgent("title-target"); });
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-      expect(cards().some((card) => card.props.card.id === "title-target")).toBe(false);
-      expect(live.call).not.toHaveBeenCalled();
-      await act(async () => { live.fake.upsertAgent(agentIn("review", "title-target", "Fix the card title", 0)); });
+      await act(async () => { live.fake.upsertAgent(agentIn("running", "title-target", "Fix the card title", 0)); });
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
-      expect(live.target().props.card.lane).toBe("review");
-      expect(live.call).toHaveBeenLastCalledWith({ agentId: "title-target", action: "status" });
-      await live.reply({ state: "running" });
-      expect(sweeping(live.target())).toBe(true);
+      expect(live.call).not.toHaveBeenCalled();
     } finally {
       live.restore();
     }
   });
 
   it("leaves a card alone when the setting is off", async () => {
-    const live = await mountLive("running", false);
+    const live = await mountLive("done", false);
     try {
-      await live.push(agentIn("done", "title-target", "Fix the card title", 0));
+      await live.push(agentIn("running", "title-target", "Fix the card title", 0));
       await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
       expect(live.call).not.toHaveBeenCalled();
       expect(sweeping(live.target())).toBe(false);
+    } finally {
+      live.restore();
+    }
+  });
+
+  it("keeps normal lane changes live while a running card reveals its title", async () => {
+    const live = await mountLive("done");
+    try {
+      await live.push(agentIn("running", "title-target", "Fix the card title", 0));
+      await live.reply({ state: "running", text: "A new title" });
+      await live.push(agentIn("needs_input", "title-target", "A new title", 0));
+      expect(live.target().props.card.lane).toBe("needs_input");
     } finally {
       live.restore();
     }

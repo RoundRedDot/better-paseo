@@ -4,7 +4,7 @@ import { z } from "zod";
 export const DEFAULT_TITLE_PROMPT = "Generate a concise, specific task title from the supplied conversation. Use the language of the first user message. Focus on the actual goal and preserve key module names, issue numbers, and technical identifiers. Limit the title to 60 characters including spaces. Return only the title, without quotes, explanations, or Markdown.";
 
 export const titleGenerationSettingsSchema = z.object({
-  /** Generate a title once an agent's first round ends with a reply. */
+  /** Generate from the first prompt at turn start; retain the stored settings key. */
   afterFirstReply: z.boolean().catch(false),
   customModel: z.boolean().catch(false),
   disableThinking: z.boolean().catch(true),

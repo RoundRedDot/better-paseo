@@ -1028,9 +1028,13 @@ on a wide page a **Desktop / Mobile** switch draws the board as a phone would. T
 
 Automatic title settings use a separate host-scoped `title-generation` record. Choose a fast model
 from that host's configured providers and edit the prompt, then save. The default prompt requests
-a short title in the user's language. Generation reads a bounded excerpt of user/assistant messages and runs an
-ordinary agent in a background workspace, attached to the original project but in a neutral plugin
-directory. It does not send a prompt to the original task. Reading a closed task's history can
+a short title in the user's language. **Generate title when the task starts** is off by default.
+When enabled, it generates once as the AI starts the first message, using only its first 2000
+characters. Replies and follow-up messages do not delay or change that input. Explicit or manually
+edited titles are preserved. Starts missed during plugin downtime are not replayed; CLI/SDK
+requests without a canonical first-message turn ID are skipped. Use the menu action to generate
+from the conversation instead. Generation runs an ordinary agent in a background workspace,
+attached to the original project but in a neutral plugin directory. It does not send a prompt to the original task. Reading a closed task's history can
 reopen its provider session. The helper keeps the provider's configured permissions; the no-tools
 instruction is not a sandbox. Background history and ordinary hooks/notifications remain, and a
 plugin or daemon shutdown can leave an unfinished background task. Normal completion archives
