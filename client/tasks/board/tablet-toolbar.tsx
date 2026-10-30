@@ -72,7 +72,7 @@ export function TabletToolbar(props: {
   ] : [
     { key: "layout", items: [
       ...(!separateFilters ? [{ key: "filters", label: strings.filters, icon: "ListFilter", onSelect: () => { close(); props.onFilters(); } }] : []),
-      { key: "sort", label: strings.sort, icon: "ArrowUpDown", keepOpen: true, onSelect: () => openPage("sort") },
+      { key: "sort", label: strings.sort, icon: "ArrowUpDown", hint: "›", keepOpen: true, onSelect: () => openPage("sort") },
       { key: "width", label: strings.laneWidth.label, icon: "Columns3", submenu: laneWidthMenuSections(board.laneWidth, theme, strings, board.setLaneWidth) },
       { key: "window", label: strings.doneRange, icon: "Clock", submenu: [{ key: "windows", items: DONE_WINDOWS.map((doneWindow) => ({ key: doneWindow, label: strings.windows[doneWindow], checked: resolved.doneWindow === doneWindow, onSelect: () => board.setParams((p) => ({ ...p, doneWindow })) })) }] },
     ] },
