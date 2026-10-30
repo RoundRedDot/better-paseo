@@ -42,9 +42,9 @@ const isNative = () => Platform.OS === "ios" || Platform.OS === "android";
 const Separator = () => <View style={{ height: 12 }} />;
 /** A lane list's end space without the scroll shortcuts. */
 const LANE_END_SPACE = 46;
-const SCROLL_ACTION = { size: 48, gap: 8, bottom: 24 } as const;
+const SCROLL_ACTION = { size: 48, bottom: 24 } as const;
 /** With the shortcuts shown, the list ends this far down, so its last card and Load more scroll clear of them. */
-const LANE_END_SPACE_WITH_ACTIONS = SCROLL_ACTION.bottom + SCROLL_ACTION.size * 2 + SCROLL_ACTION.gap + 12;
+const LANE_END_SPACE_WITH_ACTIONS = SCROLL_ACTION.bottom + SCROLL_ACTION.size + 12;
 
 /** A touch (native) or pointer (web) event; both carry page coordinates. */
 type PointEvent = { nativeEvent: { pageX: number; pageY: number } };
@@ -253,6 +253,7 @@ export function PhoneBoard(props: {
   }, [board.callbacks, claim]);
 
   const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
+  const scrollToTop = useRef<(() => void) | null>(null);
   props.handlers.current = {
     reveal(agentId) {
       const location = findCard(board.lanes, agentId);
@@ -392,7 +393,7 @@ export function PhoneBoard(props: {
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on }}
                 accessibilityLabel={`${strings.lanes[id]} ${count}`}
-                onPress={() => select(id)}
+                onPress={() => id === lane ? scrollToTop.current?.() : select(id)}
                 onLayout={(event: LayoutChangeEvent) => measureTab(id, "tab", event.nativeEvent.layout)}
                 testID={`phone-stat-${id}`}
                 style={{
@@ -449,6 +450,7 @@ export function PhoneBoard(props: {
               theme={theme}
               callbacks={callbacks}
               listRef={listRef}
+              scrollToTop={scrollToTop}
               breathing={breathing}
               reduced={reduced}
               locked={pagerLocked}
@@ -464,6 +466,7 @@ export function PhoneBoard(props: {
               theme={theme}
               callbacks={callbacks}
               listRef={listRef}
+              scrollToTop={scrollToTop}
               breathing={breathing}
             />
           </Animated.View>
@@ -659,6 +662,7 @@ export const LanePager = memo(function LanePager(props: {
   theme: PluginTheme;
   callbacks: CardCallbacks;
   listRef: RefObject<NativeFlatList<TaskCard> | null>;
+  scrollToTop: RefObject<(() => void) | null>;
   breathing: Animated.Value;
   reduced: boolean;
   /** A long press holds the touch: the pager stays where it is. */
@@ -736,6 +740,7 @@ export const LanePager = memo(function LanePager(props: {
               theme={theme}
               callbacks={props.callbacks}
               listRef={at === index ? props.listRef : undefined}
+              scrollToTop={at === index ? props.scrollToTop : undefined}
               breathing={props.breathing}
               active={at === index}
             />
@@ -754,6 +759,7 @@ const PhoneLane = memo(function PhoneLane(props: {
   theme: PluginTheme;
   callbacks: CardCallbacks;
   listRef?: RefObject<NativeFlatList<TaskCard> | null>;
+  scrollToTop?: RefObject<(() => void) | null>;
   breathing: Animated.Value;
   /** The lane on screen; a neighbour in the pager loads no more. */
   active?: boolean;
@@ -764,12 +770,10 @@ const PhoneLane = memo(function PhoneLane(props: {
   // The list's content height without the end space it was measured with.
   const [contentHeight, setContentHeight] = useState(0);
   const offset = useRef(0);
-  const [edges, setEdges] = useState({ top: true, bottom: false });
+  const [atBottom, setAtBottom] = useState(false);
   const updateEdges = (y: number, height: number, viewport: number) => {
     offset.current = y;
-    const top = y <= 1;
-    const bottom = y + viewport >= height - 1;
-    setEdges((previous) => previous.top === top && previous.bottom === bottom ? previous : { top, bottom });
+    setAtBottom(y + viewport >= height - 1);
   };
   const reduced = useReducedMotion();
   const colors = theme.colors;
@@ -793,6 +797,16 @@ const PhoneLane = memo(function PhoneLane(props: {
     scrollRetry.current = null;
   }, []);
   useEffect(() => cancelScroll, [cancelScroll, count]);
+  useLayoutEffect(() => {
+    if (!props.scrollToTop) return;
+    const ref = props.scrollToTop;
+    const scroll = () => {
+      cancelScroll();
+      listRef.current?.scrollToOffset({ offset: 0, animated: !reduced });
+    };
+    ref.current = scroll;
+    return () => { if (ref.current === scroll) ref.current = null; };
+  }, [props.scrollToTop, cancelScroll, reduced]);
   useLaneTarget(lane.id, () => scrollNode(listRef.current), (offset) => listRef.current?.scrollToOffset({ offset, animated: false }));
   const { listRef: shared } = props;
   const setList = useCallback(
@@ -906,22 +920,14 @@ const PhoneLane = memo(function PhoneLane(props: {
       }
     />
     {scrollActions ? (
-      <View testID="phone-scroll-actions" style={{ position: "absolute", right: 12, bottom: SCROLL_ACTION.bottom, gap: SCROLL_ACTION.gap }}>
-        {([
-          { visible: !edges.top, icon: "ArrowUpToLine", label: strings.scrollTop, testID: "phone-scroll-top", press: () => {
-            cancelScroll();
-            listRef.current?.scrollToOffset({ offset: 0, animated: !reduced });
-          } },
-          { visible: !edges.bottom, icon: "ArrowDownToLine", label: loadedEnd ? strings.scrollLoadedEnd : strings.scrollBottom, testID: "phone-scroll-bottom", press: () => {
-            cancelScroll();
-            if (count === 0) return;
-            listRef.current?.scrollToOffset({ offset: Math.max(0, contentHeight + endSpace - viewportHeight), animated: !reduced });
-          } },
-        ]).filter((action) => action.visible).map((action) => (
-          <Pressable key={action.testID} testID={action.testID} accessibilityRole="button" accessibilityLabel={action.label} onPress={action.press} style={{ width: SCROLL_ACTION.size, height: SCROLL_ACTION.size, borderRadius: SCROLL_ACTION.size / 2, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? { boxShadow: "0 3px 10px rgba(0, 0, 0, 0.2)" } : { elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 3 } }) }}>
-            <Icon name={action.icon} size={22} color={colors.foreground} />
-          </Pressable>
-        ))}
+      <View testID="phone-scroll-actions" style={{ position: "absolute", right: 12, bottom: SCROLL_ACTION.bottom }}>
+        {!atBottom ? <Pressable testID="phone-scroll-bottom" accessibilityRole="button" accessibilityLabel={loadedEnd ? strings.scrollLoadedEnd : strings.scrollBottom} onPress={() => {
+          cancelScroll();
+          if (count === 0) return;
+          listRef.current?.scrollToOffset({ offset: Math.max(0, contentHeight + endSpace - viewportHeight), animated: !reduced });
+        }} style={{ width: SCROLL_ACTION.size, height: SCROLL_ACTION.size, borderRadius: SCROLL_ACTION.size / 2, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? { boxShadow: "0 3px 10px rgba(0, 0, 0, 0.2)" } : { elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 3 } }) }}>
+          <Icon name="ArrowDownToLine" size={22} color={colors.foreground} />
+        </Pressable> : null}
       </View>
     ) : null}
     </View>

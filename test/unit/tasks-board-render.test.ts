@@ -4374,6 +4374,21 @@ describe("Tasks board, phone", () => {
     expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
   });
 
+  it.each(["ios", "android", "web"])("%s scrolls only when the selected tab is pressed again", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const scrollToOffset = vi.fn();
+    act(() => { renderer = TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "FlatList" ? { scrollToOffset } : null }); });
+    act(() => pressable("Running 2").props.onPress());
+    expect(scrollToOffset).not.toHaveBeenCalled();
+    act(() => pressable("Running 2").props.onPress());
+    expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 0, animated: true });
+    scrollToOffset.mockClear();
+    act(() => hostsById("phone-stat-needs_input")[0]!.props.onPress());
+    expect(scrollToOffset).not.toHaveBeenCalled();
+    act(() => hostsById("phone-stat-needs_input")[0]!.props.onPress());
+    expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 0, animated: true });
+  });
+
   it("on iOS and Android pages the lanes natively, mounting the lane shown and its neighbours", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
@@ -4394,7 +4409,7 @@ describe("Tasks board, phone", () => {
     expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
   });
 
-  it.each(["ios", "android", "web"])("%s shows scroll shortcuts only when the active lane's cards exceed two viewports, and ends the list clear of them", (os) => {
+  it.each(["ios", "android", "web"])("%s shows the bottom shortcut only when the active lane exceeds two viewports, and ends the list clear of it", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const scrollToOffset = vi.fn();
     const scrollToIndex = vi.fn();
@@ -4413,16 +4428,16 @@ describe("Tasks board, phone", () => {
     expect(hostsById("phone-scroll-top")).toHaveLength(0);
     expect(hostsById("phone-scroll-bottom")).toHaveLength(1);
     scroll(200);
-    expect(hostsById("phone-scroll-top")).toHaveLength(1);
+    expect(hostsById("phone-scroll-top")).toHaveLength(0);
     expect(hostsById("phone-scroll-bottom")).toHaveLength(1);
     scroll(625);
-    expect(hostsById("phone-scroll-top")).toHaveLength(1);
+    expect(hostsById("phone-scroll-top")).toHaveLength(0);
     expect(hostsById("phone-scroll-bottom")).toHaveLength(0);
     scroll(200);
     // The list ends below the shortcuts, so its last card and Load more scroll clear of them.
-    const actions = StyleSheet.flatten(hostsById("phone-scroll-actions")[0]!.props.style) as { bottom: number; gap: number };
-    const buttons = ["phone-scroll-top", "phone-scroll-bottom"].map((id) => StyleSheet.flatten(hostsById(id)[0]!.props.style) as { height: number });
-    expect(endSpace()).toBeGreaterThan(actions.bottom + buttons.reduce((sum, button) => sum + button.height, 0) + actions.gap * (buttons.length - 1));
+    const actions = StyleSheet.flatten(hostsById("phone-scroll-actions")[0]!.props.style) as { bottom: number };
+    const button = StyleSheet.flatten(hostsById("phone-scroll-bottom")[0]!.props.style) as { height: number };
+    expect(endSpace()).toBeGreaterThan(actions.bottom + button.height);
     // The space they add does not keep them shown: the same cards remeasured with it stay over the line.
     const added = endSpace() - 46;
     act(() => list().props.onContentSizeChange(390, 1047 + added));
@@ -4431,10 +4446,10 @@ describe("Tasks board, phone", () => {
     expect(hostsById("phone-scroll-actions")).toHaveLength(0);
     expect(endSpace()).toBe(46);
     act(() => list().props.onContentSizeChange(390, 1200));
-    act(() => hostsById("phone-scroll-top")[0]!.props.onPress());
+    act(() => hostsById("phone-stat-needs_input")[0]!.props.onPress());
     act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
     expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: true });
-    expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 794, animated: true });
+    expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 738, animated: true });
     expect(scrollToIndex).not.toHaveBeenCalled();
     act(() => container().props.onLayout({ nativeEvent: { layout: { height: 600 } } }));
     expect(hostsById("phone-scroll-actions")).toHaveLength(0);
@@ -4462,7 +4477,7 @@ describe("Tasks board, phone", () => {
     const loadMore = (data as unknown as { __handle: { loadMoreDone: ReturnType<typeof vi.fn> } }).__handle.loadMoreDone;
     loadMore.mockClear();
     act(() => bottom("done").props.onPress());
-    expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 994, animated: true });
+    expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 938, animated: true });
     expect(scrollToIndex).not.toHaveBeenCalled();
     expect(loadMore).not.toHaveBeenCalled();
     act(() => laneList("done").props.onEndReached());
@@ -4497,10 +4512,10 @@ describe("Tasks board, phone", () => {
       act(() => hostParentOf(list)!.props.onLayout({ nativeEvent: { layout: { height: 500 } } }));
       act(() => list.props.onContentSizeChange(390, 1400));
       act(() => list.props.onScroll({ nativeEvent: { contentOffset: { y: 100 }, contentSize: { height: 1400 }, layoutMeasurement: { height: 500 } } }));
-      act(() => hostsById("phone-scroll-top")[0]!.props.onPress());
+      act(() => hostsById("phone-stat-needs_input")[0]!.props.onPress());
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
       expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: false });
-      expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 994, animated: false });
+      expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 938, animated: false });
       expect(scrollToIndex).not.toHaveBeenCalled();
     } finally {
       act(() => onReduce(false));
@@ -4522,7 +4537,7 @@ describe("Tasks board, phone", () => {
       act(() => hostParentOf(list())!.props.onLayout({ nativeEvent: { layout: { height: 500 } } }));
       act(() => list().props.onContentSizeChange(390, 1400));
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
-      expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 994, animated: true });
+      expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 938, animated: true });
       expect(scrollToIndex).not.toHaveBeenCalled();
       handle.lanes = { ...handle.lanes, needs_input: { ...saved.needs_input!, cards: [...cards, { ...cards[0]!, id: "new-page" }] } };
       act(() => renderer!.update(screen(true)));
@@ -4536,7 +4551,7 @@ describe("Tasks board, phone", () => {
     }
   });
 
-  it("bounds retries when measurement stalls, and the top shortcut cancels a pending reveal", () => {
+  it("bounds retries when measurement stalls, and the current tab cancels a pending reveal", () => {
     const list = () => hostsById("phone-lane-running")[0]!.find((node) => (node.type as unknown) === "FlatList");
     const scrollToOffset = vi.fn();
     const scrollToIndex = vi.fn((params: { index: number }) => list().props.onScrollToIndexFailed({ index: params.index, averageItemLength: 100, highestMeasuredFrameIndex: 0 }));
@@ -4552,7 +4567,7 @@ describe("Tasks board, phone", () => {
     expect(scrollToIndex).toHaveBeenCalledTimes(50);
     act(() => list().props.onScrollToIndexFailed({ index: 1, averageItemLength: 100, highestMeasuredFrameIndex: 0 }));
     act(() => list().props.onScroll({ nativeEvent: { contentOffset: { y: 100 }, contentSize: { height: 1400 }, layoutMeasurement: { height: 500 } } }));
-    act(() => hostsById("phone-scroll-top")[0]!.props.onPress());
+    act(() => pressable("Running 2").props.onPress());
     expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: true });
     act(() => { vi.advanceTimersByTime(1000); });
     expect(scrollToIndex).toHaveBeenCalledTimes(50);
