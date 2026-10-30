@@ -72,6 +72,17 @@ async function reveal(expected: string) {
 }
 
 describe("task title editor", () => {
+  it("uses equal host-style actions on desktop and web", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    await renderDialog({ canAutoTitle: true });
+    const actions = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-actions");
+    const buttons = actions.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    expect(buttons.map((button) => button.props.style.flex)).toEqual([1, 1, 1]);
+    expect(buttons.map((button) => button.props.style.borderRadius)).toEqual([12, 12, 12]);
+    expect(buttons.map((button) => button.props.style.minHeight)).toEqual([32, 32, 32]);
+    expect(buttons.map((button) => button.props.style.backgroundColor)).toEqual([theme.colors.surface2, theme.colors.surface2, theme.colors.accent]);
+  });
+
   it.each(["ios", "android"])("keeps mobile actions below the scrollable editor on %s", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     await renderDialog({ canAutoTitle: true });

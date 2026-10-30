@@ -71,7 +71,7 @@ export function TaskRenameDialog(props: {
         setError(null);
         preview.start(props.agentId);
       }}
-      style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: mobile ? 12 : 16, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: mobile ? 22 : 0, borderWidth: mobile ? 1 : 0, borderColor: colors.border, opacity: autoDisabled ? 0.5 : 1 }}>
+      style={{ minHeight: taskControlHeight(mobile ? 44 : 32, scale), paddingHorizontal: 12, flex: mobile ? undefined : 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: mobile ? 22 : 12, borderWidth: mobile ? 1 : 0, borderColor: colors.border, backgroundColor: mobile ? undefined : colors.surface2, opacity: autoDisabled ? 0.5 : 1 }}>
       {generating ? <ActivityIndicator testID="task-rename-title-loading" size="small" color={colors.foreground} /> : <Icon name="Sparkles" size={18} color={colors.foreground} />}
       <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{props.strings.generateTitle}</Text>
     </Pressable>
@@ -101,14 +101,14 @@ export function TaskRenameDialog(props: {
               {error ? <Text accessibilityRole="alert" style={{ fontSize: F.sm, color: colors.statusDanger }}>{error}</Text> : null}
               {props.blockedReason || props.autoTitleBlockedReason ? <Text accessibilityRole="alert" testID="task-rename-unavailable" style={{ fontSize: F.sm, color: colors.statusWarning }}>{props.blockedReason ?? props.autoTitleBlockedReason}</Text> : null}
             </InputContainer>
-            <View testID="task-rename-actions" style={mobile ? { paddingTop: 12, paddingHorizontal: 16, flexDirection: "row", gap: 10, borderTopWidth: 1, borderTopColor: colors.border } : { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
+            <View testID="task-rename-actions" style={mobile ? { paddingTop: 12, paddingHorizontal: 16, flexDirection: "row", gap: 10, borderTopWidth: 1, borderTopColor: colors.border } : { flexDirection: "row", gap: 8 }}>
               {!mobile ? automatic : null}
               <Pressable accessibilityRole="button" accessibilityLabel={props.strings.cancelTitle} disabled={pending} onPress={props.onClose}
-                style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: mobile ? 18 : 16, justifyContent: "center", alignItems: "center", borderRadius: mobile ? 22 : 0, borderWidth: mobile ? 1 : 0, borderColor: colors.border, opacity: pending ? 0.5 : 1 }}>
+                style={{ minHeight: taskControlHeight(mobile ? 44 : 32, scale), paddingHorizontal: mobile ? 18 : 12, flex: mobile ? undefined : 1, justifyContent: "center", alignItems: "center", borderRadius: mobile ? 22 : 12, borderWidth: mobile ? 1 : 0, borderColor: colors.border, backgroundColor: mobile ? undefined : colors.surface2, opacity: pending ? 0.5 : 1 }}>
                 <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground }}>{props.strings.cancelTitle}</Text>
               </Pressable>
               <Pressable testID="task-rename-save" accessibilityRole="button" accessibilityLabel={props.strings.saveTitle} accessibilityState={{ disabled, busy: pending }} disabled={disabled} onPress={() => void save()}
-                style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 16, flex: mobile ? 1 : undefined, justifyContent: "center", alignItems: "center", borderRadius: mobile ? 22 : 8, backgroundColor: colors.accent, opacity: disabled ? 0.5 : 1 }}>
+                style={{ minHeight: taskControlHeight(mobile ? 44 : 32, scale), paddingHorizontal: mobile ? 16 : 12, flex: 1, justifyContent: "center", alignItems: "center", borderRadius: mobile ? 22 : 12, backgroundColor: colors.accent, opacity: disabled ? 0.5 : 1 }}>
                 <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.accentForeground }}>{pending ? props.strings.savingTitle : props.strings.saveTitle}</Text>
               </Pressable>
               {mobile ? automatic : null}
