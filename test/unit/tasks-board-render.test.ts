@@ -1855,6 +1855,8 @@ describe("Tasks board, desktop", () => {
     toggleSidebarControl();
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width).toBe(340);
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).right).toBe(0);
+    expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).paddingLeft).toBe(12);
+    expect(StyleSheet.flatten(hostsById("floating-sidebar-resize")[0]!.props.style).width).toBe(12);
     expect(StyleSheet.flatten(hostsById("sidebar-stat-label-running")[0]!.props.style).fontSize).toBe(Math.round(12 * base / 14 * 0.9));
     expect(hostsById("floating-sidebar-grabber")).toHaveLength(1);
     layOut(1600);
@@ -1915,6 +1917,7 @@ describe("Tasks board, desktop", () => {
     toggleSidebarControl();
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width).toBe(380);
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).right).toBe(12);
+    expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).paddingLeft).toBe(8);
     expect(hostsById("floating-sidebar-resize")).toHaveLength(0);
   });
 

@@ -1034,7 +1034,7 @@ function FloatingSidebar(props: {
         bottom: 12,
         width: props.width,
         padding: 8,
-        paddingLeft: props.resize ? 24 : 8,
+        paddingLeft: props.resize ? 12 : 8,
         borderRadius: 16,
         ...(props.flushRight ? { borderTopRightRadius: 0, borderBottomRightRadius: 0, borderRightWidth: 0 } : null),
         borderWidth: HAIRLINE,
@@ -1061,7 +1061,7 @@ function FloatingSidebar(props: {
             props.resize?.onResize(Math.max(TABLET_SIDEBAR.min, Math.min(props.resize.max, width)));
           }}
           testID="floating-sidebar-resize"
-          style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 24, alignItems: "center", justifyContent: "center", zIndex: 5 }}
+          style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 12, alignItems: "center", justifyContent: "center", zIndex: 5 }}
         >
           <View pointerEvents="none" testID="floating-sidebar-grabber" style={{ width: 4, height: 40, borderRadius: 2, backgroundColor: dragging ? props.theme.colors.accent : props.theme.colors.foregroundMuted, opacity: dragging ? 1 : 0.5 }} />
         </View>
