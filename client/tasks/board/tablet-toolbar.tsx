@@ -1,4 +1,4 @@
-import React, { useState, type Ref } from "react";
+import React, { useState, type ReactNode, type Ref } from "react";
 import { Platform, Pressable, View, type LayoutRectangle, type TextInput as NativeTextInput } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -10,7 +10,7 @@ import { CornerBadge, HoverPressable, RollingTotal, SlashMark } from "./board-pa
 import { HAIRLINE } from "./board-style";
 import { laneWidthMenuSections, sortMenuSections } from "./board-menus";
 import { CascadeMenu, type MenuSection } from "./menu";
-import { menuWidth } from "./menu-model";
+import { menuChrome, menuWidth } from "./menu-model";
 import { activeFilterCount, resolveBoardParams } from "./params";
 import type { BoardController } from "./use-board";
 import { FullConversationSwitch, SearchInput } from "./search-loading";
@@ -31,6 +31,7 @@ export function TabletToolbar(props: {
   width: number;
   searchRef: Ref<NativeTextInput>;
   onFilters(): void;
+  filters?: { content: ReactNode; height: number; onClose(): void };
   sidebar: { open: boolean; onToggle(): void };
   emptyLanes: { collapsed: boolean; disabled: boolean; onToggle(): void };
 }) {
@@ -65,7 +66,7 @@ export function TabletToolbar(props: {
   const count = activeFilterCount(board.params, board.defaults);
   const textStyle = { fontSize: F.base, fontWeight: "600" as const, color: colors.foreground, fontVariant: ["tabular-nums" as const] };
   const openPage = (next: ViewPage | null) => { setTrail([]); setPage(next); };
-  const close = () => { openPage(null); setSearchOpen(false); };
+  const close = () => { openPage(null); setSearchOpen(false); props.filters?.onClose(); };
   const sections: MenuSection[] = page === "sort" ? [
     { key: "back", items: [{ key: "back", label: strings.back, icon: "ChevronLeft", keepOpen: true, onSelect: () => openPage("view") }] },
     ...sortMenuSections(board.params.sort, strings, (sort) => board.setParams((p) => ({ ...p, sort }))),
@@ -114,11 +115,11 @@ export function TabletToolbar(props: {
   );
   return (
     <>
-      {page || (searchOpen && !inlineSearch) ? <Pressable accessibilityLabel={strings.closeMenu} testID="tablet-toolbar-backdrop" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: 9 }} /> : null}
+      {page || props.filters || (searchOpen && !inlineSearch) ? <Pressable accessibilityLabel={strings.closeMenu} testID="tablet-toolbar-backdrop" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: 9 }} /> : null}
       <View pointerEvents="box-none" testID="tablet-toolbar" onLayout={(event) => setToolbarWidth(event.nativeEvent.layout.width)} style={{ height, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>
         {/* Match both side slots' minimums: native flex otherwise shifts the title towards the search. */}
         <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: inlineSearch && searching ? 160 : compact && !expandedSearch ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {inlineSearch ? search : <ToolbarButton compact={compact} icon="Search" label={strings.searchButton} selected={searchOpen || !!board.params.query} theme={theme} testID="tablet-search-toggle" onPress={() => { setPage(null); setSearchOpen(!searchOpen); }} />}
+          {inlineSearch ? search : <ToolbarButton compact={compact} icon="Search" label={strings.searchButton} selected={searchOpen || !!board.params.query} theme={theme} testID="tablet-search-toggle" onPress={() => { props.filters?.onClose(); setPage(null); setSearchOpen(!searchOpen); }} />}
           {expandedSearch ? search : null}
         </View>
         <SearchQueryChip board={board} theme={theme} />
@@ -134,14 +135,23 @@ export function TabletToolbar(props: {
         </View>}
         <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch || searching ? 0 : 1, flexBasis: expandedSearch || searching ? "auto" : 0, minWidth: compact ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
         {shortcuts ? null : <ToolbarButton compact={compact} icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks }))} />}
-        {separateFilters ? <ToolbarButton compact={compact} icon="ListFilter" label={strings.filters} showLabel={labels} badge={count} theme={theme} testID="toolbar-filters" onPress={() => { close(); props.onFilters(); }} /> : null}
+        {separateFilters ? <ToolbarButton compact={compact} icon="ListFilter" label={strings.filters} showLabel={labels} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
-          <ToolbarButton compact={compact} icon="SlidersHorizontal" label={strings.view} showLabel={labels} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { setSearchOpen(false); openPage(page ? null : "view"); }} />
+          <ToolbarButton compact={compact} icon="SlidersHorizontal" label={strings.view} showLabel={labels} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); setSearchOpen(false); openPage(page ? null : "view"); }} />
         </View>
         {shortcuts ? <View style={{ width: HAIRLINE, height: 18, backgroundColor: colors.border, marginHorizontal: 2 }} /> : null}
         {shortcuts ? <ToolbarButton compact={compact} icon="PanelRight" label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} theme={theme} testID="sidebar-switch" onPress={props.sidebar.onToggle} /> : null}
         </View>
       </View>
+      {props.filters ? (
+        <View testID="tablet-filter-popover" accessibilityViewIsModal onAccessibilityEscape={props.filters.onClose} style={{ position: "absolute", top: height + 6, right: 12, width: menuWidth(480, scale, props.width - 24), height: Math.min(640 * Math.max(1, scale), Math.max(0, props.filters.height - 18)), borderRadius: 12, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface1, boxShadow: menuChrome(theme).shadow, paddingBottom: 16, overflow: "hidden", zIndex: 30 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, height: taskControlHeight(48, scale), borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
+            <Text accessibilityRole="header" style={{ flex: 1, fontSize: F.base, fontWeight: "600", color: colors.foreground }}>{strings.filters}</Text>
+            <ToolbarButton compact={compact} icon="X" label={strings.closeMenu} theme={theme} testID="tablet-filter-close" onPress={props.filters.onClose} />
+          </View>
+          {props.filters.content}
+        </View>
+      ) : null}
       {page && menuAnchor ? (
         // Keep Android AX bounds inside a board-height parent instead of the short toolbar.
         <View pointerEvents="box-none" testID="tablet-view-overlay" style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: menuAnchor.right, zIndex: 30 }}>

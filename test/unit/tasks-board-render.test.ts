@@ -3577,6 +3577,84 @@ describe("Tasks board, tablet filters", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
   });
 
+  it.each([[320, 300, 14], [800, 600, 14], [1200, 900, 21]])("iPad filters drop below the toolbar within %i x %i at UI base %i", (width, height, base) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
+    layOut(width);
+    act(() => hostsById("tasks-board-area")[0]!.props.onLayout({ nativeEvent: { layout: { width, height } } }));
+    const open = () => act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    open();
+    const panel = hostsById("tablet-filter-popover")[0]!;
+    const style = StyleSheet.flatten(panel.props.style);
+    expect(style).toMatchObject({ position: "absolute", top: StyleSheet.flatten(hostsById("tablet-toolbar")[0]!.props.style).height as number + 6, right: 12 });
+    expect(Number(style.width)).toBeLessThanOrEqual(width - 24);
+    expect(Number(style.height)).toBeLessThanOrEqual(height - 18);
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
+    expect(panel.props.accessibilityViewIsModal).toBe(true);
+    expect(hostsById("toolbar-filters")[0]!.props.accessibilityState.expanded).toBe(true);
+    expect(panel.findAll((node) => (node.type as unknown) === "ScrollView")).toHaveLength(1);
+    const footer = hostsById("filter-sheet-footer")[0]!;
+    expect(hostParentOf(footer)).toBe(hostParentOf(hostsById("filter-sheet-scroll")[0]!));
+    act(() => hostsById("filter-sheet-empty-groups")[0]!.props.onPress());
+    expect(hostsById("tablet-filter-popover")).toHaveLength(1);
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
+    expect(hostsById("tablet-filter-popover")).toHaveLength(0);
+    open();
+    open();
+    expect(hostsById("tablet-filter-popover")).toHaveLength(0);
+    open();
+    act(() => hostsById("tablet-filter-close")[0]!.props.onPress());
+    expect(hostsById("tablet-filter-popover")).toHaveLength(0);
+    open();
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    expect(hostsById("tablet-filter-popover")).toHaveLength(0);
+    open();
+    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    expect(hostsById("tablet-filter-popover")).toHaveLength(0);
+    open();
+    act(() => hostsById("filter-sheet-footer")[0]!.findAll((node) => (node.type as unknown) === "Pressable")[1]!.props.onPress());
+    expect(hostsById("tablet-filter-popover")).toHaveLength(0);
+  });
+
+  it("keeps Android filters in the host modal", () => {
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(800);
+    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    expect(hostsById("tablet-filter-popover")).toHaveLength(0);
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(1);
+    expect(hostsById("filter-sheet-scroll")).toHaveLength(1);
+  });
+
+  it.each([["done", false], ["done", true], ["failed", false], ["rejected", false]] as const)("iPad pulls refresh and releases the indicator (%s, empty=%s)", async (outcome, empty) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    const handle = (data as unknown as { __handle: { refresh: ReturnType<typeof vi.fn> } }).__handle;
+    let finish!: () => void;
+    handle.refresh.mockImplementation(() => new Promise((resolve, reject) => {
+      finish = () => outcome === "rejected" ? reject(new Error("offline")) : resolve(outcome);
+    }));
+    handle.refresh.mockClear();
+    act(() => { renderer = TestRenderer.create(screen(false, empty ? { agent: "no-such-provider" } : {})); });
+    layOut(1600);
+    await act(async () => {});
+    for (const id of ["needs_input", "done"]) {
+      const list = () => hostsById(`lane-${id}`)[0]!.find((node) => (node.type as unknown) === "FlatList");
+      expect(list().props.data.length === 0).toBe(empty);
+      expect(list().props.alwaysBounceVertical).toBe(true);
+      const requests = handle.refresh.mock.calls.length;
+      const before = list().props.data;
+      act(() => list().props.onRefresh());
+      expect(list().props.refreshing).toBe(true);
+      await act(async () => { await Promise.resolve(); });
+      expect(handle.refresh).toHaveBeenCalledTimes(requests + 1);
+      act(() => list().props.onRefresh());
+      expect(handle.refresh).toHaveBeenCalledTimes(requests + 1);
+      await act(async () => { finish(); });
+      expect(list().props.refreshing).toBe(false);
+      expect(list().props.data).toBe(before);
+    }
+    handle.refresh.mockReset();
+  });
+
   it.each([
     ["ios", 480, "zh", 14], ["ios", 800, "en", 14], ["ios", 1200, "zh", 21],
     ["android", 600, "en", 21], ["android", 800, "zh", 14], ["android", 1200, "en", 21],

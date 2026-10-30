@@ -595,6 +595,17 @@ export function DesktopBoard(props: {
     />
   );
   const activeCardId = focus ? `task-card-${lanes[focus.lane].cards[focus.index]!.id}` : undefined;
+  const filterBody = (touch || sheetMode) && filtersOpen && options ? (
+    <FilterSheetBody
+      board={live}
+      theme={theme}
+      options={options}
+      showEmptyGroupsToggle
+      showArchivedToggle={touch}
+      laneWidth={{ value: live.laneWidth, onChange: live.setLaneWidth }}
+      onDone={() => setFiltersOpen(false)}
+    />
+  ) : null;
 
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }} {...claimKeys(rootRef, () => setFocus(null), activeCardId)}>
@@ -604,6 +615,7 @@ export function DesktopBoard(props: {
         width={boardWidth}
         searchRef={searchRef}
         onFilters={() => setFiltersOpen(true)}
+        filters={Platform.OS === "ios" && filtersOpen ? { content: filterBody, height: boardHeight, onClose: () => setFiltersOpen(false) } : undefined}
         sidebar={sidebarToggle}
         emptyLanes={emptyLanesSwitch}
       /> : <DesktopToolbar
@@ -629,21 +641,11 @@ export function DesktopBoard(props: {
           onMore={openFilterPanel}
         />
       )}
-      {/* Narrow boards and tablet toolbars share the host's filter panel. */}
-      <Modal title={strings.filters} open={(touch || sheetMode) && filtersOpen} onOpenChange={(open) => !open && setFiltersOpen(false)}>
+      {/* iPad uses the toolbar dropdown; other layouts use the host's filter panel. */}
+      <Modal title={strings.filters} open={Platform.OS !== "ios" && (touch || sheetMode) && filtersOpen} onOpenChange={(open) => !open && setFiltersOpen(false)}>
         <Modal.Content contentContainerStyle={FILTER_SHEET_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
-            {(touch || sheetMode) && filtersOpen && options ? (
-              <FilterSheetBody
-                board={live}
-                theme={theme}
-                options={options}
-                showEmptyGroupsToggle
-                showArchivedToggle={touch}
-                laneWidth={{ value: live.laneWidth, onChange: live.setLaneWidth }}
-                onDone={() => setFiltersOpen(false)}
-              />
-            ) : null}
+            {filterBody}
           </TasksTypography>
         </Modal.Content>
       </Modal>
@@ -1253,6 +1255,7 @@ const DesktopLane = memo(DesktopLaneView, sameLaneProps);
 
 function DesktopLaneView(props: DesktopLaneProps) {
   const { lane, board, theme } = props;
+  const [refreshing, setRefreshing] = useState(false);
   const scale = useTasksFontScale();
   const colors = theme.colors;
   const flashOpacity = useFlash(props.flash?.key ?? 0, props.flash?.delay ?? 0);
@@ -1405,6 +1408,15 @@ function DesktopLaneView(props: DesktopLaneProps) {
       ) : (
         <FlatList<TaskCard>
           {...laneScrollProps}
+          {...(Platform.OS === "ios" ? {
+            refreshing,
+            alwaysBounceVertical: true,
+            onRefresh: () => {
+              if (refreshing) return;
+              setRefreshing(true);
+              void Promise.resolve().then(board.tasks.refresh).catch(() => "failed").finally(() => setRefreshing(false));
+            },
+          } : null)}
           ref={setList}
           style={covered ? HIDDEN : undefined}
           data={lane.cards}
