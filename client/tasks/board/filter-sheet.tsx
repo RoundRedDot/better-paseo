@@ -166,7 +166,7 @@ export function FilterSheetBody(props: {
             </ChipWrap>
           </CollapsibleGroup>
         </View>
-        <View testID="filter-sheet-workspace-header" style={{ paddingHorizontal: 16, backgroundColor: colors.surface0 }}>
+        <View testID="filter-sheet-workspace-header" style={{ paddingHorizontal: 16, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
           <CollapsibleTitle text={strings.workspace} icon="FolderGit2" theme={theme} open={workspacesOpen} onPress={() => { setSearching(false); setWorkspacesOpen((value) => !value); }} testID="filter-sheet-workspaces-toggle" />
           {workspacesOpen && shown.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           {workspacesOpen && shown.workspaceGroups.length > 0 ? (
