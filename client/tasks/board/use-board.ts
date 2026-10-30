@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { useTitleUpdateControl } from "../actions/title-update";
+import { TITLE_GENERATION_SETTINGS } from "../../../shared/title-generation";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
@@ -317,6 +318,21 @@ export function useBoard(
   const unarchive = useUnarchiveControl({ available: stop.available, verify: verifyUnarchive, toast });
   const archive = useArchiveControl({ paseo, toast });
   const titleUpdates = useTitleUpdateControl(paseo);
+  // A turn that ends may start the daemon's title after the first reply: its card follows the job as after a click.
+  const titleSettings = useSettings(TITLE_GENERATION_SETTINGS);
+  const titleAfterFirstReply = titleSettings.status === "ready" && titleSettings.values.afterFirstReply;
+  const turnsRunning = useRef<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    const running = new Set<string>();
+    for (const [id, card] of tasks.byId) if (turnRunning(card)) running.add(id);
+    for (const id of turnsRunning.current) {
+      if (running.has(id)) continue;
+      // A turn's end leaves the running list a moment before it joins the next one: still running until it lands.
+      if (!tasks.byId.has(id)) running.add(id);
+      else if (titleAfterFirstReply) titleUpdates.attach(id);
+    }
+    turnsRunning.current = running;
+  }, [tasks.byId, titleAfterFirstReply, titleUpdates]);
   const revealingTitles = useSyncExternalStore(titleUpdates.subscribe, titleUpdates.revealing, titleUpdates.revealing);
   const previousTitleLanes = useRef(tasks.lanes);
   const titleLanes = useMemo(() => holdRevealingTitles(previousTitleLanes.current, tasks.lanes, revealingTitles), [tasks.lanes, revealingTitles]);

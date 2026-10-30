@@ -10,6 +10,7 @@ import { useTasksLanguage } from "../i18n";
 
 const WORDS = {
   en: {
+    afterFirstReply: "Update title after the first reply", afterFirstReplyHint: "When the AI finishes its first reply, generate a title from the conversation automatically.",
     disableThinking: "Disable title thinking", thinkingHint: "Use off or the lowest supported level. Otherwise follow the agent or custom level.", automaticThinking: "Off or lowest supported level",
     customModel: "Custom automatic title model", followSource: "Off: follow the card agent's provider, model and thinking level. Saved settings sync across this host's clients.",
     title: "Automatic titles", provider: "Provider", model: "Model", thinkingOptionId: "Thinking level", modelDefault: "Model default", noThinking: "Not supported", choose: "Choose…", prompt: "Prompt",
@@ -19,6 +20,7 @@ const WORDS = {
     notRecommended: "Not recommended",
   },
   zh: {
+    afterFirstReply: "首轮回复后自动更新标题", afterFirstReplyHint: "AI 完成第一轮回复后，自动根据对话内容生成标题。",
     disableThinking: "关闭标题生成思考模式", thinkingHint: "关闭思考或使用最低支持等级；关闭此开关则跟随 agent 或自定义等级。", automaticThinking: "关闭或最低支持等级",
     customModel: "自定义自动标题模型", followSource: "关闭时跟随卡片所属 agent 的 Provider、模型和思考等级；保存后同步至主机各端。",
     title: "自动更新标题", provider: "Provider", model: "模型", thinkingOptionId: "思考等级", modelDefault: "模型默认", noThinking: "不支持", choose: "请选择…", prompt: "Prompt",
@@ -114,7 +116,10 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   return (
     <View style={{ gap: space.sm }}>
       <Section title={words.title} look={look}>
-        <SettingRow title={words.customModel} description={words.followSource} look={look} first disabled={settings.saving} control={
+        <SettingRow title={words.afterFirstReply} description={words.afterFirstReplyHint} look={look} first disabled={settings.saving} control={
+          <Toggle value={draft.afterFirstReply} label={words.afterFirstReply} look={look} onChange={(afterFirstReply) => setDraft({ ...draft, afterFirstReply })} />
+        } />
+        <SettingRow title={words.customModel} description={words.followSource} look={look} disabled={settings.saving} control={
           <Toggle value={draft.customModel} label={words.customModel} look={look} onChange={(customModel) => {
             setChoosing(null);
             setDraft({ ...draft, customModel });

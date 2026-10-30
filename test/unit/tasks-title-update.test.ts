@@ -163,3 +163,118 @@ describe("title update state", () => {
     expect(call).toHaveBeenLastCalledWith({ agentId: "a", action: "status" });
   });
 });
+
+describe("following a title the daemon started", () => {
+  it("asks until the job runs, then sweeps and holds the card as after a click", async () => {
+    vi.useFakeTimers();
+    const call = vi.fn(async (_input: { agentId: string; action: string }): Promise<TitleUpdateState> => ({ state: "idle" }));
+    call.mockResolvedValueOnce({ state: "idle" })
+      .mockResolvedValueOnce({ state: "running", helperId: "helper" })
+      .mockResolvedValueOnce({ state: "running", helperId: "helper", text: "Auto" })
+      .mockResolvedValueOnce({ state: "done", title: "Auto title" });
+    const watch = vi.fn(() => () => {});
+    const control = createTitleUpdateControl(call, watch);
+    control.attach("a");
+    control.attach("a");
+    await vi.advanceTimersByTimeAsync(0);
+    // Not running yet: the card is left as it is.
+    expect(control.read("a")).toEqual({ state: "idle" });
+    expect(control.revealing().has("a")).toBe(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(control.read("a")).toMatchObject({ state: "running" });
+    expect(control.revealing().has("a")).toBe(true);
+    expect(watch).toHaveBeenCalledExactlyOnceWith("helper", expect.any(Function));
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(control.read("a")).toMatchObject({ state: "running", text: "Auto" });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(control.read("a")).toEqual({ state: "done", title: "Auto title" });
+    expect(control.revealing().has("a")).toBe(true);
+    control.finishReveal("a");
+    expect(control.revealing().has("a")).toBe(false);
+    expect(call.mock.calls.every(([input]) => input.action === "status")).toBe(true);
+  });
+
+  it("starts the asks over when the board asks again while it waits", async () => {
+    vi.useFakeTimers();
+    const call = vi.fn(async (): Promise<TitleUpdateState> => ({ state: "idle" }));
+    const control = createTitleUpdateControl(call);
+    // An early follow (a stale snapshot at creation) is still waiting when the turn really ends.
+    control.attach("a");
+    await vi.advanceTimersByTimeAsync(3500);
+    expect(call).toHaveBeenCalledTimes(4);
+    control.attach("a");
+    for (let index = 0; index < 3; index++) call.mockResolvedValueOnce({ state: "idle" });
+    call.mockResolvedValueOnce({ state: "running" });
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(call).toHaveBeenCalledTimes(8);
+    expect(control.read("a")).toEqual({ state: "running" });
+    expect(control.revealing().has("a")).toBe(true);
+  });
+
+  it.each([
+    ["no job", { state: "idle" }],
+    ["an earlier job's title", { state: "done", title: "Old title" }],
+    ["an earlier job's error", { state: "error", error: "Old failure" }],
+  ] as const)("gives up quietly on %s", async (_name, answer) => {
+    vi.useFakeTimers();
+    const call = vi.fn(async (): Promise<TitleUpdateState> => answer);
+    const control = createTitleUpdateControl(call);
+    const listener = vi.fn();
+    control.subscribe(listener);
+    control.attach("a");
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(call).toHaveBeenCalledTimes(5);
+    expect(control.read("a")).toEqual({ state: "idle" });
+    expect(control.revealing().size).toBe(0);
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["fails", { state: "error", error: "Provider failed" }],
+    ["is lost", { state: "idle" }],
+  ] as const)("keeps the card's title without an error when the job %s", async (_name, end) => {
+    vi.useFakeTimers();
+    const call = vi.fn(async (): Promise<TitleUpdateState> => end);
+    call.mockResolvedValueOnce({ state: "running" });
+    const control = createTitleUpdateControl(call);
+    control.attach("a");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(control.revealing().has("a")).toBe(true);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(control.read("a")).toEqual({ state: "idle" });
+    expect(control.revealing().size).toBe(0);
+  });
+
+  it("keeps quiet through a lost connection", async () => {
+    vi.useFakeTimers();
+    const call = vi.fn(async (): Promise<TitleUpdateState> => { throw new Error("Disconnected"); });
+    call.mockResolvedValueOnce({ state: "running" });
+    const control = createTitleUpdateControl(call);
+    control.attach("a");
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(control.read("a")).toEqual({ state: "idle" });
+  });
+
+  it("shows the error of a followed job once the user clicks it", async () => {
+    vi.useFakeTimers();
+    const call = vi.fn(async (): Promise<TitleUpdateState> => ({ state: "error", error: "Provider failed" }));
+    call.mockResolvedValueOnce({ state: "running" });
+    const control = createTitleUpdateControl(call);
+    control.attach("a");
+    await vi.advanceTimersByTimeAsync(0);
+    control.start("a");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(control.read("a")).toEqual({ state: "error", error: "Provider failed" });
+    expect(call).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves a click's own job to the click", async () => {
+    vi.useFakeTimers();
+    const call = vi.fn(async (): Promise<TitleUpdateState> => ({ state: "running" }));
+    const control = createTitleUpdateControl(call);
+    control.start("a");
+    control.attach("a");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(call.mock.calls).toEqual([[{ agentId: "a", action: "start" }]]);
+  });
+});

@@ -47,6 +47,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 const host = vi.hoisted(() => ({
   toast: vi.fn(),
   settings: null as Record<string, unknown> | null,
+  /** The automatic title settings; loading while null. */
+  titleSettings: null as Record<string, unknown> | null,
   counts: null as { running: number; needsInput: number; review: number; done: number } | null,
   /** The filters the sidebar row last counted with. */
   countScope: null as unknown,
@@ -65,7 +67,10 @@ const paseo = vi.hoisted(() => ({
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => paseo,
   useRpc: (contract: { name: string }) => (input: { agentIds?: string[] }) => Promise.resolve(contract.name === "tasks.availability" ? { entries: input.agentIds!.map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) } : { stop: host.canStop }),
-  useSettings: () => (host.settings ? { status: "ready", values: host.settings, revision: "1", saving: false, saveError: null, save: host.save, reload: host.reload } : { status: "loading" }),
+  useSettings: (definition: { id: string }) => {
+    const values = definition.id === "title-generation" ? host.titleSettings : host.settings;
+    return values ? { status: "ready", values, revision: "1", saving: false, saveError: null, save: host.save, reload: host.reload } : { status: "loading" };
+  },
 }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const React = await import("react");
@@ -134,6 +139,8 @@ import { deviceTasksStore } from "../../client/tasks/device-preferences";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled, setTasksSettingsOpener } from "../../client/tasks/board/enabled";
 import { createFakePaseo, makeAgent } from "./helpers/fake-paseo";
+import { TitleLoading } from "../../client/tasks/cards/title-loading";
+import { titleGenerationSettingsSchema, type TitleUpdateState } from "../../shared/title-generation";
 import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderForTests, triggerHostAppearanceCheck } from "../../client/ui/tokens/host-appearance-shim";
 
 // These tests draw the board on and the archived lane off unless they turn it on
@@ -325,6 +332,7 @@ function renderFocusBoard() {
 beforeEach(() => {
   resetHostAppearanceForTests();
   host.settings = { ...DEFAULT_TASKS_SETTINGS };
+  host.titleSettings = null;
   host.counts = null;
   host.canStop = false;
   host.rowRenders = 0;
@@ -3151,6 +3159,153 @@ describe("Tasks board, refresh during a title reveal", () => {
       const done = cards().filter((card) => card.props.card.lane === "done");
       expect(done.map((card) => card.props.card.id)).toEqual(["title-target"]);
       expect(cards().some((card) => card.props.card.id === "title-first")).toBe(false);
+    } finally {
+      live.restore();
+    }
+  });
+});
+
+describe("Tasks board, a title the daemon starts after the first reply", () => {
+  type Answer = (state: TitleUpdateState) => void;
+  const LANES = ["needs_input", "running", "review", "done", "archived"] as const;
+  type Lane = (typeof LANES)[number];
+  const permission = { id: "p", provider: "claude", name: "Bash", kind: "tool", input: { command: "npm test" } };
+  function agentIn(lane: Lane, id: string, title: string, ageMs: number) {
+    const updatedAt = new Date(Date.now() - ageMs).toISOString();
+    const base = { id, title, workspaceId: "ws", updatedAt, lastUserMessageAt: updatedAt };
+    if (lane === "needs_input") return makeAgent({ ...base, status: "running", pendingPermissions: [permission] as never });
+    if (lane === "running") return makeAgent({ ...base, status: "running" });
+    if (lane === "review") return makeAgent({ ...base, status: "idle", requiresAttention: true, attentionReason: "finished" });
+    if (lane === "done") return makeAgent({ ...base, status: "idle", requiresAttention: false });
+    return makeAgent({ ...base, status: "idle", requiresAttention: false, archivedAt: updatedAt });
+  }
+  const sweeping = (card: ReactTestInstance) => card.findAllByType(TitleLoading).length > 0;
+
+  /** Both cards start in `from`; the daemon answers each status ask through `answer`. */
+  async function mountLive(from: Lane, afterFirstReply = true) {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const titleUpdates = await import("../../client/tasks/actions/title-update");
+    let answer!: Answer;
+    const call = vi.fn((_input: { agentId: string; action: string }) => new Promise<TitleUpdateState>((resolve) => { answer = resolve; }));
+    const control = titleUpdates.createTitleUpdateControl(call);
+    const titleControl = vi.spyOn(titleUpdates, "useTitleUpdateControl").mockReturnValue(control);
+    const fake = createFakePaseo({ agents: [agentIn(from, "title-first", "First task", 60_000), agentIn(from, "title-target", "Fix the card title", 120_000)] });
+    host.liveTasks = fake.paseo;
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
+    host.titleSettings = titleGenerationSettingsSchema.parse({ afterFirstReply });
+    await act(async () => { renderer = TestRenderer.create(screen(false, { sort: "updated-desc" })); });
+    await act(async () => { await deviceTasksStore().update({ showArchived: true }); });
+    layOut(2400);
+    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    const laneCards = (lane: Lane) => cards().filter((card) => card.props.card.lane === lane);
+    const target = () => cards().find((card) => card.props.card.id === "title-target")!;
+    const push = async (agent: ReturnType<typeof makeAgent>) => {
+      await act(async () => { fake.pushAgentSnapshot(agent); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    };
+    const reply = async (state: TitleUpdateState, wait = 0) => {
+      await act(async () => answer(state));
+      await act(async () => { await vi.advanceTimersByTimeAsync(wait); });
+    };
+    return { control, call, fake, laneCards, target, push, reply, restore: () => titleControl.mockRestore() };
+  }
+
+  it.each(LANES.filter((lane) => lane !== "running"))("follows the job once the first turn ends, sweeping the title (running → %s)", async (to) => {
+    const live = await mountLive("running");
+    try {
+      expect(live.call).not.toHaveBeenCalled();
+      await live.push(agentIn(to, "title-target", "Fix the card title", 0));
+      expect(live.target().props.card.lane).toBe(to);
+      expect(live.call).toHaveBeenLastCalledWith({ agentId: "title-target", action: "status" });
+      // The daemon starts the job a moment after the turn ends.
+      await live.reply({ state: "idle" }, 1000);
+      expect(sweeping(live.target())).toBe(false);
+      await live.reply({ state: "running", helperId: "helper" });
+      expect(live.control.revealing().has("title-target")).toBe(true);
+      expect(sweeping(live.target())).toBe(true);
+      expect(cards().filter(sweeping).map((card) => card.props.card.id)).toEqual(["title-target"]);
+    } finally {
+      live.restore();
+    }
+  });
+
+  it("follows when the turn's end leaves the running list a render before it joins the next", async () => {
+    const live = await mountLive("running");
+    try {
+      // The daemon's status list drops the agent first; its next list takes it after a render.
+      await act(async () => { live.fake.removeAgent("title-target"); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(cards().some((card) => card.props.card.id === "title-target")).toBe(false);
+      expect(live.call).not.toHaveBeenCalled();
+      await act(async () => { live.fake.upsertAgent(agentIn("review", "title-target", "Fix the card title", 0)); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(live.target().props.card.lane).toBe("review");
+      expect(live.call).toHaveBeenLastCalledWith({ agentId: "title-target", action: "status" });
+      await live.reply({ state: "running" });
+      expect(sweeping(live.target())).toBe(true);
+    } finally {
+      live.restore();
+    }
+  });
+
+  it("leaves a card alone when the setting is off", async () => {
+    const live = await mountLive("running", false);
+    try {
+      await live.push(agentIn("done", "title-target", "Fix the card title", 0));
+      await act(async () => { await vi.advanceTimersByTimeAsync(10_000); });
+      expect(live.call).not.toHaveBeenCalled();
+      expect(sweeping(live.target())).toBe(false);
+    } finally {
+      live.restore();
+    }
+  });
+
+  it.each(LANES)("holds the card in place until the followed title is displayed (%s)", async (lane) => {
+    const live = await mountLive(lane);
+    const title = "A complete generated title that must finish before the card moves";
+    try {
+      expect(live.laneCards(lane).map((card) => card.props.card.id)).toEqual(["title-first", "title-target"]);
+      const [firstCard, targetCard] = live.laneCards(lane).map((card) => card.props.card);
+      await act(async () => live.control.attach("title-target"));
+      await live.reply({ state: "running", helperId: "helper", text: "A complete" });
+      expect(sweeping(live.target())).toBe(true);
+      const rowRenders = host.rowRenders;
+      // The daemon pushes the rename before the client hears the title is done.
+      await live.push(agentIn(lane, "title-target", title, 0));
+      expect(live.laneCards(lane).map((card) => card.props.card.id)).toEqual(["title-first", "title-target"]);
+      expect(live.laneCards(lane)[0]!.props.card).toBe(firstCard);
+      expect(live.laneCards(lane)[1]!.props.card).toBe(targetCard);
+      expect(host.rowRenders).toBe(rowRenders);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+      await live.reply({ state: "done", title }, 30);
+      expect(live.control.revealing().has("title-target")).toBe(true);
+      expect(live.laneCards(lane)[1]!.props.card).toBe(targetCard);
+      expect(host.rowRenders).toBe(rowRenders);
+      for (let index = 0; index < 100 && live.control.revealing().has("title-target"); index++) {
+        await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+      }
+      expect(live.control.revealing().has("title-target")).toBe(false);
+      expect(live.laneCards(lane).map((card) => card.props.card.id)).toEqual(["title-target", "title-first"]);
+      expect(live.laneCards(lane)[0]!.props.card.title).toBe(title);
+      expect(live.laneCards(lane)[1]!.props.card).toBe(firstCard);
+      expect(sweeping(live.target())).toBe(false);
+    } finally {
+      live.restore();
+    }
+  });
+
+  it("releases the card without an error when the followed job fails", async () => {
+    const live = await mountLive("done");
+    try {
+      await act(async () => live.control.attach("title-target"));
+      await live.reply({ state: "running" });
+      expect(sweeping(live.target())).toBe(true);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+      await live.reply({ state: "error", error: "model unavailable" });
+      expect(live.control.revealing().has("title-target")).toBe(false);
+      expect(sweeping(live.target())).toBe(false);
+      expect(live.target().findAll((node) => typeof node.type === "string" && node.props.testID === "task-title-update-error")).toHaveLength(0);
+      expect(live.target().props.card.title).toBe("Fix the card title");
     } finally {
       live.restore();
     }

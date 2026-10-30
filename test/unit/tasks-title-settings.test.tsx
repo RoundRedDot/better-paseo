@@ -8,7 +8,7 @@ import "./helpers/quiet-renderer";
 
 const state = vi.hoisted(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-  return { current: null as unknown, catalog: vi.fn() };
+  return { current: null as unknown, catalog: vi.fn(), language: "zh" as "zh" | "en" };
 });
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({ useSettings: () => state.current, useRpc: () => state.catalog }));
@@ -19,7 +19,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     { Content: (props: { children: React.ReactNode }) => react.createElement("ModalContent", props, props.children) },
   ) };
 });
-vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => "zh" }));
+vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => state.language }));
 import { TitleGenerationSettings } from "../../client/tasks/settings/title-generation";
 import { ProviderLogo } from "../../client/components/provider-logo";
 
@@ -31,7 +31,10 @@ let tree: TestRenderer.ReactTestRenderer;
 beforeEach(() => {
   state.catalog.mockReset().mockResolvedValue({ providers: ["claude", "codex"], models: [{ id: "haiku", label: "Haiku", thinkingOptions: [], defaultThinkingOptionId: null }], error: null });
 });
-afterEach(async () => { await act(async () => tree?.unmount()); });
+afterEach(async () => {
+  state.language = "zh";
+  await act(async () => tree?.unmount());
+});
 
 async function mount(extra: object = {}) {
   const settings = {
@@ -47,6 +50,23 @@ const saveButton = () => tree.root.find((node) => typeof node.type === "string" 
 const customToggle = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "switch" && node.props.accessibilityLabel === "自定义自动标题模型");
 
 describe("automatic title settings", () => {
+  it.each([
+    ["zh", "首轮回复后自动更新标题", "AI 完成第一轮回复后，自动根据对话内容生成标题。", "保存标题设置"],
+    ["en", "Update title after the first reply", "When the AI finishes its first reply, generate a title from the conversation automatically.", "Save title settings"],
+  ] as const)("offers the title after the first reply off by default and saves it (%s)", async (language, title, description, save) => {
+    state.language = language;
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({}) });
+    const row = tree.root.findAllByType(SettingRow)[0]!;
+    expect(row.props).toMatchObject({ title, description, first: true });
+    const toggle = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "switch" && node.props.accessibilityLabel === title);
+    expect(toggle().props.accessibilityState.checked).toBe(false);
+    await act(async () => toggle().props.onPress());
+    expect(toggle().props.accessibilityState.checked).toBe(true);
+    expect(settings.save).not.toHaveBeenCalled();
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === save).props.onPress());
+    expect(settings.save).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ afterFirstReply: true, customModel: false }), "r1");
+  });
+
   it.each([false, true])("defaults the thinking override on and saves it across layouts (compact: %s)", async (compact) => {
     state.catalog.mockResolvedValue({ providers: ["claude"], models: [{ id: "haiku", label: "Haiku", thinkingOptions: [{ id: "high", label: "High" }], defaultThinkingOptionId: "high" }], error: null });
     const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, provider: "claude", model: "haiku", thinkingOptionId: "high" }) });
@@ -104,7 +124,7 @@ describe("automatic title settings", () => {
     expect(TITLE_GENERATION_SETTINGS.scope).toBe("host");
     expect(customToggle().props.accessibilityState.checked).toBe(false);
     expect(state.catalog).not.toHaveBeenCalled();
-    expect(tree.root.findAllByType(SettingRow).map((row) => row.props.title)).toEqual(["自定义自动标题模型", "关闭标题生成思考模式", "Prompt"]);
+    expect(tree.root.findAllByType(SettingRow).map((row) => row.props.title)).toEqual(["首轮回复后自动更新标题", "自定义自动标题模型", "关闭标题生成思考模式", "Prompt"]);
     expect(saveButton().props.disabled).toBe(false);
     await act(async () => saveButton().props.onPress());
     expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ customModel: false, provider: "", model: "" }), "r1");
@@ -176,7 +196,7 @@ describe("automatic title settings", () => {
     expect(tree.root.findByType(ProviderLogo).props.provider).toBe("claude");
     await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("Summarize the actual goal"));
     await act(async () => saveButton().props.onPress());
-    expect(settings.save).toHaveBeenCalledExactlyOnceWith({ customModel: true, disableThinking: false, provider: "claude", model: "haiku", thinkingOptionId: "", prompt: "Summarize the actual goal" }, "r1");
+    expect(settings.save).toHaveBeenCalledExactlyOnceWith({ afterFirstReply: false, customModel: true, disableThinking: false, provider: "claude", model: "haiku", thinkingOptionId: "", prompt: "Summarize the actual goal" }, "r1");
   });
 
   it.each([false, true])("selects the first available model on provider change (compact: %s)", async (compact) => {
@@ -245,7 +265,7 @@ describe("automatic title settings", () => {
     expect(tree.root.findByType(SectionNote).props.text).toContain("Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off");
     expect(tree.root.findByType(SectionNote).props.text).not.toContain("建议在默认 prompt 末尾补充");
     expect(section.findAllByType(SettingRow).map((row) => [row.props.title, row.props.first === true])).toEqual([
-      ["自定义自动标题模型", true], ["关闭标题生成思考模式", false], ["Provider", false], ["模型", false], ["思考等级", false], ["Prompt", false],
+      ["首轮回复后自动更新标题", true], ["自定义自动标题模型", false], ["关闭标题生成思考模式", false], ["Provider", false], ["模型", false], ["思考等级", false], ["Prompt", false],
     ]);
   });
 

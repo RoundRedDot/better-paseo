@@ -10,6 +10,8 @@ type Call = (input: { agentId: string; action: "start" | "status" }) => Promise<
 type Watch = (helperId: string, onChunk: () => void) => () => void;
 
 const POLL_MS = 1000;
+/** Status asks, a second apart, before a followed job counts as not started. */
+const ATTACH_ASKS = 5;
 const streamed = (state: TitleUpdateState | undefined) => state?.state === "running" ? state.text : undefined;
 
 /**
@@ -21,6 +23,10 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
   const states = new Map<string, TitleUpdateState>();
   const listeners = new Set<() => void>();
   const interrupted = new Set<string>();
+  /** Jobs the board follows without a click: they fail silently. */
+  const quiet = new Set<string>();
+  /** Status asks left for each job the board is waiting to see start. */
+  const asksLeft = new Map<string, number>();
   let revealing: ReadonlySet<string> = new Set();
   const set = (id: string, state: TitleUpdateState) => {
     states.set(id, state);
@@ -31,7 +37,7 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
     }
     for (const listener of listeners) listener();
   };
-  return {
+  const control = {
     /** The card keeps its place until its final title has been displayed. Stable between chunks. */
     revealing: () => revealing,
     finishReveal(agentId: string) {
@@ -52,66 +58,110 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
       return () => { listeners.delete(listener); };
     },
     start(agentId: string) {
+      // A click on a job the board only follows makes its outcome the user's.
+      quiet.delete(agentId);
       if (states.get(agentId)?.state === "running") return;
       revealing = new Set(revealing).add(agentId);
       set(agentId, RUNNING);
-      // A chunk during a status call asks again as soon as it returns.
-      let nudged = false;
-      let wake: (() => void) | null = null;
-      const nudge = () => {
-        nudged = true;
-        wake?.();
-      };
-      const pause = () => new Promise<void>((resolve) => {
-        const timer = setTimeout(() => wake?.(), nudged ? 0 : POLL_MS);
-        wake = () => {
-          clearTimeout(timer);
-          wake = null;
-          nudged = false;
-          resolve();
-        };
-      });
-      let watching: string | null = null;
-      let unwatch: (() => void) | null = null;
-      void (async () => {
-        try {
-          let result = await call({ agentId, action: interrupted.has(agentId) ? "status" : "start" });
-          let failures = 0;
-          while (result.state === "running") {
-            if (streamed(result) !== streamed(states.get(agentId))) set(agentId, result);
-            if (watch && result.helperId && result.helperId !== watching) {
-              unwatch?.();
-              watching = result.helperId;
-              try {
-                unwatch = watch(result.helperId, nudge);
-              } catch {
-                unwatch = null;
-              }
-            }
-            await pause();
-            try {
-              result = await call({ agentId, action: "status" });
-              failures = 0;
-            } catch (error) {
-              failures += 1;
-              if (failures >= 3) throw error;
-            }
-          }
-          interrupted.delete(agentId);
-          if (result.state === "idle") {
-            set(agentId, { state: "error", error: "The title generation task was lost. Please retry." });
-            return;
-          }
-          set(agentId, result);
-        } catch (error) {
-          interrupted.add(agentId);
-          set(agentId, { state: "error", error: `Status unavailable; the task may still be running. Retry to reconnect. ${error instanceof Error ? error.message : String(error)}` });
-        } finally {
-          unwatch?.();
-        }
-      })();
+      follow(agentId, false);
+    },
+    /**
+     * Follows a job the daemon started on its own (a title after the first
+     * reply) as `start` does, with the same sweep and the card held in place.
+     * Asks a few times, since the daemon starts it a moment after the turn
+     * ends; a job that is not running by then, or that fails, leaves the
+     * card as it was. Another call while it waits starts the asks over.
+     */
+    attach(agentId: string) {
+      if (states.get(agentId)?.state === "running") return;
+      const waiting = asksLeft.has(agentId);
+      asksLeft.set(agentId, ATTACH_ASKS);
+      if (!waiting) follow(agentId, true);
     },
   };
+
+  function follow(agentId: string, attach: boolean) {
+    // A chunk during a status call asks again as soon as it returns.
+    let nudged = false;
+    let wake: (() => void) | null = null;
+    const nudge = () => {
+      nudged = true;
+      wake?.();
+    };
+    const pause = () => new Promise<void>((resolve) => {
+      const timer = setTimeout(() => wake?.(), nudged ? 0 : POLL_MS);
+      wake = () => {
+        clearTimeout(timer);
+        wake = null;
+        nudged = false;
+        resolve();
+      };
+    });
+    let watching: string | null = null;
+    let unwatch: (() => void) | null = null;
+    void (async () => {
+      let result: TitleUpdateState = IDLE;
+      if (attach) {
+        try {
+          for (;;) {
+            asksLeft.set(agentId, asksLeft.get(agentId)! - 1);
+            result = await call({ agentId, action: "status" });
+            if (result.state === "running" || asksLeft.get(agentId)! <= 0) break;
+            await pause();
+          }
+        } catch {
+          result = IDLE;
+        } finally {
+          asksLeft.delete(agentId);
+        }
+        // Only a running job is this one: a settled result is an earlier job's.
+        if (result.state !== "running" || states.get(agentId)?.state === "running") return;
+        quiet.add(agentId);
+        revealing = new Set(revealing).add(agentId);
+        set(agentId, RUNNING);
+      }
+      try {
+        if (!attach) result = await call({ agentId, action: interrupted.has(agentId) ? "status" : "start" });
+        let failures = 0;
+        while (result.state === "running") {
+          if (streamed(result) !== streamed(states.get(agentId))) set(agentId, result);
+          if (watch && result.helperId && result.helperId !== watching) {
+            unwatch?.();
+            watching = result.helperId;
+            try {
+              unwatch = watch(result.helperId, nudge);
+            } catch {
+              unwatch = null;
+            }
+          }
+          await pause();
+          try {
+            result = await call({ agentId, action: "status" });
+            failures = 0;
+          } catch (error) {
+            failures += 1;
+            if (failures >= 3) throw error;
+          }
+        }
+        interrupted.delete(agentId);
+        if (result.state === "done") set(agentId, result);
+        else if (quiet.has(agentId)) set(agentId, IDLE);
+        else if (result.state === "idle") set(agentId, { state: "error", error: "The title generation task was lost. Please retry." });
+        else set(agentId, result);
+      } catch (error) {
+        if (quiet.has(agentId)) {
+          set(agentId, IDLE);
+          return;
+        }
+        interrupted.add(agentId);
+        set(agentId, { state: "error", error: `Status unavailable; the task may still be running. Retry to reconnect. ${error instanceof Error ? error.message : String(error)}` });
+      } finally {
+        quiet.delete(agentId);
+        unwatch?.();
+      }
+    })();
+  }
+  return control;
 }
 export type TitleUpdateControl = ReturnType<typeof createTitleUpdateControl>;
 
