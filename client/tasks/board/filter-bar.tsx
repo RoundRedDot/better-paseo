@@ -883,7 +883,20 @@ function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme
 function ClearAllButton(props: { board: BoardController; theme: PluginTheme }) {
   const scale = useTasksFontScale();
   return (
-    <HoverPressable accessibilityRole="button" onPress={() => props.board.setParams(clearedParams)} style={(hovered) => ({ height: toolbarButtonSize(scale), paddingHorizontal: 4, justifyContent: "center", boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined })}>
+    <HoverPressable
+      accessibilityRole="button"
+      onPress={() => props.board.setParams(clearedParams)}
+      style={(hovered) => ({
+        height: toolbarButtonSize(scale),
+        paddingHorizontal: MENU_PADDING,
+        justifyContent: "center",
+        borderRadius: 6,
+        borderWidth: HAIRLINE,
+        borderColor: props.theme.colors.border,
+        backgroundColor: hovered ? props.theme.colors.surface1 : "transparent",
+        boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+      })}
+    >
       <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: props.theme.colors.foregroundMuted }}>{props.board.strings.clearAll}</Text>
     </HoverPressable>
   );
