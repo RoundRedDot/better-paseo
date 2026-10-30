@@ -83,5 +83,6 @@ describe("streamed tail", () => {
       });
     }
     expect(flips).toEqual([]);
-  }, 60_000);
+    // history-long-load #399 is 59427 characters and exceeded 60 s on a busy CI runner.
+  }, 180_000);
 });

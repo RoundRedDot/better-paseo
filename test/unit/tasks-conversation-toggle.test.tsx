@@ -19,6 +19,8 @@ let tree: TestRenderer.ReactTestRenderer | undefined;
 beforeEach(() => { vi.useFakeTimers(); (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; });
 afterEach(() => { act(() => tree?.unmount()); tree = undefined; setConversationSearchLoader(null); vi.useRealTimers(); });
 const nodes = (id: string) => tree!.root.findAll((node) => typeof node.type === "string" && node.props.testID === id);
+/** SVG of the one custom icon on the search-mode switch. */
+const switchIcons = () => nodes("search-full-conversation-toggle")[0]!.findAll((node) => typeof node.type === "string" && typeof node.props.icon?.svg === "string").map((node) => String(node.props.icon.svg));
 
 describe("full conversation switch", () => {
   it("shows only an icon while retaining the full accessibility label", () => {
@@ -30,7 +32,7 @@ describe("full conversation switch", () => {
     const toggle = nodes("search-full-conversation-toggle")[0]!;
     expect(toggle.props.accessibilityLabel).toBe("全文搜索");
     expect(toggle.findAll((node) => String(node.type) === "Text")).toHaveLength(0);
-    expect(toggle.findAll((node) => node.props.name === "List")).not.toHaveLength(0);
+    expect(switchIcons()).toEqual([expect.stringContaining("M3 5h.01")]);
   });
   it.each(["en", "zh"] as const)("defaults off, toggles incrementally and releases results on clear (%s)", async (language) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
@@ -65,7 +67,7 @@ describe("full conversation switch", () => {
     act(() => nodes("search-full-conversation-toggle")[0]!.props.onPress());
     expect(nodes("search-full-conversation-toggle")[0]!.props.accessibilityState.selected).toBe(true);
     expect(nodes("search-full-conversation-toggle")[0]!.props.dataSet.bctip).toBe(BOARD_STRINGS[language].fullConversationHint(true));
-    expect(nodes("search-full-conversation-toggle")[0]!.findAll((node) => node.props.name === "FileText")).not.toHaveLength(0);
+    expect(switchIcons()).toEqual([expect.stringContaining("M10.5 22H6")]);
     await act(async () => { await vi.advanceTimersByTimeAsync(600); });
     expect(load).toHaveBeenCalledWith({ agentId: card.id, query: "target" });
     expect(nodes("search-spinner")).toHaveLength(1);

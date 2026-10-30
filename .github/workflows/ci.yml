@@ -22,6 +22,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      # The full suite takes about 170 s locally; vitest.config.ts allows 30 s per case.
+      # vitest.config.ts allows 30 s per case. The long-fixture sweeps override
+      # that, up to 180 s. The suite is several minutes on a GitHub runner.
       - run: npx vitest run
         timeout-minutes: 15
