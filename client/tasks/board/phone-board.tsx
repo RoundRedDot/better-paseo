@@ -764,6 +764,14 @@ const PhoneLane = memo(function PhoneLane(props: {
   // The list's content height without the end space it was measured with.
   const [contentHeight, setContentHeight] = useState(0);
   const [footerHeight, setFooterHeight] = useState(0);
+  const offset = useRef(0);
+  const [edges, setEdges] = useState({ top: true, bottom: false });
+  const updateEdges = (y: number, height: number, viewport: number) => {
+    offset.current = y;
+    const top = y <= 1;
+    const bottom = y + viewport >= height - 1;
+    setEdges((previous) => previous.top === top && previous.bottom === bottom ? previous : { top, bottom });
+  };
   const reduced = useReducedMotion();
   const colors = theme.colors;
   const strings = board.strings;
@@ -818,10 +826,19 @@ const PhoneLane = memo(function PhoneLane(props: {
   // A history lane with more pages ends at its loaded cards, and reaching them loads one more page as scrolling there does.
   const loadedEnd = isHistoryLane(lane.id) && (lane.hasMore || lane.loading);
   return (
-    <View style={{ flex: 1, minHeight: 0 }} onLayout={(event: LayoutChangeEvent) => setViewportHeight(event.nativeEvent.layout.height)}>
+    <View style={{ flex: 1, minHeight: 0 }} onLayout={(event: LayoutChangeEvent) => {
+      const height = event.nativeEvent.layout.height;
+      setViewportHeight(height);
+      updateEdges(offset.current, contentHeight + endSpace, height);
+    }}>
     <FlatList<TaskCard>
       ref={setList}
-      onContentSizeChange={(_width, height) => setContentHeight(height - endSpace)}
+      onContentSizeChange={(_width, height) => {
+        setContentHeight(height - endSpace);
+        updateEdges(offset.current, height, viewportHeight);
+      }}
+      onScroll={(event) => updateEdges(event.nativeEvent.contentOffset.y, event.nativeEvent.contentSize.height, event.nativeEvent.layoutMeasurement.height)}
+      scrollEventThrottle={16}
       refreshing={refreshing}
       onRefresh={() => {
         if (refreshing) return;
@@ -892,11 +909,11 @@ const PhoneLane = memo(function PhoneLane(props: {
     {scrollActions ? (
       <View testID="phone-scroll-actions" style={{ position: "absolute", right: 12, bottom: SCROLL_ACTION.bottom, gap: SCROLL_ACTION.gap }}>
         {([
-          { icon: "ArrowUpToLine", label: strings.scrollTop, testID: "phone-scroll-top", press: () => {
+          { visible: !edges.top, icon: "ArrowUpToLine", label: strings.scrollTop, testID: "phone-scroll-top", press: () => {
             cancelScroll();
             listRef.current?.scrollToOffset({ offset: 0, animated: !reduced });
           } },
-          { icon: "ArrowDownToLine", label: loadedEnd ? strings.scrollLoadedEnd : strings.scrollBottom, testID: "phone-scroll-bottom", press: () => {
+          { visible: !edges.bottom, icon: "ArrowDownToLine", label: loadedEnd ? strings.scrollLoadedEnd : strings.scrollBottom, testID: "phone-scroll-bottom", press: () => {
             cancelScroll();
             if (count === 0) return;
             const params = { index: count - 1, viewPosition: 1, viewOffset: -(endSpace + footerHeight), animated: !reduced };
@@ -904,8 +921,8 @@ const PhoneLane = memo(function PhoneLane(props: {
             listRef.current?.scrollToIndex(params);
             if (scrollTimer.current === null) scrollRetry.current = null;
           } },
-        ]).map((action) => (
-          <Pressable key={action.testID} testID={action.testID} accessibilityRole="button" accessibilityLabel={action.label} onPress={action.press} style={{ width: SCROLL_ACTION.size, height: SCROLL_ACTION.size, borderRadius: SCROLL_ACTION.size / 2, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center", elevation: 3 }}>
+        ]).filter((action) => action.visible).map((action) => (
+          <Pressable key={action.testID} testID={action.testID} accessibilityRole="button" accessibilityLabel={action.label} onPress={action.press} style={{ width: SCROLL_ACTION.size, height: SCROLL_ACTION.size, borderRadius: SCROLL_ACTION.size / 2, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? { boxShadow: "0 3px 10px rgba(0, 0, 0, 0.2)" } : { elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 3 } }) }}>
             <Icon name={action.icon} size={20} color={colors.foreground} />
           </Pressable>
         ))}

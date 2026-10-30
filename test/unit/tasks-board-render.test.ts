@@ -20,7 +20,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     const empty = props.ListEmptyComponent as React.ReactNode;
     return React.createElement(
       "FlatList",
-      { ref: props.ref, testID: props.testID, refreshing: props.refreshing, onRefresh: props.onRefresh, alwaysBounceVertical: props.alwaysBounceVertical, onContentSizeChange: props.onContentSizeChange, contentContainerStyle: props.contentContainerStyle, onScrollToIndexFailed: props.onScrollToIndexFailed, onEndReached: props.onEndReached, data: props.data },
+      { ref: props.ref, testID: props.testID, refreshing: props.refreshing, onRefresh: props.onRefresh, alwaysBounceVertical: props.alwaysBounceVertical, onContentSizeChange: props.onContentSizeChange, onScroll: props.onScroll, contentContainerStyle: props.contentContainerStyle, onScrollToIndexFailed: props.onScrollToIndexFailed, onEndReached: props.onEndReached, data: props.data },
       data.length
         ? data.map((item, index) => {
             host.rowRenders += 1;
@@ -4409,6 +4409,16 @@ describe("Tasks board, phone", () => {
     expect(endSpace()).toBe(46);
     act(() => list().props.onContentSizeChange(390, 1047));
     expect(hostsById("phone-scroll-actions")).toHaveLength(1);
+    const scroll = (y: number, height = 1125) => act(() => list().props.onScroll({ nativeEvent: { contentOffset: { y }, contentSize: { height }, layoutMeasurement: { height: 500 } } }));
+    expect(hostsById("phone-scroll-top")).toHaveLength(0);
+    expect(hostsById("phone-scroll-bottom")).toHaveLength(1);
+    scroll(200);
+    expect(hostsById("phone-scroll-top")).toHaveLength(1);
+    expect(hostsById("phone-scroll-bottom")).toHaveLength(1);
+    scroll(625);
+    expect(hostsById("phone-scroll-top")).toHaveLength(1);
+    expect(hostsById("phone-scroll-bottom")).toHaveLength(0);
+    scroll(200);
     // The list ends below the shortcuts, so its last card and Load more scroll clear of them.
     const actions = StyleSheet.flatten(hostsById("phone-scroll-actions")[0]!.props.style) as { bottom: number; gap: number };
     const buttons = ["phone-scroll-top", "phone-scroll-bottom"].map((id) => StyleSheet.flatten(hostsById(id)[0]!.props.style) as { height: number });
@@ -4472,6 +4482,7 @@ describe("Tasks board, phone", () => {
       const list = renderer!.root.findAll((node) => (node.type as unknown) === "FlatList")[0]!;
       act(() => hostParentOf(list)!.props.onLayout({ nativeEvent: { layout: { height: 500 } } }));
       act(() => list.props.onContentSizeChange(390, 1400));
+      act(() => list.props.onScroll({ nativeEvent: { contentOffset: { y: 100 }, contentSize: { height: 1400 }, layoutMeasurement: { height: 500 } } }));
       act(() => hostsById("phone-scroll-top")[0]!.props.onPress());
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
       expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: false });
@@ -4530,6 +4541,7 @@ describe("Tasks board, phone", () => {
     act(() => { vi.advanceTimersByTime(10000); });
     expect(scrollToIndex).toHaveBeenCalledTimes(51);
     act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
+    act(() => list().props.onScroll({ nativeEvent: { contentOffset: { y: 100 }, contentSize: { height: 1400 }, layoutMeasurement: { height: 500 } } }));
     act(() => hostsById("phone-scroll-top")[0]!.props.onPress());
     expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: true });
     act(() => { vi.advanceTimersByTime(1000); });
