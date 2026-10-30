@@ -8,6 +8,7 @@ import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
+import { SpinnerRing } from "../cards/status-icon";
 import { tipProps } from "../cards/card-hints";
 import type { LaneId, TaskCard } from "../model";
 import { GLYPH_LINE, HAIRLINE, MOTION } from "./board-style";
@@ -550,8 +551,8 @@ export function RoundButton(props: {
   iconSize?: number;
   /** Its hover tip, where a pointer can rest on it (a narrow tablet board on the web). */
   tip?: string;
-  /** The icon turns while true (`SpinningIcon`), read out as busy. */
-  spinning?: boolean;
+  /** A loading ring replaces the icon while true, read out as busy. */
+  busy?: boolean;
 }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
@@ -563,7 +564,7 @@ export function RoundButton(props: {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
-      accessibilityState={props.spinning !== undefined ? { busy: props.spinning } : props.selected === undefined ? undefined : { selected: props.selected, ...(props.disabled ? { disabled: true } : {}) }}
+      accessibilityState={props.busy !== undefined ? { busy: props.busy } : props.selected === undefined ? undefined : { selected: props.selected, ...(props.disabled ? { disabled: true } : {}) }}
       disabled={props.disabled}
       {...tipProps(props.tip)}
       onPress={props.onPress}
@@ -584,9 +585,7 @@ export function RoundButton(props: {
           justifyContent: "center",
         }}
       >
-        {props.spinning === undefined ? <Icon name={props.icon} size={icon} color={colors.foreground} /> : (
-          <SpinningIcon spinning={props.spinning} size={icon}><Icon name={props.icon} size={icon} color={colors.foreground} /></SpinningIcon>
-        )}
+        {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : <Icon name={props.icon} size={icon} color={colors.foreground} />}
         {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={colors.surface0} /> : null}
         <CornerBadge count={props.cornerBadge ?? 0} theme={props.theme} style={{ bottom: 0, right: 0 }} testID={props.testID ? `${props.testID}-count` : undefined} />
       </View>
@@ -612,50 +611,6 @@ export function RoundButton(props: {
         </View>
       ) : null}
     </Pressable>
-  );
-}
-
-const SPIN_TURN_MS = 800;
-
-/**
- * An icon that turns while `spinning`, one whole turn at a time: when it
- * stops, the turn under way finishes and the icon rests upright, so even a
- * quick refresh shows one full turn. Reduced motion dims it instead.
- */
-function SpinningIcon(props: { spinning: boolean; size: number; children: ReactNode }) {
-  const reduced = useReducedMotion();
-  const turn = useRef(new Animated.Value(0)).current;
-  const spinning = useRef(props.spinning);
-  spinning.current = props.spinning;
-  const current = useRef<Animated.CompositeAnimation | null>(null);
-  useEffect(() => {
-    if (!props.spinning || current.current) return;
-    const step = () => {
-      const animation = Animated.timing(turn, { toValue: 1, duration: SPIN_TURN_MS, easing: (value) => value, useNativeDriver: nativeDriver, isInteraction: false });
-      current.current = animation;
-      animation.start(({ finished }) => {
-        turn.setValue(0);
-        if (finished && spinning.current) step();
-        else current.current = null;
-      });
-    };
-    step();
-  }, [props.spinning, turn]);
-  useEffect(() => () => current.current?.stop(), []);
-  return (
-    <Animated.View
-      testID="spinning-icon"
-      style={{
-        width: props.size,
-        height: props.size,
-        alignItems: "center",
-        justifyContent: "center",
-        opacity: reduced ? turn.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1, 0.45, 1] }) : 1,
-        transform: reduced ? undefined : [{ rotate: turn.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] }) }],
-      }}
-    >
-      {props.children}
-    </Animated.View>
   );
 }
 

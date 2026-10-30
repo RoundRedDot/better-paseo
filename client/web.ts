@@ -38,6 +38,24 @@ export function focusedTaskCardId(node: unknown): string | null {
   return root && active && root.contains(active) ? active.getAttribute?.("data-bctaskcard") ?? null : null;
 }
 
+/** Option+R refreshes the visible board, including while its more menu is open. */
+export function bindBoardRefreshShortcut(node: unknown, refresh: () => void): () => void {
+  if (Platform.OS !== "web" || typeof document === "undefined" || !node) return () => {};
+  const root = node as HTMLElement;
+  const doc = document;
+  const keydown = (event: KeyboardEvent) => {
+    if (!event.altKey || event.code !== "KeyR" || event.metaKey || event.ctrlKey || event.shiftKey || event.isComposing || event.defaultPrevented) return;
+    const active = doc.activeElement;
+    if (active && active !== doc.body && !root.contains(active)) return;
+    if (editable(active) || root.querySelector('[data-testid="task-card-menu"]')) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!event.repeat) refresh();
+  };
+  doc.addEventListener("keydown", keydown, true);
+  return () => doc.removeEventListener("keydown", keydown, true);
+}
+
 /** The selection bar floats outside a preview but acts on its text, so it counts as part of it. */
 function onSelectionBar(target: EventTarget | null): boolean {
   return Boolean((target as Element | null)?.closest?.(SELECTION_BAR_SELECTOR));

@@ -282,6 +282,7 @@ function renderFocusBoard() {
   const board = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.tabIndex === -1 && node.props.role === "group");
   const root = {
     contains: (node: unknown) => node === root || (node as { inBoard?: boolean })?.inBoard === true,
+    querySelector: vi.fn(() => null),
     focus: vi.fn(() => {
       board().props.onBlur();
       doc.activeElement = root;
@@ -2304,13 +2305,15 @@ describe("Tasks board, desktop", () => {
         await Promise.resolve();
       });
       layOut(1600);
-      expect(capture).toHaveLength(1);
+      expect(capture).toHaveLength(2);
       const running = () => cards().find((card) => card.props.card.id === "sample-running")!;
       for (const focus of [search, sidebar]) {
         act(() => running().props.onStop(running().props.card));
         expect(running().props.stopPhase).toBe("confirming");
         doc.activeElement = focus;
-        act(() => capture[0]!({ key: "Escape", preventDefault() {} }));
+        act(() => {
+          for (const listener of capture) listener({ key: "Escape", preventDefault() {} });
+        });
         expect(running().props.stopPhase).toBe("idle");
       }
       expect(search.blur).toHaveBeenCalledTimes(1);
@@ -2898,11 +2901,12 @@ describe("Tasks board, desktop refresh button", () => {
     expect(refreshButton().props.dataSet.bctip).toBe(BOARD_STRINGS[language].more);
     expect(refreshButton().find((node) => (node.type as unknown) === "Icon").props.name).toBe("MoreVertical");
     act(() => refreshButton().props.onPress());
-    expect(menuOption(BOARD_STRINGS[language].refreshTasks)).toBeDefined();
+    expect(StyleSheet.flatten(hostsById("desktop-more-menu")[0]!.props.style)).toMatchObject({ width: "max-content", maxWidth: 200 });
+    expect(textOf(menuOption(BOARD_STRINGS[language].refreshTasks))).toContain("⌥R");
     expect(menuOption(BOARD_STRINGS[language].emptyGroups.row)).toBeDefined();
   });
 
-  it.each(["done", "failed", "rejected"] as const)("turns while the refresh runs and rests once it ends (%s), without redrawing a row", async (outcome) => {
+  it.each(["done", "failed", "rejected"] as const)("shows a loading ring only while refreshing (%s), without redrawing a row", async (outcome) => {
     let finish!: () => void;
     handle().refresh.mockImplementation(() => new Promise((resolve, reject) => {
       finish = () => (outcome === "rejected" ? reject(new Error("gone")) : resolve(outcome));
@@ -2910,6 +2914,7 @@ describe("Tasks board, desktop refresh button", () => {
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(1600);
     expect(refreshButton().props.accessibilityState).toEqual({ busy: false });
+    expect(hostsById("desktop-toolbar-more-spinner")).toHaveLength(0);
     // The board's own first settle draws the rows once more; count from after it.
     await act(async () => {});
     const rows = host.rowRenders;
@@ -2918,7 +2923,9 @@ describe("Tasks board, desktop refresh button", () => {
     await act(async () => { menuOption(BOARD_STRINGS.en.refreshTasks).props.onPress(); });
     expect(handle().refresh).toHaveBeenCalledTimes(1);
     expect(refreshButton().props.accessibilityState).toEqual({ busy: true });
-    expect(hostsById("spinning-icon")).toHaveLength(1);
+    expect(hostsById("desktop-toolbar-more-spinner")).toHaveLength(1);
+    expect(refreshButton().props.accessibilityLabel).toBe(BOARD_STRINGS.en.refreshTasks);
+    expect(refreshButton().findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(0);
     // A second press while it runs asks nothing more.
     act(() => refreshButton().props.onPress());
     expect(menuOption(BOARD_STRINGS.en.refreshTasks).props.disabled).toBe(true);
@@ -2926,6 +2933,8 @@ describe("Tasks board, desktop refresh button", () => {
     expect(handle().refresh).toHaveBeenCalledTimes(1);
     await act(async () => { finish(); await Promise.resolve(); });
     expect(refreshButton().props.accessibilityState).toEqual({ busy: false });
+    expect(hostsById("desktop-toolbar-more-spinner")).toHaveLength(0);
+    expect(refreshButton().find((node) => (node.type as unknown) === "Icon").props.name).toBe("MoreVertical");
     expect(host.rowRenders).toBe(rows);
     expect(cards()).toHaveLength(cardsBefore.length);
     cards().forEach((card, index) => expect(card.props.card).toBe(cardsBefore[index]));
@@ -2934,6 +2943,59 @@ describe("Tasks board, desktop refresh button", () => {
     await act(async () => { menuOption(BOARD_STRINGS.en.refreshTasks).props.onPress(); });
     expect(handle().refresh).toHaveBeenCalledTimes(2);
     await act(async () => { finish(); await Promise.resolve(); });
+  });
+
+  it("runs Option+R through the refresh action, with the menu open or closed, and blocks duplicate refreshes", async () => {
+    let finish!: () => void;
+    handle().refresh.mockImplementation(() => new Promise((resolve) => { finish = () => resolve("done"); }));
+    const browser = renderFocusBoard();
+    browser.doc.activeElement = browser.root;
+    try {
+      // macOS Option+R produces a different key value: match its physical code.
+      const key = () => browser.key("®", false, { code: "KeyR", altKey: true });
+      await act(async () => { expect(key().preventDefault).toHaveBeenCalledOnce(); });
+      expect(handle().refresh).toHaveBeenCalledTimes(1);
+      expect(hostsById("desktop-toolbar-more-spinner")).toHaveLength(1);
+      await act(async () => { key(); });
+      expect(handle().refresh).toHaveBeenCalledTimes(1);
+      await act(async () => { finish(); });
+      act(() => refreshButton().props.onPress());
+      await act(async () => { key(); });
+      expect(handle().refresh).toHaveBeenCalledTimes(2);
+      expect(hostsById("desktop-more-menu")).toHaveLength(0);
+      await act(async () => { finish(); });
+      act(() => renderer!.unmount());
+      renderer = undefined;
+      expect(key().preventDefault).not.toHaveBeenCalled();
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("yields Option+R to typing and other surfaces, and ignores extra modifiers, repeats and composition", async () => {
+    const browser = renderFocusBoard();
+    try {
+      for (const active of [
+        { inBoard: true, closest: () => ({}) },
+        { inBoard: true, isContentEditable: true, closest: () => null },
+        { inBoard: false },
+      ]) {
+        browser.doc.activeElement = active;
+        expect(browser.key("®", false, { code: "KeyR", altKey: true }).preventDefault).not.toHaveBeenCalled();
+      }
+      browser.doc.activeElement = browser.root;
+      for (const flags of [{ altKey: false }, { metaKey: true }, { ctrlKey: true }, { shiftKey: true }, { isComposing: true }, { code: "KeyT" }, { defaultPrevented: true }]) {
+        expect(browser.key("®", false, { code: "KeyR", altKey: true, ...flags }).preventDefault).not.toHaveBeenCalled();
+      }
+      await act(async () => { browser.key("®", false, { code: "KeyR", altKey: true, repeat: true }); });
+      expect(handle().refresh).not.toHaveBeenCalled();
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
   });
 });
 

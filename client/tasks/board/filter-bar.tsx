@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import React, { memo, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { Platform, Pressable, View, type LayoutChangeEvent, type TextInput as NativeTextInput } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -13,7 +13,7 @@ import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { activeFilterCount, resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
 import { PROJECT_MENU_WIDTH, agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
-import { CascadeMenu } from "./menu";
+import { CascadeMenu, MenuBoundsContext } from "./menu";
 import type { MenuSection } from "./menu-model";
 import { LABEL_GAP, nextBarLayout, type BarBoxes, type BarLayout, type Box } from "./label-fit";
 import type { BoardController } from "./use-board";
@@ -22,6 +22,7 @@ import { useSwitchSpace } from "../../ui/use-switch-space";
 import { FullConversationSwitch, SearchInput } from "./search-loading";
 import { SearchCoverageItems } from "./search-coverage";
 import { tasksSettingsOpener } from "./enabled";
+import { bindBoardRefreshShortcut } from "../../web";
 
 export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
@@ -47,35 +48,38 @@ function MoreActions({ board, theme, items }: { board: BoardController; theme: P
   const scale = useTasksFontScale();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  const bounds = useContext(MenuBoundsContext);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
   const refresh = board.tasks.refresh;
-  const press = () => {
+  const press = useCallback(() => {
     if (busy) return;
+    setOpen(false);
     setBusy(true);
     void Promise.resolve()
       .then(refresh)
       .catch(() => "failed")
       .finally(() => { if (mounted.current) setBusy(false); });
-  };
+  }, [busy, refresh]);
+  useEffect(() => board.visible ? bindBoardRefreshShortcut(bounds?.current, press) : undefined, [board.visible, bounds, press]);
   return (
     <View style={{ zIndex: 20 }}>
     <RoundButton
-      icon={busy ? "RefreshCw" : "MoreVertical"}
-      label={board.strings.more}
+      icon="MoreVertical"
+      label={busy ? board.strings.refreshTasks : board.strings.more}
       theme={theme}
       onPress={() => setOpen(!open)}
-      spinning={busy}
+      busy={busy}
       size={roundButtonSize(scale)}
       iconSize={roundIconSize(scale)}
-      tip={board.strings.more}
+      tip={busy ? `${board.strings.refreshTasks} (⌥R)` : board.strings.more}
       testID="desktop-toolbar-more"
     />
-    {open ? <CascadeMenu theme={theme} width={260} top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setOpen(false)} testID="desktop-more-menu" sections={[{ key: "more", items: [
-      { key: "refresh", label: board.strings.refreshTasks, icon: "RefreshCw", disabled: busy, onSelect: press },
+    {open ? <CascadeMenu theme={theme} width={200} fitContent top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setOpen(false)} testID="desktop-more-menu" sections={[{ key: "more", items: [
+      { key: "refresh", label: board.strings.refreshTasks, icon: "RefreshCw", shortcut: "⌥R", disabled: busy, onSelect: press },
       ...items,
     ] }]} /> : null}
     </View>
