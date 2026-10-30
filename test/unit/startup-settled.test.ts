@@ -42,14 +42,13 @@ afterEach(() => {
 });
 
 describe("afterStartup", () => {
-  it("runs AFTER_ROW_MS after the first chat row", () => {
+  it("runs AFTER_ROW_MS after the first chat row, off the row's own effect", () => {
     const run = vi.fn();
     afterStartup(run, timers().value);
     vi.advanceTimersByTime(500);
     noteTimelineRowShown();
-    vi.advanceTimersByTime(AFTER_ROW_MS - 1);
     expect(run).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
+    vi.advanceTimersByTime(AFTER_ROW_MS);
     expect(run).toHaveBeenCalledTimes(1);
   });
 

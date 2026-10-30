@@ -10,8 +10,14 @@ import { loadMark } from "../debug/load-marks";
  * `MAX_WAIT_MS` after it was asked when no row shows (no chat open), and in
  * both cases after any running interaction (`InteractionManager`). It is a
  * scheduling choice, not a promise that the chat has finished drawing.
+ *
+ * No extra wait after the row: on a Release iOS simulator the interactions
+ * already hold the callback about 100 ms past the first row, and the Tasks
+ * chunk then takes about 45 ms, so its counts land some 230 ms later than
+ * when the chunk ran before the chat (a one-second wait put them a second
+ * late), while the first row still comes about 45 ms sooner.
  */
-export const AFTER_ROW_MS = 1_000;
+export const AFTER_ROW_MS = 0;
 export const MAX_WAIT_MS = 4_000;
 
 let rowShownAt: number | null = null;
