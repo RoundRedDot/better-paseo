@@ -12,11 +12,11 @@ const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...
 const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh" }));
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({ useSettings: (definition: { id: string }) => definition.id === "title-generation" ? { status: "loading", reload: vi.fn() } : state.current, useRpc: () => vi.fn() }));
-vi.mock("@getpaseo/plugin/client/ui", async () => {
-  const React = await import("react");
-  return { SettingsSelect: "SettingsSelect", TextInput: "TextInput", SidebarRow: (props: { trailing: React.ReactNode }) => React.createElement("SidebarRow", null, props.trailing) };
-});
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ TextInput: "TextInput", useToast: () => ({ show() {} }) }));
+vi.mock("@getpaseo/plugin/client/ui", () => ({
+  SettingsSelect: "SettingsSelect", TextInput: "TextInput",
+  SidebarRow: () => { throw new Error("SidebarRow must render inside a sidebar item"); },
+}));
+vi.mock("@getpaseo/plugin/client/react-native", () => ({ TextInput: "TextInput", Icon: "Icon", useToast: () => ({ show() {} }) }));
 vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => state.language, resolveTasksLanguage: () => state.language }));
 vi.mock("../../client/tasks/chunk/load", async () => import("../../client/tasks/settings/tasks-panel"));
 vi.mock("../../client/state/preference-sync-slot", () => ({ usePreferenceSettings: () => ({ status: "ready", failed: false }) }));
@@ -178,6 +178,7 @@ describe("Tasks half of the settings page", () => {
     makeSettings({ values: { ...DEFAULT_TASKS_SETTINGS, sidebar: { count } } });
     const r = panel(true);
     const preview = byTestID(r, "tasks-sidebar-preview")[0]!;
+    expect(textOf(preview)).toContain("Tasks");
     expect(preview.findAll((node) => typeof node.type === "string" && node.props.testID?.startsWith("tasks-sidebar-preview-"))).toHaveLength(expected);
   });
 

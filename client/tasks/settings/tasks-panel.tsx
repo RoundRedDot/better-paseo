@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { SidebarRow } from "@getpaseo/plugin/client/ui";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import {
   CARD_FIELDS,
   DENSITY_PRESETS,
@@ -495,21 +495,18 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         below={
           <TasksTypography theme={theme}>
             <View testID="tasks-sidebar-preview" pointerEvents="none" style={{ borderWidth: 1, borderColor: look.tokens.v2.border, borderRadius: radiusV2.block, backgroundColor: theme.colors.surface0, overflow: "hidden" }}>
-              <SidebarRow
-                icon="SquareKanban"
-                label={BOARD_STRINGS[language].name}
-                onPress={() => {}}
-                trailing={
-                  <View accessibilityLabel={sidebarCountText(sidebarCountParts({ needsInput: 2, running: 1, review: 1 }, values.sidebar.count), language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                    {sidebarCountParts({ needsInput: 2, running: 1, review: 1 }, values.sidebar.count).map((part) => (
-                      <View key={part.lane} testID={`tasks-sidebar-preview-${part.lane}`} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                        <StatusIcon kind={LANE_STATUS[part.lane]} size={14} theme={theme} animated={false} />
-                        <TaskText style={{ fontSize: HOST_FONT.sm, fontWeight: part.lane === "needs_input" ? "600" : "400", color: part.lane === "needs_input" ? taskTokens(theme).status.warning : theme.colors.foregroundMuted }}>{part.count}</TaskText>
-                      </View>
-                    ))}
-                  </View>
-                }
-              />
+              <View style={{ minHeight: 40, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Icon name="SquareKanban" size={16} color={theme.colors.foregroundMuted} />
+                <TaskText style={{ flex: 1, fontSize: HOST_FONT.base, color: theme.colors.foregroundMuted }}>{BOARD_STRINGS[language].name}</TaskText>
+                <View accessible accessibilityLabel={sidebarCountText(sidebarCountParts({ needsInput: 2, running: 1, review: 1 }, values.sidebar.count), language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  {sidebarCountParts({ needsInput: 2, running: 1, review: 1 }, values.sidebar.count).map((part) => (
+                    <View key={part.lane} testID={`tasks-sidebar-preview-${part.lane}`} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                      <StatusIcon kind={LANE_STATUS[part.lane]} size={14} theme={theme} animated={false} />
+                      <TaskText style={{ fontSize: HOST_FONT.sm, fontWeight: part.lane === "needs_input" ? "600" : "400", color: part.lane === "needs_input" ? taskTokens(theme).status.warning : theme.colors.foregroundMuted }}>{part.count}</TaskText>
+                    </View>
+                  ))}
+                </View>
+              </View>
             </View>
           </TasksTypography>
         }
