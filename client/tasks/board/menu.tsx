@@ -1,10 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Platform, Pressable, View, useWindowDimensions, type TextInput as NativeTextInput, type ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions, type TextInput as NativeTextInput, type ViewStyle } from "react-native";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { HAIRLINE, devicePixel } from "./board-style";
 import { taskTokens } from "../cards/tokens";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
 import {
   MENU,
   MENU_EDGE,
@@ -352,6 +353,7 @@ function MenuPanel(props: {
 }) {
   const { chrome, theme } = props;
   const scale = useTasksFontScale();
+  const reducedMotion = useReducedMotion();
   const colors = theme.colors;
   let index = -1;
   const body = props.sections.map((section, at) => (
@@ -397,11 +399,12 @@ function MenuPanel(props: {
     boxShadow: chrome.shadow,
     elevation: 8,
   };
+  const entrance = Platform.OS === "web" && !reducedMotion ? menuEntrance : null;
   const header = props.header ?? null;
   const headerHeight = header ? props.headerHeight ?? 0 : 0;
   if (!props.scrolls) {
     return (
-      <View testID={props.testID ?? "menu-panel"} style={header ? [frame, { paddingTop: 0 }] : frame}>
+      <View testID={props.testID ?? "menu-panel"} style={[frame, header ? { paddingTop: 0 } : null, entrance]}>
         {header}
         {body}
       </View>
@@ -423,7 +426,7 @@ function MenuPanel(props: {
     );
   }
   return (
-    <View testID={props.testID ?? "menu-panel"} style={[frame, { paddingVertical: 0, maxHeight: props.maxHeight ?? MENU.maxHeight, overflow: "hidden" }]}>
+    <View testID={props.testID ?? "menu-panel"} style={[frame, { paddingVertical: 0, maxHeight: props.maxHeight ?? MENU.maxHeight, overflow: "hidden" }, entrance]}>
       {header}
       <ScrollView
         style={{ maxHeight: (props.maxHeight ?? MENU.maxHeight) - headerHeight }}
@@ -436,6 +439,16 @@ function MenuPanel(props: {
     </View>
   );
 }
+
+// RN Web compiles keyframes only when they are created through StyleSheet.
+const menuEntrance = StyleSheet.create({
+  panel: {
+    animationKeyframes: [{ "0%": { opacity: 0, transform: [{ translateY: -3 }] }, "100%": { opacity: 1, transform: [{ translateY: 0 }] } }],
+    animationDuration: "150ms",
+    animationTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
+    animationFillMode: "both",
+  } as ViewStyle,
+}).panel;
 
 /** Past this vertical travel a drag on the panel scrolls it instead of pressing a row. */
 const DRAG_SLOP = 6;

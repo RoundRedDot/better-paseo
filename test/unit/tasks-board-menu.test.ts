@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
+const motion = vi.hoisted(() => ({ reduced: false }));
+vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced }));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -263,6 +265,24 @@ describe("CascadeMenu", () => {
       ],
     },
   ];
+
+  it("animates web panels on entry unless reduced motion is enabled", () => {
+    vi.stubGlobal("__rnMockOS", "web");
+    try {
+      render(sections());
+      const panel = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === id);
+      expect(StyleSheet.flatten(panel("menu-panel").props.style)).toMatchObject({ animationDuration: "150ms" });
+      act(() => row("Branch").props.onPress());
+      expect(StyleSheet.flatten(panel("menu-submenu-panel").props.style)).toMatchObject({ animationDuration: "150ms" });
+      act(() => renderer!.unmount());
+      motion.reduced = true;
+      render(sections());
+      expect(StyleSheet.flatten(panel("menu-panel").props.style).animationDuration).toBeUndefined();
+    } finally {
+      motion.reduced = false;
+      vi.unstubAllGlobals();
+    }
+  });
 
   it.each(["left", "right"] as const)("anchors a content-sized submenu to the actual %s edge", (align) => {
     vi.stubGlobal("__rnMockOS", "web");
