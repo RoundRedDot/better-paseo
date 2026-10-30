@@ -27,6 +27,7 @@ better-paseo/
     tools/ reasoning/ state/ # Tool summaries, reasoning parser, per-call expansion state
   docs/perf/                 # Benchmark charts and the comparison page
   docs/design.md             # Design notes: the icon family, mark format and how to add a mark
+  docs/plugin-registry-update.md # getpaseo/plugins pin pull request
 ```
 
 ## Commands
@@ -41,6 +42,10 @@ paseo plugin reload better-paseo
 
 Paseo installs the plugin from GitHub, so a change on a local branch is not what a client runs
 until it is pushed and the plugin is updated (`paseo plugin update better-paseo`).
+
+The public listing on paseo.sh/plugins installs the commit pinned in
+getpaseo/plugins. Open that pin pull request with
+[plugin-registry-update.md](plugin-registry-update.md).
 
 ## Install build
 
