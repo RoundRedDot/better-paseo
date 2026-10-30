@@ -99,12 +99,6 @@ export function FilterSheetBody(props: {
         testID="filter-sheet-scroll"
       >
         <View onLayout={(event: LayoutChangeEvent) => (workspacesY.current = event.nativeEvent.layout.height)} style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4 }}>
-          {props.phone ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={strings.refreshTasks} testID="filter-sheet-refresh" onPress={() => { board.tasks.refresh(); props.onDone(); }} style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <Icon name="RefreshCw" size={18} color={colors.foregroundMuted} />
-              <Text style={{ fontSize: F.base, color: colors.foreground }}>{strings.refreshTasks}</Text>
-            </Pressable>
-          ) : null}
           {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
           {props.hideSubtasksToggle ? null : (
             <ToggleRow

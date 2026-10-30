@@ -20,7 +20,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     const empty = props.ListEmptyComponent as React.ReactNode;
     return React.createElement(
       "FlatList",
-      { testID: props.testID },
+      { testID: props.testID, refreshing: props.refreshing, onRefresh: props.onRefresh, alwaysBounceVertical: props.alwaysBounceVertical },
       data.length
         ? data.map((item, index) => {
             host.rowRenders += 1;
@@ -4534,16 +4534,25 @@ describe("Tasks board, phone", () => {
     expect(hostsById("filter-sheet-archived")).toHaveLength(0);
   });
 
-  it("refreshes from the More panel", () => {
+  it("refreshes the phone list on pull and removes the More panel entry", async () => {
     act(() => { renderer = TestRenderer.create(screen(true)); });
+    const handle = (data as unknown as { __handle: { refresh: ReturnType<typeof vi.fn> } }).__handle;
+    let finish!: (result: string) => void;
+    handle.refresh.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    handle.refresh.mockClear();
+    const list = () => hostsById("phone-lane-needs_input")[0]!.find((node) => (node.type as unknown) === "FlatList");
+    expect(list().props.alwaysBounceVertical).toBe(true);
+    act(() => list().props.onRefresh());
+    expect(list().props.refreshing).toBe(true);
+    await act(async () => { await Promise.resolve(); });
+    expect(handle.refresh).toHaveBeenCalledOnce();
+    await act(async () => { finish("done"); });
+    expect(list().props.refreshing).toBe(false);
     const more = hostsById("phone-more")[0]!;
     expect(more.find((node) => (node.type as unknown) === "Icon").props.name).toBe("MoreVertical");
     act(() => more.props.onPress());
-    const handle = (data as unknown as { __handle: { refresh: ReturnType<typeof vi.fn> } }).__handle;
-    handle.refresh.mockClear();
-    act(() => hostsById("filter-sheet-refresh")[0]!.props.onPress());
-    expect(handle.refresh).toHaveBeenCalledOnce();
-    expect(hostsById("filter-sheet-scroll")).toHaveLength(0);
+    expect(hostsById("filter-sheet-refresh")).toHaveLength(0);
+    expect(hostsById("filter-sheet-scroll")).toHaveLength(1);
   });
 
   it("opens the filter sheet with the sort first from the header's sort pill, and with the switches first from the filters button", () => {
@@ -4587,8 +4596,8 @@ describe("Tasks board, phone", () => {
     const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
     const text = textOf(scroll);
     const at = (label: string) => text.indexOf(label);
-    expect(at(BOARD_STRINGS.en.refreshTasks)).toBe(0);
-    expect(at(BOARD_STRINGS.en.emptyGroups.row)).toBeGreaterThan(0);
+    expect(at(BOARD_STRINGS.en.refreshTasks)).toBe(-1);
+    expect(at(BOARD_STRINGS.en.emptyGroups.row)).toBeGreaterThanOrEqual(0);
     expect(at("Agent")).toBeLessThan(at("Workspace"));
     expect(at("Workspace")).toBeLessThan(at("Labels"));
     expect(at("Labels")).toBeLessThan(at("Time range"));

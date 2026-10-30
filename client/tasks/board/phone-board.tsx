@@ -754,6 +754,7 @@ const PhoneLane = memo(function PhoneLane(props: {
   active?: boolean;
 }) {
   const { lane, board, theme } = props;
+  const [refreshing, setRefreshing] = useState(false);
   const colors = theme.colors;
   const strings = board.strings;
   const ready = board.tasks.ready;
@@ -797,6 +798,13 @@ const PhoneLane = memo(function PhoneLane(props: {
   return (
     <FlatList<TaskCard>
       ref={setList}
+      refreshing={refreshing}
+      onRefresh={() => {
+        if (refreshing) return;
+        setRefreshing(true);
+        void Promise.resolve().then(board.tasks.refresh).catch(() => "failed").finally(() => setRefreshing(false));
+      }}
+      alwaysBounceVertical
       style={covered ? { opacity: 0 } : undefined}
       data={lane.cards}
       keyExtractor={(card) => card.id}
