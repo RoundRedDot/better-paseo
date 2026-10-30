@@ -443,8 +443,8 @@ function MenuPanel(props: {
 // RN Web compiles keyframes only when they are created through StyleSheet.
 const menuEntrance = StyleSheet.create({
   panel: {
-    animationKeyframes: [{ "0%": { opacity: 0, transform: [{ translateY: -3 }] }, "100%": { opacity: 1, transform: [{ translateY: 0 }] } }],
-    animationDuration: "150ms",
+    animationKeyframes: [{ from: { opacity: 0, transform: "translateY(-6px)" }, to: { opacity: 1, transform: "translateY(0px)" } }],
+    animationDuration: "180ms",
     animationTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
     animationFillMode: "both",
   } as ViewStyle,

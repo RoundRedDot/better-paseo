@@ -271,9 +271,12 @@ describe("CascadeMenu", () => {
     try {
       render(sections());
       const panel = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === id);
-      expect(StyleSheet.flatten(panel("menu-panel").props.style)).toMatchObject({ animationDuration: "150ms" });
+      expect(StyleSheet.flatten(panel("menu-panel").props.style)).toMatchObject({
+        animationDuration: "180ms",
+        animationKeyframes: [{ from: { opacity: 0, transform: "translateY(-6px)" }, to: { opacity: 1, transform: "translateY(0px)" } }],
+      });
       act(() => row("Branch").props.onPress());
-      expect(StyleSheet.flatten(panel("menu-submenu-panel").props.style)).toMatchObject({ animationDuration: "150ms" });
+      expect(StyleSheet.flatten(panel("menu-submenu-panel").props.style)).toMatchObject({ animationDuration: "180ms" });
       act(() => renderer!.unmount());
       motion.reduced = true;
       render(sections());
