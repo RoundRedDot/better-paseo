@@ -42,7 +42,7 @@ const isNative = () => Platform.OS === "ios" || Platform.OS === "android";
 const Separator = () => <View style={{ height: 12 }} />;
 /** A lane list's end space without the scroll shortcuts. */
 const LANE_END_SPACE = 46;
-const SCROLL_ACTION = { size: 44, gap: 8, bottom: 16 } as const;
+const SCROLL_ACTION = { size: 48, gap: 8, bottom: 24 } as const;
 /** With the shortcuts shown, the list ends this far down, so its last card and Load more scroll clear of them. */
 const LANE_END_SPACE_WITH_ACTIONS = SCROLL_ACTION.bottom + SCROLL_ACTION.size * 2 + SCROLL_ACTION.gap + 12;
 
@@ -919,7 +919,7 @@ const PhoneLane = memo(function PhoneLane(props: {
           } },
         ]).filter((action) => action.visible).map((action) => (
           <Pressable key={action.testID} testID={action.testID} accessibilityRole="button" accessibilityLabel={action.label} onPress={action.press} style={{ width: SCROLL_ACTION.size, height: SCROLL_ACTION.size, borderRadius: SCROLL_ACTION.size / 2, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? { boxShadow: "0 3px 10px rgba(0, 0, 0, 0.2)" } : { elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 3 } }) }}>
-            <Icon name={action.icon} size={20} color={colors.foreground} />
+            <Icon name={action.icon} size={22} color={colors.foreground} />
           </Pressable>
         ))}
       </View>

@@ -4434,7 +4434,7 @@ describe("Tasks board, phone", () => {
     act(() => hostsById("phone-scroll-top")[0]!.props.onPress());
     act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
     expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: true });
-    expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 778, animated: true });
+    expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 794, animated: true });
     expect(scrollToIndex).not.toHaveBeenCalled();
     act(() => container().props.onLayout({ nativeEvent: { layout: { height: 600 } } }));
     expect(hostsById("phone-scroll-actions")).toHaveLength(0);
@@ -4462,7 +4462,7 @@ describe("Tasks board, phone", () => {
     const loadMore = (data as unknown as { __handle: { loadMoreDone: ReturnType<typeof vi.fn> } }).__handle.loadMoreDone;
     loadMore.mockClear();
     act(() => bottom("done").props.onPress());
-    expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 978, animated: true });
+    expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 994, animated: true });
     expect(scrollToIndex).not.toHaveBeenCalled();
     expect(loadMore).not.toHaveBeenCalled();
     act(() => laneList("done").props.onEndReached());
@@ -4500,7 +4500,7 @@ describe("Tasks board, phone", () => {
       act(() => hostsById("phone-scroll-top")[0]!.props.onPress());
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
       expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: false });
-      expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 978, animated: false });
+      expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 994, animated: false });
       expect(scrollToIndex).not.toHaveBeenCalled();
     } finally {
       act(() => onReduce(false));
@@ -4522,7 +4522,7 @@ describe("Tasks board, phone", () => {
       act(() => hostParentOf(list())!.props.onLayout({ nativeEvent: { layout: { height: 500 } } }));
       act(() => list().props.onContentSizeChange(390, 1400));
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
-      expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 978, animated: true });
+      expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 994, animated: true });
       expect(scrollToIndex).not.toHaveBeenCalled();
       handle.lanes = { ...handle.lanes, needs_input: { ...saved.needs_input!, cards: [...cards, { ...cards[0]!, id: "new-page" }] } };
       act(() => renderer!.update(screen(true)));
