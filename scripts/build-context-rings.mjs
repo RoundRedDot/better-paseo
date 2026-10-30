@@ -1,4 +1,5 @@
-// Rebuild the context-meter alpha masks. Dev tools only: resvg and ImageMagick.
+// Rebuild the context-meter alpha masks. Dev tools only: resvg, ImageMagick and
+// oxipng (the install never runs this; the masks are committed).
 // Each PNG holds 0..100 percent at 4x resolution, with one logical pixel of
 // padding per frame so downsampling never samples a neighbouring arc.
 // Keep both atlas dimensions small so native decoders retain the 4x detail.
@@ -37,6 +38,9 @@ try {
     writeFileSync(svg, `<svg xmlns="http://www.w3.org/2000/svg" width="${stride * columns}" height="${stride * rows}" fill="none" stroke="white" stroke-width="${stroke}" stroke-linecap="round">${pieces.join("")}</svg>`);
     execFileSync("resvg", ["-w", String(stride * columns * scale), "-h", String(stride * rows * scale), svg, raw]);
     execFileSync("magick", [raw, "-strip", "-define", "png:compression-level=9", `PNG32:${png}`]);
+    // Lossless: the same pixels in a palette PNG, a little over half the bytes
+    // of ImageMagick's RGBA file, and the data URI rides in the Tasks chunk.
+    execFileSync("oxipng", ["-o", "max", "--strip", "all", "-q", png]);
     const data = readFileSync(png);
     result[name] = { size, padding, frames, columns, rows, scale, uri: `data:image/png;base64,${data.toString("base64")}` };
     console.log(`context-rings: ${name} ${stride * columns * scale}x${stride * rows * scale}, ${data.length} bytes`);

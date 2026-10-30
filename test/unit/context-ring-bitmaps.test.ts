@@ -2,30 +2,40 @@ import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { CONTEXT_RING_BITMAPS } from "../../client/tasks/cards/context-ring-bitmaps";
 
-/** Decode our generated 8-bit RGBA PNGs without adding a test dependency. */
+/**
+ * Decode our generated PNGs without adding a test dependency: 8-bit RGBA, or
+ * the 8-bit palette files oxipng writes (alpha from the tRNS chunk).
+ */
 function pixels(uri: string) {
   const png = Buffer.from(uri.split(",")[1]!, "base64");
   expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
   const width = png.readUInt32BE(16);
   const height = png.readUInt32BE(20);
-  expect([png[24], png[25], png[28]]).toEqual([8, 6, 0]);
+  const colorType = png[25]!;
+  expect(png[24]).toBe(8);
+  expect(png[28]).toBe(0);
+  expect([3, 6]).toContain(colorType);
   const chunks: Buffer[] = [];
+  let transparency = Buffer.alloc(0);
   for (let at = 8; at < png.length;) {
     const length = png.readUInt32BE(at);
-    if (png.toString("ascii", at + 4, at + 8) === "IDAT") chunks.push(png.subarray(at + 8, at + 8 + length));
+    const type = png.toString("ascii", at + 4, at + 8);
+    if (type === "IDAT") chunks.push(png.subarray(at + 8, at + 8 + length));
+    if (type === "tRNS") transparency = png.subarray(at + 8, at + 8 + length);
     at += length + 12;
   }
   const raw = inflateSync(Buffer.concat(chunks));
-  const stride = width * 4;
+  const bpp = colorType === 6 ? 4 : 1;
+  const stride = width * bpp;
   const data = Buffer.alloc(stride * height);
   for (let y = 0; y < height; y++) {
     const filter = raw[y * (stride + 1)]!;
     expect(filter).toBeLessThanOrEqual(4);
     for (let x = 0; x < stride; x++) {
       const at = y * stride + x;
-      const left = x >= 4 ? data[at - 4]! : 0;
+      const left = x >= bpp ? data[at - bpp]! : 0;
       const above = y > 0 ? data[at - stride]! : 0;
-      const corner = x >= 4 && y > 0 ? data[at - stride - 4]! : 0;
+      const corner = x >= bpp && y > 0 ? data[at - stride - bpp]! : 0;
       const p = left + above - corner;
       const dl = Math.abs(p - left), da = Math.abs(p - above), dc = Math.abs(p - corner);
       const paeth = dl <= da && dl <= dc ? left : da <= dc ? above : corner;
@@ -33,7 +43,13 @@ function pixels(uri: string) {
       data[at] = (raw[y * (stride + 1) + 1 + x]! + predict) & 255;
     }
   }
-  return { width, height, alpha: (x: number, y: number) => data[(y * width + x) * 4 + 3]! };
+  const alpha = colorType === 6
+    ? (x: number, y: number) => data[(y * width + x) * 4 + 3]!
+    : (x: number, y: number) => {
+        const index = data[y * width + x]!;
+        return index < transparency.length ? transparency[index]! : 255;
+      };
+  return { width, height, alpha };
 }
 
 describe("antialiased context ring PNGs", () => {
