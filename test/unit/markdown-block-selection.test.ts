@@ -10,7 +10,10 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   return { Icon: (props: object) => React.createElement("Icon", props), ScrollView: rn.ScrollView,
     Modal: rn.View, TextInput: rn.TextInput, useRevealedText: (text: string) => text };
 });
-vi.mock("@getpaseo/plugin/client", () => ({ useSettings: () => ({ data: undefined }), useRpc: () => async () => null }));
+vi.mock("@getpaseo/plugin/client", () => ({
+  useSettings: () => ({ data: undefined }),
+  useRpc: () => async () => ({ dataUri: null, mime: null, width: null, height: null, bytes: null, error: "File not found" }),
+}));
 await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
