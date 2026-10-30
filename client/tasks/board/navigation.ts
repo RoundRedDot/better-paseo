@@ -245,10 +245,12 @@ export function laneLayout(viewport: number, expanded: number, collapsed: number
  * Size lanes from the four active lanes; archived only adds to the row's
  * extent. When all active lanes are folded, size the archived lane as the
  * sole expanded lane beside their strips. The sidebar only reduces the
- * scroll viewport; lane sizing uses the full board width.
+ * scroll viewport; lane sizing uses the full board width. Stable sizing on
+ * native tablets keeps expanded lanes at their all-open width when folding
+ * another lane, so their cards do not reflow during the fold animation.
  */
-export function boardLaneLayout(boardWidth: number, order: readonly LaneId[], collapsed: readonly LaneId[], size: LaneWidth = "default", viewport = boardWidth): LaneLayout {
-  const activeCollapsed = ACTIVE_LANE_ORDER.filter((id) => collapsed.includes(id)).length;
+export function boardLaneLayout(boardWidth: number, order: readonly LaneId[], collapsed: readonly LaneId[], size: LaneWidth = "default", viewport = boardWidth, sizing: "fit" | "stable" = "fit"): LaneLayout {
+  const activeCollapsed = sizing === "stable" ? 0 : ACTIVE_LANE_ORDER.filter((id) => collapsed.includes(id)).length;
   const activeExpanded = ACTIVE_LANE_ORDER.length - activeCollapsed;
   const { laneWidth } = laneLayout(boardWidth, Math.max(1, activeExpanded), activeCollapsed, size);
   const lanesWidth = order.reduce((sum, id) => sum + (collapsed.includes(id) ? LANES.collapsed : laneWidth), 0);

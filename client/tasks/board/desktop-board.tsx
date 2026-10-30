@@ -249,12 +249,13 @@ export function DesktopBoard(props: {
     ? tabletSidebarWidth(boardWidth, floatingDragWidth ?? preference.floatingWidth)
     : sidebarWidth(boardWidth, dragWidth ?? preference.width, floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
-  const laneWidth = boardLaneLayout(boardWidth, laneOrder, collapsed, board.laneWidth).laneWidth;
+  const laneSizing = touch ? "stable" : "fit";
+  const laneWidth = boardLaneLayout(boardWidth, laneOrder, collapsed, board.laneWidth, lanesWidth, laneSizing).laneWidth;
   // What the user sized the lanes with: a change to it eases the lanes to their new widths.
   const sizing = `${collapsedState.filter((id) => id !== "archived").join()}|${board.laneWidth}`;
   const archivedSwitch = useArchivedSwitch(laneOrder, lanes.archived, laneWidth, board.visible);
   // An outgoing lane still occupies its slot until the complete panel has slid out.
-  const layout = boardLaneLayout(boardWidth, archivedSwitch.drawn, collapsedState, board.laneWidth, lanesWidth);
+  const layout = boardLaneLayout(boardWidth, archivedSwitch.drawn, collapsedState, board.laneWidth, lanesWidth, laneSizing);
   // A floating panel covers the lanes' right side: the row scrolls far enough for the last lane to come out from under it.
   const coverRoom = floating && !inSheet ? panelWidth + (ipadFloating ? 0 : SIDEBAR.gap) : 0;
 
@@ -341,12 +342,12 @@ export function DesktopBoard(props: {
       const now = latest.current;
       const folded = now.collapsed.includes(lane);
       if (folded) setCollapsed((current) => current.filter((id) => id !== lane));
-      const laneWidth = folded ? boardLaneLayout(now.boardWidth, now.board.laneOrder, now.collapsed.filter((id) => id !== lane), now.board.laneWidth).laneWidth : now.laneWidth;
+      const laneWidth = folded ? boardLaneLayout(now.boardWidth, now.board.laneOrder, now.collapsed.filter((id) => id !== lane), now.board.laneWidth, now.lanesWidth, laneSizing).laneWidth : now.laneWidth;
       const cover = now.inSheet ? LANES.edge : now.floating ? now.floatWidth + (Platform.OS === "ios" ? SIDEBAR.gap : 2 * SIDEBAR.gap) : now.boardWidth - now.lanesWidth;
       const scrolled = uncover(lane, cover, laneWidth);
       setFlash((was) => ({ lane, key: (was?.key ?? 0) + 1, delay: scrolled ? LANE_FLASH.afterScrollMs : 0 }));
     },
-    [setCollapsed, uncover],
+    [setCollapsed, uncover, laneSizing],
   );
 
   const reveal = useCallback(
