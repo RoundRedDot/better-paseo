@@ -3697,17 +3697,15 @@ describe("Tasks board, the 1 s clock", () => {
 });
 
 describe("Tasks board, phone", () => {
-  it("puts settings at the bottom of More and opens it", () => {
+  it("puts settings to the right of reset and opens it", () => {
     const openSettings = vi.fn();
     setTasksSettingsOpener(openSettings);
     act(() => { renderer = TestRenderer.create(screen(true)); });
     act(() => pressable("More").props.onPress());
     const button = hostsById("filter-sheet-settings")[0]!;
     const footer = hostsById("filter-sheet-footer")[0]!;
-    expect(footer.findAll((node) => node === button)).toHaveLength(0);
-    expect(hostParentOf(button)).toBe(hostParentOf(footer));
-    const controls = hostParentOf(button)!.findAll((node) => node.props.testID === "filter-sheet-footer" || node.props.testID === "filter-sheet-settings");
-    expect(controls.indexOf(button)).toBeGreaterThan(controls.indexOf(footer));
+    const controls = footer.findAll((node) => (node.type as unknown) === "Pressable");
+    expect(controls.map((node) => node.props.testID)).toEqual(["filter-sheet-reset", undefined, "filter-sheet-settings"]);
     act(() => button.props.onPress());
     expect(openSettings).toHaveBeenCalledOnce();
     expect(hostsById("filter-sheet-scroll")).toHaveLength(0);

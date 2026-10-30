@@ -246,7 +246,7 @@ export function FilterSheetBody(props: {
         >
           <Text style={{ fontSize: F.base, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{strings.show(board.total)}</Text>
         </Pressable>
-        {openSettings && !props.phone ? (
+        {openSettings ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={strings.openSettings}
@@ -258,18 +258,6 @@ export function FilterSheetBody(props: {
           </Pressable>
         ) : null}
       </View>
-      {openSettings && props.phone ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={strings.openSettings}
-          onPress={() => { props.onDone(); openSettings(); }}
-          testID="filter-sheet-settings"
-          style={{ minHeight: 48, marginHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 12 }}
-        >
-          <Icon name="Settings" size={18} color={colors.foregroundMuted} />
-          <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.settings}</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }
