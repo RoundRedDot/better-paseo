@@ -777,6 +777,8 @@ const PhoneLane = memo(function PhoneLane(props: {
   };
   const reduced = useReducedMotion();
   const colors = theme.colors;
+  const scrollButtonScale = useRef(new Animated.Value(1)).current;
+  useEffect(() => { if (reduced) scrollButtonScale.setValue(1); }, [reduced, scrollButtonScale]);
   const strings = board.strings;
   const ready = board.tasks.ready;
   const count = lane.cards.length;
@@ -921,13 +923,20 @@ const PhoneLane = memo(function PhoneLane(props: {
     />
     {scrollActions ? (
       <View testID="phone-scroll-actions" style={{ position: "absolute", right: 12, bottom: SCROLL_ACTION.bottom }}>
-        {!atBottom ? <Pressable testID="phone-scroll-bottom" accessibilityRole="button" accessibilityLabel={loadedEnd ? strings.scrollLoadedEnd : strings.scrollBottom} onPress={() => {
+        {!atBottom ? <Animated.View style={{ transform: [{ scale: scrollButtonScale }] }}><Pressable testID="phone-scroll-bottom" accessibilityRole="button" accessibilityLabel={loadedEnd ? strings.scrollLoadedEnd : strings.scrollBottom} onPress={() => {
           cancelScroll();
           if (count === 0) return;
+          if (!reduced) {
+            scrollButtonScale.setValue(1);
+            Animated.sequence([
+              Animated.timing(scrollButtonScale, { toValue: 1.08, duration: 100, useNativeDriver: nativeDriver }),
+              Animated.spring(scrollButtonScale, { toValue: 1, friction: 5, tension: 220, useNativeDriver: nativeDriver }),
+            ]).start();
+          }
           listRef.current?.scrollToOffset({ offset: Math.max(0, contentHeight + endSpace - viewportHeight), animated: !reduced });
         }} style={{ width: SCROLL_ACTION.size, height: SCROLL_ACTION.size, borderRadius: SCROLL_ACTION.size / 2, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? { boxShadow: "0 3px 10px rgba(0, 0, 0, 0.2)" } : { elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 3 } }) }}>
           <Icon name="ArrowDownToLine" size={22} color={colors.foreground} />
-        </Pressable> : null}
+        </Pressable></Animated.View> : null}
       </View>
     ) : null}
     </View>

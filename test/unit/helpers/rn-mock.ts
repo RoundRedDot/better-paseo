@@ -122,6 +122,7 @@ export const Animated = {
     return makeValue(initial);
   } as unknown as new (initial: number) => ReturnType<typeof makeValue>,
   timing: () => idleAnimation,
+  spring: () => idleAnimation,
   loop: () => idleAnimation,
   sequence: () => idleAnimation,
   parallel: () => idleAnimation,

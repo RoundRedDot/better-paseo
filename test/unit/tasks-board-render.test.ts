@@ -4600,6 +4600,7 @@ describe("Tasks board, phone", () => {
       if (name === "reduceMotionChanged") onReduce = listener;
       return addListener("reduceMotionChanged", listener);
     }) as typeof AccessibilityInfo.addEventListener);
+    const spring = vi.spyOn(Animated, "spring");
     try {
       const scrollToOffset = vi.fn();
       const scrollToIndex = vi.fn();
@@ -4611,12 +4612,39 @@ describe("Tasks board, phone", () => {
       act(() => list.props.onScroll({ nativeEvent: { contentOffset: { y: 100 }, contentSize: { height: 1400 }, layoutMeasurement: { height: 500 } } }));
       act(() => hostsById("phone-stat-needs_input")[0]!.props.onPress());
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
+      expect(spring).not.toHaveBeenCalled();
       expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: false });
       expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 938, animated: false });
       expect(scrollToIndex).not.toHaveBeenCalled();
     } finally {
       act(() => onReduce(false));
       subscription.mockRestore();
+      spring.mockRestore();
+    }
+  });
+
+  it("pulses the bottom shortcut and still scrolls on press", () => {
+    const timing = vi.spyOn(Animated, "timing");
+    const spring = vi.spyOn(Animated, "spring");
+    const sequence = vi.spyOn(Animated, "sequence");
+    const scrollToOffset = vi.fn();
+    try {
+      act(() => { renderer = TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "FlatList" ? { scrollToOffset } : null }); });
+      const list = renderer!.root.findAll((node) => (node.type as unknown) === "FlatList")[0]!;
+      act(() => hostParentOf(list)!.props.onLayout({ nativeEvent: { layout: { height: 500 } } }));
+      act(() => list.props.onContentSizeChange(390, 1400));
+      timing.mockClear();
+      spring.mockClear();
+      sequence.mockClear();
+      act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
+      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.08, duration: 100 }));
+      expect(spring).toHaveBeenCalledWith(timing.mock.calls[0]![0], expect.objectContaining({ toValue: 1, friction: 5, tension: 220 }));
+      expect(sequence).toHaveBeenCalledTimes(1);
+      expect(scrollToOffset).toHaveBeenCalledWith({ offset: 938, animated: true });
+    } finally {
+      timing.mockRestore();
+      spring.mockRestore();
+      sequence.mockRestore();
     }
   });
 
