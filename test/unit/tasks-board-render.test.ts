@@ -4181,6 +4181,7 @@ describe("Tasks board, phone", () => {
       // On by default: the whole list.
       expect(button().props).toMatchObject({ accessibilityRole: "switch", accessibilityState: { checked: true } });
       expect(textOf(button())).toContain("Show all");
+      expect(textOf(button())).toContain("Includes groups without active tasks");
       expect(icon()).toBe("Layers");
       const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
       expect(sheet().findAll((node) => node === button())).toHaveLength(1);
@@ -4191,6 +4192,8 @@ describe("Tasks board, phone", () => {
       expect(host.save).not.toHaveBeenCalled();
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
       expect(button().props.accessibilityState).toEqual({ checked: false });
+      expect(textOf(button())).toContain("Show active groups");
+      expect(textOf(button())).toContain("Hides groups without active tasks");
       expect(icon()).toBe("ListFilter");
       expect(chips().some((chip) => /^(idle-branch|Pi|unused)/.test(chip))).toBe(false);
       expect(chips().every((chip) => !/\D0$/.test(chip))).toBe(true);

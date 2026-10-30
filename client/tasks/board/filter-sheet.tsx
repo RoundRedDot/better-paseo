@@ -120,7 +120,7 @@ export function FilterSheetBody(props: {
           {props.showEmptyGroupsToggle ? (
             <ToggleRow
               icon={emptyGroupsIcon(board.showEmptyGroups)}
-              label={strings.emptyGroups.row}
+              label={strings.emptyGroups.sheetLabel(board.showEmptyGroups)}
               hint={strings.emptyGroups.hint(board.showEmptyGroups)}
               on={board.showEmptyGroups}
               theme={theme}

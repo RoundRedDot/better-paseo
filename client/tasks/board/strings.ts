@@ -143,7 +143,8 @@ const en = {
     /** The round switch's name, in the filter bar and the phone and narrow board headers. */
     row: "Show all",
     hide: "Don't show all",
-    hint: (on: boolean): string => (on ? "Agents, projects, workspaces and labels with no active task are listed" : "Only Agents, projects, workspaces and labels with an active task are listed"),
+    sheetLabel: (on: boolean): string => (on ? "Show all" : "Show active groups"),
+    hint: (on: boolean): string => (on ? "Includes groups without active tasks" : "Hides groups without active tasks"),
     saveFailed: "Couldn't save the empty groups setting",
   },
   /** The desktop bars' hover tips, shown under a control a pointer rests on. */
@@ -325,7 +326,8 @@ const zh: typeof en = {
   emptyGroups: {
     row: "显示全部",
     hide: "不显示全部",
-    hint: (on) => (on ? "没有进行中任务的 Agent、项目、工作区和标签也会列出" : "只列出有进行中任务的 Agent、项目、工作区和标签"),
+    sheetLabel: (on) => (on ? "显示全部" : "仅显示有进行中任务的分组"),
+    hint: (on) => (on ? "包含没有进行中任务的分组" : "隐藏没有进行中任务的分组"),
     saveFailed: "数量为 0 的分组设置没有保存成功",
   },
   tips: {
