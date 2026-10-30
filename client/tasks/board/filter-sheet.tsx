@@ -164,7 +164,7 @@ export function FilterSheetBody(props: {
             />
           ) : null}
         </View>
-        <View testID="filter-sheet-workspaces" style={{ paddingHorizontal: 16, paddingBottom: 8, ...(workspacesOpen && holdTop && viewport > 0 ? { minHeight: viewport } : null) }}>
+        <View testID="filter-sheet-workspaces" style={{ paddingHorizontal: 16, paddingBottom: workspacesOpen ? 8 : 0, ...(workspacesOpen && holdTop && viewport > 0 ? { minHeight: viewport } : null) }}>
           {workspacesOpen && shown.workspaceGroups.length > 0 && groups.length === 0 ? <Muted text={strings.menuSearch.empty} theme={theme} /> : null}
           {workspacesOpen ? groups.map((group, index) => (
             <View key={group.projectId || "missing"}>

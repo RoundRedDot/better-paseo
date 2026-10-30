@@ -101,6 +101,10 @@ describe("filter sheet groups", () => {
       workspaceGroups: [{ projectId: "p", projectName: "Project", items: [{ id: "w", label: "main", count: 1, on: true }] }] as FilterOptions["workspaceGroups"],
     });
     const find = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    expect(find("filter-sheet-workspaces").props.style.paddingBottom).toBe(0);
+    act(() => find("filter-sheet-workspaces-toggle").props.onPress());
+    expect(find("filter-sheet-workspaces").props.style.paddingBottom).toBe(8);
+    act(() => find("filter-sheet-workspaces-toggle").props.onPress());
     for (const group of ["range", "sort-group", "workspaces"]) {
       const toggle = find(`filter-sheet-${group}-toggle`);
       expect(toggle.props.accessibilityState.expanded).toBe(false);
