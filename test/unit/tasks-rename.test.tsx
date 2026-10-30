@@ -72,6 +72,20 @@ async function reveal(expected: string) {
 }
 
 describe("task title editor", () => {
+  it.each(["ios", "android"])("keeps mobile actions below the scrollable editor on %s", async (platform) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    await renderDialog({ canAutoTitle: true });
+    const content = tree.root.findByType("ModalContent" as never);
+    expect(content.props.scrollable).toBe(false);
+    const actions = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-rename-actions");
+    expect(actions.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["Cancel", "Save", "Generate title"]);
+    const scroll = tree.root.findByType("ScrollView" as never);
+    expect(scroll.props.keyboardShouldPersistTaps).toBe("handled");
+    expect(scroll.findAll((node) => node === actions)).toHaveLength(0);
+    expect(save().props.style.flex).toBe(1);
+    expect(save().props.style.borderRadius).toBe(22);
+  });
+
   it("disables an already open editor when the workspace becomes unavailable", async () => {
     await renderDialog({ canAutoTitle: true });
     await act(async () => input().props.onChangeText("New title"));
