@@ -20,6 +20,7 @@ import { SORT_GROUPS, SORT_ICONS, sortDirectionIcon, sortDirections } from "./bo
 import { sameSort, type BoardSort, type SortKey } from "./sort";
 import { sortOrderLabel } from "./strings";
 import type { BoardController } from "./use-board";
+import { tasksSettingsOpener } from "./enabled";
 
 /**
  * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
@@ -56,12 +57,14 @@ export function FilterSheetBody(props: {
   const sortFirst = props.focus === "sort";
   const colors = theme.colors;
   const strings = board.strings;
+  const openSettings = tasksSettingsOpener();
   const { setParams, defaults } = board;
   const resolved = resolveBoardParams(board.params, defaults);
   const shown = shownFilterOptions(options, board.showEmptyGroups);
   useRequestProjectIcons(iconlessProjects(shown.workspaceGroups), board.tasks.requestProjectIcon);
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
+  const [workspacesOpen, setWorkspacesOpen] = useState(true);
   const scrollRef = useRef<NativeScrollView>(null);
   // Where the workspaces start in the scroll: read only when the search field
   // takes focus. A ref, not state: it changes on every frame while a group
@@ -75,8 +78,9 @@ export function FilterSheetBody(props: {
   const holdTop = searching || query.trim() !== "";
   const sort = (
     <View testID="filter-sheet-sort">
-      <SectionTitle text={strings.sort} theme={theme} first={sortFirst} />
-      <SortDrillDown board={board} theme={theme} />
+      <CollapsibleGroup title={strings.sort} icon="ArrowDownWideNarrow" theme={theme} testID="filter-sheet-sort-group" first={sortFirst}>
+        <SortDrillDown board={board} theme={theme} />
+      </CollapsibleGroup>
     </View>
   );
   return (
@@ -125,7 +129,7 @@ export function FilterSheetBody(props: {
               testID="filter-sheet-empty-groups"
             />
           ) : null}
-          <CollapsibleGroup title={strings.agent} theme={theme} testID="filter-sheet-agents">
+          <CollapsibleGroup title={strings.agent} icon="Bot" theme={theme} testID="filter-sheet-agents">
             {shown.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
             <ChipWrap>
               {shown.agents.map((agent) => (
@@ -141,7 +145,7 @@ export function FilterSheetBody(props: {
               ))}
             </ChipWrap>
           </CollapsibleGroup>
-          <CollapsibleGroup title={strings.labels} theme={theme} testID="filter-sheet-labels">
+          <CollapsibleGroup title={strings.labels} icon="Tag" theme={theme} testID="filter-sheet-labels">
             {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
             <ChipWrap>
               {shown.labels.map((label) => (
@@ -156,11 +160,12 @@ export function FilterSheetBody(props: {
               ))}
             </ChipWrap>
           </CollapsibleGroup>
-          <SectionTitle text={strings.doneRange} theme={theme} />
-          <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
+          <CollapsibleGroup title={strings.doneRange} icon="Clock" theme={theme} testID="filter-sheet-range">
+            <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
+          </CollapsibleGroup>
           {props.laneWidth ? (
             <>
-              <SectionTitle text={strings.laneWidth.title} theme={theme} />
+              <SectionTitle text={strings.laneWidth.title} icon="Columns3" theme={theme} />
               <Segments
                 items={LANE_WIDTHS}
                 label={(width) => strings.laneWidth.names[width]}
@@ -176,9 +181,9 @@ export function FilterSheetBody(props: {
           {sortFirst ? null : sort}
         </View>
         <View testID="filter-sheet-workspace-header" style={{ paddingHorizontal: 16, backgroundColor: colors.surface0 }}>
-          <SectionTitle text={strings.workspace} theme={theme} />
-          {shown.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-          {shown.workspaceGroups.length > 0 ? (
+          <CollapsibleTitle text={strings.workspace} icon="FolderGit2" theme={theme} open={workspacesOpen} onPress={() => { setSearching(false); setWorkspacesOpen((value) => !value); }} testID="filter-sheet-workspaces-toggle" />
+          {workspacesOpen && shown.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+          {workspacesOpen && shown.workspaceGroups.length > 0 ? (
             <SheetSearch
               value={query}
               onChange={setQuery}
@@ -194,7 +199,7 @@ export function FilterSheetBody(props: {
             />
           ) : null}
         </View>
-        <View testID="filter-sheet-workspaces" style={{ paddingHorizontal: 16, paddingBottom: 8, ...(holdTop && viewport > 0 ? { minHeight: viewport } : null) }}>
+        {workspacesOpen ? <View testID="filter-sheet-workspaces" style={{ paddingHorizontal: 16, paddingBottom: 8, ...(holdTop && viewport > 0 ? { minHeight: viewport } : null) }}>
           {shown.workspaceGroups.length > 0 && groups.length === 0 ? <Muted text={strings.menuSearch.empty} theme={theme} /> : null}
           {groups.map((group, index) => (
             <View key={group.projectId || "missing"}>
@@ -214,9 +219,20 @@ export function FilterSheetBody(props: {
               </ChipWrap>
             </View>
           ))}
-        </View>
+        </View> : null}
       </ScrollView>
       <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: 16, flexDirection: "row", gap: 10, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
+        {openSettings ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={strings.openSettings}
+            onPress={() => { props.onDone(); openSettings(); }}
+            testID="filter-sheet-settings"
+            style={{ width: 44, height: 44, borderRadius: 22, borderWidth: HAIRLINE, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
+          >
+            <Icon name="Bolt" size={18} color={colors.foreground} />
+          </Pressable>
+        ) : null}
         <Pressable
           accessibilityRole="button"
           onPress={() => setParams(clearedParams)}
@@ -277,9 +293,12 @@ function SheetSearch(props: { value: string; onChange(text: string): void; place
   );
 }
 
-function SectionTitle({ text, theme, first }: { text: string; theme: PluginTheme; first?: boolean }) {
+function SectionTitle({ text, icon, theme }: { text: string; icon: string; theme: PluginTheme }) {
   return (
-    <Text style={{ paddingTop: first ? 0 : 16, paddingBottom: 8, fontSize: F.sm, fontWeight: "500", color: theme.colors.foregroundMuted }}>{text}</Text>
+    <View style={{ paddingTop: 16, paddingBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <Icon name={icon} size={16} color={theme.colors.foregroundMuted} />
+      <Text style={{ fontSize: F.sm, fontWeight: "500", color: theme.colors.foregroundMuted }}>{text}</Text>
+    </View>
   );
 }
 
@@ -288,11 +307,11 @@ function SectionTitle({ text, theme, first }: { text: string; theme: PluginTheme
  * the group alone: the sheet's other rows, often dozens of workspaces, stay
  * as they are.
  */
-function CollapsibleGroup({ title, theme, testID, children }: { title: string; theme: PluginTheme; testID: string; children: ReactNode }) {
+function CollapsibleGroup({ title, icon, theme, testID, first, children }: { title: string; icon: string; theme: PluginTheme; testID: string; first?: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(true);
   return (
     <>
-      <CollapsibleTitle text={title} theme={theme} open={open} onPress={() => setOpen((value) => !value)} testID={`${testID}-toggle`} />
+      <CollapsibleTitle text={title} icon={icon} theme={theme} open={open} onPress={() => setOpen((value) => !value)} testID={`${testID}-toggle`} first={first} />
       <CollapsibleContent open={open} testID={`${testID}-content`}>
         {children}
       </CollapsibleContent>
@@ -329,10 +348,11 @@ function CollapsibleContent({ open, children, testID }: { open: boolean; childre
   );
 }
 
-function CollapsibleTitle(props: { text: string; theme: PluginTheme; open: boolean; onPress(): void; testID: string }) {
+function CollapsibleTitle(props: { text: string; icon: string; theme: PluginTheme; open: boolean; onPress(): void; testID: string; first?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={props.text} accessibilityState={{ expanded: props.open }} onPress={props.onPress} testID={props.testID} style={{ paddingTop: 16, paddingBottom: 8, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-      <Text style={{ fontSize: F.sm, fontWeight: "500", color: props.theme.colors.foregroundMuted }}>{props.text}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={props.text} accessibilityState={{ expanded: props.open }} onPress={props.onPress} testID={props.testID} style={{ paddingTop: props.first ? 0 : 16, paddingBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <Icon name={props.icon} size={16} color={props.theme.colors.foregroundMuted} />
+      <Text style={{ flex: 1, fontSize: F.sm, fontWeight: "500", color: props.theme.colors.foregroundMuted }}>{props.text}</Text>
       <Icon name={props.open ? "ChevronUp" : "ChevronDown"} size={16} color={props.theme.colors.foregroundMuted} />
     </Pressable>
   );

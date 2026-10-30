@@ -28,6 +28,7 @@ import { EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params"
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import type { FilterOptions } from "../../client/tasks/board/filter-options";
 import type { BoardController } from "../../client/tasks/board/use-board";
+import { setTasksSettingsOpener } from "../../client/tasks/board/enabled";
 
 const theme = {
   colors: {
@@ -45,6 +46,7 @@ let renderer: TestRenderer.ReactTestRenderer | undefined;
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  setTasksSettingsOpener(null);
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
@@ -58,6 +60,19 @@ function render(controller = board, options: FilterOptions = { agents: [], label
 }
 
 describe("filter sheet reset", () => {
+  it("closes the sheet and opens Tasks settings from the footer", () => {
+    const calls: string[] = [];
+    setTasksSettingsOpener(() => calls.push("settings"));
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    act(() => {
+      renderer = TestRenderer.create(<FilterSheetBody board={board} theme={theme} options={{ agents: [], labels: [], workspaceGroups: [] }} onDone={() => calls.push("close")} />);
+    });
+    const button = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-settings");
+    expect(button.props.accessibilityLabel).toBe(BOARD_STRINGS.en.openSettings);
+    act(() => button.props.onPress());
+    expect(calls).toEqual(["close", "settings"]);
+  });
+
   it.each(["ios", "android", "web"])("clears active filters and keeps sorting on %s", (os) => {
     vi.stubGlobal("__rnMockOS", os);
     const params: BoardParams = {
@@ -76,6 +91,27 @@ describe("filter sheet reset", () => {
 });
 
 describe("filter sheet groups", () => {
+  it("folds the time range, sort and workspaces independently without changing filters", () => {
+    const setParams = vi.fn();
+    render({ ...board, setParams }, {
+      agents: [], labels: [],
+      workspaceGroups: [{ projectId: "p", projectName: "Project", items: [{ id: "w", label: "main", count: 1, on: true }] }] as FilterOptions["workspaceGroups"],
+    });
+    const find = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    for (const group of ["range", "sort-group", "workspaces"]) {
+      const toggle = find(`filter-sheet-${group}-toggle`);
+      act(() => toggle.props.onPress());
+      expect(toggle.props.accessibilityState.expanded).toBe(false);
+    }
+    expect(find("filter-sheet-range-content").props.accessibilityElementsHidden).toBe(true);
+    expect(find("filter-sheet-sort-group-content").props.accessibilityElementsHidden).toBe(true);
+    expect(renderer!.root.findAll((node) => node.props.testID === "filter-sheet-search")).toHaveLength(0);
+    act(() => find("filter-sheet-workspaces-toggle").props.onPress());
+    expect(find("filter-sheet-search")).toBeDefined();
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox")[0]!.props.accessibilityState.checked).toBe(true);
+    expect(setParams).not.toHaveBeenCalled();
+  });
+
   it("folds each group independently without changing selected filters", () => {
     const params = { ...EMPTY_PARAMS, providers: ["codex"], labels: ["bug"] };
     const setParams = vi.fn();
