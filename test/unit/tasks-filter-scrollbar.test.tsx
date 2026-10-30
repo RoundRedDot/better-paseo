@@ -101,6 +101,15 @@ describe("filter sheet groups", () => {
     });
     const ids = renderer!.root.findAll((node) => typeof node.type === "string" && ["filter-sheet-subtasks", "filter-sheet-empty-groups", "filter-sheet-lane-width", "filter-sheet-range-toggle", "filter-sheet-agents-toggle"].includes(node.props.testID)).map((node) => node.props.testID);
     expect(ids).toEqual(["filter-sheet-subtasks", "filter-sheet-empty-groups", "filter-sheet-lane-width", "filter-sheet-range-toggle", "filter-sheet-agents-toggle"]);
+    const find = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    expect(find("filter-sheet-lane-width").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio")).toHaveLength(3);
+    expect(find("filter-sheet-range-toggle").props.accessibilityState.expanded).toBe(true);
+    expect(find("filter-sheet-range-content").props.accessibilityElementsHidden).toBe(false);
+    for (const group of ["agents", "workspaces", "labels", "sort-group"]) expect(find(`filter-sheet-${group}-toggle`).props.accessibilityState.expanded).toBe(false);
+    act(() => find("filter-sheet-range-toggle").props.onPress());
+    expect(find("filter-sheet-range-content").props.accessibilityElementsHidden).toBe(true);
+    act(() => find("filter-sheet-range-toggle").props.onPress());
+    expect(find("filter-sheet-range-toggle").props.accessibilityState.expanded).toBe(true);
   });
 
   it("folds the time range, sort and workspaces independently without changing filters", () => {

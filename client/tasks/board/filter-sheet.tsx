@@ -76,7 +76,7 @@ export function FilterSheetBody(props: {
   // can stay at its top above the keyboard however few rows match.
   const holdTop = searching || query.trim() !== "";
   const range = (
-    <CollapsibleGroup title={strings.doneRange} icon="Clock" theme={theme} testID="filter-sheet-range">
+    <CollapsibleGroup title={strings.doneRange} icon="Clock" theme={theme} testID="filter-sheet-range" initiallyOpen={Boolean(props.laneWidth)}>
       <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
     </CollapsibleGroup>
   );
