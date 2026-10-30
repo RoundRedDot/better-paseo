@@ -325,8 +325,9 @@ interface GroupRow {
 }
 
 /**
- * With no card chosen: Agent, Project, Workspace and Label counts (active
- * cards), a row a filter; those at 0 too while `board.showEmptyGroups` is on.
+ * With no card chosen: Agent, Project, Workspace and Label counts (every
+ * loaded card, including done and archived), a row a filter; those at 0 too
+ * while `board.showEmptyGroups` is on.
  */
 function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; touch: boolean }) {
   const { board, tokens } = props;

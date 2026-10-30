@@ -852,7 +852,7 @@ apply to all three.
 | Tablet (`TabletToolbar`) | 56, 36 when narrower than 680 | 44, 28 when narrow | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when on or hovered |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
-- Wide desktop: the top row ends with Show groups with no active tasks, then the sidebar
+- Wide desktop: the top row ends with Show groups with no tasks, then the sidebar
   switch. The filter bar's right side orders Collapse empty lanes, Subtasks, Archived, Lane
   width, Time range, then Sort. Agent, Project and Workspace menus also offer the empty-groups
   switch at their foot; Labels does not. When the filter bar folds into the header, keep
@@ -1071,7 +1071,7 @@ with a Chat and a Tasks tab.
 
 ## Device board preferences
 
-Show subtasks, Show archived lane, Show groups with no active tasks, and Lane width are
+Show subtasks, Show archived lane, Show groups with no tasks, and Lane width are
 preferences of the current device. Boards, filter sheets, and the Tasks settings page share
 one local record; another device connected to the same daemon keeps its own values.
 Web and Electron persist it in localStorage; iOS and Android use the host-linked AsyncStorage

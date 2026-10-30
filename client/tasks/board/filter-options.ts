@@ -1,11 +1,11 @@
 import type { TasksHandle, WorkspaceOption } from "../data";
 import { fallbackLabelColor } from "../label-colors";
-import { LANE_ORDER, isHistoryLane, type TaskCard } from "../model";
+import { LANE_ORDER, type TaskCard } from "../model";
 import { toggleItem, type BoardDefaults, type BoardParams } from "./params";
 import { matchesSearch, searchWords } from "./search";
 import type { BoardStrings } from "./strings";
 
-/** One choice in a filter menu or the phone sheet; `count` counts active (not done) cards. */
+/** One choice in a filter menu, the phone sheet or the sidebar; `count` counts loaded cards in every lane, including done and archived. */
 export interface FilterOption {
   id: string;
   label: string;
@@ -46,7 +46,6 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
   const byProvider = new Map<string, number>();
   const byLabel = new Map<string, number>();
   for (const lane of LANE_ORDER) {
-    if (isHistoryLane(lane)) continue;
     for (const card of tasks.lanes[lane].cards) {
       const workspaceId = card.location.workspaceId;
       if (workspaceId) byWorkspace.set(workspaceId, (byWorkspace.get(workspaceId) ?? 0) + 1);
@@ -111,7 +110,7 @@ export interface ProjectOption extends FilterOption {
 /**
  * The projects to filter by. Picking one picks all its workspaces, as the
  * sidebar's project rows do, so its chip reads "Project payments-svc";
- * `count` sums its workspaces' active cards.
+ * `count` sums its workspaces' cards, including done and archived.
  */
 export function projectOptions(options: FilterOptions): ProjectOption[] {
   return options.workspaceGroups
@@ -164,9 +163,9 @@ export interface ShownFilterOptions {
 
 /**
  * What to list of the options: every one with `board.showEmptyGroups` on;
- * off, those with an active task or picked, and a project left with none
- * drops out. Projects come from the full options, so picking one still picks
- * the workspaces that are not listed.
+ * off, those with a card on the board or picked, and a project left with
+ * none drops out. Done and archived cards count. Projects come from the full
+ * options, so picking one still picks the workspaces that are not listed.
  */
 export function shownFilterOptions(options: FilterOptions, showEmpty: boolean): ShownFilterOptions {
   const projects = projectOptions(options);
@@ -228,7 +227,7 @@ export const FILTER_ICONS: Readonly<Record<FilterUnit, string>> = {
 
 /**
  * The empty groups' switch uses a groups icon while all groups show and a
- * narrowing list while groups without an active task are left out.
+ * narrowing list while groups with no card on the board are left out.
  */
 export const EMPTY_GROUPS_ICONS = { shown: "Layers", hidden: "ListFilter" } as const;
 

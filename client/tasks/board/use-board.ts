@@ -51,7 +51,7 @@ export interface BoardController {
   showArchived: boolean;
   /** Saves the archived-lane preference on this device only. */
   setShowArchived(on: boolean): void;
-  /** The filters and the sidebar's groups list those with no active task too: this device's preference. */
+  /** The filters and the sidebar's groups list those with no card on the board too: this device's preference. */
   showEmptyGroups: boolean;
   /** Saves the empty-groups preference on this device only. */
   setShowEmptyGroups(on: boolean): void;

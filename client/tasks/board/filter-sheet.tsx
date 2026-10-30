@@ -26,8 +26,8 @@ import { tasksSettingsOpener } from "./enabled";
  * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
  * sheet as a bounded body (`Modal.Content scrollable={false}`): the options
  * scroll, Reset and "Show N tasks" stay pinned under them. The short
- * filters follow the desktop order; workspaces sit under a search field. With `board.showEmptyGroups` off, only the options with an
- * active task or picked are listed.
+ * filters follow the desktop order; workspaces sit under a search field. With `board.showEmptyGroups` off, only the options with a
+ * card on the board, including done and archived, or that are picked, are listed.
  */
 export function FilterSheetBody(props: {
   board: BoardController;

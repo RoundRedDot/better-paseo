@@ -336,17 +336,33 @@ describe("filter options", () => {
     expect(kept("refund web")).toEqual([]);
   });
 
-  it("groups workspaces by project and counts active cards", () => {
-    const options = buildFilterOptions(handle(), { ...EMPTY_PARAMS, providers: ["codex", "gone"] });
+  it("groups workspaces by project and counts every loaded card, including done and archived", () => {
+    const tasks = handle();
+    const done = tasks.lanes.done.cards[0]!;
+    tasks.lanes.archived = {
+      ...tasks.lanes.archived,
+      cards: [{
+        ...done,
+        id: "archived-copy",
+        lane: "archived",
+        status: "archived",
+        provider: "codex",
+        labels: [{ name: "docs", color: "#0ea5e9" }],
+        location: { ...done.location, workspaceId: "wks_other" },
+      }],
+    };
+    const options = buildFilterOptions(tasks, { ...EMPTY_PARAMS, providers: ["codex", "gone"] });
     expect(options.workspaceGroups.map((group) => group.projectName)).toEqual(["better-paseo", "paseo"]);
-    expect(options.workspaceGroups[0]!.items[0]).toMatchObject({ id: "wks_sample", count: 5, on: false });
+    // Five active cards plus the done card in this workspace, and the archived copy in the other.
+    expect(options.workspaceGroups[0]!.items[0]).toMatchObject({ id: "wks_sample", count: 6, on: false });
+    expect(options.workspaceGroups[1]!.items[0]).toMatchObject({ id: "wks_other", count: 1, on: false });
     expect(options.workspaceGroups[0]!.projectPath).toBe("/Users/luke/better-paseo");
     expect(options.agents).toEqual([
-      { id: "claude", label: "Claude", count: 4, on: false },
-      { id: "codex", label: "Codex", count: 1, on: true },
+      { id: "claude", label: "Claude", count: 5, on: false },
+      { id: "codex", label: "Codex", count: 2, on: true },
       { id: "gone", label: "gone", count: 0, on: true },
     ]);
-    expect(options.labels.find((label) => label.id === "docs")).toMatchObject({ count: 1, color: "#0ea5e9" });
+    expect(options.labels.find((label) => label.id === "docs")).toMatchObject({ count: 2, color: "#0ea5e9" });
   });
 
   it("lists the options with no active task only while empty groups show, a picked one always", () => {
@@ -363,7 +379,7 @@ describe("filter options", () => {
     const options = buildFilterOptions(tasks, EMPTY_PARAMS);
     const all = shownFilterOptions(options, true);
     expect(all.workspaceGroups).toBe(options.workspaceGroups);
-    expect(all.projects.map((project) => `${project.id}|${project.count}`)).toEqual(["prj_sample|5", "prj_quiet|0"]);
+    expect(all.projects.map((project) => `${project.id}|${project.count}`)).toEqual(["prj_sample|6", "prj_quiet|0"]);
     expect(all.agents.map((agent) => agent.id)).toContain("pi");
     expect(all.labels.map((label) => label.id)).toContain("unused");
 

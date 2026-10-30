@@ -907,7 +907,7 @@ subscription, and the board's code is not fetched. Its options are listed under
   icon. When the filters leave out some of a lane's cards, a line under the lane says how many and
   which filters.
 - The bar ends with the done window (24h, 7d, ∞), switches for subtasks, the archived lane and
-  groups with no active tasks, the sort and the lane width; a pointer resting on a control shows
+  groups with no tasks, the sort and the lane width; a pointer resting on a control shows
   what it does. With subtasks hidden, a subtask folds into its parent's card, but running, waiting
   and failed ones keep their own card unless the parent's card is in the same lane. Sort by
   workspace, project, branch, folder, title, created, updated, context or duration; the sort covers
@@ -1047,7 +1047,7 @@ agent API is required.
 | Board | Done lane window | Last 24 hours | Last 24 hours, last 7 days or all, for Done and Archived. The board's own window control changes only that board. |
 | Board | Lane width | Default | Narrow (260–280pt), Default (300–340pt) or Wide (340–400pt) on desktop, web and tablets, the same choice as the board's lane width menu; a board too narrow for them scrolls the lanes sideways. Phones show one lane at a time and hide this option. |
 | Board | Show subtasks | On | Off, subtasks fold into their parent's card; running, waiting and failed ones keep their own card unless the parent's card is in the same lane. The toolbar switch changes only that board. |
-| Board | Show groups with no active tasks | On | The filters and the sidebar list every agent, project, workspace and label in Paseo, with 0 where none is active. Also a switch on the toolbar. |
+| Board | Show groups with no tasks | On | The filters and the sidebar list every agent, project, workspace and label in Paseo, with 0 where the board has none, including Done and Archived. Also a switch on the toolbar. |
 | Board | Confirm before stopping | On | Stop asks for a second press on web, and in the system dialog on iOS and Android. |
 | Sidebar | Sidebar entry count | Waiting · Running · Review | Or Waiting only, or hidden. |
 | Phone | Use minimal cards on phones | Off | On, phones draw the Minimal card whatever the density. |

@@ -171,8 +171,8 @@ export const tasksSettingsSchema = z.object({
       /**
        * The filter menus, the filter sheet and the sidebar's groups list
        * every agent, project, workspace and label Paseo has, a count of 0
-       * where no active task has it. Off, they list only those with one (or
-       * picked). On by default.
+       * where the board has none. Done and archived cards count. Off, they
+       * list only those with a card (or picked). On by default.
        */
       showEmptyGroups: flag(true),
     })

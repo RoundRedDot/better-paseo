@@ -1579,8 +1579,8 @@ describe("Tasks board, desktop", () => {
     const groups = () => renderer!.root.findByProps({ testID: "sidebar-groups" });
     act(() => groups().findByProps({ accessibilityRole: "tab", accessibilityLabel: "Workspace" }).props.onPress());
     const row = () => groups().findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function")[0]!;
-    // The workspace, its project muted after it, and the active (not done) cards in it.
-    const active = (["needs_input", "running", "review"] as const).reduce((sum, lane) => sum + (data as unknown as { __handle: { lanes: Record<string, { cards: unknown[] }> } }).__handle.lanes[lane]!.cards.length, 0);
+    // The workspace, its project muted after it, and every loaded card in it, including done and archived.
+    const active = (["needs_input", "running", "review", "done", "archived"] as const).reduce((sum, lane) => sum + (data as unknown as { __handle: { lanes: Record<string, { cards: unknown[] }> } }).__handle.lanes[lane]!.cards.length, 0);
     expect(row().props.accessibilityLabel).toBe(`tasks-board better-paseo ${active}`);
     act(() => row().props.onPress());
     expect(lastBoardParams("host-1").workspaceIds).toEqual(["wks_sample"]);
@@ -4843,7 +4843,7 @@ describe("Tasks board, phone", () => {
       // On by default: the whole list.
       expect(button().props).toMatchObject({ accessibilityRole: "switch", accessibilityState: { checked: true } });
       expect(textOf(button())).toContain("Show all");
-      expect(textOf(button())).toContain("Includes groups without active tasks");
+      expect(textOf(button())).toContain("Includes groups with no tasks on the board");
       expect(icon()).toBe("Layers");
       const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
       expect(sheet().findAll((node) => node === button())).toHaveLength(1);
@@ -4854,8 +4854,8 @@ describe("Tasks board, phone", () => {
       expect(host.save).not.toHaveBeenCalled();
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
       expect(button().props.accessibilityState).toEqual({ checked: false });
-      expect(textOf(button())).toContain("Show active groups");
-      expect(textOf(button())).toContain("Hides groups without active tasks");
+      expect(textOf(button())).toContain("Show groups with tasks");
+      expect(textOf(button())).toContain("Hides groups with no tasks on the board");
       expect(icon()).toBe("ListFilter");
       expect(chips().some((chip) => /^(idle-branch|Pi|unused)/.test(chip))).toBe(false);
       expect(chips().every((chip) => !/\D0$/.test(chip))).toBe(true);
