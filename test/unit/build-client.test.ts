@@ -40,6 +40,19 @@ describe("install build", () => {
       expect(built.shared.has(file)).toBe(true);
     }
     expect(built.main).toContain(JSON.stringify(built.chunkId));
+    // The registry holds every name the chunk reads off a shared module: a missing one would be undefined at runtime.
+    const missing: string[] = [];
+    const requiredFiles = new Set<string>();
+    for (const [, local, file] of built.chunk.matchAll(/([\w$]+)=(?:[\w$]+\()?require\("bc-shared:([^"]+)"\)/g)) {
+      requiredFiles.add(file!);
+      const names = built.shared.get(file!);
+      if (!names) missing.push(`${file}: not shared`);
+      if (!names || names === "*") continue;
+      const reads = built.chunk.matchAll(new RegExp(`(?<![\\w$.])${local!.replace(/\$/g, "\\$")}\\.([\\w$]+)`, "g"));
+      for (const [, name] of reads) if (!names.has(name!)) missing.push(`${file}: ${name}`);
+    }
+    expect([...requiredFiles].sort()).toEqual([...built.shared.keys()].sort());
+    expect(missing).toEqual([]);
     // No interop getter made in a loop: Hermes would give each the last export (build-client.mjs).
     for (const code of [built.main, built.chunk]) expect(code).not.toMatch(/\{get:\(\)=>[\w$]+\[[\w$]+\],enumerable:/);
     // Only the host's modules and the shared ones are required.
@@ -49,5 +62,26 @@ describe("install build", () => {
     const entry = clientEntry(built.main);
     expect(/^[\x00-\x7f]*$/.test(entry)).toBe(true);
     expect(/^[\x00-\x7f]*$/.test(chunkModule(built.chunkId, built.chunk))).toBe(true);
+  });
+});
+
+describe("shared names", () => {
+  it("reads the names an ESM chunk imports from each shared module", async () => {
+    const { sharedNames } = await import("../../scripts/build-client.mjs");
+    const names = sharedNames([
+      'import { a, b as c } from "bc-shared:x.ts";',
+      'import def, { d } from "bc-shared:y.ts";',
+      'import * as all from "bc-shared:z.ts";',
+      'export { e } from "bc-shared:x.ts";',
+      'export * from "bc-shared:w.ts";',
+      'import "bc-shared:v.ts";',
+      'import { "quoted" as q } from "bc-shared:u.ts";',
+    ].join("\n"));
+    expect(names.get("x.ts")).toEqual(new Set(["a", "b", "e"]));
+    expect(names.get("y.ts")).toEqual(new Set(["d", "default"]));
+    expect(names.get("z.ts")).toBe("*");
+    expect(names.get("w.ts")).toBe("*");
+    expect(names.get("v.ts")).toEqual(new Set());
+    expect(names.get("u.ts")).toEqual(new Set(["quoted"]));
   });
 });

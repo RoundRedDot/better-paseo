@@ -24,9 +24,12 @@
 // The chunk must not hold copies of modules the bundle holds (one enabled
 // store, one board session, one language), so every module both would
 // contain stays in the bundle and reaches the chunk through
-// `bc-tasks-shared`, a registry of those modules' namespaces. Sharing a
-// module keeps all of its exports in the bundle, which can pull in more, so
-// the two builds repeat until the shared set holds still.
+// `bc-tasks-shared`, a registry of those modules' exports. The registry
+// holds only the names the chunk imports (`sharedNames`), as getters, so a
+// shared module's other exports can still be tree-shaken out of the bundle;
+// a chunk that takes a whole namespace (`import * as`, `export *`) gets it
+// all. Sharing a name keeps its code in the bundle, which can pull in more,
+// so the two builds repeat until the shared names hold still.
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -118,12 +121,11 @@ async function buildMain(esbuild, root, shared, chunkId) {
             path.resolve(args.resolveDir) === path.join(root, CHUNK_DIR) ? { path: remote } : undefined,
           );
           build.onResolve({ filter: /^bc-tasks-shared$/ }, () => ({ path: "bc-tasks-shared", namespace: "bc-tasks-shared" }));
-          build.onLoad({ filter: /.*/, namespace: "bc-tasks-shared" }, () => {
-            const files = [...shared].sort();
-            const imports = files.map((file, index) => `import * as m${index} from ${JSON.stringify(path.join(root, file))};`);
-            const entries = files.map((file, index) => `  ${JSON.stringify(SHARED_PREFIX + file)}: m${index},`);
-            return { contents: `${imports.join("\n")}\nexport default {\n${entries.join("\n")}\n};\n`, loader: "ts", resolveDir: root };
-          });
+          build.onLoad({ filter: /.*/, namespace: "bc-tasks-shared" }, () => ({
+            contents: sharedRegistry(root, shared),
+            loader: "ts",
+            resolveDir: root,
+          }));
         },
       },
     ],
@@ -131,29 +133,130 @@ async function buildMain(esbuild, root, shared, chunkId) {
   return { code: hermesInterop(result.outputFiles[0].text, "bundle"), inputs: liveInputs(result.metafile) };
 }
 
+/**
+ * The registry module: for each shared file, the names the chunk imports, as
+ * getters (live, like the import bindings they read), or the whole namespace
+ * (`"*"`).
+ */
+function sharedRegistry(root, shared) {
+  const files = [...shared.keys()].sort();
+  const imports = [];
+  const entries = [];
+  files.forEach((file, index) => {
+    const from = JSON.stringify(path.join(root, file));
+    const key = JSON.stringify(SHARED_PREFIX + file);
+    const names = shared.get(file);
+    if (names === "*") {
+      imports.push(`import * as m${index} from ${from};`);
+      entries.push(`  ${key}: m${index},`);
+      return;
+    }
+    const sorted = [...names].sort();
+    if (sorted.length === 0) {
+      imports.push(`import ${from};`);
+      entries.push(`  ${key}: {},`);
+      return;
+    }
+    const locals = sorted.map((_, at) => `m${index}_${at}`);
+    imports.push(`import { ${sorted.map((name, at) => `${JSON.stringify(name)} as ${locals[at]}`).join(", ")} } from ${from};`);
+    const getters = sorted.map((name, at) => `get ${JSON.stringify(name)}() { return ${locals[at]}; }`);
+    entries.push(`  ${key}: { ${getters.join(", ")} },`);
+  });
+  return `${imports.join("\n")}\nexport default {\n${entries.join("\n")}\n};\n`;
+}
+
+const SHARED_SPECIFIER = /(?:^|[;\n])\s*(import|export)\s*([^;]*?)\s*from\s*"(bc-shared:[^"]+)"/g;
+const SHARED_BARE_IMPORT = /(?:^|[;\n])\s*import\s*"(bc-shared:[^"]+)"/g;
+
+/**
+ * The names an unminified ESM build of the chunk imports from each shared
+ * module: `{ a, b as c }` gives `a` and `b`, a default import `default`, and
+ * `* as` or `export *` the whole namespace (`"*"`).
+ */
+export function sharedNames(code) {
+  const found = new Map();
+  const add = (file, names) => {
+    const known = found.get(file);
+    if (known === "*" || names === "*") {
+      found.set(file, "*");
+      return;
+    }
+    found.set(file, new Set([...(known ?? []), ...names]));
+  };
+  for (const [, keyword, clause, specifier] of code.matchAll(SHARED_SPECIFIER)) {
+    const file = specifier.slice(SHARED_PREFIX.length);
+    if (clause.includes("*")) {
+      add(file, "*");
+      continue;
+    }
+    const names = [];
+    const braces = /\{([^}]*)\}/.exec(clause);
+    if (braces) {
+      for (const part of braces[1].split(",")) {
+        const name = part.trim().split(/\s+as\s+/)[0].trim();
+        if (name) names.push(name.replace(/^"|"$/g, ""));
+      }
+    }
+    // `import x from`, `import x, { ... } from`: a default import.
+    if (keyword === "import" && /^[\w$]+\s*(,|$)/.test(clause.trim())) names.push("default");
+    add(file, names);
+  }
+  for (const [, specifier] of code.matchAll(SHARED_BARE_IMPORT)) add(specifier.slice(SHARED_PREFIX.length), []);
+  return found;
+}
+
 async function buildChunk(esbuild, root, mainInputs) {
-  const used = new Set();
+  const shareFrom = (build) => {
+    build.onResolve({ filter: /^\./ }, async (args) => {
+      if (args.pluginData?.bcInner) return undefined;
+      const resolved = await build.resolve(args.path, { resolveDir: args.resolveDir, kind: args.kind, pluginData: { bcInner: true } });
+      if (resolved.errors.length > 0) return { errors: resolved.errors };
+      const file = path.relative(root, resolved.path).split(path.sep).join("/");
+      if (!mainInputs.has(file)) return { path: resolved.path };
+      return { path: SHARED_PREFIX + file, external: true };
+    });
+  };
   const result = await esbuild.build({
     ...hostOptions(root),
     entryPoints: [path.join(root, CHUNK_ENTRY)],
-    plugins: [
-      {
-        name: "bc-tasks-shared",
-        setup(build) {
-          build.onResolve({ filter: /^\./ }, async (args) => {
-            if (args.pluginData?.bcInner) return undefined;
-            const resolved = await build.resolve(args.path, { resolveDir: args.resolveDir, kind: args.kind, pluginData: { bcInner: true } });
-            if (resolved.errors.length > 0) return { errors: resolved.errors };
-            const file = path.relative(root, resolved.path).split(path.sep).join("/");
-            if (!mainInputs.has(file)) return { path: resolved.path };
-            used.add(file);
-            return { path: SHARED_PREFIX + file, external: true };
-          });
-        },
-      },
-    ],
+    plugins: [{ name: "bc-tasks-shared", setup: shareFrom }],
   });
-  return { code: hermesInterop(result.outputFiles[0].text, "Tasks chunk"), inputs: liveInputs(result.metafile), shared: used };
+  // The same chunk as ESM, unminified, only to read the names it takes from the bundle.
+  const esm = await esbuild.build({
+    ...hostOptions(root),
+    entryPoints: [path.join(root, CHUNK_ENTRY)],
+    format: "esm",
+    minify: false,
+    metafile: false,
+    plugins: [{ name: "bc-tasks-shared", setup: shareFrom }],
+  });
+  return {
+    code: hermesInterop(result.outputFiles[0].text, "Tasks chunk"),
+    inputs: liveInputs(result.metafile),
+    shared: sharedNames(esm.outputFiles[0].text),
+  };
+}
+
+/** `shared` with `more` added, or null when `more` adds nothing. */
+function mergeShared(shared, more) {
+  let grew = false;
+  const merged = new Map(shared);
+  for (const [file, names] of more) {
+    const known = merged.get(file);
+    if (known === "*") continue;
+    if (names === "*") {
+      merged.set(file, "*");
+      grew = true;
+      continue;
+    }
+    const next = new Set(known ?? []);
+    for (const name of names) next.add(name);
+    if (!known || next.size !== known.size) {
+      merged.set(file, next);
+      grew = true;
+    }
+  }
+  return grew ? merged : null;
 }
 
 /**
@@ -163,17 +266,17 @@ async function buildChunk(esbuild, root, mainInputs) {
  */
 export async function buildClient({ root = ROOT } = {}) {
   const esbuild = loadEsbuild(root);
-  let shared = new Set();
+  let shared = new Map();
   for (let round = 0; round < 8; round++) {
     const main = await buildMain(esbuild, root, shared, "pending");
     const chunk = await buildChunk(esbuild, root, main.inputs);
-    const settled = chunk.shared.size === shared.size && [...chunk.shared].every((file) => shared.has(file));
-    if (settled) {
+    const grown = mergeShared(shared, chunk.shared);
+    if (!grown) {
       const chunkId = createHash("sha256").update(chunk.code).digest("hex").slice(0, 16);
       const final = await buildMain(esbuild, root, shared, chunkId);
       return { main: final.code, mainInputs: final.inputs, chunk: chunk.code, chunkInputs: chunk.inputs, chunkId, shared };
     }
-    shared = new Set([...shared, ...chunk.shared]);
+    shared = grown;
   }
   throw new Error("build-client: the shared modules did not settle");
 }
