@@ -3758,25 +3758,20 @@ describe("Tasks board, phone", () => {
     }
   });
 
-  it.each(["ios", "android", "web"])("%s shows subtasks beside More and remembers the preference", async (os) => {
+  it.each(["ios", "android", "web"])("%s keeps subtasks in More and remembers the preference", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
-    const button = () => hostsById("phone-subtasks")[0]!;
-    const toolbar = hostParentOf(button())!;
-    const controls = toolbar.findAll((node) => (node.type as unknown) === "Pressable");
-    expect(controls.slice(-2).map((node) => node.props.testID)).toEqual(["phone-subtasks", "phone-more"]);
-    expect(button().props.accessibilityState).toEqual({ selected: true });
-    expect(button().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Network");
+    act(() => pressable("More").props.onPress());
+    const button = () => hostsById("filter-sheet-subtasks")[0]!;
+    expect(button().props.accessibilityState).toEqual({ checked: true });
     await act(async () => button().props.onPress());
-    expect(button().props.accessibilityState).toEqual({ selected: false });
-    expect(button().find((node) => (node.type as unknown) === "Icon").props.name).toBe("List");
+    expect(button().props.accessibilityState).toEqual({ checked: false });
     expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(true);
     expect(lastBoardParams("host-1").hideSubtasks).toBeNull();
-    act(() => pressable("More").props.onPress());
-    expect(hostsById("filter-sheet-subtasks")).toHaveLength(0);
     act(() => renderer!.unmount());
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
-    expect(button().props.accessibilityState).toEqual({ selected: false });
+    act(() => pressable("More").props.onPress());
+    expect(button().props.accessibilityState).toEqual({ checked: false });
     await act(async () => button().props.onPress());
     expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(false);
     expect(host.save).not.toHaveBeenCalled();
@@ -3786,10 +3781,11 @@ describe("Tasks board, phone", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
     expect(laneCards("running")).toContain("sample-child-1");
-    await act(async () => hostsById("phone-subtasks")[0]!.props.onPress());
+    act(() => pressable("More").props.onPress());
+    await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
     expect(laneCards("running")).not.toContain("sample-child-1");
     expect(laneCards("running")).toContain("sample-running");
-    await act(async () => hostsById("phone-subtasks")[0]!.props.onPress());
+    await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
     expect(laneCards("running")).toContain("sample-child-1");
   });
 
@@ -3988,7 +3984,7 @@ describe("Tasks board, phone", () => {
     act(() => filters.props.onPress());
     const sheet = renderer!.root.find((node) => (node.type as unknown) === "Modal");
     expect(sheet.props.title).toBe("More");
-    expect(hostsById("filter-sheet-subtasks")).toHaveLength(0);
+    expect(hostsById("filter-sheet-subtasks")).toHaveLength(1);
     expect(textOf(sheet)).not.toContain("Open tabs only");
   });
 
@@ -4068,16 +4064,19 @@ describe("Tasks board, phone", () => {
     expect(notice()).toHaveLength(0);
   });
 
-  it("shows the archived lane from More and saves it", async () => {
+  it("shows the archived lane beside More and saves it", async () => {
     act(() => { renderer = TestRenderer.create(screen(true)); });
     expect(hostsById("phone-stat-archived")).toHaveLength(0);
-    act(() => pressable("More").props.onPress());
-    const button = hostsById("filter-sheet-archived")[0]!;
-    expect(button.props.accessibilityState).toEqual({ checked: false });
-    await act(async () => button.props.onPress());
-    expect(hostsById("filter-sheet-archived")[0]!.props.accessibilityState).toEqual({ checked: true });
+    const button = () => hostsById("phone-archived")[0]!;
+    const controls = hostParentOf(button())!.findAll((node) => (node.type as unknown) === "Pressable");
+    expect(controls.slice(-2).map((node) => node.props.testID)).toEqual(["phone-archived", "phone-more"]);
+    expect(button().props.accessibilityState).toEqual({ selected: false });
+    await act(async () => button().props.onPress());
+    expect(button().props.accessibilityState).toEqual({ selected: true });
     expect(hostsById("phone-stat-archived")).toHaveLength(1);
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
+    act(() => pressable("More").props.onPress());
+    expect(hostsById("filter-sheet-archived")).toHaveLength(0);
   });
 
   it("refreshes from the More panel", () => {
@@ -4119,9 +4118,9 @@ describe("Tasks board, phone", () => {
     const scroll = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
     const switches = () => scroll.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
     expect(switches()).toHaveLength(2);
-    expect(switches().map((node) => node.props.accessibilityState)).toEqual([{ checked: false }, { checked: true }]);
+    expect(switches().map((node) => node.props.accessibilityState)).toEqual([{ checked: true }, { checked: true }]);
     act(() => switches()[0]!.props.onPress());
-    expect(switches()[0]!.props.accessibilityState).toEqual({ checked: true });
+    expect(switches()[0]!.props.accessibilityState).toEqual({ checked: false });
     expect(switches().flatMap((node) => node.findAll((child) => (child.type as unknown) === "Icon" && child.props.name === "Check"))).toHaveLength(0);
   });
 
