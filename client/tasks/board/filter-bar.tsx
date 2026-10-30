@@ -32,8 +32,6 @@ const MENU_PADDING = 10;
 const MENU_ICON = 13;
 const MENU_CHEVRON = 12;
 const TOOLBAR_GAP = 10;
-/** Wide enough for the empty-groups switch at a filter menu's foot, in English and Chinese. */
-const EMPTY_GROUPS_MENU_WIDTH = 300;
 const DIVIDER_MARGIN = 4;
 
 /** Round and menu buttons share the same height on each platform. */
@@ -528,7 +526,7 @@ function DesktopFilterBarView(props: {
             <CascadeMenu
               sections={withEmptyGroups(agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) }))))}
               theme={theme}
-              width={EMPTY_GROUPS_MENU_WIDTH}
+              width={Math.round(240 * Math.max(1, scale))}
               top={toolbarButtonSize(scale) + 6}
               align="left"
               onClose={() => setMenu(null)}
@@ -641,7 +639,7 @@ function DesktopFilterBarView(props: {
           <CascadeMenu
             sections={sortMenuSections(params.sort, strings, (sort) => setParams((p) => ({ ...p, sort })))}
             theme={theme}
-            width={240}
+            width={Math.round(220 * Math.max(1, scale))}
             submenuWidth={200}
             top={toolbarButtonSize(scale) + 6}
             align="right"

@@ -2502,6 +2502,28 @@ describe("Tasks board, desktop", () => {
 });
 
 describe("Tasks board, sorting", () => {
+  it.each([
+    ["en", 14], ["zh", 14], ["en", 21], ["zh", 21],
+  ] as const)("keeps moderate menu widths and spacing in %s at font size %i", (language, base) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    updateEnhancerPreferences({ language });
+    const strings = BOARD_STRINGS[language];
+    act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
+    layOut(2400);
+    act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === strings.tips.agent).props.onPress());
+    const panel = hostsById("menu-panel")[0]!;
+    expect(StyleSheet.flatten(panel.props.style).width).toBe(Math.round(240 * base / 14));
+    expect(menuOption(strings.emptyGroups.row)).toBeDefined();
+    expect(menuOption("Claude")).toBeDefined();
+    const rowStyle = StyleSheet.flatten(menuOption("Claude").props.style);
+    expect(rowStyle).toMatchObject({ paddingHorizontal: 8, marginHorizontal: 6, gap: 8 });
+    act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === strings.tips.sort).props.onPress());
+    expect(StyleSheet.flatten(hostsById("sort-menu")[0]!.props.style).width).toBe(Math.round(220 * base / 14));
+    for (const label of Object.values(strings.sortKeys)) expect(menuOption(label)).toBeDefined();
+    act(() => menuOption(strings.sortKeys.context).props.onPress());
+    expect(hostsById("menu-submenu-panel")).toHaveLength(1);
+  });
+
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   });
