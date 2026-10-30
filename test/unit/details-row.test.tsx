@@ -271,6 +271,20 @@ describe("other detail callers", () => {
     expect(entry.kind).toBe("todo"); expect(entry.copies()[0]!.text).toBe("- [ ] Fix the bug");
     act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Copy", "Open details", "Collapse in timeline"]);
   });
+  it.each([false, true])("shows checklist progress when details are enabled (compact=%s)", (compact) => {
+    const tasks = ["Read", "Build", "Check", "Report"].map((title, index) => ({
+      id: String(index), title, phase: "", status: index === 0 ? "completed" as const : "pending" as const,
+    }));
+    render(<TaskList data={{ ...todo, tasks }} tokens={tokens} compact={compact} />);
+    const progress = () => renderer!.root.findAll((node) => node.props.accessibilityRole === "progressbar");
+    expect(progress()[0]!.props.accessibilityValue).toEqual({ min: 0, max: 4, now: 1 });
+    const chevron = renderer!.root.find((node) => node.props.testID === "details-chevron");
+    act(() => chevron.props.onPress({ stopPropagation() {} }));
+    expect(progress()[0]!.props.accessibilityValue.now).toBe(1);
+    act(() => renderer!.update(wrap(<TaskList data={{ ...todo, tasks: tasks.map((task) => ({ ...task, status: "completed" })) }} tokens={tokens} compact={compact} />)));
+    expect(progress()).toHaveLength(0);
+    expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.name === "CircleCheck" && node.props.color === tokens.success)).toHaveLength(1);
+  });
   it("opens the checklist row menu from a task title instead of the old press preview", () => {
     render(<TaskList data={todo} tokens={tokens} />);
     const title = renderer!.root.find((node) => String(node.type) === "Text" && node.props.onLongPress && textOf(node) === "Fix the bug");

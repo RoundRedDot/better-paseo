@@ -264,6 +264,18 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
   // A live checklist always arrives as "Checklist Progress"; only a named
   // phase says something the header does not.
   const phase = data.phaseName && data.phaseName !== "Checklist Progress" ? data.phaseName : null;
+  const progress = allDone ? (
+    <Icon name="CircleCheck" size={PROGRESS_SIZE} color={tokens.success} />
+  ) : (
+    <ProgressRing
+      value={completedCount}
+      max={totalCount}
+      size={PROGRESS_SIZE}
+      stroke={PROGRESS_STROKE}
+      color={tokens.accent}
+      trackColor={tokens.v2.surface2}
+    />
+  );
 
   const header = (
     <>
@@ -287,18 +299,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
       ) : (
         <View style={styles.spacer} />
       )}
-      {allDone ? (
-        <Icon name="CircleCheck" size={PROGRESS_SIZE} color={tokens.success} />
-      ) : (
-        <ProgressRing
-          value={completedCount}
-          max={totalCount}
-          size={PROGRESS_SIZE}
-          stroke={PROGRESS_STROKE}
-          color={tokens.accent}
-          trackColor={tokens.v2.surface2}
-        />
-      )}
+      {progress}
       {panel.pop ? (
         // At the row's end, in the timeline: its name opens above and leftwards.
         <TooltipSideContext.Provider value="auto">
@@ -327,6 +328,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
             <DisclosureHeader expanded={listExpanded} onToggle={() => setListExpanded((value) => !value)}
             tokens={tokens} compact={compact} verb="Tasks" target={`${completedCount}/${totalCount}`}
             icon={<RowIcon name="ListChecks" />} detailsTitle="Tasks" detailsSubtitle={[`${completedCount}/${totalCount}`]}
+            metaLead={progress}
             detailsIcon="ListChecks" previewKey={detailsKey} actionsActive={menuAnchor !== null}
             previewContent={() => <TaskListPreview data={data} tokens={tokens} compact={compact} />}
             copyItems={() => [{ id: "text", label: "Copy", icon: "Copy", text: taskListCopyText(data) }]} />
