@@ -81,13 +81,13 @@ export function TaskRenameDialog(props: {
       <Modal.Content scrollable={!mobile} contentContainerStyle={mobile ? { flex: 1, minHeight: 0, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap: 0 } : undefined}>
         <TasksTypography theme={props.theme}>
           <View style={mobile ? { flex: 1, minHeight: 0 } : { gap: 16 }} testID="task-rename-dialog">
-            <InputContainer {...(mobile ? { style: { flex: 1 }, contentContainerStyle: { padding: 16, gap: 16 }, keyboardShouldPersistTaps: "handled" as const } : { style: { gap: 16 } })}>
+            <InputContainer {...(mobile ? { style: { flex: 1 }, contentContainerStyle: { flexGrow: 1, padding: 16, gap: 16 }, keyboardShouldPersistTaps: "handled" as const } : { style: { gap: 16 } })}>
               <TextInput
               testID="task-rename-input"
               accessibilityLabel={props.strings.titleLabel}
               value={title}
               multiline
-              scrollEnabled={false}
+              scrollEnabled={mobile}
               onContentSizeChange={Platform.OS === "web" ? (event) => setContentHeight(event.nativeEvent.contentSize.height) : undefined}
               onChangeText={(value) => { setTitle(value); setError(null); }}
               editable={!props.blockedReason && !pending && !generating}
@@ -96,7 +96,7 @@ export function TaskRenameDialog(props: {
               returnKeyType="done"
               submitBehavior="submit"
               onSubmitEditing={() => void save()}
-              style={{ width: "100%", minHeight: taskControlHeight(44, scale), height: Platform.OS === "web" ? Math.max(taskControlHeight(44, scale), contentHeight) : undefined, textAlignVertical: "center", lineHeight: inputLineHeight, includeFontPadding: false, paddingHorizontal: 12, paddingVertical: Math.max(10, (taskControlHeight(44, scale) - inputLineHeight - 2) / 2), borderWidth: 1, borderRadius: 8, borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface0, fontSize: Math.round(F.base * scale) }}
+              style={{ width: "100%", minHeight: taskControlHeight(44, scale), height: Platform.OS === "web" ? Math.max(taskControlHeight(44, scale), contentHeight) : undefined, ...(mobile ? { flex: 1, textAlignVertical: "top" as const } : { textAlignVertical: "center" as const }), lineHeight: inputLineHeight, includeFontPadding: false, paddingHorizontal: 12, paddingVertical: Math.max(10, (taskControlHeight(44, scale) - inputLineHeight - 2) / 2), borderWidth: 1, borderRadius: 8, borderColor: colors.border, color: colors.foreground, backgroundColor: colors.surface0, fontSize: Math.round(F.base * scale) }}
             />
               {error ? <Text accessibilityRole="alert" style={{ fontSize: F.sm, color: colors.statusDanger }}>{error}</Text> : null}
               {props.blockedReason || props.autoTitleBlockedReason ? <Text accessibilityRole="alert" testID="task-rename-unavailable" style={{ fontSize: F.sm, color: colors.statusWarning }}>{props.blockedReason ?? props.autoTitleBlockedReason}</Text> : null}

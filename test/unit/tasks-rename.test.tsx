@@ -81,6 +81,9 @@ describe("task title editor", () => {
     expect(actions.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["Cancel", "Save", "Generate title"]);
     const scroll = tree.root.findByType("ScrollView" as never);
     expect(scroll.props.keyboardShouldPersistTaps).toBe("handled");
+    expect(scroll.props.contentContainerStyle.flexGrow).toBe(1);
+    expect(input().props.style.flex).toBe(1);
+    expect(input().props.scrollEnabled).toBe(true);
     expect(scroll.findAll((node) => node === actions)).toHaveLength(0);
     expect(save().props.style.flex).toBe(1);
     expect(save().props.style.borderRadius).toBe(22);
@@ -221,9 +224,9 @@ describe("task title editor", () => {
     await renderDialog({ title });
     expect(input().props.value).toBe(title);
     expect(input().props.multiline).toBe(true);
-    expect(input().props.scrollEnabled).toBe(false);
+    expect(input().props.scrollEnabled).toBe(platform !== "web");
     expect(input().props.style.width).toBe("100%");
-    expect(input().props.style.textAlignVertical).toBe("center");
+    expect(input().props.style.textAlignVertical).toBe(platform === "web" ? "center" : "top");
     expect(input().props.style.includeFontPadding).toBe(false);
     expect(input().props.style.lineHeight + input().props.style.paddingVertical * 2 + input().props.style.borderWidth * 2).toBe(input().props.style.minHeight);
     if (platform !== "web") {
