@@ -69,6 +69,9 @@ describe("filter sheet reset", () => {
     });
     const button = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-settings");
     expect(button.props.accessibilityLabel).toBe(BOARD_STRINGS.en.openSettings);
+    const footer = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "filter-sheet-footer");
+    expect(footer.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.testID)).toEqual(["filter-sheet-reset", undefined, "filter-sheet-settings"]);
+    expect(button.findAll((node) => (node.type as unknown) === "Text").map((node) => node.children.join(""))).toContain("Settings");
     act(() => button.props.onPress());
     expect(calls).toEqual(["close", "settings"]);
   });
@@ -100,6 +103,9 @@ describe("filter sheet groups", () => {
     const find = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
     for (const group of ["range", "sort-group", "workspaces"]) {
       const toggle = find(`filter-sheet-${group}-toggle`);
+      expect(toggle.props.accessibilityState.expanded).toBe(false);
+      act(() => toggle.props.onPress());
+      expect(toggle.props.accessibilityState.expanded).toBe(true);
       act(() => toggle.props.onPress());
       expect(toggle.props.accessibilityState.expanded).toBe(false);
     }
@@ -124,6 +130,8 @@ describe("filter sheet groups", () => {
     const toggle = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
     const choices = () => renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
     expect(choices()).toHaveLength(2);
+    act(() => toggle("filter-sheet-agents-toggle").props.onPress());
+    act(() => toggle("filter-sheet-labels-toggle").props.onPress());
     act(() => toggle("filter-sheet-agents-toggle").props.onPress());
     expect(toggle("filter-sheet-agents-toggle").props.accessibilityState.expanded).toBe(false);
     expect(toggle("filter-sheet-labels-toggle").props.accessibilityState.expanded).toBe(true);
@@ -159,6 +167,7 @@ describe("filter sheet group folding cost", () => {
     expect(before).toBeGreaterThan(0);
 
     act(() => (find((props) => props.testID === "filter-sheet-agents-toggle").props.onPress as () => void)());
+    act(() => (find((props) => props.testID === "filter-sheet-agents-toggle").props.onPress as () => void)());
     expect(find((props) => props.testID === "filter-sheet-agents-toggle").props.accessibilityState).toEqual({ expanded: false });
     // While the group folds, the block above the workspaces reports a new height on every frame.
     const top = find((props) => typeof props.onLayout === "function" && (props.style as { paddingHorizontal?: number } | undefined)?.paddingHorizontal === 16);
@@ -166,6 +175,7 @@ describe("filter sheet group folding cost", () => {
     expect(sheetRenders.count).toBe(before);
 
     // The search still scrolls to where the workspaces start now.
+    act(() => (find((props) => props.testID === "filter-sheet-workspaces-toggle").props.onPress as () => void)());
     const field = find((props) => props.accessibilityLabel === BOARD_STRINGS.en.sheetSearch);
     act(() => (field.props.onFocus as () => void)());
     act(() => {

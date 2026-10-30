@@ -26,8 +26,7 @@ import { tasksSettingsOpener } from "./enabled";
  * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
  * sheet as a bounded body (`Modal.Content scrollable={false}`): the options
  * scroll, Reset and "Show N tasks" stay pinned under them. The short
- * filters come first; the workspaces, often dozens, come last, under a
- * search field. With `board.showEmptyGroups` off, only the options with an
+ * filters follow the desktop order; workspaces sit under a search field. With `board.showEmptyGroups` off, only the options with an
  * active task or picked are listed.
  */
 export function FilterSheetBody(props: {
@@ -64,7 +63,7 @@ export function FilterSheetBody(props: {
   useRequestProjectIcons(iconlessProjects(shown.workspaceGroups), board.tasks.requestProjectIcon);
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
-  const [workspacesOpen, setWorkspacesOpen] = useState(true);
+  const [workspacesOpen, setWorkspacesOpen] = useState(false);
   const scrollRef = useRef<NativeScrollView>(null);
   // Where the workspaces start in the scroll: read only when the search field
   // takes focus. A ref, not state: it changes on every frame while a group
@@ -78,7 +77,7 @@ export function FilterSheetBody(props: {
   const holdTop = searching || query.trim() !== "";
   const sort = (
     <View testID="filter-sheet-sort">
-      <CollapsibleGroup title={strings.sort} icon="ArrowDownWideNarrow" theme={theme} testID="filter-sheet-sort-group" first={sortFirst}>
+      <CollapsibleGroup title={strings.sort} icon="ArrowDownWideNarrow" theme={theme} testID="filter-sheet-sort-group" first={sortFirst} initiallyOpen={sortFirst}>
         <SortDrillDown board={board} theme={theme} />
       </CollapsibleGroup>
     </View>
@@ -90,7 +89,7 @@ export function FilterSheetBody(props: {
         {...detailScrollProps("inset")}
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
-        stickyHeaderIndices={[1]}
+        stickyHeaderIndices={[1, 3]}
         onLayout={(event: LayoutChangeEvent) => setViewport(event.nativeEvent.layout.height)}
         testID="filter-sheet-scroll"
       >
@@ -145,40 +144,6 @@ export function FilterSheetBody(props: {
               ))}
             </ChipWrap>
           </CollapsibleGroup>
-          <CollapsibleGroup title={strings.labels} icon="Tag" theme={theme} testID="filter-sheet-labels">
-            {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-            <ChipWrap>
-              {shown.labels.map((label) => (
-                <Chip
-                  key={label.id}
-                  option={label}
-                  theme={theme}
-                  pill={props.phone}
-                  leading={<TagMark size={14} color={label.color ?? colors.foregroundMuted} hole={label.on ? taskTokens(theme).accentSoft : colors.surface0} />}
-                  onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
-                />
-              ))}
-            </ChipWrap>
-          </CollapsibleGroup>
-          <CollapsibleGroup title={strings.doneRange} icon="Clock" theme={theme} testID="filter-sheet-range">
-            <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
-          </CollapsibleGroup>
-          {props.laneWidth ? (
-            <>
-              <SectionTitle text={strings.laneWidth.title} icon="Columns3" theme={theme} />
-              <Segments
-                items={LANE_WIDTHS}
-                label={(width) => strings.laneWidth.names[width]}
-                value={props.laneWidth.value}
-                onChange={props.laneWidth.onChange}
-                theme={theme}
-                large
-                stretch
-                testID="filter-sheet-lane-width"
-              />
-            </>
-          ) : null}
-          {sortFirst ? null : sort}
         </View>
         <View testID="filter-sheet-workspace-header" style={{ paddingHorizontal: 16, backgroundColor: colors.surface0 }}>
           <CollapsibleTitle text={strings.workspace} icon="FolderGit2" theme={theme} open={workspacesOpen} onPress={() => { setSearching(false); setWorkspacesOpen((value) => !value); }} testID="filter-sheet-workspaces-toggle" />
@@ -199,9 +164,9 @@ export function FilterSheetBody(props: {
             />
           ) : null}
         </View>
-        {workspacesOpen ? <View testID="filter-sheet-workspaces" style={{ paddingHorizontal: 16, paddingBottom: 8, ...(holdTop && viewport > 0 ? { minHeight: viewport } : null) }}>
-          {shown.workspaceGroups.length > 0 && groups.length === 0 ? <Muted text={strings.menuSearch.empty} theme={theme} /> : null}
-          {groups.map((group, index) => (
+        <View testID="filter-sheet-workspaces" style={{ paddingHorizontal: 16, paddingBottom: 8, ...(workspacesOpen && holdTop && viewport > 0 ? { minHeight: viewport } : null) }}>
+          {workspacesOpen && shown.workspaceGroups.length > 0 && groups.length === 0 ? <Muted text={strings.menuSearch.empty} theme={theme} /> : null}
+          {workspacesOpen ? groups.map((group, index) => (
             <View key={group.projectId || "missing"}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingTop: index === 0 ? 0 : 10, paddingBottom: 6 }}>
                 {group.projectId ? <ProjectIcon location={group} size={16} hostId={board.hostId} /> : null}
@@ -218,21 +183,48 @@ export function FilterSheetBody(props: {
                 ))}
               </ChipWrap>
             </View>
-          ))}
-        </View> : null}
+          )) : null}
+        </View>
+        {/* End the workspace sticky header before the following groups. */}
+        <View />
+        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+          <CollapsibleGroup title={strings.labels} icon="Tag" theme={theme} testID="filter-sheet-labels">
+            {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+            <ChipWrap>
+              {shown.labels.map((label) => (
+                <Chip
+                  key={label.id}
+                  option={label}
+                  theme={theme}
+                  pill={props.phone}
+                  leading={<TagMark size={14} color={label.color ?? colors.foregroundMuted} hole={label.on ? taskTokens(theme).accentSoft : colors.surface0} />}
+                  onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
+                />
+              ))}
+            </ChipWrap>
+          </CollapsibleGroup>
+          {props.laneWidth ? (
+            <>
+              <SectionTitle text={strings.laneWidth.title} icon="Columns3" theme={theme} />
+              <Segments
+                items={LANE_WIDTHS}
+                label={(width) => strings.laneWidth.names[width]}
+                value={props.laneWidth.value}
+                onChange={props.laneWidth.onChange}
+                theme={theme}
+                large
+                stretch
+                testID="filter-sheet-lane-width"
+              />
+            </>
+          ) : null}
+          <CollapsibleGroup title={strings.doneRange} icon="Clock" theme={theme} testID="filter-sheet-range">
+            <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
+          </CollapsibleGroup>
+          {sortFirst ? null : sort}
+        </View>
       </ScrollView>
       <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: 16, flexDirection: "row", gap: 10, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
-        {openSettings ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={strings.openSettings}
-            onPress={() => { props.onDone(); openSettings(); }}
-            testID="filter-sheet-settings"
-            style={{ width: 44, height: 44, borderRadius: 22, borderWidth: HAIRLINE, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
-          >
-            <Icon name="Bolt" size={18} color={colors.foreground} />
-          </Pressable>
-        ) : null}
         <Pressable
           accessibilityRole="button"
           onPress={() => setParams(clearedParams)}
@@ -248,6 +240,17 @@ export function FilterSheetBody(props: {
         >
           <Text style={{ fontSize: F.base, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{strings.show(board.total)}</Text>
         </Pressable>
+        {openSettings ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={strings.openSettings}
+            onPress={() => { props.onDone(); openSettings(); }}
+            testID="filter-sheet-settings"
+            style={{ height: 44, paddingHorizontal: 18, borderRadius: 22, borderWidth: HAIRLINE, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
+          >
+            <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.settings}</Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );
@@ -307,8 +310,8 @@ function SectionTitle({ text, icon, theme }: { text: string; icon: string; theme
  * the group alone: the sheet's other rows, often dozens of workspaces, stay
  * as they are.
  */
-function CollapsibleGroup({ title, icon, theme, testID, first, children }: { title: string; icon: string; theme: PluginTheme; testID: string; first?: boolean; children: ReactNode }) {
-  const [open, setOpen] = useState(true);
+function CollapsibleGroup({ title, icon, theme, testID, first, initiallyOpen = false, children }: { title: string; icon: string; theme: PluginTheme; testID: string; first?: boolean; initiallyOpen?: boolean; children: ReactNode }) {
+  const [open, setOpen] = useState(initiallyOpen);
   return (
     <>
       <CollapsibleTitle text={title} icon={icon} theme={theme} open={open} onPress={() => setOpen((value) => !value)} testID={`${testID}-toggle`} first={first} />

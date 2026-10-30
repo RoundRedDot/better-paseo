@@ -3201,6 +3201,7 @@ describe("Tasks board, tablet filters", () => {
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     const sheet = hostsById("filter-sheet-scroll")[0]!;
+    act(() => hostsById("filter-sheet-workspaces-toggle")[0]!.props.onPress());
     const pick = (value: string) => sheet.find((n) => (n.type as unknown) === "Pressable" && n.props.accessibilityRole === "checkbox" && textOf(n).startsWith(value));
     act(() => pick("Codex").props.onPress());
     act(() => pick("frontend").props.onPress());
@@ -4086,7 +4087,7 @@ describe("Tasks board, phone", () => {
     act(() => renderer!.root.find((node) => (node.type as unknown) === "Modal").props.onOpenChange?.(false));
     act(() => pressable("Filters").props.onPress());
     expect(order().switches).toBeLessThan(order().sort);
-    expect(order().sort).toBeLessThan(order().workspace);
+    expect(order().workspace).toBeLessThan(order().sort);
   });
 
   it("draws the filter sheet's on/off filters as switches, not ticks", () => {
@@ -4103,7 +4104,7 @@ describe("Tasks board, phone", () => {
     expect(switches().flatMap((node) => node.findAll((child) => (child.type as unknown) === "Icon" && child.props.name === "Check"))).toHaveLength(0);
   });
 
-  it("leads the filter sheet with the short filters, the workspaces last, Reset by its button", () => {
+  it("orders filter groups like the desktop bar and keeps Reset in the footer", () => {
     act(() => {
       renderer = TestRenderer.create(screen(true));
     });
@@ -4112,9 +4113,11 @@ describe("Tasks board, phone", () => {
     const text = textOf(scroll);
     const at = (label: string) => text.indexOf(label);
     expect(at(BOARD_STRINGS.en.emptyGroups.row)).toBe(0);
-    expect(at("Agent")).toBeLessThan(at("Labels"));
-    expect(at("Labels")).toBeLessThan(at("Sort"));
-    expect(at("Sort")).toBeLessThan(at("Workspace"));
+    expect(at("Agent")).toBeLessThan(at("Workspace"));
+    expect(at("Workspace")).toBeLessThan(at("Labels"));
+    expect(at("Labels")).toBeLessThan(at("Time range"));
+    expect(at("Time range")).toBeLessThan(at("Sort"));
+    for (const id of ["agents", "workspaces", "labels", "range", "sort-group"]) expect(hostsById(`filter-sheet-${id}-toggle`)[0]!.props.accessibilityState.expanded).toBe(false);
     // Reset sits by the sheet's button, not on a row of its own over the options.
     expect(scroll.findAll((node) => (node.type as unknown) === "Pressable" && textOf(node) === "Reset")).toHaveLength(0);
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-sheet-reset")).toHaveLength(1);
@@ -4134,7 +4137,8 @@ describe("Tasks board, phone", () => {
       const chips = () => workspaces().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox").map(textOf);
       const header = () => sheet().find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-workspace-header");
       const field = () => header().find((node) => (node.type as unknown) === "TextInput");
-      expect(sheet().props.stickyHeaderIndices).toEqual([1]);
+      expect(sheet().props.stickyHeaderIndices).toEqual([1, 3]);
+      act(() => hostsById("filter-sheet-workspaces-toggle")[0]!.props.onPress());
       expect(field().props.placeholder).toBe("Search projects and workspaces");
       expect(chips().map((chip) => chip.replace(/\d+$/, ""))).toEqual(["tasks-board", "idle-branch"]);
       // A project's name keeps its whole group; every word must match.
@@ -4181,6 +4185,7 @@ describe("Tasks board, phone", () => {
       const sheet = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
       expect(sheet().findAll((node) => node === button())).toHaveLength(1);
       const chips = () => sheet().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox").map(textOf);
+      act(() => hostsById("filter-sheet-workspaces-toggle")[0]!.props.onPress());
       expect(chips()).toEqual(expect.arrayContaining(["idle-branch0", "Pi", "unused0"]));
       await act(async () => button().props.onPress());
       expect(host.save).not.toHaveBeenCalled();

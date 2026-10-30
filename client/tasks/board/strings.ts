@@ -179,6 +179,7 @@ const en = {
   boardOff: "The Tasks board is off",
   boardOffHint: "Turn it on under Tasks board in Better Paseo's settings to see your tasks by status here",
   openSettings: "Open settings",
+  settings: "Settings",
   answerFailed: (message: string) => `Could not answer: ${message}`,
   sidebar: {
     key: "Sidebar",
@@ -359,6 +360,7 @@ const zh: typeof en = {
   boardOff: "任务看板未启用",
   boardOffHint: "在 Better Paseo 设置的「任务看板」中开启后，这里会按状态显示你的任务",
   openSettings: "打开设置",
+  settings: "设置",
   answerFailed: (message) => `回答失败：${message}`,
   sidebar: {
     key: "侧边栏",
