@@ -84,9 +84,16 @@ export interface TasksSnapshot {
   error: string | null;
 }
 
+/** How a refresh ended: every list read again, one failing, or the board closed or another read took over. */
+export type TasksRefreshResult = "done" | "failed" | "superseded";
+
 export interface TasksHandle extends TasksSnapshot {
-  /** Reopen the board's subscriptions and read fresh snapshots. */
-  refresh(): void;
+  /**
+   * Read the board's lists again (`TaskStore.refresh`): the cards stay and
+   * change in place, the done pages already loaded are read again, and the
+   * old lists stay live until the new ones land.
+   */
+  refresh(): Promise<TasksRefreshResult>;
   /** Fetch the done lane's next page (50), which the archived lane shares. */
   loadMoreDone(): void;
   /** Resolve a parent that is not on the board (archived, or an old done task): `agents.ref(id).refresh()`. */
@@ -186,6 +193,9 @@ const ATTENTION_KEY = "active-attention";
 const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true };
 const DONE_SUBSCRIPTION = "done-first";
 const PAGE_SIZE = 50;
+const DONE_SORT: PaseoAgentListOptions["sort"] = [{ key: "updated_at", direction: "desc" }];
+/** A refresh still waiting this long (a dropped connection holds a list's ready) ends as failed, so it can be asked again. */
+const REFRESH_TIMEOUT_MS = 30_000;
 /**
  * A label color name as Paseo draws its label dots, in either theme: the
  * light set its identity colors keep for dark surfaces, which Paseo's label
@@ -769,7 +779,16 @@ interface Run {
   generation: number;
   tier: "base" | "attention" | "board" | "done";
   tierRun: number;
+  /** A refresh's request: cancelled with it, so an answer after a timeout or a close applies nothing. */
+  refresh?: RefreshToken;
 }
+
+interface RefreshToken {
+  cancelled: boolean;
+}
+
+/** How a list's open ended: applied, failed, or overtaken by a close or a newer open of its tier. */
+type Landing = "landed" | "failed" | "stale";
 
 /** Everything a board subscribes to; a warm hold asks for the same, so a board opened meanwhile sends nothing. */
 const BOARD_DEMAND: TasksDemand = { board: true, done: true };
@@ -790,6 +809,7 @@ interface TaskStore {
   dropHolds(): void;
   getSnapshot(options: TasksOptions): TasksHandle;
   getCounts(scope?: CountScope): SidebarCounts;
+  refresh(): Promise<TasksRefreshResult>;
   setArchivedLane(on: boolean): void;
   loadMoreDone(window: DoneWindow): void;
   resolveParent(id: string): void;
@@ -855,6 +875,10 @@ function createStore(api: PaseoApi): TaskStore {
   /** Failed parents asked for by id, once per version of the list. */
   const subagentParentsAsked = new Set<string>();
   const subscriptions = new Map<string, StoreSubscription>();
+  /** A refresh's lists, by key, until they land and take the place of `subscriptions`' (`observeOwned`). */
+  const replacements = new Map<string, StoreSubscription>();
+  /** The refresh in flight, which a second ask joins, and how to end it. */
+  let refreshing: { promise: Promise<TasksRefreshResult>; token: RefreshToken; end(result: TasksRefreshResult): void } | null = null;
   const projectUnsubscribes: Array<() => void> = [];
   /** The providers enabled in Paseo, by id, with their names: the Agent filter lists them all, cards or not. */
   const enabledProviders = new Map<string, string>();
@@ -864,6 +888,7 @@ function createStore(api: PaseoApi): TaskStore {
   let boardConsumers = 0;
   let doneConsumers = 0;
   let generation = 0;
+  let baseRun = 0;
   let attentionRun = 0;
   let boardRun = 0;
   let doneRun = 0;
@@ -876,6 +901,8 @@ function createStore(api: PaseoApi): TaskStore {
   let countsDirty = true;
   let countsScope: CountScope | undefined;
   let loadingDone = false;
+  /** The done run a refresh is reading again; no next page is fetched while it is the current one. */
+  let doneRefreshRun = -1;
   let doneReady = false;
   /**
    * The archived lane is asked for: the done list includes archived agents,
@@ -1264,7 +1291,8 @@ function createStore(api: PaseoApi): TaskStore {
     return result.entries.filter(({ agent }) => !isArchived(agent) || keepsArchived(agent));
   }
 
-  function replaceAgentSnapshot(sourceKey: string, snapshot: PaseoAgentListResult) {
+  /** `keepPages`: a refresh's first page, whose later pages are read again (`rereadDonePages`) instead of dropped. */
+  function replaceAgentSnapshot(sourceKey: string, snapshot: PaseoAgentListResult, keepPages = false) {
     batchUpdates(() => {
       const nextMembers = new Set<string>();
       for (const entry of matchingEntries(snapshot)) {
@@ -1272,19 +1300,66 @@ function createStore(api: PaseoApi): TaskStore {
         updateRecord(entry.agent, entry.project ?? null);
       }
       sourceMembers.set(sourceKey, nextMembers);
+      const pagesKept = keepPages && [...sourceMembers.keys()].some((key) => key.startsWith("done-page-"));
       // The done lane starts over from its first page, as `doneCursor` below
       // does: a page read once hears of no archive made while disconnected.
-      if (sourceKey === DONE_SUBSCRIPTION) for (const key of [...sourceMembers.keys()]) if (key.startsWith("done-page-")) sourceMembers.delete(key);
+      if (sourceKey === DONE_SUBSCRIPTION && !pagesKept) for (const key of [...sourceMembers.keys()]) if (key.startsWith("done-page-")) sourceMembers.delete(key);
       for (const id of [...entries.keys()]) if (!nextMembers.has(id) && memberSetsContaining(id).length === 0) dropIfUnreferenced(id);
       if (sourceKey === STATUS_KEY) statusReady = true;
       if (sourceKey === ATTENTION_KEY) attentionReady = true;
       if (sourceKey === DONE_SUBSCRIPTION) {
-        doneCursor = snapshot.pageInfo.nextCursor;
-        doneTailAt = snapshot.entries.at(-1)?.agent.updatedAt ?? null;
+        if (!pagesKept) {
+          doneCursor = snapshot.pageInfo.nextCursor;
+          doneTailAt = snapshot.entries.at(-1)?.agent.updatedAt ?? null;
+        }
         doneListLanded();
       }
       notify();
     });
+  }
+
+  /**
+   * A refresh reads the done pages the lane had loaded again, from the new
+   * first page's cursor (a keyset, so the pages do not shift), and swaps them
+   * in at once: the lane neither shrinks while they load nor keeps an agent
+   * archived or deleted since. A failed read keeps the old pages.
+   */
+  async function rereadDonePages(run: Run, first: PaseoAgentListResult, pages: number): Promise<Landing> {
+    const read: Array<{ key: string; result: PaseoAgentListResult }> = [];
+    let cursor = first.pageInfo.nextCursor;
+    try {
+      while (read.length < pages && cursor) {
+        const result = await api.agents.list({ filter: doneFilter(), sort: DONE_SORT, page: { limit: PAGE_SIZE, cursor } });
+        if (!isCurrent(run)) return "stale";
+        read.push({ key: `done-page-${cursor}`, result });
+        cursor = result.pageInfo.nextCursor;
+      }
+    } catch (caught) {
+      if (!isCurrent(run)) return "stale";
+      subscriptionError(caught);
+      return "failed";
+    }
+    batchUpdates(() => {
+      const before = new Set<string>();
+      for (const [key, members] of [...sourceMembers]) {
+        if (!key.startsWith("done-page-")) continue;
+        for (const id of members) before.add(id);
+        sourceMembers.delete(key);
+      }
+      for (const { key, result } of read) {
+        const members = new Set<string>();
+        for (const entry of matchingEntries(result)) {
+          members.add(entry.agent.id);
+          updateRecord(entry.agent, entry.project ?? null);
+        }
+        sourceMembers.set(key, members);
+      }
+      for (const id of before) dropIfUnreferenced(id);
+      doneCursor = cursor;
+      doneTailAt = read.length ? read.at(-1)!.result.entries.at(-1)?.agent.updatedAt ?? doneTailAt : first.entries.at(-1)?.agent.updatedAt ?? null;
+      notify();
+    });
+    return "landed";
   }
 
   function subscriptionError(caught: unknown) {
@@ -1293,28 +1368,42 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function isCurrent(run: Run): boolean {
-    if (run.generation !== generation || consumers === 0) return false;
+    if (run.generation !== generation || consumers === 0 || run.refresh?.cancelled) return false;
+    if (run.tier === "base") return run.tierRun === baseRun;
     if (run.tier === "attention") return attentionConsumers > 0 && run.tierRun === attentionRun;
     if (run.tier === "board") return boardConsumers > 0 && run.tierRun === boardRun;
     if (run.tier === "done") return doneConsumers > 0 && run.tierRun === doneRun;
     return true;
   }
 
+  /** Stop a refresh's list that will not land: failed, or overtaken. */
+  function dropReplacement(key: string, own: StoreSubscription) {
+    if (replacements.get(key) === own) replacements.delete(key);
+    own.stopObserver();
+    own.release();
+  }
+
+  /**
+   * `replace`: a refresh's list. The list under `key` stays live until this
+   * one is ready, then gives way to it; failing, this one goes and that stays.
+   */
   async function observeOwned<T extends { subscription?: OwnedSubscriptionLike }>(
     key: string,
     result: T,
     run: Run,
     initial: (snapshot: T) => void,
     update: (message: unknown) => void,
-  ) {
+    replace = false,
+  ): Promise<Landing> {
     const owned = result.subscription;
     if (!owned) {
-      if (isCurrent(run)) initial(result);
-      return;
+      if (!isCurrent(run)) return "stale";
+      initial(result);
+      return "landed";
     }
     if (!isCurrent(run)) {
       await owned.release();
-      return;
+      return "stale";
     }
     const pending: Array<{ kind: "snapshot"; value: T } | { kind: "update"; value: unknown }> = [];
     let initialApplied = false;
@@ -1330,21 +1419,38 @@ function createStore(api: PaseoApi): TaskStore {
       error: subscriptionError,
     };
     const stopObserver = owned.subscribe(observer);
-    subscriptions.set(key, { stopObserver, release: () => { void owned.release(); } });
+    const own: StoreSubscription = { stopObserver, release: () => { void owned.release(); } };
+    if (replace) {
+      const earlier = replacements.get(key);
+      if (earlier) dropReplacement(key, earlier);
+      replacements.set(key, own);
+    } else {
+      subscriptions.set(key, own);
+    }
     try {
       const ready = await owned.ready as T;
-      if (!isCurrent(run)) return;
+      if (!isCurrent(run)) {
+        if (replace) dropReplacement(key, own);
+        return "stale";
+      }
+      if (replace) {
+        replacements.delete(key);
+        stopSubscription(key);
+        subscriptions.set(key, own);
+      }
       initial(ready);
       initialApplied = true;
       for (const event of pending) {
         if (event.kind === "snapshot") initial(event.value);
         else update(event.value);
       }
+      return "landed";
     } catch (caught) {
-      if (isCurrent(run)) {
-        if (key === DONE_SUBSCRIPTION) doneListLanded();
-        subscriptionError(caught);
-      }
+      if (replace) dropReplacement(key, own);
+      if (!isCurrent(run)) return "stale";
+      if (key === DONE_SUBSCRIPTION) doneListLanded();
+      subscriptionError(caught);
+      return "failed";
     }
   }
 
@@ -1611,24 +1717,33 @@ function createStore(api: PaseoApi): TaskStore {
     return { filter, subscribe: {} };
   }
 
-  async function openAgentSubscription(key: string, options: PaseoAgentListOptions, run: Run) {
+  /** `refreshed`: a refresh's list (`observeOwned`'s `replace`), told of its first snapshot, which keeps the done pages. */
+  async function openAgentSubscription(key: string, options: PaseoAgentListOptions, run: Run, refreshed?: (snapshot: PaseoAgentListResult) => void): Promise<Landing> {
     try {
       const result = await api.agents.list(options);
       if (!isCurrent(run)) {
         await result.subscription?.release();
-        return;
+        return "stale";
       }
-      await observeOwned(key, result, run,
-        (snapshot) => replaceAgentSnapshot(key, snapshot as PaseoAgentListResult),
-        (message) => applyAgentUpdate(key, message as AgentUpdateEnvelope));
+      let first = refreshed !== undefined;
+      return await observeOwned(key, result, run,
+        (snapshot) => {
+          const list = snapshot as PaseoAgentListResult;
+          replaceAgentSnapshot(key, list, first);
+          if (!first) return;
+          first = false;
+          refreshed?.(list);
+        },
+        (message) => applyAgentUpdate(key, message as AgentUpdateEnvelope),
+        refreshed !== undefined);
     } catch (caught) {
-      if (isCurrent(run)) {
-        // A failed list must not hold the board on its skeleton.
-        if (key === STATUS_KEY) statusReady = true;
-        if (key === ATTENTION_KEY) attentionReady = true;
-        if (key === DONE_SUBSCRIPTION) doneListLanded();
-        subscriptionError(caught);
-      }
+      if (!isCurrent(run)) return "stale";
+      // A failed list must not hold the board on its skeleton.
+      if (key === STATUS_KEY) statusReady = true;
+      if (key === ATTENTION_KEY) attentionReady = true;
+      if (key === DONE_SUBSCRIPTION) doneListLanded();
+      subscriptionError(caught);
+      return "failed";
     }
   }
 
@@ -1656,14 +1771,14 @@ function createStore(api: PaseoApi): TaskStore {
    * attention list: an unread agent whose workspace was archived keeps its
    * attention for good, and only the workspace list tells it from a live one.
    */
-  async function startWorkspaceSubscription(run: Run) {
+  async function startWorkspaceSubscription(run: Run, replace = false): Promise<Landing> {
     try {
       const result = await api.workspaces.list({ subscribe: {} });
       if (!isCurrent(run)) {
         await result.subscription?.release();
-        return;
+        return "stale";
       }
-      await observeOwned("workspaces", result, run, (snapshot) => {
+      return await observeOwned("workspaces", result, run, (snapshot) => {
         batchUpdates(() => {
           workspacesReady = true;
           const workspaceSnapshot = snapshot as PaseoWorkspaceListResult;
@@ -1700,12 +1815,12 @@ function createStore(api: PaseoApi): TaskStore {
           }
           notify();
         }
-      });
+      }, replace);
     } catch (caught) {
-      if (isCurrent(run)) {
-        workspacesReady = true;
-        subscriptionError(caught);
-      }
+      if (!isCurrent(run)) return "stale";
+      workspacesReady = true;
+      subscriptionError(caught);
+      return "failed";
     }
   }
 
@@ -1888,7 +2003,7 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function startBase() {
-    const run: Run = { generation, tier: "base", tierRun: 0 };
+    const run: Run = { generation, tier: "base", tierRun: baseRun };
     statusReady = false;
     sourceMembers.set(STATUS_KEY, new Set());
     void openAgentSubscription(STATUS_KEY, activeOptions(STATUS_FILTER), run);
@@ -1966,14 +2081,13 @@ function createStore(api: PaseoApi): TaskStore {
     openDoneList();
   }
 
+  function doneListOptions(): PaseoAgentListOptions {
+    return { filter: doneFilter(), sort: DONE_SORT, page: { limit: PAGE_SIZE }, subscribe: {} };
+  }
+
   function openDoneList() {
     const run: Run = { generation, tier: "done", tierRun: ++doneRun };
-    void openAgentSubscription(DONE_SUBSCRIPTION, {
-      filter: doneFilter(),
-      sort: [{ key: "updated_at", direction: "desc" }],
-      page: { limit: PAGE_SIZE },
-      subscribe: {},
-    }, run);
+    void openAgentSubscription(DONE_SUBSCRIPTION, doneListOptions(), run);
   }
 
   function stopSubscription(key: string) {
@@ -2048,8 +2162,10 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function stopAll() {
+    cancelRefresh("superseded");
     generation += 1;
     for (const key of [...subscriptions.keys()]) stopSubscription(key);
+    for (const [key, own] of [...replacements]) dropReplacement(key, own);
     for (const unsubscribe of projectUnsubscribes.splice(0)) unsubscribe();
     for (const unsubscribe of providerUnsubscribes.splice(0)) unsubscribe();
     enabledProviders.clear();
@@ -2119,6 +2235,22 @@ function createStore(api: PaseoApi): TaskStore {
       .sort((a, b) => a.projectName.localeCompare(b.projectName) || a.name.localeCompare(b.name));
   }
 
+  /**
+   * One `loadMoreDone` per board's options, kept across snapshots: a lane
+   * compares it (`sameLaneBoard` in the desktop board), so a new one on every
+   * update drew each lane's rows again.
+   */
+  const loadMoreFns = new Map<string, () => void>();
+  function loadMoreFor(options: TasksOptions): () => void {
+    const key = `${options.includeDone ? "done" : "active"}:${options.doneWindow}`;
+    let load = loadMoreFns.get(key);
+    if (!load) {
+      load = () => { if (options.includeDone) loadMoreDone(options.doneWindow); };
+      loadMoreFns.set(key, load);
+    }
+    return load;
+  }
+
   function getSnapshot(options: TasksOptions): TasksHandle {
     const showArchived = options.includeDone && options.includeArchived === true && archivedAsked;
     const cacheKey = `${options.includeDone ? "done" : "active"}:${options.doneWindow}:${showArchived ? "archived" : ""}`;
@@ -2181,7 +2313,7 @@ function createStore(api: PaseoApi): TaskStore {
       ready: statusReady && attentionReady && workspacesReady,
       error,
       refresh,
-      loadMoreDone: () => { if (options.includeDone) loadMoreDone(options.doneWindow); },
+      loadMoreDone: loadMoreFor(options),
       resolveParent,
       refreshParent,
       refreshReads,
@@ -2229,7 +2361,7 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function loadMoreDone(window: DoneWindow) {
-    if (loadingDone || doneReloading || !doneCursor || doneConsumers === 0) return;
+    if (loadingDone || doneReloading || doneRefreshRun === doneRun || !doneCursor || doneConsumers === 0) return;
     const cutoff = doneWindowMs(window);
     const tailTime = doneTailAt ? Date.parse(doneTailAt) : Number.NaN;
     if (cutoff !== null && Number.isFinite(tailTime) && Date.now() - tailTime > cutoff) return;
@@ -2407,13 +2539,86 @@ function createStore(api: PaseoApi): TaskStore {
     };
   }
 
-  function refresh() {
-    if (consumers === 0) return;
-    stopAll();
-    startBase();
-    if (attentionConsumers > 0) startAttention();
-    if (boardConsumers > 0) startBoard();
-    if (doneConsumers > 0) startDone();
+  /**
+   * Read the board's agent and workspace lists again, as a reconnect would,
+   * without letting go of anything: each list stays live until its new one
+   * lands (`observeOwned`'s `replace`), the records and the newest update
+   * applied to each (`latestUpdates`) stay, so a stale snapshot is still
+   * caught, and the done pages are read again (`rereadDonePages`). A tier
+   * still loading its first list is left to it. Asked again meanwhile, the
+   * same refresh answers.
+   */
+  function refresh(): Promise<TasksRefreshResult> {
+    if (consumers === 0) return Promise.resolve("superseded");
+    if (refreshing) return refreshing.promise;
+    if (error !== null) {
+      error = null;
+      notify();
+    }
+    const token: RefreshToken = { cancelled: false };
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let resolve!: (result: TasksRefreshResult) => void;
+    const promise = new Promise<TasksRefreshResult>((settle) => { resolve = settle; });
+    const active = {
+      promise,
+      token,
+      end(result: TasksRefreshResult) {
+        if (refreshing !== active) return;
+        refreshing = null;
+        if (timer !== null) clearTimeout(timer);
+        resolve(result);
+      },
+    };
+    refreshing = active;
+    const landings: Array<Promise<Landing>> = [];
+    if (statusReady) {
+      const run: Run = { generation, tier: "base", tierRun: ++baseRun, refresh: token };
+      landings.push(openAgentSubscription(STATUS_KEY, activeOptions(STATUS_FILTER), run, () => {}));
+    }
+    if (attentionConsumers > 0 && attentionReady && workspacesReady) {
+      const run: Run = { generation, tier: "attention", tierRun: ++attentionRun, refresh: token };
+      landings.push(openAgentSubscription(ATTENTION_KEY, activeOptions(ATTENTION_FILTER), run, () => {}));
+      landings.push(startWorkspaceSubscription(run, true));
+    }
+    if (doneConsumers > 0 && doneReady && !doneReloading) {
+      const run: Run = { generation, tier: "done", tierRun: ++doneRun, refresh: token };
+      const pages = [...sourceMembers.keys()].filter((key) => key.startsWith("done-page-")).length;
+      // A page in flight belongs to the old run; the pages are read again below.
+      loadingDone = false;
+      doneRefreshRun = doneRun;
+      let first: PaseoAgentListResult | null = null;
+      landings.push(openAgentSubscription(DONE_SUBSCRIPTION, doneListOptions(), run, (list) => { first = list; })
+        .then((landing) => (landing === "landed" && first && pages > 0 ? rereadDonePages(run, first, pages) : landing))
+        .finally(() => {
+          if (doneRefreshRun === run.tierRun) doneRefreshRun = -1;
+        }));
+    }
+    scheduleSubagents(0);
+    timer = setTimeout(() => {
+      timer = null;
+      subscriptionError(new Error(resolveTasksLanguage() === "zh" ? "刷新任务超时" : "Refreshing tasks timed out"));
+      cancelRefresh("failed");
+    }, REFRESH_TIMEOUT_MS);
+    // A list that lands keeps its place; one that fails leaves the old list live.
+    void Promise.all(landings).then((results) => active.end(
+      results.includes("failed") ? "failed" : results.length > 0 && results.every((result) => result === "stale") ? "superseded" : "done",
+    ));
+    return promise;
+  }
+
+  /**
+   * End the refresh in flight now (timed out, or the board closed): its
+   * requests are cancelled (`Run.refresh`), so nothing they hear later is
+   * applied, its lists not yet landed are let go and the old ones stay, and
+   * the done lane may page again. The lists that have landed stay.
+   */
+  function cancelRefresh(result: TasksRefreshResult) {
+    const active = refreshing;
+    if (!active) return;
+    active.token.cancelled = true;
+    for (const [key, own] of [...replacements]) dropReplacement(key, own);
+    doneRefreshRun = -1;
+    active.end(result);
   }
 
   /**
@@ -2454,6 +2659,7 @@ function createStore(api: PaseoApi): TaskStore {
     },
     getSnapshot,
     getCounts,
+    refresh,
     setArchivedLane,
     loadMoreDone,
     resolveParent,

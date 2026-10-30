@@ -43,6 +43,45 @@ const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale))
 
 export type EmptyLanes = { collapsed: boolean; disabled: boolean; onToggle(): void };
 
+const TOTAL_GAP = 8;
+
+/**
+ * Beside the count: reads the board's lists again (`tasks.refresh`), the
+ * cards changing in place. The icon turns until the read ends, either way;
+ * a failure shows as the board's error toast.
+ */
+function RefreshTasksButton({ board, theme }: { board: BoardController; theme: PluginTheme }) {
+  const scale = useTasksFontScale();
+  const [busy, setBusy] = useState(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  const refresh = board.tasks.refresh;
+  const press = () => {
+    if (busy) return;
+    setBusy(true);
+    void Promise.resolve()
+      .then(refresh)
+      .catch(() => "failed")
+      .finally(() => { if (mounted.current) setBusy(false); });
+  };
+  return (
+    <RoundButton
+      icon="RefreshCw"
+      label={board.strings.refreshTasks}
+      theme={theme}
+      onPress={press}
+      spinning={busy}
+      size={roundButtonSize(scale)}
+      iconSize={roundIconSize(scale)}
+      tip={board.strings.refreshTasks}
+      testID="toolbar-refresh"
+    />
+  );
+}
+
 /** The narrowest board whose toolbar shows the key hints beside the count and the search. */
 export const KEY_HINTS_MIN_WIDTH = 1200;
 
@@ -169,8 +208,13 @@ function DesktopToolbarView(props: {
         </View>
       ) : null}
       </View>
-      <View testID="desktop-toolbar-total" pointerEvents="none" style={{ flexShrink: 0, alignItems: "center" }}>
-        <RollingTotal board={board} style={{ fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />
+      <View testID="desktop-toolbar-total" pointerEvents="box-none" style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOTAL_GAP }}>
+        {/* The refresh button's width on the other side, so the count stays centred. */}
+        <View testID="desktop-toolbar-total-balance" pointerEvents="none" style={{ width: roundButtonSize(scale) }} />
+        <View pointerEvents="none">
+          <RollingTotal board={board} style={{ fontSize: F.base, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }} />
+        </View>
+        <RefreshTasksButton board={board} theme={theme} />
       </View>
       <View testID="desktop-toolbar-end" onLayout={(event) => setActionWidth(event.nativeEvent.layout.width)} style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: TOOLBAR_GAP }}>
       {compactActions ? (

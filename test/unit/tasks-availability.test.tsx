@@ -20,7 +20,7 @@ function fixture() {
     lanes: Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: cards.filter((card) => card.lane === id), hasMore: false, loading: false }])) as Record<(typeof LANE_ORDER)[number], LaneModel>,
     byId: new Map(cards.map((card) => [card.id, card])), counts: { needsInput: 0, running: 0, review: 0, done: 0, archived: 0 },
     workspaces: [], providers: [], labels: [], ready: true, error: null,
-    refresh() {}, loadMoreDone() {}, resolveParent() {}, refreshParent: async () => false, refreshReads() {}, requestProjectIcon() {},
+    refresh: async () => "done" as const, loadMoreDone() {}, resolveParent() {}, refreshParent: async () => false, refreshReads() {}, requestProjectIcon() {},
   } satisfies TasksHandle;
 }
 

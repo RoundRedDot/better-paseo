@@ -235,6 +235,10 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const labelSubs = new Set<PlainSubscription>();
   const projectSubs = new Set<(update: unknown) => void>();
   let nextId = 1;
+  /** Holds the ready of subscriptions opened while it is set (`holdReady`); their snapshot is still taken when asked. */
+  let readyGate: Promise<void> | null = null;
+  /** `agents.list` calls to reject, first match first (`failNextAgentList`). */
+  const listFailures: Array<{ match: (options: PaseoAgentListOptions) => boolean; message: string }> = [];
 
   const placementOf = (agent: Agent) => placements.get(agent.id) ?? makePlacement(agent);
 
@@ -256,7 +260,10 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       get subscriptionId() {
         return sub.released ? null : sub.id;
       },
-      ready: options.stalled ? new Promise<never>(() => {}) : Promise.resolve({ ...snapshot(), subscriptionId: sub.id }),
+      ready: options.stalled ? new Promise<never>(() => {}) : (() => {
+        const value = { ...snapshot(), subscriptionId: sub.id };
+        return (readyGate ?? Promise.resolve()).then(() => value);
+      })(),
       subscribe(observer: Observer) {
         sub.observers.add(observer);
         return () => sub.observers.delete(observer);
@@ -288,6 +295,8 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const agentActions = {
     async list(listOptions: PaseoAgentListOptions = {}) {
       calls.push({ method: "agents.list", input: listOptions });
+      const failure = listFailures.findIndex((entry) => entry.match(listOptions));
+      if (failure >= 0) throw new Error(listFailures.splice(failure, 1)[0]!.message);
       const result = { requestId: `req-${nextId++}`, ...page(listOptions) };
       if (!listOptions.subscribe) return result;
       const sub: AgentSubscription = {
@@ -437,6 +446,24 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     /** Drop an agent without telling any subscription, as a delete made by another client looks to this one. */
     forgetAgent(agentId: string) {
       agents.delete(agentId);
+    },
+    /** Hold the ready of every subscription opened from now on until the returned function runs, as a slow daemon answers. */
+    holdReady(): () => void {
+      let open!: () => void;
+      const gate = new Promise<void>((resolve) => { open = resolve; });
+      readyGate = gate;
+      return () => {
+        if (readyGate === gate) readyGate = null;
+        open();
+      };
+    },
+    /** Open subscriptions without the hold again; those opened under it stay held until its release. */
+    stopHolding() {
+      readyGate = null;
+    },
+    /** Reject the next `agents.list` whose options match. */
+    failNextAgentList(match: (options: PaseoAgentListOptions) => boolean = () => true, message = "agents.list failed") {
+      listFailures.push({ match, message });
     },
     /** Push an agent's updates without changing the table, as a daemon sends a snapshot it took earlier. */
     pushAgentSnapshot(agent: Agent) {

@@ -55,6 +55,8 @@ const host = vi.hoisted(() => ({
   reload: vi.fn(async () => {}),
   /** Rows a lane's list drew, counted by the FlatList mock. */
   rowRenders: 0,
+  /** A fake daemon's API: the board then reads the real store (`useTasks`) instead of the samples. */
+  liveTasks: null as unknown,
 }));
 // The details read a card's first prompt from its timeline: one stable client whose timelines are empty.
 const paseo = vi.hoisted(() => ({
@@ -100,7 +102,8 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
   return {
     ...actual,
     __handle: handle,
-    useTasks: () => handle,
+    // A test that sets `host.liveTasks` draws the board from the real store over that fake daemon.
+    useTasks: (_paseo: unknown, options: Parameters<typeof actual.useTasks>[1]) => (host.liveTasks ? actual.useTasks(host.liveTasks as never, options) : handle),
     useTaskCounts: (_paseo: unknown, _review: boolean, scope?: unknown) => {
       host.countScope = scope ?? null;
       return { ...(host.counts ?? handle.counts), ready: true };
@@ -130,6 +133,7 @@ import { BrandMark, DetailActionBar, PiMark, TagMark, TaskCardView, TaskDetailCa
 import { deviceTasksStore } from "../../client/tasks/device-preferences";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled, setTasksSettingsOpener } from "../../client/tasks/board/enabled";
+import { createFakePaseo, makeAgent } from "./helpers/fake-paseo";
 import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderForTests, triggerHostAppearanceCheck } from "../../client/ui/tokens/host-appearance-shim";
 
 // These tests draw the board on and the archived lane off unless they turn it on
@@ -323,6 +327,7 @@ beforeEach(() => {
   host.counts = null;
   host.canStop = false;
   host.rowRenders = 0;
+  host.liveTasks = null;
   resetBoardSessions();
   resetSidebarPreference();
   vi.useFakeTimers();
@@ -2821,7 +2826,7 @@ describe("Tasks board, archived lane switch", () => {
     expect(hostsById("lane-archived")).toHaveLength(0);
     // Full-text search sits beside the input; board visibility controls retain their order.
     const toolbar = renderer!.root.findByType(DesktopToolbar);
-    expect(toolbar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(["search-full-conversation-toggle", "empty-groups-toggle", "sidebar-switch"]);
+    expect(toolbar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(["search-full-conversation-toggle", "toolbar-refresh", "empty-groups-toggle", "sidebar-switch"]);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");
     expect(end.findAll((node) => (node.type as unknown) === "Pressable" && /-toggle$/.test(node.props.testID ?? "")).map((node) => node.props.testID)).toEqual(["empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle"]);
     expect(hostsById("toolbar-archived")).toHaveLength(0);
@@ -2850,6 +2855,177 @@ describe("Tasks board, archived lane switch", () => {
     expect(hostsById("lane-archived")).toHaveLength(0);
     expect(host.reload).not.toHaveBeenCalled();
     expect(host.toast).toHaveBeenCalledWith("Couldn't save the archived lane setting");
+  });
+});
+
+describe("Tasks board, desktop refresh button", () => {
+  const handle = () => (data as unknown as { __handle: { refresh: ReturnType<typeof vi.fn> } }).__handle;
+  const refreshButton = () => hostsById("toolbar-refresh")[0]!;
+  beforeEach(() => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  });
+
+  it.each(["en", "zh"] as const)("sits right of the centred count, balanced on its left, with a %s hover tip", (language) => {
+    updateEnhancerPreferences({ language });
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    const middle = hostsById("desktop-toolbar-total")[0]!;
+    const slots = middle.children.filter((child): child is ReactTestInstance => typeof child !== "string");
+    expect(slots).toHaveLength(3);
+    expect(slots[0]!.props.testID).toBe("desktop-toolbar-total-balance");
+    expect(textOf(slots[1]!)).toContain(BOARD_STRINGS[language].totalUnit(6).trim());
+    expect(slots[2]!.findAll((node) => node.props.testID === "toolbar-refresh").length).toBeGreaterThan(0);
+    // The balance is as wide as the button, so the count is the middle of the slot.
+    expect(StyleSheet.flatten(slots[0]!.props.style).width).toBe(StyleSheet.flatten(refreshButton().props.style).width);
+    expect(middle.props.pointerEvents).toBe("box-none");
+    expect(slots[1]!.props.pointerEvents).toBe("none");
+    expect(refreshButton().props.dataSet.bctip).toBe(BOARD_STRINGS[language].refreshTasks);
+    expect(refreshButton().props.accessibilityLabel).toBe(BOARD_STRINGS[language].refreshTasks);
+  });
+
+  it.each(["done", "failed", "rejected"] as const)("turns while the refresh runs and rests once it ends (%s), without redrawing a row", async (outcome) => {
+    let finish!: () => void;
+    handle().refresh.mockImplementation(() => new Promise((resolve, reject) => {
+      finish = () => (outcome === "rejected" ? reject(new Error("gone")) : resolve(outcome));
+    }));
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    expect(refreshButton().props.accessibilityState).toEqual({ busy: false });
+    // The board's own first settle draws the rows once more; count from after it.
+    await act(async () => {});
+    const rows = host.rowRenders;
+    const cardsBefore = cards().map((card) => card.props.card);
+    await act(async () => { refreshButton().props.onPress(); });
+    expect(handle().refresh).toHaveBeenCalledTimes(1);
+    expect(refreshButton().props.accessibilityState).toEqual({ busy: true });
+    expect(hostsById("spinning-icon")).toHaveLength(1);
+    // A second press while it runs asks nothing more.
+    await act(async () => { refreshButton().props.onPress(); });
+    expect(handle().refresh).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(); await Promise.resolve(); });
+    expect(refreshButton().props.accessibilityState).toEqual({ busy: false });
+    expect(host.rowRenders).toBe(rows);
+    expect(cards()).toHaveLength(cardsBefore.length);
+    cards().forEach((card, index) => expect(card.props.card).toBe(cardsBefore[index]));
+    // It can run again.
+    await act(async () => { refreshButton().props.onPress(); });
+    expect(handle().refresh).toHaveBeenCalledTimes(2);
+    await act(async () => { finish(); await Promise.resolve(); });
+  });
+});
+
+describe("Tasks board, refresh during a title reveal", () => {
+  type Answer = (state: { state: "done"; title: string } | { state: "error"; error: string }) => void;
+  const LANES = ["needs_input", "running", "review", "done", "archived"] as const;
+  type Lane = (typeof LANES)[number];
+  const permission = { id: "p", provider: "claude", name: "Bash", kind: "tool", input: { command: "npm test" } };
+  /** An agent the store puts in `lane`, last updated `ageMs` ago. */
+  function agentIn(lane: Lane, id: string, title: string, ageMs: number) {
+    const updatedAt = new Date(Date.now() - ageMs).toISOString();
+    const base = { id, title, workspaceId: "ws", updatedAt, lastUserMessageAt: updatedAt };
+    if (lane === "needs_input") return makeAgent({ ...base, status: "running", pendingPermissions: [permission] as never });
+    if (lane === "running") return makeAgent({ ...base, status: "running" });
+    if (lane === "review") return makeAgent({ ...base, status: "idle", requiresAttention: true, attentionReason: "finished" });
+    if (lane === "done") return makeAgent({ ...base, status: "idle", requiresAttention: false });
+    return makeAgent({ ...base, status: "idle", requiresAttention: false, archivedAt: updatedAt });
+  }
+
+  async function mountLive(lane: Lane) {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const titleUpdates = await import("../../client/tasks/actions/title-update");
+    let answer!: Answer;
+    const control = titleUpdates.createTitleUpdateControl(() => new Promise((resolve) => { answer = resolve as Answer; }));
+    const titleControl = vi.spyOn(titleUpdates, "useTitleUpdateControl").mockReturnValue(control);
+    const fake = createFakePaseo({ agents: [agentIn(lane, "title-first", "First task", 60_000), agentIn(lane, "title-target", "Old title", 120_000)] });
+    host.liveTasks = fake.paseo;
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
+    // Newest first, so the renamed card's later update would move it to the top.
+    await act(async () => { renderer = TestRenderer.create(screen(false, { sort: "updated-desc" })); });
+    await act(async () => { await deviceTasksStore().update({ showArchived: true }); });
+    layOut(2400);
+    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    const laneCards = () => cards().filter((card) => card.props.card.lane === lane);
+    const ids = () => laneCards().map((card) => card.props.card.id);
+    const pressRefresh = async () => {
+      await act(async () => {
+        hostsById("toolbar-refresh")[0]!.props.onPress();
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    };
+    return { control, answer: (state: Parameters<Answer>[0]) => answer(state), fake, laneCards, ids, pressRefresh, restore: () => titleControl.mockRestore() };
+  }
+
+  it.each(LANES)("holds a rename a refresh brings until its complete title is displayed (%s)", async (lane) => {
+    const live = await mountLive(lane);
+    const title = "A complete generated title that must finish before the card moves";
+    try {
+      expect(live.ids()).toEqual(["title-first", "title-target"]);
+      const [firstCard, targetCard] = live.laneCards().map((card) => card.props.card);
+      await act(async () => live.control.start("title-target"));
+      const rowRenders = host.rowRenders;
+      // The daemon saved the rename before the client hears the title is done; the refresh brings it.
+      live.fake.setAgentSilently(agentIn(lane, "title-target", title, 0));
+      await live.pressRefresh();
+      expect(hostsById("toolbar-refresh")[0]!.props.accessibilityState).toEqual({ busy: false });
+      expect(live.ids()).toEqual(["title-first", "title-target"]);
+      expect(live.laneCards()[0]!.props.card).toBe(firstCard);
+      expect(live.laneCards()[1]!.props.card).toBe(targetCard);
+      expect(host.rowRenders).toBe(rowRenders);
+      await act(async () => live.answer({ state: "done", title }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+      expect(live.control.revealing().has("title-target")).toBe(true);
+      expect(live.ids()).toEqual(["title-first", "title-target"]);
+      expect(live.laneCards()[1]!.props.card).toBe(targetCard);
+      expect(host.rowRenders).toBe(rowRenders);
+      for (let index = 0; index < 100 && live.control.revealing().has("title-target"); index++) {
+        await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+      }
+      expect(live.control.revealing().has("title-target")).toBe(false);
+      expect(live.ids()).toEqual(["title-target", "title-first"]);
+      expect(live.laneCards()[0]!.props.card.title).toBe(title);
+      expect(live.laneCards()[1]!.props.card).toBe(firstCard);
+      expect(textOf(live.laneCards()[0]!.find((node) => typeof node.type === "string" && node.props.testID === "task-card-title"))).toBe(title);
+    } finally {
+      live.restore();
+    }
+  });
+
+  it("releases the held card when the generation fails, taking the refreshed snapshot", async () => {
+    const live = await mountLive("done");
+    try {
+      await act(async () => live.control.start("title-target"));
+      live.fake.setAgentSilently(agentIn("done", "title-target", "Renamed elsewhere", 0));
+      await live.pressRefresh();
+      expect(live.ids()).toEqual(["title-first", "title-target"]);
+      expect(live.laneCards()[1]!.props.card.title).toBe("Old title");
+      await act(async () => live.answer({ state: "error", error: "model unavailable" }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+      expect(live.control.revealing().has("title-target")).toBe(false);
+      expect(live.ids()).toEqual(["title-target", "title-first"]);
+      expect(live.laneCards()[0]!.props.card.title).toBe("Renamed elsewhere");
+    } finally {
+      live.restore();
+    }
+  });
+
+  it("lets a refresh remove a revealing card, or move it to another lane, at once", async () => {
+    const live = await mountLive("running");
+    try {
+      await act(async () => live.control.start("title-target"));
+      await act(async () => live.control.start("title-first"));
+      // One finished meanwhile with a new title, one was deleted: neither waits for its reveal.
+      live.fake.setAgentSilently(agentIn("done", "title-target", "Finished and renamed", 0));
+      live.fake.forgetAgent("title-first");
+      await live.pressRefresh();
+      expect(live.control.revealing().has("title-target")).toBe(true);
+      expect(live.ids()).toEqual([]);
+      const done = cards().filter((card) => card.props.card.lane === "done");
+      expect(done.map((card) => card.props.card.id)).toEqual(["title-target"]);
+      expect(cards().some((card) => card.props.card.id === "title-first")).toBe(false);
+    } finally {
+      live.restore();
+    }
   });
 });
 
@@ -3400,7 +3576,7 @@ describe("Tasks board, tablet filters", () => {
     });
     layOut(width);
     const buttons = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && /^toolbar-/.test(node.props.testID ?? ""));
-    expect(buttons.map((node) => node.props.testID)).toEqual(os === "web" ? ["toolbar-archived", "toolbar-filters"] : ["toolbar-filters"]);
+    expect(buttons.map((node) => node.props.testID)).toEqual(os === "web" ? ["toolbar-refresh", "toolbar-archived", "toolbar-filters"] : ["toolbar-filters"]);
     expect(hostsById("toolbar-empty-groups")).toHaveLength(0);
     expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
@@ -3432,7 +3608,7 @@ describe("Tasks board, tablet filters", () => {
     const archived = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived");
     // The folded web header keeps the filter bar's order: empty lanes, then the archived lane, then the filters.
     const header = renderer!.root.findByType(DesktopToolbar).findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID !== "sidebar-switch");
-    expect(header.map((node) => node.props.testID)).toEqual(["search-full-conversation-toggle", "empty-lanes-toggle", "toolbar-archived", "toolbar-filters"]);
+    expect(header.map((node) => node.props.testID)).toEqual(["search-full-conversation-toggle", "toolbar-refresh", "empty-lanes-toggle", "toolbar-archived", "toolbar-filters"]);
     expect(textOf(archived())).toBe("");
     expect(archived().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Archive");
     expect(hostsById("archived-lane-toggle")).toHaveLength(0);
