@@ -80,6 +80,11 @@ describe("sidebar width", () => {
     expect(tabletSidebarWidth(900, 410)).toBe(410);
     expect(tabletSidebarWidth(460, 480)).toBe(436);
   });
+
+  it.each([240, 260, 280, 300, 319])("allows a %i pt tablet floating sidebar", (width) => {
+    expect(tabletSidebarWidth(900, width)).toBe(width);
+    expect(tabletSidebarWidth(900, 239)).toBe(240);
+  });
   it.each(["inline", "floating"] as const)("keeps the user's width up to 800 px while there is room in %s mode", (mode) => {
     expect(sidebarWidth(2000, 380, mode)).toBe(380);
     expect(sidebarWidth(2000, 800, mode)).toBe(800);

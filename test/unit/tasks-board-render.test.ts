@@ -1888,7 +1888,7 @@ describe("Tasks board, desktop", () => {
     act(() => handle().props.onPanResponderMove(event(0)));
     expect(width()).toBe(480);
     act(() => handle().props.onPanResponderMove(event(800)));
-    expect(width()).toBe(320);
+    expect(width()).toBe(240);
     act(() => handle().props.onPanResponderRelease(event(450)));
     expect(width()).toBe(390);
     expect(readSidebarPreference()).toMatchObject({ width: 380, floatingWidth: 390 });
