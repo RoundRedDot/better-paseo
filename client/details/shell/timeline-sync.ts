@@ -1,6 +1,6 @@
 /**
  * Keeps the open block's row in view beside the panel (design 4e): on open
- * and on every switch the host list scrolls for 240 ms so the row sits in the
+ * and on switches outside the native phone drawer the host list scrolls for 240 ms so the row sits in the
  * visible band, at least 24 above the panel's top. A row already in the band
  * stays put, and a list with no room to move (the newest rows, at the end) is
  * left alone: the panel's title is the context then.

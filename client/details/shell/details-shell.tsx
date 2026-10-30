@@ -285,8 +285,9 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   }, [agentId, setDetent]);
   const fullscreenOn = form === "side" ? fullscreen : detent === "full";
 
-  // The timeline follows: on open and on each switch, once the panel's top is known.
+  // Keep the phone timeline still while stepping through the drawer.
   const pendingSync = useRef(true);
+  const syncedEntry = useRef(entry.id);
   const runSync = useCallback(() => {
     pendingSync.current = false;
     const target = latest.current.entry;
@@ -299,6 +300,12 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   }, [agentId]);
   useEffect(() => {
     if (leaving) return;
+    const switched = syncedEntry.current !== entry.id;
+    syncedEntry.current = entry.id;
+    if (Platform.OS !== "web" && form === "drawer" && switched) {
+      pendingSync.current = false;
+      return;
+    }
     if (latest.current.form === "side" || panelTop.current !== null) runSync();
     else pendingSync.current = true;
   }, [entry.id, leaving, form, runSync]);

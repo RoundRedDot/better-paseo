@@ -1035,6 +1035,27 @@ describe("timeline sync", () => {
     expect(scroll).toHaveBeenCalledWith(74, 240);
   });
 
+  it.each(["ios", "android"])("keeps the phone timeline still when stepping in either direction on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const scroll = vi.fn((delta: number) => delta);
+    registerHostList(AGENT, { viewport: async () => ({ top: 100, bottom: 800 }), scroll });
+    fake.box.blocks = [
+      block("a", 1, { measure: async () => ({ top: 600, height: 28 }) }),
+      block("b", 2, { measure: async () => ({ top: 700, height: 28 }) }),
+    ];
+    const renderer = render(slot());
+    open("a");
+    layOut(renderer, "details-drawer", 266);
+    await act(async () => {});
+    expect(scroll).toHaveBeenCalledWith(74, 240);
+    scroll.mockClear();
+    await act(async () => seen.shell!.step(1));
+    expect(seen.shell!.entry.id).toBe("b");
+    await act(async () => seen.shell!.step(-1));
+    expect(seen.shell!.entry.id).toBe("a");
+    expect(scroll).not.toHaveBeenCalled();
+  });
+
   it("leaves a row already in view, and a tombstone, alone", async () => {
     const scroll = vi.fn(() => 0);
     registerHostList(AGENT, { viewport: async () => ({ top: 100, bottom: 800 }), scroll });
