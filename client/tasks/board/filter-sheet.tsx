@@ -75,6 +75,11 @@ export function FilterSheetBody(props: {
   // While searching, the workspaces fill the scroller at least, so their field
   // can stay at its top above the keyboard however few rows match.
   const holdTop = searching || query.trim() !== "";
+  const range = (
+    <CollapsibleGroup title={strings.doneRange} icon="Clock" theme={theme} testID="filter-sheet-range">
+      <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
+    </CollapsibleGroup>
+  );
   const sort = (
     <View testID="filter-sheet-sort">
       <CollapsibleGroup title={strings.sort} icon="ArrowDownWideNarrow" theme={theme} testID="filter-sheet-sort-group" first={sortFirst} initiallyOpen={sortFirst}>
@@ -134,6 +139,22 @@ export function FilterSheetBody(props: {
               testID="filter-sheet-empty-groups"
             />
           ) : null}
+          {props.laneWidth ? (
+            <>
+              <SectionTitle text={strings.laneWidth.title} icon="Columns3" theme={theme} />
+              <Segments
+                items={LANE_WIDTHS}
+                label={(width) => strings.laneWidth.names[width]}
+                value={props.laneWidth.value}
+                onChange={props.laneWidth.onChange}
+                theme={theme}
+                large
+                stretch
+                testID="filter-sheet-lane-width"
+              />
+            </>
+          ) : null}
+          {props.laneWidth ? range : null}
           <CollapsibleGroup title={strings.agent} icon="Bot" theme={theme} testID="filter-sheet-agents">
             {shown.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
             <ChipWrap>
@@ -209,24 +230,7 @@ export function FilterSheetBody(props: {
               ))}
             </ChipWrap>
           </CollapsibleGroup>
-          {props.laneWidth ? (
-            <>
-              <SectionTitle text={strings.laneWidth.title} icon="Columns3" theme={theme} />
-              <Segments
-                items={LANE_WIDTHS}
-                label={(width) => strings.laneWidth.names[width]}
-                value={props.laneWidth.value}
-                onChange={props.laneWidth.onChange}
-                theme={theme}
-                large
-                stretch
-                testID="filter-sheet-lane-width"
-              />
-            </>
-          ) : null}
-          <CollapsibleGroup title={strings.doneRange} icon="Clock" theme={theme} testID="filter-sheet-range">
-            <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
-          </CollapsibleGroup>
+          {props.laneWidth ? null : range}
           {sortFirst ? null : sort}
         </View>
       </ScrollView>

@@ -94,6 +94,15 @@ describe("filter sheet reset", () => {
 });
 
 describe("filter sheet groups", () => {
+  it("places lane width and time range between switches and agents on the board filter panel", () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    act(() => {
+      renderer = TestRenderer.create(<FilterSheetBody board={board} theme={theme} options={{ agents: [], labels: [], workspaceGroups: [] }} showEmptyGroupsToggle laneWidth={{ value: "default", onChange() {} }} onDone={() => {}} />);
+    });
+    const ids = renderer!.root.findAll((node) => typeof node.type === "string" && ["filter-sheet-subtasks", "filter-sheet-empty-groups", "filter-sheet-lane-width", "filter-sheet-range-toggle", "filter-sheet-agents-toggle"].includes(node.props.testID)).map((node) => node.props.testID);
+    expect(ids).toEqual(["filter-sheet-subtasks", "filter-sheet-empty-groups", "filter-sheet-lane-width", "filter-sheet-range-toggle", "filter-sheet-agents-toggle"]);
+  });
+
   it("folds the time range, sort and workspaces independently without changing filters", () => {
     const setParams = vi.fn();
     render({ ...board, setParams }, {
