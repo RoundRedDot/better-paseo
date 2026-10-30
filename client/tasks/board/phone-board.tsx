@@ -79,7 +79,7 @@ export function PhoneBoard(props: {
   const filtersOpen = sheet?.kind === "filters";
   const options = useMemo(() => (filtersOpen ? buildFilterOptions(tasks, board.params) : null), [filtersOpen, tasks, board.params]);
   const badge = activeFilterCount(board.params, board.defaults);
-  const { doneWindow } = resolveBoardParams(board.params, board.defaults);
+  const { doneWindow, filters } = resolveBoardParams(board.params, board.defaults);
 
   // The tabs: a quarter of the bar each (a fifth with the archived lane), or
   // as wide as their content when a large system font outgrows that share,
@@ -331,6 +331,15 @@ export function PhoneBoard(props: {
           </Pressable>
         ) : null}
         <View style={{ flex: 1 }} />
+        <RoundButton
+          icon={filters.hideSubtasks ? "List" : "Network"}
+          label={strings.showSubtasks}
+          selected={!filters.hideSubtasks}
+          cornerBadge={board.hiddenSubtasks}
+          theme={theme}
+          onPress={() => board.setParams((params) => ({ ...params, hideSubtasks: !(params.hideSubtasks ?? board.defaults.hideSubtasks) }))}
+          testID="phone-subtasks"
+        />
         <RoundButton icon="MoreVertical" label={strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
       </View>
       <PhoneSearch
@@ -502,7 +511,7 @@ export function PhoneBoard(props: {
       <Modal title={strings.more} open={sheet?.kind === "filters"} onOpenChange={(open) => !open && setSheet(null)}>
         <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
-            {sheet?.kind === "filters" && options ? <FilterSheetBody board={board} theme={theme} options={options} phone showArchivedToggle showEmptyGroupsToggle focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
+            {sheet?.kind === "filters" && options ? <FilterSheetBody board={board} theme={theme} options={options} phone hideSubtasksToggle showArchivedToggle showEmptyGroupsToggle focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
           </TasksTypography>
         </Modal.Content>
       </Modal>
