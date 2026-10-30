@@ -84,18 +84,34 @@ export function provisionalTitle(prompt: string): string | null {
 }
 
 /**
- * The first prompt, when the conversation so far is one round that ended
- * with a reply; null otherwise, and for a reply that is a provider error.
+ * The original prompt once the first successful reply arrives. Earlier
+ * attempts ending in errors or without a reply do not consume that chance.
  */
 export async function firstRoundPrompt(timeline: PaseoAgentTimelineHandle, provider: string, outcome: PluginLifecycleEvents["agent.turn_ended"]["outcome"]): Promise<string | null> {
-  // The latest two rounds: a second user message means this is not the first.
-  const messages = await readTitleRounds(timeline, "tail", 2);
-  const prompts = messages.filter((message) => message.role === "user_message");
-  if (prompts.length !== 1 || messages[0]?.role !== "user_message") return null;
-  const last = messages.at(-1)!;
-  if (last.role !== "assistant_message" || !last.text.trim()) return null;
-  if (turnError(provider, outcome, [{ type: last.role, text: last.text }]) !== undefined) return null;
-  return prompts[0]!.text;
+  let cursor: NonNullable<Parameters<PaseoAgentTimelineHandle["refetch"]>[0]>["cursor"];
+  let prompt: string | null = null;
+  let reply: string | undefined;
+  let latest = true;
+  const successfulReply = (text: string | undefined) => !!text?.trim() && !text.trim().startsWith("[System Error]") &&
+    turnError(provider, outcome, [{ type: "assistant_message", text }]) === undefined;
+  for (;;) {
+    const page = await timeline.refetch({ direction: cursor ? "before" : "tail", projection: "projected", limit: 12, ...(cursor ? { cursor } : {}) });
+    if (page.error || page.reset && cursor) throw new Error(page.error || "Could not read the conversation.");
+    for (const entry of [...page.entries].reverse()) {
+      const item = entry.item;
+      if (item.type === "assistant_message") reply ??= item.text;
+      if (item.type !== "user_message") continue;
+      // Only the last reply in each round decides whether that round failed.
+      if (latest ? !successfulReply(reply) : successfulReply(reply)) return null;
+      latest = false;
+      prompt = item.text.slice(0, 4000);
+      reply = undefined;
+    }
+    if (!page.hasOlder) return prompt;
+    const next = page.startCursor;
+    if (!next || cursor && (next.epoch !== cursor.epoch || next.seq >= cursor.seq)) throw new Error("Could not read the conversation.");
+    cursor = next;
+  }
 }
 
 /** Jobs outlive the menu and fit the host's 30-second RPC limit. */
@@ -229,7 +245,7 @@ export function createTitleGenerator(deps: Dependencies) {
     },
     /**
      * With the setting on, starts the same job as the menu's once an agent's
-     * first round ends with a reply, unless its title was named rather than
+     * first successful reply arrives, unless its title was named rather than
      * taken from the first prompt. The job runs as the menu's does, so a board
      * that asks for its status follows it. Resolves once the job has started
      * or been skipped; it never waits for the title.

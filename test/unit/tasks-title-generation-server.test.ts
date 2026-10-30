@@ -597,11 +597,55 @@ describe("title after the first reply", () => {
   });
 
   it.each([
+    ["codex", "[System Error] workspace routing discovery timed out"],
+    ["claude", "You've hit your session limit · resets 3pm"],
+  ])("titles the first successful reply after a failed %s round", async (provider, error) => {
+    const f = await first([
+      FIRST_ROUND[0]!,
+      { item: { type: "assistant_message", text: "Checking the task" } },
+      { item: { type: "assistant_message", text: error } },
+      { item: { type: "user_message", text: "Continue" } },
+      { item: { type: "assistant_message", text: "Fixed the card title" } },
+    ]);
+    expect(await f.ended({ kind: "completed" }, { provider })).toBe(true);
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
+    expect(await f.ended({ kind: "completed" }, { provider })).toBe(false);
+  });
+
+  it("reads repeated failed rounds across pages and keeps manually named titles", async () => {
+    const f = await first();
+    const entries = [
+      FIRST_ROUND[0]!,
+      ...Array.from({ length: 3 }, () => [
+        { item: { type: "assistant_message", text: "[System Error] workspace routing discovery timed out" } },
+        { item: { type: "user_message", text: "Continue" } },
+      ]).flat(),
+      FIRST_ROUND[2]!,
+    ].map((entry, index) => ({ ...entry, seqStart: index + 1 }));
+    f.timeline.mockImplementation(async ({ direction, cursor }) => {
+      const start = direction === "after" ? cursor?.seq ?? 0 : Math.max(0, (cursor ? cursor.seq - 1 : entries.length) - 3);
+      const end = Math.min(entries.length, start + 3);
+      const page = entries.slice(start, end);
+      return { error: null, hasOlder: start > 0, hasNewer: end < entries.length,
+        startCursor: { epoch: "timeline", seq: page[0]!.seqStart }, endCursor: { epoch: "timeline", seq: page.at(-1)!.seqStart }, entries: page };
+    });
+    f.original.agent.title = "Release checklist";
+    expect(await f.ended()).toBe(false);
+    expect(f.rename).not.toHaveBeenCalled();
+    f.original.agent.title = "Fix the card title";
+    expect(await f.ended()).toBe(true);
+    expect(f.timeline.mock.calls.some(([options]) => options.direction === "before" && options.cursor)).toBe(true);
+    expect(await f.settle()).toMatchObject({ state: "done" });
+  });
+
+  it.each([
     ["a second round", [...FIRST_ROUND, { item: { type: "user_message", text: "Next" } }, { item: { type: "assistant_message", text: "Done" } }]],
     ["a second prompt still running", [...FIRST_ROUND, { item: { type: "user_message", text: "Next" } }]],
     ["no reply", FIRST_ROUND.slice(0, 2)],
     ["a blank reply", [FIRST_ROUND[0]!, { item: { type: "assistant_message", text: "  " } }]],
     ["no prompt", []],
+    ["a system error reply", [FIRST_ROUND[0]!, { item: { type: "assistant_message", text: "[System Error] workspace routing discovery timed out" } }]],
   ])("skips %s", async (_name, entries) => {
     const f = await first(entries);
     expect(await f.ended()).toBe(false);
