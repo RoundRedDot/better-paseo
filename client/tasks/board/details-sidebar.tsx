@@ -105,14 +105,14 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   // the header still: the fixed part left the sections a strip of 80. There
   // the whole column scrolls as one.
   // A wide sheet lays a card out in two columns that scroll on their own, so the header stays in view.
-  const columns = props.scrollAll === true && detailProps !== null && layout.wide;
   const tabs = props.tabs === true && detailProps !== null;
+  const columns = !tabs && props.scrollAll === true && detailProps !== null && layout.wide;
   const short = !tabs && !columns && (props.scrollAll === true || layout.short);
   const content = (
     <>
       {props.stats === false ? null : <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />}
       {detailProps ? (
-        <TaskDetailCards key={tabs ? card?.id : undefined} {...detailProps} scrollBody={!short && !columns && !tabs} columns={columns} tabs={tabs} scrollHeader={tabs && layout.short} />
+        <TaskDetailCards key={tabs ? card?.id : undefined} {...detailProps} scrollBody={!short && !columns && !tabs} columns={columns} tabs={tabs} scrollHeader={tabs && (layout.short || props.scrollAll === true)} />
       ) : (
         <GroupCard board={board} theme={theme} tokens={tokens} touch={props.touch} />
       )}

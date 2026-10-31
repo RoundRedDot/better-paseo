@@ -589,15 +589,18 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           <SheetStep icon="ChevronRight" label={board.strings.sidebar.next} disabled={index >= list.length - 1} onPress={() => step(1)} theme={theme} />
         </View>
       ) : null}
-      {/* Keyed by the card: a jump to the parent or a step starts the new card at its top. */}
-      <ScrollView key={card.id} style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12 }} testID="details-sheet-scroll">
+      {/* Keyed by the card: a jump to the parent or a step starts on its messages. */}
+      <View style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12 }}>
         <TaskDetailCards
+          key={card.id}
           searchQuery={board.params.query}
           card={card}
           theme={theme}
           language={board.language}
           strings={board.strings.sidebar}
           touch
+          tabs
+          scrollHeader
           actions={false}
           clock={board.clock}
           onOpen={props.onOpen}
@@ -613,7 +616,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           archive={board.archive}
           markRead={board.read.available ? board.read : null}
         />
-      </ScrollView>
+      </View>
       <DetailActionBar
         card={card}
         theme={theme}
