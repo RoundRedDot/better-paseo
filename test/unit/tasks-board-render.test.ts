@@ -4660,7 +4660,7 @@ describe("Tasks board, phone", () => {
       sequence.mockClear();
       act(() => { hostsById("phone-scroll-bottom")[0]!.props.onTouchStart({}); hostsById("phone-scroll-bottom")[0]!.props.onPressIn({}); });
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onPressOut({}));
-      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.05, duration: 100 }));
+      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.03, duration: 100 }));
       expect(spring).not.toHaveBeenCalled();
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onTouchEnd({}));
       expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1 }));

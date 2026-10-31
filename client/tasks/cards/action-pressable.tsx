@@ -20,7 +20,7 @@ export function useActionPressMotion(enabled: boolean) {
   useEffect(() => {
     if (reduced && enabled) {
       animation.current?.stop();
-      scale.setValue(pressed ? 1.05 : 1);
+      scale.setValue(pressed ? 1.03 : 1);
     }
   }, [reduced, enabled, pressed, scale]);
   const change = (value: boolean) => {
@@ -28,10 +28,10 @@ export function useActionPressMotion(enabled: boolean) {
     setPressed(value);
     animation.current?.stop();
     if (reduced) {
-      scale.setValue(value ? 1.05 : 1);
+      scale.setValue(value ? 1.03 : 1);
       return;
     }
-    animation.current = Animated.timing(scale, { toValue: value ? 1.05 : 1, duration: 100, useNativeDriver: Platform.OS !== "web", isInteraction: false });
+    animation.current = Animated.timing(scale, { toValue: value ? 1.03 : 1, duration: 100, useNativeDriver: Platform.OS !== "web", isInteraction: false });
     animation.current.start();
   };
   return {

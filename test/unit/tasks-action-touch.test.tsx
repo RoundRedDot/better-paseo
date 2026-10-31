@@ -65,7 +65,7 @@ describe("mobile card action feedback", () => {
     const root = await render(<CardButton {...props} />);
     const button = () => root.findByType(Pressable);
     act(() => { button().props.onTouchStart({}); button().props.onPressIn({}); });
-    expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.05, duration: 100 }));
+    expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.03, duration: 100 }));
     expect(StyleSheet.flatten(button().props.style).boxShadow).toBeTruthy();
     timing.mockClear();
     act(() => button().props.onPressOut({}));
@@ -80,7 +80,7 @@ describe("mobile card action feedback", () => {
     act(() => { button().props.onTouchStart({}); button().props.onPressIn({}); });
     expect(timing).not.toHaveBeenCalled();
     const current = StyleSheet.flatten(button().props.style);
-    expect(current.transform[0].scale.__value).toBe(1.05);
+    expect(current.transform[0].scale.__value).toBe(1.03);
     expect(current.boxShadow).toBeFalsy();
     act(() => button().props.onTouchCancel({}));
     expect(StyleSheet.flatten(button().props.style).transform[0].scale.__value).toBe(1);
@@ -144,7 +144,7 @@ describe("phone sheet action size", () => {
     for (const button of root.findAllByType(Pressable)) {
       timing.mockClear();
       act(() => button.props.onPressIn({}));
-      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.05 }));
+      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.03 }));
     }
     motion.reduced = true;
     await act(async () => renderer.update(React.cloneElement(element)));
