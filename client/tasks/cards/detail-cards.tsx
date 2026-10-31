@@ -221,6 +221,8 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const time: TimeSource = { now: props.now, clock: props.clock };
   const choices = useSectionChoices();
   const [tab, setTab] = useState<"info" | "messages">("messages");
+  const [tabsPinned, setTabsPinned] = useState(false);
+  useEffect(() => setTabsPinned(false), [card.id, props.scrollHeader]);
   const tabScroll = useRef<ScrollView>(null);
   const [tabLayout, setTabLayout] = useState({ top: 0, height: 0, viewport: 0 });
   // Native scroll bookkeeping does not need to redraw the card on every frame.
@@ -263,7 +265,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
         const { y, height } = event.nativeEvent.layout;
         setTabLayout((current) => current.top === y && current.height === height ? current : { ...current, top: y, height });
       } : undefined}>
-        <View accessibilityRole="tablist" testID="detail-tabs" style={{ flexDirection: "row", paddingHorizontal: 10, paddingTop: props.scrollHeader ? 8 : 0, paddingBottom: 8, gap: 6, backgroundColor: tokens.card.background }}>
+        <View accessibilityRole="tablist" testID="detail-tabs" style={{ flexDirection: "row", paddingHorizontal: 10, paddingTop: props.scrollHeader ? 8 : 0, paddingBottom: 8, gap: 6, backgroundColor: tokens.card.background, boxShadow: props.scrollHeader && tabsPinned ? `0px 5px 8px -4px rgba(0, 0, 0, ${tokens.isDark ? 0.36 : 0.14})` : undefined }}>
           {(["info", "messages"] as const).map((id) => (
             <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={`${id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}${(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}`} onPress={() => {
               if (id === tab) return;
@@ -290,7 +292,10 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
               setTabLayout((current) => current.viewport === viewport ? current : { ...current, viewport });
             }}
             onScroll={(event) => {
-              if (!tabOffsets.current.restoring) tabOffsets.current[tab] = Math.max(0, event.nativeEvent.contentOffset.y);
+              if (tabOffsets.current.restoring) return;
+              const offset = Math.max(0, event.nativeEvent.contentOffset.y);
+              tabOffsets.current[tab] = offset;
+              setTabsPinned(offset > 0 && offset >= tabLayout.top);
             }}
             {...detailScrollProps("inset")}
             testID="detail-tab-short-scroll"
@@ -306,6 +311,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
                   if (tab !== id || !tabOffsets.current.restoring) return;
                   // Restore after the newly visible page has its native layout.
                   tabScroll.current?.scrollTo({ y: tabOffsets.current[id], animated: false });
+                  setTabsPinned(tabOffsets.current[id] > 0 && tabOffsets.current[id] >= tabLayout.top);
                   tabOffsets.current.restoring = false;
                 }}
               >
@@ -380,10 +386,10 @@ function DetailTab(props: { id: "info" | "messages"; selected: boolean; tokens: 
       accessibilityRole="tab"
       accessibilityState={{ selected: props.selected }}
       onPress={props.onPress}
-      style={{ flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 36 : 28, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder, backgroundColor: props.selected ? props.tokens.surface2 : hovered ? props.tokens.card.controlHover : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 6 }}
+      style={{ flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 30 : 24, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder, backgroundColor: props.selected ? props.tokens.surface2 : hovered ? props.tokens.card.controlHover : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 6 }}
     >
-      <Icon name={props.id === "info" ? "Info" : "MessageSquare"} size={14} color={color} />
-      <Text numberOfLines={1} style={{ fontSize: F.base, fontWeight: "500", color, flexShrink: 1 }}>{props.label}</Text>
+      <Icon name={props.id === "info" ? "Info" : "MessageSquare"} size={12} color={color} />
+      <Text numberOfLines={1} style={{ fontSize: F.sm, fontWeight: "500", color, flexShrink: 1 }}>{props.label}</Text>
     </Pressable>
   );
 }

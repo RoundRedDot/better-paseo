@@ -72,6 +72,37 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it.each(["ios", "android", "web"])("shows a bottom shadow only while the compact tabs are pinned on %s", async (os) => {
+    vi.stubGlobal("__rnMockOS", os);
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false} tabs scrollHeader />);
+    });
+    const root = renderer!.root;
+    const shadow = () => StyleSheet.flatten(host(root, "detail-tabs").props.style).boxShadow;
+    const scroll = (y: number) => host(root, "detail-tab-short-scroll").props.onScroll({ nativeEvent: { contentOffset: { y } } });
+    expect(shadow()).toBeUndefined();
+    for (const id of ["info", "messages"]) {
+      const button = host(root, `detail-tab-${id}`);
+      expect(StyleSheet.flatten(button.props.style).height).toBe(30);
+      expect(StyleSheet.flatten(button.find((node) => (node.type as unknown) === "Text").props.style).fontSize).toBe(HOST_FONT.sm);
+    }
+    await act(async () => host(root, "detail-tab-anchor").props.onLayout({ nativeEvent: { layout: { y: 200, height: 46 } } }));
+    await act(async () => scroll(199));
+    expect(shadow()).toBeUndefined();
+    await act(async () => scroll(200));
+    expect(shadow()).toContain("0px 5px 8px -4px");
+    await act(async () => host(root, "detail-tab-info").props.onPress());
+    await act(async () => scroll(0));
+    expect(shadow()).toBeDefined();
+    await act(async () => host(root, "detail-tab-info-content").props.onLayout());
+    expect(shadow()).toBeDefined();
+    await act(async () => scroll(150));
+    expect(shadow()).toBeUndefined();
+    await act(async () => scroll(250));
+    await act(async () => renderer!.update(<TaskDetailCards {...props(false)} card={{ ...props(false).card, id: "another-task" }} columns={false} tabs scrollHeader />));
+    expect(shadow()).toBeUndefined();
+  });
+
   it.each([
     { os: "ios", offset: 0, target: 0 },
     { os: "ios", offset: 85, target: 85 },
