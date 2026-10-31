@@ -2032,6 +2032,7 @@ function StopControl(props: StopControlProps) {
   const confirming = phase === "confirming";
   const stopping = phase === "stopping";
   const pulse = useActionPressMotion((compact || Platform.OS !== "web") && !stopping);
+  const [pressedSegment, setPressedSegment] = useState<"stop" | "options">("stop");
   const stopHover = useHover();
   const chevronHover = useHover();
   const anchorRef = useRef<View>(null);
@@ -2120,6 +2121,7 @@ function StopControl(props: StopControlProps) {
         ...(compact ? { flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height, ...(props.hug ? { flexGrow: 0 } : null) } : { flexShrink: 0 }),
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         zIndex: 40,
+        borderRadius: round,
         ...pulse.style,
         ...fit.style,
       }}
@@ -2131,7 +2133,7 @@ function StopControl(props: StopControlProps) {
         accessibilityState={stopping ? { disabled: true, busy: true } : undefined}
         disabled={stopping}
         onPress={props.onPress}
-        onPressIn={pulse.onPressIn}
+        onPressIn={() => { setPressedSegment("stop"); pulse.onPressIn(); }}
         onPressOut={pulse.onPressOut}
         onTouchStart={pulse.onTouchStart}
         onTouchEnd={pulse.onTouchEnd}
@@ -2146,7 +2148,8 @@ function StopControl(props: StopControlProps) {
             gap: 5,
             // The row drops the whole label when needed; keep the confirm icon and menu target.
             paddingHorizontal: fit.iconOnly ? 0 : compact ? (confirming ? 10 : 12) : 10,
-            backgroundColor: fill((stopHover.hovered || pressed) && !stopping),
+            backgroundColor: fill((stopHover.hovered || pressed || (pulse.pressed && pressedSegment === "stop")) && !stopping),
+            overflow: "hidden",
             borderTopLeftRadius: round,
             borderBottomLeftRadius: round,
             borderTopRightRadius: props.parent ? 0 : round,
@@ -2171,7 +2174,7 @@ function StopControl(props: StopControlProps) {
           accessibilityLabel={strings.stopOptions}
           disabled={stopping}
           onPress={props.onToggleMenu}
-          onPressIn={pulse.onPressIn}
+          onPressIn={() => { setPressedSegment("options"); pulse.onPressIn(); }}
           onPressOut={pulse.onPressOut}
           onTouchStart={pulse.onTouchStart}
           onTouchEnd={pulse.onTouchEnd}
@@ -2182,7 +2185,8 @@ function StopControl(props: StopControlProps) {
             segment,
             {
               width: compact ? 36 : 26,
-              backgroundColor: fill(((chevronHover.hovered || pressed) && !stopping) || props.menuOpen),
+              backgroundColor: fill(((chevronHover.hovered || pressed || (pulse.pressed && pressedSegment === "options")) && !stopping) || props.menuOpen),
+              overflow: "hidden",
               borderTopRightRadius: round,
               borderBottomRightRadius: round,
               opacity: stopping ? 0.6 : 1,

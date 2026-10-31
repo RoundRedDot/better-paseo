@@ -1941,6 +1941,21 @@ describe("TaskCardView actions", () => {
     expect(square(phone.root, "停止")).toMatchObject({ size: 14, color: tokens.danger });
   });
 
+  it("keeps the pressed stop segment tinted until touch ends and rounds its shadow", async () => {
+    const tree = await render(cardElement(sample("sample-running"), { onStop: () => {}, compact: true }));
+    const stop = byLabel(tree.root, "停止");
+    const options = byLabel(tree.root, "停止选项");
+    expect(flat(hostByTestId(tree.root, "task-card-stop").props.style)).toMatchObject({ borderRadius: 7 });
+    expect(flat(stop.props.style)).toMatchObject({ overflow: "hidden" });
+    expect(flat(options.props.style)).toMatchObject({ overflow: "hidden" });
+    await act(async () => { stop.props.onTouchStart(); stop.props.onPressIn(); stop.props.onPressOut(); });
+    expect(flat(stop.props.style).backgroundColor).not.toBe("transparent");
+    expect(flat(options.props.style).backgroundColor).toBe("transparent");
+    await act(async () => stop.props.onTouchEnd());
+    expect(flat(stop.props.style).backgroundColor).toBe("transparent");
+    await act(async () => tree.unmount());
+  });
+
   it("offers a parent with running children the stop-with-subtasks menu", async () => {
     const onStop = vi.fn();
     const card = sample("sample-running");
