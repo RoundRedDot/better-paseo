@@ -3638,13 +3638,16 @@ describe("TaskDetailCards", () => {
 
   it("grows every agent and label chip together with the host's text size", async () => {
     const card = { ...sample("sample-input"), labels: [{ name: "linear", color: null }] };
-    const pill = (node: ReactTestInstance) => (node.type as unknown) === "View" && flat(node.props.style).borderRadius === 999;
+    const pill = (node: ReactTestInstance) => {
+      const style = flat(node.props.style);
+      return (node.type as unknown) === "View" && style.flexDirection === "row" && typeof style.height === "number" && style.borderRadius === style.height / 2;
+    };
     const heights = (tree: ReactTestRenderer) =>
       ["detail-agent", "detail-labels"].flatMap((id) => hostByTestId(tree.root, id).findAll(pill).map((chip) => flat(chip.props.style).height));
-    expect(heights(await render(details(card)))).toEqual([22, 22, 22, 22]);
+    expect(heights(await render(details(card)))).toEqual([20, 20, 20, 20]);
     const large = { ...LIGHT, typography: { fontSize: { ui: 21 } } };
     const scaled = await render(React.createElement(TasksTypography, { theme: large, children: details(card, { theme: large }) }));
-    expect(heights(scaled)).toEqual([33, 33, 33, 33]);
+    expect(heights(scaled)).toEqual([30, 30, 30, 30]);
   });
 });
 

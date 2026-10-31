@@ -95,12 +95,12 @@ export const DETAIL_CARD = {
   /** The card's title: the host's large step. */
   title: F.base,
   icon: 16,
-  chip: 22,
+  chip: 20,
   button: 32,
   round: 28,
 } as const;
 
-const TOUCH_CARD = { ...DETAIL_CARD, row: 44, listRow: 44, heading: 44, icon: 18, chip: 28, button: 44, round: 36 } as const;
+const TOUCH_CARD = { ...DETAIL_CARD, row: 44, listRow: 44, heading: 44, icon: 18, chip: 24, button: 44, round: 36 } as const;
 
 type Metrics = typeof DETAIL_CARD | typeof TOUCH_CARD;
 
@@ -158,6 +158,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   strings: DetailCardsStrings;
   /** Touch sizes: the phone's sheet, a tablet's sidebar. */
   touch?: boolean;
+  /** Match the phone board's pills; tablet and desktop cards use the regular size. */
+  compact?: boolean;
   onClose?(): void;
   /** The card to go back to after a parent or subtask jump. */
   back?: { title: string; onPress(): void } | null;
@@ -355,8 +357,9 @@ function DetailHeader(props: Inner) {
   const { card, m, tokens, touch = false } = props;
   const cardText = cardStrings(props.language);
   const small = F.sm;
-  const chipFont = F.sm;
-  const iconSize = touch ? 16 : 14;
+  const chipFont = F.sm * (11 / 12);
+  const iconSize = props.compact ? 12 : 11;
+  const chipHeight = props.compact ? TOUCH_CARD.chip : DETAIL_CARD.chip;
   const kind = card.stoppedManually ? "stopped" : card.status;
   const hero = detailHero(card);
   const mode = card.modeLabel ? modeIcon(card.provider, card.modeLabel) : null;
@@ -483,7 +486,8 @@ function DetailHeader(props: Inner) {
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }} testID="detail-agent">
         <Chip
           tokens={tokens}
-          height={m.chip}
+          compact={props.compact}
+          height={chipHeight}
           font={chipFont}
           lead={card.providerMark !== null ? <BrandMark provider={card.provider} size={iconSize} tokens={tokens} /> : null}
           // A provider subagent's model comes from its facts line; a line that names neither model nor effort stands in whole.
@@ -492,12 +496,13 @@ function DetailHeader(props: Inner) {
           testID="detail-model"
         />
         {card.thinkingLabel ? (
-          <Chip tokens={tokens} height={m.chip} font={chipFont} muted lead={<Icon name={THINKING_ICON} size={iconSize} color={tokens.foregroundMuted} />} text={card.thinkingLabel} testID="detail-thinking" />
+          <Chip tokens={tokens} compact={props.compact} height={chipHeight} font={chipFont} muted lead={<Icon name={THINKING_ICON} size={iconSize} color={tokens.foregroundMuted} />} text={card.thinkingLabel} testID="detail-thinking" />
         ) : null}
         {card.modeLabel && mode ? (
           <Chip
             tokens={tokens}
-            height={m.chip}
+            compact={props.compact}
+            height={chipHeight}
             font={chipFont}
             muted
             // Bypassing permissions is worth a glance: its shield wears the warning colour.
@@ -514,7 +519,8 @@ function DetailHeader(props: Inner) {
             <Chip
               key={tag.name}
               tokens={tokens}
-              height={m.chip}
+              compact={props.compact}
+              height={chipHeight}
               font={chipFont}
               lead={<TagMark size={iconSize} color={tag.color ?? tokens.foregroundMuted} hole={tokens.card.background} />}
               text={tag.name}

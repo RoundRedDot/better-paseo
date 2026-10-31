@@ -599,6 +599,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           language={board.language}
           strings={board.strings.sidebar}
           touch
+          compact
           tabs
           scrollHeader
           actions={false}

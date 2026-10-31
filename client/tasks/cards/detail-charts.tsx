@@ -511,16 +511,16 @@ export function SummaryTiles(props: { tiles: SummaryTile[]; tokens: TaskTokens; 
 }
 
 /** A hairline-outlined pill: a lead (dot, icon, mark) and its text. */
-export function Chip(props: { tokens: TaskTokens; lead?: React.ReactNode; text: string; renderText?(text: string): React.ReactNode; muted?: boolean; height: number; font: number; testID?: string }) {
+export function Chip(props: { tokens: TaskTokens; lead?: React.ReactNode; text: string; renderText?(text: string): React.ReactNode; muted?: boolean; compact?: boolean; height: number; font: number; testID?: string }) {
   // Grows with the text size like the card's other controls, so larger text stays inside the pill.
   const height = taskControlHeight(props.height, useTasksFontScale());
   return (
     <View
       testID={props.testID}
-      style={{ height, paddingLeft: 6, paddingRight: 8, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, flexDirection: "row", alignItems: "center", gap: 5 }}
+      style={{ height, minWidth: height, maxWidth: "100%", paddingHorizontal: props.compact ? 9 : 8, borderRadius: height / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: props.compact ? 6 : 5 }}
     >
       {props.lead}
-      <Text numberOfLines={1} style={{ fontSize: props.font, color: props.muted ? props.tokens.foregroundMuted : props.tokens.foreground }}>
+      <Text numberOfLines={1} style={{ fontSize: props.font, lineHeight: Math.round(props.font * 1.25), flexShrink: 1, color: props.muted ? props.tokens.foregroundMuted : props.tokens.foreground }}>
         {props.renderText ? props.renderText(props.text) : props.text}
       </Text>
     </View>
