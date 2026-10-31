@@ -1,43 +1,42 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, type PressableProps } from "react-native";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { HOVER_SCALE } from "./hover-lift";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-/**
- * Scale for a press, and for a hover when the caller passes `lifted`.
- * The shadow and the wash belong to the button: this only grows it.
- * Reduced motion snaps the scale instead of timing it.
- */
-export function useActionPressMotion(enabled: boolean, lifted = false) {
+export function useActionPressMotion(enabled: boolean) {
   const reduced = useReducedMotion();
   const [scale] = useState(() => new Animated.Value(1));
   const [pressed, setPressed] = useState(false);
   const touching = useRef(false);
   const animation = useRef<Animated.CompositeAnimation | null>(null);
-  const grow = enabled && (pressed || lifted);
   useEffect(() => {
-    if (!enabled) setPressed(false);
-  }, [enabled]);
-  useEffect(() => {
-    animation.current?.stop();
-    const to = grow ? HOVER_SCALE : 1;
-    if (!enabled || reduced) {
-      scale.setValue(to);
-      return;
+    if (!enabled) {
+      setPressed(false);
+      scale.setValue(1);
     }
-    animation.current = Animated.timing(scale, { toValue: to, duration: 100, useNativeDriver: Platform.OS !== "web", isInteraction: false });
-    animation.current.start();
     return () => { animation.current?.stop(); };
-  }, [enabled, grow, reduced, scale]);
+  }, [enabled, scale]);
+  useEffect(() => {
+    if (reduced && enabled) {
+      animation.current?.stop();
+      scale.setValue(pressed ? 1.03 : 1);
+    }
+  }, [reduced, enabled, pressed, scale]);
   const change = (value: boolean) => {
     if (!enabled) return;
     setPressed(value);
+    animation.current?.stop();
+    if (reduced) {
+      scale.setValue(value ? 1.03 : 1);
+      return;
+    }
+    animation.current = Animated.timing(scale, { toValue: value ? 1.03 : 1, duration: 100, useNativeDriver: Platform.OS !== "web", isInteraction: false });
+    animation.current.start();
   };
   return {
     pressed,
-    style: { transform: [{ scale }] },
+    style: { transform: [{ scale }], ...(pressed && !reduced ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.25)" } : {}) },
     onPressIn: () => change(true),
     onPressOut: () => { if (!touching.current) change(false); },
     onTouchStart: () => { touching.current = true; },
@@ -46,8 +45,8 @@ export function useActionPressMotion(enabled: boolean, lifted = false) {
   };
 }
 
-export function ActionPressable({ motion, lifted = false, style, ...props }: PressableProps & { motion: boolean; lifted?: boolean }) {
-  const feedback = useActionPressMotion(motion && !props.disabled, lifted && !props.disabled);
+export function ActionPressable({ motion, style, ...props }: PressableProps & { motion: boolean }) {
+  const feedback = useActionPressMotion(motion && !props.disabled);
   if (!motion) return <Pressable {...props} style={style} />;
   return (
     <AnimatedPressable

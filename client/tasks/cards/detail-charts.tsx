@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { mix } from "../../components/theme-tokens";
 import { ProgressRing } from "../../ui/progress-ring";
@@ -23,9 +23,8 @@ import { formatTokens } from "./format";
 import { cardStrings } from "./strings";
 import type { TaskTokens } from "./tokens";
 import { useHover } from "../../ui/use-hover";
-import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { hoverFill, hoverScaleStyle, hoverShadowValue, hoverTransition } from "./hover-lift";
 import { tipProps } from "./card-hints";
+import { webTransition } from "./action-style";
 
 /**
  * The details card's charts (`docs/prototypes/task-details-rich.md`, board 6),
@@ -630,24 +629,12 @@ export function Chip(props: { tokens: TaskTokens; lead?: React.ReactNode; text: 
   // Grows with the text size like the card's other controls, so larger text stays inside the pill.
   const height = taskControlHeight(props.height, useTasksFontScale());
   const { hovered, hoverProps } = useHover();
-  const reduced = useReducedMotion();
-  const wash = mix(props.tokens.card.background, props.tokens.foreground, 0.06);
   return (
     <Pressable
       testID={props.testID}
       {...hoverProps}
       {...tipProps(props.tip)}
-      style={({ pressed }) => {
-        const active = hovered || pressed;
-        return {
-          height, minWidth: height, maxWidth: "100%", paddingHorizontal: props.compact ? 9 : 8, borderRadius: height / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder,
-          backgroundColor: hoverFill("transparent", wash, active, reduced),
-          boxShadow: hoverShadowValue(props.tokens.card.buttonShadowHover, active, reduced),
-          flexDirection: "row", alignItems: "center", justifyContent: "center", gap: props.compact ? 6 : 5,
-          ...hoverScaleStyle(active, reduced),
-          ...hoverTransition(reduced),
-        };
-      }}
+      style={{ height, minWidth: height, maxWidth: "100%", paddingHorizontal: props.compact ? 9 : 8, borderRadius: height / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, backgroundColor: hovered ? mix(props.tokens.card.background, props.tokens.foreground, 0.06) : "transparent", boxShadow: Platform.OS === "web" && hovered ? props.tokens.card.buttonShadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: props.compact ? 6 : 5, ...webTransition }}
     >
       {props.lead}
       <Text numberOfLines={1} style={{ fontSize: props.font, lineHeight: Math.round(props.font * 1.25), flexShrink: 1, color: props.muted ? props.tokens.foregroundMuted : props.tokens.foreground }}>

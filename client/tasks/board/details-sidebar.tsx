@@ -5,8 +5,6 @@ import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import { tipProps } from "../cards/card-hints";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
-import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { hoverFill, hoverScaleStyle, hoverShadowValue, hoverTransition } from "../cards/hover-lift";
 import { BrandMark, DETAIL_CARD, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { activeStopChildren } from "../actions/stop-targets";
@@ -246,7 +244,6 @@ function StatCell(props: {
   const labelKey = `${props.label}|${scale}`;
   const hideLabel = headingWidth !== null && labelSize?.key === labelKey && labelSize.width + 13 + 5 > headingWidth + 0.5;
   const { hovered, hoverProps } = useHover();
-  const reduced = useReducedMotion();
   const alert = props.lane === "needs_input" && (props.count ?? 0) > 0;
   const countStyle = { fontSize: F.xl, lineHeight: HOST_LINE.xl, fontWeight: "600" as const, color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums" as const] };
   return (
@@ -257,24 +254,18 @@ function StatCell(props: {
       onPress={props.onPress}
       {...hoverProps}
       testID={`sidebar-stat-${props.lane}`}
-      style={({ pressed }) => {
-        const active = hovered || pressed;
-        return {
-          flex: 1,
-          minWidth: 0,
-          minHeight: taskControlHeight(props.touch ? 64 : 56, scale),
-          paddingHorizontal: 8,
-          paddingVertical: 6,
-          borderRadius: 8,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: alert ? tokens.warning : "transparent",
-          backgroundColor: hoverFill("transparent", tokens.card.controlHover, active, reduced),
-          boxShadow: hoverShadowValue(tokens.card.buttonShadowHover, active, reduced),
-          gap: 2,
-          ...hoverScaleStyle(active, reduced),
-          ...hoverTransition(reduced),
-        };
-      }}
+      style={({ pressed }) => ({
+        flex: 1,
+        minWidth: 0,
+        minHeight: taskControlHeight(props.touch ? 64 : 56, scale),
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        borderRadius: 8,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: alert ? tokens.warning : "transparent",
+        backgroundColor: hovered || pressed ? tokens.card.controlHover : "transparent",
+        gap: 2,
+      })}
     >
       <View
         testID={`sidebar-stat-heading-${props.lane}`}
@@ -471,7 +462,6 @@ function Segment(props: { id: GroupKind; icon: string; label: string; showLabel:
   }, [id, onFit, labelKey, width, fullWidth]);
   const labelStyle = { fontSize: F.base, fontWeight: "500" as const, color: props.on ? tokens.foreground : tokens.foregroundMuted };
   const { hovered, hoverProps } = useHover();
-  const reduced = useReducedMotion();
   return (
     <Pressable
       accessibilityRole="tab"
@@ -482,28 +472,22 @@ function Segment(props: { id: GroupKind; icon: string; label: string; showLabel:
       {...hoverProps}
       testID={`sidebar-group-tab-${props.icon}`}
       onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
-      style={({ pressed }) => {
-        const active = hovered || pressed;
-        return {
-          // Share the row equally, regardless of label length or selection.
-          flexBasis: 0,
-          flexGrow: 1,
-          flexShrink: 1,
-          minWidth: iconWidth,
-          height: taskControlHeight(props.touch ? 36 : 28, scale),
-          borderRadius: 999,
-          borderWidth: StyleSheet.hairlineWidth,
-          borderColor: props.on ? tokens.surface2 : tokens.card.pillBorder,
-          backgroundColor: props.on ? tokens.surface2 : hoverFill("transparent", tokens.card.controlHover, active, reduced),
-          boxShadow: hoverShadowValue(tokens.card.buttonShadowHover, active, reduced),
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 4,
-          paddingHorizontal: 6,
-          ...hoverScaleStyle(active, reduced),
-          ...hoverTransition(reduced),
-        };
+      style={{
+        // Share the row equally, regardless of label length or selection.
+        flexBasis: 0,
+        flexGrow: 1,
+        flexShrink: 1,
+        minWidth: iconWidth,
+        height: taskControlHeight(props.touch ? 36 : 28, scale),
+        borderRadius: 999,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: props.on ? tokens.surface2 : tokens.card.pillBorder,
+        backgroundColor: props.on ? tokens.surface2 : hovered ? tokens.card.controlHover : "transparent",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 4,
+        paddingHorizontal: 6,
       }}
     >
       <Icon name={props.icon} size={props.showLabel ? 14 : 18} color={props.on ? tokens.foreground : tokens.foregroundMuted} />
@@ -535,9 +519,8 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
   const { row, tokens } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
-  const reduced = useReducedMotion();
-  // The rows sit on the group card. Selection keeps surface2. The hover wash shows only under reduced motion.
-  const fill = row.on ? tokens.surface2 : hoverFill(tokens.card.background, tokens.card.controlHover, hovered, reduced);
+  // The rows sit on the group card; a row's own fill shows when it is on or hovered.
+  const fill = row.on ? tokens.surface2 : hovered ? tokens.card.controlHover : tokens.card.background;
   return (
     <Pressable
       accessibilityRole="checkbox"
@@ -546,25 +529,19 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
       {...tipProps(`${row.label}${row.detail ? ` · ${row.detail}` : ""}`)}
       onPress={row.toggle}
       {...hoverProps}
-      style={({ pressed }) => {
-        const active = hovered || pressed;
-        return {
-          height: taskControlHeight(row.detail ? (props.touch ? 56 : 48) : (props.touch ? 44 : 36), scale),
-          marginVertical: 2,
-          // The scrollbar's gutter takes the right margin (`detail-scrollbar.ts`); off web the gutter is 0 and the margin stays 6.
-          marginLeft: 6,
-          marginRight: 6 - detailGutter("inset"),
-          paddingHorizontal: 8,
-          borderRadius: 6,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 10,
-          backgroundColor: row.on ? tokens.surface2 : hoverFill("transparent", tokens.card.controlHover, active, reduced),
-          boxShadow: hoverShadowValue(tokens.card.buttonShadowHover, active, reduced),
-          ...hoverScaleStyle(active, reduced),
-          ...hoverTransition(reduced),
-        };
-      }}
+      style={({ pressed }) => ({
+        height: taskControlHeight(row.detail ? (props.touch ? 56 : 48) : (props.touch ? 44 : 36), scale),
+        marginVertical: 2,
+        // The scrollbar's gutter takes the right margin (`detail-scrollbar.ts`); off web the gutter is 0 and the margin stays 6.
+        marginLeft: 6,
+        marginRight: 6 - detailGutter("inset"),
+        paddingHorizontal: 8,
+        borderRadius: 6,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        backgroundColor: row.on ? tokens.surface2 : hovered || pressed ? tokens.card.controlHover : "transparent",
+      })}
     >
       <View style={{ width: 20, alignItems: "center" }}>{typeof row.lead === "function" ? row.lead(fill) : row.lead}</View>
       <View style={{ flex: 1, minWidth: 0 }}>

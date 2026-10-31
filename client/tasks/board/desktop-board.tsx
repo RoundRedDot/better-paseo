@@ -5,7 +5,6 @@ import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, laneTitle, TasksTypography, TasksTypographyScale, useTasksFontScale, taskControlHeight } from "../typography";
 import { StatusIcon, taskTokens, type CardCallbacks } from "../cards";
-import { hoverFill, hoverScaleStyle, hoverShadowValue, hoverTransition } from "../cards/hover-lift";
 import { LANE_ORDER, LANE_STATUS, isHistoryLane, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
@@ -1267,8 +1266,6 @@ function DesktopLaneView(props: DesktopLaneProps) {
   const scale = useTasksFontScale();
   const colors = theme.colors;
   const flashOpacity = useFlash(props.flash?.key ?? 0, props.flash?.delay ?? 0);
-  const reduced = useReducedMotion();
-  const hoverShadow = taskTokens(theme).card.buttonShadowHover;
   const palette = boardPalette(theme);
   const strings = board.strings;
   const ready = board.tasks.ready;
@@ -1358,10 +1355,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
           gap: 10,
           paddingVertical: 11,
           borderRadius: PANEL_RADIUS,
-          backgroundColor: hoverFill(palette.panel, palette.panelHover, hovered, reduced),
-          boxShadow: hoverShadowValue(hoverShadow, hovered, reduced),
-          ...hoverScaleStyle(hovered, reduced),
-          ...hoverTransition(reduced),
+          backgroundColor: hovered ? palette.panelHover : palette.panel,
         })}
       >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
@@ -1406,10 +1400,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
             borderRadius: 6,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: hoverFill("transparent", palette.panelHover, hovered, reduced),
-            boxShadow: hoverShadowValue(hoverShadow, hovered, reduced),
-            ...hoverScaleStyle(hovered, reduced),
-            ...hoverTransition(reduced),
+            backgroundColor: hovered ? palette.panelHover : "transparent",
           })}
         >
           <Icon name="FoldHorizontal" size={14} color={colors.foregroundMuted} />

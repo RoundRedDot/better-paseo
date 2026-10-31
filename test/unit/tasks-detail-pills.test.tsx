@@ -45,7 +45,7 @@ describe("detail pill sizes", () => {
     const chip = renderer!.root.find((node) => (node.type as unknown) === "Pressable");
     expect(StyleSheet.flatten(chip.props.style).boxShadow).toBeUndefined();
     await act(async () => chip.props.onHoverIn());
-    expect(StyleSheet.flatten(chip.props.style).boxShadow).toBe(tokens.card.buttonShadowHover);
+    expect(StyleSheet.flatten(chip.props.style).boxShadow).toBe(os === "web" ? tokens.card.buttonShadowHover : undefined);
     await act(async () => chip.props.onHoverOut());
     expect(StyleSheet.flatten(chip.props.style).boxShadow).toBeUndefined();
   });

@@ -27,8 +27,8 @@ export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archiv
 /**
  * Every Tasks action button's colours, on the card, in the details sidebar
  * and in the phone sheet's bar: an outline whose border, label and icon carry
- * its hue, with no fill at rest. The hue tint (`hover`) is the wash, and it
- * shows only while motion is reduced. Plain grey (Open tab), Allow's accent, Stop and Deny's danger,
+ * its hue, with no fill at rest and the hue tinted over the card when hovered
+ * or pressed. Plain grey (Open tab), Allow's accent, Stop and Deny's danger,
  * "Answer"'s needs-input amber, Archive's yellow, Mark read's unread green.
  * Nothing is ever solid: an armed "Confirm stop" says so in words only.
  */
