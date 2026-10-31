@@ -10,7 +10,7 @@ import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { activeStopChildren } from "../actions/stop-targets";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastHumanMessageVersion, useLastHumanMessage } from "../data/last-human-message";
-import { lastMessageVersion, useLastMessage, useLiveReplyCount } from "../data/last-message";
+import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
 import { useSubagentTimeline } from "../data/subagent-timeline";
 import { FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption } from "./filter-options";
@@ -153,9 +153,8 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
   const agent = card && !card.subagent ? card : undefined;
   const firstPrompt = useFirstPrompt(board.paseo, agent?.id ?? "", agent !== undefined && agent.closed !== true);
   const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? lastHumanMessageVersion(agent) : "", agent !== undefined && agent.closed !== true);
-  // While the board shows a running turn, its reply chunks read the latest reply again.
-  const live = useLiveReplyCount(board.paseo, agent?.id ?? "", board.visible && agent !== undefined && turnRunning(agent) && agent.closed !== true);
-  const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? `${lastMessageVersion(agent)}|${live}` : "", agent !== undefined && agent.closed !== true);
+  const live = board.visible && agent !== undefined && turnRunning(agent) && agent.closed !== true;
+  const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", agent !== undefined && agent.closed !== true, live);
   const sessionTokens = useSessionTokens(agent?.id ?? "", agent !== undefined && turnRunning(agent) && agent.closed !== true);
   const subagentReads = useSubagentTimeline(
     {

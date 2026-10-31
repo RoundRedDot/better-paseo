@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import type { FirstPrompt } from "./first-prompt";
 import { turnRunning, type LaneId } from "../model";
@@ -105,71 +105,173 @@ export function lastMessageVersion(card: { lane: LaneId; waitingOnSubtasks?: boo
   return turnRunning(card) ? `running|${card.timing.turnStartedAt ?? ""}` : `${card.lane}|${card.timing.updatedAt}`;
 }
 
-const stores = new WeakMap<object, Store>();
+type LiveApi = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "refetch" | "subscribe"> } } };
+type Stream = { seq?: number; epoch?: string; timestamp: string; event: Extract<PaseoAgentTimelineEvent["event"], { type: "timeline" }> };
+type Tail = { type: string; seqEnd: number; turnId?: string; messageId?: string };
 
-function storeFor(api: PaseoApi | Api): Store {
+interface LiveEntry {
+  value: LastMessage;
+  version: string;
+  ticket: number;
+  cursor: { epoch: string; seq: number } | null;
+  tail: Tail | null;
+  raw: string;
+  pending: boolean;
+  buffered: Stream[];
+  observers: number;
+  unsubscribe?: () => void;
+  ready?: Promise<void>;
+}
+
+/** The projected tail seeds the reply; canonical live rows extend it without another RPC per chunk. */
+export function createLiveLastMessageStore(api: LiveApi) {
+  const entries = new Map<string, LiveEntry>();
+  const listeners = new Set<() => void>();
+  const entryFor = (id: string) => {
+    let entry = entries.get(id);
+    if (!entry) {
+      entry = { value: IDLE, version: "", ticket: 0, cursor: null, tail: null, raw: "", pending: false, buffered: [], observers: 0 };
+      entries.set(id, entry);
+    }
+    return entry;
+  };
+  const notify = () => { for (const listener of listeners) listener(); };
+  const apply = (entry: LiveEntry, update: Stream): boolean => {
+    // Timeline rows carry canonical identity; other stream events do not.
+    if (update.seq === undefined || update.epoch === undefined) return false;
+    if (!entry.cursor || entry.cursor.epoch !== update.epoch) return false;
+    if (update.seq <= entry.cursor.seq) return true;
+    if (update.seq !== entry.cursor.seq + 1) return false;
+    const event = update.event;
+    const append = event.item.type === "assistant_message" && entry.tail?.type === "assistant_message" &&
+      entry.tail.seqEnd + 1 === update.seq && entry.tail.turnId === event.turnId &&
+      (event.item.messageId === undefined || event.item.messageId === entry.tail.messageId);
+    if (event.item.type === "assistant_message") {
+      entry.raw = append ? entry.raw + event.item.text : event.item.text;
+      const text = entry.raw.trim();
+      if (text) entry.value = { state: "ready", text, timestamp: update.timestamp };
+    }
+    entry.tail = { type: event.item.type, seqEnd: update.seq, turnId: event.turnId,
+      messageId: event.item.type === "assistant_message" ? append ? entry.tail?.messageId : event.item.messageId : undefined };
+    entry.cursor = { epoch: update.epoch, seq: update.seq };
+    return true;
+  };
+  const refresh = (id: string, buffered: Stream[] = []) => {
+    const entry = entryFor(id);
+    const ticket = ++entry.ticket;
+    entry.pending = true;
+    entry.buffered = buffered;
+    if (entry.value.state !== "ready") {
+      entry.value = LOADING;
+      notify();
+    }
+    api.agents.ref(id).timeline.refetch({ direction: "tail", projection: "projected", limit: TAIL_LIMIT }).then((page) => {
+      if (entry.ticket !== ticket) return;
+      entry.pending = false;
+      if (page.error) {
+        entry.value = { state: "error" };
+        notify();
+        return;
+      }
+      entry.value = lastReplyMessage(page.entries) ?? { state: "none" };
+      const tail = page.entries.at(-1);
+      entry.raw = tail?.item.type === "assistant_message" ? tail.item.text : "";
+      entry.tail = tail ? { type: tail.item.type, seqEnd: tail.seqEnd, turnId: tail.turnId, messageId: tail.item.type === "assistant_message" ? tail.item.messageId : undefined } : null;
+      entry.cursor = { epoch: page.epoch, seq: page.endCursor?.seq ?? page.window.nextSeq - 1 };
+      const pending = entry.buffered;
+      entry.buffered = [];
+      for (const update of pending) {
+        if (update.epoch !== page.epoch) continue;
+        if (!apply(entry, update)) {
+          refresh(id, pending);
+          return;
+        }
+      }
+      notify();
+    }).catch(() => {
+      if (entry.ticket !== ticket) return;
+      entry.pending = false;
+      entry.value = { state: "error" };
+      notify();
+    });
+  };
+  return {
+    read: (id: string) => entryFor(id).value,
+    request(id: string, version: string, force = false) {
+      const entry = entryFor(id);
+      if (!force && entry.version === version && SETTLED.has(entry.value.state)) return;
+      entry.version = version;
+      refresh(id);
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+    watch(id: string) {
+      const entry = entryFor(id);
+      entry.observers += 1;
+      if (entry.observers === 1) {
+        const subscription = api.agents.ref(id).timeline.subscribe((update) => {
+          const event = update.event;
+          if (event.type === "timeline") {
+            const row = update as Stream;
+            if (entry.pending) entry.buffered.push(row);
+            if (!apply(entry, row)) {
+              if (!entry.pending) refresh(id, [row]);
+              return;
+            }
+            notify();
+            return;
+          }
+          if (event.type === "subscription_restored" || event.type === "replacement" ||
+              event.type === "turn_completed" || event.type === "turn_failed" || event.type === "turn_canceled") refresh(id);
+          if (event.type === "error") {
+            entry.value = { state: "error" };
+            notify();
+          }
+        });
+        entry.unsubscribe = subscription;
+        entry.ready = subscription.ready;
+        subscription.ready.catch(() => {
+          entry.value = { state: "error" };
+          notify();
+        });
+      }
+      return Object.assign(() => {
+        entry.observers -= 1;
+        if (entry.observers === 0) {
+          entry.unsubscribe?.();
+          entry.unsubscribe = undefined;
+        }
+      }, { ready: entry.ready! });
+    },
+  };
+}
+
+const stores = new WeakMap<object, ReturnType<typeof createLiveLastMessageStore>>();
+
+function storeFor(api: PaseoApi) {
   let store = stores.get(api);
-  if (!store) stores.set(api, (store = createLastMessageStore(api as Api)));
+  if (!store) stores.set(api, (store = createLiveLastMessageStore(api)));
   return store;
 }
 
-/**
- * A card's latest reply. `auto` reads it as the card shows and again on each
- * new `version`; otherwise it waits for `load()`.
- */
-export function useLastMessage(api: PaseoApi, agentId: string, version: string, auto: boolean): { prompt: LastMessage; load(): void } {
+/** The visible running reply observes live chunks; closed tasks still wait for an explicit load. */
+export function useLastMessage(api: PaseoApi, agentId: string, version: string, auto: boolean, live = false): { prompt: LastMessage; load(): void } {
   const store = storeFor(api);
   const prompt = useSyncExternalStore(store.subscribe, () => store.read(agentId), () => store.read(agentId));
   useEffect(() => {
-    if (auto) store.request(agentId, version);
-  }, [store, agentId, version, auto]);
-  return { prompt, load: () => store.request(agentId, version) };
-}
-
-type LiveApi = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "subscribe"> } } };
-
-/** A live reply's chunks read the tail again at most this often. */
-export const LIVE_READ_MS = 1_500;
-
-/** Whether a live event can have moved the latest reply: a reply's chunk, or a reconnect that may have missed some. */
-function movesReply(event: PaseoAgentTimelineEvent): boolean {
-  const kind = event.event.type;
-  if (kind === "subscription_restored") return true;
-  return kind === "timeline" && "item" in event.event && event.event.item.type === "assistant_message";
-}
-
-/**
- * While `live` (the details show a running turn), a count that moves as the
- * agent's live timeline brings reply chunks, at most once per
- * `LIVE_READ_MS`: added to the reply's version, it reads the tail again
- * mid-turn instead of only at the turn's start and end.
- */
-export function useLiveReplyCount(api: PaseoApi | LiveApi, agentId: string, live: boolean): number {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
     if (!live || !agentId) return;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let lastAt = 0;
-    const bump = () => {
-      timer = null;
-      lastAt = Date.now();
-      setCount((was) => was + 1);
-    };
-    let subscription: (() => void) & { ready?: Promise<void> };
-    try {
-      subscription = (api as LiveApi).agents.ref(agentId).timeline.subscribe((event) => {
-        if (timer !== null || !movesReply(event)) return;
-        timer = setTimeout(bump, Math.max(0, lastAt + LIVE_READ_MS - Date.now()));
-      });
-    } catch {
-      // A host without live timelines: the reply moves on the turn's start and end only.
-      return;
-    }
-    subscription.ready?.catch(() => {});
-    return () => {
-      if (timer !== null) clearTimeout(timer);
-      subscription();
-    };
-  }, [api, agentId, live]);
-  return count;
+    const release = store.watch(agentId);
+    let watching = true;
+    // Establish observation before reading history so no chunk falls between them.
+    release.ready.then(() => {
+      if (watching) store.request(agentId, version, true);
+    }, () => {});
+    return () => { watching = false; release(); };
+  }, [store, agentId, live, version]);
+  useEffect(() => {
+    if (auto && !live) store.request(agentId, version);
+  }, [store, agentId, version, auto, live]);
+  return { prompt, load: () => store.request(agentId, version) };
 }

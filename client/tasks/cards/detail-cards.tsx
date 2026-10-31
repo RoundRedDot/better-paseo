@@ -1372,7 +1372,8 @@ function TimelineTextBody(props: Inner & {
   const adjustment = useTasksFontAdjustment();
   const first = props.read;
   const breathing = useBreathing(first?.prompt.state === "loading");
-  const changes = useTextChanges(props.card.id, props.flash === true && first?.prompt.state === "ready" ? first.prompt.text : null);
+  const streaming = id === "detail-message" && turnRunning(props.card);
+  const changes = useTextChanges(props.card.id, props.flash === true && !streaming && first?.prompt.state === "ready" ? first.prompt.text : null);
   const flashOpacity = useFlash(changes, 0, 1);
   // A file link opens in its default app (a folder in Finder) on the daemon's
   // machine, as the chat's do, instead of copying its path.
@@ -1425,7 +1426,7 @@ function TimelineTextBody(props: Inner & {
           <Animated.View pointerEvents="none" testID={`${id}-flash`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }} />
         ) : null}
         <View style={folded ? { maxHeight: PROMPT_LINES * line, overflow: "hidden" } : null} testID={`${id}-text`}>
-          <MarkdownView text={text} renderText={renderText} tokens={prose} variant={PROSE} size={font} onRevealPath={onRevealPath} />
+          <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={PROSE} size={font} onRevealPath={onRevealPath} />
           {folded ? (
             // A heading or code block cuts the last line anywhere: fade it out.
             <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: line, flexDirection: "column" }}>

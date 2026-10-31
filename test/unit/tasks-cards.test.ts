@@ -3289,6 +3289,27 @@ describe("TaskDetailCards", () => {
     timing.mockRestore();
   });
 
+  it("renders a running reply as streaming Markdown without flashing on each chunk, then settles", async () => {
+    const { Animated } = await import("react-native");
+    const timing = vi.spyOn(Animated, "timing");
+    const load = vi.fn();
+    const reply = (text: string) => ({ prompt: { state: "ready", text } as const, load });
+    const running = sample("sample-running");
+    const firstPrompt = reply("Original prompt");
+    const tree = await render(details(running, { firstPrompt, lastMessage: reply("Hello **wor") }, "en"));
+    const markdown = () => hostByTestId(tree.root, "detail-message-text").findByType(MarkdownView);
+    expect(markdown().props.streaming).toBe(true);
+    expect(hostByTestId(tree.root, "detail-prompt-text").findByType(MarkdownView).props.streaming).toBe(false);
+    await act(async () => tree.update(details(running, { firstPrompt, lastMessage: reply("Hello **world**") }, "en")));
+    expect(markdown().props.text).toBe("Hello **world**");
+    expect(timing.mock.calls.filter(([, config]) => (config as { toValue: number }).toValue === FLASH.peak)).toHaveLength(0);
+    await act(async () => tree.update(details({ ...running, lane: "done", status: "done" }, { lastMessage: reply("Hello **world**") }, "en")));
+    expect(markdown().props.streaming).toBe(false);
+    await act(async () => byLabel(tree.root, "Copy message").props.onPress());
+    expect(clipboard.copyText).toHaveBeenLastCalledWith("Hello **world**");
+    timing.mockRestore();
+  });
+
   it("draws a breathing skeleton while a timeline read is on its way", async () => {
     const load = vi.fn();
     const loading = { prompt: { state: "loading" } as const, load };

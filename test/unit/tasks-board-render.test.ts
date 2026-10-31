@@ -62,7 +62,10 @@ const host = vi.hoisted(() => ({
 }));
 // The details read a card's first prompt from its timeline: one stable client whose timelines are empty.
 const paseo = vi.hoisted(() => ({
-  agents: { ref: () => ({ timeline: { refetch: () => Promise.resolve({ error: null, entries: [] }) } }) },
+  agents: { ref: () => ({ timeline: {
+    refetch: () => Promise.resolve({ error: null, entries: [], epoch: "test", endCursor: null, window: { nextSeq: 0 } }),
+    subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }),
+  } }) },
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => paseo,
@@ -360,7 +363,10 @@ describe("search coverage render isolation", () => {
     handle.lanes = { ...handle.lanes, needs_input: { ...handle.lanes.needs_input!, cards: [task] } };
     handle.byId = new Map(handle.byId).set(task.id, task);
     let finish!: () => void;
-    const ref = vi.spyOn(paseo.agents, "ref").mockImplementation(() => ({ timeline: { refetch: () => new Promise((resolve) => { finish = () => resolve({ error: "offline", entries: [] } as never); }) } }));
+    const ref = vi.spyOn(paseo.agents, "ref").mockImplementation(() => ({ timeline: {
+      refetch: () => new Promise((resolve) => { finish = () => resolve({ error: "offline", entries: [] } as never); }),
+      subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }),
+    } }));
     try {
       await act(async () => { renderer = TestRenderer.create(screen(phone, { q: "coverage probe" })); });
       if (!phone) layOut(1600);
