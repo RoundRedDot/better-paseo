@@ -1803,7 +1803,7 @@ export function DetailActionBar(props: {
       {asking ? (
         <>
           {ordered.map((button) => (
-            <BarButton
+            <BarButton sidebar={props.sidebar}
               key={button.key}
               tokens={tokens}
               label={button.label}
@@ -1814,19 +1814,19 @@ export function DetailActionBar(props: {
             />
           ))}
           {props.sidebar && stop && props.stop ? (
-            <BarButton tokens={tokens} icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"} look="danger" label={stop} busy={props.stop.phase === "stopping"} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" />
+            <BarButton sidebar={props.sidebar} tokens={tokens} icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"} look="danger" label={stop} busy={props.stop.phase === "stopping"} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" />
           ) : null}
           {/* "Answer" already opens the tab, so, as on the card, Open tab is the square beside Allow and Deny only. */}
-          {answer ? <BarButton tokens={tokens} label={answer.label} arrow look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
-          {ownOpen && !answer ? <BarButton tokens={tokens} arrow label={openText} square onPress={open} testID="detail-bar-open" /> : null}
+          {answer ? <BarButton sidebar={props.sidebar} tokens={tokens} label={answer.label} arrow look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
+          {ownOpen && !answer ? <BarButton sidebar={props.sidebar} tokens={tokens} arrow label={openText} square onPress={open} testID="detail-bar-open" /> : null}
           {!ownOpen && parentOpens && !answer ? (
-            <BarButton tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} square onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
+            <BarButton sidebar={props.sidebar} tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} square onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
           ) : null}
         </>
       ) : (
         <>
           {stop && props.stop ? (
-            <BarButton
+            <BarButton sidebar={props.sidebar}
               tokens={tokens}
               icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"}
               look="danger"
@@ -1838,7 +1838,7 @@ export function DetailActionBar(props: {
             />
           ) : null}
           {read ? (
-            <BarButton
+            <BarButton sidebar={props.sidebar}
               tokens={tokens}
               icon="CheckCheck"
               look={card.status === "failed" ? "plain" : "read"}
@@ -1851,7 +1851,7 @@ export function DetailActionBar(props: {
             />
           ) : null}
           {archive ? (
-            <BarButton
+            <BarButton sidebar={props.sidebar}
               tokens={tokens}
               icon="Archive"
               look="archive"
@@ -1864,11 +1864,11 @@ export function DetailActionBar(props: {
             />
           ) : null}
           {parentOpens ? (
-            <BarButton tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
+            <BarButton sidebar={props.sidebar} tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
           ) : null}
-          {ownOpen ? <BarButton tokens={tokens} arrow label={openText} onPress={open} testID="detail-bar-open" /> : null}
+          {ownOpen ? <BarButton sidebar={props.sidebar} tokens={tokens} arrow label={openText} onPress={open} testID="detail-bar-open" /> : null}
           {unarchive ? (
-            <BarButton
+            <BarButton sidebar={props.sidebar}
               tokens={tokens}
               icon="ArchiveRestore"
               label={cardText.details.unarchive}
@@ -1898,9 +1898,10 @@ function archivable(card: TaskCard): boolean {
 
 /** The phone bar's button: the card button's outline (`buttonHue`) at thumb size, tinted while pressed. */
 /** `arrow` ends the button in a ↗ after its label (Open tab); a square shows only the arrow. */
-function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; square?: boolean; grow?: boolean; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
+function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; sidebar?: boolean; square?: boolean; grow?: boolean; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
+  const font = props.sidebar && Platform.OS === "web" ? F.base : F.sm;
   const tablet = Platform.OS === "ios" && Platform.isPad;
   const height = taskControlHeight(tablet ? 36 : 40, scale);
   const iconSize = tablet ? 14 : 16;
@@ -1910,7 +1911,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const hue = buttonHue(tokens, look);
   const text = hue.color;
   const iconColor = look === "plain" ? tokens.foregroundMuted : text;
-  const fit = useActionFit(props.label, `${scale}|${tablet}|${useWindowDimensions().fontScale}`, height, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, look === "primary");
+  const fit = useActionFit(props.label, `${scale}|${tablet}|${font}|${useWindowDimensions().fontScale}`, height, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, look === "primary");
   const square = fit.iconOnly;
   const disabled = props.busy || props.disabled;
   return (
@@ -1945,7 +1946,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         <Icon name={props.icon} size={iconSize} color={iconColor} />
       ) : null}
       {square ? null : (
-        <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: F.sm, fontWeight: "600", color: text }}>
+        <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: font, fontWeight: "600", color: text }}>
           {props.label}
         </Text>
       )}

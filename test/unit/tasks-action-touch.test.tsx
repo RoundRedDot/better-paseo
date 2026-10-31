@@ -9,7 +9,7 @@ import "./helpers/quiet-renderer";
 const device = vi.hoisted(() => ({ tablet: false }));
 vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
-  return { ...rn, Platform: { ...rn.Platform, get isPad() { return device.tablet; } } };
+  return { ...rn, Platform: { ...rn.Platform, get OS() { return rn.Platform.OS; }, get isPad() { return device.tablet; } } };
 });
 vi.mock("@getpaseo/plugin/client/react-native", () => ({
   Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
@@ -60,6 +60,7 @@ afterEach(async () => {
   await act(async () => renderer?.unmount());
   motion.reduced = false;
   device.tablet = false;
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -140,6 +141,24 @@ describe("mobile card action feedback", () => {
 });
 
 describe("phone sheet action size", () => {
+  it.each([
+    { os: "web", sidebar: true, font: 14 },
+    { os: "web", sidebar: false, font: 12 },
+    { os: "ios", sidebar: true, font: 12 },
+  ])("sizes archive and open labels for $os sidebar=$sidebar", async ({ os, sidebar, font }) => {
+    vi.stubGlobal("__rnMockOS", os);
+    device.tablet = os === "ios";
+    const card = sample("sample-done");
+    const root = await render(<DetailActionBar card={card} theme={theme} language="zh" strings={BOARD_STRINGS.zh.sidebar}
+      sidebar={sidebar} archive={{ pending: () => false, press() {} }} onOpen={() => {}} />);
+    const buttons = root.findAllByType(Pressable);
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      const label = button.find((node) => (node.type as unknown) === "Text");
+      expect(StyleSheet.flatten(label.props.style).fontSize).toBe(font);
+    }
+  });
+
   it.each([1, 1.5])("uses smaller iPad archive and open actions at font scale %s", async (factor) => {
     device.tablet = true;
     const card = sample("sample-done");
