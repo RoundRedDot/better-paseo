@@ -40,8 +40,8 @@ export function TabletToolbar(props: {
   const strings = board.strings;
   const scale = useTasksFontScale();
   const compact = props.width < 680 * Math.max(1, scale);
-  const target = taskControlHeight(compact ? 28 : 44, scale);
-  const height = taskControlHeight(compact ? 36 : Platform.OS === "ios" ? 48 : 56, scale);
+  const target = taskControlHeight(compact ? 28 : Platform.OS === "ios" ? 40 : 44, scale);
+  const height = taskControlHeight(compact ? 36 : Platform.OS === "ios" ? 44 : 56, scale);
   const labels = props.width >= 1000 * Math.max(1, scale);
   const inlineSearch = Platform.OS !== "ios" && props.width >= 560 * Math.max(1, scale);
   const shortcuts = props.width >= 680 * Math.max(1, scale);
@@ -146,7 +146,7 @@ export function TabletToolbar(props: {
         <View testID="tablet-filter-popover" accessibilityViewIsModal onAccessibilityEscape={props.filters.onClose} style={{ position: "absolute", top: height + 6, right: 12, width: menuWidth(400, scale, props.width - 24), height: Math.min(640 * Math.max(1, scale), Math.max(0, props.filters.height - 18)), borderRadius: 12, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface1, boxShadow: menuChrome(theme).shadow, elevation: 8, paddingBottom: 16, overflow: "hidden", zIndex: 30 }}>
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, height: taskControlHeight(48, scale), borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
             <Text accessibilityRole="header" style={{ flex: 1, fontSize: F.base, fontWeight: "600", color: colors.foreground }}>{strings.filters}</Text>
-            <ToolbarButton compact={compact} icon="X" label={strings.closeMenu} theme={theme} testID="tablet-filter-close" onPress={props.filters.onClose} />
+            <ToolbarButton compact={compact} size={compact ? 28 : 44} icon="X" label={strings.closeMenu} theme={theme} testID="tablet-filter-close" onPress={props.filters.onClose} />
           </View>
           {props.filters.content}
         </View>
@@ -161,10 +161,10 @@ export function TabletToolbar(props: {
   );
 }
 
-function ToolbarButton(props: { icon: string | React.ReactElement; label: string; theme: PluginTheme; onPress(): void; testID: string; showLabel?: boolean; selected?: boolean; expanded?: boolean; badge?: number; badgeTestID?: string; slashed?: boolean; compact?: boolean }) {
+function ToolbarButton(props: { icon: string | React.ReactElement; label: string; theme: PluginTheme; onPress(): void; testID: string; showLabel?: boolean; selected?: boolean; expanded?: boolean; badge?: number; badgeTestID?: string; slashed?: boolean; compact?: boolean; size?: number }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
-  const target = taskControlHeight(props.compact ? 28 : 44, scale);
+  const target = taskControlHeight(props.size ?? (props.compact ? 28 : Platform.OS === "ios" ? 40 : 44), scale);
   const iconSize = props.compact ? 16 : 18;
   return (
     <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered) => ({ minWidth: target, height: target, flexShrink: 0, paddingHorizontal: props.showLabel ? 10 : 0, borderRadius: 7, backgroundColor: hovered || props.expanded || props.selected ? colors.surface1 : "transparent", boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>

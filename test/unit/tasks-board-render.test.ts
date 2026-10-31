@@ -3771,11 +3771,11 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById("filter-bar")).toHaveLength(0);
     const bar = hostsById("tablet-toolbar")[0]!;
     const compact = width < 680 * Math.max(1, base / 14);
-    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ height: Math.round((compact ? 36 : os === "ios" ? 48 : 56) * Math.max(1, base / 14)), flexDirection: "row", flexShrink: 0 });
+    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ height: Math.round((compact ? 36 : os === "ios" ? 44 : 56) * Math.max(1, base / 14)), flexDirection: "row", flexShrink: 0 });
     const buttons = bar.findAll((n) => (n.type as unknown) === "Pressable" && n.props.testID !== "search-full-conversation-toggle");
     for (const button of buttons) {
       const style = StyleSheet.flatten(button.props.style);
-      expect(style.height).toBe(Math.round((compact ? 28 : 44) * Math.max(1, base / 14)));
+      expect(style.height).toBe(Math.round((compact ? 28 : os === "ios" ? 40 : 44) * Math.max(1, base / 14)));
       expect(style.borderRadius).toBe(7);
       const icon = button.find((node) => button.props.testID === "sidebar-switch" ? typeof node.type === "string" && node.props.testID === "panel-mark" : (node.type as unknown) === "Icon");
       expect(StyleSheet.flatten(hostParentOf(icon)!.props.style)).toMatchObject({ width: compact ? 16 : 18, height: compact ? 16 : 18 });
