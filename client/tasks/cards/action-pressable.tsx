@@ -4,50 +4,59 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-/** A touch action pulses once, including when the finger lifts immediately. */
 export function useActionPressMotion(enabled: boolean) {
   const reduced = useReducedMotion();
   const [scale] = useState(() => new Animated.Value(1));
+  const [pressed, setPressed] = useState(false);
+  const touching = useRef(false);
   const animation = useRef<Animated.CompositeAnimation | null>(null);
-  const active = enabled && !reduced;
   useEffect(() => {
-    if (!active) {
-      animation.current?.stop();
+    if (!enabled) {
+      setPressed(false);
       scale.setValue(1);
     }
     return () => { animation.current?.stop(); };
-  }, [active, scale]);
-  return {
-    style: { transform: [{ scale: active ? scale : 1 }] },
-    onPressIn: () => {
-      if (!active) return;
+  }, [enabled, scale]);
+  useEffect(() => {
+    if (reduced && enabled) {
       animation.current?.stop();
-      animation.current = Animated.sequence([
-        Animated.timing(scale, { toValue: 1.08, duration: 100, useNativeDriver: Platform.OS !== "web", isInteraction: false }),
-        Animated.spring(scale, { toValue: 1, friction: 5, tension: 220, useNativeDriver: Platform.OS !== "web", isInteraction: false }),
-      ]);
-      animation.current.start();
-    },
+      scale.setValue(pressed ? 1.05 : 1);
+    }
+  }, [reduced, enabled, pressed, scale]);
+  const change = (value: boolean) => {
+    if (!enabled) return;
+    setPressed(value);
+    animation.current?.stop();
+    if (reduced) {
+      scale.setValue(value ? 1.05 : 1);
+      return;
+    }
+    animation.current = Animated.timing(scale, { toValue: value ? 1.05 : 1, duration: 100, useNativeDriver: Platform.OS !== "web", isInteraction: false });
+    animation.current.start();
+  };
+  return {
+    pressed,
+    style: { transform: [{ scale }], ...(pressed && !reduced ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.25)" } : {}) },
+    onPressIn: () => change(true),
+    onPressOut: () => { if (!touching.current) change(false); },
+    onTouchStart: () => { touching.current = true; },
+    onTouchEnd: () => { touching.current = false; change(false); },
+    onTouchCancel: () => { touching.current = false; change(false); },
   };
 }
 
 export function ActionPressable({ motion, style, ...props }: PressableProps & { motion: boolean }) {
-  const pulse = useActionPressMotion(motion && !props.disabled);
-  const [pressed, setPressed] = useState(false);
+  const feedback = useActionPressMotion(motion && !props.disabled);
   if (!motion) return <Pressable {...props} style={style} />;
   return (
     <AnimatedPressable
       {...props}
-      onPressIn={(event) => {
-        setPressed(true);
-        pulse.onPressIn();
-        props.onPressIn?.(event);
-      }}
-      onPressOut={(event) => {
-        setPressed(false);
-        props.onPressOut?.(event);
-      }}
-      style={[typeof style === "function" ? style({ pressed: pressed && !props.disabled }) : style, pulse.style]}
+      onPressIn={(event) => { feedback.onPressIn(); props.onPressIn?.(event); }}
+      onPressOut={(event) => { feedback.onPressOut(); props.onPressOut?.(event); }}
+      onTouchStart={(event) => { feedback.onTouchStart(); props.onTouchStart?.(event); }}
+      onTouchEnd={(event) => { feedback.onTouchEnd(); props.onTouchEnd?.(event); }}
+      onTouchCancel={(event) => { feedback.onTouchCancel(); props.onTouchCancel?.(event); }}
+      style={[typeof style === "function" ? style({ pressed: feedback.pressed && !props.disabled }) : style, feedback.style]}
     />
   );
 }

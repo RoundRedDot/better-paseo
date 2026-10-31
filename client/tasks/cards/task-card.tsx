@@ -2132,6 +2132,10 @@ function StopControl(props: StopControlProps) {
         disabled={stopping}
         onPress={props.onPress}
         onPressIn={pulse.onPressIn}
+        onPressOut={pulse.onPressOut}
+        onTouchStart={pulse.onTouchStart}
+        onTouchEnd={pulse.onTouchEnd}
+        onTouchCancel={pulse.onTouchCancel}
         {...stopHover.hoverProps}
         {...hintProps(fit.iconOnly ? props.hint : undefined)}
         style={({ pressed }) => [
@@ -2168,6 +2172,10 @@ function StopControl(props: StopControlProps) {
           disabled={stopping}
           onPress={props.onToggleMenu}
           onPressIn={pulse.onPressIn}
+          onPressOut={pulse.onPressOut}
+          onTouchStart={pulse.onTouchStart}
+          onTouchEnd={pulse.onTouchEnd}
+          onTouchCancel={pulse.onTouchCancel}
           {...chevronHover.hoverProps}
           {...hintProps(props.menuOpen ? undefined : "stop-options")}
           style={({ pressed }) => [

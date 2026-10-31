@@ -4631,7 +4631,7 @@ describe("Tasks board, phone", () => {
     }
   });
 
-  it("pulses the bottom shortcut and still scrolls on press", () => {
+  it("holds the bottom shortcut and still scrolls on press", () => {
     const timing = vi.spyOn(Animated, "timing");
     const spring = vi.spyOn(Animated, "spring");
     const sequence = vi.spyOn(Animated, "sequence");
@@ -4644,10 +4644,13 @@ describe("Tasks board, phone", () => {
       timing.mockClear();
       spring.mockClear();
       sequence.mockClear();
+      act(() => { hostsById("phone-scroll-bottom")[0]!.props.onTouchStart({}); hostsById("phone-scroll-bottom")[0]!.props.onPressIn({}); });
+      act(() => hostsById("phone-scroll-bottom")[0]!.props.onPressOut({}));
+      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.05, duration: 100 }));
+      expect(spring).not.toHaveBeenCalled();
+      act(() => hostsById("phone-scroll-bottom")[0]!.props.onTouchEnd({}));
+      expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1 }));
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onPress());
-      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.08, duration: 100 }));
-      expect(spring).toHaveBeenCalledWith(timing.mock.calls[0]![0], expect.objectContaining({ toValue: 1, friction: 5, tension: 220 }));
-      expect(sequence).toHaveBeenCalledTimes(1);
       expect(scrollToOffset).toHaveBeenCalledWith({ offset: 938, animated: true });
     } finally {
       timing.mockRestore();

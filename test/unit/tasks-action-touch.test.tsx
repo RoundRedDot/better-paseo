@@ -59,39 +59,34 @@ afterEach(async () => {
 });
 
 describe("mobile card action feedback", () => {
-  it("pulses to 1.08 then springs back, stops on reduced motion, and skips disabled or desktop actions", async () => {
+  it("holds feedback until touch end, including reduced motion and cancellation", async () => {
     const timing = vi.spyOn(Animated, "timing");
-    const spring = vi.spyOn(Animated, "spring");
-    const stop = vi.fn();
-    vi.spyOn(Animated, "sequence").mockReturnValue({ start: vi.fn(), stop, reset: vi.fn() });
     const props = { tokens, compact: true, look: "plain" as const, label: "Action", onPress: vi.fn() };
     const root = await render(<CardButton {...props} />);
     const button = () => root.findByType(Pressable);
-    act(() => button().props.onPressIn({}));
-    expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.08, duration: 100, useNativeDriver: true }));
-    expect(spring).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1, friction: 5, tension: 220, useNativeDriver: true }));
-    // Repeated presses interrupt the preceding pulse.
-    act(() => button().props.onPressIn({}));
-    expect(stop).toHaveBeenCalled();
+    act(() => { button().props.onTouchStart({}); button().props.onPressIn({}); });
+    expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.05, duration: 100 }));
+    expect(StyleSheet.flatten(button().props.style).boxShadow).toBeTruthy();
+    timing.mockClear();
+    act(() => button().props.onPressOut({}));
+    expect(timing).not.toHaveBeenCalled();
+    expect(StyleSheet.flatten(button().props.style).boxShadow).toBeTruthy();
+    act(() => button().props.onTouchEnd({}));
+    expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1 }));
+    expect(StyleSheet.flatten(button().props.style).boxShadow).toBeFalsy();
     motion.reduced = true;
     await act(async () => renderer.update(<CardButton {...props} />));
-    expect(StyleSheet.flatten(button().props.style).transform).toEqual([{ scale: 1 }]);
     timing.mockClear();
-    spring.mockClear();
-    act(() => button().props.onPressIn({}));
+    act(() => { button().props.onTouchStart({}); button().props.onPressIn({}); });
     expect(timing).not.toHaveBeenCalled();
-    expect(spring).not.toHaveBeenCalled();
-    motion.reduced = false;
+    const current = StyleSheet.flatten(button().props.style);
+    expect(current.transform[0].scale.__value).toBe(1.05);
+    expect(current.boxShadow).toBeFalsy();
+    act(() => button().props.onTouchCancel({}));
+    expect(StyleSheet.flatten(button().props.style).transform[0].scale.__value).toBe(1);
     await act(async () => renderer.update(<CardButton {...props} disabled />));
     act(() => button().props.onPressIn({}));
     expect(timing).not.toHaveBeenCalled();
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
-    try {
-      await act(async () => renderer.update(<CardButton {...props} compact={false} />));
-      expect(button().props.onPressIn).toBeUndefined();
-    } finally {
-      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
-    }
   });
 
   it.each(["plain", "primary", "danger", "answer", "archive", "read"] as const)("tints %s on press, releases, and leaves disabled actions unchanged", async (look) => {
@@ -140,7 +135,7 @@ describe("mobile card action feedback", () => {
 });
 
 describe("phone sheet action size", () => {
-  it("pulses each sheet action and skips all pulses with reduced motion", async () => {
+  it("animates each sheet action and skips animation with reduced motion", async () => {
     const timing = vi.spyOn(Animated, "timing");
     const card = sample("sample-input");
     const element = <DetailActionBar card={card} theme={theme} language="en" strings={BOARD_STRINGS.en.sidebar}
@@ -149,7 +144,7 @@ describe("phone sheet action size", () => {
     for (const button of root.findAllByType(Pressable)) {
       timing.mockClear();
       act(() => button.props.onPressIn({}));
-      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.08 }));
+      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.05 }));
     }
     motion.reduced = true;
     await act(async () => renderer.update(React.cloneElement(element)));
