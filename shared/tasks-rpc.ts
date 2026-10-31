@@ -221,3 +221,16 @@ export const tasksProjectIconsRpc = defineRpc({
       .nullable(),
   }),
 });
+
+/**
+ * The hosts this plugin server knows about, each with its id, label and
+ * whether it is the daemon running this plugin. The board uses it to draw the
+ * host filter and to route actions. An older server lacks it.
+ */
+export const tasksHostsRpc = defineRpc({
+  name: "tasks.hosts",
+  input: z.object({}),
+  output: z.object({
+    hosts: z.array(z.object({ id: z.string(), label: z.string(), local: z.boolean() })),
+  }),
+});

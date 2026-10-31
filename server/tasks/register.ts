@@ -6,9 +6,10 @@ import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
+import { createHostRegistry, singleHostRegistry, type HostRegistry } from "./host-registry";
 import { iconThemeColor } from "./icon-color";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
-import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksChunkRpc, tasksHostsRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
 import { registerTitleGeneration } from "./title-generation";
 import { tasksAvailabilityRpc } from "../../shared/task-availability";
@@ -337,12 +338,16 @@ export function registerTasksServer(
   host: HostDaemonAccess = hostDaemon,
   reads = createStopMarks(readMarksPath()),
   tokens: SessionTokenReader = createSessionTokenReader(),
+  hosts: HostRegistry = singleHostRegistry(host),
 ): void {
+  // Resolve the primary host from the registry for backward-compatible single-host
+  // callers; multi-host aggregation will iterate hosts.list() in follow-up work.
+  const primaryHost = hosts.get(hosts.list()[0]?.id ?? "local") ?? host;
   server.registerSettings(TASKS_SETTINGS);
-  const titleSettings = registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available);
-  const availability = createTaskAvailability(titleSettings, host.available, async () => (await resolveCli()) !== null, host.available);
+  const titleSettings = registerTitleGeneration(server, (agentId, title) => renameAgent(primaryHost, agentId, title), primaryHost.available);
+  const availability = createTaskAvailability(titleSettings, primaryHost.available, async () => (await resolveCli()) !== null, primaryHost.available);
   server.handle(tasksAvailabilityRpc, (input, { paseo }) => availability(paseo, input.agentIds));
-  server.handle(conversationSearchRpc, (input, { paseo }) => searchConversationPage(paseo, host, input));
+  server.handle(conversationSearchRpc, (input, { paseo }) => searchConversationPage(paseo, primaryHost, input));
   // A new turn means a new prompt: the agent is no longer "stopped manually", nor read.
   server.on("agent.turn_started", async ({ agent }, context) => {
     void subagents.ensure(context?.paseo);
@@ -362,21 +367,37 @@ export function registerTasksServer(
     return { tokens: agent ? await tokens.read(agent) : null };
   });
   server.handle(tasksSubagentsRpc, async ({ since }, context) => subagents.read(context?.paseo, since));
-  server.handle(tasksSubagentTimelineRpc, (input) => readSubagentTimeline(host, input));
+  server.handle(tasksSubagentTimelineRpc, (input) => readSubagentTimeline(primaryHost, input));
   server.handle(tasksChunkRpc, ({ id }) => ({ code: TASKS_CHUNK?.id === id ? TASKS_CHUNK.code : null }));
-  server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCli()) !== null, read: host.available() }));
+  server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCli()) !== null, read: primaryHost.available() }));
+  server.handle(tasksHostsRpc, async ({}, context) => {
+    const paseo = context?.paseo;
+    if (paseo?.hosts) {
+      try {
+        const directory = await paseo.hosts.list();
+        const result = [{ id: directory.self.serverId, label: directory.self.label, local: true }]
+          .concat(directory.hosts
+            .filter((h) => h.enabled && h.serverId)
+            .map((h) => ({ id: h.serverId as string, label: h.label ?? h.targetDescription, local: false })));
+        return { hosts: result };
+      } catch {
+        // Fall through to the static registry.
+      }
+    }
+    return { hosts: hosts.list() };
+  });
   server.handle(tasksReadRpc, async ({ agentIds }) => {
-    const result = await markRead(host, agentIds);
+    const result = await markRead(primaryHost, agentIds);
     if (result.ok) for (const agentId of agentIds) await reads.mark(agentId);
     return result;
   });
-  server.handle(tasksLabelsRpc, async () => ({ labels: await readLabels(host) }));
+  server.handle(tasksLabelsRpc, async () => ({ labels: await readLabels(primaryHost) }));
   server.handle(tasksRenameRpc, async ({ agentId, title }, { paseo }) => {
     const issue = await taskUpdateIssue(await paseo.agents.ref(agentId).refresh(), paseo);
     if (issue) return { ok: false, error: taskIssueError(issue) };
-    return renameAgent(host, agentId, title);
+    return renameAgent(primaryHost, agentId, title);
   });
-  server.handle(tasksProjectIconsRpc, async ({ projectIds }) => ({ icons: await readProjectIcons(host, projectIds) }));
+  server.handle(tasksProjectIconsRpc, async ({ projectIds }) => ({ icons: await readProjectIcons(primaryHost, projectIds) }));
   server.handle(tasksReadsRpc, async () => ({
     reads: (await reads.list()).map(({ agentId, stoppedAt }) => ({ agentId, readAt: stoppedAt })),
   }));
