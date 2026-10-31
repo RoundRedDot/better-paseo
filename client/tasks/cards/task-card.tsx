@@ -2118,7 +2118,8 @@ function StopControl(props: StopControlProps) {
         // On a phone the pill shares the action bar like the buttons, as wide
         // as its label: "Confirm stop" takes more than "Stop". Explicit grow
         // and basis, never the `flex` shorthand beside `flexShrink`.
-        ...(compact ? { flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height, ...(props.hug ? { flexGrow: 0 } : null) } : { flexShrink: 0 }),
+        ...(compact ? { flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height, ...(props.hug ? { flexGrow: 0 } : null) } : { flexShrink: 0, height }),
+        alignSelf: "center",
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         zIndex: 40,
         borderRadius: round,

@@ -1924,6 +1924,7 @@ describe("TaskCardView actions", () => {
       byLabel(root, label).find((node) => (node.type as unknown) === "Icon" && node.props.name === "Power").props;
     const tree = await render(cardElement(sample("sample-running"), { onStop: () => {} }));
     expect(square(tree.root, "停止")).toMatchObject({ size: 13, color: tokens.danger });
+    expect(flat(hostByTestId(tree.root, "task-card-stop").props.style)).toMatchObject({ height: 28, alignSelf: "center" });
     expect(flat(byLabel(tree.root, "停止").props.style)).toMatchObject({ height: 28, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 });
     await act(async () => tree.update(cardElement(sample("sample-running"), { onStop: () => {}, stopPhase: "confirming" })));
     // Armed, the stop sign with an exclamation mark asks for the second press.
@@ -1939,6 +1940,7 @@ describe("TaskCardView actions", () => {
 
     const phone = await render(cardElement(sample("sample-child-1"), { onStop: () => {}, compact: true }));
     expect(square(phone.root, "停止")).toMatchObject({ size: 14, color: tokens.danger });
+    expect(flat(hostByTestId(phone.root, "task-card-stop").props.style)).toMatchObject({ alignSelf: "center" });
   });
 
   it("keeps the pressed stop segment tinted until touch ends and rounds its shadow", async () => {
