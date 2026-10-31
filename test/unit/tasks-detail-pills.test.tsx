@@ -35,6 +35,21 @@ afterEach(async () => {
 });
 
 describe("detail pill sizes", () => {
+  it.each(["web", "ios"])("uses the board's hover shadow on %s", async (os) => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("__rnMockOS", os);
+    const tokens = taskTokens(THEME);
+    await act(async () => {
+      renderer = TestRenderer.create(<Chip tokens={tokens} text="Model" tip="Model" height={20} font={11} />);
+    });
+    const chip = renderer!.root.find((node) => (node.type as unknown) === "Pressable");
+    expect(StyleSheet.flatten(chip.props.style).boxShadow).toBeUndefined();
+    await act(async () => chip.props.onHoverIn());
+    expect(StyleSheet.flatten(chip.props.style).boxShadow).toBe(os === "web" ? tokens.card.buttonShadowHover : undefined);
+    await act(async () => chip.props.onHoverOut());
+    expect(StyleSheet.flatten(chip.props.style).boxShadow).toBeUndefined();
+  });
+
   it.each([
     ["desktop", "web", false, false],
     ["mobile web", "web", true, true],

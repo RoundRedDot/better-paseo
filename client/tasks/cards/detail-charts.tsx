@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { mix } from "../../components/theme-tokens";
 import { ProgressRing } from "../../ui/progress-ring";
@@ -24,6 +24,7 @@ import { cardStrings } from "./strings";
 import type { TaskTokens } from "./tokens";
 import { useHover } from "../../ui/use-hover";
 import { tipProps } from "./card-hints";
+import { webTransition } from "./action-style";
 
 /**
  * The details card's charts (`docs/prototypes/task-details-rich.md`, board 6),
@@ -522,7 +523,7 @@ export function Chip(props: { tokens: TaskTokens; lead?: React.ReactNode; text: 
       testID={props.testID}
       {...hoverProps}
       {...tipProps(props.tip)}
-      style={{ height, minWidth: height, maxWidth: "100%", paddingHorizontal: props.compact ? 9 : 8, borderRadius: height / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, backgroundColor: hovered ? mix(props.tokens.card.background, props.tokens.foreground, 0.06) : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: props.compact ? 6 : 5 }}
+      style={{ height, minWidth: height, maxWidth: "100%", paddingHorizontal: props.compact ? 9 : 8, borderRadius: height / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, backgroundColor: hovered ? mix(props.tokens.card.background, props.tokens.foreground, 0.06) : "transparent", boxShadow: Platform.OS === "web" && hovered ? props.tokens.card.buttonShadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: props.compact ? 6 : 5, ...webTransition }}
     >
       {props.lead}
       <Text numberOfLines={1} style={{ fontSize: props.font, lineHeight: Math.round(props.font * 1.25), flexShrink: 1, color: props.muted ? props.tokens.foregroundMuted : props.tokens.foreground }}>
