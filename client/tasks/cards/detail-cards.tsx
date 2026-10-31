@@ -1666,7 +1666,7 @@ function OutlineButton(props: {
 // ---- The phone's action bar ------------------------------------------------
 
 /**
- * Under the phone's sheet: the card's actions at thumb height (48, radius 12).
+ * Under the phone's sheet: compact actions (40, radius 10).
  * Running: stop, then open the tab at the right. Asking: deny, allow as the
  * main button, and the tab shrunk to a square at the right. Otherwise: open the tab.
  */
@@ -1805,12 +1805,12 @@ function archivable(card: TaskCard): boolean {
 function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; square?: boolean; grow?: boolean; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
-  const height = taskControlHeight(48, scale);
+  const height = taskControlHeight(40, scale);
   const look = props.look ?? "plain";
   const hue = buttonHue(tokens, look);
   const text = hue.color;
   const iconColor = look === "plain" ? tokens.foregroundMuted : text;
-  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, 48, 32 + ((props.icon || props.busy) ? 26 : 0) + (props.arrow ? 26 : 0) + 1, props.square, look === "primary");
+  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, height, 24 + ((props.icon || props.busy) ? 22 : 0) + (props.arrow ? 22 : 0) + 1, props.square, look === "primary");
   const square = fit.iconOnly;
   const disabled = props.busy || props.disabled;
   return (
@@ -1826,32 +1826,32 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         width: square ? height : undefined,
         flexGrow: square || props.grow === false ? 0 : 1,
         flexShrink: square ? 0 : 1,
-        paddingHorizontal: square ? 0 : 16,
-        borderRadius: 12,
+        paddingHorizontal: square ? 0 : 12,
+        borderRadius: 10,
         ...buttonOutline(hue.border),
         backgroundColor: pressed && !disabled ? hue.hover : tokens.card.background,
         opacity: disabled ? 0.6 : 1,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: 8,
+        gap: 6,
         ...fit.style,
       })}
     >
       {props.busy ? (
         // The running ring without its dot, in the icon's box so the button keeps its width.
-        <SpinnerRing size={18} color={iconColor} testID={props.testID ? `${props.testID}-spinner` : undefined} />
+        <SpinnerRing size={16} color={iconColor} testID={props.testID ? `${props.testID}-spinner` : undefined} />
       ) : props.icon ? (
-        <Icon name={props.icon} size={18} color={iconColor} />
+        <Icon name={props.icon} size={16} color={iconColor} />
       ) : null}
       {square ? null : (
-        <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: F.base, fontWeight: "600", color: text }}>
+        <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: F.sm, fontWeight: "600", color: text }}>
           {props.label}
         </Text>
       )}
       {props.arrow && !(square && props.busy) ? (
-        <View style={{ marginLeft: square ? 0 : -arrowInset(18) }}>
-          <Icon name="ArrowUpRight" size={18} color={iconColor} />
+        <View style={{ marginLeft: square ? 0 : -arrowInset(16) }}>
+          <Icon name="ArrowUpRight" size={16} color={iconColor} />
         </View>
       ) : null}
     </Pressable>

@@ -1954,7 +1954,6 @@ function ReadControl(props: {
   const hover = hovered && !disabled;
   const hue = buttonHue(tokens, props.unread ? "read" : "plain");
   const color = hue.color;
-  const fill = hover ? hue.hover : "transparent";
   return (
     <Pressable
       accessibilityRole="button"
@@ -1965,13 +1964,13 @@ function ReadControl(props: {
       {...hoverProps}
       {...hintProps(fit.iconOnly ? props.hint : undefined)}
       testID="task-card-read"
-      style={{
+      style={({ pressed }) => ({
         ...(compact ? { flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height, ...(props.hug ? { flexGrow: 0 } : null), minHeight: height, paddingVertical: 4 } : { flexShrink: 0, height }),
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         paddingHorizontal: compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,
         ...buttonOutline(hue.border, {}, hover ? tokens.card.buttonShadowHover : undefined),
-        backgroundColor: fill,
+        backgroundColor: (hover || pressed) && !disabled ? hue.hover : "transparent",
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
@@ -1979,7 +1978,7 @@ function ReadControl(props: {
         opacity: disabled ? 0.6 : 1,
         ...webTransition,
         ...fit.style,
-      }}
+      })}
     >
       {pending ? (
         // The running ring without its dot, in the icon's box so the button keeps its width.
@@ -2134,7 +2133,7 @@ function StopControl(props: StopControlProps) {
         onPress={props.onPress}
         {...stopHover.hoverProps}
         {...hintProps(fit.iconOnly ? props.hint : undefined)}
-        style={[
+        style={({ pressed }) => [
           segment,
           props.parent ? null : buttonOutline(tokens.danger, {}, stopHover.hovered && !stopping ? tokens.card.buttonShadowHover : undefined),
           {
@@ -2142,7 +2141,7 @@ function StopControl(props: StopControlProps) {
             gap: 5,
             // The row drops the whole label when needed; keep the confirm icon and menu target.
             paddingHorizontal: fit.iconOnly ? 0 : compact ? (confirming ? 10 : 12) : 10,
-            backgroundColor: fill(stopHover.hovered && !stopping),
+            backgroundColor: fill((stopHover.hovered || pressed) && !stopping),
             borderTopLeftRadius: round,
             borderBottomLeftRadius: round,
             borderTopRightRadius: props.parent ? 0 : round,
@@ -2169,11 +2168,11 @@ function StopControl(props: StopControlProps) {
           onPress={props.onToggleMenu}
           {...chevronHover.hoverProps}
           {...hintProps(props.menuOpen ? undefined : "stop-options")}
-          style={[
+          style={({ pressed }) => [
             segment,
             {
               width: compact ? 36 : 26,
-              backgroundColor: fill((chevronHover.hovered && !stopping) || props.menuOpen),
+              backgroundColor: fill(((chevronHover.hovered || pressed) && !stopping) || props.menuOpen),
               borderTopRightRadius: round,
               borderBottomRightRadius: round,
               opacity: stopping ? 0.6 : 1,

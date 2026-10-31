@@ -47,7 +47,6 @@ export function CardButton(props: {
   const answer = kind === "answer";
   const hue = buttonHue(tokens, kind);
   const color = hue.color;
-  const fill = hovered ? hue.hover : "transparent";
   const border = hue.border;
   const size = compact ? 14 : 13;
   const height = taskControlHeight(compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, scale);
@@ -64,7 +63,7 @@ export function CardButton(props: {
       {...hoverProps}
       {...hintProps(square ? props.hint : undefined)}
       testID={props.testID}
-      style={{
+      style={({ pressed }) => ({
         // A phone's button grows with a large system font.
         ...(compact ? { minHeight: COMPACT_CARD_BUTTON_HEIGHT, paddingVertical: 4, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height } : { height: taskControlHeight(CARD_BUTTON_HEIGHT, scale) }),
         ...(compact && props.hug ? { flexGrow: 0 } : null),
@@ -72,7 +71,7 @@ export function CardButton(props: {
         paddingHorizontal: square ? 0 : compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,
         ...buttonOutline(border, {}, hovered ? tokens.card.buttonShadowHover : undefined),
-        backgroundColor: fill,
+        backgroundColor: (hovered || pressed) && !disabled ? hue.hover : "transparent",
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
@@ -80,7 +79,7 @@ export function CardButton(props: {
         opacity: disabled ? 0.6 : 1,
         ...webTransition,
         ...fit.style,
-      }}
+      })}
     >
       {props.busy ? (
         // The running ring without its dot, in the icon's box so the button keeps its width.
