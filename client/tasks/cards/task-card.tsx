@@ -613,7 +613,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const [cornerOpen, setCornerOpen] = useState(false);
   // The meta row's widths while a context ring shares it: the row, its text, and the archived tag.
   const [metaFit, setMetaFit] = useState({ row: 0, text: 0, tag: 0 });
-  // Right click keeps its window point; tablet long press anchors to the card.
+  // Right click and tablet long press keep their window point.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | "touch" | null>(null);
   useLayoutEffect(
     () =>
@@ -955,9 +955,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   // Pills ------------------------------------------------------------------
   // A pill that copies takes the touch, so it carries the card's long press too.
-  const longPress = compact || TOUCH ? () => {
+  const longPress = compact || TOUCH ? (event: GestureResponderEvent) => {
     if (props.onLongPress?.() === false) return;
-    setMenuAt("touch");
+    setMenuAt(compact ? "touch" : { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY });
   } : undefined;
   const pill = { tokens, compact, language, searchQuery: query };
   // Model, branch and folder copy what they show.
@@ -1548,7 +1548,6 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       {menuAt ? (
         <CardContextMenu
           point={menuAt === "touch" ? null : menuAt}
-          anchorRef={TOUCH && !compact ? rootRef : undefined}
           card={card}
           strings={strings}
           theme={theme}
@@ -1623,7 +1622,7 @@ interface PillProps {
    */
   copy?: { text: string; toast: string };
   /** The card's own long press, kept on a pill that takes the touch. */
-  onLongPress?(): void;
+  onLongPress?(event: GestureResponderEvent): void;
 }
 
 /**

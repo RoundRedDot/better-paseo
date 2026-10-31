@@ -3714,13 +3714,20 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById("tablet-filter-popover")).toHaveLength(0);
   });
 
-  it("keeps Android filters in the host modal", () => {
+  it.each([320, 800, 1200])("opens Android filters in the toolbar popover at %i pt", (width) => {
     act(() => { renderer = TestRenderer.create(screen(false)); });
-    layOut(800);
+    layOut(width);
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
-    expect(hostsById("tablet-filter-popover")).toHaveLength(0);
-    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(1);
+    expect(hostsById("tablet-filter-popover")).toHaveLength(1);
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
     expect(hostsById("filter-sheet-scroll")).toHaveLength(1);
+    const panel = hostsById("tablet-filter-popover")[0]!;
+    expect(Number(StyleSheet.flatten(panel.props.style).width)).toBeLessThanOrEqual(width - 24);
+    expect(StyleSheet.flatten(panel.props.style).elevation).toBe(8);
+    act(() => hostsById("filter-sheet-empty-groups")[0]!.props.onPress());
+    expect(hostsById("tablet-filter-popover")).toHaveLength(1);
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
+    expect(hostsById("tablet-filter-popover")).toHaveLength(0);
   });
 
   it.each([["done", false], ["done", true], ["failed", false], ["rejected", false]] as const)("iPad pulls refresh and releases the indicator (%s, empty=%s)", async (outcome, empty) => {
@@ -5316,7 +5323,7 @@ describe("Tasks board, phone", () => {
     if (!compact) layOut(1400);
     const card = cards().find((node) => node.props.card.lane === "running" && !node.props.card.subagent)!;
     expect(card.props.titleUpdates).toBeDefined();
-    act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.props.card.id}`).props.onLongPress());
+    act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.props.card.id}`).props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
     expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Automatically update title")).toHaveLength(1);
   });
 
@@ -5334,7 +5341,7 @@ describe("Tasks board, phone", () => {
       if (!compact) layOut(1400);
       const card = cards().find((node) => node.props.card.id === archived.id)!;
       expect(card.props.titleUpdates).toBeDefined();
-      act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${archived.id}`).props.onLongPress());
+      act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${archived.id}`).props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
       // Archived cards keep the same title actions as other sessions.
       expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Copy title")).toHaveLength(1);
       expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Automatically update title")).toHaveLength(1);
@@ -5381,7 +5388,7 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
     });
     act(() => grid().props.onTouchStart(touch(100, 300)));
     const card = renderer!.root.findByProps({ testID: "phone-lane-needs_input" }).findAllByType(TaskCardView)[0]!;
-    act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.props.card.id}`).props.onLongPress());
+    act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.props.card.id}`).props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
     expect(handleSetJSResponder).toHaveBeenCalledTimes(1);
     expect(flushOperations).toHaveBeenCalledTimes(1);
     expect(pager().props.scrollEnabled).toBe(false);
@@ -5404,7 +5411,7 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
     act(() => grid().props.onTouchStart(touch(100, 300)));
     expect(setIsJSResponder).not.toHaveBeenCalled();
     const card = renderer!.root.findByProps({ testID: "phone-lane-running" }).findAllByType(TaskCardView)[0]!;
-    act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.props.card.id}`).props.onLongPress());
+    act(() => card.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.props.card.id}`).props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
     expect(setIsJSResponder).toHaveBeenCalledWith(shadow, true, true);
     expect(pager().props.scrollEnabled).toBe(false);
     act(() => grid().props.onTouchCancel());

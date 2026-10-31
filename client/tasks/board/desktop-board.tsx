@@ -616,7 +616,7 @@ export function DesktopBoard(props: {
         width={boardWidth}
         searchRef={searchRef}
         onFilters={() => setFiltersOpen(true)}
-        filters={Platform.OS === "ios" && filtersOpen ? { content: filterBody, height: boardHeight, onClose: () => setFiltersOpen(false) } : undefined}
+        filters={filtersOpen ? { content: filterBody, height: boardHeight, onClose: () => setFiltersOpen(false) } : undefined}
         sidebar={sidebarToggle}
         emptyLanes={emptyLanesSwitch}
       /> : <DesktopToolbar
@@ -642,8 +642,8 @@ export function DesktopBoard(props: {
           onMore={openFilterPanel}
         />
       )}
-      {/* iPad uses the toolbar dropdown; other layouts use the host's filter panel. */}
-      <Modal title={strings.filters} open={Platform.OS !== "ios" && (touch || sheetMode) && filtersOpen} onOpenChange={(open) => !open && setFiltersOpen(false)}>
+      {/* Tablets use the toolbar popover; narrow web layouts use the host's filter panel. */}
+      <Modal title={strings.filters} open={!touch && sheetMode && filtersOpen} onOpenChange={(open) => !open && setFiltersOpen(false)}>
         <Modal.Content contentContainerStyle={FILTER_SHEET_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
             {filterBody}

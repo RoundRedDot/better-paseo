@@ -1,5 +1,5 @@
-import React, { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import React, { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { Icon, Modal, copyText, useToast } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { CascadeMenu, type MenuSection } from "../board/menu";
@@ -164,11 +164,10 @@ export function useMenuCopy(): (text: string, label: string) => void {
 
 /**
  * Right click opens at the pointer in the web top layer. Tablet long presses
- * anchor a popover to the card; phones use the host's modal with inline actions.
+ * anchor a popover to the touch; phones use the host's modal with inline actions.
  */
 export function CardContextMenu(props: {
   point: { x: number; y: number } | null;
-  anchorRef?: RefObject<View | null>;
   card: TaskCard;
   strings: ReturnType<typeof cardStrings>;
   actions: Omit<CardMenuActions, "copy">;
@@ -182,15 +181,15 @@ export function CardContextMenu(props: {
   const scale = useTasksFontScale();
   const window = useWindowDimensions();
   const anchorRef = useRef<View>(null);
-  useLayoutEffect(() => point && !editing ? openPointLayer(anchorRef.current, point) : undefined, [point?.x, point?.y, editing]);
+  useLayoutEffect(() => Platform.OS === "web" && point && !editing ? openPointLayer(anchorRef.current, point) : undefined, [point?.x, point?.y, editing]);
   if (editing) {
     return <TaskRenameDialog agentId={props.card.id} title={props.card.title} strings={props.strings} theme={props.theme} onClose={props.onClose}
       blockedReason={taskOperationIssue(props.card, "rename") ? taskIssueText(taskOperationIssue(props.card, "rename")!, props.strings === cardStrings("en") ? "en" : "zh") : undefined}
       autoTitleBlockedReason={taskOperationIssue(props.card, "autoTitle") ? taskIssueText(taskOperationIssue(props.card, "autoTitle")!, props.strings === cardStrings("en") ? "en" : "zh") : undefined}
       canAutoTitle={Boolean(props.actions.autoTitle)} autoTitlePending={props.actions.autoTitlePending} />;
   }
+  if (point && Platform.OS !== "web") return <CardMenuPopover point={point} sections={sections} theme={props.theme} closeLabel={toolbarLabel("Close menu", props.strings === cardStrings("en") ? "en" : "zh")} onClose={props.onClose} />;
   if (!point) {
-    if (props.anchorRef) return <CardMenuPopover anchorRef={props.anchorRef} sections={sections} theme={props.theme} closeLabel={toolbarLabel("Close menu", props.strings === cardStrings("en") ? "en" : "zh")} onClose={props.onClose} />;
     const colors = props.theme.colors;
     return (
       <Modal title={props.card.title} open onOpenChange={(open) => !open && props.onClose()}>

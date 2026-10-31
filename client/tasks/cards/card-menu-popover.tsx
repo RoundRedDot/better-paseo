@@ -1,4 +1,4 @@
-import React, { useRef, useState, type RefObject } from "react";
+import React, { useRef, useState } from "react";
 import { Modal, Pressable, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { CascadeMenu, type MenuSection } from "../board/menu";
@@ -7,7 +7,7 @@ import { useTasksFontScale } from "../typography";
 
 /** A tablet's card menu, measured in the transparent native overlay's coordinates. */
 export function CardMenuPopover(props: {
-  anchorRef: RefObject<View | null>;
+  point: { x: number; y: number };
   sections: MenuSection[];
   theme: PluginTheme;
   closeLabel: string;
@@ -22,16 +22,16 @@ export function CardMenuPopover(props: {
     .map((item) => ({ ...item, minHeight: 44 })) }));
   const measure = () => {
     stageRef.current?.measureInWindow((sx, sy, sw, sh) => {
-      props.anchorRef.current?.measureInWindow((x, y, width, height) => {
-        const menu = menuWidth(280, scale, sw - MENU_EDGE * 2);
-        const menuHeight = Math.min(layoutMenu(sections, scale).height + 2 * StyleSheet.hairlineWidth, MENU.maxHeight, sh - MENU_EDGE * 2);
-        const below = y - sy + height + 6;
-        const top = below + menuHeight <= sh - MENU_EDGE ? below : y - sy - menuHeight - 6;
-        setFrame({
-          left: Math.max(MENU_EDGE, Math.min(x - sx + width - menu, sw - menu - MENU_EDGE)),
-          top: Math.max(MENU_EDGE, Math.min(top, sh - menuHeight - MENU_EDGE)),
-          width: menu,
-        });
+      const menu = menuWidth(280, scale, sw - MENU_EDGE * 2);
+      const menuHeight = Math.min(layoutMenu(sections, scale).height + 2 * StyleSheet.hairlineWidth, MENU.maxHeight, sh - MENU_EDGE * 2);
+      const x = props.point.x - sx;
+      const y = props.point.y - sy;
+      const left = x + 6 + menu <= sw - MENU_EDGE ? x + 6 : x - menu - 6;
+      const top = y + 6 + menuHeight <= sh - MENU_EDGE ? y + 6 : y - menuHeight - 6;
+      setFrame({
+        left: Math.max(MENU_EDGE, Math.min(left, sw - menu - MENU_EDGE)),
+        top: Math.max(MENU_EDGE, Math.min(top, sh - menuHeight - MENU_EDGE)),
+        width: menu,
       });
     });
   };

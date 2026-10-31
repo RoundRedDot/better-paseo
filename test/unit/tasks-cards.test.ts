@@ -1002,8 +1002,8 @@ describe("TaskCardView rows", () => {
 
   it.each([false, true])("anchors tablet long-press menus and keeps phone menus in the host modal (compact=%s)", async (compact) => {
     const tree = await render(cardElement(sample("sample-running"), { compact }));
-    await act(async () => hostByTestId(tree.root, "task-card-sample-running").props.onLongPress());
-    expect(Boolean(tree.root.findByType(CardContextMenu).props.anchorRef)).toBe(!compact);
+    await act(async () => hostByTestId(tree.root, "task-card-sample-running").props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
+    expect(tree.root.findByType(CardContextMenu).props.point).toEqual(compact ? null : { x: 140, y: 280 });
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-menu-popover")).toHaveLength(compact ? 0 : 1);
     const close = compact ? tree.root.find((node) => (node.type as unknown) === "Modal").props.onOpenChange
       : hostByTestId(tree.root, "task-card-menu-backdrop").props.onPress;
@@ -1031,7 +1031,8 @@ describe("TaskCardView rows", () => {
     }
     // The press stays on the pill; long press opens the card's action menu.
     expect(selected).not.toHaveBeenCalled();
-    await act(async () => hostByTestId(tree.root, "pill-branch").props.onLongPress());
+    await act(async () => hostByTestId(tree.root, "pill-branch").props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
+    expect(tree.root.findByType(CardContextMenu).props.point).toEqual({ x: 140, y: 280 });
     expect(details).not.toHaveBeenCalled();
     expect(hostByTestId(tree.root, "task-card-menu")).toBeDefined();
 
@@ -1074,7 +1075,7 @@ describe("TaskCardView rows", () => {
     expect(onReveal).toHaveBeenCalledWith("sample-running");
     // The card's long-press menu shows the parent's card too.
     onReveal.mockClear();
-    await act(async () => hostByTestId(tree.root, "task-card-sample-child-1").props.onLongPress());
+    await act(async () => hostByTestId(tree.root, "task-card-sample-child-1").props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
     const reveal = hostByTestId(tree.root, "task-card-menu").find(
       (node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "显示父任务卡片",
     );
@@ -3114,7 +3115,7 @@ describe("TaskDetailCards", () => {
     expect(flat(secondary.props.style).marginRight).toBeUndefined();
     expect(content.findAll((node) => node === button)).toHaveLength(1);
     if (touch) {
-      row.props.onLongPress();
+      row.props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } });
     } else {
       button.props.onPress();
     }
@@ -3996,7 +3997,7 @@ describe("TaskCardView long-press menu", () => {
     expect(onSelect).toHaveBeenCalledWith(card);
     onSelect.mockClear();
     expect(surface().props.delayLongPress).toBe(450);
-    await act(async () => surface().props.onLongPress());
+    await act(async () => surface().props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
     expect(onLongPress).toHaveBeenCalledOnce();
     expect(onSelect).not.toHaveBeenCalled();
     expect(onDetails).not.toHaveBeenCalled();
@@ -4012,7 +4013,7 @@ describe("TaskCardView long-press menu", () => {
   it.each([false, true])("copies from the menu and dismisses its surface (compact=%s)", async (compact) => {
     clipboard.copyText.mockClear();
     const tree = await render(cardElement(sample("sample-running"), { compact }));
-    const open = () => hostByTestId(tree.root, "task-card-sample-running").props.onLongPress();
+    const open = () => hostByTestId(tree.root, "task-card-sample-running").props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } });
     await act(async () => open());
     await choose(tree.root, "复制会话 ID");
     expect(clipboard.copyText).toHaveBeenCalledWith("sample-running");
@@ -4034,7 +4035,7 @@ describe("TaskCardView long-press menu", () => {
       ? { ...sample("sample-done"), id, lane: "archived" as const, status: "archived" as const, archived: "agent" as const }
       : sample(id);
     const tree = await render(cardElement(card, { [callback]: action }));
-    await act(async () => hostByTestId(tree.root, `task-card-${id}`).props.onLongPress());
+    await act(async () => hostByTestId(tree.root, `task-card-${id}`).props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
     await choose(tree.root, label);
     expect(action).toHaveBeenCalledWith(id);
   });
@@ -4043,7 +4044,7 @@ describe("TaskCardView long-press menu", () => {
     const card = { ...sample("sample-done"), readable: true };
     const onRead = vi.fn();
     const tree = await render(cardElement(card, { onRead }));
-    const open = () => hostByTestId(tree.root, `task-card-${card.id}`).props.onLongPress();
+    const open = () => hostByTestId(tree.root, `task-card-${card.id}`).props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } });
     await act(async () => open());
     await choose(tree.root, "标为已读");
     expect(onRead).toHaveBeenCalledWith(card);
@@ -4054,7 +4055,7 @@ describe("TaskCardView long-press menu", () => {
 
   it("does not open the menu when the board rejects a press after a swipe", async () => {
     const tree = await render(cardElement(sample("sample-running"), { onLongPress: () => false }));
-    await act(async () => hostByTestId(tree.root, "task-card-sample-running").props.onLongPress());
+    await act(async () => hostByTestId(tree.root, "task-card-sample-running").props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
     expect(rows(tree.root)).toHaveLength(0);
   });
 });

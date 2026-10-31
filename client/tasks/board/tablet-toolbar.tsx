@@ -143,7 +143,7 @@ export function TabletToolbar(props: {
         </View>
       </View>
       {props.filters ? (
-        <View testID="tablet-filter-popover" accessibilityViewIsModal onAccessibilityEscape={props.filters.onClose} style={{ position: "absolute", top: height + 6, right: 12, width: menuWidth(480, scale, props.width - 24), height: Math.min(640 * Math.max(1, scale), Math.max(0, props.filters.height - 18)), borderRadius: 12, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface1, boxShadow: menuChrome(theme).shadow, paddingBottom: 16, overflow: "hidden", zIndex: 30 }}>
+        <View testID="tablet-filter-popover" accessibilityViewIsModal onAccessibilityEscape={props.filters.onClose} style={{ position: "absolute", top: height + 6, right: 12, width: menuWidth(400, scale, props.width - 24), height: Math.min(640 * Math.max(1, scale), Math.max(0, props.filters.height - 18)), borderRadius: 12, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface1, boxShadow: menuChrome(theme).shadow, elevation: 8, paddingBottom: 16, overflow: "hidden", zIndex: 30 }}>
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, height: taskControlHeight(48, scale), borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
             <Text accessibilityRole="header" style={{ flex: 1, fontSize: F.base, fontWeight: "600", color: colors.foreground }}>{strings.filters}</Text>
             <ToolbarButton compact={compact} icon="X" label={strings.closeMenu} theme={theme} testID="tablet-filter-close" onPress={props.filters.onClose} />
