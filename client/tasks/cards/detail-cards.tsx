@@ -1463,8 +1463,8 @@ function PropertyRow(props: {
           )}
           {noteLine}
         </View>
-        {props.copy ? <RowAction icon="Copy" label={props.copy.label} tokens={tokens} onPress={doCopy!} /> : null}
         {props.action && (touch || hovered) ? <RowAction {...props.action} tokens={tokens} /> : null}
+        {props.copy && (touch || Platform.OS !== "web" || hovered) ? <RowAction icon="Copy" label={props.copy.label} tokens={tokens} onPress={doCopy!} /> : null}
         {props.link && !touch && hovered ? <RowAction icon="ExternalLink" label={words.openLink} tokens={tokens} onPress={doOpen!} /> : null}
         {trailing ? <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>{trailing}</View> : null}
         {props.button ? <View {...tipProps(props.buttonTip)} style={{ alignSelf: "center" }}>{props.button}</View> : null}
