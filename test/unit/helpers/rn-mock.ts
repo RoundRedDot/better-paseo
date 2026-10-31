@@ -115,6 +115,7 @@ const idleAnimation = { start() {}, stop() {}, reset() {} };
 export const LayoutAnimation = { configureNext(_config: unknown) {} };
 
 export const Animated = {
+  createAnimatedComponent: <T,>(component: T): T => component,
   View: host("Animated.View"),
   Text: host("Animated.Text"),
   ScrollView: host("Animated.ScrollView"),

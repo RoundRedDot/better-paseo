@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import React from "react";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
-import { Pressable, StyleSheet } from "react-native";
+import { Animated, Pressable, StyleSheet } from "react-native";
 import "./helpers/quiet-renderer";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -23,6 +23,11 @@ import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { permissionButtons } from "../../client/tasks/actions";
 import { TasksTypographyScale } from "../../client/tasks/typography";
 
+const motion = vi.hoisted(() => ({ reduced: false }));
+vi.mock("../../client/ui/use-reduced-motion", () => ({
+  useReducedMotion: () => motion.reduced,
+}));
+
 const theme = { colors: {
   surface0: "#ffffff", surface1: "#f7f7f8", surface2: "#efeff1", border: "#e2e2e6",
   foreground: "#1b1b1f", foregroundMuted: "#6b6b75", accent: "#3b6fe0", accentForeground: "#ffffff",
@@ -39,12 +44,56 @@ async function render(element: React.ReactElement) {
 }
 
 function style(button: ReactTestInstance, pressed: boolean) {
-  return StyleSheet.flatten(button.props.style({ pressed }));
+  if (typeof button.props.style === "function") return StyleSheet.flatten(button.props.style({ pressed }));
+  act(() => {
+    if (pressed) button.props.onPressIn?.({});
+    else button.props.onPressOut?.({});
+  });
+  return StyleSheet.flatten(button.props.style);
 }
 
-afterEach(async () => { await act(async () => renderer?.unmount()); });
+afterEach(async () => {
+  await act(async () => renderer?.unmount());
+  motion.reduced = false;
+  vi.restoreAllMocks();
+});
 
 describe("mobile card action feedback", () => {
+  it("pulses to 1.08 then springs back, stops on reduced motion, and skips disabled or desktop actions", async () => {
+    const timing = vi.spyOn(Animated, "timing");
+    const spring = vi.spyOn(Animated, "spring");
+    const stop = vi.fn();
+    vi.spyOn(Animated, "sequence").mockReturnValue({ start: vi.fn(), stop, reset: vi.fn() });
+    const props = { tokens, compact: true, look: "plain" as const, label: "Action", onPress: vi.fn() };
+    const root = await render(<CardButton {...props} />);
+    const button = () => root.findByType(Pressable);
+    act(() => button().props.onPressIn({}));
+    expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.08, duration: 100, useNativeDriver: true }));
+    expect(spring).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1, friction: 5, tension: 220, useNativeDriver: true }));
+    // Repeated presses interrupt the preceding pulse.
+    act(() => button().props.onPressIn({}));
+    expect(stop).toHaveBeenCalled();
+    motion.reduced = true;
+    await act(async () => renderer.update(<CardButton {...props} />));
+    expect(StyleSheet.flatten(button().props.style).transform).toEqual([{ scale: 1 }]);
+    timing.mockClear();
+    spring.mockClear();
+    act(() => button().props.onPressIn({}));
+    expect(timing).not.toHaveBeenCalled();
+    expect(spring).not.toHaveBeenCalled();
+    motion.reduced = false;
+    await act(async () => renderer.update(<CardButton {...props} disabled />));
+    act(() => button().props.onPressIn({}));
+    expect(timing).not.toHaveBeenCalled();
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    try {
+      await act(async () => renderer.update(<CardButton {...props} compact={false} />));
+      expect(button().props.onPressIn).toBeUndefined();
+    } finally {
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    }
+  });
+
   it.each(["plain", "primary", "danger", "answer", "archive", "read"] as const)("tints %s on press, releases, and leaves disabled actions unchanged", async (look) => {
     const props = { tokens, compact: true, look, label: "Action", onPress: vi.fn() };
     const root = await render(<CardButton {...props} />);
@@ -91,6 +140,24 @@ describe("mobile card action feedback", () => {
 });
 
 describe("phone sheet action size", () => {
+  it("pulses each sheet action and skips all pulses with reduced motion", async () => {
+    const timing = vi.spyOn(Animated, "timing");
+    const card = sample("sample-input");
+    const element = <DetailActionBar card={card} theme={theme} language="en" strings={BOARD_STRINGS.en.sidebar}
+      onOpen={() => {}} onPermission={() => {}} permissionButtons={permissionButtons(card.permission!, "en")} />;
+    const root = await render(element);
+    for (const button of root.findAllByType(Pressable)) {
+      timing.mockClear();
+      act(() => button.props.onPressIn({}));
+      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.08 }));
+    }
+    motion.reduced = true;
+    await act(async () => renderer.update(React.cloneElement(element)));
+    timing.mockClear();
+    for (const button of root.findAllByType(Pressable)) act(() => button.props.onPressIn({}));
+    expect(timing).not.toHaveBeenCalled();
+  });
+
   it.each([1, 1.5])("shrinks labels and icons, keeps square buttons square and grows with font scale %s", async (factor) => {
     const card = sample("sample-input");
     const root = await render(<TasksTypographyScale factor={factor}>

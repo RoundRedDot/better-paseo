@@ -47,6 +47,7 @@ import {
 } from "./details-format";
 import { ActionRow, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
+import { ActionPressable } from "./action-pressable";
 import { arrowInset, buttonHue, CONFIRM_STOP_ICON, requestLook, type CardButtonLook } from "./action-style";
 import { buttonOutline } from "../board/board-style";
 import { useBreathing, useFlash } from "../board/breathing";
@@ -1617,7 +1618,7 @@ function OutlineButton(props: {
   const chrome = 2 * (props.grow ? 10 : 12) + (leading ? 15 : 0) + (props.hint ? hintWidth : 0) + (props.trailing ? 14 : 0) + (pieces - 1) * gap + 1;
   const fit = useActionFit(props.label, `${scale}|${props.font}|${useWindowDimensions().fontScale}`, props.height, chrome);
   return (
-    <Pressable
+    <ActionPressable motion={Platform.OS !== "web"}
       accessibilityRole="button"
       accessibilityLabel={props.label}
       {...tipProps(props.label)}
@@ -1659,7 +1660,7 @@ function OutlineButton(props: {
           <Icon name={props.trailing} size={14} color={tokens.foregroundMuted} />
         </>
       ) : null}
-    </Pressable>
+    </ActionPressable>
   );
 }
 
@@ -1814,7 +1815,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const square = fit.iconOnly;
   const disabled = props.busy || props.disabled;
   return (
-    <Pressable
+    <ActionPressable motion
       accessibilityRole="button"
       accessibilityLabel={props.label}
       accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
@@ -1854,6 +1855,6 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
           <Icon name="ArrowUpRight" size={16} color={iconColor} />
         </View>
       ) : null}
-    </Pressable>
+    </ActionPressable>
   );
 }

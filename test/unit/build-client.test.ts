@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import ts from "typescript";
 import { TASKS_CHUNK } from "../../server/tasks-chunk";
 
 // The install-time build (`scripts/build-client.mjs`): the bundle without the
@@ -51,13 +52,24 @@ describe("install build", () => {
     // The registry holds every name the chunk reads off a shared module: a missing one would be undefined at runtime.
     const missing: string[] = [];
     const requiredFiles = new Set<string>();
+    // Read property accesses as code: a minified alias such as `zh` can also
+    // occur inside a URL string (`README-zh.md`).
+    const accesses = new Map<string, Set<string>>();
+    const visit = (node: ts.Node) => {
+      if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression)) {
+        const names = accesses.get(node.expression.text) ?? new Set<string>();
+        names.add(node.name.text);
+        accesses.set(node.expression.text, names);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(ts.createSourceFile("chunk.js", built.chunk, ts.ScriptTarget.Latest, false, ts.ScriptKind.JS));
     for (const [, local, file] of built.chunk.matchAll(/([\w$]+)=(?:[\w$]+\()?require\("bc-shared:([^"]+)"\)/g)) {
       requiredFiles.add(file!);
       const names = built.shared.get(file!);
       if (!names) missing.push(`${file}: not shared`);
       if (!names || names === "*") continue;
-      const reads = built.chunk.matchAll(new RegExp(`(?<![\\w$.])${local!.replace(/\$/g, "\\$")}\\.([\\w$]+)`, "g"));
-      for (const [, name] of reads) if (!names.has(name!)) missing.push(`${file}: ${name}`);
+      for (const name of accesses.get(local!) ?? []) if (!names.has(name)) missing.push(`${file}: ${name}`);
     }
     expect([...requiredFiles].sort()).toEqual([...built.shared.keys()].sort());
     expect(missing).toEqual([]);

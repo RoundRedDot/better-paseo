@@ -1,10 +1,11 @@
 import React from "react";
-import { Pressable, View, useWindowDimensions } from "react-native";
+import { Platform, View, useWindowDimensions } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_FONT as F, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { buttonOutline } from "../board/board-style";
 import { useActionFit } from "./action-row";
+import { ActionPressable } from "./action-pressable";
 import { arrowInset, buttonHue, CARD_BUTTON_HEIGHT, COMPACT_CARD_BUTTON_HEIGHT, webTransition, type CardButtonLook } from "./action-style";
 import { hintProps } from "./card-hints";
 import { SpinnerRing } from "./status-icon";
@@ -54,7 +55,7 @@ export function CardButton(props: {
   const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, 2 * (compact ? 12 : 10) + (hasIcon ? size + 5 : 0) + 1, forcedSquare, kind === "primary");
   const square = fit.iconOnly;
   return (
-    <Pressable
+    <ActionPressable motion={compact || Platform.OS !== "web"}
       accessibilityRole="button"
       accessibilityLabel={props.accessibilityLabel ?? props.label}
       accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
@@ -98,6 +99,6 @@ export function CardButton(props: {
           <Icon name="ArrowUpRight" size={size} color={color} />
         </View>
       ) : null}
-    </Pressable>
+    </ActionPressable>
   );
 }

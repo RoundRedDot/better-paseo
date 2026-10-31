@@ -1,5 +1,5 @@
 import React, { memo, useMemo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
+import { Animated, Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -31,6 +31,7 @@ import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
 import { subtaskFinished } from "./details-format";
 import { ActionRow, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
+import { ActionPressable, useActionPressMotion } from "./action-pressable";
 import { buttonHue, CARD_BUTTON_HEIGHT, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_ICON, requestLook, webTransition } from "./action-style";
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu, openToolbarDetailsLayer } from "../../web";
@@ -959,10 +960,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     setMenuAt("touch");
   } : undefined;
   const pill = { tokens, compact, language, searchQuery: query };
-  // Model, branch and folder copy what they show; a pointer's hint says so.
+  // Model, branch and folder copy what they show.
   const copyOn = props.copyable !== false;
   const copyOf = (text: string, toast: string) => (copyOn ? { text, toast } : undefined);
-  const withCopyHint = (hintText: string | null) => (copyOn ? lines(hintText, strings.hint.clickToCopy) : hintText);
   const pills: ReactNode[] = [];
   // Model and thinking in one item, in the brand's borderless status-pill colours:
   // the mark and the model, a middle dot, then the Brain icon and the thinking level. With the model
@@ -991,7 +991,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         accessibilityLabel={thinking && !facts ? `${name} ${thinking}` : name}
         copy={facts ? undefined : copyOf(model, model === card.providerLabel ? "Copy agent" : "Copy model name")}
         onLongPress={longPress}
-        hint={hint("model", () => (facts ? lines(card.providerLabel, facts) : withCopyHint(lines(pair(strings.hint.model, name), thinking && pair(strings.hint.thinking, thinking)))))}
+        hint={hint("model", () => (facts ? lines(card.providerLabel, facts) : lines(pair(strings.hint.model, name), thinking && pair(strings.hint.thinking, thinking))))}
       >
         {thinking ? (
           <>
@@ -1042,13 +1042,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         onLongPress={longPress}
         hint={hint("branch", () => {
           const git = location.git;
-          return withCopyHint(
-            lines(
-              pair(strings.hint.branch, location.branch!),
-              git?.dirty && strings.details.dirty,
-              git?.ahead ? strings.hint.ahead(git.ahead) : null,
-              git?.behind ? strings.hint.behind(git.behind) : null,
-            ),
+          return lines(
+            pair(strings.hint.branch, location.branch!),
+            git?.dirty && strings.details.dirty,
+            git?.ahead ? strings.hint.ahead(git.ahead) : null,
+            git?.behind ? strings.hint.behind(git.behind) : null,
           );
         })}
       >
@@ -1068,7 +1066,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         label={tildePath(location.cwd)}
         copy={copyOf(location.cwd, "Copy path")}
         onLongPress={longPress}
-        hint={hint("path", () => withCopyHint(pair(strings.hint.path, tildePath(location.cwd))))}
+        hint={hint("path", () => pair(strings.hint.path, tildePath(location.cwd)))}
       />,
     );
   } else if (layout.folder && location.folder) {
@@ -1081,7 +1079,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         label={location.folder}
         copy={copyOf(location.folder, "Copy folder name")}
         onLongPress={longPress}
-        hint={hint("folder", () => withCopyHint(lines(pair(strings.hint.folder, location.folder!), tildePath(location.cwd))))}
+        hint={hint("folder", () => lines(pair(strings.hint.folder, location.folder!), tildePath(location.cwd)))}
       />,
     );
   }
@@ -1099,7 +1097,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           label={label.name}
           copy={copyOf(label.name, "Copy label name")}
           onLongPress={longPress}
-          hint={hint(`label-${label.name}`, () => withCopyHint(pair(strings.hint.label, label.name)))}
+          hint={hint(`label-${label.name}`, () => pair(strings.hint.label, label.name))}
         />,
       );
     });
@@ -1955,7 +1953,7 @@ function ReadControl(props: {
   const hue = buttonHue(tokens, props.unread ? "read" : "plain");
   const color = hue.color;
   return (
-    <Pressable
+    <ActionPressable motion={compact || Platform.OS !== "web"}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={disabled ? { disabled: true, busy: pending } : undefined}
@@ -1989,7 +1987,7 @@ function ReadControl(props: {
       {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
         {label}
       </Text>}
-    </Pressable>
+    </ActionPressable>
   );
 }
 
@@ -2033,6 +2031,7 @@ function StopControl(props: StopControlProps) {
   const scale = useTasksFontScale();
   const confirming = phase === "confirming";
   const stopping = phase === "stopping";
+  const pulse = useActionPressMotion((compact || Platform.OS !== "web") && !stopping);
   const stopHover = useHover();
   const chevronHover = useHover();
   const anchorRef = useRef<View>(null);
@@ -2110,7 +2109,7 @@ function StopControl(props: StopControlProps) {
     />
   );
   return (
-    <View
+    <Animated.View
       ref={anchorRef}
       collapsable={false}
       style={{
@@ -2121,6 +2120,7 @@ function StopControl(props: StopControlProps) {
         ...(compact ? { flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height, ...(props.hug ? { flexGrow: 0 } : null) } : { flexShrink: 0 }),
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         zIndex: 40,
+        ...pulse.style,
         ...fit.style,
       }}
       testID="task-card-stop"
@@ -2131,6 +2131,7 @@ function StopControl(props: StopControlProps) {
         accessibilityState={stopping ? { disabled: true, busy: true } : undefined}
         disabled={stopping}
         onPress={props.onPress}
+        onPressIn={pulse.onPressIn}
         {...stopHover.hoverProps}
         {...hintProps(fit.iconOnly ? props.hint : undefined)}
         style={({ pressed }) => [
@@ -2166,6 +2167,7 @@ function StopControl(props: StopControlProps) {
           accessibilityLabel={strings.stopOptions}
           disabled={stopping}
           onPress={props.onToggleMenu}
+          onPressIn={pulse.onPressIn}
           {...chevronHover.hoverProps}
           {...hintProps(props.menuOpen ? undefined : "stop-options")}
           style={({ pressed }) => [
@@ -2216,7 +2218,7 @@ function StopControl(props: StopControlProps) {
           </View>
         </Modal>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
