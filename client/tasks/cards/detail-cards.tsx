@@ -1913,11 +1913,11 @@ export function DetailActionBar(props: {
               onPress={() => props.onPermission?.(button)}
             />
           ))}
-          {props.sidebar && stop && props.stop ? (
-            <BarButton sidebar={props.sidebar} tokens={tokens} icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"} look="danger" label={stop} busy={props.stop.phase === "stopping"} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" />
-          ) : null}
           {/* "Answer" already opens the tab, so, as on the card, Open tab is the square beside Allow and Deny only. */}
           {answer ? <BarButton sidebar={props.sidebar} tokens={tokens} label={answer.label} arrow look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
+          {stop && props.stop ? (
+            <BarButton sidebar={props.sidebar} tokens={tokens} icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"} look="danger" label={stop} busy={props.stop.phase === "stopping"} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" />
+          ) : null}
           {ownOpen && !answer ? <BarButton sidebar={props.sidebar} tokens={tokens} arrow label={openText} square onPress={open} testID="detail-bar-open" /> : null}
           {!ownOpen && parentOpens && !answer ? (
             <BarButton sidebar={props.sidebar} tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} square onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />

@@ -2126,6 +2126,7 @@ function StopControl(props: StopControlProps) {
         backgroundColor: pulse.pressed ? hue.hover : "transparent",
         ...pulse.style,
         ...fit.style,
+        ...(compact && props.hug && !fit.iconOnly && fit.full !== null ? { width: fit.full } : null),
       }}
       testID="task-card-stop"
     >

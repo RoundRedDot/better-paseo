@@ -1845,6 +1845,14 @@ describe("TaskCardView actions", () => {
     const answer = await render(cardElement(question, { compact: true, onStop: () => {}, permissionButtons: permissionButtons(question.permission!, "zh") }));
     expect(texts(hostByTestId(answer.root, "task-card-actions"))).toEqual(["去回答", "停止"]);
     expect(flat(hostByTestId(answer.root, "task-card-stop").props.style)).toMatchObject({ flexGrow: 0 });
+    await act(async () => {
+      const row = hostByTestId(answer.root, "task-card-actions");
+      row.props.onLayout({ nativeEvent: { layout: { width: 320 } } });
+      for (const label of row.findAll((node) => (node.type as unknown) === "Text" && typeof node.props.onLayout === "function")) {
+        label.props.onLayout({ nativeEvent: { layout: { width: 40 } } });
+      }
+    });
+    expect(flat(hostByTestId(answer.root, "task-card-stop").props.style)).toMatchObject({ width: 84, flexGrow: 0 });
     await act(async () => answer.unmount());
 
     // Without onOpen there is nothing to open.
@@ -3560,6 +3568,14 @@ describe("TaskDetailCards", () => {
     expect(flat(byLabel(asking.root, "允许").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: look.primaryBorder });
     expect(flat(byLabel(asking.root, "拒绝").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: taskTokens(LIGHT).danger });
     await act(async () => asking.unmount());
+    renderer = null;
+    const question = { ...card, permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 } };
+    const onStop = vi.fn();
+    const questionBar = await render(bar(question, { onPermission: vi.fn(), permissionButtons: permissionButtons(question.permission, "zh"), stop: { phase: "idle", onPress: onStop } }));
+    expect(texts(hostByTestId(questionBar.root, "detail-action-bar"))).toEqual(["去回答", "停止"]);
+    await act(async () => hostByTestId(questionBar.root, "detail-bar-stop").props.onPress());
+    expect(onStop).toHaveBeenCalledOnce();
+    await act(async () => questionBar.unmount());
     renderer = null;
     // An archived task opens nowhere: Unarchive is its main button, or the bar has nothing to hold.
     const archivedCard: TaskCard = { ...sample("sample-done"), lane: "archived", status: "archived", archived: "agent" };

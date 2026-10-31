@@ -83,5 +83,5 @@ export function useActionFit(label: string, typography: string, iconWidth: numbe
   const style: ViewStyle | undefined = context ? iconOnly
     ? { width: iconWidth, minWidth: iconWidth, flexGrow: 0, flexShrink: 0, paddingHorizontal: 0 }
     : { minWidth: full ?? iconWidth, flexShrink: 0 } : undefined;
-  return { iconOnly, labelLayout, style, labelStyle: context ? { flexShrink: 0 as const } : undefined };
+  return { iconOnly, labelLayout, style, full, labelStyle: context ? { flexShrink: 0 as const } : undefined };
 }
