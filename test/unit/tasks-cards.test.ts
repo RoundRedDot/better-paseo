@@ -1950,9 +1950,11 @@ describe("TaskCardView actions", () => {
     expect(flat(options.props.style)).toMatchObject({ overflow: "hidden" });
     await act(async () => { stop.props.onTouchStart(); stop.props.onPressIn(); stop.props.onPressOut(); });
     expect(flat(stop.props.style).backgroundColor).not.toBe("transparent");
+    expect(flat(hostByTestId(tree.root, "task-card-stop").props.style).backgroundColor).toBe(flat(stop.props.style).backgroundColor);
     expect(flat(options.props.style).backgroundColor).toBe("transparent");
     await act(async () => stop.props.onTouchEnd());
     expect(flat(stop.props.style).backgroundColor).toBe("transparent");
+    expect(flat(hostByTestId(tree.root, "task-card-stop").props.style).backgroundColor).toBe("transparent");
     await act(async () => tree.unmount());
   });
 

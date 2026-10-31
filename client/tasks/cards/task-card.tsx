@@ -2122,6 +2122,7 @@ function StopControl(props: StopControlProps) {
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         zIndex: 40,
         borderRadius: round,
+        backgroundColor: pulse.pressed ? hue.hover : "transparent",
         ...pulse.style,
         ...fit.style,
       }}
