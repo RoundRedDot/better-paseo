@@ -65,7 +65,7 @@ import {
   usageSummary,
   type DetailSection,
 } from "./detail-model";
-import { Chip, ContextBar, SummaryTiles, TimelineChart, TimelineList, TokenBar, TurnHero, detailColors, statusColor } from "./detail-charts";
+import { Chip, ContextBar, SummaryTiles, TimelineChart, TokenBar, TurnHero, detailColors, statusColor } from "./detail-charts";
 import { detailGutter, detailScrollProps } from "./detail-scrollbar";
 import { sectionClosed, useSectionChoices, useSearchSectionChoices } from "./detail-collapse";
 import { tipProps } from "./card-hints";
@@ -107,6 +107,9 @@ type Metrics = typeof DETAIL_CARD | typeof TOUCH_CARD;
 
 /** Code lines (a permission's command, an error), 1.5 of their size as the host spaces its diff lines. */
 const CODE_LINE = Math.round(F.sm * 1.5);
+
+/** The properties get a label column from this width and lose it under `hide`: the 8 between keeps a drag from flickering it. */
+const LABEL_COLUMN = { show: 448, hide: 440 } as const;
 
 /**
  * On the web a row with buttons inside is a focusable `group`, not a button:
@@ -253,11 +256,11 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const rightOrder = order.filter((section) => !leftSections.includes(section));
   // A scroller's content gives its scrollbar the right edge of its padding (`detail-scrollbar.ts`).
   const gutter = props.columns || props.scrollBody || props.tabs ? detailGutter("inset") : 0;
-  const sectionView = (section: DetailSection, width: number) => (
+  const sectionView = (section: DetailSection, divider: boolean) => (
     <Section
       key={section}
       section={section}
-      divider={false}
+      divider={divider}
       closed={searchChoices.closed(section, sectionClosed(choices, section, closed.includes(section)))}
       onToggleSection={(closed) => searchChoices.toggle(section, closed)}
       {...props}
@@ -266,13 +269,9 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
       now={now}
       time={time}
       gutter={gutter}
-      width={width}
     />
   );
-  const page = (list: DetailSection[], messages: boolean) => (
-    <DetailPage sections={list} messages={messages} render={(section, width) => sectionView(section, width)} />
-  );
-  const sections = page(order, false);
+  const sections = order.map((section) => sectionView(section, true));
   const publishBody = (id: "info" | "messages", patch: Partial<ScrollEdge>) => {
     const next = { ...bodyEdges.current[id], ...patch };
     bodyEdges.current[id] = next;
@@ -365,7 +364,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
                   tabOffsets.current.restoring = false;
                 }}
               >
-                {page(id === "info" ? info : messages, id === "messages")}
+                {(id === "info" ? info : messages).map((section, index) => sectionView(section, index > 0))}
               </View>
             ))}
           </SheetScrollView>
@@ -375,12 +374,12 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             {tabBar}
             <View style={{ flex: 1, minHeight: 0, display: tab === "info" ? "flex" : "none" }}>
               <ScrollView key={`${card.id}-info`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("info", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("info", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("info", { content: height })} testID="detail-tab-info-scroll">
-                {page(info, false)}
+                {info.map((section, index) => sectionView(section, index > 0))}
               </ScrollView>
             </View>
             <View style={{ flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" }}>
               <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("messages", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("messages", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("messages", { content: height })} testID="detail-tab-messages-scroll">
-                {page(messages, true)}
+                {messages.map((section, index) => sectionView(section, index > 0))}
               </ScrollView>
             </View>
           </>
@@ -396,13 +395,13 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
         <View style={{ flex: 1.2, minWidth: 0 }}>
           <ScrollView key={`${card.id}-head`} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-column-head">
             <DetailHeader {...props} m={m} tokens={tokens} now={now} time={time} gutter={gutter} />
-            {page(leftSections, false)}
+            {leftSections.map((section) => sectionView(section, true))}
           </ScrollView>
         </View>
         <View style={{ width: StyleSheet.hairlineWidth, marginVertical: 12, backgroundColor: tokens.card.border }} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <ScrollView key={`${card.id}-sections`} style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 2, paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-column-sections">
-            {page(rightOrder, false)}
+            {rightOrder.map((section, index) => sectionView(section, index > 0))}
           </ScrollView>
         </View>
       </View>
@@ -447,19 +446,7 @@ function scrollEdgeShadow(isDark: boolean, direction: "down" | "up"): string {
 }
 
 /** `gutter`: the room a scroller's scrollbar takes from the right padding (0 outside one). */
-type Inner = TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens; now: number; time: TimeSource; gutter?: number; width?: number };
-
-/** The detail panel's own width, never the window's: the sidebar can be another width than the screen. */
-type DetailLayout = { properties: 1 | 2 | 3; usage: 2 | 4; messages: 1 | 2 | 3; timeline: "horizontal" | "vertical" };
-
-function detailLayout(width: number): DetailLayout {
-  return {
-    properties: width >= 960 ? 3 : width >= 520 ? 2 : 1,
-    usage: width >= 680 ? 4 : 2,
-    messages: width >= 1080 ? 3 : width >= 560 ? 2 : 1,
-    timeline: width >= 480 ? "horizontal" : "vertical",
-  };
-}
+type Inner = TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens; now: number; time: TimeSource; gutter?: number };
 
 function DetailTab(props: { id: "info" | "messages"; selected: boolean; tokens: TaskTokens; touch: boolean; label: string; onPress(): void }) {
   const scale = useTasksFontScale();
@@ -477,48 +464,6 @@ function DetailTab(props: { id: "info" | "messages"; selected: boolean; tokens: 
       <Icon name={props.id === "info" ? "Info" : "MessageSquare"} size={props.touch ? 12 : 14} color={color} />
       <Text numberOfLines={1} style={{ fontSize: props.touch ? F.sm : F.base, fontWeight: "500", color, flexShrink: 1 }}>{props.label}</Text>
     </Pressable>
-  );
-}
-
-/**
- * A page's sections as cards. Their inner layout follows the page's measured
- * width, so the sidebar's own drag and the sheet's own size choose it.
- * The message card the agent wrote keeps the width a reader needs for CJK
- * prose: one column until the panel is wide, then the reply on the left or in
- * the widest third.
- */
-function DetailPage(props: { sections: DetailSection[]; messages: boolean; render(section: DetailSection, width: number): React.ReactNode }) {
-  const [width, setWidth] = useState(0);
-  const onLayout = (event: LayoutChangeEvent) => {
-    const next = Math.round(event.nativeEvent.layout.width);
-    setWidth((was) => (was === next ? was : next));
-  };
-  const layout = detailLayout(width);
-  const stacked = <View onLayout={onLayout} style={{ minWidth: 0 }}>{props.sections.map((section) => props.render(section, width))}</View>;
-  if (!props.messages || layout.messages === 1) return stacked;
-  const present = (["prompt", "human", "message"] as const).filter((section) => props.sections.includes(section));
-  if (present.length < 2) return stacked;
-  const card = (section: DetailSection, flex: number) => (
-    <View key={section} style={{ flex, minWidth: 0 }}>
-      {props.render(section, width)}
-    </View>
-  );
-  if (layout.messages === 2) {
-    // The reply spans both rows on the left; the user's messages stack beside it.
-    if (!present.includes("message")) return stacked;
-    return (
-      <View onLayout={onLayout} style={{ minWidth: 0, flexDirection: "row", alignItems: "flex-start" }}>
-        {card("message", 1.35)}
-        <View style={{ flex: 1, minWidth: 0 }}>
-          {present.filter((section) => section !== "message").map((section) => card(section, 1))}
-        </View>
-      </View>
-    );
-  }
-  return (
-    <View onLayout={onLayout} style={{ minWidth: 0, flexDirection: "row", alignItems: "flex-start" }}>
-      {present.map((section) => card(section, section === "message" ? 1.25 : 1))}
-    </View>
   );
 }
 
@@ -988,19 +933,12 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
   const copyLabel = section === "prompt" ? words.copyPrompt : section === "human" ? words.copyHuman : words.copyMessage;
   const copyToast = section === "prompt" ? "Copy prompt" : section === "human" ? "Copy sent message" : "Copy message";
   const testID = { prompt: "detail-prompt", human: "detail-human", message: "detail-message", properties: "detail-location", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
-  // The subtask list keeps the page's own surface; every other group is a quiet card.
-  const carded = section !== "subtasks";
-  const inset = m.padH - 6;
   // The last subtask row keeps 8 (touch 10) above the next hairline.
   const bottom = section === "subtasks" && m === TOUCH_CARD ? 10 : 8;
   return (
-    <View
-      testID={testID}
-      onLayout={onLayout}
-      style={carded ? { ...detailCardFrame(tokens), marginLeft: inset, marginRight: inset - gutter, marginBottom: 8 } : undefined}
-    >
-      {!carded && props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginLeft: m.padH, marginRight: m.padH - gutter, backgroundColor: tokens.card.border }} /> : null}
-      <View style={{ paddingTop: carded ? 2 : 4, paddingBottom: carded ? 6 : bottom, paddingLeft: carded ? 6 : m.padH - 6, paddingRight: carded ? 6 : m.padH - 6 - gutter }}>
+    <View testID={testID} onLayout={onLayout}>
+      {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginLeft: m.padH, marginRight: m.padH - gutter, backgroundColor: tokens.card.border }} /> : null}
+      <View style={{ paddingTop: 4, paddingBottom: bottom, paddingLeft: m.padH - 6, paddingRight: m.padH - 6 - gutter }}>
         {messageSection ? (
           <View testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
             <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: detailColors(tokens).sunk }}>
@@ -1116,9 +1054,13 @@ function Properties(props: Inner) {
       toast.error(details.openFolderError(error instanceof Error ? error.message : String(error)));
     }
   };
-  const common = { m, tokens, language: props.language, searchQuery: props.searchQuery };
-  // The card's own grid: project and branch share a row, the directory a full one.
-  const cells: { span: "project" | "branch" | "path" | "full"; node: React.ReactNode }[] = [];
+  const [wide, setWide] = useState(false);
+  const onLayout = (event: LayoutChangeEvent) => {
+    const width = event.nativeEvent.layout.width;
+    setWide((was) => (width >= LABEL_COLUMN.show ? true : width < LABEL_COLUMN.hide ? false : was));
+  };
+  const common = { m, tokens, language: props.language, wide, searchQuery: props.searchQuery };
+  const rows: React.ReactNode[] = [];
 
   const placeName = location.projectName ?? location.workspaceName;
   if (placeName) {
@@ -1126,7 +1068,7 @@ function Properties(props: Inner) {
     const notes: Note[] = [];
     if (location.projectName && location.workspaceName) notes.push({ text: location.workspaceName });
     if (kind) notes.push({ text: cardText.kind[kind] });
-    cells.push({ span: "project", node: <PropertyRow {...common} key="place" label={words.project} lead={<ProjectIcon location={location} size={16} />} value={placeName} strong hyphens lines={2} notes={notes} testID="detail-place" /> });
+    rows.push(<PropertyRow {...common} key="place" label={words.project} lead={<ProjectIcon location={location} size={16} />} value={placeName} strong hyphens lines={2} notes={notes} testID="detail-place" />);
   }
 
   if (location.branch) {
@@ -1143,9 +1085,7 @@ function Properties(props: Inner) {
       });
     }
     if (hint.dirty) notes.push({ text: details.uncommittedNote, warn: true });
-    cells.push({
-      span: "branch",
-      node: (
+    rows.push(
       <PropertyRow
         {...common}
         key="branch"
@@ -1157,16 +1097,13 @@ function Properties(props: Inner) {
         notes={notes}
         copy={{ text: location.branch, toast: "Copy branch name", label: details.copyBranch }}
         testID="detail-branch"
-      />
-      ),
-    });
+      />,
+    );
   } else if (location.git === null) {
-    cells.push({ span: "branch", node: <PropertyRow {...common} key="branch" label={words.branch} icon="GitBranch" value={details.notGit} muted lines={1} testID="detail-branch" /> });
+    rows.push(<PropertyRow {...common} key="branch" label={words.branch} icon="GitBranch" value={details.notGit} muted lines={1} testID="detail-branch" />);
   }
 
-  cells.push({
-    span: "path",
-    node: (
+  rows.push(
     <PropertyRow
       {...common}
       key="cwd"
@@ -1178,15 +1115,12 @@ function Properties(props: Inner) {
       action={canOpenFolder ? { icon: "FolderOpen", label: details.openFolder, onPress: () => void openFolder() } : undefined}
       copy={{ text: location.cwd, toast: "Copy path", label: details.copyPath }}
       testID="detail-cwd"
-    />
-    ),
-  });
+    />,
+  );
 
   if (location.pullRequest) {
     const pr = location.pullRequest;
-    cells.push({
-      span: "full",
-      node: (
+    rows.push(
       <PropertyRow
         {...common}
         key="pr"
@@ -1198,14 +1132,13 @@ function Properties(props: Inner) {
         link={pr.url}
         copy={{ text: pr.url, toast: "Copy URL", label: details.copyLink }}
         testID="detail-pr"
-      />
-      ),
-    });
+      />,
+    );
   }
 
   if (props.searchQuery) {
     for (const hit of detailSearchHits(card, props.searchQuery)) {
-      cells.push({ span: "full", node: <PropertyRow {...common} key={`search-${hit.field}`} label={cardText.searchHits.fields[hit.field]} accessibilityLabel={`${props.strings.searchMatches ?? cardText.searchHits.dialog}: ${cardText.searchHits.fields[hit.field]}: ${hit.text}`} icon="Search" value={hit.text} lines={20} mono={hit.mono ? "branch" : undefined} testID={`detail-search-${hit.field}`} /> });
+      rows.push(<PropertyRow {...common} key={`search-${hit.field}`} label={cardText.searchHits.fields[hit.field]} accessibilityLabel={`${props.strings.searchMatches ?? cardText.searchHits.dialog}: ${cardText.searchHits.fields[hit.field]}: ${hit.text}`} icon="Search" value={hit.text} lines={20} mono={hit.mono ? "branch" : undefined} testID={`detail-search-${hit.field}`} />);
     }
   }
   if (card.parent) {
@@ -1227,9 +1160,7 @@ function Properties(props: Inner) {
     else if (archived || parent.archivedAs === "agent") tag = cardText.archived;
     if (archived && !unarchive) notes = [{ text: details.cannotJump }];
     else if (offBoard && !tag) notes = [{ text: details.offBoard }];
-    cells.push({
-      span: "full",
-      node: (
+    rows.push(
       <PropertyRow
         {...common}
         key="parent"
@@ -1259,44 +1190,12 @@ function Properties(props: Inner) {
         buttonTip={details.unarchive}
         accessibilityLabel={`${words.parent}: ${title}`}
         testID="detail-parent"
-      />
-      ),
-    });
-  }
-  // The card's grid follows the panel's width: one column, project and branch
-  // beside each other with the directory under them, or all three in one row.
-  const columns = (props.width ?? 0) >= 960 ? 3 : (props.width ?? 0) >= 520 ? 2 : 1;
-  const leading = (spans: ("project" | "branch" | "path")[]) => cells.filter((cell) => (spans as string[]).includes(cell.span));
-  const flexOf = (span: string) => (span === "project" ? 1.05 : span === "branch" ? 0.85 : span === "path" ? 1.4 : 1);
-  const row = (items: typeof cells, key: string) =>
-    items.length === 0 ? null : (
-      <View key={key} style={{ flexDirection: "row", alignItems: "stretch" }}>
-        {items.map((cell, index) => (
-          <View
-            key={index}
-            style={{ flex: flexOf(cell.span), minWidth: 0, ...(index > 0 ? { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: tokens.card.border } : null) }}
-          >
-            {cell.node}
-          </View>
-        ))}
-      </View>
+      />,
     );
-  const full = cells.filter((cell) => cell.span === "full");
-  const rows: React.ReactNode[] =
-    columns === 1
-      ? cells.map((cell, index) => <View key={index} style={{ minWidth: 0 }}>{cell.node}</View>)
-      : [
-          row(leading(columns === 3 ? ["project", "branch", "path"] : ["project", "branch"]), "top"),
-          ...leading(columns === 3 ? [] : ["path"]).map((cell, index) => <View key={`path-${index}`} style={{ minWidth: 0 }}>{cell.node}</View>),
-          ...full.map((cell, index) => <View key={`full-${index}`} style={{ minWidth: 0 }}>{cell.node}</View>),
-        ];
+  }
   return (
-    <View testID="detail-properties">
-      {rows.map((child, index) => (
-        <View key={index} style={index > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.card.border } : undefined}>
-          {child}
-        </View>
-      ))}
+    <View onLayout={onLayout} testID="detail-properties">
+      {rows}
     </View>
   );
 }
@@ -1323,6 +1222,7 @@ function PropertyRow(props: {
   m: Metrics;
   tokens: TaskTokens;
   language: TasksLanguage;
+  wide: boolean;
   label: string;
   icon?: string;
   lead?: React.ReactNode;
@@ -1363,11 +1263,16 @@ function PropertyRow(props: {
   const line = HOST_LINE.smRead;
   const monoFont = F.sm;
   const noteFont = F.sm;
+  const rowHeight = taskControlHeight(touch ? 36 : 30, scale);
   // The host's toast confirms a copy; the row itself does not change.
   const doCopy = props.copy ? () => void copy(props.copy!.text, { label: props.copy!.toast, feedback: "toast" }) : undefined;
   const doOpen = props.link ? () => openLink(props.link!) : undefined;
   // The row's own action: open a PR, jump to the parent, else copy.
   const press = props.onPress ?? doOpen ?? doCopy;
+  // With a pointer, the copy / open buttons take a slot of their own at the row's end, kept while
+  // they are hidden, so they never cover the value's last word and the value does not reflow on hover.
+  const actionSlot = (props.action ? 26 : 0) + (touch ? 0 : (props.copy ? 24 : 0) + (props.link ? 26 : 0));
+  const showActions = actionSlot > 0 && (touch || hovered);
   let shown = props.value;
   if (!props.searchQuery && (props.mono === "branch" || props.hyphens)) shown = breakable(props.value);
   // A path wraps as runs in a row, so its breaks are the layout's on every platform.
@@ -1390,9 +1295,9 @@ function PropertyRow(props: {
     ...(props.mono ? { fontFamily: MONO } : null),
   };
   let trailing: React.ReactNode = null;
-  // A jump chevron, or the ↗ a touch row opens its link with; the copy is always its own button.
   if (props.onPress) trailing = <Icon name="ChevronRight" size={14} color={tokens.foregroundMuted} />;
   else if (touch && props.link) trailing = <Icon name="ArrowUpRight" size={16} color={tokens.foregroundMuted} />;
+  else if (touch && props.copy) trailing = <Icon name="Copy" size={14} color={tokens.foregroundMuted} />;
   const notes = props.notes ?? [];
   // One run of text, so a long workspace name wraps and the next part follows it on the same line.
   const noteText: TextStyle = { fontSize: noteFont, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted, marginTop: 1 };
@@ -1414,52 +1319,52 @@ function PropertyRow(props: {
       {noteRun}
     </View>
   ) : noteRun;
-  // The prototype's cell at every width: icon and caption, the value with its copy
-  // beside it, then the note. No side label column: in a grid cell it would eat the value.
   const content = (
     <>
-      <View style={{ minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 }}>
-        <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>
-          {props.lead ?? (props.icon ? <Icon name={props.icon} size={16} color={tokens.foregroundMuted} /> : null)}
-        </View>
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, lineHeight: line, color: tokens.foregroundMuted }}>
+      {props.wide ? (
+        <Text numberOfLines={1} style={{ width: 72, fontSize: F.sm, lineHeight: line, color: tokens.foregroundMuted }}>
           {props.label}
         </Text>
+      ) : null}
+      <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>
+        {props.lead ?? (props.icon ? <Icon name={props.icon} size={16} color={tokens.foregroundMuted} /> : null)}
       </View>
-      <View style={{ minWidth: 0, marginTop: 2, flexDirection: "row", alignItems: "flex-start", gap: 4 }}>
-        <View style={{ flex: 1, minWidth: 0 }} onLayout={onValueLayout}>
-          {runs ? (
-            <View style={{ flexDirection: "row", flexWrap: "wrap" }} testID={props.testID ? `${props.testID}-value` : undefined}>
-              {runs.map((token, index) => (
-                <Text key={index} style={valueStyle}>
-                  {token}
-                </Text>
-              ))}
-            </View>
-          ) : (
-            <Text numberOfLines={props.searchQuery ? undefined : props.lines} style={valueStyle} testID={props.testID ? `${props.testID}-value` : undefined}>
-              {props.pre ? <Text style={{ fontSize: font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{highlightText(`${props.pre}\u2002`, props.searchQuery ?? "", tokens.isDark)}</Text> : null}
-              {highlightText(shown, props.searchQuery ?? "", tokens.isDark, props.icon === "GitBranch")}
-            </Text>
-          )}
-          {noteLine}
+      <View style={{ flex: 1, minWidth: 0 }} onLayout={onValueLayout}>
+        {runs ? (
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }} testID={props.testID ? `${props.testID}-value` : undefined}>
+            {runs.map((token, index) => (
+              <Text key={index} style={valueStyle}>
+                {token}
+              </Text>
+            ))}
+          </View>
+        ) : (
+          <Text numberOfLines={props.searchQuery ? undefined : props.lines} style={valueStyle} testID={props.testID ? `${props.testID}-value` : undefined}>
+            {props.pre ? <Text style={{ fontSize: font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{highlightText(`${props.pre}\u2002`, props.searchQuery ?? "", tokens.isDark)}</Text> : null}
+            {highlightText(shown, props.searchQuery ?? "", tokens.isDark, props.icon === "GitBranch")}
+          </Text>
+        )}
+        {noteLine}
+      </View>
+      {actionSlot > 0 ? (
+        <View style={{ width: actionSlot, height: line, marginRight: -4, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+          {showActions && props.action ? <RowAction {...props.action} tokens={tokens} /> : null}
+          {showActions && !touch && props.copy ? <RowAction icon="Copy" label={props.copy.label} tokens={tokens} onPress={doCopy!} /> : null}
+          {showActions && !touch && props.link ? <RowAction icon="ExternalLink" label={words.openLink} tokens={tokens} onPress={doOpen!} /> : null}
         </View>
-        {props.action && (touch || hovered) ? <RowAction {...props.action} tokens={tokens} /> : null}
-        {props.copy && (touch || Platform.OS !== "web" || hovered) ? <RowAction icon="Copy" label={props.copy.label} tokens={tokens} onPress={doCopy!} /> : null}
-        {props.link && !touch && hovered ? <RowAction icon="ExternalLink" label={words.openLink} tokens={tokens} onPress={doOpen!} /> : null}
-        {trailing ? <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>{trailing}</View> : null}
-        {props.button ? <View {...tipProps(props.buttonTip)} style={{ alignSelf: "center" }}>{props.button}</View> : null}
-      </View>
+      ) : null}
+      {trailing ? <View style={{ width: 16, height: line, alignItems: "center", justifyContent: "center" }}>{trailing}</View> : null}
+      {props.button ? <View {...tipProps(props.buttonTip)} style={{ alignSelf: "center" }}>{props.button}</View> : null}
     </>
   );
   const style: ViewStyle = {
-    minHeight: taskControlHeight(touch ? 40 : 34, scale),
+    minHeight: rowHeight,
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: Math.max(4, Math.floor((rowHeight - line) / 2)),
     borderRadius: 8,
-    minWidth: 0,
-    flexDirection: "column",
-    gap: 2,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
   };
   if (!press) {
     return (
@@ -1691,7 +1596,7 @@ function TimelineTextBody(props: Inner & {
   const line = variantMetrics(PROSE, font).bodyLineHeight;
   const sunk = tokens.card.background;
   return (
-    <View style={{ paddingHorizontal: 2, paddingTop: 6 }}>
+    <View style={{ paddingLeft: 42, paddingRight: 6, paddingTop: 6 }}>
       <View>
         {props.flash ? (
           <Animated.View pointerEvents="none" testID={`${id}-flash`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }} />
@@ -1734,7 +1639,7 @@ function ReplyLoading(props: { tokens: TaskTokens; language: TasksLanguage; wait
   }, [reduced]);
   const label = props.language === "zh" ? (props.waiting ? "等待输出" : "正在回复") : (props.waiting ? "Waiting for reply" : "Replying");
   return (
-    <View testID="detail-message-working" accessibilityRole="progressbar" accessibilityLabel={label} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: props.waiting ? 6 : 0, paddingTop: 8 }}>
+    <View testID="detail-message-working" accessibilityRole="progressbar" accessibilityLabel={label} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: props.waiting ? 42 : 0, paddingTop: 8 }}>
       <View style={{ width: 14, height: 14, alignItems: "center", justifyContent: "center" }}><View testID="detail-message-working-grid" style={{ width: 26 / 3, height: 14, flexDirection: "row", flexWrap: "wrap", columnGap: 2, rowGap: 2 }}>
         {REPLY_LOADER_FRAMES[reduced ? 0 : step]!.map((opacity, index) => <View key={index} style={{ width: 10 / 3, height: 10 / 3, borderRadius: 2, backgroundColor: props.tokens.foreground, opacity }} />)}
       </View></View>
@@ -1781,47 +1686,26 @@ function TimelineTextSkeleton(props: { tokens: TaskTokens; id: string; font: num
 }
 
 function Usage(props: Inner) {
-  const { card, tokens } = props;
+  const { card, m, tokens } = props;
   const words = cardStrings(props.language).details;
   const touch = props.touch === true;
   const font = F.sm;
   const cost = card.usage?.totalCostUsd ?? null;
-  // Each figure keeps its label over it, so a narrow cell stays readable beside its neighbour.
-  const metric = (key: string, icon: string, label: string, value: string) => (
-    <View key={key} testID={`detail-usage-${key}`} style={{ minWidth: 0, gap: 2, paddingTop: 2 }}>
-      <View style={{ minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 }}>
-        <Icon name={icon} size={14} color={tokens.foregroundMuted} />
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: font, color: tokens.foregroundMuted }}>{label}</Text>
-      </View>
-      <Text numberOfLines={1} style={{ fontSize: F.lg, lineHeight: HOST_LINE.lg, fontWeight: "600", color: value === "—" ? tokens.foregroundMuted : tokens.foreground, fontVariant: ["tabular-nums"] }}>{value}</Text>
+  const line = (key: string, icon: string, label: string, value: string, strong: boolean) => (
+    <View key={key} testID={`detail-usage-${key}`} style={{ height: touch ? 32 : 24, flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Icon name={icon} size={14} color={tokens.foregroundMuted} />
+      <Text style={{ fontSize: font, color: tokens.foregroundMuted }}>{label}</Text>
+      <View style={{ flex: 1 }} />
+      <Text style={{ fontSize: font, fontWeight: strong ? "600" : "400", color: value === "—" ? tokens.foregroundMuted : tokens.foreground, fontVariant: ["tabular-nums"] }}>{value}</Text>
     </View>
   );
-  const four = (props.width ?? 0) >= 680;
-  // A cell a column wide stacks its chart: caption, figure, bar, legend, each able to shrink.
-  const context = <ContextBar context={contextView(card)} tokens={tokens} touch={touch} language={props.language} font={font} stacked={four} />;
-  const mix = <TokenBar mix={tokenMix(card)} tokens={tokens} touch={touch} language={props.language} font={font} stacked={four} />;
-  const costMetric = metric("cost", "Coins", words.totalCost, cost !== null ? `$${cost.toFixed(2)}` : "—");
-  const turnMetric = metric("turn", "Hourglass", words.lastTurnTime, card.timing.lastTurnMs !== null ? formatDuration(card.timing.lastTurnMs) : "—");
-  const rule = { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: tokens.card.border } as const;
-  if (four) {
-    // Four cells in one row: the mix takes the room, the figures stay compact.
-    const showContext = detailHero(card) !== "turn";
-    return (
-      <View style={{ flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 6, paddingTop: 6, paddingBottom: 2 }}>
-        {showContext ? <View style={{ flex: 1.15, minWidth: 0, paddingRight: 10 }}>{context}</View> : null}
-        <View style={{ flex: 1.7, minWidth: 0, paddingLeft: showContext ? 10 : 0, paddingRight: 10, ...(showContext ? rule : null) }}>{mix}</View>
-        <View style={{ flex: 0.75, minWidth: 0, paddingLeft: 10, paddingRight: 8, ...rule }}>{costMetric}</View>
-        <View style={{ flex: 0.9, minWidth: 0, paddingLeft: 8, ...rule }}>{turnMetric}</View>
-      </View>
-    );
-  }
   return (
-    <View style={{ paddingHorizontal: 6, paddingTop: 4, paddingBottom: 2, gap: 10 }}>
-      {detailHero(card) !== "turn" ? context : null}
-      {mix}
-      <View style={{ flexDirection: "row", alignItems: "flex-start", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.card.border, paddingTop: 6 }}>
-        <View style={{ flex: 1, minWidth: 0, paddingRight: 8 }}>{costMetric}</View>
-        <View style={{ flex: 1, minWidth: 0, paddingLeft: 8, ...rule }}>{turnMetric}</View>
+    <View style={{ paddingHorizontal: 6, paddingTop: 4, paddingBottom: 4, gap: 14 }}>
+      {detailHero(card) !== "turn" ? <ContextBar context={contextView(card)} tokens={tokens} touch={touch} language={props.language} font={font} /> : null}
+      <TokenBar mix={tokenMix(card)} tokens={tokens} touch={touch} language={props.language} font={font} />
+      <View>
+        {line("cost", "Coins", words.totalCost, cost !== null ? `$${cost.toFixed(2)}` : "—", true)}
+        {line("turn", "Hourglass", words.lastTurnTime, card.timing.lastTurnMs !== null ? formatDuration(card.timing.lastTurnMs) : "—", false)}
       </View>
     </View>
   );
@@ -1831,13 +1715,14 @@ function Activity(props: Inner) {
   const line = timeline(props.card, props.now, props.language);
   if (!line) return null;
   const kind = props.card.stoppedManually ? "stopped" : props.card.status;
-  const endMark = <StatusIcon kind={kind} size={14} theme={props.theme} />;
-  const liveColor = statusColor(props.card.status, props.tokens);
-  // The track needs the panel's whole width to separate its labels; a narrow card stacks them.
-  if (detailLayout(props.width ?? 0).timeline === "vertical") {
-    return <TimelineList timeline={line} liveColor={liveColor} tokens={props.tokens} endMark={endMark} />;
-  }
-  return <TimelineChart timeline={line} liveColor={liveColor} tokens={props.tokens} endMark={endMark} />;
+  return (
+    <TimelineChart
+      timeline={line}
+      liveColor={statusColor(props.card.status, props.tokens)}
+      tokens={props.tokens}
+      endMark={<StatusIcon kind={kind} size={14} theme={props.theme} />}
+    />
+  );
 }
 
 // ---- Buttons ---------------------------------------------------------------
