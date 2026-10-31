@@ -51,8 +51,8 @@ so it reads the same on any card. The transient lane/reply flash uses an animate
 
 | Token | Mix | Light / dark | Used for |
 | --- | --- | --- | --- |
-| `hoverBackground` | card → foreground | 4% | a hovered card, or one whose menu is open |
-| `controlHover` | card → foreground | 7% / 10% | round icons, a plain button's hover |
+| `hoverBackground` | card → foreground | 4% | the reduced-motion wash on a hovered card, or on one whose menu is open |
+| `controlHover` | card → foreground | 7% / 10% | the reduced-motion wash on a round icon or a plain button |
 | `current`, `currentBorder` | card → accent; border → accent | 7% / 10%; 45% | the card shown in the details |
 | `highlight` | card → accent | 8% / 12% | a card the board just pointed at, for 1 s, with an accent border |
 | `failed`, `failedHover`, `failedBorder` | card → danger; border → danger | 5% / 8%; 8% / 12%; 35% / 40% | a failed card |
@@ -60,20 +60,45 @@ so it reads the same on any card. The transient lane/reply flash uses an animate
 | `rowHover`, `rowPress`, `sunk`, `track` (`detailColors`) | card → foreground | 5%, 8%, 2.5%, 9% | detail rows, hero blocks, bars |
 | Lane panel (`boardPalette`) | `surface1` dark; halfway `surface1` → `surface2` light | hover `surface2` | lanes |
 
-- When states stack on a card, the first applies: highlighted, current, failed, hovered, rest.
-- Card shadow: `0 1 2` at 6% (18% dark) at rest, `0 2 6` at 7% (26% dark) hovered.
+- When states stack on a card, the first applies: highlighted, current, failed, the reduced-motion hover wash, rest.
+- Card shadow: `0 1 2` at 6% (18% dark) at rest, `0 2 6` at 14% (38% dark) while hovered and motion is allowed. Reduced motion keeps the resting shadow. See [Hover lift](#hover-lift).
 - Menu chrome (`menuChrome`): `surface0`, hairline border, hover foreground 5.5% (8% dark),
   shadow `0 4 24` and `0 1 3` at 8% and 4% (45% and 30% dark). `panelChrome` reuses it.
 - Chat rows have no surface at rest: `surface1` hovered, `surface2` pressed or held. The chat's
   `surface1` and `surface2` are the foreground at 2.5% and 4.5% (3% and 6% dark) over the page.
+  Chat rows, menu rows and detail property rows are not the hover lift below.
+
+### Hover lift
+
+Cards, sidebar capsules and buttons share one hover (`hoverLift` in
+`client/tasks/cards/hover-lift.ts`). A phone has no hover, so the press stands in for it. The
+same rule applies on the web, the desktop, the iPad and the phone.
+
+- While motion is allowed, the control keeps its fill, deepens the resting shadow to `shadowHover`
+  or `buttonShadowHover`, and scales to 1.03. It does not take a colour wash.
+- While the system asks for reduced motion, the shadow stays at rest, the same scale snaps, and
+  the fill takes its wash: `hoverBackground` on a card, `failedHover` on a failed card, the button's
+  hue tint, or `controlHover` / the control's hover surface (`surface1`, `panelHover`).
+- Selected, open, current and highlighted fills stay. A card whose menu is open stays lit. Stop's
+  chevron keeps its wash while its menu is open. An icon or label that turns from muted to
+  `foreground` on hover still does.
+- The scale is a transform and does not change layout. On the web it eases over 120 ms
+  (`hoverTransition`, which adds `transform` only while motion may animate). Action buttons that
+  already animate their scale (`useActionPressMotion`) ease over 100 ms and snap when motion is
+  reduced. Native controls that are not those action buttons snap the scale.
+- The deepened shadow is the same on every platform. `buttonOutline()` draws it with the 0.5
+  outline: an inset shadow plus the hover shadow on the web, a 0.5 border plus `boxShadow` on
+  iOS and Android.
 
 ### Motion
 
 Motion is short and decelerating; nothing bounces or overshoots. `motionDuration(ms, reduced)`
 returns 0 when the system asks for reduced motion (`useReducedMotion`, which follows
 `prefers-reduced-motion` on the web). Reduced motion removes movement, not change: nothing
-slides, flies, drifts, scales or rolls, but a colour, shadow or opacity transition of 160 ms or less may
-stay, as block details already trade their slide for a 120 ms fade. Under reduced motion each
+slides, flies, drifts or rolls. A card, a sidebar capsule and a button still grow to 1.03 on hover
+or press ([Hover lift](#hover-lift)); under reduced motion that growth snaps. A colour, shadow or
+opacity transition of 160 ms or less may stay, as block details already trade their slide for a
+120 ms fade. Under reduced motion each
 animation snaps, holds still or keeps a short fade, as listed. A new animation follows the same
 rule: put its movement behind `motionDuration` and keep at most a short fade.
 
@@ -95,7 +120,7 @@ rule: put its movement behind `motionDuration` and keep at most a short fade.
 | Running ring, spinner | 900 per turn on one shared clock (12 steps on native) | linear | still |
 | Running dot | 1200 pulse, opacity 1 ↔ 0.3 (4 steps on native) | | |
 | Breathing skeleton | 1200, opacity 1 → 0.5 → 1 | | held at 1 |
-| Web hover transitions (`webTransition`) | 120 on background, border, shadow, colour, opacity | ease-out | stay: no movement |
+| Web hover transitions (`webTransition`, `hoverTransition`) | 120 on background, border, shadow, colour, opacity; `transform` joins while motion may animate | ease-out | the colour and shadow change; the scale snaps |
 
 ### Focus, selection and scrollbars
 
@@ -432,11 +457,11 @@ control row is rounded at 6. An icon in a pill or row is the size of the Lucide 
 | --- | --- | --- | --- | --- | --- | --- |
 | Card pill | `Pill` in `task-card.tsx` | 20 (24 phone) | full | per the tints table | 11 (12 phone) | `sm` x 11/12, line x 1.25 |
 | Details chip | `Chip` in `detail-charts.tsx` | 22 (28 touch) | full | none | 14 (16 touch) | `sm` |
-| Filter bar chip, folded chip, menu button | `filter-bar.tsx` | 28 | 6 | none; `surface1` hovered or open | 14 | `base` |
+| Filter bar chip, folded chip, menu button | `filter-bar.tsx` | 28 | 6 | none; `surface1` when open; hover follows [Hover lift](#hover-lift) | 14 | `base` |
 | Phone filter sheet chip | `filter-sheet.tsx` | 32 | 4 | none; `accentSoft` when on | 14 | `base` |
 | Menu row | `menu.tsx`, `MENU` | 32 | 6 | none; `chrome.hover` hovered | 16 | `base` |
-| Sidebar group row | `details-sidebar.tsx` | 36 (44 touch) | 6 | none; `surface2` on, `controlHover` hovered | 16 in a 20 slot | `base`, count `sm` |
-| Card button | `CardButton` in `action-buttons.tsx` | 28 (at least 32 phone) | 6 (7 phone) | none; per [Buttons](#look) hovered | 13 (14 phone) | `sm`, weight 500 |
+| Sidebar group row | `details-sidebar.tsx` | 36 (44 touch) | 6 | none; `surface2` when on; hover follows [Hover lift](#hover-lift) | 16 in a 20 slot | `base`, count `sm` |
+| Card button | `CardButton` in `action-buttons.tsx` | 28 (at least 32 phone) | 6 (7 phone) | none; hover follows [Hover lift](#hover-lift) | 13 (14 phone) | `sm`, weight 500 |
 
 All heights grow with the host's interface text size through `taskControlHeight`.
 
@@ -495,8 +520,11 @@ Unarchive, Open tab. None is ever filled with its hue.
 
 - **At rest** only the border, the label and the icon carry the button's colour. The fill is
   the surface under it: transparent on the card, the card colour in the sidebar and the bar.
-- **Hovered** (pressed on a phone, which has no hover) the button's hue is tinted over the card,
-  10% on a light theme and 16% on a dark one. The border and label stay.
+- **Hovered** (pressed on a phone, which has no hover) follows [Hover lift](#hover-lift). While
+  motion is allowed the fill stays and the shadow deepens to `buttonShadowHover`. While motion
+  is reduced the shadow stays at rest and the button's hue is tinted over the card, 10% on a
+  light theme and 16% on a dark one. The border and label stay. The control scales to 1.03
+  either way.
 - **Armed**, "Confirm stop" keeps Stop's colours exactly; its words change and its icon turns from
   Lucide's `Power` to `OctagonAlert` (`CONFIRM_STOP_ICON`), the stop sign asking for the second
   press. It keeps that icon when its label folds on a narrow row.
@@ -509,7 +537,7 @@ Unarchive, Open tab. None is ever filled with its hue.
   card and on the hover tint (`readableOn`). A plain button's icon is `foregroundMuted` in the
   sidebar and the bar.
 
-| Look | Used by | Border | Label and icon | Hover |
+| Look | Used by | Border | Label and icon | Reduced-motion wash |
 | --- | --- | --- | --- | --- |
 | `plain` | Open tab and Open parent everywhere (card, sidebar, bar), Unarchive, a permission answer that is neither | `buttonBorder`: the theme border 5% toward `foreground` (20% dark, where the border all but matches the card and a half-pixel line in it vanishes) | `foreground` | `controlHover`, `foreground` 7% (10% dark) |
 | `primary` | Allow | accent 50% (55% dark) | accent at 4.5:1 | accent tint |
@@ -583,7 +611,7 @@ bar alike. While the action is out the button:
   (`client/tasks/cards/status-icon.tsx`): the running status ring without its centre dot, a 30%
   track with a turning 90% quarter, on the running rings' shared clock. Not the platform's
   `ActivityIndicator`, whose spokes differ between iOS, Android and web;
-- dims to 0.6 opacity and drops its hover fill;
+- dims to 0.6 opacity and drops its hover lift: the wash, the deeper shadow and the scale;
 - takes no second press: `disabled`, and `accessibilityState={{ disabled: true, busy: true }}`.
 
 No "…ing" labels ("Stopping…", "Unarchiving…"). A confirm step is not a working state: Stop's
@@ -789,9 +817,10 @@ button, avoiding nested button markup.
 ## Board surfaces
 
 Three layouts share one card and one set of tokens. The desktop board is the web with a pointer.
-A tablet is any native client wide enough for two lanes: desktop lanes with touch rules and no
-hover. The phone layout (`compact`) shows one lane at a time. The colours, tints and buttons above
-apply to all three.
+A tablet is any native client wide enough for two lanes: desktop lanes with touch rules, and its
+actions stay visible. A pointer still lifts a control the same way as on the desktop, and a press
+stands in where there is no hover ([Hover lift](#hover-lift)). The phone layout (`compact`) shows
+one lane at a time. The colours, tints and buttons above apply to all three.
 
 ### Card
 
@@ -805,8 +834,8 @@ apply to all three.
 | Meta and footer text | `sm` | `sm` |
 
 - Radius 8, a hairline border, the card shadow; fill, border and shadow follow
-  [Surfaces and states](#surfaces-and-states). Archiving changes only the status mark and the
-  actions, not the fill or the border.
+  [Surfaces and states](#surfaces-and-states), and hover follows [Hover lift](#hover-lift).
+  Archiving changes only the status mark and the actions, not the fill or the border.
 - The project icon, the status mark and the footer's start clock share one column: each is
   centred in the status icon slot, so the meta text and the title start at the same x.
 - The meta row is one muted line, segments joined by a spaced `›`; the context ring ends it, or
@@ -834,22 +863,25 @@ apply to all three.
   the board's edges (`LANES`). On touch the gap between lanes is itself a target.
 - A lane is a panel of radius 5 on the lane fill. Its header is 40 high, padded 14 left and 8
   right: the status icon (14), the name (`laneTitle`, weight 500), a muted rolling count, and a
-  24 collapse button (radius 6, `FoldHorizontal`). A history lane names its time range at `sm`.
+  24 collapse button (radius 6, `FoldHorizontal`; hover follows [Hover lift](#hover-lift), wash
+  `panelHover`). A history lane names its time range at `sm`.
   While loading, the count is a 14 × 10 `surface2` bar.
 - A collapsed lane is a 40 strip: the status icon, the name set vertically (Chinese stacked
-  upright, Latin turned 90° with 1 of letter spacing) and the count.
+  upright, Latin turned 90° with 1 of letter spacing) and the count. Hover follows
+  [Hover lift](#hover-lift); its wash is `panelHover`.
 - Cards are 12 apart. Loading draws three breathing skeleton cards (radius 6, `surface2` bars).
 - An empty lane draws `BoardEmptyState`: a dashed hairline box, radius 8, padded 28 × 20 (16 when
   narrow), a 20 muted icon, the title at weight 600 and a centred `sm` hint; a phone adds a 36
   Clear filters pill. A filter-hidden count sits under the cards as a `ListFilter` note in `sm`.
-- Load more is a 26 pill (36 on a phone) with a hairline border, `surface1` hovered.
+- Load more is a 26 pill (36 on a phone) with a hairline border. Hover follows
+  [Hover lift](#hover-lift); its wash is `surface1`.
 
 ### Toolbars
 
 | Toolbar | Height | Targets | Contents |
 | --- | --- | --- | --- |
 | Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 220 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
-| Tablet (`TabletToolbar`) | 56, 36 when narrower than 680 | 44, 28 when narrow | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when on or hovered |
+| Tablet (`TabletToolbar`) | 56, 36 when narrower than 680 | 44, 28 when narrow | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when on or open; hover follows [Hover lift](#hover-lift) |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
 - Wide desktop: the top row ends with Show groups with no tasks, then the sidebar

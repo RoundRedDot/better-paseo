@@ -61,14 +61,14 @@ export interface TaskTokens {
 export interface CardTokens {
   /** One step lighter than the lane panel: surface0 on a light theme, surface2 on a dark one. */
   background: string;
-  /** Hover, as Linear: the fill greys a step (foreground at 4%); the border stays. */
+  /** The reduced-motion hover wash: the fill greys a step (foreground at 4%). */
   hoverBackground: string;
   /** The hairline outline (theme border). */
   border: string;
   /** CSS box-shadow at rest and on hover: short and mostly downward, fainter on a dark theme. */
   shadow: string;
   shadowHover: string;
-  /** The hover shadow shared with action buttons. */
+  /** The deepened shadow shared with action buttons. It shows while motion is allowed. */
   buttonShadowHover: string;
   /** Neutral pill and secondary-button outline: the border a step towards the foreground. */
   pillBorder: string;
@@ -81,7 +81,7 @@ export interface CardTokens {
   buttonBorder: string;
   /** A neutral pill's fill (branch, folder, path, PR, a label without colour). */
   pillFill: string;
-  /** A hovered control's fill on the card. */
+  /** The reduced-motion wash on a plain control (foreground at 7%, 10% dark). */
   controlHover: string;
   /** The 1 s background after a parent link scrolled here. */
   highlight: string;
@@ -94,8 +94,8 @@ export interface CardTokens {
   failedBorder: string;
   /**
    * The card's coloured buttons are outlines: at rest a hairline, label and
-   * icon in their hue and no fill of their own; hovered, that hue tinted over
-   * the card. Primary (Allow) in the accent.
+   * icon in their hue and no fill of their own. The hue tint is the
+   * reduced-motion wash. Primary (Allow) in the accent.
    */
   primaryBorder: string;
   primaryHover: string;
