@@ -2494,6 +2494,26 @@ describe("Tasks data store, archived lane", () => {
     }
   });
 
+  it("removes a restored background helper from the archived lane", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("helper", { status: "closed", workspaceId: "ws-helper", archivedAt: recentIso(2_000), updatedAt: recentIso(2_000) })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(ids(mounted.current.lanes.archived)).toEqual(["helper"]);
+      await act(async () => {
+        fake.upsertWorkspace(makeWorkspace({ id: "ws-helper", background: true }));
+        fake.upsertAgent(activeAgent("helper", { status: "idle", workspaceId: "ws-helper", archivedAt: null, updatedAt: recentIso(0) }));
+        await Promise.resolve();
+      });
+      expect(ids(mounted.current.lanes.archived)).toEqual([]);
+      expect(mounted.current.byId.has("helper")).toBe(false);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("keeps archived children off a live parent and links them to it", async () => {
     const fake = createFakePaseo({
       agents: [

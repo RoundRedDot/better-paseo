@@ -49,11 +49,11 @@ async function registerHandlers(host: HostAccess = noHost): Promise<Map<string, 
   return handlers;
 }
 
-async function invoke<T>(handlers: Map<string, Handler>, name: string, input: unknown): Promise<T> {
+async function invoke<T>(handlers: Map<string, Handler>, name: string, input: unknown, context?: PaseoApi): Promise<T> {
   const handler = handlers.get(name);
   if (!handler) throw new Error(`Missing test handler: ${name}`);
   const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: tempRoot, workspaceId: "workspace-a" } }) }) }, workspaces: { ref: () => ({ refresh: async () => ({ id: "workspace-a" }) }) } } as unknown as PaseoApi;
-  return await handler(input, { paseo }) as T;
+  return await handler(input, { paseo: context ?? paseo }) as T;
 }
 
 const validJson = JSON.stringify({ stoppedCount: 1, agentIds: ["agent-a"] });
@@ -264,6 +264,52 @@ describe("Tasks server stopped record", () => {
 });
 
 describe("Tasks server unarchive RPC", () => {
+  it("restores the archived workspace before reloading its agent", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    const order: string[] = [];
+    const inspectWorkspaceRecovery = vi.fn(async () => ({ kind: "recoverable" as const, action: "unarchive" as const }));
+    const restoreWorkspace = vi.fn(async () => { order.push("restore"); });
+    const close = vi.fn(async () => {});
+    const host: HostAccess = { available: () => true, connect: async () => ({ inspectWorkspaceRecovery, restoreWorkspace, close }) as never };
+    const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: tempRoot, workspaceId: "workspace-a" } }) }) }, workspaces: { ref: () => ({ refresh: async () => null }) } } as unknown as PaseoApi;
+    execCommand.mockImplementation(async (_cli: string, args: string[]) => {
+      order.push(args[1]!);
+      return { stdout: args[1] === "inspect" ? JSON.stringify({ Archived: true }) : "{}", stderr: "" };
+    });
+    const handlers = await registerHandlers(host);
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo)).resolves.toEqual({ ok: true, error: null });
+    expect(inspectWorkspaceRecovery).toHaveBeenCalledWith("workspace-a");
+    expect(restoreWorkspace).toHaveBeenCalledWith("workspace-a");
+    expect(order).toEqual(["restore", "inspect", "reload"]);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reload when workspace recovery fails or needs to recreate a worktree", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    const inspectWorkspaceRecovery = vi.fn().mockResolvedValueOnce({ kind: "unavailable", message: "Workspace missing" }).mockResolvedValueOnce({ kind: "recoverable", action: "restore" }).mockResolvedValueOnce({ kind: "recoverable", action: "unarchive" });
+    const restoreWorkspace = vi.fn(async () => { throw new Error("Restore failed"); });
+    const close = vi.fn(async () => {});
+    const host: HostAccess = { available: () => true, connect: async () => ({ inspectWorkspaceRecovery, restoreWorkspace, close }) as never };
+    const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: tempRoot, workspaceId: "workspace-a" } }) }) }, workspaces: { ref: () => ({ refresh: async () => null }) } } as unknown as PaseoApi;
+    const handlers = await registerHandlers(host);
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo)).resolves.toEqual({ ok: false, error: "Workspace missing" });
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo)).resolves.toMatchObject({ ok: false });
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo)).resolves.toEqual({ ok: false, error: "Restore failed" });
+    expect(restoreWorkspace).toHaveBeenCalledTimes(1);
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not restore or reload an archiving workspace", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    const connect = vi.fn(async () => null);
+    const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: tempRoot, workspaceId: "workspace-a" } }) }) }, workspaces: { ref: () => ({ refresh: async () => ({ archivingAt: "2026-10-31T00:00:00Z" }) }) } } as unknown as PaseoApi;
+    const handlers = await registerHandlers({ available: () => true, connect });
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo)).resolves.toMatchObject({ ok: false });
+    expect(connect).not.toHaveBeenCalled();
+    expect(execCommand).not.toHaveBeenCalled();
+  });
+
   it("reloads an archived agent, the way Paseo's own Unarchive does", async () => {
     const cli = await executable(tempRoot);
     process.env.PASEO_CLI = cli;

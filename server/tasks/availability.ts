@@ -24,17 +24,22 @@ export function taskIssueError(issue: TaskIssue): string {
 }
 
 /** Metadata and filesystem checks do not load a provider session or read its timeline. */
-export async function taskUpdateIssue(source: PaseoAgentRefetchResult | null, paseo: PaseoApi): Promise<TaskIssue | null> {
-  if (!source) return { code: "agent_missing", detail: null };
+export async function taskUpdateState(source: PaseoAgentRefetchResult | null, paseo: PaseoApi): Promise<{ issue: TaskIssue | null; archivedWorkspaceId: string | null }> {
+  if (!source) return { issue: { code: "agent_missing", detail: null }, archivedWorkspaceId: null };
   const directory = await taskDirectoryIssue(source.agent.cwd);
-  if (directory) return directory;
-  if (!source.agent.workspaceId) return { code: "workspace_unavailable", detail: null };
+  if (directory) return { issue: directory, archivedWorkspaceId: null };
+  if (!source.agent.workspaceId) return { issue: { code: "workspace_unavailable", detail: null }, archivedWorkspaceId: null };
   const workspace = await paseo.workspaces.ref(source.agent.workspaceId).refresh();
-  if (!workspace || workspace.archivingAt) return { code: "workspace_unavailable", detail: source.agent.cwd };
-  return null;
+  if (!workspace) return { issue: { code: "workspace_unavailable", detail: source.agent.cwd }, archivedWorkspaceId: source.agent.workspaceId };
+  if (workspace.archivingAt) return { issue: { code: "workspace_unavailable", detail: source.agent.cwd }, archivedWorkspaceId: null };
+  return { issue: null, archivedWorkspaceId: null };
 }
 
-export function createTaskAvailability(settings: PluginSettings<typeof titleGenerationSettingsSchema>, canRename: () => boolean, canUnarchive: () => Promise<boolean>) {
+export async function taskUpdateIssue(source: PaseoAgentRefetchResult | null, paseo: PaseoApi): Promise<TaskIssue | null> {
+  return (await taskUpdateState(source, paseo)).issue;
+}
+
+export function createTaskAvailability(settings: PluginSettings<typeof titleGenerationSettingsSchema>, canRename: () => boolean, canUnarchive: () => Promise<boolean>, canRestore: () => boolean) {
   return async (paseo: PaseoApi, agentIds: string[]) => {
     const [config, providers, unarchive] = await Promise.all([settings.read(), paseo.providers.snapshot(), canUnarchive()]);
     const catalogs = new Map<string, Promise<Pick<PaseoProviderModelsResult, "error" | "models">>>();
@@ -42,9 +47,16 @@ export function createTaskAvailability(settings: PluginSettings<typeof titleGene
     // Bound daemon requests; cards share provider catalogs within this batch.
     for (const agentId of [...new Set(agentIds)]) {
       const source = await paseo.agents.ref(agentId).refresh();
-      const issue = await taskUpdateIssue(source, paseo);
+      const { issue, archivedWorkspaceId } = await taskUpdateState(source, paseo);
       if (issue || !source) {
-        entries.push({ agentId, availability: unavailableTask(issue!) });
+        const availability = unavailableTask(issue!);
+        if (source && archivedWorkspaceId) {
+          if (!unarchive || !canRestore()) availability.blocked.unarchive = { code: "unsupported", detail: null };
+          else if (!providers.entries.some((entry) => entry.provider === source.agent.provider && entry.enabled && entry.status === "ready")) {
+            availability.blocked.unarchive = { code: "provider_unavailable", detail: source.agent.provider };
+          } else delete availability.blocked.unarchive;
+        }
+        entries.push({ agentId, availability });
         continue;
       }
       const blocked: TaskAvailability["blocked"] = {};

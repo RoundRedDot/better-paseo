@@ -12,7 +12,7 @@ import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsR
 import { TASKS_CHUNK } from "../tasks-chunk";
 import { registerTitleGeneration } from "./title-generation";
 import { tasksAvailabilityRpc } from "../../shared/task-availability";
-import { createTaskAvailability, taskDirectoryIssue, taskIssueError, taskUpdateIssue } from "./availability";
+import { createTaskAvailability, taskDirectoryIssue, taskIssueError, taskUpdateIssue, taskUpdateState } from "./availability";
 import { conversationSearchRpc } from "../../shared/conversation-search";
 import { searchConversationPage } from "./conversation-search";
 
@@ -340,7 +340,7 @@ export function registerTasksServer(
 ): void {
   server.registerSettings(TASKS_SETTINGS);
   const titleSettings = registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available);
-  const availability = createTaskAvailability(titleSettings, host.available, async () => (await resolveCli()) !== null);
+  const availability = createTaskAvailability(titleSettings, host.available, async () => (await resolveCli()) !== null, host.available);
   server.handle(tasksAvailabilityRpc, (input, { paseo }) => availability(paseo, input.agentIds));
   server.handle(conversationSearchRpc, (input, { paseo }) => searchConversationPage(paseo, host, input));
   // A new turn means a new prompt: the agent is no longer "stopped manually", nor read.
@@ -401,8 +401,24 @@ export function registerTasksServer(
     const cli = await resolveCli();
     if (!cli) return { ok: false, error: "Paseo CLI is unavailable." };
     if (!AGENT_ID_PATTERN.test(agentId)) return { ok: false, error: "Invalid agent ID." };
-    const issue = await taskUpdateIssue(await paseo.agents.ref(agentId).refresh(), paseo);
-    if (issue) return { ok: false, error: taskIssueError(issue) };
+    const source = await paseo.agents.ref(agentId).refresh();
+    const { issue, archivedWorkspaceId } = await taskUpdateState(source, paseo);
+    if (issue) {
+      if (!archivedWorkspaceId) return { ok: false, error: taskIssueError(issue) };
+      const daemon = await host.connect();
+      if (!daemon) return { ok: false, error: "Could not reach the Paseo daemon." };
+      try {
+        if (!daemon.inspectWorkspaceRecovery || !daemon.restoreWorkspace) return { ok: false, error: "This Paseo cannot restore workspaces." };
+        const recovery = await daemon.inspectWorkspaceRecovery(archivedWorkspaceId);
+        if (recovery.kind === "unavailable") return { ok: false, error: recovery.message };
+        if (recovery.action !== "unarchive") return { ok: false, error: taskIssueError(issue) };
+        await daemon.restoreWorkspace(archivedWorkspaceId);
+      } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+      } finally {
+        await daemon.close().catch(() => {});
+      }
+    }
     return await unarchiveAgent(cli, agentId);
   });
 }

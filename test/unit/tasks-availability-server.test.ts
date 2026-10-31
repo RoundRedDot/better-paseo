@@ -25,8 +25,9 @@ async function fixture() {
   const settings = { read: vi.fn(async () => ({ status: "ready" as const, revision: "1", values })), subscribe: () => () => {} };
   const canRename = vi.fn(() => true);
   const canUnarchive = vi.fn(async () => true);
-  const read = createTaskAvailability(settings, canRename, canUnarchive);
-  return { directory, source, refresh, workspace, timeline, providers, snapshot, listModels, values, canRename, canUnarchive, api, read };
+  const canRestore = vi.fn(() => true);
+  const read = createTaskAvailability(settings, canRename, canUnarchive, canRestore);
+  return { directory, source, refresh, workspace, timeline, providers, snapshot, listModels, values, canRename, canUnarchive, canRestore, api, read };
 }
 
 describe("task operation availability", () => {
@@ -63,7 +64,25 @@ describe("task operation availability", () => {
     const f = await fixture();
     expect(await taskUpdateIssue(null, f.api)).toEqual({ code: "agent_missing", detail: null });
     f.workspace.mockResolvedValueOnce(null).mockResolvedValueOnce({ archivingAt: "2026-10-28T00:00:00Z" });
-    for (let index = 0; index < 2; index++) expect((await f.read(f.api, ["a"])).entries[0]!.availability.issue?.code).toBe("workspace_unavailable");
+    const archived = (await f.read(f.api, ["a"])).entries[0]!.availability;
+    expect(archived.issue?.code).toBe("workspace_unavailable");
+    expect(archived.blocked.unarchive).toBeUndefined();
+    expect(archived.blocked.rename?.code).toBe("workspace_unavailable");
+    const archiving = (await f.read(f.api, ["a"])).entries[0]!.availability;
+    expect(archiving.blocked.unarchive?.code).toBe("workspace_unavailable");
+  });
+
+  it("still checks the CLI and provider before unarchiving an unavailable workspace", async () => {
+    const f = await fixture();
+    f.workspace.mockResolvedValue(null);
+    f.canUnarchive.mockResolvedValue(false);
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability.blocked.unarchive?.code).toBe("unsupported");
+    f.canUnarchive.mockResolvedValue(true);
+    f.canRestore.mockReturnValue(false);
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability.blocked.unarchive?.code).toBe("unsupported");
+    f.canRestore.mockReturnValue(true);
+    f.providers[0]!.enabled = false;
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability.blocked.unarchive?.code).toBe("provider_unavailable");
   });
 
   it.each(["disabled", "error", "unavailable", "loading"])("preserves metadata edits while a %s provider blocks generation and resume", async (status) => {

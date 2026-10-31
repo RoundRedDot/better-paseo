@@ -30,6 +30,8 @@ export interface SeedDaemon {
 /** The daemon's own client as the board's server uses it: the seed, metadata updates and attention. */
 export interface HostDaemon extends SeedDaemon {
   updateAgent(agentId: string, updates: { name: string }): Promise<void>;
+  inspectWorkspaceRecovery?(workspaceId: string): Promise<{ kind: "recoverable"; action: "unarchive" | "restore" } | { kind: "unavailable"; message: string }>;
+  restoreWorkspace?(workspaceId: string): Promise<void>;
   /** The agent as the daemon lists it, live or from storage; null for an unknown one. */
   fetchAgent(agentId: string): Promise<{ agent: { cwd: string; status: string } } | null>;
   /** Resolves when the daemon cleared every agent's; it never answers a request naming an unknown agent. */
