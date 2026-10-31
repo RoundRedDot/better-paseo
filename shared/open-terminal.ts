@@ -10,6 +10,8 @@ export const openTerminalRpc = defineRpc({
   output: z.object({ status: z.enum(["opened", "unsupported", "failed"]) }),
 });
 
-export function updateCommand(source: "registry" | "git", latest: string): string {
-  return source === "registry" ? "paseo plugin update better-paseo" : `paseo plugin update better-paseo --ref ${latest}`;
+// Official `paseo plugin update <id>` proposes the current default HEAD and asks
+// before applying. `--ref` only selects Git content at install time.
+export function updateCommand(): string {
+  return "paseo plugin update better-paseo";
 }

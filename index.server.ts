@@ -467,7 +467,7 @@ export default function contribute(server: PluginServerContext) {
   const checkUpdate = createUpdateCheck();
   const stopAutomaticUpdateCheck = startAutomaticUpdateCheck(preferences, checkUpdate);
   server.handle(updateCheckRpc, ({ action }) => checkUpdate(action));
-  server.handle(openTerminalRpc, (input) => openSystemTerminal(updateCommand(input.source, input.latest)));
+  server.handle(openTerminalRpc, () => openSystemTerminal(updateCommand()));
   // The Tasks board's settings and its stop RPCs.
   registerTasksServer(server);
   // Each turn's token usage, kept on disk for the turn details.

@@ -599,7 +599,7 @@ function VersionSection({ look, language, version, autoUpdateCheck, native }: { 
   const t = look.t;
   const updateAvailable = state.state === "done" && state.versions.status === "available" && state.versions.current !== null && state.versions.latest !== null && state.versions.currentBuild !== null && state.versions.latestBuild !== null && isNewerVersion(state.versions.current, state.versions.latest, state.versions.currentBuild, state.versions.latestBuild);
   const orderUnknown = state.state === "done" && !state.matches && (state.versions.status === "unavailable" || state.versions.current === null || state.versions.latest === null || state.versions.currentBuild === null || state.versions.latestBuild === null);
-  const command = state.state === "done" ? updateCommand(state.source, state.latest) : "";
+  const command = state.state === "done" ? updateCommand() : "";
   async function goToUpdate() {
     if (state.state !== "done") return;
     setTerminalStatus("opening");

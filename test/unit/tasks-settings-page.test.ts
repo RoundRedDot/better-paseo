@@ -615,14 +615,16 @@ it("shows the revision and an explanation when the version map is unavailable", 
   expect(textOf(r.root)).not.toContain(SETTINGS_STRINGS.en.versionUnmapped);
   expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionMarketCommandHint);
   expect(button(r, SETTINGS_STRINGS.en.versionCopyMarketCommand)).toBeTruthy();
+  expect(textOf(r.root.findByType(CommandBand))).toBe("$ paseo plugin update better-paseo");
   expect(byTestID(r, "update-badge")).toHaveLength(0);
   act(() => r.unmount());
 });
 
 it.each([
-  ["git", `paseo plugin update better-paseo --ref ${"2".repeat(40)}`],
-  ["registry", "paseo plugin update better-paseo"],
-] as const)("shows the update badge and copies the reviewed update command for %s", async (source, command) => {
+  "git",
+  "registry",
+] as const)("shows the update badge and copies the update command for %s", async (source) => {
+  const command = "paseo plugin update better-paseo";
   makeSettings();
   setSettingsTab("display");
   state.copyText.mockClear();
@@ -694,7 +696,7 @@ it.each(["opened", "unsupported", "failed"] as const)("opens the host terminal a
   let r!: Renderer;
   await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
   await act(async () => { button(r, "Go to update").props.onPress(); });
-  expect(state.copyText).toHaveBeenCalledWith(`paseo plugin update better-paseo --ref ${"2".repeat(40)}`);
+  expect(state.copyText).toHaveBeenCalledWith("paseo plugin update better-paseo");
   expect(state.openTerminal).toHaveBeenCalledWith({ source: "git", latest: "2".repeat(40) });
   expect(state.copyText.mock.invocationCallOrder[0]!).toBeLessThan(state.openTerminal.mock.invocationCallOrder[0]!);
   expect(button(r, "Copy update command")).toBeTruthy();

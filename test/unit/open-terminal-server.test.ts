@@ -8,7 +8,7 @@ import { openTerminalRpc, updateCommand } from "../../shared/open-terminal";
 describe("fill the system terminal", () => {
   it("queues the reviewed command in zsh without sending keystrokes", async () => {
     execFile.mockImplementation((_command, _args, _options, callback) => callback(null));
-    const command = updateCommand("git", "a".repeat(40));
+    const command = updateCommand();
     await expect(openSystemTerminal(command, "darwin")).resolves.toEqual({ status: "opened" });
     const [executable, args, options] = execFile.mock.calls.at(-1)!;
     expect(executable).toBe("/usr/bin/osascript");
@@ -26,7 +26,7 @@ describe("fill the system terminal", () => {
     expect(openTerminalRpc.input.safeParse({ source: "git", latest: "a".repeat(40) }).success).toBe(true);
     expect(openTerminalRpc.input.safeParse({ source: "git", latest: "a".repeat(40) + "\n" }).success).toBe(false);
     expect(openTerminalRpc.input.safeParse({ source: "git", latest: "$(touch injected)" }).success).toBe(false);
-    expect(updateCommand("registry", "a".repeat(40))).toBe("paseo plugin update better-paseo");
+    expect(updateCommand()).toBe("paseo plugin update better-paseo");
   });
 
   it("reports automation errors and unsupported host platforms", async () => {
