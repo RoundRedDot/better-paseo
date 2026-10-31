@@ -29,7 +29,7 @@ async function revealHandler(): Promise<Handler> {
   const { default: contribute } = await import("../../index.server");
   const handlers = new Map<string, Handler>();
   const server = new Proxy({}, {
-    get: (_, key) => key === "handle"
+    get: (_, key) => key === "registerSettings" ? () => ({ read: async () => ({ status: "invalid", revision: "test", error: "test" }), subscribe: () => () => {} }) : key === "handle"
       ? (contract: { name: string }, handler: Handler) => handlers.set(contract.name, handler)
       : () => () => {},
   }) as PluginServerContext;

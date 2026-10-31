@@ -3,7 +3,7 @@ import { open, stat, type FileHandle } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { updateCheckRpc } from "./shared/update-check";
-import { createUpdateCheck } from "./server/update-check";
+import { createUpdateCheck, startAutomaticUpdateCheck } from "./server/update-check";
 import { PREFERENCES_SETTINGS } from "./shared/preferences-settings";
 import { revealPathRpc } from "./shared/file-rpc";
 import { embeddedFontsRpc } from "./shared/font-rpc";
@@ -461,8 +461,9 @@ export default function contribute(server: PluginServerContext) {
   // Presentation preferences live in the daemon (host scope), so every
   // client — including iOS and Android, which have no localStorage — reads
   // and saves the same record (S5 fix round 1).
-  server.registerSettings(PREFERENCES_SETTINGS);
+  const preferences = server.registerSettings(PREFERENCES_SETTINGS);
   const checkUpdate = createUpdateCheck();
+  const stopAutomaticUpdateCheck = startAutomaticUpdateCheck(preferences, checkUpdate);
   server.handle(updateCheckRpc, ({ action }) => checkUpdate(action));
   // The Tasks board's settings and its stop RPCs.
   registerTasksServer(server);
@@ -588,5 +589,5 @@ export default function contribute(server: PluginServerContext) {
 
   // The highlighter and the cache sit at module scope on purpose, shared by
   // every contribution, so a single teardown must not dispose them.
-  return () => {};
+  return () => { stopAutomaticUpdateCheck(); };
 }

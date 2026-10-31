@@ -73,6 +73,7 @@ export type PathDisplayPreference = "relative" | "absolute";
 export type RowLabelStylePreference = "icon" | "label" | "both";
 
 export interface EnhancerPreferences {
+  autoUpdateCheck: boolean;
   accent: AccentPreset;
   uiFont: UiFontPreference;
   /** Inline code text off the web; the web keeps its filled chip. */
@@ -199,6 +200,7 @@ function readKey(store: PreferenceStorage | undefined, key: string, previous: st
 }
 
 export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
+  autoUpdateCheck: true,
   accent: "host",
   uiFont: "host",
   inlineCodeColor: "grey",

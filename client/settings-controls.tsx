@@ -81,7 +81,7 @@ export function Segmented<T extends string>({
   contentWidth = false,
 }: {
   value: T | null;
-  options: ReadonlyArray<{ value: T; label: string }>;
+  options: ReadonlyArray<{ value: T; label: string; badge?: string }>;
   contentWidth?: boolean;
   onChange(value: T): void;
   look: PageLook;
@@ -106,6 +106,7 @@ export function Segmented<T extends string>({
             accessibilityRole="radio"
             accessibilityState={{ selected, checked: selected }}
             aria-checked={selected}
+            accessibilityLabel={option.badge ? `${option.label}, ${option.badge}` : option.label}
             hitSlop={compact ? { top: 6, bottom: 6 } : undefined}
             onPress={() => onChange(option.value)}
             style={[
@@ -129,6 +130,7 @@ export function Segmented<T extends string>({
             >
               {option.label}
             </Text>
+            {option.badge ? <View testID="update-badge" accessible={false} style={{ position: "absolute", right: 4, top: 4, width: 7, height: 7, borderRadius: 4, backgroundColor: tokens.danger }} /> : null}
           </Pressable>
         );
       })}

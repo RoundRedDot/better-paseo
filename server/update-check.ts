@@ -36,19 +36,19 @@ const registrySchema = z.object({
 });
 const installationSchema = z.object({
   identity: z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("git"), remote: z.string() }),
+    z.object({ kind: z.literal("git"), remote: z.string(), registry: z.object({ url: z.string(), id: z.string() }).optional() }),
     z.object({ kind: z.literal("directory") }),
     z.object({ kind: z.literal("npm") }),
   ]),
   currentRevision: z.string().optional(),
 });
 
-const releasesSchema = z.object({ releases: z.array(z.object({ hash: sha, version: z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/), notes: z.object({ zh: z.string().min(1), en: z.string().min(1) }) })) });
+const releasesSchema = z.object({ releases: z.array(z.object({ hash: sha, version: z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/), build: z.number().int().min(100_000_000_000).max(999_999_999_999), notes: z.object({ zh: z.string().min(1), en: z.string().min(1) }) })) });
 type Notes = { status: "available"; zh: string; en: string } | { status: "missing" | "unavailable" };
 
-type Versions = { status: "available"; current: string | null; latest: string | null } | { status: "unavailable" };
+type Versions = { status: "available"; current: string | null; latest: string | null; currentBuild: number | null; latestBuild: number | null } | { status: "unavailable" };
 
-type State = { state: "idle" | "checking" | "failed" | "local" | "unsupported" } | { state: "done"; current: string; latest: string; matches: boolean; checkedAt: number; notes: Notes; versions: Versions };
+type State = { state: "idle" | "checking" | "failed" | "local" | "unsupported" } | { state: "done"; source: "registry" | "git"; current: string; latest: string; matches: boolean; checkedAt: number; notes: Notes; versions: Versions };
 
 export function createUpdateCheck(deps = { fetchVersion: fetch, connect: connectHostDaemon }) {
   let state: State = { state: "idle" };
@@ -75,6 +75,10 @@ export function createUpdateCheck(deps = { fetchVersion: fetch, connect: connect
         state = { state: "unsupported" };
         return;
       }
+      if (current.identity.registry && (current.identity.registry.url !== "https://plugins.paseo.sh" || current.identity.registry.id !== "roundreddot/better-paseo")) {
+        state = { state: "unsupported" };
+        return;
+      }
       const revision = sha.parse(current.currentRevision);
       let notes: Notes;
       let versions: Versions;
@@ -83,13 +87,14 @@ export function createUpdateCheck(deps = { fetchVersion: fetch, connect: connect
         if (!response.ok) throw new Error("Could not read release information.");
         const releases = releasesSchema.parse(await readJson(response)).releases;
         const published = releases.find((entry) => entry.hash === latest);
-        versions = { status: "available", current: releases.find((entry) => entry.hash === revision)?.version ?? null, latest: published?.version ?? null };
+        const installed = releases.find((entry) => entry.hash === revision);
+        versions = { status: "available", current: installed?.version ?? null, latest: published?.version ?? null, currentBuild: installed?.build ?? null, latestBuild: published?.build ?? null };
         notes = published ? { status: "available", ...published.notes } : { status: "missing" };
       } catch {
         versions = { status: "unavailable" };
         notes = { status: "unavailable" };
       }
-      state = { state: "done", current: revision, latest, matches: revision === latest, checkedAt: Date.now(), notes, versions };
+      state = { state: "done", source: current.identity.registry ? "registry" : "git", current: revision, latest, matches: revision === latest, checkedAt: Date.now(), notes, versions };
     } finally {
       await client.close().catch(() => {});
     }
@@ -102,4 +107,15 @@ export function createUpdateCheck(deps = { fetchVersion: fetch, connect: connect
     }
     return state;
   };
+}
+
+export function startAutomaticUpdateCheck(
+  settings: { read(): Promise<{ status: "ready"; values: { autoUpdateCheck: boolean } } | { status: "invalid" }> },
+  check: ReturnType<typeof createUpdateCheck>,
+): () => void {
+  let active = true;
+  void settings.read().then((result) => {
+    if (active && result.status === "ready" && result.values.autoUpdateCheck) check("check");
+  }).catch((error: unknown) => console.warn("[better-paseo] could not read update check settings", error));
+  return () => { active = false; };
 }

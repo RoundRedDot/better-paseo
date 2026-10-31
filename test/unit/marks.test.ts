@@ -99,7 +99,7 @@ describe("brand marks", () => {
   it("are answered by the daemon for known ids only", async () => {
     const handlers = new Map<string, (input: unknown) => Promise<unknown>>();
     contribute({
-      registerSettings() {},
+      registerSettings() { return { read: async () => ({ status: "invalid", revision: "test", error: "test" }), subscribe: () => () => {} }; },
       on() { return () => {}; },
       before() { return () => {}; },
       handle(contract: { name: string }, handler: (input: unknown) => Promise<unknown>) {

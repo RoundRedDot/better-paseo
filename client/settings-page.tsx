@@ -1,5 +1,5 @@
 import { useRpc } from "@getpaseo/plugin/client";
-import { updateCheckRpc } from "../shared/update-check";
+import { isNewerVersion, updateCheckRpc } from "../shared/update-check";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { TextInput } from "@getpaseo/plugin/client/react-native";
@@ -39,6 +39,7 @@ import {
   readHostTypography,
 } from "./ui/tokens/typography";
 import { usePreferenceSettings } from "./state/preference-sync-slot";
+import { useCopy } from "./ui/use-copy";
 import { useWideHostColumn } from "./ui/wide-host-column";
 import { SettingsPreview } from "./settings-preview";
 import { MarkdownView } from "./components/markdown/markdown-view";
@@ -522,10 +523,9 @@ function ResetButton({ look }: { look: PageLook }) {
   );
 }
 
-function VersionSection({ look, language }: { look: PageLook; language: "en" | "zh" }) {
+function useVersionCheck() {
   const check = useRpc(updateCheckRpc);
   const [state, setState] = useState<Awaited<ReturnType<typeof check>> | { state: "starting" }>({ state: "idle" });
-  const t = look.t;
   const started = useRef(false);
   useEffect(() => {
     let active = true;
@@ -556,16 +556,28 @@ function VersionSection({ look, language }: { look: PageLook; language: "en" | "
     }
     catch { setState({ state: "failed" }); }
   }
+  return { state, run };
+}
+
+function VersionSection({ look, language, version, autoUpdateCheck }: { look: PageLook; language: "en" | "zh"; version: ReturnType<typeof useVersionCheck>; autoUpdateCheck: boolean }) {
+  const { state, run } = version;
+  const { copied, copy } = useCopy();
+  const t = look.t;
+  const updateAvailable = state.state === "done" && state.versions.status === "available" && state.versions.current !== null && state.versions.latest !== null && state.versions.currentBuild !== null && state.versions.latestBuild !== null && isNewerVersion(state.versions.current, state.versions.latest, state.versions.currentBuild, state.versions.latestBuild);
   const description = state.state === "failed" ? t.versionFailed : state.state === "local" ? t.versionLocal : state.state === "unsupported" ? t.versionUnsupported : state.state === "done"
     ? `${t.versionCurrent(
-        state.versions.status === "unavailable" ? state.current.slice(0, 7) : state.versions.current ? `${state.versions.current} (${state.current.slice(0, 7)})` : `${state.current.slice(0, 7)} (${t.versionUnmapped})`,
-        state.versions.status === "unavailable" ? state.latest.slice(0, 7) : state.versions.latest ? `${state.versions.latest} (${state.latest.slice(0, 7)})` : `${state.latest.slice(0, 7)} (${t.versionUnmapped})`,
-      )}\n${state.matches ? t.versionUpToDate : t.versionAvailable}\n${t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US"))}\n${state.versions.status === "unavailable" ? `${t.versionMapUnavailable}\n` : ""}${t.versionDescription}`
+        state.versions.status === "unavailable" ? state.current.slice(0, 7) : state.versions.current ? `${state.versions.current} (build ${state.versions.currentBuild}, ${state.current.slice(0, 7)})` : `${state.current.slice(0, 7)} (${t.versionUnmapped})`,
+        state.versions.status === "unavailable" ? state.latest.slice(0, 7) : state.versions.latest ? `${state.versions.latest} (build ${state.versions.latestBuild}, ${state.latest.slice(0, 7)})` : `${state.latest.slice(0, 7)} (${t.versionUnmapped})`,
+      )}\n${state.matches ? t.versionUpToDate : updateAvailable ? t.versionNewAvailable : t.versionAvailable}\n${t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US"))}\n${state.versions.status === "unavailable" ? `${t.versionMapUnavailable}\n` : ""}${t.versionDescription}`
     : t.versionDescription;
   return <>
   <Section title={t.versionTitle} look={look}>
-    <SettingRow title={t.versionTitle} description={description} first stacked look={look}
+    <SettingRow title={t.versionAutoCheck} description={t.versionAutoCheckDescription} first look={look}
+      control={<Toggle value={autoUpdateCheck} onChange={(autoUpdateCheck) => updateEnhancerPreferences({ autoUpdateCheck })} label={t.versionAutoCheck} look={look} />} />
+    <SettingRow title={t.versionTitle} description={description} stacked look={look}
       control={<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} disabled={state.state === "checking" || state.state === "starting"} loading={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} />} />
+    {updateAvailable && state.state === "done" ? <SettingRow title={t.versionNewAvailable} description={t.versionCommandHint} stacked look={look}
+      control={<PlainButton label={copied ? t.versionCommandCopied : t.versionCopyCommand} onPress={() => { void copy(state.source === "registry" ? "paseo plugin update better-paseo" : `paseo plugin update better-paseo --ref ${state.latest}`); }} look={look} />} /> : null}
   </Section>
   {state.state === "done" ? <Section title={t.releaseNotesTitle} look={look}>
     <SettingRow first stacked look={look} title={t.releaseNotesTitle}
@@ -580,6 +592,8 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
   const preferences = useEnhancerPreferences();
   // The selected settings section persists across page mounts.
   const tab = useSettingsTab();
+  const version = useVersionCheck();
+  const updateAvailable = version.state.state === "done" && version.state.versions.status === "available" && version.state.versions.current !== null && version.state.versions.latest !== null && version.state.versions.currentBuild !== null && version.state.versions.latestBuild !== null && isNewerVersion(version.state.versions.current, version.state.versions.latest, version.state.versions.currentBuild, version.state.versions.latestBuild);
   // The settings screen reads (and, through the store, saves) the daemon
   // record itself, so it works with no chat open.
   const sync = usePreferenceSettings();
@@ -1027,7 +1041,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
               options={[
                 { value: "display", label: t.tabDisplay },
                 { value: "tasks", label: t.tabTasks },
-                { value: "version", label: t.tabVersion },
+                { value: "version", label: t.tabVersion, badge: updateAvailable ? t.versionBadge : undefined },
               ]}
               onChange={setSettingsTab}
               look={look}
@@ -1064,7 +1078,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
       </View>
 
       {tab === "version" ? (
-        <VersionSection look={look} language={resolveLanguage(preferences.language)} />
+        <VersionSection look={look} language={resolveLanguage(preferences.language)} version={version} autoUpdateCheck={preferences.autoUpdateCheck} />
       ) : tab === "tasks" ? (
         <TasksSettingsPanel look={look} theme={theme} side={side} hostId={host?.id} />
       ) : side ? (

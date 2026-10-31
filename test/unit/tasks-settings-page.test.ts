@@ -9,14 +9,14 @@ const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...
 // a hand edit makes the density custom, the preview follows the switches,
 // reset asks first, and an unusable record offers a reset.
 
-const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh", rpc: vi.fn(async (): Promise<unknown> => ({ state: "idle" })) }));
+const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh", rpc: vi.fn(async (): Promise<unknown> => ({ state: "idle" })), copyText: vi.fn(async () => {}) }));
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({ useSettings: (definition: { id: string }) => definition.id === "title-generation" ? { status: "loading", reload: vi.fn() } : state.current, useRpc: () => state.rpc }));
 vi.mock("@getpaseo/plugin/client/ui", () => ({
   SettingsSelect: "SettingsSelect", TextInput: "TextInput",
   SidebarRow: () => { throw new Error("SidebarRow must render inside a sidebar item"); },
 }));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ TextInput: "TextInput", Icon: "Icon", useToast: () => ({ show() {} }) }));
+vi.mock("@getpaseo/plugin/client/react-native", () => ({ TextInput: "TextInput", Icon: "Icon", copyText: state.copyText, useToast: () => ({ show() {}, error() {} }) }));
 vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => state.language, resolveTasksLanguage: () => state.language }));
 vi.mock("../../client/tasks/chunk/load", async () => import("../../client/tasks/settings/tasks-panel"));
 vi.mock("../../client/state/preference-sync-slot", () => ({ usePreferenceSettings: () => ({ status: "ready", failed: false }) }));
@@ -490,14 +490,14 @@ describe("Tasks half of the settings page", () => {
 it("checks the plugin directory version from its settings tab", async () => {
   makeSettings();
   setSettingsTab("display");
-  state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValueOnce({ state: "done", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0" }, notes: { status: "available", en: "- Fix scrolling", zh: "- 修复滚动" } });
+  state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValueOnce({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0", currentBuild: 202610311637, latestBuild: 202610311557 }, notes: { status: "available", en: "- Fix scrolling", zh: "- 修复滚动" } });
   let r!: Renderer;
   act(() => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
   await act(async () => { radio(r, SETTINGS_STRINGS.en.tabsLabel, SETTINGS_STRINGS.en.tabVersion).props.onPress(); });
   await act(async () => { button(r, "Check for updates").props.onPress(); });
   expect(state.rpc).toHaveBeenCalledWith({ action: "check" });
   expect(textOf(r.root)).toContain("This installation differs from the plugin directory version.");
-  expect(textOf(r.root)).toContain("Installed: 1.0.1 (1111111) · Directory: 1.0.0 (2222222)");
+  expect(textOf(r.root)).toContain("Installed: 1.0.1 (build 202610311637, 1111111) · Directory: 1.0.0 (build 202610311557, 2222222)");
   expect(r.root.findByType(MarkdownView).props.text).toBe("- Fix scrolling");
   act(() => r.unmount());
 });
@@ -511,7 +511,7 @@ it("keeps polling after 130 seconds and displays a late result", async () => {
     state.rpc.mockReset();
     state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValueOnce({ state: "checking" })
       .mockResolvedValueOnce({ state: "checking" })
-      .mockResolvedValueOnce({ state: "done", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0" }, notes: { status: "missing" } });
+      .mockResolvedValueOnce({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0", currentBuild: 202610311637, latestBuild: 202610311557 }, notes: { status: "missing" } });
     let r!: Renderer;
     await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: true } as never, host: {} as never })); });
     await act(async () => { button(r, "Check for updates").props.onPress(); });
@@ -547,7 +547,7 @@ it.each(["done", "failed"] as const)("shows a spinner during a version check unt
     const pending = new Promise<unknown>((resolve) => { resolveCheck = resolve; });
     state.rpc.mockReset();
     state.rpc.mockResolvedValueOnce({ state: "idle" }).mockReturnValueOnce(pending)
-      .mockResolvedValueOnce(outcome === "done" ? { state: "done", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0" }, notes: { status: "missing" } } : { state: "failed" });
+      .mockResolvedValueOnce(outcome === "done" ? { state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0", currentBuild: 202610311637, latestBuild: 202610311557 }, notes: { status: "missing" } } : { state: "failed" });
     let r!: Renderer;
     await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
     expect(r.root.findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(0);
@@ -568,12 +568,61 @@ it("shows the revision and an explanation when the version map is unavailable", 
   makeSettings();
   setSettingsTab("version");
   state.rpc.mockReset();
-  state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValueOnce({ state: "done", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "unavailable" }, notes: { status: "missing" } });
+  state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValueOnce({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "unavailable" }, notes: { status: "missing" } });
   let r!: Renderer;
   await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
   await act(async () => { button(r, "Check for updates").props.onPress(); });
   expect(textOf(r.root)).toContain("Version numbers could not be loaded; revisions are shown.");
   expect(textOf(r.root)).toContain("Installed: 1111111 · Directory: 2222222");
   expect(textOf(r.root)).not.toContain("Version number not recorded");
+  act(() => r.unmount());
+});
+
+it.each([
+  ["git", `paseo plugin update better-paseo --ref ${"2".repeat(40)}`],
+  ["registry", "paseo plugin update better-paseo"],
+] as const)("shows the update badge and copies the reviewed update command for %s", async (source, command) => {
+  makeSettings();
+  setSettingsTab("display");
+  state.copyText.mockClear();
+  state.rpc.mockReset();
+  state.rpc.mockResolvedValue({ state: "done", source, current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.1.1", currentBuild: 202610311637, latestBuild: 202610311700 }, notes: { status: "missing" } });
+  let r!: Renderer;
+  await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "ios", compact: true } as never, host: {} as never })); });
+  expect(byTestID(r, "update-badge")).toHaveLength(1);
+  await act(async () => { radio(r, SETTINGS_STRINGS.en.tabsLabel, SETTINGS_STRINGS.en.tabVersion).props.onPress(); });
+  expect(textOf(r.root)).toContain("Paste and run this command in a terminal on the host running Paseo.");
+  await act(async () => { button(r, "Copy update command").props.onPress(); });
+  expect(state.copyText).toHaveBeenCalledWith(command);
+  expect(button(r, "Copied")).toBeTruthy();
+  act(() => r.unmount());
+});
+
+it.each(["1.0.1", "1.0.0"])("does not offer an update when the directory version is %s", async (latestVersion) => {
+  makeSettings();
+  setSettingsTab("version");
+  state.rpc.mockReset();
+  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: latestVersion, currentBuild: 202610311637, latestBuild: 202610311557 }, notes: { status: "missing" } });
+  let r!: Renderer;
+  await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
+  expect(byTestID(r, "update-badge")).toHaveLength(0);
+  expect(r.root.findAll((node) => node.props.accessibilityLabel === "Copy update command")).toHaveLength(0);
+  const toggle = byLabel(r, "Automatically check for updates");
+  expect(toggle.props.accessibilityState.checked).toBe(true);
+  act(() => toggle.props.onPress());
+  expect(byLabel(r, "Automatically check for updates").props.accessibilityState.checked).toBe(false);
+  act(() => r.unmount());
+});
+
+
+it("shows an update when the directory has a newer build of the same version", async () => {
+  makeSettings();
+  setSettingsTab("version");
+  state.rpc.mockReset();
+  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.1", currentBuild: 202610311637, latestBuild: 202610311700 }, notes: { status: "missing" } });
+  let r!: Renderer;
+  await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
+  expect(byTestID(r, "update-badge")).toHaveLength(1);
+  expect(button(r, "Copy update command")).toBeTruthy();
   act(() => r.unmount());
 });

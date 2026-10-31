@@ -66,7 +66,7 @@ export function loadServer(code) {
   const module = { exports: {} };
   new Function('require', 'module', 'exports', code)(require, module, module.exports);
   const handlers = new Map();
-  module.exports.default({ registerSettings() {}, on() { return () => {}; }, before() { return () => {}; }, handle(contract, handler) { handlers.set(contract.name, handler); } });
+  module.exports.default({ registerSettings() { return { read: async () => ({ status: "invalid", revision: "test", error: "test" }), subscribe: () => () => {} }; }, on() { return () => {}; }, before() { return () => {}; }, handle(contract, handler) { handlers.set(contract.name, handler); } });
   const handler = handlers.get('highlight.tokens');
   if (!handler) throw new Error('Highlight handler was not registered');
   return handler;

@@ -92,6 +92,7 @@ function migrateHoverDelay(raw: unknown): unknown {
 }
 
 export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrateRowLabels(raw)), z.object({
+  autoUpdateCheck: flag(true),
   accent: z.enum(ACCENT_IDS).catch("host"),
   uiFont: z.enum(UI_FONTS).catch("host"),
   inlineCodeColor: z.enum(INLINE_CODE_COLORS).catch("grey"),
