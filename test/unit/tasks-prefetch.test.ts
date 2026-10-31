@@ -137,7 +137,7 @@ async function hover() {
 
 async function openBoard() {
   await act(async () => {
-    boardRenderer = TestRenderer.create(React.createElement(TasksBoardScreen, { ...hostProps, params: {} }));
+    boardRenderer = TestRenderer.create(React.createElement(TasksBoardScreen, { ...hostProps, params: {}, setTitle: vi.fn() }));
   });
   await settle();
 }
@@ -236,7 +236,7 @@ describe("Tasks board prefetch", () => {
     await hover();
     const warmed = fake.calls.length;
     await act(async () => {
-      boardRenderer = TestRenderer.create(React.createElement(TasksBoardScreen, { ...hostProps, params: {} }));
+      boardRenderer = TestRenderer.create(React.createElement(TasksBoardScreen, { ...hostProps, params: {}, setTitle: vi.fn() }));
     });
     // Before any answer could arrive: the board is ready on the warm data.
     expect(boardText()).toContain("2 tasks");

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import { TasksTypography, HOST_FONT as F, HOST_LINE } from "../typography";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
@@ -65,6 +65,11 @@ function BoardContent(props: PluginScreenProps) {
   const handlers = useRef<BoardLayoutHandlers | null>(null);
   const compact = boardIsCompact(props.layout.compact);
   const board = useBoard(props, rootRef, handlers, compact);
+  useEffect(() => {
+    if (!compact) return;
+    props.setTitle(board.tasks.ready ? `${board.strings.name} · ${board.total}` : board.strings.name);
+    return () => props.setTitle(null);
+  }, [compact, props.setTitle, board.tasks.ready, board.strings.name, board.total]);
   const Layout = compact ? PhoneBoard : DesktopBoard;
   const layout = useMemo(() => <Layout screen={props} board={board} rootRef={rootRef} handlers={handlers} />, [Layout, props, board]);
   return (

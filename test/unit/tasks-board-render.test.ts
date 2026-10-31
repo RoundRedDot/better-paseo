@@ -172,6 +172,7 @@ const theme = {
 
 let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 const openAgent = vi.fn();
+const setTitle = vi.fn();
 
 function screen(compact: boolean, params: Record<string, string> = {}, boardTheme: unknown = theme) {
   return React.createElement(TasksBoardScreen, {
@@ -179,6 +180,7 @@ function screen(compact: boolean, params: Record<string, string> = {}, boardThem
     host: { id: "host-1", label: "Local" },
     layout: { compact, platform: compact ? "ios" : "web" },
     navigation: { openAgent, openWorkspace: vi.fn() },
+    setTitle,
     params,
   });
 }
@@ -885,9 +887,7 @@ describe("Tasks board, desktop", () => {
     const title = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "task-card-title")[0]!;
     // The phone card's title: the host's base step (14) at 21 / 14.
     expect(StyleSheet.flatten(title.props.style)).toMatchObject({ fontSize: 21, lineHeight: 30 });
-    const header = renderer!.root.find((node) => (node.type as unknown) === "Text" && textOf(node) === "6 tasks");
-    // The host's large step (16) at 21 / 14.
-    expect(StyleSheet.flatten(header.props.style).fontSize).toBe(24);
+    expect(setTitle).toHaveBeenLastCalledWith("Tasks · 6");
   });
 
   it("draws four lanes with their counts and every sample card", () => {
@@ -2444,7 +2444,7 @@ describe("Tasks board, desktop", () => {
   it("hides the jump without navigation", () => {
     act(() => {
       renderer = TestRenderer.create(
-        React.createElement(TasksBoardScreen, { theme, host: { id: "host-1", label: "Local" }, layout: { compact: false, platform: "web" }, params: {} }),
+        React.createElement(TasksBoardScreen, { theme, host: { id: "host-1", label: "Local" }, layout: { compact: false, platform: "web" }, params: {}, setTitle }),
       );
     });
     layOut(1600);
@@ -4151,6 +4151,27 @@ describe("Tasks board, the 1 s clock", () => {
 });
 
 describe("Tasks board, phone", () => {
+  it("updates the host title with the filtered count and clears it on unmount", () => {
+    act(() => { renderer = TestRenderer.create(screen(true, { q: "ring", sub: "1" })); });
+    expect(setTitle).toHaveBeenLastCalledWith("Tasks · 1");
+    expect(textOf(renderer!.root)).not.toContain("1 task");
+    act(() => renderer!.unmount());
+    renderer = undefined;
+    expect(setTitle).toHaveBeenLastCalledWith(null);
+  });
+  it("updates the host title when a task leaves the board", async () => {
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: unknown[] }> } }).__handle;
+    const lanes = handle.lanes;
+    try {
+      await act(async () => { renderer = TestRenderer.create(screen(true)); });
+      expect(setTitle).toHaveBeenLastCalledWith("Tasks · 6");
+      handle.lanes = { ...lanes, running: { ...lanes.running!, cards: lanes.running!.cards.slice(1) } };
+      await act(async () => renderer!.update(screen(true)));
+      expect(setTitle).toHaveBeenLastCalledWith("Tasks · 5");
+    } finally {
+      handle.lanes = lanes;
+    }
+  });
   it("puts settings to the right of reset and opens it", () => {
     const openSettings = vi.fn();
     setTasksSettingsOpener(openSettings);

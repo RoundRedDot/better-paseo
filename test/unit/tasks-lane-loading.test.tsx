@@ -82,7 +82,7 @@ async function mount(fake: ReturnType<typeof createFakePaseo>, compact: boolean,
     const handlers = React.useRef(null);
     return compact
       ? <LanePager lane={lane} board={board} theme={theme} callbacks={{ onReveal: noop }} listRef={rootRef} breathing={new Animated.Value(1)} reduced locked={false} onDrag={noop} onSettle={noop} />
-      : <DesktopBoard screen={{ theme, host: { id: "loading-test", label: "Local" }, layout: { compact: false, platform: "web" }, params: {} }} board={board} rootRef={rootRef} handlers={handlers} />;
+      : <DesktopBoard screen={{ theme, host: { id: "loading-test", label: "Local" }, layout: { compact: false, platform: "web" }, params: {}, setTitle: noop }} board={board} rootRef={rootRef} handlers={handlers} />;
   }
   await act(async () => { renderer = TestRenderer.create(<Harness />); });
   if (!compact) layoutDesktop();
