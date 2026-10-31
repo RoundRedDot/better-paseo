@@ -252,11 +252,9 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     const messages: DetailSection[] = order.filter((section) => section === "prompt" || section === "human" || section === "message");
     const info: DetailSection[] = (["properties", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section));
     const tabBar = (
-      <View accessibilityRole="tablist" style={{ flexDirection: "row", paddingHorizontal: 8 }}>
+      <View accessibilityRole="tablist" style={{ flexDirection: "row", paddingHorizontal: 10, paddingBottom: 8, gap: 6 }}>
         {(["info", "messages"] as const).map((id) => (
-          <Pressable key={id} testID={`detail-tab-${id}`} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} onPress={() => setTab(id)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderBottomWidth: tab === id ? 2 : 0, borderColor: tokens.foreground }}>
-            <Text style={{ color: tokens.foreground, fontSize: F.sm }}>{id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}{(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}</Text>
-          </Pressable>
+          <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={`${id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}${(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}`} onPress={() => setTab(id)} />
         ))}
       </View>
     );
@@ -323,6 +321,25 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
 
 /** `gutter`: the room a scroller's scrollbar takes from the right padding (0 outside one). */
 type Inner = TaskDetailCardsProps & { m: Metrics; tokens: TaskTokens; now: number; time: TimeSource; gutter?: number };
+
+function DetailTab(props: { id: "info" | "messages"; selected: boolean; tokens: TaskTokens; touch: boolean; label: string; onPress(): void }) {
+  const scale = useTasksFontScale();
+  const { hovered, hoverProps } = useHover();
+  const color = props.selected ? props.tokens.foreground : props.tokens.foregroundMuted;
+  return (
+    <Pressable
+      {...hoverProps}
+      testID={`detail-tab-${props.id}`}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: props.selected }}
+      onPress={props.onPress}
+      style={{ flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 36 : 28, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder, backgroundColor: props.selected ? props.tokens.surface2 : hovered ? props.tokens.card.controlHover : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 6 }}
+    >
+      <Icon name={props.id === "info" ? "Info" : "MessageSquare"} size={14} color={color} />
+      <Text numberOfLines={1} style={{ fontSize: F.base, fontWeight: "500", color, flexShrink: 1 }}>{props.label}</Text>
+    </Pressable>
+  );
+}
 
 function stopLabel(props: TaskDetailCardsProps): string | null {
   if (!props.stop) return null;
@@ -1363,8 +1380,8 @@ const FADE_STEPS = 6;
 
 /**
  * Text read from the task's timeline: the first prompt in full (the title
- * being only its first line), or the agent's latest reply. Four lines, then
- * "show all"; drawn as Markdown, copyable as written. A closed agent waits for
+ * being only its first line), or the agent's latest reply. Drawn as Markdown,
+ * copyable as written; sidebar tabs start expanded. A closed agent waits for
  * "Load", since reading its timeline resumes it.
  */
 function TimelineTextBody(props: Inner & {
@@ -1379,7 +1396,7 @@ function TimelineTextBody(props: Inner & {
 }) {
   const { tokens, id } = props;
   const words = cardStrings(props.language).details;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(props.tabs === true);
   const query = props.id === "detail-prompt" ? props.searchQuery ?? "" : "";
   const [searchFold, setSearchFold] = useState({ query: "", closed: false });
   const expanded = query ? searchFold.query === query ? !searchFold.closed : true : open;

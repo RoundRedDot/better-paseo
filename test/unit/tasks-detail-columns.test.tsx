@@ -15,6 +15,7 @@ vi.mock("../../client/components/markdown/markdown-view", () => ({ MarkdownView:
 import { TaskDetailCards, type TaskDetailCardsProps } from "../../client/tasks/cards/detail-cards";
 import { taskTokens } from "../../client/tasks/cards/tokens";
 import { permissionButtons } from "../../client/tasks/actions";
+import { useLastMessage } from "../../client/tasks/data/last-message";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { cardStrings } from "../../client/tasks/cards/strings";
@@ -67,6 +68,8 @@ describe("details columns", () => {
     expect(order(info)).toEqual(["detail-location", "detail-subtasks", "detail-usage", "detail-activity"]);
     expect(order(messages)).toEqual(["detail-prompt", "detail-message"]);
     expect(host(root, "detail-tab-messages").props.accessibilityState.selected).toBe(true);
+    expect(StyleSheet.flatten(host(root, "detail-tab-messages").props.style)).toMatchObject({ borderRadius: 999, backgroundColor: taskTokens(THEME).surface2 });
+    expect(StyleSheet.flatten(host(root, "detail-tab-info").props.style)).toMatchObject({ borderRadius: 999, borderColor: taskTokens(THEME).card.pillBorder, backgroundColor: "transparent" });
     expect(host(root, "detail-header")).toBeDefined();
     await act(async () => host(root, "detail-tab-info").props.onPress());
     expect(host(root, "detail-tab-info").props.accessibilityState.selected).toBe(true);
@@ -114,6 +117,34 @@ describe("details columns", () => {
     await act(async () => renderer!.unmount());
     await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...detailProps} tabs />); });
     expect(heading().props.accessibilityState.expanded).toBe(false);
+  });
+  it("shows long messages in full and streams the latest reply as chunks arrive", async () => {
+    const first = "First prompt. ".repeat(40);
+    const human = "Latest request. ".repeat(40);
+    const reply = "Live reply. ".repeat(40);
+    let emit: (event: unknown) => void = () => {};
+    const refetch = vi.fn(async () => ({
+      error: null, epoch: "epoch", entries: [{ timestamp: "2026-10-20T09:00:00Z", seqEnd: 0, turnId: "turn", item: { type: "assistant_message", text: reply, messageId: "message" } }],
+      endCursor: { epoch: "epoch", seq: 0 }, window: { nextSeq: 1 },
+    }));
+    const subscribe = (handler: (event: unknown) => void) => { emit = handler; return Object.assign(() => {}, { ready: Promise.resolve() }); };
+    const api = { agents: { ref: () => ({ timeline: { refetch, subscribe } }) } };
+    function LiveDetails() {
+      const lastMessage = useLastMessage(api as never, "running", "v1", true, true);
+      return <TaskDetailCards {...props(false)} columns={false} tabs firstPrompt={{ prompt: { state: "ready", text: first }, load() {} }} humanMessage={{ prompt: { state: "ready", text: human }, load() {} }} lastMessage={lastMessage} />;
+    }
+    await act(async () => { renderer = TestRenderer.create(<LiveDetails />); });
+    for (const id of ["detail-prompt", "detail-human", "detail-message"]) {
+      expect(host(renderer!.root, `${id}-text`).props.style).toBeNull();
+    }
+    const markdown = () => host(renderer!.root, "detail-message-text").findByType(MarkdownView);
+    expect(markdown().props).toMatchObject({ text: reply.trim(), streaming: true });
+    await act(async () => emit({ epoch: "epoch", seq: 1, timestamp: "2026-10-20T09:00:01Z", event: { type: "timeline", turnId: "turn", item: { type: "assistant_message", text: "More output", messageId: "message" } } }));
+    expect(markdown().props.text).toBe(`${reply}More output`);
+    expect(host(renderer!.root, "detail-message-text").props.style).toBeNull();
+    expect(refetch).toHaveBeenCalledOnce();
+    await act(async () => host(renderer!.root, "detail-message-more").props.onPress());
+    expect(host(renderer!.root, "detail-message-text").props.style).toMatchObject({ overflow: "hidden" });
   });
   it("keeps usage above activity and both expanded for failed tasks", async () => {
     const card = previewSampleCards(NOW).find((item) => item.id === "sample-failed")!;
