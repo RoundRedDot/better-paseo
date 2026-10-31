@@ -49,7 +49,7 @@ import {
 import { ActionRow, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
 import { ActionPressable } from "./action-pressable";
-import { arrowInset, buttonHue, CONFIRM_STOP_ICON, requestLook, type CardButtonLook } from "./action-style";
+import { arrowInset, buttonHue, CONFIRM_STOP_ICON, requestLook, webTransition, type CardButtonLook } from "./action-style";
 import { buttonOutline } from "../board/board-style";
 import { useBreathing, useFlash } from "../board/breathing";
 import {
@@ -1926,11 +1926,16 @@ function archivable(card: TaskCard): boolean {
   return card.lane === "done" && !card.archived;
 }
 
-/** The phone bar's button: the card button's outline (`buttonHue`) at thumb size, tinted while pressed. */
+/**
+ * The bottom bar's button: the card button's outline (`buttonHue`) at thumb
+ * size. The fill is the card at rest; hovered or pressed, its hue is tinted
+ * over the card and the shared hover shadow appears. A busy one drops both.
+ */
 /** `arrow` ends the button in a ↗ after its label (Open tab); a square shows only the arrow. */
 function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; sidebar?: boolean; square?: boolean; grow?: boolean; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
+  const { hovered: hover, hoverProps } = useHover();
   const font = props.sidebar && Platform.OS === "web" ? F.base : F.sm;
   const tablet = Platform.OS === "ios" && Platform.isPad;
   const height = taskControlHeight(tablet ? 36 : 40, scale);
@@ -1944,6 +1949,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const fit = useActionFit(props.label, `${scale}|${tablet}|${font}|${useWindowDimensions().fontScale}`, height, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, look === "primary");
   const square = fit.iconOnly;
   const disabled = props.busy || props.disabled;
+  const hovered = hover && !disabled;
   return (
     <ActionPressable motion
       accessibilityRole="button"
@@ -1951,6 +1957,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
       accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
       disabled={disabled}
       onPress={props.onPress}
+      {...hoverProps}
       testID={props.testID}
       style={({ pressed }) => ({
         height,
@@ -1959,13 +1966,14 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         flexShrink: square ? 0 : 1,
         paddingHorizontal: square ? 0 : padding,
         borderRadius: tablet ? 8 : 10,
-        ...buttonOutline(hue.border),
-        backgroundColor: pressed && !disabled ? hue.hover : tokens.card.background,
+        ...buttonOutline(hue.border, {}, hovered ? tokens.card.buttonShadowHover : undefined),
+        backgroundColor: (hovered || pressed) && !disabled ? hue.hover : tokens.card.background,
         opacity: disabled ? 0.6 : 1,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
         gap,
+        ...webTransition,
         ...fit.style,
       })}
     >

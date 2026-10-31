@@ -74,7 +74,7 @@ import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { previewSampleCards as sampleCards } from "../../client/tasks/sample-cards";
 import type { PermissionButton } from "../../client/tasks/actions";
 import type { TaskCard } from "../../client/tasks/model";
-import { TaskCardView, TaskDetailCards, taskTokens, type TaskCardViewProps } from "../../client/tasks/cards";
+import { DetailActionBar, TaskCardView, TaskDetailCards, taskTokens, type TaskCardViewProps } from "../../client/tasks/cards";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { CardButton } from "../../client/tasks/cards/action-buttons";
 import { ActionRow } from "../../client/tasks/cards/action-row";
@@ -189,6 +189,40 @@ describe("TaskCardView on web", () => {
     await act(async () => renderer.update(element(true)));
     await act(async () => button().props.onHoverIn());
     expect(button().props.style.boxShadow).not.toContain(tokens.card.buttonShadowHover);
+    await act(async () => renderer.unmount());
+  });
+  it("tints the bottom action bar on hover with the card button's hue and shadow", async () => {
+    const tokens = taskTokens(THEME);
+    const card = sampleCards(NOW).find((item) => item.id === "sample-running")!;
+    const element = (phase: "idle" | "stopping") => React.createElement(DetailActionBar, {
+      card, theme: THEME, language: "zh", strings: BOARD_STRINGS.zh.sidebar, onOpen: () => {}, stop: { phase, onPress: () => {} },
+    });
+    const renderer = await render(element("idle"));
+    const button = (id: string) => renderer.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    const flat = (style: unknown): Record<string, unknown> => {
+      if (Array.isArray(style)) return Object.assign({}, ...style.map(flat));
+      return style && typeof style === "object" ? style as Record<string, unknown> : {};
+    };
+    const look = (id: string) => flat(button(id).props.style);
+    expect(look("detail-bar-open").backgroundColor).toBe(tokens.card.background);
+    expect(String(look("detail-bar-open").boxShadow)).toContain("inset");
+    expect(String(look("detail-bar-open").boxShadow)).not.toContain(tokens.card.buttonShadowHover);
+    expect(look("detail-bar-open").transitionProperty).toBe("background-color, border-color, box-shadow, color, opacity");
+    await act(async () => button("detail-bar-open").props.onHoverIn());
+    expect(look("detail-bar-open").backgroundColor).toBe(tokens.card.controlHover);
+    expect(String(look("detail-bar-open").boxShadow)).toContain(tokens.card.buttonShadowHover);
+    expect(String(look("detail-bar-open").boxShadow)).toContain("inset");
+    await act(async () => button("detail-bar-open").props.onHoverOut());
+    expect(look("detail-bar-open").backgroundColor).toBe(tokens.card.background);
+    expect(String(look("detail-bar-open").boxShadow)).not.toContain(tokens.card.buttonShadowHover);
+    await act(async () => button("detail-bar-stop").props.onHoverIn());
+    expect(look("detail-bar-stop").backgroundColor).toBe(tokens.card.dangerHover);
+    expect(String(look("detail-bar-stop").boxShadow)).toContain(tokens.card.buttonShadowHover);
+    await act(async () => renderer.update(element("stopping")));
+    await act(async () => button("detail-bar-stop").props.onHoverIn());
+    expect(look("detail-bar-stop").backgroundColor).toBe(tokens.card.background);
+    expect(look("detail-bar-stop").opacity).toBe(0.6);
+    expect(String(look("detail-bar-stop").boxShadow)).not.toContain(tokens.card.buttonShadowHover);
     await act(async () => renderer.unmount());
   });
   it.each([false, true])("constrains long URL titles and retains two-line truncation (compact=%s)", async (compact) => {
