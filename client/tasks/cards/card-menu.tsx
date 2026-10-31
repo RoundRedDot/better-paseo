@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import React, { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { Icon, Modal, copyText, useToast } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -16,6 +16,7 @@ import { TaskRenameDialog } from "./rename-dialog";
 import { taskOperationIssue } from "../availability";
 import { taskIssueText } from "./availability-tag";
 import type { TaskOperation } from "../../../shared/task-availability";
+import { CardMenuPopover } from "./card-menu-popover";
 
 export const CARD_MENU_WIDTH = 280;
 
@@ -162,12 +163,12 @@ export function useMenuCopy(): (text: string, label: string) => void {
 }
 
 /**
- * Right click opens at the pointer in the web top layer. A long press has
- * no pointer anchor and uses the host's modal, with submenu actions inline
- * so all choices fit a phone's width.
+ * Right click opens at the pointer in the web top layer. Tablet long presses
+ * anchor a popover to the card; phones use the host's modal with inline actions.
  */
 export function CardContextMenu(props: {
   point: { x: number; y: number } | null;
+  anchorRef?: RefObject<View | null>;
   card: TaskCard;
   strings: ReturnType<typeof cardStrings>;
   actions: Omit<CardMenuActions, "copy">;
@@ -189,6 +190,7 @@ export function CardContextMenu(props: {
       canAutoTitle={Boolean(props.actions.autoTitle)} autoTitlePending={props.actions.autoTitlePending} />;
   }
   if (!point) {
+    if (props.anchorRef) return <CardMenuPopover anchorRef={props.anchorRef} sections={sections} theme={props.theme} closeLabel={toolbarLabel("Close menu", props.strings === cardStrings("en") ? "en" : "zh")} onClose={props.onClose} />;
     const colors = props.theme.colors;
     return (
       <Modal title={props.card.title} open onOpenChange={(open) => !open && props.onClose()}>

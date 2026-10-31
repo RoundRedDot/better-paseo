@@ -1,6 +1,7 @@
 import React from "react";
 import TestRenderer, { act, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Dimensions, type View } from "react-native";
 
 const rpc = vi.hoisted(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -54,6 +55,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   await act(async () => tree?.unmount());
+  vi.restoreAllMocks();
   vi.useRealTimers();
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
 });
@@ -377,10 +379,54 @@ describe("task title editor", () => {
 
 describe("task card rename entry", () => {
   const card = sampleCards(Date.parse("2026-10-20T09:00:00Z"))[0]!;
-  it.each(["touch", "pointer"])("starts automatic title generation from the %s menu and closes it", async (kind) => {
+  it.each([
+    ["ios", 540, 720, 24, 60],
+    ["ios", 744, 1133, 620, 1020],
+    ["ios", 1133, 744, 1000, 620],
+    ["android", 540, 720, 420, 620],
+  ] as const)("anchors the %s tablet menu inside a %i x %i overlay", async (platform, width, height, x, y) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    vi.spyOn(Dimensions, "get").mockReturnValue({ width, height, scale: 2, fontScale: 1 });
+    const anchorRef = { current: { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(x + 20, y + 40, 100, 50) } as View };
+    const stop = vi.fn();
+    const select = vi.fn();
+    await act(async () => {
+      tree = TestRenderer.create(<CardContextMenu point={null} anchorRef={anchorRef} card={card} strings={cardStrings("en")} actions={{ children: 2, stop, filters: { state: { agent: false, workspace: false, project: false }, select } }} theme={theme} onClose={onClose} />, {
+        createNodeMock: (element) => (element.props as { testID?: string }).testID === "task-card-menu-stage"
+          ? { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(20, 40, width, height) }
+          : null,
+      });
+    });
+    const host = (id: string) => tree.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    expect(tree.root.findAllByType("HostModal" as never)).toHaveLength(0);
+    expect(tree.root.findByType("Modal" as never).props.transparent).toBe(true);
+    await act(async () => host("task-card-menu-stage").props.onLayout());
+    const frame = host("task-card-menu-popover").props.style;
+    expect(frame.opacity).toBe(1);
+    expect(frame.width).toBe(280);
+    expect(frame.left).toBe(Math.max(8, Math.min(x + 100 - 280, width - 280 - 8)));
+    expect(frame.top).toBeGreaterThanOrEqual(8);
+    expect(frame.top + 420).toBeLessThanOrEqual(height - 8);
+    if (y < 100) expect(frame.top).toBe(y + 50 + 6);
+    else expect(frame.top).toBeLessThan(y);
+    const menu = tree.root.findByType(CascadeMenu);
+    expect(menu.props.sections.flatMap((section: { items: { minHeight: number; submenu?: unknown }[] }) => section.items).every((item: { minHeight: number; submenu?: unknown }) => item.minHeight === 44 && !item.submenu)).toBe(true);
+    const row = (label: string) => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === label);
+    await act(async () => row(cardStrings("en").stopWithChildren).props.onPress());
+    expect(stop).toHaveBeenCalledExactlyOnceWith(true);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await act(async () => row(cardStrings("en").filterAgent).props.onPress());
+    expect(select).toHaveBeenCalledExactlyOnceWith("agent");
+    await act(async () => host("task-card-menu-backdrop").props.onPress());
+    expect(onClose).toHaveBeenCalledTimes(3);
+    await act(async () => tree.root.findByType("Modal" as never).props.onRequestClose());
+    expect(onClose).toHaveBeenCalledTimes(4);
+  });
+
+  it.each(["touch", "pointer", "tablet"])("starts automatic title generation from the %s menu and closes it", async (kind) => {
     const autoTitle = vi.fn();
     await act(async () => {
-      tree = TestRenderer.create(<CardContextMenu point={kind === "pointer" ? { x: 20, y: 30 } : null} card={card} strings={cardStrings("zh")} actions={{ children: 0, autoTitle }} theme={theme} onClose={onClose} />);
+      tree = TestRenderer.create(<CardContextMenu point={kind === "pointer" ? { x: 20, y: 30 } : null} anchorRef={kind === "tablet" ? { current: null } : undefined} card={card} strings={cardStrings("zh")} actions={{ children: 0, autoTitle }} theme={theme} onClose={onClose} />);
     });
     if (kind === "touch") {
       await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "自动更新标题").props.onPress());
@@ -433,11 +479,11 @@ describe("task card rename entry", () => {
     expect(rpc.rename).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
-  it.each(["touch", "pointer"])("replaces the %s menu with an editor without closing its owner", async (kind) => {
+  it.each(["touch", "pointer", "tablet"])("replaces the %s menu with an editor without closing its owner", async (kind) => {
     const autoTitle = vi.fn();
     (globalThis as { __rnMockOS?: string }).__rnMockOS = kind === "pointer" ? "web" : "ios";
     await act(async () => {
-      tree = TestRenderer.create(<CardContextMenu point={kind === "pointer" ? { x: 20, y: 30 } : null} card={card} strings={cardStrings("zh")} actions={{ children: 0, autoTitle }} theme={theme} onClose={onClose} />);
+      tree = TestRenderer.create(<CardContextMenu point={kind === "pointer" ? { x: 20, y: 30 } : null} anchorRef={kind === "tablet" ? { current: null } : undefined} card={card} strings={cardStrings("zh")} actions={{ children: 0, autoTitle }} theme={theme} onClose={onClose} />);
     });
     if (kind === "touch") {
       await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "修改标题").props.onPress());

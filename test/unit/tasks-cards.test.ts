@@ -132,7 +132,7 @@ import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { variantMetrics } from "../../client/components/markdown/render/styles";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
 import { menuChrome } from "../../client/tasks/board/menu";
-import { cardMenuSections } from "../../client/tasks/cards/card-menu";
+import { CardContextMenu, cardMenuSections } from "../../client/tasks/cards/card-menu";
 import { HINT_DELAY_MS } from "../../client/tasks/cards/card-hints";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { TitleLoading } from "../../client/tasks/cards/title-loading";
@@ -998,6 +998,17 @@ describe("TaskCardView rows", () => {
       await act(async () => tree.unmount());
       renderer = null;
     }
+  });
+
+  it.each([false, true])("anchors tablet long-press menus and keeps phone menus in the host modal (compact=%s)", async (compact) => {
+    const tree = await render(cardElement(sample("sample-running"), { compact }));
+    await act(async () => hostByTestId(tree.root, "task-card-sample-running").props.onLongPress());
+    expect(Boolean(tree.root.findByType(CardContextMenu).props.anchorRef)).toBe(!compact);
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-menu-popover")).toHaveLength(compact ? 0 : 1);
+    const close = compact ? tree.root.find((node) => (node.type as unknown) === "Modal").props.onOpenChange
+      : hostByTestId(tree.root, "task-card-menu-backdrop").props.onPress;
+    await act(async () => close(false));
+    expect(tree.root.findAllByType(CardContextMenu)).toHaveLength(0);
   });
 
   it("copies the model, branch, folder and path a pill shows, with the host's toast", async () => {
@@ -3992,21 +4003,25 @@ describe("TaskCardView long-press menu", () => {
     expect(rows(tree.root).map((row) => row.props.accessibilityLabel)).toEqual([
       "打开", "修改标题", "复制会话 ID", "复制标题", "复制工作区名称", "复制项目名称", "仅停止此任务", "连同子任务一起停止",
     ]);
-    expect(rows(tree.root).every((row) => Number(flat(row.props.style).minHeight) >= 44)).toBe(true);
+    expect(rows(tree.root).every((row) => Number(flat(row.props.style).minHeight ?? flat(row.props.style).height) >= 44)).toBe(true);
     await choose(tree.root, "连同子任务一起停止");
     expect(onStop).toHaveBeenCalledWith(card, { withChildren: true, dialog: true });
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-menu")).toHaveLength(0);
   });
 
-  it("copies from the menu and dismisses through the host", async () => {
+  it.each([false, true])("copies from the menu and dismisses its surface (compact=%s)", async (compact) => {
     clipboard.copyText.mockClear();
-    const tree = await render(cardElement(sample("sample-running")));
+    const tree = await render(cardElement(sample("sample-running"), { compact }));
     const open = () => hostByTestId(tree.root, "task-card-sample-running").props.onLongPress();
     await act(async () => open());
     await choose(tree.root, "复制会话 ID");
     expect(clipboard.copyText).toHaveBeenCalledWith("sample-running");
     await act(async () => open());
-    await act(async () => tree.root.find((node) => (node.type as unknown) === "Modal").props.onOpenChange(false));
+    await act(async () => {
+      const modal = tree.root.find((node) => (node.type as unknown) === "Modal");
+      if (compact) modal.props.onOpenChange(false);
+      else modal.props.onRequestClose();
+    });
     expect(rows(tree.root)).toHaveLength(0);
   });
 

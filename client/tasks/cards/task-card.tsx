@@ -613,7 +613,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const [cornerOpen, setCornerOpen] = useState(false);
   // The meta row's widths while a context ring shares it: the row, its text, and the archived tag.
   const [metaFit, setMetaFit] = useState({ row: 0, text: 0, tag: 0 });
-  // Right click keeps its window point; long press uses the host's modal.
+  // Right click keeps its window point; tablet long press anchors to the card.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | "touch" | null>(null);
   useLayoutEffect(
     () =>
@@ -1548,6 +1548,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       {menuAt ? (
         <CardContextMenu
           point={menuAt === "touch" ? null : menuAt}
+          anchorRef={TOUCH && !compact ? rootRef : undefined}
           card={card}
           strings={strings}
           theme={theme}

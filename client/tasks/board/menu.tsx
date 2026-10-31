@@ -522,6 +522,7 @@ function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginThe
   return (
     <Pressable
       accessibilityRole="menuitem"
+      accessibilityLabel={item.label}
       accessibilityState={{ disabled: item.disabled, checked: item.checked, expanded: item.submenu ? props.active : undefined }}
       disabled={item.disabled}
       onHoverIn={props.onHover}
