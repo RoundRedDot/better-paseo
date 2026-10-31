@@ -4,7 +4,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StyleSheet } from "react-native";
 import "./helpers/quiet-renderer";
 
-vi.mock("react-native", async () => import("./helpers/rn-mock"));
+vi.mock("react-native", async () => {
+  const rn = await import("./helpers/rn-mock");
+  return {
+    ...rn,
+    ScrollView: (props: React.ComponentProps<typeof rn.ScrollView>) => <rn.ScrollView {...props}>
+      {React.Children.map(props.children, (child, index) => {
+        if (!(props.stickyHeaderIndices as number[] | undefined)?.includes(index) || !React.isValidElement<{ style?: unknown }>(child)) return child;
+        // Native ScrollViewStickyHeader transfers the direct child's style to its wrapper.
+        return <rn.View style={child.props.style}>{React.cloneElement(child, { style: { flex: 1 } })}</rn.View>;
+      })}
+    </rn.ScrollView>,
+  };
+});
 vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => vi.fn() }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -76,6 +88,9 @@ describe("details columns", () => {
     expect((scroll.children[0] as ReactTestInstance).findAll((node) => typeof node.type === "string" && node.props.testID === "detail-header")).toHaveLength(1);
     expect((scroll.children[1] as ReactTestInstance).findAll((node) => typeof node.type === "string" && node.props.testID === "detail-tabs")).toHaveLength(1);
     expect(StyleSheet.flatten(host(root, "detail-tabs").props.style).backgroundColor).toBe(taskTokens(THEME).card.background);
+    const tabs = host(root, "detail-tabs");
+    expect(StyleSheet.flatten(tabs.props.style)).toMatchObject({ flexDirection: "row" });
+    expect(tabs.children.map((child) => (child as ReactTestInstance).find((node) => typeof node.type === "string" && node.props.accessibilityRole === "tab").props.testID)).toEqual(["detail-tab-info", "detail-tab-messages"]);
     expect(scroll.findAll((node) => node.props.testID === "detail-action-bar")).toHaveLength(0);
     const bar = host(root, "detail-action-bar");
     const read = (y: number) => scroll.props.onScroll({ nativeEvent: { contentOffset: { y } } });

@@ -155,7 +155,7 @@ describe("phone sheet action size", () => {
       expect(style(button, false)).toMatchObject({ height: Math.round(36 * factor), borderRadius: 8, paddingHorizontal: 10, gap: 5 });
       expect(button.findAll((node) => (node.type as unknown) === "Icon").every((icon) => icon.props.size === 14)).toBe(true);
       const label = button.find((node) => (node.type as unknown) === "Text");
-      expect(StyleSheet.flatten(label.props.style).fontSize).toBe(Math.round(11 * factor));
+      expect(StyleSheet.flatten(label.props.style).fontSize).toBe(Math.round(12 * factor));
       button.props.onPress();
     }
     expect(archive.press).toHaveBeenCalledWith(card.id);
@@ -203,6 +203,6 @@ describe("phone sheet action size", () => {
     const allow = buttons.find((button) => button.props.accessibilityLabel === "Allow")!;
     expect(style(allow, false).paddingHorizontal).toBe(tablet ? 10 : 12);
     const label = allow.find((node) => (node.type as unknown) === "Text");
-    expect(StyleSheet.flatten(label.props.style).fontSize).toBe(Math.round((tablet ? 11 : 12) * factor));
+    expect(StyleSheet.flatten(label.props.style).fontSize).toBe(Math.round(12 * factor));
   });
 });

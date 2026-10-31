@@ -257,14 +257,17 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     const messages: DetailSection[] = order.filter((section) => section === "prompt" || section === "human" || section === "message");
     const info: DetailSection[] = (["properties", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section));
     const tabBar = (
-      <View accessibilityRole="tablist" testID="detail-tabs" style={{ flexDirection: "row", paddingHorizontal: 10, paddingTop: props.scrollHeader ? 8 : 0, paddingBottom: 8, gap: 6, backgroundColor: tokens.card.background }}>
-        {(["info", "messages"] as const).map((id) => (
-          <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={`${id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}${(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}`} onPress={() => {
-            if (id === tab) return;
-            tabOffsets.current.restoring = props.scrollHeader === true;
-            setTab(id);
-          }} />
-        ))}
+      // Sticky headers replace their direct child's style; keep the row one level inside.
+      <View>
+        <View accessibilityRole="tablist" testID="detail-tabs" style={{ flexDirection: "row", paddingHorizontal: 10, paddingTop: props.scrollHeader ? 8 : 0, paddingBottom: 8, gap: 6, backgroundColor: tokens.card.background }}>
+          {(["info", "messages"] as const).map((id) => (
+            <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={`${id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}${(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}`} onPress={() => {
+              if (id === tab) return;
+              tabOffsets.current.restoring = props.scrollHeader === true;
+              setTab(id);
+            }} />
+          ))}
+        </View>
       </View>
     );
     return (
@@ -1926,7 +1929,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         <Icon name={props.icon} size={iconSize} color={iconColor} />
       ) : null}
       {square ? null : (
-        <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: tablet ? F.sm * (11 / 12) : F.sm, fontWeight: "600", color: text }}>
+        <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: F.sm, fontWeight: "600", color: text }}>
           {props.label}
         </Text>
       )}

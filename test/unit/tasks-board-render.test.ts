@@ -1895,6 +1895,10 @@ describe("Tasks board, desktop", () => {
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width).toBe(340);
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).right).toBe(0);
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).paddingLeft).toBe(12);
+    expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style)).toMatchObject({
+      borderRadius: 0, borderWidth: 0, backgroundColor: "#ffffff",
+      top: 0, bottom: 0, paddingTop: 4, paddingBottom: 12, paddingRight: 10,
+    });
     expect(StyleSheet.flatten(hostsById("floating-sidebar-resize")[0]!.props.style).width).toBe(12);
     expect(StyleSheet.flatten(hostsById("sidebar-stat-label-running")[0]!.props.style).fontSize).toBe(Math.round(12 * base / 14 * 0.9));
     expect(hostsById("floating-sidebar-grabber")).toHaveLength(1);
