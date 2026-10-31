@@ -112,7 +112,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
     <>
       {props.stats === false ? null : <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />}
       {detailProps ? (
-        <TaskDetailCards key={tabs ? card?.id : undefined} {...detailProps} scrollBody={!short && !columns && !tabs} columns={columns} tabs={tabs} scrollHeader={tabs && (layout.short || props.scrollAll === true)} />
+        <TaskDetailCards key={tabs ? card?.id : undefined} {...detailProps} scrollBody={!short && !columns && !tabs} columns={columns} tabs={tabs} scrollHeader={tabs && (props.touch || layout.short || props.scrollAll === true)} />
       ) : (
         <GroupCard board={board} theme={theme} tokens={tokens} touch={props.touch} />
       )}

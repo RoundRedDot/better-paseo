@@ -1707,6 +1707,23 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("detail-tab-short-scroll")).toHaveLength(0);
   });
 
+  it.each(["ios", "android"])("scrolls a tall %s tablet sidebar's header with sticky tabs and fixed actions", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1400);
+    const card = cards().find((node) => node.props.card.id === "sample-running")!;
+    await act(async () => card.props.onSelect(card.props.card));
+    const column = hostsById("details-sidebar")[0]!;
+    for (const height of [900, 560, 1100]) {
+      await act(async () => column.props.onLayout({ nativeEvent: { layout: { width: 380, height } } }));
+      const scroll = hostsById("detail-tab-short-scroll")[0]!;
+      expect(scroll.props.stickyHeaderIndices).toEqual([1]);
+      expect(scroll.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-header")).toHaveLength(1);
+      expect(scroll.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-action-bar")).toHaveLength(0);
+      expect(hostsById("detail-action-bar")).toHaveLength(1);
+    }
+  });
+
   it.each(["ios", "android"])("uses the detail tabs in a narrow %s tablet sheet", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(false)); });

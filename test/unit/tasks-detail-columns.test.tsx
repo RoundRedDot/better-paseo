@@ -60,6 +60,59 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it.each(["ios", "android", "web"])("scrolls the header under sticky tabs and restores each tab's reading position on %s", async (os) => {
+    vi.stubGlobal("__rnMockOS", os);
+    const scrollTo = vi.fn();
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(true)} columns={false} tabs scrollHeader onOpen={() => {}}
+        firstPrompt={{ prompt: { state: "ready", text: "Long prompt. ".repeat(80) }, load() {} }} />,
+      { createNodeMock: (element) => element.type === "ScrollView" ? { scrollTo } : null });
+    });
+    const root = renderer!.root;
+    const scroll = host(root, "detail-tab-short-scroll");
+    const messages = host(root, "detail-tab-messages-content");
+    const info = host(root, "detail-tab-info-content");
+    expect(scroll.props.stickyHeaderIndices).toEqual([1]);
+    expect((scroll.children[0] as ReactTestInstance).findAll((node) => typeof node.type === "string" && node.props.testID === "detail-header")).toHaveLength(1);
+    expect((scroll.children[1] as ReactTestInstance).findAll((node) => typeof node.type === "string" && node.props.testID === "detail-tabs")).toHaveLength(1);
+    expect(StyleSheet.flatten(host(root, "detail-tabs").props.style).backgroundColor).toBe(taskTokens(THEME).card.background);
+    expect(scroll.findAll((node) => node.props.testID === "detail-action-bar")).toHaveLength(0);
+    const bar = host(root, "detail-action-bar");
+    const read = (y: number) => scroll.props.onScroll({ nativeEvent: { contentOffset: { y } } });
+    await act(async () => {
+      read(320);
+      host(root, "detail-prompt-more").props.onPress();
+      host(root, "detail-tab-info").props.onPress();
+    });
+    expect(host(root, "detail-tab-messages-content")).toBe(messages);
+    expect(StyleSheet.flatten(messages.props.style).display).toBe("none");
+    await act(async () => {
+      // Native resizing can report a clamped offset before the new page's layout.
+      read(0);
+      messages.props.onLayout();
+      info.props.onLayout();
+    });
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 0, animated: false });
+    await act(async () => {
+      read(85);
+      host(root, "detail-tab-messages").props.onPress();
+    });
+    await act(async () => messages.props.onLayout());
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 320, animated: false });
+    expect(host(root, "detail-prompt-text").props.style).toMatchObject({ overflow: "hidden" });
+    expect(host(root, "detail-action-bar")).toBe(bar);
+    scrollTo.mockClear();
+    await act(async () => {
+      read(400);
+      messages.props.onLayout();
+      host(root, "detail-tab-messages").props.onPress();
+    });
+    expect(scrollTo).not.toHaveBeenCalled();
+    await act(async () => host(root, "detail-tab-info").props.onPress());
+    await act(async () => info.props.onLayout());
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: 85, animated: false });
+  });
+
   it("keeps the shared header and actions outside independently mounted tab scrollers", async () => {
     await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(true)} columns={false} tabs />); });
     const root = renderer!.root;

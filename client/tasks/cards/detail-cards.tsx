@@ -196,7 +196,7 @@ export interface TaskDetailCardsProps extends TimeSource {
   columns?: boolean;
   /** The sidebar separates task information and messages. */
   tabs?: boolean;
-  /** A short sidebar lets its header scroll, keeping its actions visible. */
+  /** Touch and short sidebars scroll the header, with sticky tabs and fixed actions. */
   scrollHeader?: boolean;
   /** False when the actions live elsewhere (the phone's bar under the sheet). */
   actions?: boolean;
@@ -221,6 +221,9 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const time: TimeSource = { now: props.now, clock: props.clock };
   const choices = useSectionChoices();
   const [tab, setTab] = useState<"info" | "messages">("messages");
+  const tabScroll = useRef<ScrollView>(null);
+  // Native scroll bookkeeping does not need to redraw the card on every frame.
+  const tabOffsets = useRef({ info: 0, messages: 0, restoring: false });
   const query = props.searchQuery?.trim().toLowerCase() ?? "";
   const prompt = props.firstPrompt?.prompt;
   const metadataHits = taskSearchHits(card, query, { title: true, project: true, workspace: true, branch: true, folder: true, path: true, modelPill: true, model: true, pullRequest: true, labels: card.labels.length, labelLimit: Infinity });
@@ -254,19 +257,48 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     const messages: DetailSection[] = order.filter((section) => section === "prompt" || section === "human" || section === "message");
     const info: DetailSection[] = (["properties", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section));
     const tabBar = (
-      <View accessibilityRole="tablist" style={{ flexDirection: "row", paddingHorizontal: 10, paddingBottom: 8, gap: 6 }}>
+      <View accessibilityRole="tablist" testID="detail-tabs" style={{ flexDirection: "row", paddingHorizontal: 10, paddingTop: props.scrollHeader ? 8 : 0, paddingBottom: 8, gap: 6, backgroundColor: tokens.card.background }}>
         {(["info", "messages"] as const).map((id) => (
-          <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={`${id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}${(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}`} onPress={() => setTab(id)} />
+          <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={`${id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}${(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}`} onPress={() => {
+            if (id === tab) return;
+            tabOffsets.current.restoring = props.scrollHeader === true;
+            setTab(id);
+          }} />
         ))}
       </View>
     );
     return (
       <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), { flex: 1, minHeight: 0 }]}>
         {props.scrollHeader ? (
-          <ScrollView key={card.id} style={{ flex: 1 }} {...detailScrollProps("inset")} testID="detail-tab-short-scroll">
+          <ScrollView
+            key={card.id}
+            ref={tabScroll}
+            style={{ flex: 1 }}
+            stickyHeaderIndices={[1]}
+            scrollEventThrottle={16}
+            onScroll={(event) => {
+              if (!tabOffsets.current.restoring) tabOffsets.current[tab] = Math.max(0, event.nativeEvent.contentOffset.y);
+            }}
+            {...detailScrollProps("inset")}
+            testID="detail-tab-short-scroll"
+          >
             <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} gutter={gutter} />
             {tabBar}
-            {(tab === "info" ? info : messages).map((section, index) => sectionView(section, index > 0))}
+            {(["info", "messages"] as const).map((id) => (
+              <View
+                key={id}
+                testID={`detail-tab-${id}-content`}
+                style={{ display: tab === id ? "flex" : "none" }}
+                onLayout={() => {
+                  if (tab !== id || !tabOffsets.current.restoring) return;
+                  // Restore after the newly visible page has its native layout.
+                  tabScroll.current?.scrollTo({ y: tabOffsets.current[id], animated: false });
+                  tabOffsets.current.restoring = false;
+                }}
+              >
+                {(id === "info" ? info : messages).map((section, index) => sectionView(section, index > 0))}
+              </View>
+            ))}
           </ScrollView>
         ) : (
           <>
