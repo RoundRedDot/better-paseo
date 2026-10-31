@@ -661,7 +661,9 @@ Paseo 仍会绘制原生权限提示，并负责允许和拒绝操作。agent �
 
 ## 设置
 
-**设置 → 插件 → Better Paseo**，页面 **设置**。页面分「聊天展示」和「任务看板」两个标签，两边顶部都有任务看板的开关。在聊天展示标签里，一段用时间线组件绘制的示例对话会实时跟随每一项修改：宽窗口下显示在选项旁边，其他情况显示在选项上方；其中 Read 行的悬停预览常驻展开。在网页和桌面上，预览标题栏的「桌面端 / 移动端」切换可以按 iOS 样式、手机宽度绘制同一段对话，并使用你选的行内代码颜色。父选项关闭时，子选项变灰；某个平台用不上的选项在该平台上隐藏；「恢复全部默认设置」需要再点一次确认。
+设置页的版本标签可以手动比较当前安装的 Git 修订与 Paseo 插件市场审核通过的版本；检查不会安装更新。修订不同本身不能判断哪个更新。
+
+**设置 → 插件 → Better Paseo**，页面 **设置**。页面分「聊天展示」「任务看板」和「版本」三个标签；前两个标签顶部有任务看板开关。在聊天展示标签里，一段用时间线组件绘制的示例对话会实时跟随每一项修改：宽窗口下显示在选项旁边，其他情况显示在选项上方；其中 Read 行的悬停预览常驻展开。在网页和桌面上，预览标题栏的「桌面端 / 移动端」切换可以按 iOS 样式、手机宽度绘制同一段对话，并使用你选的行内代码颜色。父选项关闭时，子选项变灰；某个平台用不上的选项在该平台上隐藏；「恢复全部默认设置」需要再点一次确认。
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-zh-dark.png"><img alt="设置页与实时预览" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-zh-light.png"></picture>
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-tools-zh-dark.png"><img alt="块字号设置与实时预览" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--settings-tools-zh-light.png"></picture>

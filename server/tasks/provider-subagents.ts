@@ -165,7 +165,7 @@ export function hasHostDaemon(): boolean {
  * resolve from there; the daemon's address and local credential come from
  * `PASEO_HOME`, as the CLI finds them. Null where any of it is missing.
  */
-export async function connectHostDaemon(): Promise<HostDaemon | null> {
+export async function connectHostDaemon(clientId = "cid_better_paseo_tasks"): Promise<HostDaemon | null> {
   const entry = process.argv[1];
   if (!entry) return null;
   try {
@@ -180,7 +180,7 @@ export async function connectHostDaemon(): Promise<HostDaemon | null> {
     const WebSocket = ws.default ?? ws.WebSocket;
     const client = new clientModule.DaemonClient({
       url: target.url,
-      clientId: "cid_better_paseo_tasks",
+      clientId,
       clientType: "cli",
       localCredential: () => control.readLocalCredentialForTarget(home, listen) ?? undefined,
       connectTimeoutMs: 10_000,

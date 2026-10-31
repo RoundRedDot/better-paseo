@@ -966,9 +966,9 @@ instead of starting over.
 
 ## Settings
 
-**Settings → Plugins → Better Paseo**, page **Settings**. The page has two tabs,
-**Chat presentation** and **Tasks board**; the switch that turns the board on sits at the top of
-both. On the chat tab a sample turn drawn with the timeline's own components follows every change:
+The Version tab can compare the installed Git revision with the version reviewed in the Paseo plugin directory. It checks on request and does not install updates. A different revision does not by itself establish which is newer.
+
+**Settings → Plugins → Better Paseo**, page **Settings**. The page has three tabs: **Chat presentation**, **Tasks board**, and **Version**. The board enable switch sits at the top of the chat and Tasks tabs. On the chat tab a sample turn drawn with the timeline's own components follows every change:
 beside the options on a wide window, above them elsewhere. The Read row's hover preview is drawn
 open in it. On web and desktop a **Desktop / Mobile** switch draws the same turn at phone width
 with iOS styling and the inline-code colour you picked. Options whose parent is off are dimmed,

@@ -2,6 +2,8 @@ import { spawn } from "node:child_process";
 import { open, stat, type FileHandle } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
+import { updateCheckRpc } from "./shared/update-check";
+import { createUpdateCheck } from "./server/update-check";
 import { PREFERENCES_SETTINGS } from "./shared/preferences-settings";
 import { revealPathRpc } from "./shared/file-rpc";
 import { embeddedFontsRpc } from "./shared/font-rpc";
@@ -460,6 +462,8 @@ export default function contribute(server: PluginServerContext) {
   // client — including iOS and Android, which have no localStorage — reads
   // and saves the same record (S5 fix round 1).
   server.registerSettings(PREFERENCES_SETTINGS);
+  const checkUpdate = createUpdateCheck();
+  server.handle(updateCheckRpc, ({ action }) => checkUpdate(action));
   // The Tasks board's settings and its stop RPCs.
   registerTasksServer(server);
   // Each turn's token usage, kept on disk for the turn details.

@@ -128,3 +128,7 @@ Code only leaves the startup path when it leaves the bundle.
 Video scripts, screenshot tooling, benchmark reports and raw samples are maintained separately in the private [better-paseo-media repository](https://github.com/RoundRedDot/better-paseo-media).
 The public README and gallery use final image assets hosted on this repository's GitHub Releases. Media and raw measurements are not part of a plugin checkout or install.
 Unit-test fixtures and pure test helpers stay under `test/`, so plugin tests do not require access to the private repository.
+
+## Plugin directory release notes
+
+The Version tab reads the marketplace's reviewed Git commit, then loads `release-notes/<full-commit>.json` from the public `RoundRedDot/better-paseo-assets` repository. The publisher maintains each JSON with the same full `commit` and non-empty `zh` and `en` arrays of user-facing notes. Publish notes for the reviewed commit as part of the registry update; a missing or unavailable file is shown separately from the version comparison. The notes describe that marketplace release, not every change since an arbitrary installation.

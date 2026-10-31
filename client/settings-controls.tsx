@@ -78,9 +78,11 @@ export function Segmented<T extends string>({
   onChange,
   look,
   label,
+  contentWidth = false,
 }: {
   value: T | null;
   options: ReadonlyArray<{ value: T; label: string }>;
+  contentWidth?: boolean;
   onChange(value: T): void;
   look: PageLook;
   label: string;
@@ -108,7 +110,7 @@ export function Segmented<T extends string>({
             onPress={() => onChange(option.value)}
             style={[
               styles.segment,
-              compact ? styles.segmentFill : null,
+              compact && !contentWidth ? styles.segmentFill : null,
               selected
                 ? { backgroundColor: tokens.v2.surface0, borderColor: tokens.v2.border }
                 : styles.segmentIdle,

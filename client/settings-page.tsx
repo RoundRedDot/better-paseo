@@ -1,3 +1,5 @@
+import { useRpc } from "@getpaseo/plugin/client";
+import { updateCheckRpc } from "../shared/update-check";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { TextInput } from "@getpaseo/plugin/client/react-native";
@@ -519,10 +521,60 @@ function ResetButton({ look }: { look: PageLook }) {
   );
 }
 
+function VersionSection({ look, language }: { look: PageLook; language: "en" | "zh" }) {
+  const check = useRpc(updateCheckRpc);
+  const [state, setState] = useState<Awaited<ReturnType<typeof check>> | { state: "starting" }>({ state: "idle" });
+  const t = look.t;
+  const started = useRef(false);
+  useEffect(() => {
+    let active = true;
+    void check({ action: "status" }).then((result) => {
+      if (!active || started.current) return;
+      setState(result);
+    }).catch(() => { if (active && !started.current) setState({ state: "failed" }); });
+    return () => { active = false; };
+  }, [check]);
+  useEffect(() => {
+    if (state.state !== "checking") return;
+    const timer = setTimeout(() => {
+      void check({ action: "status" }).then((result) => {
+        setState(result);
+      }).catch(() => setState({ state: "failed" }));
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [check, state]);
+  async function run() {
+    started.current = true;
+    setState({ state: "starting" });
+    try {
+      if (state.state === "failed") {
+        const previous = await check({ action: "status" });
+        if (previous.state === "checking" || previous.state === "done") return setState(previous);
+      }
+      setState(await check({ action: "check" }));
+    }
+    catch { setState({ state: "failed" }); }
+  }
+  const description = state.state === "failed" ? t.versionFailed : state.state === "local" ? t.versionLocal : state.state === "unsupported" ? t.versionUnsupported : state.state === "done"
+    ? `${t.versionCurrent(state.current.slice(0, 7), state.latest.slice(0, 7))}\n${state.matches ? t.versionUpToDate : t.versionAvailable}\n${t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US"))}\n${t.versionDescription}`
+    : t.versionDescription;
+  return <>
+  <Section title={t.versionTitle} look={look}>
+    <SettingRow title={t.versionTitle} description={description} first stacked look={look}
+      control={<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} disabled={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} />} />
+  </Section>
+  {state.state === "done" ? <Section title={t.releaseNotesTitle} look={look}>
+    <SettingRow first stacked look={look} title={t.releaseNotesTitle} description={state.notes.status === "available"
+      ? state.notes[language].map((item) => `• ${item}`).join("\n")
+      : state.notes.status === "missing" ? t.releaseNotesMissing : t.releaseNotesUnavailable} />
+  </Section> : null}
+  </>;
+}
+
 /** Settings content mounted by Paseo under the selected host's Plugin settings. */
 export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfaceProps) {
   const preferences = useEnhancerPreferences();
-  // Two halves: the chat options, and the Tasks board's (`settings-tab.ts`).
+  // The selected settings section persists across page mounts.
   const tab = useSettingsTab();
   // The settings screen reads (and, through the store, saves) the daemon
   // record itself, so it works with no chat open.
@@ -964,16 +1016,20 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
     >
       <View style={compact ? null : styles.introDesktop}>
         <View style={tab === "display" ? styles.tabs : null}>
-          <Segmented<SettingsTab>
-            label={t.tabsLabel}
-            value={tab}
-            options={[
-              { value: "display", label: t.tabDisplay },
-              { value: "tasks", label: t.tabTasks },
-            ]}
-            onChange={setSettingsTab}
-            look={look}
-          />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <Segmented<SettingsTab>
+              label={t.tabsLabel}
+              value={tab}
+              options={[
+                { value: "display", label: t.tabDisplay },
+                { value: "tasks", label: t.tabTasks },
+                { value: "version", label: t.tabVersion },
+              ]}
+              onChange={setSettingsTab}
+              look={look}
+              contentWidth
+            />
+          </ScrollView>
         </View>
         {tab === "display" ? (
           <>
@@ -1003,7 +1059,9 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         ) : null}
       </View>
 
-      {tab === "tasks" ? (
+      {tab === "version" ? (
+        <VersionSection look={look} language={resolveLanguage(preferences.language)} />
+      ) : tab === "tasks" ? (
         <TasksSettingsPanel look={look} theme={theme} side={side} hostId={host?.id} />
       ) : side ? (
         <View style={styles.columns}>

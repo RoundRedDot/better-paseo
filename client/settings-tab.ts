@@ -1,13 +1,12 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Which half of Better Paseo's settings page shows: the chat options or the
- * Tasks board's. Module state, so the page opens where it was left, and so a
+ * Which section of Better Paseo's settings page shows. Module state, so the page opens where it was left, and so a
  * link from outside the page (the off board's "Open settings") can pick the
  * Tasks half before it asks the host to open the page: settings routes carry
  * no params (Paseo `plugins/settings/index.tsx`).
  */
-export type SettingsTab = "display" | "tasks";
+export type SettingsTab = "display" | "tasks" | "version";
 
 /** The page's settings screen id; the id predates the Tasks half and stays, since routes name it. */
 export const SETTINGS_SCREEN_ID = "chat-presentation";

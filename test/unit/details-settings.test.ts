@@ -5,6 +5,10 @@ import "./helpers/quiet-renderer";
 
 const state = vi.hoisted(() => ({ pointer: true }));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
+vi.mock("@getpaseo/plugin/client", async (original) => {
+  const rpc = async () => ({ state: "idle" });
+  return { ...await original<object>(), useRpc: () => rpc };
+});
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return { TextInput: rn.TextInput, useToast: () => ({ show() {}, error() {} }) };
