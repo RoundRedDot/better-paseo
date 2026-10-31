@@ -201,6 +201,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   scrollHeader?: boolean;
   /** False when the actions live elsewhere (the phone's bar under the sheet). */
   actions?: boolean;
+  /** The page still runs under the action bar. The phone's bar lives outside this card. */
+  onScrollEdge?(contentUnderBar: boolean): void;
   testID?: string;
 }
 
@@ -223,13 +225,19 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const choices = useSectionChoices();
   const [tab, setTab] = useState<"info" | "messages">("messages");
   const [tabsPinned, setTabsPinned] = useState(false);
-  // Each fixed tab keeps its own scroller, so the shadow follows the page on screen.
-  const bodyOffsets = useRef({ info: 0, messages: 0 });
+  // Each fixed tab keeps its own scroller, so both edges follow the page on screen.
+  const bodyEdges = useRef({ info: emptyScrollEdge(), messages: emptyScrollEdge() });
   const [bodyScrolled, setBodyScrolled] = useState(false);
+  const [bodyUnderBar, setBodyUnderBar] = useState(false);
+  const headerEdge = useRef(emptyScrollEdge());
+  const [headerUnderBar, setHeaderUnderBar] = useState(false);
   useEffect(() => {
     setTabsPinned(false);
-    bodyOffsets.current = { info: 0, messages: 0 };
+    bodyEdges.current = { info: emptyScrollEdge(), messages: emptyScrollEdge() };
+    headerEdge.current = emptyScrollEdge();
     setBodyScrolled(false);
+    setBodyUnderBar(false);
+    setHeaderUnderBar(false);
   }, [card.id, props.scrollHeader]);
   const tabScroll = useRef<ScrollView>(null);
   const [tabLayout, setTabLayout] = useState({ top: 0, height: 0, viewport: 0 });
@@ -264,15 +272,27 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     />
   );
   const sections = order.map((section) => sectionView(section, true));
-  const trackBodyScroll = (id: "info" | "messages") => (event: { nativeEvent: { contentOffset: { y: number } } }) => {
-    const offset = Math.max(0, event.nativeEvent.contentOffset.y);
-    bodyOffsets.current[id] = offset;
+  const publishBody = (id: "info" | "messages", patch: Partial<ScrollEdge>) => {
+    const next = { ...bodyEdges.current[id], ...patch };
+    bodyEdges.current[id] = next;
     if (id !== tab) return;
-    const scrolled = offset > 0;
+    const scrolled = next.y > 0;
+    const under = contentUnderBar(next);
     setBodyScrolled((current) => (current === scrolled ? current : scrolled));
+    setBodyUnderBar((current) => (current === under ? current : under));
+  };
+  const noteHeaderEdge = (patch: Partial<ScrollEdge>) => {
+    const next = { ...headerEdge.current, ...patch };
+    headerEdge.current = next;
+    const under = contentUnderBar(next);
+    setHeaderUnderBar((current) => (current === under ? current : under));
   };
   // Sticky tabs cast this once they pin. Fixed tabs cast it once their page has scrolled under them.
-  const tabShadow = (props.scrollHeader ? tabsPinned : bodyScrolled) ? tabEdgeShadow(tokens.isDark) : undefined;
+  const tabShadow = (props.scrollHeader ? tabsPinned : bodyScrolled) ? scrollEdgeShadow(tokens.isDark, "down") : undefined;
+  const underBar = props.tabs === true && (props.scrollHeader ? headerUnderBar : bodyUnderBar);
+  const edgeListener = useRef(props.onScrollEdge);
+  edgeListener.current = props.onScrollEdge;
+  useEffect(() => { edgeListener.current?.(underBar); }, [underBar]);
   if (props.tabs) {
     const messages: DetailSection[] = order.filter((section) => section === "prompt" || section === "human" || section === "message");
     const info: DetailSection[] = (["properties", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section));
@@ -289,7 +309,10 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
               // Switching pages must not reveal a header the reader already scrolled past.
               if (props.scrollHeader) tabOffsets.current[id] = Math.max(tabOffsets.current[id], Math.min(tabOffsets.current[tab], tabLayout.top));
               tabOffsets.current.restoring = props.scrollHeader === true;
-              if (!props.scrollHeader) setBodyScrolled(bodyOffsets.current[id] > 0);
+              if (!props.scrollHeader) {
+                setBodyScrolled(bodyEdges.current[id].y > 0);
+                setBodyUnderBar(contentUnderBar(bodyEdges.current[id]));
+              }
               setTab(id);
             }} />
           ))}
@@ -308,10 +331,18 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             onLayout={(event) => {
               const viewport = event.nativeEvent.layout.height;
               setTabLayout((current) => current.viewport === viewport ? current : { ...current, viewport });
+              noteHeaderEdge({ viewport });
             }}
+            onContentSizeChange={(_width, height) => noteHeaderEdge({ content: height })}
             onScroll={(event) => {
+              const native = event.nativeEvent;
+              const offset = Math.max(0, native.contentOffset.y);
+              noteHeaderEdge({
+                y: offset,
+                ...(native.layoutMeasurement ? { viewport: native.layoutMeasurement.height } : null),
+                ...(native.contentSize ? { content: native.contentSize.height } : null),
+              });
               if (tabOffsets.current.restoring) return;
-              const offset = Math.max(0, event.nativeEvent.contentOffset.y);
               tabOffsets.current[tab] = offset;
               setTabsPinned(offset > 0 && offset >= tabLayout.top);
             }}
@@ -342,18 +373,18 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} />
             {tabBar}
             <View style={{ flex: 1, minHeight: 0, display: tab === "info" ? "flex" : "none" }}>
-              <ScrollView key={`${card.id}-info`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={trackBodyScroll("info")} testID="detail-tab-info-scroll">
+              <ScrollView key={`${card.id}-info`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("info", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("info", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("info", { content: height })} testID="detail-tab-info-scroll">
                 {info.map((section, index) => sectionView(section, index > 0))}
               </ScrollView>
             </View>
             <View style={{ flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" }}>
-              <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={trackBodyScroll("messages")} testID="detail-tab-messages-scroll">
+              <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("messages", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("messages", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("messages", { content: height })} testID="detail-tab-messages-scroll">
                 {messages.map((section, index) => sectionView(section, index > 0))}
               </ScrollView>
             </View>
           </>
         )}
-        {props.actions !== false ? <View style={{ paddingBottom: 10 }}><DetailActionBar {...props} sidebar /></View> : null}
+        {props.actions !== false ? <View style={{ paddingBottom: 10 }}><DetailActionBar {...props} sidebar contentUnder={underBar} /></View> : null}
       </View>
     );
   }
@@ -390,9 +421,28 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   );
 }
 
-/** Downward edge under the detail tabs once content sits beneath them. Shared by the sticky row and the fixed row. */
-function tabEdgeShadow(isDark: boolean): string {
-  return `0px 5px 8px -4px rgba(0, 0, 0, ${isDark ? 0.36 : 0.14})`;
+type ScrollEdge = { y: number; viewport: number; content: number };
+
+function emptyScrollEdge(): ScrollEdge {
+  return { y: 0, viewport: 0, content: 0 };
+}
+
+/** Content still runs past the bottom of the scroller, so it sits under the action bar. */
+function contentUnderBar(edge: ScrollEdge): boolean {
+  return edge.viewport > 0 && edge.y + edge.viewport < edge.content - 1;
+}
+
+function scrollEdgePatch(native: { contentOffset: { y: number }; layoutMeasurement?: { height: number }; contentSize?: { height: number } }): Partial<ScrollEdge> {
+  return {
+    y: Math.max(0, native.contentOffset.y),
+    ...(native.layoutMeasurement ? { viewport: native.layoutMeasurement.height } : null),
+    ...(native.contentSize ? { content: native.contentSize.height } : null),
+  };
+}
+
+/** The same soft edge on every detail scroller: down from the tabs, up from the action bar. */
+function scrollEdgeShadow(isDark: boolean, direction: "down" | "up"): string {
+  return `0px ${direction === "down" ? 5 : -5}px 8px -4px rgba(0, 0, 0, ${isDark ? 0.36 : 0.14})`;
 }
 
 /** `gutter`: the room a scroller's scrollbar takes from the right padding (0 outside one). */
@@ -1823,6 +1873,8 @@ export function DetailActionBar(props: {
   archive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   markRead?: DetailRead | null;
   sidebar?: boolean;
+  /** The page still runs under this bar, so it casts the same edge the tabs do. */
+  contentUnder?: boolean;
 }) {
   const { card } = props;
   const onOpen = opensInPaseo(card) ? props.onOpen : undefined;
@@ -1847,7 +1899,7 @@ export function DetailActionBar(props: {
   // Deny first, allow last: the main button sits under the thumb.
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
   return (
-    <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border }}>
+    <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border, zIndex: props.contentUnder ? 1 : undefined, boxShadow: props.contentUnder ? scrollEdgeShadow(tokens.isDark, "up") : undefined }}>
       {asking ? (
         <>
           {ordered.map((button) => (
@@ -1954,17 +2006,18 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const { tokens } = props;
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
-  const font = props.sidebar && Platform.OS === "web" ? F.base : F.sm;
-  const tablet = Platform.OS === "ios" && Platform.isPad;
-  const height = taskControlHeight(tablet ? 36 : 40, scale);
-  const iconSize = tablet ? 14 : 16;
-  const padding = tablet ? 10 : 12;
-  const gap = tablet ? 5 : 6;
+  // Desktop steps down to the iPad bar. The phone keeps the taller thumb size.
+  const compact = (props.sidebar === true && Platform.OS === "web") || (Platform.OS === "ios" && Platform.isPad);
+  const font = F.sm;
+  const height = taskControlHeight(compact ? 36 : 40, scale);
+  const iconSize = compact ? 14 : 16;
+  const padding = compact ? 10 : 12;
+  const gap = compact ? 5 : 6;
   const look = props.look ?? "plain";
   const hue = buttonHue(tokens, look);
   const text = hue.color;
   const iconColor = look === "plain" ? tokens.foregroundMuted : text;
-  const fit = useActionFit(props.label, `${scale}|${tablet}|${font}|${useWindowDimensions().fontScale}`, height, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, look === "primary");
+  const fit = useActionFit(props.label, `${scale}|${compact}|${font}|${useWindowDimensions().fontScale}`, height, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, look === "primary");
   const square = fit.iconOnly;
   const disabled = props.busy || props.disabled;
   const hovered = hover && !disabled;
@@ -1983,7 +2036,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         flexGrow: square || props.grow === false ? 0 : 1,
         flexShrink: square ? 0 : 1,
         paddingHorizontal: square ? 0 : padding,
-        borderRadius: tablet ? 8 : 10,
+        borderRadius: compact ? 8 : 10,
         ...buttonOutline(hue.border, {}, hovered ? tokens.card.buttonShadowHover : undefined),
         backgroundColor: (hovered || pressed) && !disabled ? hue.hover : tokens.card.background,
         opacity: disabled ? 0.6 : 1,

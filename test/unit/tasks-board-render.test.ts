@@ -5245,6 +5245,17 @@ describe("Tasks board, phone", () => {
     expect(hostsById("detail-tab-info")[0]!.props.accessibilityState.selected).toBe(true);
     expect(hostsById("detail-location")).toHaveLength(1);
     expect(hostsById("detail-action-bar")[0]).toBe(bar);
+    await act(async () => {
+      scroll.props.onLayout({ nativeEvent: { layout: { height: 300 } } });
+      scroll.props.onContentSizeChange(200, 900);
+    });
+    const barShadow = () => {
+      const style = hostsById("detail-action-bar")[0]!.props.style;
+      return (Array.isArray(style) ? style : [style]).map((item: { boxShadow?: string } | null) => item?.boxShadow).find((value: string | undefined) => typeof value === "string");
+    };
+    expect(barShadow()).toContain("0px -5px 8px -4px");
+    await act(async () => scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 600 }, layoutMeasurement: { height: 300 }, contentSize: { height: 900 } } }));
+    expect(barShadow()).toBeUndefined();
     expect(openAgent).not.toHaveBeenCalled();
   });
 

@@ -145,6 +145,70 @@ describe("details columns", () => {
     expect(shadow()).toBeUndefined();
   });
 
+  it.each(["ios", "android", "web"])("casts the tab shadow upward from the action bar while a fixed page runs under it on %s", async (os) => {
+    vi.stubGlobal("__rnMockOS", os);
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false} tabs onOpen={() => {}} />);
+    });
+    const root = renderer!.root;
+    const shadow = () => StyleSheet.flatten(host(root, "detail-action-bar").props.style).boxShadow;
+    const messages = host(root, "detail-tab-messages-scroll");
+    const info = host(root, "detail-tab-info-scroll");
+    expect(shadow()).toBeUndefined();
+    await act(async () => {
+      messages.props.onLayout({ nativeEvent: { layout: { height: 200 } } });
+      messages.props.onContentSizeChange(100, 800);
+    });
+    expect(shadow()).toContain("0px -5px 8px -4px");
+    await act(async () => messages.props.onScroll({ nativeEvent: { contentOffset: { y: 600 }, layoutMeasurement: { height: 200 }, contentSize: { height: 800 } } }));
+    expect(shadow()).toBeUndefined();
+    await act(async () => messages.props.onScroll({ nativeEvent: { contentOffset: { y: 20 }, layoutMeasurement: { height: 200 }, contentSize: { height: 800 } } }));
+    expect(shadow()).toContain("0px -5px 8px -4px");
+    await act(async () => {
+      info.props.onLayout({ nativeEvent: { layout: { height: 200 } } });
+      info.props.onContentSizeChange(100, 100);
+      host(root, "detail-tab-info").props.onPress();
+    });
+    expect(shadow()).toBeUndefined();
+    await act(async () => host(root, "detail-tab-messages").props.onPress());
+    expect(shadow()).toContain("0px -5px 8px -4px");
+  });
+
+  it.each(["ios", "android", "web"])("casts the same upward shadow from the sticky sidebar's action bar on %s", async (os) => {
+    vi.stubGlobal("__rnMockOS", os);
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false} tabs scrollHeader onOpen={() => {}} />);
+    });
+    const root = renderer!.root;
+    const shadow = () => StyleSheet.flatten(host(root, "detail-action-bar").props.style).boxShadow;
+    const scroll = host(root, "detail-tab-short-scroll");
+    expect(shadow()).toBeUndefined();
+    await act(async () => {
+      scroll.props.onLayout({ nativeEvent: { layout: { height: 400 } } });
+      scroll.props.onContentSizeChange(100, 900);
+    });
+    expect(shadow()).toContain("0px -5px 8px -4px");
+    await act(async () => scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 500 }, layoutMeasurement: { height: 400 }, contentSize: { height: 900 } } }));
+    expect(shadow()).toBeUndefined();
+  });
+
+  it("reports that edge for the phone sheet, whose bar lives outside the card", async () => {
+    const onScrollEdge = vi.fn();
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(true)} columns={false} tabs scrollHeader actions={false} onScrollEdge={onScrollEdge} />);
+    });
+    expect(renderer!.root.findAll((node) => node.props.testID === "detail-action-bar")).toHaveLength(0);
+    expect(onScrollEdge).toHaveBeenCalledWith(false);
+    const scroll = host(renderer!.root, "detail-tab-short-scroll");
+    await act(async () => {
+      scroll.props.onLayout({ nativeEvent: { layout: { height: 300 } } });
+      scroll.props.onContentSizeChange(100, 800);
+    });
+    expect(onScrollEdge).toHaveBeenLastCalledWith(true);
+    await act(async () => scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 500 }, layoutMeasurement: { height: 300 }, contentSize: { height: 800 } } }));
+    expect(onScrollEdge).toHaveBeenLastCalledWith(false);
+  });
+
   it.each([
     { os: "ios", offset: 0, target: 0 },
     { os: "ios", offset: 85, target: 85 },

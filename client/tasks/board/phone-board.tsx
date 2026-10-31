@@ -578,6 +578,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
   const stopAvailable = !!board.callbacks.onStop && (card.stoppable || activeStopChildren(card).length > 0);
   const stop = stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null;
   const onPermission = (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button);
+  const [contentUnderBar, setContentUnderBar] = useState(false);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
       {index >= 0 && list.length > 1 ? (
@@ -616,9 +617,11 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           unarchive={board.unarchive.available ? board.unarchive : null}
           archive={board.archive}
           markRead={board.read.available ? board.read : null}
+          onScrollEdge={setContentUnderBar}
         />
       </View>
       <DetailActionBar
+        contentUnder={contentUnderBar}
         card={card}
         theme={theme}
         language={board.language}
