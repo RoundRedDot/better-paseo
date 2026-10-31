@@ -9,9 +9,9 @@ const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...
 // a hand edit makes the density custom, the preview follows the switches,
 // reset asks first, and an unusable record offers a reset.
 
-const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh", rpc: vi.fn(async (): Promise<unknown> => ({ state: "idle" })), copyText: vi.fn(async () => {}) }));
+const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh", rpc: vi.fn(async (): Promise<unknown> => ({ state: "idle" })), copyText: vi.fn(async () => {}), openTerminal: vi.fn(async (): Promise<unknown> => ({ status: "opened" })) }));
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client", () => ({ useSettings: (definition: { id: string }) => definition.id === "title-generation" ? { status: "loading", reload: vi.fn() } : state.current, useRpc: () => state.rpc }));
+vi.mock("@getpaseo/plugin/client", () => ({ useSettings: (definition: { id: string }) => definition.id === "title-generation" ? { status: "loading", reload: vi.fn() } : state.current, useRpc: (definition: { name: string }) => definition.name === "settings.open-terminal" ? state.openTerminal : state.rpc }));
 vi.mock("@getpaseo/plugin/client/ui", () => ({
   SettingsSelect: "SettingsSelect", TextInput: "TextInput",
   SidebarRow: () => { throw new Error("SidebarRow must render inside a sidebar item"); },
@@ -46,6 +46,8 @@ const { SETTINGS_STRINGS } = await import("../../client/i18n/settings-page-strin
 const { resetEnabledNotice } = await import("../../client/tasks/settings/use-tasks-form");
 const { BetterPaseoSettingsPage } = await import("../../client/settings-page");
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
+const { CommandBand } = await import("../../client/ui/command-band");
+const { Section, SettingRow } = await import("../../client/settings-controls");
 const { setSettingsTab } = await import("../../client/settings-tab");
 const { resetEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
 const { TASKS_SETTINGS_STRINGS } = await import("../../client/tasks/settings/strings");
@@ -97,6 +99,13 @@ const button = (r: Renderer, label: string) =>
 const radio = (r: Renderer, group: string, label: string) =>
   byLabel(r, group).findAll((node) => (node.type as unknown) === "Pressable" && textOf(node) === label)[0]!;
 const lastSaved = (api: ReturnType<typeof makeSettings>) => (api.save.mock.calls.at(-1) as unknown as [typeof DEFAULT_TASKS_SETTINGS, string])[0];
+
+it("does not render an empty description as a native text node", () => {
+  let r!: Renderer;
+  act(() => { r = TestRenderer.create(React.createElement(SettingRow, { title: "Title", description: "", look: look(true) })); });
+  expect(r.root.findAll((node) => (node.type as unknown) === "View").every((node) => !node.children.includes(""))).toBe(true);
+  act(() => r.unmount());
+});
 
 beforeEach(() => {
   state.previews = [];
@@ -497,8 +506,36 @@ it("checks the plugin directory version from its settings tab", async () => {
   await act(async () => { button(r, "Check for updates").props.onPress(); });
   expect(state.rpc).toHaveBeenCalledWith({ action: "check" });
   expect(textOf(r.root)).toContain("This installation differs from the plugin directory version.");
-  expect(textOf(r.root)).toContain("Installed: 1.0.1 (build 202610311637, 1111111) · Directory: 1.0.0 (build 202610311557, 2222222)");
+  expect(textOf(r.root)).toContain("Current version1.0.1(1111111)");
+  expect(textOf(r.root)).toContain("Latest version1.0.0(2222222)");
+  expect(textOf(r.root)).not.toContain("202610311637");
   expect(r.root.findByType(MarkdownView).props.text).toBe("- Fix scrolling");
+  expect(r.root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === SETTINGS_STRINGS.en.releaseNotesTitle)).toHaveLength(1);
+  act(() => r.unmount());
+});
+
+it.each(["missing", "unavailable"] as const)("shows %s release notes under a single heading", async (notesStatus) => {
+  makeSettings();
+  setSettingsTab("version");
+  state.rpc.mockReset();
+  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0", currentBuild: 202610311637, latestBuild: 202610311557 }, notes: { status: notesStatus } });
+  let r!: Renderer;
+  await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "ios", compact: true } as never, host: {} as never })); });
+  expect(r.root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === SETTINGS_STRINGS.en.releaseNotesTitle)).toHaveLength(1);
+  expect(textOf(r.root)).toContain(notesStatus === "missing" ? SETTINGS_STRINGS.en.releaseNotesMissing : SETTINGS_STRINGS.en.releaseNotesUnavailable);
+  act(() => r.unmount());
+});
+
+it("shows the latest release notes even when the installation is up to date", async () => {
+  makeSettings();
+  setSettingsTab("version");
+  state.rpc.mockReset();
+  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "1".repeat(40), matches: true, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.1", currentBuild: 202610311637, latestBuild: 202610311637 }, notes: { status: "available", en: "- Market release notes", zh: "- 市场版本说明" } });
+  let r!: Renderer;
+  await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
+  expect(r.root.findByType(MarkdownView).props.text).toBe("- Market release notes");
+  expect(byTestID(r, "update-badge")).toHaveLength(0);
+  expect(r.root.findAll((node) => node.props.accessibilityLabel === "Copy update command")).toHaveLength(0);
   act(() => r.unmount());
 });
 
@@ -572,9 +609,13 @@ it("shows the revision and an explanation when the version map is unavailable", 
   let r!: Renderer;
   await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
   await act(async () => { button(r, "Check for updates").props.onPress(); });
-  expect(textOf(r.root)).toContain("Version numbers could not be loaded; revisions are shown.");
-  expect(textOf(r.root)).toContain("Installed: 1111111 · Directory: 2222222");
-  expect(textOf(r.root)).not.toContain("Version number not recorded");
+  expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionMapUnavailable);
+  expect(textOf(r.root)).toContain("Current version1111111");
+  expect(textOf(r.root)).toContain("Latest version2222222");
+  expect(textOf(r.root)).not.toContain(SETTINGS_STRINGS.en.versionUnmapped);
+  expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionMarketCommandHint);
+  expect(button(r, SETTINGS_STRINGS.en.versionCopyMarketCommand)).toBeTruthy();
+  expect(byTestID(r, "update-badge")).toHaveLength(0);
   act(() => r.unmount());
 });
 
@@ -591,7 +632,16 @@ it.each([
   await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "ios", compact: true } as never, host: {} as never })); });
   expect(byTestID(r, "update-badge")).toHaveLength(1);
   await act(async () => { radio(r, SETTINGS_STRINGS.en.tabsLabel, SETTINGS_STRINGS.en.tabVersion).props.onPress(); });
-  expect(textOf(r.root)).toContain("Paste and run this command in a terminal on the host running Paseo.");
+  expect(r.root.findAllByType(Section).map((section) => section.props.title)).toEqual([
+    SETTINGS_STRINGS.en.versionTitle,
+    SETTINGS_STRINGS.en.versionUpdateCommand,
+    SETTINGS_STRINGS.en.releaseNotesTitle,
+  ]);
+  expect(textOf(r.root)).toContain("Copy and run this command on the host running Paseo.");
+  expect(textOf(r.root)).toContain(command);
+  expect(textOf(r.root.findByType(CommandBand))).toBe(`$ ${command}`);
+  expect(r.root.findAll((node) => node.props.accessibilityLabel === "Go to update")).toHaveLength(0);
+  expect(textOf(r.root)).toContain("Paseo does not yet let plugins open its terminal from settings.");
   await act(async () => { button(r, "Copy update command").props.onPress(); });
   expect(state.copyText).toHaveBeenCalledWith(command);
   expect(button(r, "Copied")).toBeTruthy();
@@ -606,6 +656,10 @@ it.each(["1.0.1", "1.0.0"])("does not offer an update when the directory version
   let r!: Renderer;
   await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
   expect(byTestID(r, "update-badge")).toHaveLength(0);
+  expect(r.root.findAllByType(Section).map((section) => section.props.title)).toEqual([
+    SETTINGS_STRINGS.en.versionTitle,
+    SETTINGS_STRINGS.en.releaseNotesTitle,
+  ]);
   expect(r.root.findAll((node) => node.props.accessibilityLabel === "Copy update command")).toHaveLength(0);
   const toggle = byLabel(r, "Automatically check for updates");
   expect(toggle.props.accessibilityState.checked).toBe(true);
@@ -624,5 +678,64 @@ it("shows an update when the directory has a newer build of the same version", a
   await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
   expect(byTestID(r, "update-badge")).toHaveLength(1);
   expect(button(r, "Copy update command")).toBeTruthy();
+  act(() => r.unmount());
+});
+
+
+it.each(["opened", "unsupported", "failed"] as const)("opens the host terminal and reports %s", async (status) => {
+  makeSettings();
+  setSettingsTab("version");
+  state.openTerminal.mockReset();
+  state.copyText.mockReset();
+  state.copyText.mockResolvedValue(undefined);
+  state.openTerminal.mockResolvedValue({ status });
+  state.rpc.mockReset();
+  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.1.1", currentBuild: 202610311637, latestBuild: 202610311700 }, notes: { status: "missing" } });
+  let r!: Renderer;
+  await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
+  await act(async () => { button(r, "Go to update").props.onPress(); });
+  expect(state.copyText).toHaveBeenCalledWith(`paseo plugin update better-paseo --ref ${"2".repeat(40)}`);
+  expect(state.openTerminal).toHaveBeenCalledWith({ source: "git", latest: "2".repeat(40) });
+  expect(state.copyText.mock.invocationCallOrder[0]!).toBeLessThan(state.openTerminal.mock.invocationCallOrder[0]!);
+  expect(button(r, "Copy update command")).toBeTruthy();
+  if (status === "opened") expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionOpenTerminalOpened);
+  if (status === "unsupported") expect(textOf(r.root)).toContain("Opening a system terminal is currently supported on macOS hosts only.");
+  if (status === "failed") expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionOpenTerminalFailed);
+  act(() => r.unmount());
+});
+
+
+it("does not open a terminal when copying fails", async () => {
+  makeSettings();
+  setSettingsTab("version");
+  state.openTerminal.mockReset();
+  state.copyText.mockReset();
+  state.copyText.mockRejectedValueOnce(new Error("clipboard denied"));
+  state.rpc.mockReset();
+  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.1.1", currentBuild: 202610311637, latestBuild: 202610311700 }, notes: { status: "missing" } });
+  let r!: Renderer;
+  await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
+  await act(async () => { button(r, "Go to update").props.onPress(); });
+  expect(state.openTerminal).not.toHaveBeenCalled();
+  expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionCopyFailed);
+  act(() => r.unmount());
+  state.copyText.mockReset();
+  state.copyText.mockResolvedValue(undefined);
+});
+
+it("explains when a revision has no version mapping while displaying known versions and hashes", async () => {
+  makeSettings();
+  setSettingsTab("version");
+  state.rpc.mockReset();
+  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: null, latest: "1.1.1", currentBuild: null, latestBuild: 202610311700 }, notes: { status: "missing" } });
+  let r!: Renderer;
+  await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
+  expect(textOf(r.root)).toContain("Current version1111111");
+  expect(textOf(r.root)).toContain("Latest version1.1.1(2222222)");
+  expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionUnmapped);
+  expect(byTestID(r, "update-badge")).toHaveLength(0);
+  expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionMarketCommandHint);
+  expect(button(r, SETTINGS_STRINGS.en.versionCopyMarketCommand)).toBeTruthy();
+  expect(r.root.findAll((node) => node.props.accessibilityLabel === "Go to update")).toHaveLength(0);
   act(() => r.unmount());
 });

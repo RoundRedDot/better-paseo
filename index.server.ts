@@ -3,7 +3,9 @@ import { open, stat, type FileHandle } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { updateCheckRpc } from "./shared/update-check";
+import { openTerminalRpc, updateCommand } from "./shared/open-terminal";
 import { createUpdateCheck, startAutomaticUpdateCheck } from "./server/update-check";
+import { openSystemTerminal } from "./server/open-terminal";
 import { PREFERENCES_SETTINGS } from "./shared/preferences-settings";
 import { revealPathRpc } from "./shared/file-rpc";
 import { embeddedFontsRpc } from "./shared/font-rpc";
@@ -465,6 +467,7 @@ export default function contribute(server: PluginServerContext) {
   const checkUpdate = createUpdateCheck();
   const stopAutomaticUpdateCheck = startAutomaticUpdateCheck(preferences, checkUpdate);
   server.handle(updateCheckRpc, ({ action }) => checkUpdate(action));
+  server.handle(openTerminalRpc, (input) => openSystemTerminal(updateCommand(input.source, input.latest)));
   // The Tasks board's settings and its stop RPCs.
   registerTasksServer(server);
   // Each turn's token usage, kept on disk for the turn details.

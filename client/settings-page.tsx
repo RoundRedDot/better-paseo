@@ -1,8 +1,9 @@
 import { useRpc } from "@getpaseo/plugin/client";
 import { isNewerVersion, updateCheckRpc } from "../shared/update-check";
+import { openTerminalRpc, updateCommand } from "../shared/open-terminal";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
-import { TextInput } from "@getpaseo/plugin/client/react-native";
+import { copyText, TextInput } from "@getpaseo/plugin/client/react-native";
 import { DETAILS_FONT_SIZE_DEFAULT, DETAILS_FONT_SIZE_MIN, DETAILS_FONT_SIZE_MAX, clampDetailsFontSize } from "../shared/preferences-settings";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { codeSurface, itemRootFont } from "./components/host-font-escape";
@@ -43,6 +44,9 @@ import { useCopy } from "./ui/use-copy";
 import { useWideHostColumn } from "./ui/wide-host-column";
 import { SettingsPreview } from "./settings-preview";
 import { MarkdownView } from "./components/markdown/markdown-view";
+import { selectionCodeText } from "./components/selection-actions";
+import { CommandBand } from "./ui/command-band";
+import { SelectableSpan, SelectableText } from "./ui/prose-text";
 import { PHONE_PREVIEW_WIDTH, PlainButton, Section, SectionNote, Segmented, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "./settings-controls";
 import { setSettingsTab, useSettingsTab, type SettingsTab } from "./settings-tab";
 import { TasksSettingsPanel } from "./tasks/settings/tasks-panel";
@@ -559,30 +563,89 @@ function useVersionCheck() {
   return { state, run };
 }
 
-function VersionSection({ look, language, version, autoUpdateCheck }: { look: PageLook; language: "en" | "zh"; version: ReturnType<typeof useVersionCheck>; autoUpdateCheck: boolean }) {
+function VersionResult({ state, look, language, updateAvailable }: {
+  state: Extract<ReturnType<typeof useVersionCheck>["state"], { state: "done" }>;
+  look: PageLook;
+  language: "en" | "zh";
+  updateAvailable: boolean;
+}) {
+  const { t, tokens } = look;
+  const labelStyle = [settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }];
+  return <View style={{ gap: space.sm, marginTop: space.xs }}>
+    {[
+      { label: t.versionInstalled, version: state.versions.status === "available" ? state.versions.current : null, revision: state.current },
+      { label: t.versionDirectory, version: state.versions.status === "available" ? state.versions.latest : null, revision: state.latest },
+    ].map((entry) => <View key={entry.label} style={{ flexDirection: "row", alignItems: "flex-start", gap: space.md }}>
+      <Text style={[labelStyle, { width: tokens.typography.ui.size * (language === "zh" ? 4 : 9) }]}>{entry.label}</Text>
+      <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", columnGap: space.sm, alignItems: "baseline" }}>
+        {entry.version ? <Text {...(codeSurface as object)} style={[settingsTextStyle(tokens, -1), { color: tokens.foreground, fontFamily: tokens.fontMono, fontWeight: "500" }]}>{entry.version}</Text> : null}
+        <Text {...(codeSurface as object)} style={[settingsTextStyle(tokens, -1), { color: entry.version ? tokens.foregroundMuted : tokens.foreground, fontFamily: tokens.fontMono }]}>{entry.version ? `(${entry.revision.slice(0, 7)})` : entry.revision.slice(0, 7)}</Text>
+      </View>
+    </View>)}
+    <View style={{ gap: 2, marginTop: space.xs }}>
+      <Text style={[labelStyle, { color: tokens.foreground, fontWeight: updateAvailable ? "500" : "400" }]}>{state.matches ? t.versionUpToDate : updateAvailable ? t.versionNewAvailable : t.versionAvailable}</Text>
+      <Text style={labelStyle}>{t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US"))}</Text>
+      {state.versions.status === "unavailable" ? <Text style={labelStyle}>{t.versionMapUnavailable}</Text> : null}
+      {state.versions.status === "available" && (state.versions.current === null || state.versions.latest === null || state.versions.currentBuild === null || state.versions.latestBuild === null) ? <Text style={labelStyle}>{t.versionUnmapped}</Text> : null}
+    </View>
+  </View>;
+}
+
+function VersionSection({ look, language, version, autoUpdateCheck, native }: { look: PageLook; language: "en" | "zh"; version: ReturnType<typeof useVersionCheck>; autoUpdateCheck: boolean; native: boolean }) {
   const { state, run } = version;
   const { copied, copy } = useCopy();
+  const openTerminal = useRpc(openTerminalRpc);
+  const [terminalStatus, setTerminalStatus] = useState<"idle" | "opening" | "opened" | "unsupported" | "failed" | "copyFailed">("idle");
   const t = look.t;
   const updateAvailable = state.state === "done" && state.versions.status === "available" && state.versions.current !== null && state.versions.latest !== null && state.versions.currentBuild !== null && state.versions.latestBuild !== null && isNewerVersion(state.versions.current, state.versions.latest, state.versions.currentBuild, state.versions.latestBuild);
+  const orderUnknown = state.state === "done" && !state.matches && (state.versions.status === "unavailable" || state.versions.current === null || state.versions.latest === null || state.versions.currentBuild === null || state.versions.latestBuild === null);
+  const command = state.state === "done" ? updateCommand(state.source, state.latest) : "";
+  async function goToUpdate() {
+    if (state.state !== "done") return;
+    setTerminalStatus("opening");
+    try { await copyText(command); } catch { return setTerminalStatus("copyFailed"); }
+    try {
+      const result = await openTerminal({ source: state.source, latest: state.latest });
+      setTerminalStatus(result.status);
+    } catch {
+      setTerminalStatus("failed");
+    }
+  }
   const description = state.state === "failed" ? t.versionFailed : state.state === "local" ? t.versionLocal : state.state === "unsupported" ? t.versionUnsupported : state.state === "done"
-    ? `${t.versionCurrent(
-        state.versions.status === "unavailable" ? state.current.slice(0, 7) : state.versions.current ? `${state.versions.current} (build ${state.versions.currentBuild}, ${state.current.slice(0, 7)})` : `${state.current.slice(0, 7)} (${t.versionUnmapped})`,
-        state.versions.status === "unavailable" ? state.latest.slice(0, 7) : state.versions.latest ? `${state.versions.latest} (build ${state.versions.latestBuild}, ${state.latest.slice(0, 7)})` : `${state.latest.slice(0, 7)} (${t.versionUnmapped})`,
-      )}\n${state.matches ? t.versionUpToDate : updateAvailable ? t.versionNewAvailable : t.versionAvailable}\n${t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US"))}\n${state.versions.status === "unavailable" ? `${t.versionMapUnavailable}\n` : ""}${t.versionDescription}`
+    ? <VersionResult state={state} look={look} language={language} updateAvailable={updateAvailable} />
     : t.versionDescription;
   return <>
   <Section title={t.versionTitle} look={look}>
     <SettingRow title={t.versionAutoCheck} description={t.versionAutoCheckDescription} first look={look}
       control={<Toggle value={autoUpdateCheck} onChange={(autoUpdateCheck) => updateEnhancerPreferences({ autoUpdateCheck })} label={t.versionAutoCheck} look={look} />} />
-    <SettingRow title={t.versionTitle} description={description} stacked look={look}
+    <SettingRow title={t.versionInfo} description={description} stacked look={look}
       control={<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} disabled={state.state === "checking" || state.state === "starting"} loading={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} />} />
-    {updateAvailable && state.state === "done" ? <SettingRow title={t.versionNewAvailable} description={t.versionCommandHint} stacked look={look}
-      control={<PlainButton label={copied ? t.versionCommandCopied : t.versionCopyCommand} onPress={() => { void copy(state.source === "registry" ? "paseo plugin update better-paseo" : `paseo plugin update better-paseo --ref ${state.latest}`); }} look={look} />} /> : null}
   </Section>
+  {(updateAvailable || orderUnknown) && state.state === "done" ? <Section title={orderUnknown ? t.versionMarketCommand : t.versionUpdateCommand} look={look}>
+      <View style={{ paddingHorizontal: space.lg, paddingVertical: look.compact ? 11 : 14, gap: space.sm }}>
+        <Text style={[styles.rowNote, settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi }]}>{orderUnknown ? t.versionMarketCommandHint : t.versionCommandHint}</Text>
+        <CommandBand tokens={look.tokens} style={{ borderLeftWidth: 0, borderRadius: radiusV2.block }}>
+          <SelectableText {...selectionCodeText} style={{ fontFamily: look.tokens.fontMono, fontSize: look.tokens.typography.mono.size, lineHeight: look.tokens.typography.mono.lineHeight, color: look.tokens.row.outputText, backgroundColor: "transparent" }}>
+            <SelectableSpan style={{ color: look.tokens.row.meta }}>{"$ "}</SelectableSpan>{command}
+          </SelectableText>
+        </CommandBand>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
+          <PlainButton label={copied ? t.versionCommandCopied : orderUnknown ? t.versionCopyMarketCommand : t.versionCopyCommand} onPress={() => { void copy(command); }} look={look} />
+          {!native && !orderUnknown ? <PlainButton label={t.versionOpenTerminal} disabled={terminalStatus === "opening"} loading={terminalStatus === "opening"} onPress={() => { void goToUpdate(); }} look={look} /> : null}
+        </View>
+        {!orderUnknown ? <Text style={[settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi }]}>
+          {native ? t.versionMobileTerminalUnavailable : terminalStatus === "opened" ? t.versionOpenTerminalOpened : terminalStatus === "copyFailed" ? t.versionCopyFailed : terminalStatus === "unsupported" ? t.versionOpenTerminalUnsupported : terminalStatus === "failed" ? t.versionOpenTerminalFailed : t.versionOpenTerminalHint}
+        </Text> : null}
+      </View>
+  </Section> : null}
   {state.state === "done" ? <Section title={t.releaseNotesTitle} look={look}>
-    <SettingRow first stacked look={look} title={t.releaseNotesTitle}
-      description={state.notes.status === "available" ? undefined : state.notes.status === "missing" ? t.releaseNotesMissing : t.releaseNotesUnavailable}
-      below={state.notes.status === "available" ? <MarkdownView text={state.notes[language]} tokens={look.tokens} variant="compact" compact={look.compact} size={look.tokens.typography.ui.size} /> : undefined} />
+    <View style={{ paddingHorizontal: space.lg, paddingVertical: look.compact ? 11 : 14 }}>
+      {state.notes.status === "available"
+        ? <MarkdownView text={state.notes[language]} tokens={look.tokens} variant="compact" compact={look.compact} size={look.tokens.typography.ui.size} />
+        : <Text style={[styles.rowNote, settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi }]}>
+            {state.notes.status === "missing" ? t.releaseNotesMissing : t.releaseNotesUnavailable}
+          </Text>}
+    </View>
   </Section> : null}
   </>;
 }
@@ -1078,7 +1141,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
       </View>
 
       {tab === "version" ? (
-        <VersionSection look={look} language={resolveLanguage(preferences.language)} version={version} autoUpdateCheck={preferences.autoUpdateCheck} />
+        <VersionSection look={look} language={resolveLanguage(preferences.language)} version={version} autoUpdateCheck={preferences.autoUpdateCheck} native={native} />
       ) : tab === "tasks" ? (
         <TasksSettingsPanel look={look} theme={theme} side={side} hostId={host?.id} />
       ) : side ? (

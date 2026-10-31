@@ -130,7 +130,7 @@ export function Segmented<T extends string>({
             >
               {option.label}
             </Text>
-            {option.badge ? <View testID="update-badge" accessible={false} style={{ position: "absolute", right: 4, top: 4, width: 7, height: 7, borderRadius: 4, backgroundColor: tokens.danger }} /> : null}
+            {option.badge ? <View testID="update-badge" accessible={false} style={{ position: "absolute", right: 4, top: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: tokens.danger }} /> : null}
           </Pressable>
         );
       })}
@@ -251,7 +251,7 @@ export function SettingRow({
   below,
 }: {
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   control?: React.ReactNode;
   look: PageLook;
   first?: boolean;
@@ -273,11 +273,11 @@ export function SettingRow({
       >
         {title}
       </Text>
-      {description ? (
+      {typeof description === "string" ? description ? (
         <Text style={[styles.rowNote, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
           {description}
         </Text>
-      ) : null}
+      ) : null : description}
     </View>
   );
   if (compact) {
