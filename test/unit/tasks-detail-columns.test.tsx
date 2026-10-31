@@ -72,6 +72,51 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it.each([
+    { os: "ios", offset: 0, target: 0 },
+    { os: "ios", offset: 85, target: 85 },
+    { os: "ios", offset: 320, target: 200 },
+    { os: "android", offset: 320, target: 200 },
+    { os: "web", offset: 320, target: 200 },
+  ])("keeps the header's scroll position when switching to a shorter tab: %j", async ({ os, offset, target }) => {
+    vi.stubGlobal("__rnMockOS", os);
+    const scrollTo = vi.fn();
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false} tabs scrollHeader />,
+        { createNodeMock: (element) => element.type === "ScrollView" ? { scrollTo } : null });
+    });
+    const root = renderer!.root;
+    const scroll = host(root, "detail-tab-short-scroll");
+    await act(async () => {
+      scroll.props.onLayout({ nativeEvent: { layout: { height: 500 } } });
+      host(root, "detail-tab-anchor").props.onLayout({ nativeEvent: { layout: { y: 200, height: 44 } } });
+    });
+    await act(async () => {
+      scroll.props.onScroll({ nativeEvent: { contentOffset: { y: offset } } });
+      host(root, "detail-tab-info").props.onPress();
+    });
+    const info = host(root, "detail-tab-info-content");
+    expect(StyleSheet.flatten(info.props.style).minHeight).toBe(456);
+    await act(async () => {
+      scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 0 } } });
+      info.props.onLayout();
+    });
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: target, animated: false });
+    await act(async () => {
+      scroll.props.onScroll({ nativeEvent: { contentOffset: { y: target + 30 } } });
+      host(root, "detail-tab-messages").props.onPress();
+    });
+    await act(async () => host(root, "detail-tab-messages-content").props.onLayout());
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: Math.max(offset, Math.min(target + 30, 200)), animated: false });
+    await act(async () => host(root, "detail-tab-info").props.onPress());
+    await act(async () => info.props.onLayout());
+    expect(scrollTo).toHaveBeenLastCalledWith({ y: target + 30, animated: false });
+    scrollTo.mockClear();
+    await act(async () => scroll.props.onLayout({ nativeEvent: { layout: { height: 700 } } }));
+    expect(StyleSheet.flatten(info.props.style).minHeight).toBe(656);
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
   it.each(["ios", "android", "web"])("scrolls the header under sticky tabs and restores each tab's reading position on %s", async (os) => {
     vi.stubGlobal("__rnMockOS", os);
     const scrollTo = vi.fn();

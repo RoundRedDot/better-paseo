@@ -222,6 +222,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const choices = useSectionChoices();
   const [tab, setTab] = useState<"info" | "messages">("messages");
   const tabScroll = useRef<ScrollView>(null);
+  const [tabLayout, setTabLayout] = useState({ top: 0, height: 0, viewport: 0 });
   // Native scroll bookkeeping does not need to redraw the card on every frame.
   const tabOffsets = useRef({ info: 0, messages: 0, restoring: false });
   const query = props.searchQuery?.trim().toLowerCase() ?? "";
@@ -258,11 +259,16 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     const info: DetailSection[] = (["properties", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section));
     const tabBar = (
       // Sticky headers replace their direct child's style; keep the row one level inside.
-      <View>
+      <View testID="detail-tab-anchor" onLayout={props.scrollHeader ? (event) => {
+        const { y, height } = event.nativeEvent.layout;
+        setTabLayout((current) => current.top === y && current.height === height ? current : { ...current, top: y, height });
+      } : undefined}>
         <View accessibilityRole="tablist" testID="detail-tabs" style={{ flexDirection: "row", paddingHorizontal: 10, paddingTop: props.scrollHeader ? 8 : 0, paddingBottom: 8, gap: 6, backgroundColor: tokens.card.background }}>
           {(["info", "messages"] as const).map((id) => (
             <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={`${id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}${(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}`} onPress={() => {
               if (id === tab) return;
+              // Switching pages must not reveal a header the reader already scrolled past.
+              if (props.scrollHeader) tabOffsets.current[id] = Math.max(tabOffsets.current[id], Math.min(tabOffsets.current[tab], tabLayout.top));
               tabOffsets.current.restoring = props.scrollHeader === true;
               setTab(id);
             }} />
@@ -279,6 +285,10 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             style={{ flex: 1 }}
             stickyHeaderIndices={[1]}
             scrollEventThrottle={16}
+            onLayout={(event) => {
+              const viewport = event.nativeEvent.layout.height;
+              setTabLayout((current) => current.viewport === viewport ? current : { ...current, viewport });
+            }}
             onScroll={(event) => {
               if (!tabOffsets.current.restoring) tabOffsets.current[tab] = Math.max(0, event.nativeEvent.contentOffset.y);
             }}
@@ -291,7 +301,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
               <View
                 key={id}
                 testID={`detail-tab-${id}-content`}
-                style={{ display: tab === id ? "flex" : "none" }}
+                style={{ display: tab === id ? "flex" : "none", minHeight: Math.max(0, tabLayout.viewport - tabLayout.height) }}
                 onLayout={() => {
                   if (tab !== id || !tabOffsets.current.restoring) return;
                   // Restore after the newly visible page has its native layout.
