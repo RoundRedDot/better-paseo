@@ -6,7 +6,11 @@ import "./helpers/quiet-renderer";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock("react-native", async () => import("./helpers/rn-mock"));
+const device = vi.hoisted(() => ({ tablet: false }));
+vi.mock("react-native", async () => {
+  const rn = await import("./helpers/rn-mock");
+  return { ...rn, Platform: { ...rn.Platform, get isPad() { return device.tablet; } } };
+});
 vi.mock("@getpaseo/plugin/client/react-native", () => ({
   Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
   copyText: async () => {},
@@ -55,6 +59,7 @@ function style(button: ReactTestInstance, pressed: boolean) {
 afterEach(async () => {
   await act(async () => renderer?.unmount());
   motion.reduced = false;
+  device.tablet = false;
   vi.restoreAllMocks();
 });
 
@@ -135,6 +140,28 @@ describe("mobile card action feedback", () => {
 });
 
 describe("phone sheet action size", () => {
+  it.each([1, 1.5])("uses smaller iPad archive and open actions at font scale %s", async (factor) => {
+    device.tablet = true;
+    const card = sample("sample-done");
+    const archive = { pending: () => false, press: vi.fn() };
+    const onOpen = vi.fn();
+    const root = await render(<TasksTypographyScale factor={factor}>
+      <DetailActionBar card={card} theme={theme} language="zh" strings={BOARD_STRINGS.zh.sidebar}
+        sidebar archive={archive} onOpen={onOpen} />
+    </TasksTypographyScale>);
+    const buttons = root.findAllByType(Pressable);
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      expect(style(button, false)).toMatchObject({ height: Math.round(36 * factor), borderRadius: 8, paddingHorizontal: 10, gap: 5 });
+      expect(button.findAll((node) => (node.type as unknown) === "Icon").every((icon) => icon.props.size === 14)).toBe(true);
+      const label = button.find((node) => (node.type as unknown) === "Text");
+      expect(StyleSheet.flatten(label.props.style).fontSize).toBe(Math.round(11 * factor));
+      button.props.onPress();
+    }
+    expect(archive.press).toHaveBeenCalledWith(card.id);
+    expect(onOpen).toHaveBeenCalledWith(card.id);
+  });
+
   it("animates each sheet action and skips animation with reduced motion", async () => {
     const timing = vi.spyOn(Animated, "timing");
     const card = sample("sample-input");
@@ -153,7 +180,11 @@ describe("phone sheet action size", () => {
     expect(timing).not.toHaveBeenCalled();
   });
 
-  it.each([1, 1.5])("shrinks labels and icons, keeps square buttons square and grows with font scale %s", async (factor) => {
+  it.each([
+    { tablet: false, factor: 1 }, { tablet: false, factor: 1.5 },
+    { tablet: true, factor: 1 }, { tablet: true, factor: 1.5 },
+  ])("keeps permission actions and square buttons scaled for %j", async ({ tablet, factor }) => {
+    device.tablet = tablet;
     const card = sample("sample-input");
     const root = await render(<TasksTypographyScale factor={factor}>
       <DetailActionBar card={card} theme={theme} language="en" strings={BOARD_STRINGS.en.sidebar}
@@ -162,16 +193,16 @@ describe("phone sheet action size", () => {
     const buttons = root.findAllByType(Pressable);
     expect(buttons).toHaveLength(3);
     for (const button of buttons) {
-      expect(style(button, false)).toMatchObject({ height: Math.round(40 * factor), borderRadius: 10 });
+      expect(style(button, false)).toMatchObject({ height: Math.round((tablet ? 36 : 40) * factor), borderRadius: tablet ? 8 : 10 });
       expect(style(button, true).backgroundColor).not.toBe(style(button, false).backgroundColor);
       const icons = button.findAll((node) => (node.type as unknown) === "Icon");
-      expect(icons.every((icon) => icon.props.size === 16)).toBe(true);
+      expect(icons.every((icon) => icon.props.size === (tablet ? 14 : 16))).toBe(true);
     }
     const open = buttons.find((button) => button.props.testID === "detail-bar-open")!;
-    expect(style(open, false).width).toBe(Math.round(40 * factor));
+    expect(style(open, false).width).toBe(Math.round((tablet ? 36 : 40) * factor));
     const allow = buttons.find((button) => button.props.accessibilityLabel === "Allow")!;
-    expect(style(allow, false).paddingHorizontal).toBe(12);
+    expect(style(allow, false).paddingHorizontal).toBe(tablet ? 10 : 12);
     const label = allow.find((node) => (node.type as unknown) === "Text");
-    expect(StyleSheet.flatten(label.props.style).fontSize).toBe(Math.round(12 * factor));
+    expect(StyleSheet.flatten(label.props.style).fontSize).toBe(Math.round((tablet ? 11 : 12) * factor));
   });
 });
