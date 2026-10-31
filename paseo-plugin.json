@@ -20,7 +20,7 @@
     "https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--assets--listing--10-settings.png"
   ],
   "requirements": {
-    "paseo": ">=0.12.0"
+    "paseo": ">=0.14.0"
   },
   "build": [
     [

@@ -67,7 +67,7 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 paseo plugin install RoundRedDot/better-paseo
 ```
 
-Paseo `>=0.12.0` is required; the plugin is developed and measured against Paseo 0.13.0. See
+Paseo `>=0.14.0` is required; the published performance measurements use Paseo 0.13.0. See
 [Compatibility](#compatibility) for older and pre-release versions. Open **Settings → Plugins →
 Better Paseo** (the page is titled **Settings**) to configure it. Paseo installs plugins from
 GitHub and builds the client on install, so pull a new version with:
@@ -1154,16 +1154,9 @@ developers in [`docs/plugin-sdk-limitations.md`](docs/plugin-sdk-limitations.md)
 
 ### Compatibility
 
-Better Paseo is developed and measured against Paseo 0.13.0 and installs on Paseo 0.12.0 and
-later.
-
-- **Paseo 0.11 and earlier.** The plugin no longer installs there: iOS prose uses native
-  Markdown components that need Paseo 0.12.0 or newer, so the manifest requires `>=0.12.0`.
-  Since Paseo 0.11, Oh My Pi's `eval` and `ask` calls reach plugins through Paseo's plain-text
-  mapping rather than under their own names.
-- **Paseo 0.13 betas.** The betas drop the paced reveal plugins use for streaming text, so live
-  replies and thoughts are drawn whole as they arrive instead of revealed smoothly. Paseo 0.13.0
-  brings it back for plugins ([#7780](https://github.com/getpaseo/paseo/pull/7780)).
+Better Paseo requires Paseo 0.14.0 or later. The Tasks board uses its background-workspace
+discovery API to keep a parent running while its hidden child tasks are still active.
+The performance measurements above were made on Paseo 0.13.0 and have not been repeated on 0.14.0.
 
 ---
 

@@ -183,14 +183,14 @@ interface ProjectIconValue {
  * board's attention subscription still lists those.
  */
 const STATUS_KEY = "active-status";
-const STATUS_FILTER: PaseoAgentListOptions["filter"] = { statuses: ["running", "initializing", "error"] };
+const STATUS_FILTER: PaseoAgentListOptions["filter"] = { statuses: ["running", "initializing", "error"], includeBackground: true };
 /**
  * The unread and failed agents, opened only while a board is open or the
  * sidebar shows its review count. Unread agents are most of a busy daemon's
  * active records, and each one is a full snapshot.
  */
 const ATTENTION_KEY = "active-attention";
-const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true };
+const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true, includeBackground: true };
 const DONE_SUBSCRIPTION = "done-first";
 const PAGE_SIZE = 50;
 const DONE_SORT: PaseoAgentListOptions["sort"] = [{ key: "updated_at", direction: "desc" }];
@@ -954,8 +954,15 @@ function createStore(api: PaseoApi): TaskStore {
 
   const memberSetsContaining = (id: string) => [...sourceMembers.entries()].filter(([, members]) => members.has(id));
 
+  function hasActiveBackgroundChildren(id: string): boolean {
+    return [...childrenByParent.get(id) ?? []].some((childId) => {
+      const child = cards.get(childId) ?? baseCards.get(childId);
+      return child !== undefined && inBackgroundWorkspace(child) && (child.status === "running" || child.status === "needs_input");
+    });
+  }
+
   function dropIfUnreferenced(id: string) {
-    if (memberSetsContaining(id).length > 0) return;
+    if (memberSetsContaining(id).length > 0 || hasActiveBackgroundChildren(id)) return;
     removeRecord(id);
   }
 
@@ -971,6 +978,11 @@ function createStore(api: PaseoApi): TaskStore {
     if (!workspacesListed || !workspaceId) return false;
     const workspace = workspaces.get(workspaceId);
     return !workspace || Boolean(workspace.archivingAt);
+  }
+
+  /** Background agents contribute to their parent's state, but never get standalone cards. */
+  function inBackgroundWorkspace(card: TaskCard): boolean {
+    return Boolean(card.location.workspaceId && workspaces.get(card.location.workspaceId)?.background);
   }
 
   /** Archived itself, or of an archived workspace: the archived lane's, and no card while it is off. */
@@ -1104,6 +1116,7 @@ function createStore(api: PaseoApi): TaskStore {
       return;
     }
     const oldParent = parentByChild.get(agent.id) ?? null;
+    const wasActive = cards.get(agent.id)?.status === "running" || cards.get(agent.id)?.status === "needs_input";
     // A turn seen ending: the update that ends it carries its end. The agent
     // can leave the running subscription before it joins another, so its
     // start outlives its entry.
@@ -1136,6 +1149,7 @@ function createStore(api: PaseoApi): TaskStore {
     if (newParent) affected.add(newParent);
     for (const childId of childrenByParent.get(agent.id) ?? []) affected.add(childId);
     for (const affectedId of affected) refreshFinalCard(affectedId);
+    if (wasActive && oldParent) dropIfUnreferenced(oldParent);
     // A prompt after the failure is the person acting on it: the parent may go.
     const subagentMembers = sourceMembers.get(SUBAGENT_KEY);
     if (subagentsByParent.has(agent.id) && subagentMembers) {
@@ -1156,6 +1170,7 @@ function createStore(api: PaseoApi): TaskStore {
     baseCards.delete(id);
     cards.delete(id);
     for (const affectedId of affected) refreshFinalCard(affectedId);
+    if (oldParent) dropIfUnreferenced(oldParent);
     notify();
   }
 
@@ -1768,12 +1783,11 @@ function createStore(api: PaseoApi): TaskStore {
    * (`observeEvents`), `workspaces.subscribe` relays only this API's own
    * lists, and `useWorkspace` reads one id with no git, pull request or
    * labels, outside screens and sidebar items at that. It runs with the
-   * attention list: an unread agent whose workspace was archived keeps its
-   * attention for good, and only the workspace list tells it from a live one.
+   * status list to distinguish background tasks and archived workspaces.
    */
   async function startWorkspaceSubscription(run: Run, replace = false): Promise<Landing> {
     try {
-      const result = await api.workspaces.list({ subscribe: {} });
+      const result = await api.workspaces.list({ filter: { includeBackground: true }, subscribe: {} });
       if (!isCurrent(run)) {
         await result.subscription?.release();
         return "stale";
@@ -2005,19 +2019,19 @@ function createStore(api: PaseoApi): TaskStore {
   function startBase() {
     const run: Run = { generation, tier: "base", tierRun: baseRun };
     statusReady = false;
+    workspacesReady = false;
+    workspacesListed = false;
     sourceMembers.set(STATUS_KEY, new Set());
     void openAgentSubscription(STATUS_KEY, activeOptions(STATUS_FILTER), run);
+    void startWorkspaceSubscription(run);
     scheduleSubagents(0);
   }
 
   function startAttention() {
     const run: Run = { generation, tier: "attention", tierRun: ++attentionRun };
     attentionReady = false;
-    workspacesReady = false;
-    workspacesListed = false;
     sourceMembers.set(ATTENTION_KEY, new Set());
     void openAgentSubscription(ATTENTION_KEY, activeOptions(ATTENTION_FILTER), run);
-    void startWorkspaceSubscription(run);
   }
 
   function startBoard() {
@@ -2034,7 +2048,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   /** The done lane's list; with the archived lane it includes archived agents, which sort among the rest. */
   function doneFilter(): PaseoAgentListOptions["filter"] {
-    return archivedAsked ? { statuses: ["idle", "closed"], includeArchived: true } : { statuses: ["idle", "closed"] };
+    return { statuses: ["idle", "closed"], includeBackground: true, ...(archivedAsked ? { includeArchived: true } : null) };
   }
 
   /**
@@ -2113,21 +2127,19 @@ function createStore(api: PaseoApi): TaskStore {
 
   /**
    * Neither a board nor the review count left: the records only the
-   * attention list held go, and the rest lose their workspace details.
+   * attention list held go. Workspaces stay so the running count can still
+   * distinguish hidden background tasks.
    */
   function stopAttention() {
     attentionRun += 1;
     stopSubscription(ATTENTION_KEY);
-    stopSubscription("workspaces");
     sourceMembers.delete(ATTENTION_KEY);
     attentionReady = false;
-    workspacesReady = false;
-    workspacesListed = false;
-    workspaces.clear();
     batchUpdates(() => {
       for (const id of [...entries.keys()]) dropIfUnreferenced(id);
       for (const [id, entry] of entries) {
-        baseCards.set(id, buildBaseCard(entry, undefined, undefined, colorNames, modelCatalogs.get(entry.agent.provider), undefined));
+        const workspace = entry.agent.workspaceId ? workspaces.get(entry.agent.workspaceId) : undefined;
+        baseCards.set(id, buildBaseCard(entry, workspace, undefined, colorNames, modelCatalogs.get(entry.agent.provider), undefined));
       }
       for (const id of entries.keys()) refreshFinalCard(id);
       notify();
@@ -2138,7 +2150,7 @@ function createStore(api: PaseoApi): TaskStore {
    * The last board closed: back to the counts' subscriptions. Records only
    * the board listed go, and the rest lose the project details that would go
    * stale; a board opened later reads them again. The workspaces stay with
-   * the attention list.
+   * the status list.
    */
   function stopBoard() {
     boardRun += 1;
@@ -2217,7 +2229,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   function upsertWorkspacesOptions(): WorkspaceOption[] {
     return [...workspaces.values()]
-      .filter((workspace) => !workspace.archivingAt)
+      .filter((workspace) => !workspace.background && !workspace.archivingAt)
       .map((workspace) => {
         const project = projects.get(workspace.projectId);
         const icon = projectIcons.get(workspace.projectId);
@@ -2259,6 +2271,7 @@ function createStore(api: PaseoApi): TaskStore {
     const cutoff = doneWindowMs(options.doneWindow);
     const now = Date.now();
     const filteredCards = [...cards.values()].filter((card) => {
+      if (inBackgroundWorkspace(card)) return false;
       if (!isHistoryLane(card.lane)) return true;
       if (!options.includeDone || (card.lane === "archived" && !showArchived)) return false;
       if (cutoff === null) return true;
@@ -2268,6 +2281,14 @@ function createStore(api: PaseoApi): TaskStore {
       return Number.isFinite(at) && now - at <= cutoff;
     });
     const byId = new Map(filteredCards.map((card) => [card.id, card]));
+    // Hidden descendants still need their actual cards for Stop and nested task details.
+    for (const card of byId.values()) {
+      for (const child of card.children) {
+        if (byId.has(child.id)) continue;
+        const hidden = cards.get(child.id);
+        if (hidden && inBackgroundWorkspace(hidden)) byId.set(hidden.id, hidden);
+      }
+    }
     const lanes = {} as Record<LaneId, LaneModel>;
     for (const lane of LANE_ORDER) {
       const laneCards = filteredCards.filter((card) => card.lane === lane);
@@ -2289,7 +2310,7 @@ function createStore(api: PaseoApi): TaskStore {
     // Every label Paseo defines or a live workspace carries, then any other on a card.
     const labelsByName = new Map<string, TaskLabel>([...colorNames].map(([name, color]) => [name, { name, color }]));
     for (const workspace of workspaces.values()) {
-      if (workspace.archivingAt) continue;
+      if (workspace.archivingAt || workspace.background) continue;
       for (const name of workspace.labels ?? []) if (!labelsByName.has(name)) labelsByName.set(name, { name, color: fallbackLabelColor(name) });
     }
     for (const card of filteredCards) {
@@ -2336,6 +2357,7 @@ function createStore(api: PaseoApi): TaskStore {
         if (card.lane === "needs_input" || card.lane === "running" || (card.lane === "review" && reviewKnown)) lanes[card.lane].cards.push(card);
       };
       for (const card of cards.values()) {
+        if (inBackgroundWorkspace(card)) continue;
         add(card);
         // A provider subagent's card counts in its lane, as the board draws it (`withSubagentCards`).
         if (card.lane !== "archived" && card.children.some((child) => child.kind === "provider")) {
@@ -2352,9 +2374,9 @@ function createStore(api: PaseoApi): TaskStore {
         countsCache.needsInput !== needsInput ||
         countsCache.running !== running ||
         countsCache.review !== review ||
-        countsCache.ready !== statusReady
+        countsCache.ready !== (statusReady && workspacesReady)
       ) {
-        countsCache = { needsInput, running, review, ready: statusReady };
+        countsCache = { needsInput, running, review, ready: statusReady && workspacesReady };
       }
     }
     return countsCache;
@@ -2400,7 +2422,7 @@ function createStore(api: PaseoApi): TaskStore {
    * child before its parent.
    */
   function queueParentRead(id: string) {
-    if (resolvedParents.has(id) || parentReads.has(id)) return;
+    if ((resolvedParents.has(id) && !hasActiveBackgroundChildren(id)) || parentReads.has(id)) return;
     parentReads.add(id);
     if (parentReads.size > 1) return;
     const run = generation;
@@ -2408,7 +2430,12 @@ function createStore(api: PaseoApi): TaskStore {
       const ids = [...parentReads];
       parentReads.clear();
       if (run !== generation) return;
-      for (const parentId of ids) if (!entries.has(parentId)) resolveParent(parentId);
+      for (const parentId of ids) {
+        if (entries.has(parentId)) continue;
+        // Active descendants keep a parent on the board even outside the done pages.
+        if (hasActiveBackgroundChildren(parentId)) void refreshParent(parentId).catch(subscriptionError);
+        else resolveParent(parentId);
+      }
     });
   }
 
@@ -2428,6 +2455,7 @@ function createStore(api: PaseoApi): TaskStore {
       const archived = result ? isArchived(result.agent) : null;
       if (run !== generation || !result) return archived;
       resolvedParents.set(id, { title: result.agent.title?.trim() || null, archived });
+      if (!archived && hasActiveBackgroundChildren(id)) updateRecord(result.agent, result.project ?? null);
       for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
       notify();
       return archived;
@@ -2574,11 +2602,11 @@ function createStore(api: PaseoApi): TaskStore {
     if (statusReady) {
       const run: Run = { generation, tier: "base", tierRun: ++baseRun, refresh: token };
       landings.push(openAgentSubscription(STATUS_KEY, activeOptions(STATUS_FILTER), run, () => {}));
+      if (workspacesReady) landings.push(startWorkspaceSubscription(run, true));
     }
-    if (attentionConsumers > 0 && attentionReady && workspacesReady) {
+    if (attentionConsumers > 0 && attentionReady) {
       const run: Run = { generation, tier: "attention", tierRun: ++attentionRun, refresh: token };
       landings.push(openAgentSubscription(ATTENTION_KEY, activeOptions(ATTENTION_FILTER), run, () => {}));
-      landings.push(startWorkspaceSubscription(run, true));
     }
     if (doneConsumers > 0 && doneReady && !doneReloading) {
       const run: Run = { generation, tier: "done", tierRun: ++doneRun, refresh: token };
@@ -2733,8 +2761,8 @@ export function releaseTasksHolds(): void {
 
 /**
  * The sidebar's counts. Alone it opens the agents in flight (running,
- * initializing, error), and with `review` the unread and failed ones too;
- * nothing else: no workspaces, projects, labels or model names. It counts
+ * initializing, error), their workspace visibility, and with `review` the
+ * unread and failed ones too; no projects, labels or model names. It counts
  * the cards an unfiltered board draws, a provider subagent's included.
  * Re-renders only when a number changes.
  */

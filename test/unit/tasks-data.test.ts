@@ -1525,7 +1525,7 @@ describe("Tasks data store", () => {
 
     const permission = { id: "p", provider: "claude", name: "Bash", kind: "tool" as const };
 
-    it("open one status subscription and nothing the board alone needs", async () => {
+    it("opens status and workspace subscriptions to distinguish background tasks", async () => {
       const fake = createFakePaseo({
         agents: [
           activeAgent("running", { status: "running" }),
@@ -1541,9 +1541,9 @@ describe("Tasks data store", () => {
       const counts = await mountCounts(fake);
       try {
         expect(counts.current).toEqual({ needsInput: 1, running: 1, review: 0, ready: true });
-        expect(fake.calls.map((call) => call.method)).toEqual(["agents.list"]);
-        expect(fake.calls[0]?.input).toEqual({ filter: { statuses: ["running", "initializing", "error"] }, subscribe: {} });
-        expect(fake.openSubscriptions()).toBe(1);
+        expect(fake.calls.map((call) => call.method)).toEqual(["agents.list", "workspaces.list"]);
+        expect(fake.calls[0]?.input).toEqual({ filter: { statuses: ["running", "initializing", "error"], includeBackground: true }, subscribe: {} });
+        expect(fake.openSubscriptions()).toBe(2);
       } finally {
         counts.unmount();
       }
@@ -1613,7 +1613,7 @@ describe("Tasks data store", () => {
       }
     });
 
-    it("share the board's cards while it is open and drop back to one subscription after", async () => {
+    it("shares the board's cards while open and keeps status and workspaces after", async () => {
       const fake = createFakePaseo({
         agents: [
           activeAgent("running", { status: "running" }),
@@ -1633,7 +1633,7 @@ describe("Tasks data store", () => {
         expect(counts.current).toEqual({ needsInput: 1, running: 1, review: 1, ready: true });
         expect(fake.openSubscriptions()).toBe(5);
         board.unmount();
-        expect(fake.openSubscriptions()).toBe(1);
+        expect(fake.openSubscriptions()).toBe(2);
         expect(counts.current).toEqual({ needsInput: 0, running: 1, review: 0, ready: true });
         await act(async () => {
           fake.upsertAgent(activeAgent("second", { status: "running" }));
@@ -1646,7 +1646,7 @@ describe("Tasks data store", () => {
           expect(reopened.current.ready).toBe(true);
           expect(reopened.current.lanes.review.cards.map((card) => card.id)).toEqual(["unread"]);
           expect(reopened.current.byId.get("second")?.location.branch).toBe("feature/tasks");
-          expect(fake.calls.slice(methods.length).map((call) => call.method).sort()).toEqual(["agents.list", "agents.list", "projects.list", "workspaces.list"]);
+          expect(fake.calls.slice(methods.length).map((call) => call.method).sort()).toEqual(["agents.list", "agents.list", "projects.list"]);
         } finally {
           reopened.unmount();
         }
@@ -1671,11 +1671,11 @@ describe("Tasks data store", () => {
       try {
         expect(counts.current).toEqual({ needsInput: 1, running: 1, review: 2, ready: true });
         expect(fake.calls.map((call) => call.input)).toEqual([
-          { filter: { statuses: ["running", "initializing", "error"] }, subscribe: {} },
-          { filter: { requiresAttention: true }, subscribe: {} },
-          { subscribe: {} },
+          { filter: { statuses: ["running", "initializing", "error"], includeBackground: true }, subscribe: {} },
+          { filter: { includeBackground: true }, subscribe: {} },
+          { filter: { requiresAttention: true, includeBackground: true }, subscribe: {} },
         ]);
-        expect(fake.calls.map((call) => call.method)).toEqual(["agents.list", "agents.list", "workspaces.list"]);
+        expect(fake.calls.map((call) => call.method)).toEqual(["agents.list", "workspaces.list", "agents.list"]);
         expect(fake.openSubscriptions()).toBe(3);
         const board = await mountTasks(fake);
         expect(board.current.ready).toBe(true);
@@ -1713,7 +1713,7 @@ describe("Tasks data store", () => {
       };
       const counts = await mountCounts(fake, true);
       try {
-        expect(counts.current).toEqual({ needsInput: 0, running: 0, review: 0, ready: true });
+        expect(counts.current).toEqual({ needsInput: 0, running: 0, review: 0, ready: false });
         await act(async () => {
           releaseWorkspaces();
           for (let index = 0; index < 8; index += 1) await Promise.resolve();

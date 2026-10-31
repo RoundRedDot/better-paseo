@@ -184,9 +184,9 @@ afterEach(async () => {
 describe("Tasks board prefetch", () => {
   it("opens nothing beyond the counts until the user shows intent", async () => {
     await mountSidebar();
-    expect(boardCalls()).toEqual(["agents.list", "agents.list", "workspaces.list"]);
+    expect(boardCalls()).toEqual(["agents.list", "workspaces.list", "agents.list"]);
     await advance(60_000);
-    expect(boardCalls()).toEqual(["agents.list", "agents.list", "workspaces.list"]);
+    expect(boardCalls()).toEqual(["agents.list", "workspaces.list", "agents.list"]);
     expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
   });
 

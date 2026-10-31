@@ -43,7 +43,7 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 paseo plugin install RoundRedDot/better-paseo
 ```
 
-需要 Paseo `>=0.12.0`，开发与测量基于 Paseo 0.13.0。更早的版本和测试版见[兼容性](#兼容性)。在 **设置 → 插件 → Better Paseo**（页面标题为 **设置**）中配置。Paseo 从 GitHub 安装插件，并在安装时构建客户端；更新到新版本：
+需要 Paseo `>=0.14.0`，文中的性能测量基于 Paseo 0.13.0。版本要求见[兼容性](#兼容性)。在 **设置 → 插件 → Better Paseo**（页面标题为 **设置**）中配置。Paseo 从 GitHub 安装插件，并在安装时构建客户端；更新到新版本：
 
 ```bash
 paseo plugin update better-paseo        # 列出更新并询问
@@ -798,10 +798,8 @@ Better Paseo 只能画 Paseo 插件 SDK 允许插件画的东西。下面列出�
 
 ### 兼容性
 
-Better Paseo 基于 Paseo 0.13.0 开发和测量，可在 Paseo 0.12.0 及以后安装。
-
-- **Paseo 0.11 及更早。** 插件已无法在这些版本上安装：iOS 正文用到的原生 Markdown 组件需要 Paseo 0.12.0 或更新版本，所以 manifest 要求 `>=0.12.0`。从 Paseo 0.11 起，Oh My Pi 的 `eval` 和 `ask` 调用经过 Paseo 的纯文本转换到达插件，不再以原工具名到达。
-- **Paseo 0.13 测试版。** 测试版去掉了插件用来逐步显示流式文字的接口，所以实时回复和思考按到达的内容整段显示，不再平滑展开。Paseo 0.13.0 为插件恢复了这个接口（[#7780](https://github.com/getpaseo/paseo/pull/7780)）。
+Better Paseo 需要 Paseo 0.14.0 或更新版本。任务看板使用该版本的后台 workspace 查询 API，在隐藏的子任务仍运行时保持父任务为运行中。
+上文的性能测量基于 Paseo 0.13.0，尚未在 0.14.0 上重新测量。
 
 ---
 

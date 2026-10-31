@@ -1,7 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { at, createFakePaseo, makeAgent } from "./helpers/fake-paseo";
+import { at, createFakePaseo, makeAgent, makeWorkspace } from "./helpers/fake-paseo";
 
 describe("fake PaseoApi", () => {
+  it("omits background workspaces and their agents unless explicitly included, on snapshots and live updates", async () => {
+    const hidden = makeWorkspace({ id: "hidden", background: true });
+    const agent = makeAgent({ id: "child", workspaceId: hidden.id, status: "running" });
+    const fake = createFakePaseo({ agents: [agent], workspaces: [hidden] });
+    expect((await fake.paseo.agents.list()).entries).toEqual([]);
+    expect((await fake.paseo.workspaces.list()).entries).toEqual([]);
+    expect((await fake.paseo.workspaces.list({ filter: { includeBackground: true } })).entries).toEqual([hidden]);
+    const defaultList = await fake.paseo.agents.list({ subscribe: {} });
+    const inclusiveList = await fake.paseo.agents.list({ filter: { includeBackground: true }, subscribe: {} });
+    const messages: unknown[] = [];
+    defaultList.subscription.subscribe({ snapshot() {}, update: (message) => messages.push(message) });
+    inclusiveList.subscription.subscribe({ snapshot() {}, update: (message) => messages.push(message) });
+    try {
+      expect(inclusiveList.entries.map(({ agent }) => agent.id)).toEqual(["child"]);
+      fake.upsertAgent({ ...agent, updatedAt: at(11) });
+      expect(messages).toEqual([
+        expect.objectContaining({ payload: expect.objectContaining({ kind: "remove", agentId: "child" }) }),
+        expect.objectContaining({ payload: expect.objectContaining({ kind: "upsert", agent: expect.objectContaining({ id: "child" }) }) }),
+      ]);
+    } finally {
+      await defaultList.subscription.release();
+      await inclusiveList.subscription.release();
+    }
+  });
+
   it("filters, sorts and pages agents", async () => {
     const fake = createFakePaseo({
       agents: [
