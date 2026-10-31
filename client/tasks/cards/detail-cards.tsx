@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useEffect, useRef, useState } from "react"
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
-import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
+import { Icon, ScrollView as SheetScrollView, useToast } from "@getpaseo/plugin/client/react-native";
 import { revealPathRpc } from "../../../shared/file-rpc";
 import { openLink } from "../../components/open-link";
 import { MarkdownView } from "../../components/markdown/markdown-view";
@@ -281,7 +281,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     return (
       <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), { flex: 1, minHeight: 0 }]}>
         {props.scrollHeader ? (
-          <ScrollView
+          <SheetScrollView
             key={card.id}
             ref={tabScroll}
             style={{ flex: 1 }}
@@ -318,7 +318,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
                 {(id === "info" ? info : messages).map((section, index) => sectionView(section, index > 0))}
               </View>
             ))}
-          </ScrollView>
+          </SheetScrollView>
         ) : (
           <>
             <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} />
