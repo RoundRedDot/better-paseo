@@ -7,6 +7,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, laneTitle, TasksTypography
 import { StatusIcon, taskTokens, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, isHistoryLane, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { useHover } from "../../ui/use-hover";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
 import { BoardEmptyState } from "./empty-state";
@@ -985,6 +986,7 @@ function FloatingSidebar(props: {
   const opacity = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   const latest = useRef(props);
   latest.current = props;
+  const handleRef = useRef<View>(null);
   const [dragging, setDragging] = useState(false);
   const pan = useMemo(() => {
     let touchX = 0;
@@ -998,11 +1000,14 @@ function FloatingSidebar(props: {
         touchX = event.nativeEvent.pageX;
         return false;
       },
-      onStartShouldSetPanResponder: () => false,
+      // This strip only resizes: take the touch before the host's native pan sees a move.
+      onStartShouldSetPanResponder: () => !!latest.current.resize,
       onMoveShouldSetPanResponder: (_event, gesture) => !!latest.current.resize && Math.abs(gesture.dx) > 4 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         startWidth = latest.current.width;
+        // iOS releases this native gesture lock when the touch ends.
+        holdHostGestures(handleRef.current);
         setDragging(true);
       },
       onPanResponderMove: (event) => latest.current.resize?.onDrag(widthAt(event)),
@@ -1051,6 +1056,8 @@ function FloatingSidebar(props: {
     >
       {props.resize ? (
         <View
+          ref={handleRef}
+          collapsable={false}
           {...pan.panHandlers}
           accessible
           accessibilityRole="adjustable"

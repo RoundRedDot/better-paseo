@@ -1892,6 +1892,60 @@ describe("Tasks board, desktop", () => {
     expect(StyleSheet.flatten(hostsById("sidebar-stat-label-running")[0]!.props.style).fontSize).toBe(Math.round(12 * base / 14));
   });
 
+  it.each(["release", "cancel"])("iPad owns a resize touch before its first move and can drag again after %s", async (finish) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    const { TurboModuleRegistry } = await import("react-native");
+    const handleSetJSResponder = vi.fn();
+    const flushOperations = vi.fn();
+    const module = vi.spyOn(TurboModuleRegistry, "get").mockImplementation(((name: string) =>
+      name === "RNGestureHandlerModule" ? { handleSetJSResponder, flushOperations } : null) as typeof TurboModuleRegistry.get);
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(900);
+      toggleSidebarControl();
+      const handle = () => hostsById("floating-sidebar-resize")[0]!;
+      const panel = () => hostsById("sidebar-floating")[0]!;
+      const width = () => StyleSheet.flatten(panel().props.style).width;
+      const event = (pageX: number) => ({ nativeEvent: { pageX } });
+      const mountedPanel = panel();
+      const mountedHandle = handle();
+      // The host's native right swipe can activate before JS receives its first move.
+      act(() => {
+        handle().props.onStartShouldSetPanResponderCapture(event(560));
+        expect(handle().props.onStartShouldSetPanResponder()).toBe(true);
+        handle().props.onPanResponderGrant();
+      });
+      expect(handleSetJSResponder).toHaveBeenCalledWith(expect.any(Number), true);
+      expect(flushOperations).toHaveBeenCalledTimes(1);
+      expect(width()).toBe(340);
+      for (const [x, expected] of [[600, 300], [660, 240], [700, 200], [740, 200], [680, 220]] as const) {
+        act(() => handle().props.onPanResponderMove(event(x)));
+        expect(width()).toBe(expected);
+        expect(panel()).toBe(mountedPanel);
+        expect(handle()).toBe(mountedHandle);
+        expect(handle().props.onPanResponderTerminationRequest()).toBe(false);
+      }
+      act(() => {
+        if (finish === "release") handle().props.onPanResponderRelease(event(680));
+        else handle().props.onPanResponderTerminate();
+      });
+      const saved = finish === "release" ? 220 : 340;
+      expect(width()).toBe(saved);
+      act(() => {
+        handle().props.onStartShouldSetPanResponderCapture(event(900 - saved));
+        expect(handle().props.onStartShouldSetPanResponder()).toBe(true);
+        handle().props.onPanResponderGrant();
+      });
+      expect(flushOperations).toHaveBeenCalledTimes(2);
+      act(() => handle().props.onPanResponderMove(event(900 - saved - 40)));
+      expect(width()).toBe(saved + 40);
+      act(() => handle().props.onPanResponderRelease(event(900 - saved - 40)));
+      expect(readSidebarPreference().floatingWidth).toBe(saved + 40);
+    } finally {
+      module.mockRestore();
+    }
+  });
+
   it("iPad drags the floating edge, clamps both ends, cancels and remembers a released width", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     act(() => { renderer = TestRenderer.create(screen(false)); });
