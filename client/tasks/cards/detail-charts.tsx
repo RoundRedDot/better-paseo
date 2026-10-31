@@ -14,7 +14,7 @@ import {
   timelineFractions,
   type ContextView,
   type StatusTone,
-  type SummaryTile,
+  type SummaryReadout,
   type Timeline,
   type TokenMix,
   type TokenPart,
@@ -372,24 +372,6 @@ export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touc
   );
 }
 
-/**
- * Text in runs a line may break between and nowhere else: each run its own
- * text in a wrapping row, so a narrow tile breaks a CJK label between its
- * words rather than leaving one character on a line of its own. A run wider than the row
- * still wraps inside itself.
- */
-function Runs(props: { runs: string[]; style: TextStyle }) {
-  return (
-    <View style={{ flexShrink: 1, flexDirection: "row", flexWrap: "wrap" }}>
-      {props.runs.map((run, index) => (
-        <Text key={index} style={props.style}>
-          {run}
-        </Text>
-      ))}
-    </View>
-  );
-}
-
 // ---- Activity --------------------------------------------------------------
 
 const LABEL_WIDTH = 96;
@@ -487,26 +469,75 @@ export function TimelineChart(props: { timeline: Timeline; liveColor: string; to
 
 // ---- Review and done -------------------------------------------------------
 
-/** Three cells: the last turn's length, the cost, the tokens; "—" when not reported. */
-export function SummaryTiles(props: { tiles: SummaryTile[]; tokens: TaskTokens; touch: boolean }) {
+/**
+ * One baseline row: each number with its caption beside it, in the sunk box.
+ * The row is measured, not the card: from 480 the captions name the whole fact
+ * and hairlines divide the clusters; from 300 they stay short and packed;
+ * below that they wrap between clusters, never inside one, so a number or a
+ * price does not ellipsize. Until a width arrives the short row is used.
+ */
+export function SummaryTiles(props: { tiles: SummaryReadout[]; tokens: TaskTokens; touch: boolean }) {
   const { tokens } = props;
   const colors = detailColors(tokens);
-  const small = F.sm;
+  const [width, onLayout] = useWidth();
+  const wide = width >= 480;
+  const wrap = width > 0 && width < 300;
   return (
-    <View testID="detail-summary" style={{ flexDirection: "row", gap: 1, borderWidth: 1, borderColor: tokens.border, borderRadius: 10, backgroundColor: tokens.border, overflow: "hidden" }}>
-      {props.tiles.map((tile) => (
-        <View key={tile.key} testID={`detail-summary-${tile.key}`} style={{ flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 10, gap: 2, backgroundColor: colors.sunk }}>
-          {/* Labels wrap rather than cut: a larger interface size or a narrow column leaves a tile little room. */}
-          <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 5 }}>
-            <View style={{ height: HOST_LINE.sm, justifyContent: "center" }}>
-              <Icon name={tile.icon} size={14} color={tokens.foregroundMuted} />
-            </View>
-            <Runs runs={tile.labelRuns} style={{ fontSize: small, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }} />
-          </View>
-          <Text numberOfLines={1} style={{ fontSize: F.lg, lineHeight: HOST_LINE.lg, fontWeight: "600", color: tile.value ? tokens.foreground : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+    <View
+      testID="detail-summary"
+      onLayout={onLayout}
+      style={{
+        flexDirection: "row",
+        alignItems: "baseline",
+        flexWrap: wrap ? "wrap" : "nowrap",
+        // Wrapped rows space by row only; a wrapped cluster keeps its own line.
+        rowGap: wrap ? 4 : 0,
+        columnGap: 0,
+        justifyContent: wide ? "space-between" : "flex-start",
+        borderWidth: 1,
+        borderColor: tokens.border,
+        borderRadius: 10,
+        backgroundColor: colors.sunk,
+        paddingVertical: 7,
+        paddingHorizontal: 12,
+      }}
+    >
+      {props.tiles.map((tile, index) => (
+        <View
+          key={tile.key}
+          testID={`detail-summary-${tile.key}`}
+          accessible
+          accessibilityLabel={tile.tip}
+          {...tipProps(tile.tip)}
+          style={{
+            flexDirection: "row",
+            alignItems: "baseline",
+            gap: 6,
+            flexShrink: 0,
+            marginRight: wide || index === props.tiles.length - 1 ? 0 : 14,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: F.lg,
+              lineHeight: HOST_LINE.lg,
+              fontWeight: tile.value !== null ? "600" : "500",
+              color: tile.value !== null ? tokens.foreground : tokens.foregroundMuted,
+              fontVariant: ["tabular-nums"],
+            }}
+          >
             {tile.value ?? "—"}
           </Text>
-          <Runs runs={tile.subRuns} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }} />
+          <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }}>
+            {wide ? tile.wide : tile.short}
+          </Text>
+          {/* The rule belongs to the cluster it follows, so space-between divides clusters, not rules. */}
+          {wide && index < props.tiles.length - 1 ? (
+            <View
+              testID="detail-summary-rule"
+              style={{ width: 1, height: 12, marginLeft: 16, alignSelf: "center", backgroundColor: tokens.border }}
+            />
+          ) : null}
         </View>
       ))}
     </View>

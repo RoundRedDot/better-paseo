@@ -152,13 +152,33 @@ const en = {
     lastTurn: (value: string) => `Last turn ${value}`,
     lastTurnTime: "Last turn",
     ended: (when: string) => `Ended ${when}`,
-    /** The same words cut where a narrow tile may break its line, so a CJK label breaks between its words, never before its last character. */
-    // English breaks at its spaces on its own: one run each.
-    runs: {
-      lastTurnTime: ["Last turn"],
-      ended: (when: string) => [`Ended ${when}`],
-      cacheShare: (share: string) => [`${share} cached`],
-    } as { lastTurnTime: string[]; ended(when: string): string[]; cacheShare(share: string): string[] },
+    /**
+     * One readout row: each number with its caption beside it. The short
+     * caption fits a phone or a narrow sidebar; the wide one names the whole
+     * fact. `tip` is the full sentence: the cluster's accessible name and the
+     * board's hover tip.
+     */
+    summaryReadout: {
+      turnShort: "Last turn",
+      turnWide: (ended: string) => `Last turn · ${ended}`,
+      turnMissingShort: "Last turn not reported",
+      turnMissingWide: "Last turn · Not reported",
+      turnTip: (value: string, when: string) => `Last turn ${value}, ended ${when}`,
+      turnMissingTip: "Last turn not reported",
+      turnOpenTip: (value: string) => `Last turn ${value}, not reported`,
+      costShort: "Total",
+      costWide: "Cost · Total",
+      costMissingShort: "Cost not reported",
+      costMissingWide: "Cost · Not reported",
+      costTip: (value: string) => `Cost ${value}, total`,
+      costMissingTip: "Cost not reported",
+      tokenShort: "Token",
+      tokenWide: (detail: string) => `Token · ${detail}`,
+      tokenMissingShort: "Token not reported",
+      tokenMissingWide: "Token · Not reported",
+      tokenTip: (value: string, detail: string) => `Token ${value}, ${detail}`,
+      tokenMissingTip: "Token not reported",
+    },
     totalCost: "Total cost",
     sessionTokens: "Total tokens",
     total: "Total",
@@ -368,10 +388,26 @@ const zh: CardStrings = {
     lastTurn: (value) => `上一轮 ${value}`,
     lastTurnTime: "上一轮耗时",
     ended: (when) => `${when}结束`,
-    runs: {
-      lastTurnTime: ["上一轮", "耗时"],
-      ended: (when) => [when, "结束"],
-      cacheShare: (share) => ["缓存占", ` ${share}`],
+    summaryReadout: {
+      turnShort: "上一轮",
+      turnWide: (ended) => `上一轮 · ${ended}`,
+      turnMissingShort: "上一轮未上报",
+      turnMissingWide: "上一轮 · 未上报",
+      turnTip: (value, when) => `上一轮耗时 ${value}，${when}结束`,
+      turnMissingTip: "上一轮耗时未上报",
+      turnOpenTip: (value) => `上一轮耗时 ${value}，未上报`,
+      costShort: "累计",
+      costWide: "费用 · 累计",
+      costMissingShort: "费用未上报",
+      costMissingWide: "费用 · 未上报",
+      costTip: (value) => `费用 ${value}，累计`,
+      costMissingTip: "费用未上报",
+      tokenShort: "Token",
+      tokenWide: (detail) => `Token · ${detail}`,
+      tokenMissingShort: "Token 未上报",
+      tokenMissingWide: "Token · 未上报",
+      tokenTip: (value, detail) => `Token ${value}，${detail}`,
+      tokenMissingTip: "Token 未上报",
     },
     totalCost: "累计费用",
     sessionTokens: "累计 token",

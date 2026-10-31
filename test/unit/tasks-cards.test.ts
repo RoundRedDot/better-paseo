@@ -116,6 +116,7 @@ import {
   type TaskCardViewProps,
 } from "../../client/tasks/cards";
 import { SpinnerRing, statusRingHolders } from "../../client/tasks/cards/status-icon";
+import { detailColors } from "../../client/tasks/cards/detail-charts";
 import { createTitleUpdateControl } from "../../client/tasks/actions/title-update";
 import type { TitleUpdateState } from "../../shared/title-generation";
 import { TagMark } from "../../client/tasks/cards/tag-mark";
@@ -3032,7 +3033,121 @@ describe("TaskDetailCards", () => {
     expect(hostByTestId(tree.root, "detail-branch").props.onPress).toBeUndefined();
     expect(texts(hostByTestId(tree.root, "detail-place"))).toEqual(["B", "better-paseo", "tasks-board · directory"]);
     expect(tree.root.findAll((node) => node.props.testID === "detail-open")).toEqual([]);
-    expect(texts(hostByTestId(tree.root, "detail-summary"))).toEqual(["Last turn", "18m", "Ended 2m ago", "Cost", "$1.84", "Total", "Token", "316k", "38% cached"]);
+    expect(texts(hostByTestId(tree.root, "detail-summary"))).toEqual(["18m", "Last turn", "$1.84", "Total", "316k", "Token"]);
+  });
+
+  it("draws the usage strip as one baseline row: number then caption, wide captions and hairlines from 480, wrapping only below 300", async () => {
+    const tokens = taskTokens(LIGHT);
+    const colors = detailColors(tokens);
+    const tree = await render(details(sample("sample-done"), {}, "en"));
+    const measure = (width: number) => act(async () => hostByTestId(tree.root, "detail-summary").props.onLayout({ nativeEvent: { layout: { width, height: 40 } } }));
+
+    // Until it is measured: the short captions, packed to the start, no hairline.
+    const short = hostByTestId(tree.root, "detail-summary");
+    expect(texts(short)).toEqual(["18m", "Last turn", "$1.84", "Total", "316k", "Token"]);
+    expect(flat(short.props.style)).toMatchObject({ flexDirection: "row", alignItems: "baseline", flexWrap: "nowrap", justifyContent: "flex-start", borderWidth: 1, borderColor: tokens.border, borderRadius: 10, backgroundColor: colors.sunk, paddingVertical: 7, paddingHorizontal: 12 });
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-summary-rule")).toHaveLength(0);
+    expect(icons(short)).toEqual([]);
+    const clusters = ["turn", "cost", "tokens"].map((key) => hostByTestId(short, `detail-summary-${key}`));
+    expect(clusters).toHaveLength(3);
+    for (const [index, expected] of [
+      { tip: "Last turn 18m, ended 2m ago", value: "18m" },
+      { tip: "Cost $1.84, total", value: "$1.84" },
+      { tip: "Token 316k, 38% cached", value: "316k" },
+    ].entries()) {
+      const node = clusters[index]!;
+      const [number, caption] = node.findAll((child) => (child.type as unknown) === "Text");
+      // The cluster is one accessibility element named by the whole sentence; on the web it is also the hover tip.
+      expect(node.props.accessible).toBe(true);
+      expect(node.props.accessibilityLabel).toBe(expected.tip);
+      // A cluster is a View, not a control.
+      expect(node.props.onPress).toBeUndefined();
+      expect(node.props.accessibilityRole).toBeUndefined();
+      expect(flat(node.props.style)).toMatchObject({ flexDirection: "row", alignItems: "baseline", gap: 6, flexShrink: 0 });
+      expect(flat(number!.props.style)).toMatchObject({ fontSize: 16, lineHeight: 22, fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] });
+      expect(number!.props.children).toBe(expected.value);
+      expect(number!.props.numberOfLines).toBeUndefined();
+      expect(flat(caption!.props.style)).toMatchObject({ fontSize: 12, lineHeight: 16, color: tokens.foregroundMuted });
+    }
+    expect(flat(clusters[0]!.props.style).marginRight).toBe(14);
+    expect(flat(clusters[1]!.props.style).marginRight).toBe(14);
+    expect(flat(clusters[2]!.props.style).marginRight).toBe(0);
+
+    // 536: the whole fact in each caption, spread across the box, a hairline between clusters.
+    await measure(536);
+    const wide = hostByTestId(tree.root, "detail-summary");
+    expect(texts(wide)).toEqual(["18m", "Last turn · Ended 2m ago", "$1.84", "Cost · Total", "316k", "Token · 38% cached"]);
+    expect(flat(wide.props.style).justifyContent).toBe("space-between");
+    // The strip's flex children are the three clusters and nothing else.
+    expect(wide.children.filter((child): child is ReactTestInstance => typeof child !== "string").map((child) => child.props.testID)).toEqual([
+      "detail-summary-turn",
+      "detail-summary-cost",
+      "detail-summary-tokens",
+    ]);
+    // Each rule sits inside the cluster it follows, so space-between divides clusters, not rules.
+    expect(flat(hostByTestId(hostByTestId(wide, "detail-summary-turn"), "detail-summary-rule").props.style)).toMatchObject({ width: 1, height: 12, marginLeft: 16, alignSelf: "center", backgroundColor: tokens.border });
+    expect(hostByTestId(hostByTestId(wide, "detail-summary-cost"), "detail-summary-rule").props.testID).toBe("detail-summary-rule");
+    expect(hostByTestId(wide, "detail-summary-tokens").findAll((node) => typeof node.type === "string" && node.props.testID === "detail-summary-rule")).toHaveLength(0);
+    // No margin between clusters when wide: the hairlines do the dividing.
+    for (const key of ["turn", "cost", "tokens"]) {
+      const node = hostByTestId(wide, `detail-summary-${key}`);
+      expect(flat(node.props.style).marginRight).toBe(0);
+      expect(node.props.accessible).toBe(true);
+    }
+
+    // 366 and 316: short captions, no hairlines, still one line.
+    for (const width of [366, 316]) {
+      await measure(width);
+      const strip = hostByTestId(tree.root, "detail-summary");
+      expect(texts(strip)).toEqual(["18m", "Last turn", "$1.84", "Total", "316k", "Token"]);
+      expect(flat(strip.props.style)).toMatchObject({ flexWrap: "nowrap", justifyContent: "flex-start" });
+      expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-summary-rule")).toHaveLength(0);
+      expect(flat(hostByTestId(strip, "detail-summary-turn").props.style).marginRight).toBe(14);
+      expect(flat(hostByTestId(strip, "detail-summary-tokens").props.style).marginRight).toBe(0);
+    }
+
+    // 236: wraps between clusters only; each cluster keeps its number and caption on one line.
+    await measure(236);
+    const narrow = hostByTestId(tree.root, "detail-summary");
+    expect(flat(narrow.props.style)).toMatchObject({ flexWrap: "wrap", rowGap: 4, columnGap: 0 });
+    for (const key of ["turn", "cost", "tokens"]) {
+      const style = flat(hostByTestId(narrow, `detail-summary-${key}`).props.style);
+      expect(style.flexShrink).toBe(0);
+      expect(style.flexWrap).toBeUndefined();
+    }
+
+    // On the web the same sentence is the strip's hover tip, through tipProps.
+    const platform = globalThis as { __rnMockOS?: string };
+    const saved = platform.__rnMockOS;
+    platform.__rnMockOS = "web";
+    try {
+      const web = await render(details(sample("sample-done"), {}, "en"));
+      expect(["turn", "cost", "tokens"].map((key) => hostByTestId(web.root, `detail-summary-${key}`).props.dataSet?.bctip)).toEqual([
+        "Last turn 18m, ended 2m ago",
+        "Cost $1.84, total",
+        "Token 316k, 38% cached",
+      ]);
+    } finally {
+      if (saved === undefined) delete platform.__rnMockOS;
+      else platform.__rnMockOS = saved;
+    }
+  });
+
+  it("keeps a missing turn, cost or token as an em dash slot with its own missing caption", async () => {
+    const done = sample("sample-done");
+    const bare = { ...done, usage: null, timing: { ...done.timing, lastTurnMs: null, lastTurnEndedAt: null } };
+    const tree = await render(details(bare, {}, "en"));
+    // The slots do not collapse: a later number cannot reflow the row.
+    expect(texts(hostByTestId(tree.root, "detail-summary"))).toEqual(["—", "Last turn not reported", "—", "Cost not reported", "—", "Token not reported"]);
+    const tokens = taskTokens(LIGHT);
+    for (const [key, tip] of [["turn", "Last turn not reported"], ["cost", "Cost not reported"], ["tokens", "Token not reported"]] as const) {
+      const cluster = hostByTestId(tree.root, `detail-summary-${key}`);
+      expect(cluster.props.accessible).toBe(true);
+      expect(cluster.props.accessibilityLabel).toBe(tip);
+      const value = cluster.findAll((node) => (node.type as unknown) === "Text")[0]!;
+      expect(value.props.children).toBe("—");
+      expect(flat(value.props.style)).toMatchObject({ fontWeight: "500", color: tokens.foregroundMuted });
+    }
   });
 
   it("lists the subtasks most urgent first, each with its status, time and meta line, a press showing one", async () => {

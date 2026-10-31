@@ -154,54 +154,51 @@ export function contextView(card: TaskCard): ContextView | null {
 
 // ---- Summary tiles (review and done) ---------------------------------------
 
-export interface SummaryTile {
+export interface SummaryReadout {
   key: "turn" | "cost" | "tokens";
-  icon: string;
-  label: string;
-  /** The label and sub cut into runs a line may break between; a single run when it needs no cut. */
-  labelRuns: string[];
-  subRuns: string[];
   /** Null when not reported: drawn as "—". */
   value: string | null;
-  sub: string;
+  /** Beside the number: names the fact when the row is narrow, and the whole fact when wide. */
+  short: string;
+  wide: string;
+  /** The full sentence: the cluster's accessible name and the board's hover tip. */
+  tip: string;
 }
 
-export function summaryTiles(card: TaskCard, now: number, language: TasksLanguage): SummaryTile[] {
+export function summaryTiles(card: TaskCard, now: number, language: TasksLanguage): SummaryReadout[] {
   const words = cardStrings(language).details;
+  const readout = words.summaryReadout;
   const ended = since(card.timing.lastTurnEndedAt, now);
   const mix = tokenMix(card);
   const cached = mix?.segments.find((segment) => segment.part === "cached");
   const cost = card.usage?.totalCostUsd ?? null;
-  const endedWhen = card.timing.lastTurnMs !== null && ended !== null ? formatRelative(ended, language) : null;
+  const turn = card.timing.lastTurnMs !== null ? formatDuration(card.timing.lastTurnMs) : null;
+  const endedWhen = turn !== null && ended !== null ? formatRelative(ended, language) : null;
   const cachedShare = cached ? `${Math.round(cached.share * 100)}%` : null;
-  const tokensSub = cachedShare ? words.cacheShare(cachedShare) : mix ? words.total : words.notReported;
+  const tokenDetail = cachedShare ? words.cacheShare(cachedShare) : words.total;
+  const spend = cost !== null ? formatCost(cost) : null;
+  const tokens = mix ? formatTokens(mix.total) : null;
   return [
     {
       key: "turn",
-      icon: "Hourglass",
-      label: words.lastTurnTime,
-      labelRuns: words.runs.lastTurnTime,
-      value: card.timing.lastTurnMs !== null ? formatDuration(card.timing.lastTurnMs) : null,
-      sub: endedWhen !== null ? words.ended(endedWhen) : words.notReported,
-      subRuns: endedWhen !== null ? words.runs.ended(endedWhen) : [words.notReported],
+      value: turn,
+      short: turn !== null ? readout.turnShort : readout.turnMissingShort,
+      wide: turn !== null && endedWhen !== null ? readout.turnWide(words.ended(endedWhen)) : readout.turnMissingWide,
+      tip: turn === null ? readout.turnMissingTip : endedWhen !== null ? readout.turnTip(turn, endedWhen) : readout.turnOpenTip(turn),
     },
     {
       key: "cost",
-      icon: "Coins",
-      label: words.cost,
-      labelRuns: [words.cost],
-      value: cost !== null ? formatCost(cost) : null,
-      sub: cost !== null ? words.total : words.notReported,
-      subRuns: [cost !== null ? words.total : words.notReported],
+      value: spend,
+      short: spend !== null ? readout.costShort : readout.costMissingShort,
+      wide: spend !== null ? readout.costWide : readout.costMissingWide,
+      tip: spend !== null ? readout.costTip(spend) : readout.costMissingTip,
     },
     {
       key: "tokens",
-      icon: "Layers",
-      label: "Token",
-      labelRuns: ["Token"],
-      value: mix ? formatTokens(mix.total) : null,
-      sub: tokensSub,
-      subRuns: cachedShare ? words.runs.cacheShare(cachedShare) : [tokensSub],
+      value: tokens,
+      short: tokens !== null ? readout.tokenShort : readout.tokenMissingShort,
+      wide: tokens !== null ? readout.tokenWide(tokenDetail) : readout.tokenMissingWide,
+      tip: tokens !== null ? readout.tokenTip(tokens, tokenDetail) : readout.tokenMissingTip,
     },
   ];
 }

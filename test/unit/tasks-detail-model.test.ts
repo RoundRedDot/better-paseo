@@ -8,6 +8,7 @@ import {
   formatShare,
   formatSpan,
   formatTurnClock,
+  summaryTiles,
   timeline,
   timelineFractions,
   tokenMix,
@@ -248,5 +249,42 @@ describe("details card model", () => {
     expect(timelineFractions([1, 1, 1, 1], 200)).toEqual([0.25, 0.25, 0.25, 0.25]);
     expect(timelineFractions([5], 300)).toEqual([1]);
     expect(timelineFractions([], 300)).toEqual([]);
+  });
+
+  it("names each usage number beside it: short captions in a narrow row, the whole fact when wide", () => {
+    const done = sample("sample-done");
+    expect(summaryTiles(done, NOW, "en").map((tile) => [tile.value, tile.short, tile.wide, tile.tip])).toEqual([
+      ["18m", "Last turn", "Last turn · Ended 2m ago", "Last turn 18m, ended 2m ago"],
+      ["$1.84", "Total", "Cost · Total", "Cost $1.84, total"],
+      ["316k", "Token", "Token · 38% cached", "Token 316k, 38% cached"],
+    ]);
+    expect(summaryTiles(done, NOW, "zh").map((tile) => [tile.value, tile.short, tile.wide, tile.tip])).toEqual([
+      ["18m", "上一轮", "上一轮 · 2 分钟前结束", "上一轮耗时 18m，2 分钟前结束"],
+      ["$1.84", "累计", "费用 · 累计", "费用 $1.84，累计"],
+      ["316k", "Token", "Token · 缓存占 38%", "Token 316k，缓存占 38%"],
+    ]);
+  });
+
+  it("keeps a missing usage value as a slot, with the noun in the caption", () => {
+    const done = sample("sample-done");
+    const bare = { ...done, usage: null, timing: { ...done.timing, lastTurnMs: null, lastTurnEndedAt: null } };
+    expect(summaryTiles(bare, NOW, "en").map((tile) => [tile.value, tile.short, tile.wide, tile.tip])).toEqual([
+      [null, "Last turn not reported", "Last turn · Not reported", "Last turn not reported"],
+      [null, "Cost not reported", "Cost · Not reported", "Cost not reported"],
+      [null, "Token not reported", "Token · Not reported", "Token not reported"],
+    ]);
+    expect(summaryTiles(bare, NOW, "zh").map((tile) => tile.short)).toEqual(["上一轮未上报", "费用未上报", "Token 未上报"]);
+  });
+
+  it("says a turn whose end was not recorded was not reported, keeping its length", () => {
+    const done = sample("sample-done");
+    const open = { ...done, timing: { ...done.timing, lastTurnEndedAt: null } };
+    const turn = summaryTiles(open, NOW, "en")[0]!;
+    expect(turn.value).toBe("18m");
+    expect(turn.short).toBe("Last turn");
+    // The wide caption has no end to name, so it falls back to the missing one.
+    expect(turn.wide).toBe("Last turn · Not reported");
+    expect(turn.tip).toBe("Last turn 18m, not reported");
+    expect(summaryTiles(open, NOW, "zh")[0]!.tip).toBe("上一轮耗时 18m，未上报");
   });
 });
