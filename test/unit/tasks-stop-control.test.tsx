@@ -112,7 +112,8 @@ describe("split Stop button", () => {
     expect(host(root, "task-card-stop-outline").findAll((node) => node.props.testID === "task-card-stop-menu")).toHaveLength(0);
     expect(flat(host(root, "task-card-stop")).overflow).toBeUndefined();
     await act(async () => button(root, "Stop").props.onHoverIn());
-    expect(flat(button(root, "Stop")).backgroundColor).not.toBe("transparent");
+    expect(flat(button(root, "Stop")).backgroundColor).toBe("transparent");
+    expect(flat(host(root, "task-card-stop-outline")).boxShadow).toBe(taskTokens(THEME).card.buttonShadowHover);
   });
 
   it.each(["ios", "android"])("shows an anchored modal above sibling cards and closes it on %s", async (os) => {

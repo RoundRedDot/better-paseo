@@ -4,8 +4,10 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text } from "../typography";
 import { panelChrome } from "../cards/panel";
+import { hoverFill, hoverScaleStyle, hoverShadowValue, hoverTransition } from "../cards/hover-lift";
 import { taskTokens } from "../cards/tokens";
 import { useHover } from "../../ui/use-hover";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { openToolbarDetailsLayer } from "../../web";
 import { SearchSpinner, useSearchCoverage } from "./search-loading";
 
@@ -38,6 +40,7 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
   const [unavailableWidth, setUnavailableWidth] = useState(0);
   const [failureWidth, setFailureWidth] = useState(0);
   const [position, setPosition] = useState({ left: 16, top: 100 });
+  const reduced = useReducedMotion();
   const window = useWindowDimensions();
   const { hovered, hoverProps } = useHover(anchor);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,6 +76,7 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
   }, [open]);
   if (!active || (!visible && !present) || !context) return null;
   const strings = context.strings;
+  const shadow = taskTokens(props.theme).card.buttonShadowHover;
   const colors = props.theme.colors;
   const danger = taskTokens(props.theme).isDark ? "#F85149" : "#CF222E";
   const retrying = counts.retrying > 0;
@@ -105,7 +109,7 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
     </View>)}
   </View>;
   return <Animated.View testID="search-coverage-items" ref={anchor} collapsable={false} {...(Platform.OS === "web" ? {} : hoverProps)} onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: 1, height: props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 32] }) : 28, opacity, zIndex: open ? 40 : 1 }}>
-    {counts.unavailable ? <Pressable testID="search-coverage-unavailable" accessibilityRole="button" accessibilityLabel={strings.unavailable(counts.unavailable)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={toggle} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: "100%", borderRadius: 7, backgroundColor: open || hovered ? colors.surface1 : "transparent" }}>
+    {counts.unavailable ? <Pressable testID="search-coverage-unavailable" accessibilityRole="button" accessibilityLabel={strings.unavailable(counts.unavailable)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={toggle} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: "100%", borderRadius: 7, backgroundColor: open ? colors.surface1 : hoverFill("transparent", colors.surface1, hovered || pressed, reduced), boxShadow: hoverShadowValue(shadow, hovered || pressed, reduced), ...hoverScaleStyle(hovered || pressed, reduced), ...hoverTransition(reduced) })}>
       <Icon name="MessageSquareOff" size={15} color={colors.foregroundMuted} />
       <Text numberOfLines={1} style={textStyle}>{squeeze ? counts.unavailable : strings.unavailable(counts.unavailable)}</Text>
       <Icon name="Info" size={14} color={colors.foregroundMuted} />

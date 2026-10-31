@@ -42,13 +42,15 @@ export function buttonOutline(color: string, sides: Partial<Record<Side, string 
   const colorOf = (side: Side) => (side in sides ? sides[side]! : color);
   const uniform = SIDES.every((side) => colorOf(side) === color);
   if (Platform.OS !== "web") {
-    if (uniform) return { borderWidth: BUTTON_LINE, borderColor: color };
-    return Object.fromEntries(
-      SIDES.flatMap((side) => {
-        const c = colorOf(side);
-        return c === null ? [[`border${CAP[side]}Width`, 0]] : [[`border${CAP[side]}Width`, BUTTON_LINE], [`border${CAP[side]}Color`, c]];
-      }),
-    ) as ViewStyle;
+    const border: ViewStyle = uniform
+      ? { borderWidth: BUTTON_LINE, borderColor: color }
+      : Object.fromEntries(
+          SIDES.flatMap((side) => {
+            const c = colorOf(side);
+            return c === null ? [[`border${CAP[side]}Width`, 0]] : [[`border${CAP[side]}Width`, BUTTON_LINE], [`border${CAP[side]}Color`, c]];
+          }),
+        ) as ViewStyle;
+    return shadow ? { ...border, boxShadow: shadow } : border;
   }
   const shadows = uniform
     ? [`inset 0 0 0 ${BUTTON_LINE}px ${color}`]
@@ -65,7 +67,7 @@ export const PANEL_RADIUS = 5;
 export interface BoardPalette {
   page: string;
   panel: string;
-  /** A ghost button's hover and press fill on the panel. */
+  /** The reduced-motion wash for a lane's collapse control. */
   panelHover: string;
 }
 

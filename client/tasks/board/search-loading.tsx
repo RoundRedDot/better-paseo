@@ -6,6 +6,7 @@ import type { BoardStrings } from "./strings";
 import { TaskText as Text, taskControlHeight, useTasksFontScale } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { useHover } from "../../ui/use-hover";
+import { hoverFill, hoverScaleStyle, hoverShadowValue, hoverTransition } from "../cards/hover-lift";
 import { taskTokens } from "../cards/tokens";
 import { tipProps } from "../cards/card-hints";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -145,12 +146,17 @@ export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme;
   const scale = useTasksFontScale();
   const size = !compact && Platform.OS === "web" ? taskControlHeight(24, scale) : compact ? 36 : 32;
   const iconSize = !compact && Platform.OS === "web" ? taskControlHeight(14, scale) : 16;
+  const reduced = useReducedMotion();
+  const shadow = taskTokens(theme).card.buttonShadowHover;
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);
   if (!context?.onFullConversationChange) return null;
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
     accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={toggle} hitSlop={4} {...hoverProps}
-    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: size / 2, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0, boxShadow: Platform.OS === "web" && hovered ? taskTokens(theme).card.buttonShadowHover : undefined }}>
+    style={({ pressed }) => {
+      const active = hovered || pressed;
+      return { flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: size / 2, backgroundColor: on ? theme.colors.surface2 : hoverFill(theme.colors.surface0, theme.colors.surface1, active, reduced), boxShadow: hoverShadowValue(shadow, active, reduced), ...hoverScaleStyle(active, reduced), ...hoverTransition(reduced) };
+    }}>
     <Icon icon={on ? FULL_TEXT_SEARCH_ICON : OUTLINE_SEARCH_ICON} size={iconSize} color={theme.colors.foreground} />
   </Pressable>;
 }

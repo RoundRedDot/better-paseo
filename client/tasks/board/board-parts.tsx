@@ -7,6 +7,7 @@ import type { DoneWindow } from "../../../shared/tasks-settings";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { hoverFill, hoverScaleStyle, hoverShadowValue, hoverTransition } from "../cards/hover-lift";
 import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
 import { SpinnerRing } from "../cards/status-icon";
 import { tipProps } from "../cards/card-hints";
@@ -110,6 +111,8 @@ export function Segments<T extends string>(props: {
 }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
+  const reduced = useReducedMotion();
+  const shadow = taskTokens(props.theme).card.buttonShadowHover;
   // Desktop: a Linear-style 28 pill with square-ish corners; phone: the prototype's round segments.
   const mark = props.mark;
   const outer = taskControlHeight(props.large ? 32 : 28, scale);
@@ -146,10 +149,12 @@ export function Segments<T extends string>(props: {
               minWidth: mark ? inner + 8 : undefined,
               paddingHorizontal: mark ? 6 : props.large ? 12 : 9,
               borderRadius: round(inner),
-              backgroundColor: on ? colors.surface2 : "transparent",
-              boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+              backgroundColor: on ? colors.surface2 : hoverFill("transparent", colors.surface1, hovered, reduced),
+              boxShadow: hoverShadowValue(shadow, hovered, reduced),
               alignItems: "center",
               justifyContent: "center",
+              ...hoverScaleStyle(hovered, reduced),
+              ...hoverTransition(reduced),
             })}
           >
             {mark ? (
@@ -222,6 +227,8 @@ export function LoadMoreRow(props: {
 }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
+  const reduced = useReducedMotion();
+  const shadow = taskTokens(props.theme).card.buttonShadowHover;
   const height = taskControlHeight(props.large ? 36 : 26, scale);
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingTop: props.large ? 4 : 6 }}>
@@ -232,17 +239,23 @@ export function LoadMoreRow(props: {
         accessibilityRole="button"
         disabled={props.loading}
         onPress={props.onPress}
-        style={(hovered) => ({
-          height,
-          paddingHorizontal: props.large ? 16 : 12,
-          borderRadius: height / 2,
-          borderWidth: HAIRLINE,
-          borderColor: colors.border,
-          backgroundColor: hovered ? colors.surface1 : colors.surface0,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 5,
-        })}
+        style={(hovered) => {
+          const active = hovered && !props.loading;
+          return {
+            height,
+            paddingHorizontal: props.large ? 16 : 12,
+            borderRadius: height / 2,
+            borderWidth: HAIRLINE,
+            borderColor: colors.border,
+            backgroundColor: hoverFill(colors.surface0, colors.surface1, active, reduced),
+            boxShadow: hoverShadowValue(shadow, active, reduced),
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 5,
+            ...hoverScaleStyle(active, reduced),
+            ...hoverTransition(reduced),
+          };
+        }}
       >
         {props.loading ? <Icon name="LoaderCircle" size={12} color={colors.foregroundMuted} /> : null}
         <Text style={{ fontSize: props.large ? F.base : F.sm, fontWeight: "500", color: props.loading ? colors.foregroundMuted : colors.foreground }}>
@@ -311,7 +324,8 @@ export function HoverPressable(
 ) {
   const { style, ...rest } = props;
   const { hovered, hoverProps } = useHover();
-  return <Pressable {...rest} {...hoverProps} style={style(hovered)} />;
+  // A phone has no hover: the press is the same active state.
+  return <Pressable {...rest} {...hoverProps} style={({ pressed }) => style(hovered || pressed)} />;
 }
 
 export interface CardCellProps {
@@ -556,10 +570,13 @@ export function RoundButton(props: {
 }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
+  const reduced = useReducedMotion();
+  const shadow = taskTokens(props.theme).card.buttonShadowHover;
   const size = props.size ?? 36;
   const pad = props.size === undefined ? 4 : 0;
   const icon = props.iconSize ?? Math.round(size / 2);
   const { hovered, hoverProps } = useHover();
+  const lifted = (pressed: boolean) => (hovered || pressed) && !props.disabled;
   return (
     <Pressable
       accessibilityRole="button"
@@ -573,6 +590,7 @@ export function RoundButton(props: {
       testID={props.testID}
       style={{ width: size + 2 * pad, height: size + 2 * pad, alignItems: "center", justifyContent: "center", opacity: props.disabled ? 0.4 : 1 }}
     >
+      {({ pressed }) => <>
       <View
         style={{
           width: size,
@@ -580,9 +598,12 @@ export function RoundButton(props: {
           borderRadius: size / 2,
           borderWidth: HAIRLINE,
           borderColor: props.active ? colors.accent : colors.border,
-          boxShadow: Platform.OS === "web" && hovered && !props.disabled ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+          backgroundColor: hoverFill("transparent", colors.surface1, lifted(pressed), reduced),
+          boxShadow: hoverShadowValue(shadow, lifted(pressed), reduced),
           alignItems: "center",
           justifyContent: "center",
+          ...hoverScaleStyle(lifted(pressed), reduced),
+          ...hoverTransition(reduced),
         }}
       >
         {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : <Icon name={props.icon} size={icon} color={colors.foreground} />}
@@ -610,6 +631,7 @@ export function RoundButton(props: {
           <Text style={{ fontSize: F.sm, lineHeight: 14, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{props.badge}</Text>
         </View>
       ) : null}
+      </>}
     </Pressable>
   );
 }

@@ -264,11 +264,12 @@ describe("unavailable task operations", () => {
     const order = rows(tree.root, "sample-child-1");
     expect(order.indexOf("task-card-cut-surface")).toBeLessThan(order.indexOf("task-card-subtask-mark"));
     await act(async () => root.props.onHoverIn());
-    expect(String(flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style).backgroundColor)).toBe(markHue(card.location, "host-1", tokens, [mix(tokens.card.hoverBackground, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light)]));
+    const foldFill = mix(tokens.card.background, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light);
+    expect(String(flat(hostByTestId(tree.root, "task-card-subtask-mark").props.style).backgroundColor)).toBe(markHue(card.location, "host-1", tokens, [foldFill]));
     for (const part of ["body", "top", "edge"]) {
-      expect(flat(hostByTestId(tree.root, `task-card-cut-${part}`).props.style)).toMatchObject({ backgroundColor: tokens.card.hoverBackground, boxShadow: tokens.card.shadowHover });
+      expect(flat(hostByTestId(tree.root, `task-card-cut-${part}`).props.style)).toMatchObject({ backgroundColor: tokens.card.background, boxShadow: tokens.card.shadowHover });
     }
-    expect(fold().backgroundColor).toBe(mix(tokens.card.hoverBackground, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light));
+    expect(fold().backgroundColor).toBe(foldFill);
   });
 
   it.each([["light", LIGHT], ["dark", DARK]] as const)("preserves selected, highlighted, failed and subagent surfaces on %s cut cards", async (_name, theme) => {
@@ -1198,9 +1199,9 @@ describe("TaskCardView rows", () => {
           borderWidth: 0.5,
         });
         await act(async () => answer.props.onHoverIn());
-        expect(flat(byLabel(tree.root, set[0]!.label).props.style).backgroundColor).toBe(
-          mix(tokens.card.background, amber, tokens.isDark ? 0.16 : 0.1),
-        );
+        const hovered = flat(byLabel(tree.root, set[0]!.label).props.style);
+        expect(hovered.backgroundColor).toBe("transparent");
+        expect(hovered.boxShadow).toBe(tokens.card.buttonShadowHover);
         await act(async () => tree.unmount());
         renderer = null;
       }
@@ -1252,7 +1253,7 @@ describe("TaskCardView rows", () => {
     expect(colors(failed)).toEqual([tokens.foreground, tokens.foreground]);
   });
 
-  it("outlines Allow in the accent and Deny in the danger colour, tinting each on hover", async () => {
+  it("outlines Allow in the accent and Deny in the danger colour, lifting each on hover", async () => {
     const buttons = permissionButtons(sample("sample-input").permission!, "zh");
     const tree = await render(cardElement(sample("sample-input"), { permissionButtons: buttons }));
     const tokens = buildTaskTokens(LIGHT.colors);
@@ -1260,8 +1261,8 @@ describe("TaskCardView rows", () => {
     expect(flat(byLabel(tree.root, "拒绝").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: tokens.danger });
     await act(async () => byLabel(tree.root, "允许").props.onHoverIn());
     await act(async () => byLabel(tree.root, "拒绝").props.onHoverIn());
-    expect(flat(byLabel(tree.root, "允许").props.style).backgroundColor).toBe(tokens.card.primaryHover);
-    expect(flat(byLabel(tree.root, "拒绝").props.style).backgroundColor).toBe(tokens.card.dangerHover);
+    expect(flat(byLabel(tree.root, "允许").props.style)).toMatchObject({ backgroundColor: "transparent", boxShadow: tokens.card.buttonShadowHover });
+    expect(flat(byLabel(tree.root, "拒绝").props.style)).toMatchObject({ backgroundColor: "transparent", boxShadow: tokens.card.buttonShadowHover });
     for (const theme of [LIGHT, DARK]) {
       const card = buildTaskTokens(theme.colors).card;
       expect(contrastRatio(card.primaryText, card.background)).toBeGreaterThanOrEqual(4.5);
@@ -1540,10 +1541,10 @@ describe("TaskCardView context ring", () => {
     const fill = String(flat(hostByTestId(tree.root, "task-card-sample-running").props.style).backgroundColor);
     expect(flat(bands[9]!.props.style).backgroundColor).toBe(withAlpha(fill, 1));
     expect(flat(bands[0]!.props.style).backgroundColor).toBe(withAlpha(fill, 0.1));
-    // Hovered, the fade follows the card's fill.
+    // Hover deepens the shadow and leaves the fill, so the fade stays on that same fill.
     await act(async () => hostByTestId(tree.root, "task-card-sample-running").props.onHoverIn());
     const hovered = String(flat(hostByTestId(tree.root, "task-card-sample-running").props.style).backgroundColor);
-    expect(hovered).not.toBe(fill);
+    expect(hovered).toBe(fill);
     expect(flat(fades(tree)[0]!.children.filter((child): child is ReactTestInstance => typeof child !== "string")[9]!.props.style).backgroundColor).toBe(withAlpha(hovered, 1));
     // Without a ring the text ends in an ellipsis as before.
     await act(async () => tree.update(cardElement({ ...sample("sample-running"), context: null })));
@@ -1944,7 +1945,8 @@ describe("TaskCardView actions", () => {
     expect(flat(hostByTestId(phone.root, "task-card-stop").props.style)).toMatchObject({ alignSelf: "center" });
   });
 
-  it("keeps the pressed stop segment tinted until touch ends and rounds its shadow", async () => {
+  it("keeps the pressed stop segment lifted until touch ends and rounds its shadow", async () => {
+    const tokens = taskTokens(LIGHT);
     const tree = await render(cardElement(sample("sample-running"), { onStop: () => {}, compact: true }));
     const stop = byLabel(tree.root, "停止");
     const options = byLabel(tree.root, "停止选项");
@@ -1952,12 +1954,15 @@ describe("TaskCardView actions", () => {
     expect(flat(stop.props.style)).toMatchObject({ overflow: "hidden" });
     expect(flat(options.props.style)).toMatchObject({ overflow: "hidden" });
     await act(async () => { stop.props.onTouchStart(); stop.props.onPressIn(); stop.props.onPressOut(); });
-    expect(flat(stop.props.style).backgroundColor).not.toBe("transparent");
-    expect(flat(hostByTestId(tree.root, "task-card-stop").props.style).backgroundColor).toBe(flat(stop.props.style).backgroundColor);
+    expect(flat(stop.props.style).backgroundColor).toBe("transparent");
+    expect(flat(hostByTestId(tree.root, "task-card-stop").props.style).backgroundColor).toBe("transparent");
+    expect(flat(hostByTestId(tree.root, "task-card-stop-outline").props.style).boxShadow).toBe(tokens.card.buttonShadowHover);
     expect(flat(options.props.style).backgroundColor).toBe("transparent");
+    expect(flat(options.props.style).boxShadow).toBeUndefined();
     await act(async () => stop.props.onTouchEnd());
     expect(flat(stop.props.style).backgroundColor).toBe("transparent");
     expect(flat(hostByTestId(tree.root, "task-card-stop").props.style).backgroundColor).toBe("transparent");
+    expect(flat(hostByTestId(tree.root, "task-card-stop-outline").props.style).boxShadow).toBeFalsy();
     await act(async () => tree.unmount());
   });
 
@@ -3537,7 +3542,7 @@ describe("TaskDetailCards", () => {
     expect(flat(byLabel(tree.root, "允许").props.style)).toMatchObject({ backgroundColor: card0.background, borderColor: card0.primaryBorder, borderWidth: 0.5 });
     expect(flat(byLabel(tree.root, "拒绝").props.style)).toMatchObject({ backgroundColor: card0.background, borderColor: taskTokens(LIGHT).danger });
     await act(async () => byLabel(tree.root, "允许").props.onHoverIn());
-    expect(flat(byLabel(tree.root, "允许").props.style).backgroundColor).toBe(card0.primaryHover);
+    expect(flat(byLabel(tree.root, "允许").props.style)).toMatchObject({ backgroundColor: card0.background, boxShadow: card0.buttonShadowHover });
     await act(async () => byLabel(tree.root, "允许").props.onPress());
     expect(onPermission).toHaveBeenCalledWith(expect.objectContaining({ kind: "respond" }));
     // The phone's bar carries them instead.
@@ -3785,17 +3790,19 @@ describe("TaskDetailCards", () => {
     expect(icons(hostByTestId(agent, "detail-mode"))).toEqual(["ShieldOff"]);
   });
 
-  it("shows hints and hover feedback on the detail chips", async () => {
+  it("shows hints and lifts the detail chips on hover", async () => {
     const card = { ...sample("sample-input"), labels: [{ name: "linear", color: null }] };
     const tree = await render(details(card));
+    const chipTokens = taskTokens(LIGHT).card;
     for (const [id, tip] of [["detail-model", `模型：${card.providerLabel} Opus 5.5`], ["detail-thinking", "思考强度：High"], ["detail-mode", "模式：Bypass"], ["detail-label-linear", "标签：linear"]] as const) {
       const chip = hostByTestId(tree.root, id);
       expect(tree.root.findAll((node) => node.props.testID === id && node.props.tip === tip)).toHaveLength(1);
       const background = flat(chip.props.style).backgroundColor;
       await act(async () => chip.props.onHoverIn());
-      expect(flat(hostByTestId(tree.root, id).props.style).backgroundColor).not.toBe(background);
+      expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ backgroundColor: background, boxShadow: chipTokens.buttonShadowHover, transform: [{ scale: 1.03 }] });
       await act(async () => chip.props.onHoverOut());
-      expect(flat(hostByTestId(tree.root, id).props.style).backgroundColor).toBe(background);
+      expect(flat(hostByTestId(tree.root, id).props.style)).toMatchObject({ backgroundColor: background, transform: [{ scale: 1 }] });
+      expect(flat(hostByTestId(tree.root, id).props.style).boxShadow).toBeUndefined();
     }
   });
 
@@ -3894,19 +3901,20 @@ describe("overlays in the board's menu chrome", () => {
 });
 
 describe("TaskCardView chrome", () => {
-  it.each([false, true])("is Linear's card: radius 8 and a hairline, with only fill and shadow changing on hover (compact=%s)", async (compact) => {
+  it.each([false, true])("is Linear's card: radius 8 and a hairline, with shadow and scale changing on hover (compact=%s)", async (compact) => {
     const tokens = buildTaskTokens(LIGHT.colors);
     const tree = await render(cardElement(sample("sample-done"), { compact }));
     const surface = () => flat(hostByTestId(tree.root, "task-card-sample-done").props.style);
     const rest = surface();
-    expect(rest).toMatchObject({ borderRadius: 8, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background });
+    expect(rest).toMatchObject({ borderRadius: 8, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background, transform: [{ scale: 1 }] });
     expect(rest.boxShadow).toBe(tokens.card.shadow);
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onHoverIn());
     const hovered = surface();
-    expect(hovered.backgroundColor).toBe(tokens.card.hoverBackground);
+    expect(hovered.backgroundColor).toBe(tokens.card.background);
     expect(hovered.borderColor).toBe(rest.borderColor);
     expect(hovered.boxShadow).toBe(tokens.card.shadowHover);
-    expect({ ...hovered, backgroundColor: 0, boxShadow: 0, zIndex: 0 }).toEqual({ ...rest, backgroundColor: 0, boxShadow: 0, zIndex: 0 });
+    expect(hovered.transform).toEqual([{ scale: 1.03 }]);
+    expect({ ...hovered, backgroundColor: 0, boxShadow: 0, zIndex: 0, transform: 0 }).toEqual({ ...rest, backgroundColor: 0, boxShadow: 0, zIndex: 0, transform: 0 });
   });
 
   it("tints a failed card in danger red, unless it is the sidebar's card", async () => {
@@ -3917,7 +3925,9 @@ describe("TaskCardView chrome", () => {
     expect(surface()).toMatchObject({ backgroundColor: tokens.card.failed, borderColor: tokens.card.failedBorder });
     expect(flat(hostByTestId(tree.root, "task-card-reason").props.style).borderTopColor).toBe(tokens.card.failedBorder);
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onHoverIn());
-    expect(surface().backgroundColor).toBe(tokens.card.failedHover);
+    expect(surface().backgroundColor).toBe(tokens.card.failed);
+    expect(surface().boxShadow).toBe(tokens.card.shadowHover);
+    expect(surface().transform).toEqual([{ scale: 1.03 }]);
     await act(async () => tree.update(cardElement(failed, { current: true })));
     expect(surface()).toMatchObject({ backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder });
   });

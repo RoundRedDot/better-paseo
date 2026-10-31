@@ -5,6 +5,8 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { TagMark, taskTokens } from "../cards";
+import { hoverFill, hoverScaleStyle, hoverShadowValue, hoverTransition } from "../cards/hover-lift";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { tipProps } from "../cards/card-hints";
 import { CornerBadge, HoverPressable, RollingTotal, WindowSegments, RoundButton, Segments, SlashMark } from "./board-parts";
 import { HAIRLINE } from "./board-style";
@@ -292,8 +294,10 @@ function EmptyLanesButton({ emptyLanes, strings, theme }: { emptyLanes: EmptyLan
 function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void; theme: PluginTheme; label: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
+  const reduced = useReducedMotion();
   const size = roundButtonSize(scale);
   const [hovered, setHovered] = useState(false);
+  const shadow = taskTokens(props.theme).card.buttonShadowHover;
   return (
     <Pressable
       accessibilityRole="button"
@@ -305,16 +309,21 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
       onHoverOut={() => setHovered(false)}
       hitSlop={Platform.OS === "web" ? 0 : 4}
       testID="sidebar-switch"
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        borderWidth: HAIRLINE,
-        borderColor: colors.border,
-        backgroundColor: props.open ? colors.surface2 : hovered ? colors.surface1 : colors.surface0,
-        boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
-        alignItems: "center",
-        justifyContent: "center",
+      style={({ pressed }) => {
+        const active = hovered || pressed;
+        return {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          borderWidth: HAIRLINE,
+          borderColor: colors.border,
+          backgroundColor: props.open ? colors.surface2 : hoverFill(colors.surface0, colors.surface1, active, reduced),
+          boxShadow: hoverShadowValue(shadow, active, reduced),
+          alignItems: "center",
+          justifyContent: "center",
+          ...hoverScaleStyle(active, reduced),
+          ...hoverTransition(reduced),
+        };
       }}
     >
       <PanelMark open={props.open} side={props.sheet ? "bottom" : "right"} color={props.open ? colors.foreground : colors.foregroundMuted} />
@@ -335,7 +344,9 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
   const size = roundButtonSize(scale);
   const icon = roundIconSize(scale);
   const [hovered, setHovered] = useState(false);
-  const background = hovered ? colors.surface1 : colors.surface0;
+  const reduced = useReducedMotion();
+  const shadow = taskTokens(props.theme).card.buttonShadowHover;
+  const background = hoverFill(colors.surface0, colors.surface1, hovered, reduced);
   return (
     <Pressable
       accessibilityRole="switch"
@@ -350,17 +361,22 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
       onHoverOut={() => setHovered(false)}
       hitSlop={Platform.OS === "web" ? 0 : 4}
       testID={props.testID}
-      style={{
-        width: size,
-        height: size,
-        flexShrink: 0,
-        borderRadius: size / 2,
-        borderWidth: HAIRLINE,
-        borderColor: colors.border,
-        backgroundColor: background,
-        boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
-        alignItems: "center",
-        justifyContent: "center",
+      style={({ pressed }) => {
+        const active = hovered || pressed;
+        return {
+          width: size,
+          height: size,
+          flexShrink: 0,
+          borderRadius: size / 2,
+          borderWidth: HAIRLINE,
+          borderColor: colors.border,
+          backgroundColor: hoverFill(colors.surface0, colors.surface1, active, reduced),
+          boxShadow: hoverShadowValue(shadow, active, reduced),
+          alignItems: "center",
+          justifyContent: "center",
+          ...hoverScaleStyle(active, reduced),
+          ...hoverTransition(reduced),
+        };
       }}
     >
       <Icon name={props.icon} size={icon} color={colors.foreground} />
@@ -813,6 +829,8 @@ function Chip(props: { chip: ActiveChip; onClear(): void; clearLabel: string; th
 function GroupChip(props: { group: ChipGroup; open: boolean; onPress(): void; onClear(): void; clearLabel: string; theme: PluginTheme; children: ReactNode }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
+  const reduced = useReducedMotion();
+  const shadow = taskTokens(props.theme).card.buttonShadowHover;
   return (
     <View pointerEvents="box-none" style={{ zIndex: props.open ? 20 : 0, maxWidth: "100%", flexShrink: 1 }}>
       <View
@@ -846,8 +864,10 @@ function GroupChip(props: { group: ChipGroup; open: boolean; onPress(): void; on
             paddingRight: 4,
             borderTopLeftRadius: 6,
             borderBottomLeftRadius: 6,
-            backgroundColor: hovered && !props.open ? colors.surface1 : "transparent",
-            boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+            backgroundColor: props.open ? "transparent" : hoverFill("transparent", colors.surface1, hovered, reduced),
+            boxShadow: hoverShadowValue(shadow, hovered, reduced),
+            ...hoverScaleStyle(hovered, reduced),
+            ...hoverTransition(reduced),
           })}
         >
           {props.group.counts.map(({ unit, count }) => (
@@ -867,13 +887,21 @@ function GroupChip(props: { group: ChipGroup; open: boolean; onPress(): void; on
 
 function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme }) {
   const colors = props.theme.colors;
+  const reduced = useReducedMotion();
+  const shadow = taskTokens(props.theme).card.buttonShadowHover;
   return (
     <HoverPressable
       accessibilityRole="button"
       accessibilityLabel={props.label}
       {...tipProps(props.label)}
       onPress={props.onPress}
-      style={(hovered) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? colors.surface2 : "transparent", boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined })}
+      style={(hovered) => ({
+        width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center",
+        backgroundColor: hoverFill("transparent", colors.surface2, hovered, reduced),
+        boxShadow: hoverShadowValue(shadow, hovered, reduced),
+        ...hoverScaleStyle(hovered, reduced),
+        ...hoverTransition(reduced),
+      })}
     >
       <Icon name="X" size={12} color={colors.foregroundMuted} />
     </HoverPressable>
@@ -882,6 +910,8 @@ function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme
 
 function ClearAllButton(props: { board: BoardController; theme: PluginTheme }) {
   const scale = useTasksFontScale();
+  const reduced = useReducedMotion();
+  const shadow = taskTokens(props.theme).card.buttonShadowHover;
   return (
     <HoverPressable
       accessibilityRole="button"
@@ -893,8 +923,10 @@ function ClearAllButton(props: { board: BoardController; theme: PluginTheme }) {
         borderRadius: 6,
         borderWidth: HAIRLINE,
         borderColor: props.theme.colors.border,
-        backgroundColor: hovered ? props.theme.colors.surface1 : "transparent",
-        boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+        backgroundColor: hoverFill("transparent", props.theme.colors.surface1, hovered, reduced),
+        boxShadow: hoverShadowValue(shadow, hovered, reduced),
+        ...hoverScaleStyle(hovered, reduced),
+        ...hoverTransition(reduced),
       })}
     >
       <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: props.theme.colors.foregroundMuted }}>{props.board.strings.clearAll}</Text>
@@ -915,6 +947,8 @@ function Divider({ theme, testID }: { theme: PluginTheme; testID?: string }) {
 function MenuButton(props: { icon: string | React.ReactElement; label: string; compact?: boolean; accessibilityLabel?: string; labelMaxWidth?: number; tip?: string; open: boolean; onPress(): void; theme: PluginTheme; children: ReactNode }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
+  const reduced = useReducedMotion();
+  const shadow = taskTokens(props.theme).card.buttonShadowHover;
   const iconOnly = !!props.compact;
   const size = iconOnly ? roundButtonSize(scale) : toolbarButtonSize(scale);
   return (
@@ -935,11 +969,13 @@ function MenuButton(props: { icon: string | React.ReactElement; label: string; c
           borderRadius: iconOnly ? size / 2 : 6,
           borderWidth: HAIRLINE,
           borderColor: colors.border,
-          backgroundColor: hovered || props.open ? colors.surface1 : "transparent",
-          boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+          backgroundColor: props.open ? colors.surface1 : hoverFill("transparent", colors.surface1, hovered, reduced),
+          boxShadow: hoverShadowValue(shadow, hovered, reduced),
           flexDirection: "row",
           alignItems: "center",
           gap: LABEL_GAP,
+          ...hoverScaleStyle(hovered, reduced),
+          ...hoverTransition(reduced),
         })}
       >
         {typeof props.icon === "string" ? <Icon name={props.icon} size={iconOnly ? roundIconSize(scale) : MENU_ICON} color={iconOnly ? colors.foreground : colors.foregroundMuted} /> : props.icon}

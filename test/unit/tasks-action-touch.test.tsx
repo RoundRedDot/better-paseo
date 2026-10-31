@@ -95,24 +95,30 @@ describe("mobile card action feedback", () => {
     expect(timing).not.toHaveBeenCalled();
   });
 
-  it.each(["plain", "primary", "danger", "answer", "archive", "read"] as const)("tints %s on press, releases, and leaves disabled actions unchanged", async (look) => {
+  it.each(["plain", "primary", "danger", "answer", "archive", "read"] as const)("lifts %s on press, releases, and leaves disabled actions unchanged", async (look) => {
     const props = { tokens, compact: true, look, label: "Action", onPress: vi.fn() };
     const root = await render(<CardButton {...props} />);
     const button = () => root.findByType(Pressable);
-    expect(style(button(), false).backgroundColor).toBe("transparent");
-    expect(style(button(), true).backgroundColor).not.toBe("transparent");
-    expect(style(button(), false).backgroundColor).toBe("transparent");
+    expect(style(button(), false)).toMatchObject({ backgroundColor: "transparent" });
+    expect(style(button(), false).boxShadow).toBeFalsy();
+    const pressed = style(button(), true);
+    expect(pressed.backgroundColor).toBe("transparent");
+    expect(pressed.boxShadow).toBe(tokens.card.buttonShadowHover);
+    expect(style(button(), false)).toMatchObject({ backgroundColor: "transparent" });
+    expect(style(button(), false).boxShadow).toBeFalsy();
     expect(props.onPress).not.toHaveBeenCalled();
     button().props.onPress();
     expect(props.onPress).toHaveBeenCalledOnce();
     for (const state of [{ disabled: true }, { busy: true }]) {
       await act(async () => renderer.update(<CardButton {...props} {...state} />));
       expect(button().props.disabled).toBe(true);
-      expect(style(button(), true).backgroundColor).toBe("transparent");
+      const held = style(button(), true);
+      expect(held.backgroundColor).toBe("transparent");
+      expect(held.boxShadow).toBeFalsy();
     }
   });
 
-  it.each([false, true])("tints Stop, its menu trigger and Mark read, including pending states (compact=%s)", async (compact) => {
+  it.each([false, true])("lifts Stop, its menu trigger and Mark read, including pending states (compact=%s)", async (compact) => {
     const props = {
       card: sample("sample-running"), theme, compact,
       fields: { ...CARD_PRESETS.standard.fields, labelLimit: CARD_PRESETS.standard.labelLimit },
@@ -121,22 +127,37 @@ describe("mobile card action feedback", () => {
     };
     const root = await render(<TaskCardView {...props} />);
     const button = (label: string) => root.findAllByType(Pressable).find((node) => node.props.accessibilityLabel === label)!;
+    const outline = () => StyleSheet.flatten(root.findByProps({ testID: "task-card-stop-outline" }).props.style);
+    // The shared outline follows the press state. Calling the style function
+    // alone never sets that state, so the shadow stays off.
+    const hold = (label: string) => act(() => button(label).props.onPressIn?.({}));
+    const release = (label: string) => act(() => button(label).props.onPressOut?.({}));
     for (const label of ["Stop", "Stop options"]) {
       expect(style(button(label), false).backgroundColor).toBe("transparent");
-      expect(style(button(label), true).backgroundColor).toBe(tokens.card.dangerHover);
+      expect(outline().boxShadow).toBeFalsy();
+      hold(label);
+      expect(style(button(label), true).backgroundColor).toBe("transparent");
+      expect(outline().boxShadow).toBe(tokens.card.buttonShadowHover);
+      release(label);
+      expect(outline().boxShadow).toBeFalsy();
     }
     await act(async () => renderer.update(<TaskCardView {...props} stopPhase="stopping" />));
     for (const label of ["Stop", "Stop options"]) {
       expect(button(label).props.disabled).toBe(true);
       expect(style(button(label), true).backgroundColor).toBe("transparent");
+      expect(outline().boxShadow).toBeFalsy();
     }
     const card = { ...sample("sample-unread"), readable: true };
     await act(async () => renderer.update(<TaskCardView {...props} card={card} />));
-    expect(style(button("Mark as read"), true).backgroundColor).toBe(tokens.card.readHover);
+    const read = style(button("Mark as read"), true);
+    expect(read.backgroundColor).toBe("transparent");
+    expect(read.boxShadow).toBe(tokens.card.buttonShadowHover);
     expect(style(button("Mark as read"), false).backgroundColor).toBe("transparent");
     await act(async () => renderer.update(<TaskCardView {...props} card={card} readPending />));
     expect(button("Mark as read").props.disabled).toBe(true);
-    expect(style(button("Mark as read"), true).backgroundColor).toBe("transparent");
+    const pending = style(button("Mark as read"), true);
+    expect(pending.backgroundColor).toBe("transparent");
+    expect(pending.boxShadow).toBeFalsy();
   });
 });
 
@@ -215,7 +236,11 @@ describe("phone sheet action size", () => {
     expect(buttons).toHaveLength(3);
     for (const button of buttons) {
       expect(style(button, false)).toMatchObject({ height: Math.round((tablet ? 36 : 40) * factor), borderRadius: tablet ? 8 : 10 });
-      expect(style(button, true).backgroundColor).not.toBe(style(button, false).backgroundColor);
+      const rest = style(button, false);
+      const pressed = style(button, true);
+      expect(pressed.backgroundColor).toBe(rest.backgroundColor);
+      expect(pressed.boxShadow).toBe(tokens.card.buttonShadowHover);
+      expect(rest.boxShadow).not.toBe(tokens.card.buttonShadowHover);
       const icons = button.findAll((node) => (node.type as unknown) === "Icon");
       expect(icons.every((icon) => icon.props.size === (tablet ? 14 : 16))).toBe(true);
     }

@@ -3,10 +3,12 @@ import { Platform, View, useWindowDimensions } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_FONT as F, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { buttonOutline } from "../board/board-style";
 import { useActionFit } from "./action-row";
 import { ActionPressable } from "./action-pressable";
 import { arrowInset, buttonHue, CARD_BUTTON_HEIGHT, COMPACT_CARD_BUTTON_HEIGHT, webTransition, type CardButtonLook } from "./action-style";
+import { hoverFill, hoverScaleStyle, hoverShadowValue, hoverTransition } from "./hover-lift";
 import { hintProps } from "./card-hints";
 import { SpinnerRing } from "./status-icon";
 import type { TaskTokens } from "./tokens";
@@ -43,8 +45,10 @@ export function CardButton(props: {
   const forcedSquare = compact && props.square === true;
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
+  const reduced = useReducedMotion();
   const disabled = props.busy || props.disabled;
   const hovered = hover && !disabled;
+  const motionOn = compact || Platform.OS !== "web";
   const answer = kind === "answer";
   const hue = buttonHue(tokens, kind);
   const color = hue.color;
@@ -55,7 +59,7 @@ export function CardButton(props: {
   const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, 2 * (compact ? 12 : 10) + (hasIcon ? size + 5 : 0) + 1, forcedSquare, kind === "primary");
   const square = fit.iconOnly;
   return (
-    <ActionPressable motion={compact || Platform.OS !== "web"}
+    <ActionPressable motion={motionOn} lifted={hovered}
       accessibilityRole="button"
       accessibilityLabel={props.accessibilityLabel ?? props.label}
       accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
@@ -64,23 +68,26 @@ export function CardButton(props: {
       {...hoverProps}
       {...hintProps(square ? props.hint : undefined)}
       testID={props.testID}
-      style={({ pressed }) => ({
-        // A phone's button grows with a large system font.
-        ...(compact ? { minHeight: COMPACT_CARD_BUTTON_HEIGHT, paddingVertical: 4, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height } : { height: taskControlHeight(CARD_BUTTON_HEIGHT, scale) }),
-        ...(compact && props.hug ? { flexGrow: 0 } : null),
-        ...(square ? { width: taskControlHeight(COMPACT_CARD_BUTTON_HEIGHT, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
-        paddingHorizontal: square ? 0 : compact ? 12 : 10,
-        borderRadius: compact ? 7 : 6,
-        ...buttonOutline(border, {}, hovered ? tokens.card.buttonShadowHover : undefined),
-        backgroundColor: (hovered || pressed) && !disabled ? hue.hover : "transparent",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 5,
-        opacity: disabled ? 0.6 : 1,
-        ...webTransition,
-        ...fit.style,
-      })}
+      style={({ pressed }) => {
+        const active = (hovered || pressed) && !disabled;
+        return {
+          // A phone's button grows with a large system font.
+          ...(compact ? { minHeight: COMPACT_CARD_BUTTON_HEIGHT, paddingVertical: 4, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height } : { height: taskControlHeight(CARD_BUTTON_HEIGHT, scale) }),
+          ...(compact && props.hug ? { flexGrow: 0 } : null),
+          ...(square ? { width: taskControlHeight(COMPACT_CARD_BUTTON_HEIGHT, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
+          paddingHorizontal: square ? 0 : compact ? 12 : 10,
+          borderRadius: compact ? 7 : 6,
+          ...buttonOutline(border, {}, hoverShadowValue(tokens.card.buttonShadowHover, active, reduced)),
+          backgroundColor: hoverFill("transparent", hue.hover, active, reduced),
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 5,
+          opacity: disabled ? 0.6 : 1,
+          ...(motionOn ? webTransition : { ...hoverTransition(reduced), ...hoverScaleStyle(active, reduced) }),
+          ...fit.style,
+        };
+      }}
     >
       {props.busy ? (
         // The running ring without its dot, in the icon's box so the button keeps its width.

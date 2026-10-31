@@ -191,7 +191,7 @@ describe("TaskCardView on web", () => {
     expect(button().props.style.boxShadow).not.toContain(tokens.card.buttonShadowHover);
     await act(async () => renderer.unmount());
   });
-  it("tints the bottom action bar on hover with the card button's hue and shadow", async () => {
+  it("lifts the bottom action bar on hover with the card button's shadow", async () => {
     const tokens = taskTokens(THEME);
     const card = sampleCards(NOW).find((item) => item.id === "sample-running")!;
     const element = (phase: "idle" | "stopping") => React.createElement(DetailActionBar, {
@@ -209,14 +209,14 @@ describe("TaskCardView on web", () => {
     expect(String(look("detail-bar-open").boxShadow)).not.toContain(tokens.card.buttonShadowHover);
     expect(look("detail-bar-open").transitionProperty).toBe("background-color, border-color, box-shadow, color, opacity");
     await act(async () => button("detail-bar-open").props.onHoverIn());
-    expect(look("detail-bar-open").backgroundColor).toBe(tokens.card.controlHover);
+    expect(look("detail-bar-open").backgroundColor).toBe(tokens.card.background);
     expect(String(look("detail-bar-open").boxShadow)).toContain(tokens.card.buttonShadowHover);
     expect(String(look("detail-bar-open").boxShadow)).toContain("inset");
     await act(async () => button("detail-bar-open").props.onHoverOut());
     expect(look("detail-bar-open").backgroundColor).toBe(tokens.card.background);
     expect(String(look("detail-bar-open").boxShadow)).not.toContain(tokens.card.buttonShadowHover);
     await act(async () => button("detail-bar-stop").props.onHoverIn());
-    expect(look("detail-bar-stop").backgroundColor).toBe(tokens.card.dangerHover);
+    expect(look("detail-bar-stop").backgroundColor).toBe(tokens.card.background);
     expect(String(look("detail-bar-stop").boxShadow)).toContain(tokens.card.buttonShadowHover);
     await act(async () => renderer.update(element("stopping")));
     await act(async () => button("detail-bar-stop").props.onHoverIn());
@@ -1098,6 +1098,12 @@ describe("card action leaf migration", () => {
     transitionDuration: "120ms",
     transitionTimingFunction: "ease-out",
   };
+  // A web control that scales in CSS also eases `transform`. A phone press
+  // scales through the animated value, so its transition list stays put.
+  const liftTransition = {
+    ...transition,
+    transitionProperty: `${transition.transitionProperty}, transform`,
+  };
 
   it.each([1, 1.5])("preserves card targets and web transitions at font scale %s", async (factor) => {
     for (const compact of [false, true]) {
@@ -1124,9 +1130,10 @@ describe("card action leaf migration", () => {
       expect(flat(stop)).toMatchObject(compact
         ? { minHeight: Math.round(32 * factor), borderTopLeftRadius: 7 }
         : { height: Math.round(28 * factor), borderTopLeftRadius: 6 });
-      for (const node of [open, stop, host(renderer.root, "task-card-sample-running"), host(renderer.root, "pill-subtasks")]) {
-        expect(flat(node)).toMatchObject(transition);
-      }
+      expect(flat(open)).toMatchObject(compact ? transition : liftTransition);
+      expect(flat(stop)).toMatchObject(transition);
+      expect(flat(host(renderer.root, "task-card-sample-running"))).toMatchObject(liftTransition);
+      expect(flat(host(renderer.root, "pill-subtasks"))).toMatchObject(liftTransition);
       await act(async () => renderer.unmount());
 
       const unread = props("sample-unread", { compact, onRead() {} });
@@ -1139,7 +1146,7 @@ describe("card action leaf migration", () => {
       expect(flat(read)).toMatchObject(compact
         ? { minHeight: Math.round(32 * factor), borderRadius: 7 }
         : { height: Math.round(28 * factor), borderRadius: 6 });
-      expect(flat(read)).toMatchObject(transition);
+      expect(flat(read)).toMatchObject(compact ? transition : liftTransition);
       await act(async () => readRenderer.unmount());
     }
   });
