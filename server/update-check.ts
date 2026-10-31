@@ -2,7 +2,7 @@ import { z } from "zod";
 import { connectHostDaemon } from "./tasks/provider-subagents";
 
 const REGISTRY_URL = "https://plugins.paseo.sh/plugins/roundreddot/better-paseo.json";
-const NOTES_BASE_URL = "https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/release-notes";
+const RELEASES_URL = "https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/releases.json";
 const MAX_RESPONSE_BYTES = 64 * 1024;
 async function readJson(response: Response): Promise<unknown> {
   if (!response.body) throw new Error("Empty response.");
@@ -43,10 +43,12 @@ const installationSchema = z.object({
   currentRevision: z.string().optional(),
 });
 
-const notesSchema = z.object({ commit: sha, zh: z.array(z.string().min(1)).min(1), en: z.array(z.string().min(1)).min(1) });
-type Notes = { status: "available"; zh: string[]; en: string[] } | { status: "missing" | "unavailable" };
+const releasesSchema = z.object({ releases: z.array(z.object({ hash: sha, version: z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/), notes: z.object({ zh: z.string().min(1), en: z.string().min(1) }) })) });
+type Notes = { status: "available"; zh: string; en: string } | { status: "missing" | "unavailable" };
 
-type State = { state: "idle" | "checking" | "failed" | "local" | "unsupported" } | { state: "done"; current: string; latest: string; matches: boolean; checkedAt: number; notes: Notes };
+type Versions = { status: "available"; current: string | null; latest: string | null } | { status: "unavailable" };
+
+type State = { state: "idle" | "checking" | "failed" | "local" | "unsupported" } | { state: "done"; current: string; latest: string; matches: boolean; checkedAt: number; notes: Notes; versions: Versions };
 
 export function createUpdateCheck(deps = { fetchVersion: fetch, connect: connectHostDaemon }) {
   let state: State = { state: "idle" };
@@ -75,18 +77,19 @@ export function createUpdateCheck(deps = { fetchVersion: fetch, connect: connect
       }
       const revision = sha.parse(current.currentRevision);
       let notes: Notes;
+      let versions: Versions;
       try {
-        const response = await deps.fetchVersion(`${NOTES_BASE_URL}/${latest}.json`, { signal: AbortSignal.timeout(10_000), cache: "no-store" });
-        if (response.status === 404) notes = { status: "missing" };
-        else if (!response.ok) notes = { status: "unavailable" };
-        else {
-          const parsed = notesSchema.parse(await readJson(response));
-          notes = parsed.commit === latest ? { status: "available", zh: parsed.zh, en: parsed.en } : { status: "unavailable" };
-        }
+        const response = await deps.fetchVersion(RELEASES_URL, { signal: AbortSignal.timeout(10_000), cache: "no-store" });
+        if (!response.ok) throw new Error("Could not read release information.");
+        const releases = releasesSchema.parse(await readJson(response)).releases;
+        const published = releases.find((entry) => entry.hash === latest);
+        versions = { status: "available", current: releases.find((entry) => entry.hash === revision)?.version ?? null, latest: published?.version ?? null };
+        notes = published ? { status: "available", ...published.notes } : { status: "missing" };
       } catch {
+        versions = { status: "unavailable" };
         notes = { status: "unavailable" };
       }
-      state = { state: "done", current: revision, latest, matches: revision === latest, checkedAt: Date.now(), notes };
+      state = { state: "done", current: revision, latest, matches: revision === latest, checkedAt: Date.now(), notes, versions };
     } finally {
       await client.close().catch(() => {});
     }

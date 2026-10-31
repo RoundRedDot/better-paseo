@@ -41,6 +41,7 @@ import {
 import { usePreferenceSettings } from "./state/preference-sync-slot";
 import { useWideHostColumn } from "./ui/wide-host-column";
 import { SettingsPreview } from "./settings-preview";
+import { MarkdownView } from "./components/markdown/markdown-view";
 import { PHONE_PREVIEW_WIDTH, PlainButton, Section, SectionNote, Segmented, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "./settings-controls";
 import { setSettingsTab, useSettingsTab, type SettingsTab } from "./settings-tab";
 import { TasksSettingsPanel } from "./tasks/settings/tasks-panel";
@@ -556,17 +557,20 @@ function VersionSection({ look, language }: { look: PageLook; language: "en" | "
     catch { setState({ state: "failed" }); }
   }
   const description = state.state === "failed" ? t.versionFailed : state.state === "local" ? t.versionLocal : state.state === "unsupported" ? t.versionUnsupported : state.state === "done"
-    ? `${t.versionCurrent(state.current.slice(0, 7), state.latest.slice(0, 7))}\n${state.matches ? t.versionUpToDate : t.versionAvailable}\n${t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US"))}\n${t.versionDescription}`
+    ? `${t.versionCurrent(
+        state.versions.status === "unavailable" ? state.current.slice(0, 7) : state.versions.current ? `${state.versions.current} (${state.current.slice(0, 7)})` : `${state.current.slice(0, 7)} (${t.versionUnmapped})`,
+        state.versions.status === "unavailable" ? state.latest.slice(0, 7) : state.versions.latest ? `${state.versions.latest} (${state.latest.slice(0, 7)})` : `${state.latest.slice(0, 7)} (${t.versionUnmapped})`,
+      )}\n${state.matches ? t.versionUpToDate : t.versionAvailable}\n${t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US"))}\n${state.versions.status === "unavailable" ? `${t.versionMapUnavailable}\n` : ""}${t.versionDescription}`
     : t.versionDescription;
   return <>
   <Section title={t.versionTitle} look={look}>
     <SettingRow title={t.versionTitle} description={description} first stacked look={look}
-      control={<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} disabled={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} />} />
+      control={<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} disabled={state.state === "checking" || state.state === "starting"} loading={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} />} />
   </Section>
   {state.state === "done" ? <Section title={t.releaseNotesTitle} look={look}>
-    <SettingRow first stacked look={look} title={t.releaseNotesTitle} description={state.notes.status === "available"
-      ? state.notes[language].map((item) => `• ${item}`).join("\n")
-      : state.notes.status === "missing" ? t.releaseNotesMissing : t.releaseNotesUnavailable} />
+    <SettingRow first stacked look={look} title={t.releaseNotesTitle}
+      description={state.notes.status === "available" ? undefined : state.notes.status === "missing" ? t.releaseNotesMissing : t.releaseNotesUnavailable}
+      below={state.notes.status === "available" ? <MarkdownView text={state.notes[language]} tokens={look.tokens} variant="compact" compact={look.compact} size={look.tokens.typography.ui.size} /> : undefined} />
   </Section> : null}
   </>;
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { radiusV2, space, type ExtendedThemeTokens } from "./components/theme-tokens";
 import { TYPE } from "./ui/tokens/typography";
 import { SwitchTrack } from "./ui/switch-track";
@@ -144,6 +144,7 @@ export function PlainButton({
   accessibilityLabel,
   disabled = false,
   square = false,
+  loading = false,
 }: {
   label: string;
   onPress(): void;
@@ -151,26 +152,29 @@ export function PlainButton({
   accessibilityLabel?: string;
   disabled?: boolean;
   square?: boolean;
+  loading?: boolean;
 }) {
   const { tokens } = look;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ disabled }}
+      accessibilityState={loading ? { disabled, busy: true } : { disabled }}
       disabled={disabled}
       hitSlop={look.compact ? 6 : 0}
       onPress={onPress}
       style={({ pressed }) => [
         styles.plainButton,
         square ? styles.squareButton : null,
+        loading ? { flexDirection: "row", gap: space.xs } : null,
         {
           borderColor: tokens.v2.border,
           backgroundColor: pressed ? tokens.v2.surface2 : "transparent",
-          opacity: disabled ? 0.4 : 1,
+          opacity: disabled && !loading ? 0.4 : 1,
         },
       ]}
     >
+      {loading ? <ActivityIndicator size="small" color={tokens.foregroundMuted} accessible={false} /> : null}
       <Text style={[styles.plainLabel, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
         {label}
       </Text>

@@ -966,7 +966,7 @@ instead of starting over.
 
 ## Settings
 
-The Version tab can compare the installed Git revision with the version reviewed in the Paseo plugin directory. It checks on request and does not install updates. A different revision does not by itself establish which is newer.
+The Version tab compares the installed Git revision with the version reviewed in the Paseo plugin directory and displays version numbers from the public revision map. It checks on request and does not install updates. A different revision does not by itself establish which is newer.
 
 **Settings → Plugins → Better Paseo**, page **Settings**. The page has three tabs: **Chat presentation**, **Tasks board**, and **Version**. The board enable switch sits at the top of the chat and Tasks tabs. On the chat tab a sample turn drawn with the timeline's own components follows every change:
 beside the options on a wide window, above them elsewhere. The Read row's hover preview is drawn

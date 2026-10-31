@@ -20,7 +20,7 @@ describe("market update check", () => {
     const check = createUpdateCheck({ fetchVersion: fetchVersion as typeof fetch, connect });
     expect(check("check")).toEqual({ state: "checking" });
     expect(check("check")).toEqual({ state: "checking" });
-    expect(await finish(check)).toEqual({ state: "done", current, latest, matches: false, checkedAt: expect.any(Number), notes: { status: "missing" } });
+    expect(await finish(check)).toEqual({ state: "done", current, latest, matches: false, checkedAt: expect.any(Number), notes: { status: "unavailable" }, versions: { status: "unavailable" } });
     expect(connect).toHaveBeenCalledOnce();
     expect(fetchVersion.mock.calls[0]?.[0]).toBe("https://plugins.paseo.sh/plugins/roundreddot/better-paseo.json");
     expect(fetchVersion.mock.calls[0]?.[1]).toMatchObject({ redirect: "error" });
@@ -28,19 +28,28 @@ describe("market update check", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it("loads only release notes matching the official marketplace commit", async () => {
+  it("selects the marketplace release notes and maps both exact revisions", async () => {
     const connect = vi.fn(async () => ({ listPlugins: async () => plugins, close: async () => {} }) as never);
-    const fetchVersion = vi.fn(async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh")
-      ? market()
-      : new Response(JSON.stringify({ commit: latest, zh: ["修复滚动"], en: ["Fix scrolling"] })));
+    const fetchVersion = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).includes("plugins.paseo.sh")) return market();
+      return new Response(JSON.stringify({ releases: [
+        { hash: current, version: "1.0.1", notes: { zh: "- 当前版本", en: "- Installed version" } },
+        { hash: latest, version: "1.0.0", notes: { zh: "- 修复滚动", en: "- Fix scrolling" } },
+      ] }));
+    });
     const check = createUpdateCheck({ fetchVersion: fetchVersion as typeof fetch, connect });
     check("check");
-    expect(await finish(check)).toMatchObject({ state: "done", notes: { status: "available", zh: ["修复滚动"], en: ["Fix scrolling"] } });
-    expect(String(fetchVersion.mock.calls[1]?.[0])).toContain(`/release-notes/${latest}.json`);
-    const wrong = createUpdateCheck({ fetchVersion: (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh")
-      ? market() : new Response(JSON.stringify({ commit: current, zh: ["旧版本"], en: ["Old version"] }))) as typeof fetch, connect });
-    wrong("check");
-    expect(await finish(wrong)).toMatchObject({ state: "done", notes: { status: "unavailable" } });
+    expect(await finish(check)).toMatchObject({ state: "done", matches: false, versions: { status: "available", current: "1.0.1", latest: "1.0.0" }, notes: { status: "available", zh: "- 修复滚动", en: "- Fix scrolling" } });
+    expect(String(fetchVersion.mock.calls[1]?.[0])).toBe("https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/releases.json");
+    expect(fetchVersion).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not invent a version or notes when a revision is missing", async () => {
+    const connect = vi.fn(async () => ({ listPlugins: async () => plugins, close: async () => {} }) as never);
+    const fetchVersion = (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh") ? market() : new Response(JSON.stringify({ releases: [{ hash: current, version: "1.0.1", notes: { zh: "- 当前", en: "- Installed" } }] }))) as typeof fetch;
+    const check = createUpdateCheck({ fetchVersion, connect });
+    check("check");
+    expect(await finish(check)).toMatchObject({ state: "done", versions: { status: "available", current: "1.0.1", latest: null }, notes: { status: "missing" } });
   });
 
   it("reports matching revisions and rejects malformed market data", async () => {

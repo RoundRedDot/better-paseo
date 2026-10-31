@@ -45,6 +45,7 @@ const { resetTasksEnabled, setTasksBoardOpener, tasksEnabled } = await import(".
 const { SETTINGS_STRINGS } = await import("../../client/i18n/settings-page-strings");
 const { resetEnabledNotice } = await import("../../client/tasks/settings/use-tasks-form");
 const { BetterPaseoSettingsPage } = await import("../../client/settings-page");
+const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
 const { setSettingsTab } = await import("../../client/settings-tab");
 const { resetEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
 const { TASKS_SETTINGS_STRINGS } = await import("../../client/tasks/settings/strings");
@@ -489,15 +490,15 @@ describe("Tasks half of the settings page", () => {
 it("checks the plugin directory version from its settings tab", async () => {
   makeSettings();
   setSettingsTab("display");
-  state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValueOnce({ state: "done", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, notes: { status: "available", en: ["Fix scrolling"], zh: ["修复滚动"] } });
+  state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValueOnce({ state: "done", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0" }, notes: { status: "available", en: "- Fix scrolling", zh: "- 修复滚动" } });
   let r!: Renderer;
   act(() => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
   await act(async () => { radio(r, SETTINGS_STRINGS.en.tabsLabel, SETTINGS_STRINGS.en.tabVersion).props.onPress(); });
   await act(async () => { button(r, "Check for updates").props.onPress(); });
   expect(state.rpc).toHaveBeenCalledWith({ action: "check" });
   expect(textOf(r.root)).toContain("This installation differs from the plugin directory version.");
-  expect(textOf(r.root)).toContain("Installed: 1111111 · Directory: 2222222");
-  expect(textOf(r.root)).toContain("Fix scrolling");
+  expect(textOf(r.root)).toContain("Installed: 1.0.1 (1111111) · Directory: 1.0.0 (2222222)");
+  expect(r.root.findByType(MarkdownView).props.text).toBe("- Fix scrolling");
   act(() => r.unmount());
 });
 
@@ -510,7 +511,7 @@ it("keeps polling after 130 seconds and displays a late result", async () => {
     state.rpc.mockReset();
     state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValueOnce({ state: "checking" })
       .mockResolvedValueOnce({ state: "checking" })
-      .mockResolvedValueOnce({ state: "done", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, notes: { status: "missing" } });
+      .mockResolvedValueOnce({ state: "done", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0" }, notes: { status: "missing" } });
     let r!: Renderer;
     await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: true } as never, host: {} as never })); });
     await act(async () => { button(r, "Check for updates").props.onPress(); });
@@ -533,5 +534,46 @@ it("keeps compact settings tabs in a horizontal scroll container", async () => {
   const tabGroup = byLabel(r, SETTINGS_STRINGS.en.tabsLabel);
   expect(textOf(tabGroup)).toContain("Chat presentation");
   expect(r.root.findAll((node) => (node.type as unknown) === "ScrollView" && node.props.horizontal === true).some((node) => node.findAll((child) => child.props.accessibilityLabel === SETTINGS_STRINGS.en.tabsLabel).length > 0)).toBe(true);
+  act(() => r.unmount());
+});
+
+
+it.each(["done", "failed"] as const)("shows a spinner during a version check until %s", async (outcome) => {
+  vi.useFakeTimers();
+  try {
+    makeSettings();
+    setSettingsTab("version");
+    let resolveCheck!: (value: unknown) => void;
+    const pending = new Promise<unknown>((resolve) => { resolveCheck = resolve; });
+    state.rpc.mockReset();
+    state.rpc.mockResolvedValueOnce({ state: "idle" }).mockReturnValueOnce(pending)
+      .mockResolvedValueOnce(outcome === "done" ? { state: "done", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0" }, notes: { status: "missing" } } : { state: "failed" });
+    let r!: Renderer;
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
+    expect(r.root.findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(0);
+    await act(async () => { button(r, "Check for updates").props.onPress(); });
+    expect(button(r, "Checking…").props.accessibilityState).toEqual({ disabled: true, busy: true });
+    expect(button(r, "Checking…").findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(1);
+    await act(async () => { resolveCheck({ state: "checking" }); });
+    expect(button(r, "Checking…").findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(r.root.findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(0);
+    expect(button(r, "Check for updates").props.disabled).toBe(false);
+    act(() => r.unmount());
+  } finally { vi.useRealTimers(); }
+});
+
+
+it("shows the revision and an explanation when the version map is unavailable", async () => {
+  makeSettings();
+  setSettingsTab("version");
+  state.rpc.mockReset();
+  state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValueOnce({ state: "done", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "unavailable" }, notes: { status: "missing" } });
+  let r!: Renderer;
+  await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
+  await act(async () => { button(r, "Check for updates").props.onPress(); });
+  expect(textOf(r.root)).toContain("Version numbers could not be loaded; revisions are shown.");
+  expect(textOf(r.root)).toContain("Installed: 1111111 · Directory: 2222222");
+  expect(textOf(r.root)).not.toContain("Version number not recorded");
   act(() => r.unmount());
 });

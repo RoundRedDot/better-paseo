@@ -129,6 +129,6 @@ Video scripts, screenshot tooling, benchmark reports and raw samples are maintai
 The public README and gallery use final image assets hosted on this repository's GitHub Releases. Media and raw measurements are not part of a plugin checkout or install.
 Unit-test fixtures and pure test helpers stay under `test/`, so plugin tests do not require access to the private repository.
 
-## Plugin directory release notes
+## Plugin directory release information
 
-The Version tab reads the marketplace's reviewed Git commit, then loads `release-notes/<full-commit>.json` from the public `RoundRedDot/better-paseo-assets` repository. The publisher maintains each JSON with the same full `commit` and non-empty `zh` and `en` arrays of user-facing notes. Publish notes for the reviewed commit as part of the registry update; a missing or unavailable file is shown separately from the version comparison. The notes describe that marketplace release, not every change since an arbitrary installation.
+The Version tab uses the marketplace's reviewed Git commit as its target and fetches `releases.json` from the public `RoundRedDot/better-paseo-assets` repository. Its `releases` array contains a full Git `hash`, a stable `version` string and user-facing Markdown `notes` in `zh` and `en` for each entry. The publisher maintains this document for each release and each commit that shares its version. Missing entries are shown as unrecorded; the notes describe the marketplace release, not every change since an arbitrary installation.
