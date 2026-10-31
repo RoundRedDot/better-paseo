@@ -72,6 +72,17 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it("uses larger detail tabs on desktop", async () => {
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(false)} touch={false} columns={false} tabs />);
+    });
+    for (const id of ["info", "messages"]) {
+      const button = host(renderer!.root, `detail-tab-${id}`);
+      expect(StyleSheet.flatten(button.props.style).height).toBe(32);
+      expect(StyleSheet.flatten(button.find((node) => (node.type as unknown) === "Text").props.style).fontSize).toBe(HOST_FONT.base);
+    }
+  });
+
   it.each(["ios", "android", "web"])("shows a bottom shadow only while the compact tabs are pinned on %s", async (os) => {
     vi.stubGlobal("__rnMockOS", os);
     await act(async () => {

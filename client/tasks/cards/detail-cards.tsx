@@ -386,10 +386,10 @@ function DetailTab(props: { id: "info" | "messages"; selected: boolean; tokens: 
       accessibilityRole="tab"
       accessibilityState={{ selected: props.selected }}
       onPress={props.onPress}
-      style={{ flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 30 : 24, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder, backgroundColor: props.selected ? props.tokens.surface2 : hovered ? props.tokens.card.controlHover : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 6 }}
+      style={{ flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 30 : 32, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder, backgroundColor: props.selected ? props.tokens.surface2 : hovered ? props.tokens.card.controlHover : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 6 }}
     >
-      <Icon name={props.id === "info" ? "Info" : "MessageSquare"} size={12} color={color} />
-      <Text numberOfLines={1} style={{ fontSize: F.sm, fontWeight: "500", color, flexShrink: 1 }}>{props.label}</Text>
+      <Icon name={props.id === "info" ? "Info" : "MessageSquare"} size={props.touch ? 12 : 14} color={color} />
+      <Text numberOfLines={1} style={{ fontSize: props.touch ? F.sm : F.base, fontWeight: "500", color, flexShrink: 1 }}>{props.label}</Text>
     </Pressable>
   );
 }
