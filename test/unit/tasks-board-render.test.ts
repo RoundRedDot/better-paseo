@@ -53,6 +53,7 @@ const host = vi.hoisted(() => ({
   /** The filters the sidebar row last counted with. */
   countScope: null as unknown,
   canStop: false,
+  updateState: { state: "idle" } as unknown,
   save: vi.fn(async (_values: unknown, _revision: string) => true),
   reload: vi.fn(async () => {}),
   /** Rows a lane's list drew, counted by the FlatList mock. */
@@ -69,7 +70,7 @@ const paseo = vi.hoisted(() => ({
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => paseo,
-  useRpc: (contract: { name: string }) => (input: { agentIds?: string[] }) => Promise.resolve(contract.name === "tasks.availability" ? { entries: input.agentIds!.map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) } : { stop: host.canStop }),
+  useRpc: (contract: { name: string }) => (input: { agentIds?: string[] }) => Promise.resolve(contract.name === "tasks.availability" ? { entries: input.agentIds!.map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) } : contract.name === "settings.update-check" ? host.updateState : { stop: host.canStop }),
   useSettings: (definition: { id: string }) => {
     const values = definition.id === "title-generation" ? host.titleSettings : host.settings;
     return values ? { status: "ready", values, revision: "1", saving: false, saveError: null, save: host.save, reload: host.reload } : { status: "loading" };
@@ -338,6 +339,7 @@ beforeEach(() => {
   host.titleSettings = null;
   host.counts = null;
   host.canStop = false;
+  host.updateState = { state: "idle" };
   host.rowRenders = 0;
   host.liveTasks = null;
   resetBoardSessions();
@@ -558,6 +560,36 @@ describe("Tasks search coverage and centred toolbar", () => {
     act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
     act(() => menuOption(BOARD_STRINGS[language].openSettings).props.onPress());
     expect(openSettings).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the update dot on the desktop more button and settings item only for a newer release", async () => {
+    setTasksSettingsOpener(vi.fn());
+    host.updateState = { state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.1.0", currentBuild: 202610311637, latestBuild: 202610311700 }, notes: { status: "missing" } };
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    expect(hostsById("desktop-more-update-dot")).toHaveLength(1);
+    act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
+    expect(hostsById("desktop-settings-update-dot")).toHaveLength(1);
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === `${BOARD_STRINGS.en.openSettings}, Update available`)).toHaveLength(1);
+    for (const result of [
+      { state: "done", versions: { status: "available", current: "1.0.1", latest: "1.0.1", currentBuild: 202610311637, latestBuild: 202610311637 } },
+      { state: "done", versions: { status: "unavailable" } },
+      { state: "failed" },
+    ]) {
+      host.updateState = result;
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(hostsById("desktop-more-update-dot")).toHaveLength(0);
+      expect(hostsById("desktop-settings-update-dot")).toHaveLength(0);
+    }
+  });
+
+  it("does not show desktop update indicators on mobile", async () => {
+    host.updateState = { state: "done", versions: { status: "available", current: "1.0.0", latest: "1.1.0", currentBuild: 202610311637, latestBuild: 202610311700 } };
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    await act(async () => { renderer = TestRenderer.create(screen(true)); });
+    expect(hostsById("desktop-more-update-dot")).toHaveLength(0);
+    expect(hostsById("desktop-settings-update-dot")).toHaveLength(0);
   });
 
   it.each(["web", "ios"] as const)("%s keeps every action available when a narrow side slot needs the View menu", (os) => {

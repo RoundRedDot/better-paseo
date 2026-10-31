@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { createUpdateCheck } from "../../server/update-check";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { createUpdateCheck, startAutomaticUpdateCheck, UPDATE_CHECK_INTERVAL } from "../../server/update-check";
 
 const current = "1".repeat(40);
 const latest = "2".repeat(40);
@@ -109,20 +112,105 @@ describe("market update check", () => {
 });
 
 it("starts an automatic check only when enabled, and cancels a pending startup read", async () => {
-  const { startAutomaticUpdateCheck } = await import("../../server/update-check");
   for (const enabled of [true, false]) {
     const check = vi.fn(() => ({ state: "idle" as const }));
-    startAutomaticUpdateCheck({ read: async () => ({ status: "ready", values: { autoUpdateCheck: enabled } }) }, check);
+    const stop = startAutomaticUpdateCheck({ read: async () => ({ status: "ready", values: { autoUpdateCheck: enabled } }) }, check);
+    await Promise.resolve();
     await Promise.resolve();
     expect(check).toHaveBeenCalledTimes(enabled ? 1 : 0);
+    stop();
   }
   let resolve!: (value: { status: "ready"; values: { autoUpdateCheck: boolean } }) => void;
   const check = vi.fn(() => ({ state: "idle" as const }));
   const stop = startAutomaticUpdateCheck({ read: () => new Promise((done) => { resolve = done; }) }, check);
+  await Promise.resolve();
   stop();
   resolve({ status: "ready", values: { autoUpdateCheck: true } });
   await Promise.resolve();
   expect(check).not.toHaveBeenCalled();
+});
+
+it("checks once per 24 hours, follows the setting, and stops its timer", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-31T00:00:00Z"));
+  let enabled = true;
+  let last = 0;
+  let changed = () => {};
+  const check = Object.assign(vi.fn((action: "check" | "status") => {
+    if (action === "check") last = Date.now();
+    return { state: "idle" as const };
+  }), { lastCheckedAt: () => last });
+  const stop = startAutomaticUpdateCheck({
+    read: async () => ({ status: "ready", values: { autoUpdateCheck: enabled } }),
+    subscribe: (listener) => { changed = listener; return () => {}; },
+  }, check);
+  try {
+    await vi.advanceTimersByTimeAsync(0);
+    expect(check).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL - 1);
+    expect(check).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(check).toHaveBeenCalledTimes(2);
+    enabled = false;
+    changed();
+    await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL);
+    expect(check).toHaveBeenCalledTimes(2);
+    enabled = true;
+    changed();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(check).toHaveBeenCalledTimes(3);
+    stop();
+    await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL);
+    expect(check).toHaveBeenCalledTimes(3);
+  } finally {
+    stop();
+    vi.useRealTimers();
+  }
+});
+
+it("waits for the remainder of the interval after a restart", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-31T12:00:00Z"));
+  let last = Date.now() - 60 * 60 * 1000;
+  const check = Object.assign(vi.fn((action: "check" | "status") => {
+    if (action === "check") last = Date.now();
+    return { state: "idle" as const };
+  }), { restore: async () => {}, lastCheckedAt: () => last });
+  const stop = startAutomaticUpdateCheck({ read: async () => ({ status: "ready", values: { autoUpdateCheck: true } }) }, check);
+  try {
+    await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL - 60 * 60 * 1000 - 1);
+    expect(check).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(check).toHaveBeenCalledOnce();
+  } finally {
+    stop();
+    vi.useRealTimers();
+  }
+});
+
+it("restores a saved check after restart only for the same installed revision", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "better-paseo-update-test-"));
+  const path = join(dir, "update-check.json");
+  let installation = plugins[0]!.installation;
+  const connect = vi.fn(async () => ({ listPlugins: async () => [{ id: "better-paseo", installation }], close: async () => {} }) as never);
+  const fetchVersion = (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh") ? market() : new Response("", { status: 404 })) as typeof fetch;
+  try {
+    const first = createUpdateCheck({ fetchVersion, connect }, path);
+    first("check");
+    await finish(first);
+    await vi.waitFor(async () => expect(JSON.parse(await readFile(path, "utf8")).state.state).toBe("done"));
+    const second = createUpdateCheck({ fetchVersion, connect }, path);
+    await second.restore();
+    expect(second("status")).toMatchObject({ state: "done", current, latest });
+    expect(second.lastCheckedAt()).toBe(first.lastCheckedAt());
+    installation = { ...installation, currentRevision: latest };
+    const updated = createUpdateCheck({ fetchVersion, connect }, path);
+    await updated.restore();
+    expect(updated("status")).toEqual({ state: "idle" });
+    expect(updated.lastCheckedAt()).toBe(0);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });
 
 it("recognizes marketplace installations when generating the update result", async () => {

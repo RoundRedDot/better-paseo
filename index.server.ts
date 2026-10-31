@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process";
 import { open, stat, type FileHandle } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { updateCheckRpc } from "./shared/update-check";
 import { openTerminalRpc, updateCommand } from "./shared/open-terminal";
 import { createUpdateCheck, startAutomaticUpdateCheck } from "./server/update-check";
+import { pluginDataDir } from "./server/plugin-data";
 import { openSystemTerminal } from "./server/open-terminal";
 import { PREFERENCES_SETTINGS } from "./shared/preferences-settings";
 import { revealPathRpc } from "./shared/file-rpc";
@@ -464,7 +465,7 @@ export default function contribute(server: PluginServerContext) {
   // client — including iOS and Android, which have no localStorage — reads
   // and saves the same record (S5 fix round 1).
   const preferences = server.registerSettings(PREFERENCES_SETTINGS);
-  const checkUpdate = createUpdateCheck();
+  const checkUpdate = createUpdateCheck(undefined, join(pluginDataDir(), "update-check.json"));
   const stopAutomaticUpdateCheck = startAutomaticUpdateCheck(preferences, checkUpdate);
   server.handle(updateCheckRpc, ({ action }) => checkUpdate(action));
   server.handle(openTerminalRpc, (input) => openSystemTerminal(updateCommand(input.source, input.latest)));

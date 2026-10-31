@@ -1,9 +1,13 @@
 import { z } from "zod";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { connectHostDaemon } from "./tasks/provider-subagents";
+import { updateCheckRpc } from "../shared/update-check";
 
 const REGISTRY_URL = "https://plugins.paseo.sh/plugins/roundreddot/better-paseo.json";
 const RELEASES_URL = "https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/releases.json";
 const MAX_RESPONSE_BYTES = 64 * 1024;
+export const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
 async function readJson(response: Response): Promise<unknown> {
   if (!response.body) throw new Error("Empty response.");
   const reader = response.body.getReader();
@@ -50,10 +54,44 @@ type Versions = { status: "available"; current: string | null; latest: string | 
 
 type State = { state: "idle" | "checking" | "failed" | "local" | "unsupported" } | { state: "done"; source: "registry" | "git"; current: string; latest: string; matches: boolean; checkedAt: number; notes: Notes; versions: Versions };
 
-export function createUpdateCheck(deps = { fetchVersion: fetch, connect: connectHostDaemon }) {
+export function createUpdateCheck(deps = { fetchVersion: fetch, connect: connectHostDaemon }, cachePath?: string) {
   let state: State = { state: "idle" };
   let running = false;
+  let lastAttempt = 0;
   let stage = "connect";
+  async function save() {
+    if (!cachePath) return;
+    await mkdir(dirname(cachePath), { recursive: true });
+    const temporary = `${cachePath}.${process.pid}.tmp`;
+    await writeFile(temporary, JSON.stringify({ lastAttempt, state }));
+    await rename(temporary, cachePath);
+  }
+  async function restore() {
+    if (!cachePath) return;
+    try {
+      const cache = z.object({ lastAttempt: z.number().nonnegative(), state: updateCheckRpc.output }).parse(JSON.parse(await readFile(cachePath, "utf8")));
+      if (cache.state.state === "local" || cache.state.state === "unsupported") return;
+      if (cache.state.state === "done") {
+        const client = await deps.connect("cid_better_paseo_update_restore");
+        if (!client) return;
+        try {
+          const daemon = client as typeof client & { listPlugins(): Promise<Array<{ id: string; installation?: unknown }>> };
+          const installation = installationSchema.parse((await daemon.listPlugins()).find((entry) => entry.id === "better-paseo")?.installation);
+          if (installation.identity.kind !== "git" || installation.currentRevision !== cache.state.current ||
+              (cache.state.source === "registry") !== !!installation.identity.registry ||
+              !/^(https:\/\/github\.com\/RoundRedDot\/better-paseo(?:\.git)?|git@github\.com:RoundRedDot\/better-paseo(?:\.git)?)$/i.test(installation.identity.remote) ||
+              (installation.identity.registry && (installation.identity.registry.url !== "https://plugins.paseo.sh" || installation.identity.registry.id !== "roundreddot/better-paseo"))) return;
+        } finally {
+          await client.close().catch(() => {});
+        }
+      }
+      if (state.state !== "idle") return;
+      lastAttempt = cache.lastAttempt;
+      state = cache.state;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") console.warn("[better-paseo] could not restore update check", error);
+    }
+  }
   async function run() {
     stage = "connect";
     const client = await deps.connect("cid_better_paseo_update_check");
@@ -99,23 +137,46 @@ export function createUpdateCheck(deps = { fetchVersion: fetch, connect: connect
       await client.close().catch(() => {});
     }
   }
-  return (action: "check" | "status"): State => {
+  const check = (action: "check" | "status"): State => {
     if (action === "check" && !running) {
       running = true;
+      lastAttempt = Date.now();
       state = { state: "checking" };
-      void run().catch(() => { console.warn(`[better-paseo] version check failed: ${stage}`); state = { state: "failed" }; }).finally(() => { running = false; });
+      void run().catch(() => { console.warn(`[better-paseo] version check failed: ${stage}`); state = { state: "failed" }; }).then(() => save().catch((error: unknown) => console.warn("[better-paseo] could not save update check", error))).finally(() => { running = false; });
     }
     return state;
   };
+  return Object.assign(check, { restore, lastCheckedAt: () => lastAttempt });
 }
 
 export function startAutomaticUpdateCheck(
-  settings: { read(): Promise<{ status: "ready"; values: { autoUpdateCheck: boolean } } | { status: "invalid" }> },
-  check: ReturnType<typeof createUpdateCheck>,
+  settings: { read(): Promise<{ status: "ready"; values: { autoUpdateCheck: boolean } } | { status: "invalid" }>; subscribe?(listener: () => void): () => void },
+  check: ((action: "check" | "status") => State) & { restore?(): Promise<void>; lastCheckedAt?(): number },
 ): () => void {
   let active = true;
-  void settings.read().then((result) => {
-    if (active && result.status === "ready" && result.values.autoUpdateCheck) check("check");
-  }).catch((error: unknown) => console.warn("[better-paseo] could not read update check settings", error));
-  return () => { active = false; };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let initialized = false;
+  let generation = 0;
+  async function schedule() {
+    const current = ++generation;
+    clearTimeout(timer);
+    try {
+      const result = await settings.read();
+      if (!active || current !== generation || result.status !== "ready" || !result.values.autoUpdateCheck) return;
+      const last = check.lastCheckedAt?.() ?? 0;
+      const remaining = last ? Math.max(0, UPDATE_CHECK_INTERVAL - (Date.now() - last)) : 0;
+      if (remaining === 0) check("check");
+      timer = setTimeout(() => { void schedule(); }, remaining || UPDATE_CHECK_INTERVAL);
+    } catch (error) {
+      console.warn("[better-paseo] could not read update check settings", error);
+      if (active && current === generation) timer = setTimeout(() => { void schedule(); }, UPDATE_CHECK_INTERVAL);
+    }
+  }
+  const unsubscribe = settings.subscribe?.(() => { if (initialized) void schedule(); });
+  void (check.restore?.() ?? Promise.resolve()).then(() => {
+    if (!active) return;
+    initialized = true;
+    void schedule();
+  });
+  return () => { active = false; generation++; clearTimeout(timer); unsubscribe?.(); };
 }

@@ -1,5 +1,5 @@
 import { useRpc } from "@getpaseo/plugin/client";
-import { isNewerVersion, updateCheckRpc } from "../shared/update-check";
+import { hasUpdate, updateCheckRpc } from "../shared/update-check";
 import { openTerminalRpc, updateCommand } from "../shared/open-terminal";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
@@ -540,13 +540,14 @@ function useVersionCheck() {
     return () => { active = false; };
   }, [check]);
   useEffect(() => {
-    if (state.state !== "checking") return;
+    if (state.state === "starting") return;
+    let active = true;
     const timer = setTimeout(() => {
       void check({ action: "status" }).then((result) => {
-        setState(result);
-      }).catch(() => setState({ state: "failed" }));
-    }, 2000);
-    return () => clearTimeout(timer);
+        if (active) setState(result);
+      }).catch(() => { if (active) setState({ state: "failed" }); });
+    }, state.state === "checking" ? 2000 : 30_000);
+    return () => { active = false; clearTimeout(timer); };
   }, [check, state]);
   async function run() {
     started.current = true;
@@ -597,7 +598,7 @@ function VersionSection({ look, language, version, autoUpdateCheck, native }: { 
   const openTerminal = useRpc(openTerminalRpc);
   const [terminalStatus, setTerminalStatus] = useState<"idle" | "opening" | "opened" | "unsupported" | "failed" | "copyFailed">("idle");
   const t = look.t;
-  const updateAvailable = state.state === "done" && state.versions.status === "available" && state.versions.current !== null && state.versions.latest !== null && state.versions.currentBuild !== null && state.versions.latestBuild !== null && isNewerVersion(state.versions.current, state.versions.latest, state.versions.currentBuild, state.versions.latestBuild);
+  const updateAvailable = state.state !== "starting" && hasUpdate(state);
   const orderUnknown = state.state === "done" && !state.matches && (state.versions.status === "unavailable" || state.versions.current === null || state.versions.latest === null || state.versions.currentBuild === null || state.versions.latestBuild === null);
   const command = state.state === "done" ? updateCommand(state.source, state.latest) : "";
   async function goToUpdate() {
@@ -656,7 +657,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
   // The selected settings section persists across page mounts.
   const tab = useSettingsTab();
   const version = useVersionCheck();
-  const updateAvailable = version.state.state === "done" && version.state.versions.status === "available" && version.state.versions.current !== null && version.state.versions.latest !== null && version.state.versions.currentBuild !== null && version.state.versions.latestBuild !== null && isNewerVersion(version.state.versions.current, version.state.versions.latest, version.state.versions.currentBuild, version.state.versions.latestBuild);
+  const updateAvailable = version.state.state !== "starting" && hasUpdate(version.state);
   // The settings screen reads (and, through the store, saves) the daemon
   // record itself, so it works with no chat open.
   const sync = usePreferenceSettings();

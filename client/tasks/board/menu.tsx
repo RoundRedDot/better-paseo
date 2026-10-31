@@ -524,7 +524,7 @@ function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginThe
   return (
     <Pressable
       accessibilityRole="menuitem"
-      accessibilityLabel={item.label}
+      accessibilityLabel={item.accessibilityLabel ?? item.label}
       accessibilityState={{ disabled: item.disabled, checked: item.checked, expanded: item.submenu ? props.active : undefined }}
       disabled={item.disabled}
       onHoverIn={props.onHover}
@@ -555,6 +555,7 @@ function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginThe
           {item.label}
         </Text>
       )}
+      {item.trailing}
       {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}
       {Platform.OS === "web" && item.shortcut ? <Text style={{ fontFamily: TASK_MONO, fontSize: F.sm, color: colors.foregroundMuted }}>{item.shortcut === "Enter" ? "↵" : item.shortcut.toUpperCase()}</Text> : null}
       {item.checked ? <Icon name="Check" size={14} color={colors.accent} /> : item.checked === false ? <View style={{ width: 14 }} /> : null}
