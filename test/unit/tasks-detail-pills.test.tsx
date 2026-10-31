@@ -57,7 +57,7 @@ describe("detail pill sizes", () => {
       expect(chips).toHaveLength(4);
       const expected = pillStyle(taskTokens(theme), compact, null, undefined, ui / 14);
       for (const chip of chips) {
-        const view = chip.find((node) => (node.type as unknown) === "View");
+        const view = chip.find((node) => (node.type as unknown) === "Pressable");
         const style = StyleSheet.flatten(view.props.style);
         for (const key of ["height", "minWidth", "maxWidth", "paddingHorizontal", "borderRadius", "gap"] as const) {
           expect(style[key]).toBe(expected[key]);

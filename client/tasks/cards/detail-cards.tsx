@@ -407,6 +407,7 @@ function stopLabel(props: TaskDetailCardsProps): string | null {
 function DetailHeader(props: Inner) {
   const { card, m, tokens, touch = false } = props;
   const cardText = cardStrings(props.language);
+  const { pair } = cardText.hint;
   const small = F.sm;
   const chipFont = F.sm * (11 / 12);
   const iconSize = props.compact ? 12 : 11;
@@ -543,11 +544,12 @@ function DetailHeader(props: Inner) {
           lead={card.providerMark !== null ? <BrandMark provider={card.provider} size={iconSize} tokens={tokens} /> : null}
           // A provider subagent's model comes from its facts line; a line that names neither model nor effort stands in whole.
           text={card.modelLabel ?? (card.thinkingLabel ? null : card.subagent?.subtitle) ?? card.providerLabel}
+          tip={pair(cardText.hint.model, card.modelLabel ? `${card.providerLabel} ${card.modelLabel}` : card.providerLabel)}
           renderText={props.searchQuery ? (text) => highlightText(text, props.searchQuery!, tokens.isDark) : undefined}
           testID="detail-model"
         />
         {card.thinkingLabel ? (
-          <Chip tokens={tokens} compact={props.compact} height={chipHeight} font={chipFont} muted lead={<Icon name={THINKING_ICON} size={iconSize} color={tokens.foregroundMuted} />} text={card.thinkingLabel} testID="detail-thinking" />
+          <Chip tokens={tokens} compact={props.compact} height={chipHeight} font={chipFont} muted lead={<Icon name={THINKING_ICON} size={iconSize} color={tokens.foregroundMuted} />} text={card.thinkingLabel} tip={pair(cardText.hint.thinking, card.thinkingLabel)} testID="detail-thinking" />
         ) : null}
         {card.modeLabel && mode ? (
           <Chip
@@ -559,6 +561,7 @@ function DetailHeader(props: Inner) {
             // Bypassing permissions is worth a glance: its shield wears the warning colour.
             lead={<Icon name={mode} size={iconSize} color={mode === "ShieldOff" ? tokens.warning : tokens.foregroundMuted} />}
             text={card.modeLabel}
+            tip={pair(cardText.details.mode, card.modeLabel)}
             testID="detail-mode"
           />
         ) : null}
@@ -575,6 +578,8 @@ function DetailHeader(props: Inner) {
               font={chipFont}
               lead={<TagMark size={iconSize} color={tag.color ?? tokens.foregroundMuted} hole={tokens.card.background} />}
               text={tag.name}
+              tip={pair(cardText.hint.label, tag.name)}
+              testID={`detail-label-${tag.name}`}
               renderText={props.searchQuery ? (text) => highlightText(text, props.searchQuery!, tokens.isDark) : undefined}
             />
           ))}

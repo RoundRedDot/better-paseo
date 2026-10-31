@@ -3650,6 +3650,20 @@ describe("TaskDetailCards", () => {
     expect(icons(hostByTestId(agent, "detail-mode"))).toEqual(["ShieldOff"]);
   });
 
+  it("shows hints and hover feedback on the detail chips", async () => {
+    const card = { ...sample("sample-input"), labels: [{ name: "linear", color: null }] };
+    const tree = await render(details(card));
+    for (const [id, tip] of [["detail-model", `模型：${card.providerLabel} Opus 5.5`], ["detail-thinking", "思考强度：High"], ["detail-mode", "模式：Bypass"], ["detail-label-linear", "标签：linear"]] as const) {
+      const chip = hostByTestId(tree.root, id);
+      expect(tree.root.findAll((node) => node.props.testID === id && node.props.tip === tip)).toHaveLength(1);
+      const background = flat(chip.props.style).backgroundColor;
+      await act(async () => chip.props.onHoverIn());
+      expect(flat(hostByTestId(tree.root, id).props.style).backgroundColor).not.toBe(background);
+      await act(async () => chip.props.onHoverOut());
+      expect(flat(hostByTestId(tree.root, id).props.style).backgroundColor).toBe(background);
+    }
+  });
+
   it("names the agent in the details' model chip for a subagent whose line names an effort but no model", async () => {
     const base = sample("sample-running");
     const card: TaskCard = { ...base, model: null, modelLabel: null, thinkingLabel: "High", modeLabel: null, subagent: { subtitle: "general-purpose · High · 518k tokens", type: "general-purpose" } };
@@ -3671,7 +3685,7 @@ describe("TaskDetailCards", () => {
     const card = { ...sample("sample-input"), labels: [{ name: "linear", color: null }] };
     const pill = (node: ReactTestInstance) => {
       const style = flat(node.props.style);
-      return (node.type as unknown) === "View" && style.flexDirection === "row" && typeof style.height === "number" && style.borderRadius === style.height / 2;
+      return (node.type as unknown) === "Pressable" && style.flexDirection === "row" && typeof style.height === "number" && style.borderRadius === style.height / 2;
     };
     const heights = (tree: ReactTestRenderer) =>
       ["detail-agent", "detail-labels"].flatMap((id) => hostByTestId(tree.root, id).findAll(pill).map((chip) => flat(chip.props.style).height));
