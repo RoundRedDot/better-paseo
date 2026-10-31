@@ -29,7 +29,7 @@ import { TaskRenameDialog } from "../../client/tasks/cards/rename-dialog";
 import { CardContextMenu } from "../../client/tasks/cards/card-menu";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { sampleCards } from "../../client/tasks/sample-cards";
-import { CascadeMenu } from "../../client/tasks/board/menu";
+import { CascadeMenu, MenuBoundsContext } from "../../client/tasks/board/menu";
 import { REVEAL_TICK_MS } from "../../client/tasks/cards/title-reveal";
 import { unavailableTask } from "../../shared/task-availability";
 
@@ -379,6 +379,21 @@ describe("task title editor", () => {
 
 describe("task card rename entry", () => {
   const card = sampleCards(Date.parse("2026-10-20T09:00:00Z"))[0]!;
+  it.each(["ios", "android"])("keeps the tablet menu below the host header and scrolls within a short board (%s)", async (platform) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    vi.spyOn(Dimensions, "get").mockReturnValue({ width: 744, height: 720, scale: 2, fontScale: 1 });
+    const bounds = { current: { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(0, 150, 744, 300) } } as unknown as React.RefObject<import("react-native").View>;
+    await act(async () => {
+      tree = TestRenderer.create(<MenuBoundsContext.Provider value={bounds}><CardContextMenu point={{ x: 400, y: 300 }} card={card} strings={cardStrings("en")} actions={{ children: 2, stop: vi.fn(), filters: { state: { agent: false, workspace: false, project: false }, select: vi.fn() } }} theme={theme} onClose={onClose} /></MenuBoundsContext.Provider>, {
+        createNodeMock: (element) => (element.props as { testID?: string }).testID === "task-card-menu-stage" ? { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(0, 0, 744, 720) } : null,
+      });
+    });
+    const host = (id: string) => tree.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    await act(async () => host("task-card-menu-stage").props.onLayout());
+    expect(host("task-card-menu-popover").props.style.top).toBe(158);
+    expect(tree.root.findByType(CascadeMenu).props.maxHeight).toBe(284);
+    expect(host("menu-panel").props.style.flat().find((style: { maxHeight?: number }) => style?.maxHeight === 284)).toBeDefined();
+  });
   it.each([
     ["ios", 540, 720, 24, 60],
     ["ios", 540, 720, 270, 300],

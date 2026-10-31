@@ -41,6 +41,8 @@ export interface CascadeMenuProps {
   sections: MenuSection[];
   theme: PluginTheme;
   width: number;
+  /** An owner's measured available height, when smaller than the board. */
+  maxHeight?: number;
   /** On web, fit the translated content; `width` is the panel's maximum. */
   fitContent?: boolean;
   submenuWidth?: number;
@@ -117,7 +119,7 @@ export function CascadeMenu(props: CascadeMenuProps) {
   }, [subWidth, window.width, window.height, boundsRef]);
   useEffect(measure, [measure]);
   const windowY = frame?.y ?? null;
-  const maxHeight = panelMaxHeight(windowY, frame?.bottom ?? window.height);
+  const maxHeight = Math.min(props.maxHeight ?? MENU.maxHeight, panelMaxHeight(windowY, frame?.bottom ?? window.height));
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clearTimer = () => {
