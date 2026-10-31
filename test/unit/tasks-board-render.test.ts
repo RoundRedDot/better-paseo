@@ -1424,7 +1424,7 @@ describe("Tasks board, desktop", () => {
     // Window resizing still changes lane widths and switches the short-column layout.
     expect(StyleSheet.flatten(hostsById("lane-surface-running")[0]!.props.style).width).toBe((1350 - 48) / 4);
     act(() => layoutSidebar(639));
-    expect(hostsById("details-sidebar-scroll")).toHaveLength(1);
+    expect(hostsById(selected ? "detail-tab-short-scroll" : "details-sidebar-scroll")).toHaveLength(1);
     act(() => layoutSidebar(640));
     expect(hostsById("details-sidebar-scroll")).toHaveLength(0);
   });
@@ -1689,7 +1689,7 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("detail-title")).toHaveLength(0);
   });
 
-  it("scrolls a short sidebar as one, so the details' header does not hold the sections to a strip", () => {
+  it("scrolls a short sidebar's header with its content while keeping actions outside", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
@@ -1699,10 +1699,12 @@ describe("Tasks board, desktop", () => {
     const column = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-sidebar");
     expect(hostsById("details-sidebar-scroll")).toHaveLength(0);
     act(() => column().props.onLayout({ nativeEvent: { layout: { width: 380, height: 560 } } }));
-    expect(hostsById("details-sidebar-scroll")).toHaveLength(1);
+    expect(hostsById("detail-tab-short-scroll")).toHaveLength(1);
+    expect(hostsById("detail-action-bar")).toHaveLength(1);
     expect(textOf(renderer!.root.findByProps({ testID: "detail-title" }))).toBe(card.props.card.title);
     act(() => column().props.onLayout({ nativeEvent: { layout: { width: 380, height: 900 } } }));
     expect(hostsById("details-sidebar-scroll")).toHaveLength(0);
+    expect(hostsById("detail-tab-short-scroll")).toHaveLength(0);
   });
 
   it("raises the details from the bottom of a board too narrow to float them, and the lanes make room", () => {

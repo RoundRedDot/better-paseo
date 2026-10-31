@@ -32,8 +32,8 @@ describe("details card model", () => {
 
     expect(detailSections(sample("sample-running"))).toEqual({ order: ["properties", "subtasks", "usage", "activity"], closed: [] });
     // No children: no subtasks section.
-    expect(detailSections(sample("sample-input"))).toEqual({ order: ["properties", "usage", "activity"], closed: ["usage"] });
-    expect(detailSections(sample("sample-failed"))).toEqual({ order: ["properties", "activity", "usage"], closed: ["usage"] });
+    expect(detailSections(sample("sample-input"))).toEqual({ order: ["properties", "usage", "activity"], closed: [] });
+    expect(detailSections(sample("sample-failed"))).toEqual({ order: ["properties", "activity", "usage"], closed: [] });
     expect(detailSections(sample("sample-done"))).toEqual({ order: ["properties", "usage", "activity"], closed: [] });
     // The first prompt follows properties when the details can read it.
     expect(detailSections(sample("sample-running"), true).order).toEqual(["properties", "prompt", "subtasks", "usage", "activity"]);

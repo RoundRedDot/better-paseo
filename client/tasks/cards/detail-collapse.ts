@@ -4,12 +4,11 @@ import type { DetailSection } from "./detail-model";
 
 /**
  * The details sections the user opened or closed, by section, for every card:
- * the user's choice beats the state's default (usage closed while a card
- * asks or failed). Session memory everywhere, web storage across reloads.
+ * the user's choice beats the default. Session memory everywhere, web storage across reloads.
  */
 type Choices = Partial<Record<DetailSection, boolean>>;
 
-const STORAGE_KEY = "paseo/better-chat/tasks/detail-sections/v1";
+const STORAGE_KEY = "paseo/better-chat/tasks/detail-sections/v2";
 const SECTIONS: readonly DetailSection[] = ["prompt", "human", "message", "properties", "subtasks", "usage", "activity"];
 let remembered: Choices | null = null;
 const listeners = new Set<() => void>();

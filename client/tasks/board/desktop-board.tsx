@@ -591,7 +591,7 @@ export function DesktopBoard(props: {
       touch={touch}
       stats={!(inSheet && selection.id !== null)}
       scrollAll={inSheet}
-      tabs={ipadFloating}
+      tabs={!inSheet}
     />
   );
   const activeCardId = focus ? `task-card-${lanes[focus.lane].cards[focus.index]!.id}` : undefined;

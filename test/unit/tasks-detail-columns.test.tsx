@@ -13,6 +13,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 vi.mock("../../client/components/markdown/markdown-view", () => ({ MarkdownView: () => null }));
 
 import { TaskDetailCards, type TaskDetailCardsProps } from "../../client/tasks/cards/detail-cards";
+import { taskTokens } from "../../client/tasks/cards/tokens";
+import { permissionButtons } from "../../client/tasks/actions";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { cardStrings } from "../../client/tasks/cards/strings";
@@ -57,17 +59,68 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
-  it("separates iPad information and messages into independently mounted scrollers", async () => {
+  it("keeps the shared header and actions outside independently mounted tab scrollers", async () => {
     await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(true)} columns={false} tabs />); });
     const root = renderer!.root;
     const info = host(root, "detail-tab-info-scroll");
     const messages = host(root, "detail-tab-messages-scroll");
-    expect(order(info)).toEqual(["detail-header", "detail-location", "detail-subtasks", "detail-usage", "detail-activity"]);
+    expect(order(info)).toEqual(["detail-location", "detail-subtasks", "detail-usage", "detail-activity"]);
     expect(order(messages)).toEqual(["detail-prompt", "detail-message"]);
-    expect(host(root, "detail-tab-info").props.accessibilityState.selected).toBe(true);
-    await act(async () => host(root, "detail-tab-messages").props.onPress());
     expect(host(root, "detail-tab-messages").props.accessibilityState.selected).toBe(true);
+    expect(host(root, "detail-header")).toBeDefined();
+    await act(async () => host(root, "detail-tab-info").props.onPress());
+    expect(host(root, "detail-tab-info").props.accessibilityState.selected).toBe(true);
     expect(host(root, "detail-tab-info-scroll")).toBe(info);
+  });
+  it("shows expanded sections and keeps archive before open in the shared footer", async () => {
+    const card = previewSampleCards(NOW).find((item) => item.id === "sample-done")!;
+    const onOpen = vi.fn();
+    const archive = { pending: () => false, press: vi.fn() };
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={onOpen} archive={archive} />); });
+    const root = renderer!.root;
+    const bar = host(root, "detail-action-bar");
+    const buttons = bar.findAll((node) => typeof node.type === "string" && ["detail-bar-archive", "detail-bar-open"].includes(node.props.testID));
+    expect(buttons.map((node) => node.props.testID)).toEqual(["detail-bar-archive", "detail-bar-open"]);
+    expect(StyleSheet.flatten(buttons[0]!.props.style).borderColor).toBe(taskTokens(THEME).card.archiveBorder);
+    expect(host(root, "detail-header").findAll((node) => node.props.testID === "detail-actions")).toHaveLength(0);
+    for (const id of ["detail-prompt", "detail-message", "detail-location", "detail-usage", "detail-activity"]) {
+      const heading = host(root, id).find((node) => typeof node.type === "string" && typeof node.props.accessibilityState?.expanded === "boolean");
+      expect(heading.props.accessibilityState.expanded).toBe(true);
+    }
+    await act(async () => buttons[0]!.props.onPress());
+    await act(async () => buttons[1]!.props.onPress());
+    expect(archive.press).toHaveBeenCalledWith(card.id);
+    expect(onOpen).toHaveBeenCalledWith(card.id);
+    await act(async () => host(root, "detail-tab-info").props.onPress());
+    expect(host(root, "detail-action-bar")).toBe(bar);
+  });
+  it("keeps permission and stop actions in the footer", async () => {
+    const card = previewSampleCards(NOW).find((item) => item.id === "sample-input")!;
+    const stop = vi.fn();
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={() => {}} stop={{ phase: "idle", onPress: stop }} permissionButtons={permissionButtons(card.permission!, "en")} onPermission={() => {}} />); });
+    const root = renderer!.root;
+    expect(host(root, "detail-permission").findAll((node) => node.props.testID === "detail-permission-actions")).toHaveLength(0);
+    expect(host(root, "detail-action-bar").findAll((node) => node.props.accessibilityRole === "button").length).toBeGreaterThan(1);
+    await act(async () => host(root, "detail-bar-stop").props.onPress());
+    expect(stop).toHaveBeenCalledOnce();
+  });
+  it("shows all three messages and remembers a manually collapsed section", async () => {
+    const detailProps = { ...props(false), columns: false, humanMessage: { prompt: { state: "ready" as const, text: "Follow-up" }, load() {} } };
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...detailProps} tabs />); });
+    const heading = () => host(renderer!.root, "detail-human").find((node) => typeof node.type === "string" && typeof node.props.accessibilityState?.expanded === "boolean");
+    expect(heading().props.accessibilityState.expanded).toBe(true);
+    await act(async () => heading().props.onPress());
+    expect(heading().props.accessibilityState.expanded).toBe(false);
+    await act(async () => renderer!.unmount());
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...detailProps} tabs />); });
+    expect(heading().props.accessibilityState.expanded).toBe(false);
+  });
+  it("keeps usage above activity and both expanded for failed tasks", async () => {
+    const card = previewSampleCards(NOW).find((item) => item.id === "sample-failed")!;
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs />); });
+    const info = host(renderer!.root, "detail-tab-info-scroll");
+    expect(order(info)).toEqual(["detail-location", "detail-usage", "detail-activity"]);
+    expect(host(info, "detail-usage").find((node) => typeof node.type === "string" && typeof node.props.accessibilityState?.expanded === "boolean").props.accessibilityState.expanded).toBe(true);
   });
   it.each(["web", "ios", "android"])("keeps properties above subtasks in separate scrollers on %s", async (os) => {
     vi.stubGlobal("__rnMockOS", os);

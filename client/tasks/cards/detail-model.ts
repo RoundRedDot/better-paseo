@@ -42,8 +42,7 @@ export function detailSections(card: TaskCard, prompt = false, message = false, 
   if (message) order = ["message", ...order];
   if (human) order = ["human", ...order];
   if (prompt) order = ["prompt", ...order];
-  const closed: DetailSection[] = hero === "permission" || hero === "error" ? ["usage"] : [];
-  return { order: ["properties", ...order], closed };
+  return { order: ["properties", ...order], closed: [] };
 }
 
 /** The colour each status draws with in the charts: the board's status band, done in grey. */

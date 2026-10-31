@@ -2747,7 +2747,7 @@ describe("TaskDetailCards", () => {
     expect(modeIconNode.props.color).toBe(taskTokens(LIGHT).warning);
   });
 
-  it("keeps properties first while preserving state-specific section defaults", async () => {
+  it("keeps properties first and expands usage by default", async () => {
     const order = (root: ReactTestInstance) =>
       root.findAll((node) => typeof node.type === "string" && ["detail-location", "detail-subtasks", "detail-usage", "detail-activity"].includes(node.props.testID)).map((node) => node.props.testID);
     const running = await render(details(sample("sample-running")));
@@ -2756,13 +2756,10 @@ describe("TaskDetailCards", () => {
     renderer = null;
     const asking = await render(details(sample("sample-input"), { onPermission: vi.fn(), permissionButtons: permissionButtons(sample("sample-input").permission!, "zh") }));
     expect(order(asking.root)).toEqual(["detail-location", "detail-usage", "detail-activity"]);
-    // Usage starts closed while a card asks: its heading and summary only.
-    expect(texts(hostByTestId(asking.root, "detail-usage"))).toEqual(["用量", "$1.84 · 46%"]);
-    expect(byLabel(asking.root, "展开用量").props.accessibilityState).toEqual({ expanded: false });
-    // Opening it is remembered for every card.
-    await act(async () => byLabel(asking.root, "展开用量").props.onPress());
     expect(texts(hostByTestId(asking.root, "detail-usage"))).toContain("Token 构成");
     await act(async () => byLabel(asking.root, "收起用量").props.onPress());
+    expect(byLabel(asking.root, "展开用量").props.accessibilityState).toEqual({ expanded: false });
+    await act(async () => byLabel(asking.root, "展开用量").props.onPress());
   });
 
   it("lists the place, then copyable branch and directory, an openable PR, each state in a note line", async () => {

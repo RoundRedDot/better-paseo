@@ -192,8 +192,10 @@ export interface TaskDetailCardsProps extends TimeSource {
    * card fills its parent.
    */
   columns?: boolean;
-  /** The iPad floating sidebar separates task information and messages. */
+  /** The sidebar separates task information and messages. */
   tabs?: boolean;
+  /** A short sidebar lets its header scroll, keeping its actions visible. */
+  scrollHeader?: boolean;
   /** False when the actions live elsewhere (the phone's bar under the sheet). */
   actions?: boolean;
   testID?: string;
@@ -216,7 +218,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   // The caller's source, for what ticks each second: `now` below is whole minutes.
   const time: TimeSource = { now: props.now, clock: props.clock };
   const choices = useSectionChoices();
-  const [tab, setTab] = useState<"info" | "messages">("info");
+  const [tab, setTab] = useState<"info" | "messages">("messages");
   const query = props.searchQuery?.trim().toLowerCase() ?? "";
   const prompt = props.firstPrompt?.prompt;
   const metadataHits = taskSearchHits(card, query, { title: true, project: true, workspace: true, branch: true, folder: true, path: true, modelPill: true, model: true, pullRequest: true, labels: card.labels.length, labelLimit: Infinity });
@@ -248,27 +250,41 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const sections = order.map((section) => sectionView(section, true));
   if (props.tabs) {
     const messages: DetailSection[] = order.filter((section) => section === "prompt" || section === "human" || section === "message");
-    const info = order.filter((section) => !messages.includes(section));
+    const info: DetailSection[] = (["properties", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section));
+    const tabBar = (
+      <View accessibilityRole="tablist" style={{ flexDirection: "row", paddingHorizontal: 8 }}>
+        {(["info", "messages"] as const).map((id) => (
+          <Pressable key={id} testID={`detail-tab-${id}`} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} onPress={() => setTab(id)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderBottomWidth: tab === id ? 2 : 0, borderColor: tokens.foreground }}>
+            <Text style={{ color: tokens.foreground, fontSize: F.sm }}>{id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}{(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}</Text>
+          </Pressable>
+        ))}
+      </View>
+    );
     return (
       <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), { flex: 1, minHeight: 0 }]}>
-        <View accessibilityRole="tablist" style={{ flexDirection: "row", paddingHorizontal: 8 }}>
-          {(["info", "messages"] as const).map((id) => (
-            <Pressable key={id} testID={`detail-tab-${id}`} accessibilityRole="tab" accessibilityState={{ selected: tab === id }} onPress={() => setTab(id)} style={{ flex: 1, alignItems: "center", paddingVertical: 10, borderBottomWidth: tab === id ? 2 : 0, borderColor: tokens.foreground }}>
-              <Text style={{ color: tokens.foreground, fontSize: F.sm }}>{id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}{id === "messages" && matching.includes("prompt") ? " ·" : ""}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <View style={{ flex: 1, minHeight: 0, display: tab === "info" ? "flex" : "none" }}>
-          <ScrollView key={`${card.id}-info`} style={{ flex: 1 }} {...detailScrollProps("inset")} testID="detail-tab-info-scroll">
-            <DetailHeader {...props} m={m} tokens={tokens} now={now} time={time} gutter={gutter} />
-            {info.map((section) => sectionView(section, true))}
+        {props.scrollHeader ? (
+          <ScrollView key={card.id} style={{ flex: 1 }} {...detailScrollProps("inset")} testID="detail-tab-short-scroll">
+            <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} gutter={gutter} />
+            {tabBar}
+            {(tab === "info" ? info : messages).map((section, index) => sectionView(section, index > 0))}
           </ScrollView>
-        </View>
-        <View style={{ flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" }}>
-          <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} testID="detail-tab-messages-scroll">
-            {messages.map((section, index) => sectionView(section, index > 0))}
-          </ScrollView>
-        </View>
+        ) : (
+          <>
+            <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} />
+            {tabBar}
+            <View style={{ flex: 1, minHeight: 0, display: tab === "info" ? "flex" : "none" }}>
+              <ScrollView key={`${card.id}-info`} style={{ flex: 1 }} {...detailScrollProps("inset")} testID="detail-tab-info-scroll">
+                {info.map((section, index) => sectionView(section, index > 0))}
+              </ScrollView>
+            </View>
+            <View style={{ flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" }}>
+              <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} testID="detail-tab-messages-scroll">
+                {messages.map((section, index) => sectionView(section, index > 0))}
+              </ScrollView>
+            </View>
+          </>
+        )}
+        {props.actions !== false ? <View style={{ paddingBottom: 10 }}><DetailActionBar {...props} sidebar /></View> : null}
       </View>
     );
   }
@@ -1684,6 +1700,7 @@ export function DetailActionBar(props: {
   unarchive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   archive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   markRead?: DetailRead | null;
+  sidebar?: boolean;
 }) {
   const { card } = props;
   const onOpen = opensInPaseo(card) ? props.onOpen : undefined;
@@ -1722,6 +1739,9 @@ export function DetailActionBar(props: {
               onPress={() => props.onPermission?.(button)}
             />
           ))}
+          {props.sidebar && stop && props.stop ? (
+            <BarButton tokens={tokens} icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"} look="danger" label={stop} busy={props.stop.phase === "stopping"} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" />
+          ) : null}
           {/* "Answer" already opens the tab, so, as on the card, Open tab is the square beside Allow and Deny only. */}
           {answer ? <BarButton tokens={tokens} label={answer.label} arrow look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
           {ownOpen && !answer ? <BarButton tokens={tokens} arrow label={openText} square onPress={open} testID="detail-bar-open" /> : null}
