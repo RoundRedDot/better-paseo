@@ -62,6 +62,9 @@ export interface MenuItem {
   detail?: string;
   /** Muted text at the right: a count, the active direction. */
   hint?: string;
+  /** A visual indicator beside the row label. */
+  trailing?: ReactNode;
+  accessibilityLabel?: string;
   /** A menu-local key, displayed at the right and active while its panel is open. */
   shortcut?: string;
   /** A check mark at the right: the current choice. `false` keeps its room, so a column of hints stays aligned. */

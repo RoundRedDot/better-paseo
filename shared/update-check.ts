@@ -31,3 +31,12 @@ export function isNewerVersion(current: string, latest: string, currentBuild: nu
   }
   return latestBuild > currentBuild;
 }
+
+export type UpdateCheckState = z.output<typeof updateCheckRpc.output>;
+
+export function hasUpdate(state: UpdateCheckState): boolean {
+  if (state.state !== "done" || state.versions.status !== "available") return false;
+  const versions = state.versions;
+  return versions.current !== null && versions.latest !== null && versions.currentBuild !== null && versions.latestBuild !== null
+    && isNewerVersion(versions.current, versions.latest, versions.currentBuild, versions.latestBuild);
+}

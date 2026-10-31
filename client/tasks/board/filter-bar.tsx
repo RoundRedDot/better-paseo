@@ -25,6 +25,9 @@ import { FullConversationSwitch, SearchInput } from "./search-loading";
 import { SearchCoverageItems } from "./search-coverage";
 import { tasksSettingsOpener } from "./enabled";
 import { bindBoardRefreshShortcut } from "../../web";
+import { useUpdateIndicator } from "./update-indicator";
+import { SETTINGS_STRINGS } from "../../i18n/settings-page-strings";
+import { useTasksLanguage } from "../i18n";
 
 export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
@@ -44,8 +47,9 @@ const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale))
 
 export type EmptyLanes = { collapsed: boolean; disabled: boolean; onToggle(): void };
 
-function MoreActions({ board, theme, items }: { board: BoardController; theme: PluginTheme; items: MenuSection["items"] }) {
+function MoreActions({ board, theme, items, updateAvailable }: { board: BoardController; theme: PluginTheme; items: MenuSection["items"]; updateAvailable: boolean }) {
   const scale = useTasksFontScale();
+  const updateLabel = SETTINGS_STRINGS[useTasksLanguage()].versionBadge;
   const window = useWindowDimensions();
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -70,7 +74,7 @@ function MoreActions({ board, theme, items }: { board: BoardController; theme: P
     <View style={{ zIndex: 20 }}>
     <RoundButton
       icon="MoreVertical"
-      label={busy ? board.strings.refreshTasks : board.strings.more}
+      label={`${busy ? board.strings.refreshTasks : board.strings.more}${updateAvailable ? `, ${updateLabel}` : ""}`}
       theme={theme}
       onPress={() => setOpen(!open)}
       busy={busy}
@@ -79,6 +83,7 @@ function MoreActions({ board, theme, items }: { board: BoardController; theme: P
       tip={busy ? `${board.strings.refreshTasks} (⌥R)` : board.strings.more}
       testID="desktop-toolbar-more"
     />
+    {updateAvailable ? <View testID="desktop-more-update-dot" pointerEvents="none" style={{ position: "absolute", top: 0, right: 0, width: 7, height: 7, borderRadius: 4, backgroundColor: taskTokens(theme).danger }} /> : null}
     {open ? <CascadeMenu theme={theme} width={menuWidth(200, scale, window.width - MENU_EDGE * 2)} fitContent top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setOpen(false)} testID="desktop-more-menu" sections={[{ key: "more", items: [
       { key: "refresh", label: board.strings.refreshTasks, icon: "RefreshCw", shortcut: "⌥R", disabled: busy, onSelect: press },
       ...items,
@@ -137,6 +142,8 @@ function DesktopToolbarView(props: {
   const [searchFocused, setSearchFocused] = useState(false);
   const [actionWidth, setActionWidth] = useState(0);
   const openSettings = tasksSettingsOpener();
+  const updateAvailable = useUpdateIndicator(board.hostId, board.visible);
+  const updateLabel = SETTINGS_STRINGS[useTasksLanguage()].versionBadge;
   const actionCount = (props.filters ? 4 : 1) + Number(!!props.sidebar);
   const compactActions = actionWidth > 0 && actionWidth < actionCount * roundButtonSize(scale) + (actionCount - 1) * TOOLBAR_GAP;
   const moreItems: MenuSection["items"] = [
@@ -145,7 +152,7 @@ function DesktopToolbarView(props: {
       { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
     ] : []),
     { key: "empty-groups", label: strings.emptyGroups.row, icon: emptyGroupsIcon(board.showEmptyGroups), checked: board.showEmptyGroups, shortcut: "G", onSelect: () => board.setShowEmptyGroups(!board.showEmptyGroups) },
-    ...(openSettings ? [{ key: "settings", label: strings.openSettings, icon: "Bolt", shortcut: ",", onSelect: openSettings }] : []),
+    ...(openSettings ? [{ key: "settings", label: strings.openSettings, accessibilityLabel: updateAvailable ? `${strings.openSettings}, ${updateLabel}` : undefined, icon: "Bolt", shortcut: ",", onSelect: openSettings, trailing: updateAvailable ? <View testID="desktop-settings-update-dot" pointerEvents="none" style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: taskTokens(theme).danger }} /> : undefined }] : []),
     ...(compactActions && props.sidebar ? [{ key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, onSelect: props.sidebar.onToggle }] : []),
   ];
   return (
@@ -264,7 +271,7 @@ function DesktopToolbarView(props: {
         </>
       ) : null}
       </>}
-      <MoreActions board={board} theme={theme} items={moreItems} />
+      <MoreActions board={board} theme={theme} items={moreItems} updateAvailable={updateAvailable && !!openSettings} />
       {!compactActions && props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
       </View>
     </View>

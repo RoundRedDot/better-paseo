@@ -539,6 +539,24 @@ it("shows the latest release notes even when the installation is up to date", as
   act(() => r.unmount());
 });
 
+it("updates an open settings page after an automatic check finishes", async () => {
+  vi.useFakeTimers();
+  let r: Renderer | undefined;
+  try {
+    makeSettings();
+    setSettingsTab("version");
+    state.rpc.mockReset();
+    state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.1.0", currentBuild: 202610311637, latestBuild: 202610311700 }, notes: { status: "missing" } });
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
+    expect(byTestID(r!, "update-badge")).toHaveLength(0);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(byTestID(r!, "update-badge")).toHaveLength(1);
+  } finally {
+    act(() => r?.unmount());
+    vi.useRealTimers();
+  }
+});
+
 
 it("keeps polling after 130 seconds and displays a late result", async () => {
   vi.useFakeTimers();
