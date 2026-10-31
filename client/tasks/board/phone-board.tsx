@@ -308,6 +308,9 @@ export function PhoneBoard(props: {
           theme={theme}
           onPress={() => setSearchOpen((open) => !open)}
         />
+        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.lg, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>
+          {strings.total(board.total)}
+        </Text>
         {board.params.sort ? (
           // A non-default sort says so, as the desktop sort button's label does; it opens the sheet.
           <Pressable

@@ -92,7 +92,7 @@ function sidebar() {
 }
 
 function screen() {
-  return React.createElement(TasksBoardScreen, { ...hostProps, params: {}, setTitle: vi.fn() });
+  return React.createElement(TasksBoardScreen, { ...hostProps, params: {} });
 }
 
 async function mount(element: React.ReactElement) {
