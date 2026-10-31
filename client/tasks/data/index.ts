@@ -1221,12 +1221,37 @@ function createStore(api: PaseoApi): TaskStore {
       return;
     }
     if (payload.kind === "remove" && payload.agentId) {
-      sourceMembers.get(sourceKey)?.delete(payload.agentId);
+      const wasMember = sourceMembers.get(sourceKey)?.delete(payload.agentId);
       // Held for a subagent failure, it stays; the list it left had its latest state, so read it again.
       if (sourceMembers.get(SUBAGENT_KEY)?.has(payload.agentId)) fetchSubagentParent(payload.agentId, generation);
-      dropIfUnreferenced(payload.agentId);
+      if (wasMember && memberSetsContaining(payload.agentId).length === 0 && doneConsumers > 0) {
+        confirmRemovedAgent(payload.agentId);
+      } else if (wasMember) {
+        dropIfUnreferenced(payload.agentId);
+      }
       if (entries.has(payload.agentId)) checkGone(payload.agentId);
     }
+  }
+
+  // An agent can leave one subscription before another sends its new state.
+  // Confirm it before discarding the card.
+  function confirmRemovedAgent(id: string) {
+    const run = generation;
+    void api.agents.ref(id).refresh().then((result) => {
+      if (run !== generation || memberSetsContaining(id).length > 0) return;
+      if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) {
+        dropIfUnreferenced(id);
+        return;
+      }
+      batchUpdates(() => {
+        reconcileActiveMembers(result.agent);
+        if (isDone(result.agent)) sourceMembers.get(DONE_SUBSCRIPTION)?.add(id);
+        updateRecord(result.agent, result.project ?? null);
+        dropIfUnreferenced(id);
+      });
+    }).catch(() => {
+      if (run === generation) dropIfUnreferenced(id);
+    });
   }
 
   /**

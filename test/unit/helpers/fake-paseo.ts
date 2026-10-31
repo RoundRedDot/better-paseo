@@ -478,6 +478,21 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     pushAgentSnapshot(agent: Agent) {
       pushAgent(agent, null);
     },
+    removeFromStatusSubscription(agentId: string) {
+      for (const sub of agentSubs) {
+        if (!sub.options.filter?.statuses?.includes("running")) continue;
+        sub.members.delete(agentId);
+        const message = { type: "agent_update", payload: { subscriptionId: sub.id, kind: "remove", agentId } };
+        for (const observer of sub.observers) observer.update(message);
+      }
+    },
+    removeFromAgentSubscriptions(agentId: string) {
+      for (const sub of agentSubs) {
+        if (!sub.members.delete(agentId)) continue;
+        const message = { type: "agent_update", payload: { subscriptionId: sub.id, kind: "remove", agentId } };
+        for (const observer of sub.observers) observer.update(message);
+      }
+    },
     setAgentSilently(agent: Agent, placement?: Placement) {
       ensureWorkspace(agent);
       agents.set(agent.id, agent);

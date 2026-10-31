@@ -1689,6 +1689,45 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("detail-title")).toHaveLength(0);
   });
 
+  it("keeps a selected card and its floating panel across every lane change", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const lanes = ["needs_input", "running", "review", "done", "archived"] as const;
+    const agent = (lane: typeof lanes[number]) => {
+      const updatedAt = new Date().toISOString();
+      const base = { id: "moving-selection", title: "Selected task", workspaceId: "ws", updatedAt, lastUserMessageAt: updatedAt };
+      if (lane === "needs_input") return makeAgent({ ...base, status: "running", pendingPermissions: [{ id: "p", provider: "claude", name: "Bash", kind: "tool", input: { command: "test" } }] as never });
+      if (lane === "running") return makeAgent({ ...base, status: "running" });
+      if (lane === "review") return makeAgent({ ...base, status: "idle", requiresAttention: true, attentionReason: "finished" });
+      return makeAgent({ ...base, status: "idle", requiresAttention: false, ...(lane === "archived" ? { archivedAt: updatedAt } : {}) });
+    };
+    const fake = createFakePaseo({ agents: [agent("running")] });
+    host.liveTasks = fake.paseo;
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    await act(async () => { await deviceTasksStore().update({ showArchived: true }); });
+    layOut(900);
+    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    const selected = () => cards().find((node) => node.props.card.id === "moving-selection")!;
+    act(() => selected().props.onSelect(selected().props.card));
+    for (const from of lanes) {
+      for (const to of lanes) {
+        if (from === to) continue;
+        for (const lane of [from, to]) {
+          const next = agent(lane);
+          fake.setAgentSilently(next);
+          act(() => fake.removeFromAgentSubscriptions("moving-selection"));
+          expect(hostsById("sidebar-floating")).toHaveLength(1);
+          expect(textOf(hostsById("detail-title")[0]!)).toBe("Selected task");
+          await act(async () => { await Promise.resolve(); await vi.advanceTimersByTimeAsync(0); });
+          expect(selected().props.card.lane).toBe(lane);
+          expect(selected().props.current).toBe(true);
+          expect(hostsById("sidebar-floating")).toHaveLength(1);
+          await act(async () => fake.upsertAgent(next));
+        }
+      }
+    }
+  });
+
   it("scrolls a short sidebar's header with its content while keeping actions outside", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));

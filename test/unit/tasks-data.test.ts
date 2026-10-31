@@ -959,6 +959,24 @@ describe("Tasks data store", () => {
     }
   });
 
+  it("keeps a task while its running subscription removes it before the done update", async () => {
+    const running = activeAgent("moving", { status: "running", updatedAt: recentIso(2_000) });
+    const done = activeAgent("moving", { status: "idle", updatedAt: recentIso(0) });
+    const fake = createFakePaseo({ agents: [running] });
+    const mounted = await mountTasks(fake);
+    try {
+      fake.setAgentSilently(done);
+      act(() => fake.removeFromStatusSubscription("moving"));
+      expect(mounted.current.byId.get("moving")?.lane).toBe("running");
+      await act(async () => { await Promise.resolve(); });
+      expect(mounted.current.byId.get("moving")?.lane).toBe("done");
+      await act(async () => fake.removeAgent("moving"));
+      expect(mounted.current.byId.has("moving")).toBe(false);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("keeps a running task out of the done lane when the daemon sends its idle snapshot late", async () => {
     const fake = createFakePaseo();
     const mounted = await mountTasks(fake, "24h", true);
@@ -975,9 +993,9 @@ describe("Tasks data store", () => {
       });
       expect(mounted.current.byId.get("printing")).toMatchObject({ lane: "running", status: "running" });
       expect(mounted.current.lanes.done.cards.map((card) => card.id)).not.toContain("printing");
-      expect(fake.calls.filter((call) => call.method === "agents.ref.refresh")).toEqual([
+      expect(fake.calls.filter((call) => call.method === "agents.ref.refresh")).toContainEqual(
         { method: "agents.ref.refresh", input: { agentId: "printing" } },
-      ]);
+      );
 
       // Its turn ends: the later idle update moves it to done as usual.
       await act(async () => {
