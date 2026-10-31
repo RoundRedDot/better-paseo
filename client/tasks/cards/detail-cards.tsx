@@ -566,26 +566,22 @@ function DetailHeader(props: Inner) {
             testID="detail-mode"
           />
         ) : null}
+        {card.labels.map((tag) => (
+          <Chip
+            key={tag.name}
+            tokens={tokens}
+            compact={props.compact}
+            height={chipHeight}
+            font={chipFont}
+            lead={<TagMark size={iconSize} color={tag.color ?? tokens.foregroundMuted} hole={tokens.card.background} />}
+            text={tag.name}
+            tip={pair(cardText.hint.label, tag.name)}
+            testID={`detail-label-${tag.name}`}
+            renderText={props.searchQuery ? (text) => highlightText(text, props.searchQuery!, tokens.isDark) : undefined}
+          />
+        ))}
       </View>
       <AvailabilityTag issue={card.availability?.issue} language={props.language} tokens={tokens} compact={touch} />
-      {card.labels.length > 0 ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 }} testID="detail-labels">
-          {card.labels.map((tag) => (
-            <Chip
-              key={tag.name}
-              tokens={tokens}
-              compact={props.compact}
-              height={chipHeight}
-              font={chipFont}
-              lead={<TagMark size={iconSize} color={tag.color ?? tokens.foregroundMuted} hole={tokens.card.background} />}
-              text={tag.name}
-              tip={pair(cardText.hint.label, tag.name)}
-              testID={`detail-label-${tag.name}`}
-              renderText={props.searchQuery ? (text) => highlightText(text, props.searchQuery!, tokens.isDark) : undefined}
-            />
-          ))}
-        </View>
-      ) : null}
       {showActions ? (
         <ActionRow style={{ marginTop: 12 }} testID="detail-actions">
           {touch ? null : lead}

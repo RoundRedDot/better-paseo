@@ -3692,9 +3692,19 @@ describe("TaskDetailCards", () => {
     const card = { ...sample("sample-input"), labels: [{ name: "linear", color: "#cc8f64" }, { name: "spare", color: null }] };
     const tree = await render(details(card));
     const tokens = buildTaskTokens(LIGHT.colors);
-    const tags = hostByTestId(tree.root, "detail-labels").findAllByType(TagMark).map((tag) => tag.props);
+    const agent = hostByTestId(tree.root, "detail-agent");
+    const tags = agent.findAllByType(TagMark).map((tag) => tag.props);
     expect(tags.map((tag) => tag.color)).toEqual(["#cc8f64", tokens.foregroundMuted]);
     expect(tags.every((tag) => tag.hole === tokens.card.background)).toBe(true);
+    // Labels share the model row and wrap with it, the way a board card's pills do.
+    expect(agent.children.filter((node): node is ReactTestInstance => typeof node !== "string").map((node) => node.props.testID)).toEqual([
+      "detail-model",
+      "detail-thinking",
+      "detail-mode",
+      "detail-label-linear",
+      "detail-label-spare",
+    ]);
+    expect(flat(agent.props.style).flexWrap).toBe("wrap");
   });
 
   it("grows every agent and label chip together with the host's text size", async () => {
@@ -3704,7 +3714,7 @@ describe("TaskDetailCards", () => {
       return (node.type as unknown) === "Pressable" && style.flexDirection === "row" && typeof style.height === "number" && style.borderRadius === style.height / 2;
     };
     const heights = (tree: ReactTestRenderer) =>
-      ["detail-agent", "detail-labels"].flatMap((id) => hostByTestId(tree.root, id).findAll(pill).map((chip) => flat(chip.props.style).height));
+      hostByTestId(tree.root, "detail-agent").findAll(pill).map((chip) => flat(chip.props.style).height);
     expect(heights(await render(details(card)))).toEqual([20, 20, 20, 20]);
     const large = { ...LIGHT, typography: { fontSize: { ui: 21 } } };
     const scaled = await render(React.createElement(TasksTypography, { theme: large, children: details(card, { theme: large }) }));
