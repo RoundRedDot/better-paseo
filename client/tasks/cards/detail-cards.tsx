@@ -223,7 +223,14 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const choices = useSectionChoices();
   const [tab, setTab] = useState<"info" | "messages">("messages");
   const [tabsPinned, setTabsPinned] = useState(false);
-  useEffect(() => setTabsPinned(false), [card.id, props.scrollHeader]);
+  // Each fixed tab keeps its own scroller, so the shadow follows the page on screen.
+  const bodyOffsets = useRef({ info: 0, messages: 0 });
+  const [bodyScrolled, setBodyScrolled] = useState(false);
+  useEffect(() => {
+    setTabsPinned(false);
+    bodyOffsets.current = { info: 0, messages: 0 };
+    setBodyScrolled(false);
+  }, [card.id, props.scrollHeader]);
   const tabScroll = useRef<ScrollView>(null);
   const [tabLayout, setTabLayout] = useState({ top: 0, height: 0, viewport: 0 });
   // Native scroll bookkeeping does not need to redraw the card on every frame.
@@ -257,22 +264,32 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     />
   );
   const sections = order.map((section) => sectionView(section, true));
+  const trackBodyScroll = (id: "info" | "messages") => (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+    const offset = Math.max(0, event.nativeEvent.contentOffset.y);
+    bodyOffsets.current[id] = offset;
+    if (id !== tab) return;
+    const scrolled = offset > 0;
+    setBodyScrolled((current) => (current === scrolled ? current : scrolled));
+  };
+  // Sticky tabs cast this once they pin. Fixed tabs cast it once their page has scrolled under them.
+  const tabShadow = (props.scrollHeader ? tabsPinned : bodyScrolled) ? tabEdgeShadow(tokens.isDark) : undefined;
   if (props.tabs) {
     const messages: DetailSection[] = order.filter((section) => section === "prompt" || section === "human" || section === "message");
     const info: DetailSection[] = (["properties", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section));
     const tabBar = (
       // Sticky headers replace their direct child's style; keep the row one level inside.
-      <View testID="detail-tab-anchor" onLayout={props.scrollHeader ? (event) => {
+      <View testID="detail-tab-anchor" style={tabShadow && !props.scrollHeader ? { position: "relative", zIndex: 1 } : undefined} onLayout={props.scrollHeader ? (event) => {
         const { y, height } = event.nativeEvent.layout;
         setTabLayout((current) => current.top === y && current.height === height ? current : { ...current, top: y, height });
       } : undefined}>
-        <View accessibilityRole="tablist" testID="detail-tabs" style={{ flexDirection: "row", paddingHorizontal: 10, paddingTop: props.scrollHeader ? 8 : 0, paddingBottom: 8, gap: 6, backgroundColor: tokens.card.background, boxShadow: props.scrollHeader && tabsPinned ? `0px 5px 8px -4px rgba(0, 0, 0, ${tokens.isDark ? 0.36 : 0.14})` : undefined }}>
+        <View accessibilityRole="tablist" testID="detail-tabs" style={{ flexDirection: "row", paddingHorizontal: 10, paddingTop: props.scrollHeader ? 8 : 0, paddingBottom: 8, gap: 6, backgroundColor: tokens.card.background, boxShadow: tabShadow }}>
           {(["info", "messages"] as const).map((id) => (
             <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={`${id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}${(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}`} onPress={() => {
               if (id === tab) return;
               // Switching pages must not reveal a header the reader already scrolled past.
               if (props.scrollHeader) tabOffsets.current[id] = Math.max(tabOffsets.current[id], Math.min(tabOffsets.current[tab], tabLayout.top));
               tabOffsets.current.restoring = props.scrollHeader === true;
+              if (!props.scrollHeader) setBodyScrolled(bodyOffsets.current[id] > 0);
               setTab(id);
             }} />
           ))}
@@ -325,12 +342,12 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} />
             {tabBar}
             <View style={{ flex: 1, minHeight: 0, display: tab === "info" ? "flex" : "none" }}>
-              <ScrollView key={`${card.id}-info`} style={{ flex: 1 }} {...detailScrollProps("inset")} testID="detail-tab-info-scroll">
+              <ScrollView key={`${card.id}-info`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={trackBodyScroll("info")} testID="detail-tab-info-scroll">
                 {info.map((section, index) => sectionView(section, index > 0))}
               </ScrollView>
             </View>
             <View style={{ flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" }}>
-              <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} testID="detail-tab-messages-scroll">
+              <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={trackBodyScroll("messages")} testID="detail-tab-messages-scroll">
                 {messages.map((section, index) => sectionView(section, index > 0))}
               </ScrollView>
             </View>
@@ -371,6 +388,11 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
       )}
     </View>
   );
+}
+
+/** Downward edge under the detail tabs once content sits beneath them. Shared by the sticky row and the fixed row. */
+function tabEdgeShadow(isDark: boolean): string {
+  return `0px 5px 8px -4px rgba(0, 0, 0, ${isDark ? 0.36 : 0.14})`;
 }
 
 /** `gutter`: the room a scroller's scrollbar takes from the right padding (0 outside one). */

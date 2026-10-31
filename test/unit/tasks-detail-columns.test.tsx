@@ -116,6 +116,35 @@ describe("details columns", () => {
     expect(shadow()).toBeUndefined();
   });
 
+  it.each(["ios", "android", "web"])("shows the same bottom shadow while a fixed tab's page is scrolled on %s", async (os) => {
+    vi.stubGlobal("__rnMockOS", os);
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false} tabs />);
+    });
+    const root = renderer!.root;
+    const shadow = () => StyleSheet.flatten(host(root, "detail-tabs").props.style).boxShadow;
+    const anchor = () => StyleSheet.flatten(host(root, "detail-tab-anchor").props.style ?? {});
+    const scroll = (id: "info" | "messages", y: number) => host(root, `detail-tab-${id}-scroll`).props.onScroll({ nativeEvent: { contentOffset: { y } } });
+    expect(shadow()).toBeUndefined();
+    expect(anchor().zIndex).toBeUndefined();
+    await act(async () => scroll("messages", 12));
+    expect(shadow()).toContain("0px 5px 8px -4px");
+    expect(anchor().zIndex).toBe(1);
+    // The page that is hidden keeps its offset, and does not change the shadow on screen.
+    await act(async () => scroll("info", 0));
+    expect(shadow()).toContain("0px 5px 8px -4px");
+    await act(async () => scroll("info", 40));
+    await act(async () => host(root, "detail-tab-info").props.onPress());
+    expect(shadow()).toContain("0px 5px 8px -4px");
+    await act(async () => scroll("info", 0));
+    expect(shadow()).toBeUndefined();
+    expect(anchor().zIndex).toBeUndefined();
+    await act(async () => host(root, "detail-tab-messages").props.onPress());
+    expect(shadow()).toContain("0px 5px 8px -4px");
+    await act(async () => renderer!.update(<TaskDetailCards {...props(false)} card={{ ...props(false).card, id: "another-task" }} columns={false} tabs />));
+    expect(shadow()).toBeUndefined();
+  });
+
   it.each([
     { os: "ios", offset: 0, target: 0 },
     { os: "ios", offset: 85, target: 85 },
