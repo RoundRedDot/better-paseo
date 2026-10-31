@@ -11,6 +11,7 @@ import { useThemeTokens, withAlpha } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { useInputCapabilities } from "../../ui/use-input-capabilities";
 import { useCopy } from "../../ui/use-copy";
 import { formatFullStamp } from "../../ui/time";
@@ -834,6 +835,7 @@ function ErrorBlock(props: Inner) {
 function Section(props: Inner & { section: DetailSection; closed: boolean; divider: boolean; onToggleSection(closed: boolean): void }) {
   const { card, m, tokens, section, gutter = 0 } = props;
   const words = cardStrings(props.language).details;
+  const { copied, copy } = useCopy();
   const title = { prompt: words.prompt, human: words.human, message: words.message, properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
   // A narrow card abbreviates the subtasks heading; its rows keep their shared metadata.
   const [narrow, setNarrow] = useState(false);
@@ -859,6 +861,9 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
     usage: usageSummary(card, props.language),
     activity: created !== null ? words.createdAgo(formatRelative(created, props.language)) : "",
   }[section];
+  const messageSection = section === "prompt" || section === "human" || section === "message";
+  const copyLabel = section === "prompt" ? words.copyPrompt : section === "human" ? words.copyHuman : words.copyMessage;
+  const copyToast = section === "prompt" ? "Copy prompt" : section === "human" ? "Copy sent message" : "Copy message";
   const testID = { prompt: "detail-prompt", human: "detail-human", message: "detail-message", properties: "detail-location", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
   // The last subtask row keeps 8 (touch 10) above the next hairline.
   const bottom = section === "subtasks" && m === TOUCH_CARD ? 10 : 8;
@@ -866,17 +871,25 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
     <View testID={testID} onLayout={onLayout}>
       {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginLeft: m.padH, marginRight: m.padH - gutter, backgroundColor: tokens.card.border }} /> : null}
       <View style={{ paddingTop: 4, paddingBottom: bottom, paddingLeft: m.padH - 6, paddingRight: m.padH - 6 - gutter }}>
-        <SectionHeading
-          m={m}
-          tokens={tokens}
-          title={title}
-          summary={summary}
-          summaryTip={messageTime ? formatFullStamp(new Date(at)) : undefined}
-          trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined}
-          closed={props.closed}
-          language={props.language}
-          onPress={() => props.onToggleSection(!props.closed)}
-        />
+        {messageSection ? (
+          <View testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
+            <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: detailColors(tokens).sunk }}>
+              <Icon name={section === "message" ? "MessageSquareText" : "MessageCircle"} size={16} color={section === "message" ? tokens.success : tokens.foregroundMuted} />
+            </View>
+            <Text style={{ flex: 1, marginLeft: 8, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
+            {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
+            {read?.prompt.state === "ready" ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={copyLabel} {...tipProps(copyLabel)} onPress={() => void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast })} hitSlop={4} testID={`${testID}-copy`} style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
+                <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
+              </Pressable>
+            ) : null}
+            <Pressable accessibilityRole="button" accessibilityLabel={props.closed ? words.expand(title) : words.collapse(title)} {...tipProps(props.closed ? words.expand(title) : words.collapse(title))} accessibilityState={{ expanded: !props.closed }} onPress={() => props.onToggleSection(!props.closed)} style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
+              <View style={{ transform: [{ rotate: props.closed ? "-90deg" : "0deg" }] }}><Icon name="ChevronDown" size={14} color={tokens.foregroundMuted} /></View>
+            </Pressable>
+          </View>
+        ) : (
+          <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryTip={messageTime ? formatFullStamp(new Date(at)) : undefined} trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined} closed={props.closed} language={props.language} onPress={() => props.onToggleSection(!props.closed)} />
+        )}
         {props.closed ? null : section === "prompt" ? (
           <TimelineTextBody {...props} read={props.firstPrompt} id="detail-prompt" none={words.promptNone} error={words.promptError} copyLabel={words.copyPrompt} copyToast="Copy prompt" />
         ) : section === "human" ? (
@@ -1462,7 +1475,6 @@ function TimelineTextBody(props: Inner & {
   const query = props.id === "detail-prompt" ? props.searchQuery ?? "" : "";
   const [searchFold, setSearchFold] = useState({ query: "", closed: false });
   const expanded = query ? searchFold.query === query ? !searchFold.closed : true : open;
-  const { copied, copy } = useCopy();
   const prose = useThemeTokens(props.theme, useEnhancerPreferences());
   const adjustment = useTasksFontAdjustment();
   const first = props.read;
@@ -1491,6 +1503,7 @@ function TimelineTextBody(props: Inner & {
   const font = Math.round(prose.typography.content.size * 0.9 * adjustment);
   const small = F.sm;
   const prompt = first.prompt;
+  if (streaming && (prompt.state === "loading" || prompt.state === "none")) return <ReplyLoading tokens={tokens} language={props.language} waiting />;
   if (prompt.state === "loading") {
     return <TimelineTextSkeleton tokens={tokens} id={id} font={font} touch={props.touch === true} opacity={breathing} label={words.promptLoading} />;
   }
@@ -1513,10 +1526,10 @@ function TimelineTextBody(props: Inner & {
   const long = lines.length > PROMPT_LINES || text.length > 240;
   const folded = long && !expanded;
   const line = variantMetrics(PROSE, font).bodyLineHeight;
-  const sunk = detailColors(tokens).sunk;
+  const sunk = tokens.card.background;
   return (
-    <View style={{ paddingHorizontal: 6, paddingTop: 2 }}>
-      <View style={{ borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: sunk }}>
+    <View style={{ paddingLeft: 42, paddingRight: 6, paddingTop: 6 }}>
+      <View>
         {props.flash ? (
           <Animated.View pointerEvents="none" testID={`${id}-flash`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }} />
         ) : null}
@@ -1532,25 +1545,37 @@ function TimelineTextBody(props: Inner & {
           ) : null}
         </View>
       </View>
-      <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
-        {long ? (
+      {long ? <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Pressable accessibilityRole="button" {...tipProps(expanded ? words.showLess : words.showAll(lines.length))} onPress={() => query ? setSearchFold({ query, closed: expanded }) : setOpen((was) => !was)} hitSlop={4} testID={`${id}-more`}>
             <Text style={{ fontSize: small, color: tokens.foregroundMuted }}>{expanded ? words.showLess : words.showAll(lines.length)}</Text>
           </Pressable>
-        ) : null}
-        <View style={{ flex: 1 }} />
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={props.copyLabel}
-          {...tipProps(props.copyLabel)}
-          onPress={() => void copy(text, { label: props.copyToast })}
-          hitSlop={6}
-          testID={`${id}-copy`}
-          style={{ width: 24, height: 24, marginRight: -4, alignItems: "center", justifyContent: "center", borderRadius: 6 }}
-        >
-          <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
-        </Pressable>
-      </View>
+      </View> : null}
+      {streaming ? <ReplyLoading tokens={tokens} language={props.language} /> : null}
+    </View>
+  );
+}
+
+const REPLY_LOADER_FRAMES = [
+  [1, 0, 0.78, 0, 0.56, 0.34], [0.78, 1, 0.56, 0, 0.34, 0],
+  [0.56, 0.78, 0.34, 1, 0, 0], [0.34, 0.56, 0, 0.78, 0, 1],
+  [0, 0.34, 0, 0.56, 1, 0.78], [0, 0, 1, 0.34, 0.78, 0.56],
+] as const;
+
+function ReplyLoading(props: { tokens: TaskTokens; language: TasksLanguage; waiting?: boolean }) {
+  const reduced = useReducedMotion();
+  const [step, setStep] = useState(() => Math.floor((Date.now() % 950) * 6 / 950));
+  useEffect(() => {
+    if (reduced) return;
+    const timer = setInterval(() => setStep(Math.floor((Date.now() % 950) * 6 / 950)), 950 / 6);
+    return () => clearInterval(timer);
+  }, [reduced]);
+  const label = props.language === "zh" ? (props.waiting ? "等待输出" : "正在回复") : (props.waiting ? "Waiting for reply" : "Replying");
+  return (
+    <View testID="detail-message-working" accessibilityRole="progressbar" accessibilityLabel={label} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: props.waiting ? 42 : 0, paddingTop: 8 }}>
+      <View style={{ width: 14, height: 14, alignItems: "center", justifyContent: "center" }}><View testID="detail-message-working-grid" style={{ width: 26 / 3, height: 14, flexDirection: "row", flexWrap: "wrap", columnGap: 2, rowGap: 2 }}>
+        {REPLY_LOADER_FRAMES[reduced ? 0 : step]!.map((opacity, index) => <View key={index} style={{ width: 10 / 3, height: 10 / 3, borderRadius: 2, backgroundColor: props.tokens.foreground, opacity }} />)}
+      </View></View>
+      <Text style={{ fontSize: F.sm, color: props.tokens.foregroundMuted }}>{label}</Text>
     </View>
   );
 }

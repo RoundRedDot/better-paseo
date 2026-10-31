@@ -3338,6 +3338,22 @@ describe("TaskDetailCards", () => {
     timing.mockRestore();
   });
 
+  it("shows the working dot matrix while awaiting and streaming a reply, then removes it", async () => {
+    const load = vi.fn();
+    const running = sample("sample-running");
+    const tree = await render(details(running, { lastMessage: { prompt: { state: "none" }, load } }, "zh"));
+    expect(hostByTestId(tree.root, "detail-message-working").props.accessibilityLabel).toBe("等待输出");
+    expect(hostByTestId(tree.root, "detail-message-working-grid").children).toHaveLength(6);
+    expect(tree.root.findAll((node) => node.props.testID === "detail-message-copy")).toHaveLength(0);
+    await act(async () => tree.update(details(running, { lastMessage: { prompt: { state: "ready", text: "Reply" }, load } }, "zh")));
+    expect(hostByTestId(tree.root, "detail-message-working").props.accessibilityLabel).toBe("正在回复");
+    await act(async () => byLabel(tree.root, "复制消息").props.onPress());
+    expect(clipboard.copyText).toHaveBeenLastCalledWith("Reply");
+    await act(async () => tree.update(details({ ...running, lane: "done", status: "done" }, { lastMessage: { prompt: { state: "ready", text: "Reply" }, load } }, "zh")));
+    expect(tree.root.findAll((node) => node.props.testID === "detail-message-working")).toHaveLength(0);
+    await act(async () => tree.unmount());
+  });
+
   it("draws a breathing skeleton while a timeline read is on its way", async () => {
     const load = vi.fn();
     const loading = { prompt: { state: "loading" } as const, load };

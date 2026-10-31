@@ -380,6 +380,9 @@ describe("detail message times", () => {
   function heading(root: ReactTestInstance, id: string) {
     return host(root, id).find((node) => typeof node.type === "string" && typeof node.props.accessibilityState?.expanded === "boolean");
   }
+  function messageHeading(root: ReactTestInstance, id: string) {
+    return host(root, `${id}-heading`);
+  }
   function labels(root: ReactTestInstance) {
     return root.findAll((node) => (node.type as unknown) === "Text").map((node) => node.props.children);
   }
@@ -407,8 +410,8 @@ describe("detail message times", () => {
           ["detail-prompt", words.prompt, "08:13", `${day(first)} 08:13:07`],
           ["detail-message", words.message, `${last.getMonth() + 1}/${last.getDate()} 21:47`, `${day(last)} 21:47:52`],
         ] as const) {
-          expect(labels(heading(root, id))).toEqual([title, time]);
-          const stamp = heading(root, id).findAll((node) => (node.type as unknown) === "Text")[1]!;
+          expect(labels(messageHeading(root, id))).toEqual([title, time]);
+          const stamp = messageHeading(root, id).findAll((node) => (node.type as unknown) === "Text")[1]!;
           expect(stamp.props.numberOfLines).toBe(1);
           expect(stamp.props.dataSet?.bctip).toBe(os === "web" ? fullTime : undefined);
           expect(stamp.props.onPress).toBeUndefined();
@@ -416,8 +419,8 @@ describe("detail message times", () => {
           expect(StyleSheet.flatten(stamp.props.style)).toMatchObject({ flexShrink: 1, fontVariant: ["tabular-nums"] });
           await act(async () => heading(root, id).props.onPress());
           expect(heading(root, id).props.accessibilityState.expanded).toBe(false);
-          expect(labels(heading(root, id))).toEqual([title, time]);
-          const foldedStamp = heading(root, id).findAll((node) => (node.type as unknown) === "Text")[1]!;
+          expect(labels(messageHeading(root, id))).toEqual([title, time]);
+          const foldedStamp = messageHeading(root, id).findAll((node) => (node.type as unknown) === "Text")[1]!;
           expect(foldedStamp.props.dataSet?.bctip).toBe(os === "web" ? fullTime : undefined);
           expect(heading(root, id).props.dataSet?.bctip).toBe(os === "web" ? words.expand(title) : undefined);
         }
@@ -435,7 +438,7 @@ describe("detail message times", () => {
           firstPrompt={{ prompt: { state: "ready", text: "No time", timestamp }, load() {} }}
           lastMessage={{ prompt: { state: "ready", text: "No time", timestamp }, load() {} }} />);
       });
-      for (const id of ["detail-prompt", "detail-message"]) expect(labels(heading(renderer!.root, id))).toHaveLength(1);
+      for (const id of ["detail-prompt", "detail-message"]) expect(labels(messageHeading(renderer!.root, id))).toHaveLength(1);
       await act(async () => renderer!.unmount());
     }
     for (const state of ["idle", "loading", "none", "error"] as const) {
@@ -443,7 +446,7 @@ describe("detail message times", () => {
         renderer = TestRenderer.create(<TaskDetailCards {...detailProps}
           firstPrompt={{ prompt: { state }, load() {} }} lastMessage={{ prompt: { state }, load() {} }} />);
       });
-      for (const id of ["detail-prompt", "detail-message"]) expect(labels(heading(renderer!.root, id))).toHaveLength(1);
+      for (const id of ["detail-prompt", "detail-message"]) expect(labels(messageHeading(renderer!.root, id))).toHaveLength(1);
       await act(async () => renderer!.unmount());
     }
     renderer = undefined;
