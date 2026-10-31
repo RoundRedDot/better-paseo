@@ -371,6 +371,9 @@ export function registerTasksServer(
   server.handle(tasksChunkRpc, ({ id }) => ({ code: TASKS_CHUNK?.id === id ? TASKS_CHUNK.code : null }));
   server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCli()) !== null, read: primaryHost.available() }));
   server.handle(tasksHostsRpc, async ({}, context) => {
+    // Prefer the live host directory from Paseo when available, so the board
+    // sees every host the daemon knows about (including remote ones), not just
+    // the ones this plugin process was started with.
     const paseo = context?.paseo;
     if (paseo?.hosts) {
       try {
