@@ -15,7 +15,7 @@ import { activeFilterCount, resolveBoardParams } from "./params";
 import type { BoardController } from "./use-board";
 import { FullConversationSwitch, SearchInput } from "./search-loading";
 import { SearchCoverageItems } from "./search-coverage";
-import { SearchQueryChip } from "./filter-bar";
+import { PanelMark, SearchQueryChip } from "./filter-bar";
 
 type ViewPage = "view" | "sort";
 
@@ -81,7 +81,7 @@ export function TabletToolbar(props: {
       { key: "empty-lanes", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, icon: props.emptyLanes.collapsed ? "UnfoldHorizontal" : "FoldHorizontal", checked: props.emptyLanes.collapsed, disabled: props.emptyLanes.disabled, keepOpen: true, onSelect: props.emptyLanes.onToggle },
       { key: "subtasks", label: strings.showSubtasks, icon: resolved.filters.hideSubtasks ? "List" : "Network", checked: !resolved.filters.hideSubtasks, keepOpen: true, onSelect: () => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })) },
       { key: "archived", label: strings.archivedLane.row, icon: "Archive", checked: board.showArchived, keepOpen: true, onSelect: () => board.setShowArchived(!board.showArchived) },
-      { key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, icon: "PanelRight", checked: props.sidebar.open, onSelect: props.sidebar.onToggle },
+      { key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, leading: <PanelMark open={props.sidebar.open} side="right" color={colors.foregroundMuted} />, checked: props.sidebar.open, onSelect: props.sidebar.onToggle },
     ] },
   ];
   // Touch drill-down stays inside the same panel, including in iPad split view.
@@ -139,8 +139,7 @@ export function TabletToolbar(props: {
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
           <ToolbarButton compact={compact} icon="SlidersHorizontal" label={strings.view} showLabel={labels} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); setSearchOpen(false); openPage(page ? null : "view"); }} />
         </View>
-        {shortcuts ? <View style={{ width: HAIRLINE, height: 18, backgroundColor: colors.border, marginHorizontal: 2 }} /> : null}
-        {shortcuts ? <ToolbarButton compact={compact} icon="PanelRight" label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} theme={theme} testID="sidebar-switch" onPress={props.sidebar.onToggle} /> : null}
+        {shortcuts ? <ToolbarButton compact={compact} icon={<PanelMark open={props.sidebar.open} side="right" color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} theme={theme} testID="sidebar-switch" onPress={props.sidebar.onToggle} /> : null}
         </View>
       </View>
       {props.filters ? (
@@ -162,7 +161,7 @@ export function TabletToolbar(props: {
   );
 }
 
-function ToolbarButton(props: { icon: string; label: string; theme: PluginTheme; onPress(): void; testID: string; showLabel?: boolean; selected?: boolean; expanded?: boolean; badge?: number; badgeTestID?: string; slashed?: boolean; compact?: boolean }) {
+function ToolbarButton(props: { icon: string | React.ReactElement; label: string; theme: PluginTheme; onPress(): void; testID: string; showLabel?: boolean; selected?: boolean; expanded?: boolean; badge?: number; badgeTestID?: string; slashed?: boolean; compact?: boolean }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const target = taskControlHeight(props.compact ? 28 : 44, scale);
@@ -170,7 +169,7 @@ function ToolbarButton(props: { icon: string; label: string; theme: PluginTheme;
   return (
     <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered) => ({ minWidth: target, height: target, flexShrink: 0, paddingHorizontal: props.showLabel ? 10 : 0, borderRadius: 7, backgroundColor: hovered || props.expanded || props.selected ? colors.surface1 : "transparent", boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
       <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
-        <Icon name={props.icon} size={iconSize} color={colors.foreground} />
+        {typeof props.icon === "string" ? <Icon name={props.icon} size={iconSize} color={colors.foreground} /> : props.icon}
         {props.slashed ? <SlashMark size={iconSize} color={colors.foreground} gap={colors.surface0} /> : null}
         <CornerBadge count={props.badge ?? 0} theme={props.theme} style={{ bottom: -4, right: -4 }} testID={props.badgeTestID ?? "tablet-filter-count"} />
       </View>

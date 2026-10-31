@@ -3770,7 +3770,7 @@ describe("Tasks board, tablet filters", () => {
       const style = StyleSheet.flatten(button.props.style);
       expect(style.height).toBe(Math.round((compact ? 28 : 44) * Math.max(1, base / 14)));
       expect(style.borderRadius).toBe(7);
-      const icon = button.find((node) => (node.type as unknown) === "Icon");
+      const icon = button.find((node) => button.props.testID === "sidebar-switch" ? typeof node.type === "string" && node.props.testID === "panel-mark" : (node.type as unknown) === "Icon");
       expect(StyleSheet.flatten(hostParentOf(icon)!.props.style)).toMatchObject({ width: compact ? 16 : 18, height: compact ? 16 : 18 });
     }
     const filters = hostsById("toolbar-filters")[0]!;
@@ -3849,6 +3849,29 @@ describe("Tasks board, tablet filters", () => {
     }
     act(() => renderer!.update(React.createElement(TabletToolbar, { ...props, board: { ...props.board, total: 1000 } })));
     expect(textOf(hostsById("tablet-total-reserve")[0]!)).toBe(BOARD_STRINGS[language].total(8888));
+  });
+
+  it.each(["ios", "android"])("%s switches the sidebar icon in both the toolbar and View menu", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1200);
+    const button = () => hostsById("sidebar-switch")[0]!;
+    expect(hostsById("tablet-toolbar-end")[0]!.findAll((node) => typeof node.type === "string" && StyleSheet.flatten(node.props.style)?.marginHorizontal === 2)).toHaveLength(0);
+    const fill = (node: ReactTestInstance) => StyleSheet.flatten(node.find((child) => typeof child.type === "string" && child.props.testID === "panel-mark-fill").props.style).width;
+    for (let i = 0; i < 3; i++) {
+      const open = button().props.accessibilityState.selected;
+      expect(fill(button())).toBe(open ? 3.5 : 1.5);
+      act(() => hostsById("tablet-view")[0]!.props.onPress());
+      const strings = renderer!.root.findByType(TabletToolbar).props.board.strings;
+      const item = menuOption(open ? strings.sidebar.hide : strings.sidebar.show);
+      expect(item.props.accessibilityState.checked).toBe(open);
+      expect(fill(item)).toBe(open ? 3.5 : 1.5);
+      await act(async () => item.props.onPress());
+      expect(button().props.accessibilityState.selected).toBe(!open);
+      expect(fill(button())).toBe(open ? 1.5 : 3.5);
+      await act(async () => button().props.onPress());
+      expect(fill(button())).toBe(open ? 3.5 : 1.5);
+    }
   });
 
   it.each(["ios", "android"])("%s retains filtering, reset, device settings and subtask visibility", async (os) => {

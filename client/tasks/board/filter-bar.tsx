@@ -375,7 +375,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
  * while open and a thin bar while closed, on the edge the details come from.
  * Tighter corners and even insets keep all four states balanced.
  */
-function PanelMark(props: { open: boolean; side: "right" | "bottom"; color: string }) {
+export function PanelMark(props: { open: boolean; side: "right" | "bottom"; color: string }) {
   const bottom = props.side === "bottom";
   return (
     <View
