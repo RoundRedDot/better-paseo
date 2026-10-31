@@ -30,7 +30,7 @@ export const SIDEBAR = {
 export type SidebarMode = "inline" | "floating" | "sheet";
 
 /** The iPad floating panel has its own width, independent of the desktop column. */
-export const TABLET_SIDEBAR = { width: 340, min: 240, max: 480, fontScale: 0.9 } as const;
+export const TABLET_SIDEBAR = { width: 340, min: 200, max: 480, fontScale: 0.9 } as const;
 
 export function tabletSidebarWidth(boardWidth: number, preferred: number = TABLET_SIDEBAR.width): number {
   return Math.round(Math.max(TABLET_SIDEBAR.min, Math.min(TABLET_SIDEBAR.max, boardWidth - 2 * SIDEBAR.gap, preferred)));

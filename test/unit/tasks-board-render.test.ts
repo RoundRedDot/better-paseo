@@ -1900,6 +1900,7 @@ describe("Tasks board, desktop", () => {
     const handle = () => hostsById("floating-sidebar-resize")[0]!;
     const width = () => StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width;
     const event = (pageX: number) => ({ nativeEvent: { pageX } });
+    expect(handle().props.accessibilityValue.min).toBe(200);
     expect(handle().props.onMoveShouldSetPanResponder({}, { dx: 3, dy: 0 })).toBe(false);
     expect(handle().props.onMoveShouldSetPanResponder({}, { dx: 8, dy: 20 })).toBe(false);
     expect(handle().props.onMoveShouldSetPanResponder({}, { dx: 8, dy: 0 })).toBe(true);
@@ -1910,7 +1911,7 @@ describe("Tasks board, desktop", () => {
     act(() => handle().props.onPanResponderMove(event(0)));
     expect(width()).toBe(480);
     act(() => handle().props.onPanResponderMove(event(800)));
-    expect(width()).toBe(240);
+    expect(width()).toBe(200);
     act(() => handle().props.onPanResponderRelease(event(450)));
     expect(width()).toBe(390);
     expect(readSidebarPreference()).toMatchObject({ width: 380, floatingWidth: 390 });
