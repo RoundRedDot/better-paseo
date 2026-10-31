@@ -271,7 +271,8 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
 // ---- Usage -----------------------------------------------------------------
 
 /** The context bar with notches at 75% and 90%, outside the running turn. */
-export function ContextBar(props: { context: ContextView | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage; font: number }) {
+/** `stacked`: caption, figure and bar on their own lines, for a cell a column wide. */
+export function ContextBar(props: { context: ContextView | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage; font: number; stacked?: boolean }) {
   const { context, tokens } = props;
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
@@ -280,8 +281,9 @@ export function ContextBar(props: { context: ContextView | null; tokens: TaskTok
     return (
       <View testID="detail-context-bar">
         <ChartHead icon="Gauge" label={words.context} font={props.font} tokens={tokens}>
-          <Text style={{ fontSize: props.font, color: tokens.foregroundMuted }}>{words.notReported}</Text>
+          {props.stacked ? null : <Text style={{ fontSize: props.font, color: tokens.foregroundMuted }}>{words.notReported}</Text>}
         </ChartHead>
+        {props.stacked ? <Text numberOfLines={1} style={{ marginTop: 2, fontSize: props.font, color: tokens.foregroundMuted }}>{words.notReported}</Text> : null}
         <View style={[dashed(tokens, 6), { marginTop: 8 }]} />
       </View>
     );
@@ -289,10 +291,20 @@ export function ContextBar(props: { context: ContextView | null; tokens: TaskTok
   const tone = contextColor(context, tokens);
   return (
     <Pressable {...bind("context")} accessibilityLabel={`${words.context} ${context.percent}`} testID="detail-context-bar" style={{ position: "relative" }}>
-      <ChartHead icon="Gauge" label={words.context} font={props.font} tokens={tokens}>
-        <Text style={{ fontSize: props.font, fontWeight: "600", color: context.level === "normal" ? tokens.foreground : tone, fontVariant: ["tabular-nums"] }}>{context.percent}</Text>
-        <Text style={{ fontSize: props.font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{context.text}</Text>
-      </ChartHead>
+      {props.stacked ? (
+        <>
+          <ChartHead icon="Gauge" label={words.context} font={props.font} tokens={tokens} />
+          <View style={{ minWidth: 0, marginTop: 2, flexDirection: "row", alignItems: "baseline", gap: 6 }}>
+            <Text numberOfLines={1} style={{ flexShrink: 0, fontSize: props.font, fontWeight: "600", color: context.level === "normal" ? tokens.foreground : tone, fontVariant: ["tabular-nums"] }}>{context.percent}</Text>
+            <Text numberOfLines={1} style={{ flexShrink: 1, minWidth: 0, fontSize: props.font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{context.text}</Text>
+          </View>
+        </>
+      ) : (
+        <ChartHead icon="Gauge" label={words.context} font={props.font} tokens={tokens}>
+          <Text style={{ fontSize: props.font, fontWeight: "600", color: context.level === "normal" ? tokens.foreground : tone, fontVariant: ["tabular-nums"] }}>{context.percent}</Text>
+          <Text style={{ fontSize: props.font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{context.text}</Text>
+        </ChartHead>
+      )}
       <View style={{ height: 6, marginTop: 8, borderRadius: 3, backgroundColor: colors.track, overflow: "hidden" }}>
         <View style={{ width: `${Math.min(context.ratio, 1) * 100}%`, height: 6, borderRadius: 3, backgroundColor: tone }} />
         <View style={{ position: "absolute", left: "75%", top: 0, bottom: 0, width: 2, backgroundColor: tokens.card.background }} />
@@ -306,7 +318,8 @@ export function ContextBar(props: { context: ContextView | null; tokens: TaskTok
 }
 
 /** Cached input, new input and output as one stacked bar with a legend; a segment's tooltip has its exact count. */
-export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage; font: number }) {
+/** `stacked`: caption, total, bar and a wrapping legend on their own lines, for a cell a column wide. */
+export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage; font: number; stacked?: boolean }) {
   const { mix: tokenMix, tokens } = props;
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
@@ -321,11 +334,20 @@ export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touc
   const shown = tokenMix?.segments.find((segment) => segment.part === tip);
   return (
     <View testID="detail-tokens">
-      <ChartHead icon="Layers" label={words.tokenMix} font={props.font} tokens={tokens}>
-        <Text style={{ fontSize: props.font, fontWeight: "600", color: tokenMix ? tokens.foreground : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
-          {tokenMix ? formatTokens(tokenMix.total) : "—"}
-        </Text>
-      </ChartHead>
+      {props.stacked ? (
+        <>
+          <ChartHead icon="Layers" label={words.tokenMix} font={props.font} tokens={tokens} />
+          <Text numberOfLines={1} style={{ marginTop: 2, fontSize: props.font, fontWeight: "600", color: tokenMix ? tokens.foreground : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+            {tokenMix ? formatTokens(tokenMix.total) : "—"}
+          </Text>
+        </>
+      ) : (
+        <ChartHead icon="Layers" label={words.tokenMix} font={props.font} tokens={tokens}>
+          <Text style={{ fontSize: props.font, fontWeight: "600", color: tokenMix ? tokens.foreground : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+            {tokenMix ? formatTokens(tokenMix.total) : "—"}
+          </Text>
+        </ChartHead>
+      )}
       {tokenMix ? (
         <>
           <View onLayout={onLayout} style={{ position: "relative", marginTop: 8 }}>
@@ -463,6 +485,64 @@ export function TimelineChart(props: { timeline: Timeline; liveColor: string; to
           );
         })}
       </View>
+    </View>
+  );
+}
+
+/**
+ * The same moments stacked, for a card too narrow to lay the track out without
+ * its labels colliding: a row per point, its name and time beside the rail, and
+ * each span's length under the point it starts from.
+ */
+export function TimelineList(props: { timeline: Timeline; liveColor: string; tokens: TaskTokens; endMark?: React.ReactNode }) {
+  const { timeline: line, tokens } = props;
+  const colors = detailColors(tokens);
+  const lastIndex = line.points.length - 1;
+  return (
+    <View testID="detail-timeline" style={{ paddingHorizontal: 10, paddingTop: 4, paddingBottom: 2 }}>
+      {line.points.map((point, index) => {
+        const last = index === lastIndex;
+        const color = last && line.live ? props.liveColor : null;
+        const gap = last ? null : line.points[index + 1]!.at - point.at;
+        return (
+          <View key={point.key} style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+            <View style={{ width: 16, alignSelf: "stretch", alignItems: "center" }}>
+              {last && props.endMark ? (
+                <View
+                  testID="detail-timeline-end-mark"
+                  style={{ width: END_MARK, height: END_MARK, marginTop: 3, borderRadius: END_MARK / 2, alignItems: "center", justifyContent: "center" }}
+                >
+                  {props.endMark}
+                </View>
+              ) : (
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    marginTop: 5,
+                    borderRadius: 4,
+                    borderWidth: 1.5,
+                    borderColor: color ?? tokens.foregroundMuted,
+                    backgroundColor: color ?? tokens.card.background,
+                  }}
+                />
+              )}
+              {gap !== null ? <View style={{ width: 2, flex: 1, minHeight: 16, marginVertical: 3, backgroundColor: colors.pastSpan }} /> : null}
+            </View>
+            <View testID={`detail-timeline-${point.key}`} style={{ flexShrink: 1, minWidth: 0, paddingBottom: gap === null ? 2 : 14 }}>
+              <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, fontWeight: "600", color: tokens.foreground }}>
+                {point.name}
+              </Text>
+              <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+                {point.time}
+              </Text>
+            </View>
+            {gap !== null ? (
+              <Text style={{ marginTop: 1, fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{formatSpan(gap)}</Text>
+            ) : null}
+          </View>
+        );
+      })}
     </View>
   );
 }

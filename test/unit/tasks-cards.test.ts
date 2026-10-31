@@ -2721,22 +2721,19 @@ describe("TaskDetailCards", () => {
   });
 
   it("shows a scrollbar on the scrolling sections that keeps clear of the text", async () => {
-    const sectionPad = (root: ReactTestInstance) => {
-      const section = hostByTestId(root, "detail-usage");
-      const [divider, body] = section.children as ReactTestInstance[];
-      return { divider: flat(divider!.props.style), body: flat(body!.props.style) };
-    };
+    // Each group is a card of its own now; its right margin gives the scrollbar its gutter.
+    const sectionCard = (root: ReactTestInstance) => flat(hostByTestId(root, "detail-usage").props.style);
     const native = await render(details(sample("sample-done"), { scrollBody: true }));
     expect(hostByTestId(native.root, "detail-body-scroll").props.showsVerticalScrollIndicator).toBe(true);
-    expect(sectionPad(native.root)).toMatchObject({ divider: { marginLeft: 12, marginRight: 12 }, body: { paddingLeft: 6, paddingRight: 6 } });
+    expect(sectionCard(native.root)).toMatchObject({ marginLeft: 6, marginRight: 6, borderRadius: 12 });
     await act(async () => native.unmount());
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     try {
       const web = await render(details(sample("sample-done"), { scrollBody: true }));
       const scroll = hostByTestId(web.root, "detail-body-scroll");
       expect(scroll.props).toMatchObject({ showsVerticalScrollIndicator: true, dataSet: { bcdetails: "inset" } });
-      // The scrollbar's 6 gutter comes out of the right padding: the text keeps the header's edge.
-      expect(sectionPad(web.root)).toMatchObject({ divider: { marginLeft: 12, marginRight: 6 }, body: { paddingLeft: 6, paddingRight: 0 } });
+      // The scrollbar's 6 gutter comes out of the card's right margin: the text keeps the header's edge.
+      expect(sectionCard(web.root)).toMatchObject({ marginLeft: 6, marginRight: 0 });
       expect(flat(hostByTestId(web.root, "detail-header").props.style)).toMatchObject({ paddingLeft: 12, paddingRight: 12 });
       await act(async () => web.unmount());
     } finally {
@@ -2800,14 +2797,14 @@ describe("TaskDetailCards", () => {
     const location = hostByTestId(tree.root, "detail-location");
     // The heading carries no summary: the branch row already names the branch.
     expect(texts(location).slice(0, 2)).toEqual(["属性", "B"]);
-    // No label column at the default width; the workspace and its kind are the note line.
-    expect(texts(hostByTestId(location, "detail-place"))).toEqual(["B", "better-paseo", "tasks-board · worktree"]);
-    expect(texts(hostByTestId(location, "detail-branch"))).toEqual(["feat/tasks-board", "↑3 ↓0 · ● 未提交改动"]);
+    // Each cell stacks its caption, then the value; the workspace and its kind are the note line.
+    expect(texts(hostByTestId(location, "detail-place"))).toEqual(["B", "项目", "better-paseo", "tasks-board · worktree"]);
+    expect(texts(hostByTestId(location, "detail-branch"))).toEqual(["分支", "feat/tasks-board", "↑3 ↓0 · ● 未提交改动"]);
     // A branch wraps after "/" and "-"; the directory is whole while it fits two lines.
     expect(hostByTestId(location, "detail-branch-value").props.children[1]).toBe("feat/\u200btasks-\u200bboard");
     expect(hostByTestId(location, "detail-branch-value").props.numberOfLines).toBe(3);
-    expect(texts(hostByTestId(location, "detail-cwd")).join("")).toBe("~/code/better-paseo/.worktrees/tasks-board");
-    expect(texts(hostByTestId(location, "detail-pr"))).toEqual(["#42\u2002feat: Tasks board"]);
+    expect(texts(hostByTestId(location, "detail-cwd-value")).join("")).toBe("~/code/better-paseo/.worktrees/tasks-board");
+    expect(texts(hostByTestId(location, "detail-pr-value"))).toEqual(["#42\u2002feat: Tasks board"]);
 
     for (const [testID, text] of [["detail-branch", "feat/tasks-board"], ["detail-cwd", "/Users/dev/code/better-paseo/.worktrees/tasks-board"]] as const) {
       const row = hostByTestId(tree.root, testID);
@@ -2818,7 +2815,7 @@ describe("TaskDetailCards", () => {
     expect(clipboard.copyText).toHaveBeenCalledTimes(2);
     // The host's toast confirms a copy; the row keeps its note line.
     expect(clipboard.show).toHaveBeenCalled();
-    expect(texts(hostByTestId(location, "detail-cwd")).join("")).toBe("~/code/better-paseo/.worktrees/tasks-board");
+    expect(texts(hostByTestId(location, "detail-cwd-value")).join("")).toBe("~/code/better-paseo/.worktrees/tasks-board");
     // A press on the PR opens it.
     await act(async () => hostByTestId(tree.root, "detail-pr").props.onPress());
     expect(opened.openLink).toHaveBeenCalledWith("https://github.com/RoundRedDot/better-paseo/pull/42");
@@ -2848,7 +2845,7 @@ describe("TaskDetailCards", () => {
   it("offers Unarchive for an archived parent where the host can, else says it cannot open", async () => {
     const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: "多设备连接", missing: true, archived: true } };
     const plain = await render(details(orphan, { onJump: vi.fn() }));
-    expect(texts(hostByTestId(plain.root, "detail-parent"))).toEqual(["多设备连接", "已归档", "无法跳转"]);
+    expect(texts(hostByTestId(plain.root, "detail-parent"))).toEqual(["父任务", "多设备连接", "已归档", "无法跳转"]);
     expect(icons(hostByTestId(plain.root, "detail-parent-tag"))).toEqual(["Archive"]);
     expect(plain.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
     await act(async () => plain.unmount());
@@ -2856,7 +2853,7 @@ describe("TaskDetailCards", () => {
 
     const unarchive = { pending: vi.fn(() => false), press: vi.fn() };
     const tree = await render(details(orphan, { onJump: vi.fn(), unarchive }));
-    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "已归档", "取消归档"]);
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["父任务", "多设备连接", "已归档", "取消归档"]);
     // The card's Allow look: the accent outline and its icon.
     const card = taskTokens(LIGHT).card;
     expect(flat(hostByTestId(tree.root, "detail-parent-unarchive").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: card.primaryBorder, borderRadius: 6 });
@@ -2946,7 +2943,7 @@ describe("TaskDetailCards", () => {
     // Read, not archived: a done task older than the board's window.
     const old = { ...sample("sample-child-1"), parent: { id: "old", title: "多设备连接", missing: true, archived: false } };
     const tree = await render(details(old, { onJump, onOpen, unarchive }));
-    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "不在看板上"]);
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["父任务", "多设备连接", "不在看板上"]);
     expect(tree.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
     await act(async () => hostByTestId(tree.root, "detail-parent").props.onPress());
     expect(onOpen).toHaveBeenCalledWith("old");
@@ -2954,25 +2951,32 @@ describe("TaskDetailCards", () => {
 
     // Not read yet: neither archived nor an Unarchive button.
     await act(async () => tree.update(details({ ...old, parent: { ...old.parent, archived: null } }, { onJump, onOpen, unarchive })));
-    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接"]);
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["父任务", "多设备连接"]);
     expect(tree.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
   });
 
-  it("adds the label column from 448 wide and drops it under 440", async () => {
+  it("stacks each property's caption over its value, with the copy beside it even when narrow", async () => {
     const tree = await render(details(sample("sample-running")));
-    const properties = hostByTestId(tree.root, "detail-properties");
-    const layout = (width: number) => act(async () => properties.props.onLayout({ nativeEvent: { layout: { width, height: 200 } } }));
-    const labelled = () => texts(hostByTestId(tree.root, "detail-cwd"))[0] === "工作目录";
-    expect(labelled()).toBe(false);
-    await layout(520);
-    expect(labelled()).toBe(true);
-    // Inside the 8 between, the column stays as it was.
-    await layout(444);
-    expect(labelled()).toBe(true);
-    await layout(436);
-    expect(labelled()).toBe(false);
-    await layout(444);
-    expect(labelled()).toBe(false);
+    for (const [testID, caption, value] of [
+      ["detail-place", "项目", "better-paseo"],
+      ["detail-branch", "分支", "feat/tasks-board"],
+      ["detail-cwd", "工作目录", "~"],
+    ] as const) {
+      const row = hostByTestId(tree.root, testID);
+      // The caption sits over the value it names; the place's mark letter leads both.
+      const drawn = texts(row);
+      const captionAt = drawn.indexOf(caption);
+      const valueAt = drawn.findIndex((text, index) => index > captionAt && text.includes(value));
+      expect(captionAt).toBeGreaterThanOrEqual(0);
+      expect(captionAt).toBeLessThan(valueAt);
+      expect(texts(hostByTestId(row, `${testID}-value`)).join("")).toContain(value);
+    }
+    // The copy is its own button beside the value at every width, not a hover slot.
+    for (const label of ["复制分支名", "复制路径"]) {
+      const copy = byLabel(tree.root, label);
+      expect(copy.props.accessibilityRole).toBe("button");
+      expect(copy.findAll((node) => String(node.type) === "Text")).toHaveLength(0);
+    }
   });
 
   it("charts the usage: the token mix with Codex's cached input split out, the cost and the last turn", async () => {
@@ -3001,7 +3005,7 @@ describe("TaskDetailCards", () => {
     const base = sample("sample-running");
     const card = { ...base, location: { ...base.location, git: { dirty: false, ahead: 0, behind: 0 } } };
     const tree = await render(details(card));
-    expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["feat/tasks-board"]);
+    expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["分支", "feat/tasks-board"]);
     expect(branchHint({ dirty: false, ahead: 0, behind: 0 })).toEqual({ sync: null, dirty: false });
     expect(branchHint({ dirty: true, ahead: null, behind: 2 })).toEqual({ sync: { ahead: 0, behind: 2 }, dirty: true });
     expect(branchHint(null)).toEqual({ sync: null, dirty: false });
@@ -3029,9 +3033,9 @@ describe("TaskDetailCards", () => {
 
   it("says a directory is not a git checkout, sums up a finished card, and has no open button without onOpen", async () => {
     const tree = await render(details(sample("sample-done"), {}, "en"));
-    expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["Not a git directory"]);
+    expect(texts(hostByTestId(tree.root, "detail-branch"))).toEqual(["Branch", "Not a git directory"]);
     expect(hostByTestId(tree.root, "detail-branch").props.onPress).toBeUndefined();
-    expect(texts(hostByTestId(tree.root, "detail-place"))).toEqual(["B", "better-paseo", "tasks-board · directory"]);
+    expect(texts(hostByTestId(tree.root, "detail-place"))).toEqual(["B", "Project", "better-paseo", "tasks-board · directory"]);
     expect(tree.root.findAll((node) => node.props.testID === "detail-open")).toEqual([]);
     expect(texts(hostByTestId(tree.root, "detail-summary"))).toEqual(["18m", "Last turn", "$1.84", "Total", "316k", "Token"]);
   });
