@@ -1356,8 +1356,20 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // Lane blocks ------------------------------------------------------------
   const iconCell: ViewStyle = { width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" };
   const failureAction = card.error && !card.stoppedManually ? errorAction(card.error, language) : null;
+  // The shared block rule is 1 px. A failed card's rule is the 0.5 pt outline.
+  // On the web that outline is an inset shadow, so the 1 px border has to be
+  // cleared first or it stays and the line reads as a whole pixel.
+  const failedRule = failed && !props.current && !props.highlighted;
   const failure = layout.failure ? (
-    <View style={[block, failed && !props.current && !props.highlighted ? buttonOutline(look.failedBorder, { right: null, bottom: null, left: null }) : null, { flexDirection: "row", alignItems: "flex-start", gap: GAP }]} testID="task-card-reason">
+    <View
+      style={[
+        block,
+        failedRule ? { borderTopWidth: 0 } : null,
+        failedRule ? buttonOutline(look.failedBorder, { right: null, bottom: null, left: null }) : null,
+        { flexDirection: "row", alignItems: "flex-start", gap: GAP },
+      ]}
+      testID="task-card-reason"
+    >
       <View style={iconCell}>
         {card.stoppedManually && !failed ? (
           // Stopped: the stop pill's solid square, not Lucide's hollow one.

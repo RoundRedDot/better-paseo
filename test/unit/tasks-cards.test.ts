@@ -4019,11 +4019,20 @@ describe("TaskCardView chrome", () => {
     const tree = await render(cardElement(failed));
     const surface = () => flat(hostByTestId(tree.root, "task-card-sample-done").props.style);
     expect(surface()).toMatchObject({ backgroundColor: tokens.card.failed, borderColor: tokens.card.failedBorder });
-    expect(flat(hostByTestId(tree.root, "task-card-reason").props.style).borderTopColor).toBe(tokens.card.failedBorder);
+    const rule = () => flat(hostByTestId(tree.root, "task-card-reason").props.style);
+    expect(rule()).toMatchObject({ borderTopWidth: 0.5, borderTopColor: tokens.card.failedBorder });
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onHoverIn());
     expect(surface().backgroundColor).toBe(tokens.card.failed);
     await act(async () => tree.update(cardElement(failed, { current: true })));
     expect(surface()).toMatchObject({ backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder });
+    expect(rule().borderTopWidth).toBe(1);
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    try {
+      await act(async () => tree.update(cardElement(failed)));
+      expect(rule()).toMatchObject({ borderTopWidth: 0, boxShadow: `inset 0 0.5px 0 0 ${tokens.card.failedBorder}` });
+    } finally {
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    }
   });
 
   it("keeps the phone card tint while its long-press menu is open", async () => {
