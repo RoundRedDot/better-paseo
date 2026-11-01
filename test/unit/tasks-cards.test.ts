@@ -3958,7 +3958,7 @@ describe("TaskCardView chrome", () => {
     const pressed = surface();
     expect(pressed.backgroundColor).toBe(compact ? tokens.card.hoverBackground : tokens.card.background);
     expect(pressed.boxShadow).toBe(tokens.card.shadowHover);
-    expect(pressed.transform).toEqual(compact ? undefined : [{ scale: 1.03 }]);
+    expect(pressed.transform).toBeUndefined();
     expect({ ...pressed, backgroundColor: 0, boxShadow: 0, zIndex: 0, transform: 0 }).toEqual({ ...rest, backgroundColor: 0, boxShadow: 0, zIndex: 0, transform: 0 });
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onPressOut());
     expect(surface().backgroundColor).toBe(tokens.card.background);

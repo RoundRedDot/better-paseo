@@ -303,6 +303,18 @@ describe("TaskCardView on web", () => {
     await act(async () => renderer.unmount());
   });
 
+  it("keeps the desktop card size and hover shadow while pressed", async () => {
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running")));
+    const card = () => renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-sample-running");
+    await act(async () => hovers.get("task-card-sample-running")!.enter());
+    const shadow = card().props.style.boxShadow;
+    expect(shadow).toBe(taskTokens(THEME).card.shadowHover);
+    await act(async () => card().props.onPressIn());
+    expect(card().props.style.transform).toBeUndefined();
+    expect(card().props.style.boxShadow).toBe(shadow);
+    await act(async () => renderer.unmount());
+  });
+
   it.each([false, true])("has no nested buttons in the details cards (touch=%s)", async (touch) => {
     const card = sampleCards(NOW).find((candidate) => candidate.id === "sample-running")!;
     const renderer = await render(

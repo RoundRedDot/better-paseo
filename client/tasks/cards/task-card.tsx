@@ -741,7 +741,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const cornerMark = card.parent !== null
     ? markActive ? markHue(card.location, props.hostId, tokens, fold ? [fold] : undefined) : markRest(tokens, fold ?? background)
     : null;
-  // Desktop hover deepens the shadow; iPad cards also grow while pressed.
+  // Desktop hover and iPad press deepen the shadow.
   // An open menu keeps the shadow so the card it belongs to stays raised.
   const cardLift = surfaceLift(hovered, cardPressed, reducedMotion);
   const raised = menuAt !== null || cardLift.shadow;
@@ -756,7 +756,6 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     paddingTop: m.padTop,
     paddingBottom: m.padBottom,
     // Linear's card: radius 8 (measured: the arc settles 16 device px in at 2x), a hairline.
-    // Desktop hover deepens the shadow only. iPad cards grow while pressed.
     borderRadius: CARD_RADIUS,
     // A dashed hairline breaks up into dots: the dashes take a whole point.
     borderWidth,
@@ -764,7 +763,6 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     borderColor: issue ? "transparent" : borderColor,
     backgroundColor: issue ? "transparent" : background,
     boxShadow: issue ? "none" : shadow,
-    ...scaleStyle(issue || compact ? 1 : cardLift.scale),
     zIndex: menuOpen || searchOpen ? 30 : hovered || cornerOpen ? 2 : 1,
     // Both Tab and composite navigation use the same outline. Unlike the
     // hover shadow it changes at once, so a departing focus cannot linger.
