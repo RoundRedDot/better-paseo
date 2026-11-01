@@ -161,6 +161,7 @@ export function createTitleGenerator(deps: Dependencies) {
     try {
       const helper = await workspace.agents.create({
         config: { provider: `${provider}/${model}`, systemPrompt: SYSTEM_PROMPT,
+          toolPolicy: { preapproved: [] }, mcpServers: {},
           ...(thinkingOptionId ? { thinkingOptionId } : {}),
         },
         title: "Title generator", labels: { [PURPOSE_LABEL]: "title-generation" },

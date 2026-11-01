@@ -140,9 +140,9 @@ describe("background title generation", () => {
     f.start();
     expect(await f.settle()).toMatchObject({ state: "done" });
     expect(f.listModels).toHaveBeenCalledExactlyOnceWith("claude");
-    expect(f.create).toHaveBeenCalledWith(expect.objectContaining({ config: {
+    expect(f.create).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({
       provider: "claude/claude-haiku-5-5", systemPrompt: expect.any(String), ...(expected ? { thinkingOptionId: expected } : {}),
-    } }));
+    }) }));
   });
 
   it("overrides inherited thinking with the source model's supported minimum", async () => {
@@ -188,9 +188,9 @@ describe("background title generation", () => {
     f.original.agent.effectiveThinkingOptionId = effectiveThinkingOptionId;
     f.start();
     expect(await f.settle()).toMatchObject({ state: "done" });
-    expect(f.create).toHaveBeenCalledWith(expect.objectContaining({ config: {
+    expect(f.create).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({
       provider: "codex/gpt-5.5", thinkingOptionId: effectiveThinkingOptionId ?? "high", systemPrompt: expect.any(String),
-    } }));
+    }) }));
   });
 
   it("uses the source model default when its thinking level is unset", async () => {
@@ -200,7 +200,7 @@ describe("background title generation", () => {
     f.original.agent.effectiveThinkingOptionId = null;
     f.start();
     expect(await f.settle()).toMatchObject({ state: "done" });
-    expect(f.create).toHaveBeenCalledWith(expect.objectContaining({ config: { provider: "codex/gpt-5.5", systemPrompt: expect.any(String) } }));
+    expect(f.create).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({ provider: "codex/gpt-5.5", systemPrompt: expect.any(String) }) }));
   });
 
   it("reports a missing source model without substituting custom settings", async () => {
@@ -246,7 +246,14 @@ describe("background title generation", () => {
     expect(f.start()).toEqual({ state: "running" });
     expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title" });
     expect(f.workspace).toHaveBeenCalledExactlyOnceWith({ source: { kind: "directory", path: f.directory, projectId: "source-project" }, background: true, title: "Title generation" });
-    expect(f.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ config: { provider: "claude/claude-haiku-5-5", systemPrompt: expect.stringContaining("Do not use tools") } }));
+    expect(f.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      config: {
+        provider: "claude/claude-haiku-5-5",
+        systemPrompt: expect.stringContaining("Do not use tools"),
+        toolPolicy: { preapproved: [] },
+        mcpServers: {},
+      },
+    }));
     expect(f.run.mock.calls[0]).toEqual([expect.stringContaining("Use an actionable title"), { timeoutMs: 60_000 }]);
     expect(f.run.mock.calls[0]?.[0]).toContain("Fix the card title");
     expect(f.run.mock.calls[0]?.[0]).not.toContain("PRIVATE_TOOL_OUTPUT");
