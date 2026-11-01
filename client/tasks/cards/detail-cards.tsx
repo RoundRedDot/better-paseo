@@ -848,17 +848,15 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
   );
 }
 
-/** Failed or stopped: the error's first lines, copyable, with "show all" for a longer one. */
+/** Failed or stopped: the full error, copyable. */
 function ErrorBlock(props: Inner) {
   const { card, tokens, m } = props;
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
-  const [open, setOpen] = useState(false);
   const { copied, copy } = useCopy();
   const stopped = card.stoppedManually === true;
   const text = card.error ?? "";
   const lines = errorLines(text);
-  const long = lines.length > 3 || text.length > 160;
   // A manual stop has no original to show: one line, in grey.
   const body = stopped && lines.length <= 1 ? null : text;
   return (
@@ -891,16 +889,9 @@ function ErrorBlock(props: Inner) {
         ) : null}
       </View>
       {body ? (
-        <>
-          <Text numberOfLines={open ? undefined : 3} style={{ marginTop: 4, fontSize: F.sm, lineHeight: CODE_LINE, fontFamily: MONO, color: tokens.foreground }}>
-            {body}
-          </Text>
-          {long ? (
-            <Pressable accessibilityRole="button" {...tipProps(open ? words.showLess : words.showAll(lines.length))} onPress={() => setOpen((was) => !was)} hitSlop={4} style={{ marginTop: 6, alignSelf: "flex-start" }}>
-              <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{open ? words.showLess : words.showAll(lines.length)}</Text>
-            </Pressable>
-          ) : null}
-        </>
+        <Text style={{ marginTop: 4, fontSize: F.sm, lineHeight: CODE_LINE, fontFamily: MONO, color: tokens.foreground }}>
+          {body}
+        </Text>
       ) : null}
     </View>
   );

@@ -3546,6 +3546,8 @@ describe("TaskDetailCards", () => {
     const card = { ...sample("sample-failed"), error };
     const tree = await render(details(card, {}, "en"));
     expect(texts(hostByTestId(tree.root, "detail-error"))).toContain(error);
+    const body = hostByTestId(tree.root, "detail-error").find((node) => (node.type as unknown) === "Text" && node.props.children === error);
+    expect(body.props.numberOfLines).toBeUndefined();
   });
 
   it("keeps the original provider error in details while showing its summary on the card", async () => {
