@@ -1,7 +1,6 @@
 import React from "react";
 import TestRenderer, { act, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Dimensions } from "react-native";
 
 const rpc = vi.hoisted(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -29,7 +28,7 @@ import { TaskRenameDialog } from "../../client/tasks/cards/rename-dialog";
 import { CardContextMenu } from "../../client/tasks/cards/card-menu";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { sampleCards } from "../../client/tasks/sample-cards";
-import { CascadeMenu, MenuBoundsContext } from "../../client/tasks/board/menu";
+import { CascadeMenu } from "../../client/tasks/board/menu";
 import { REVEAL_TICK_MS } from "../../client/tasks/cards/title-reveal";
 import { unavailableTask } from "../../shared/task-availability";
 
@@ -379,108 +378,31 @@ describe("task title editor", () => {
 
 describe("task card rename entry", () => {
   const card = sampleCards(Date.parse("2026-10-20T09:00:00Z"))[0]!;
-  async function measureMenu(width: number) {
-    const rows = tree.root.findAll((node) => typeof node.type === "string" && typeof node.props.testID === "string" && node.props.testID.startsWith("task-card-menu-measure-"));
-    await act(async () => {
-      for (const row of rows) row.props.onLayout({ nativeEvent: { layout: { width } } });
-    });
-  }
-  it.each([["zh", 145], ["en", 235], ["en", 400]] as const)("sizes the tablet menu to measured %s labels (%i pt)", async (language, width) => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
-    await act(async () => {
-      tree = TestRenderer.create(<CardContextMenu point={{ x: 400, y: 300 }} card={card} strings={cardStrings(language)} actions={{ children: 0 }} theme={theme} onClose={onClose} />, {
-        createNodeMock: (element) => (element.props as { testID?: string }).testID === "task-card-menu-stage" ? { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(0, 0, 300, 720) } : null,
-      });
-    });
-    await measureMenu(width);
-    const frame = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-menu-popover").props.style;
-    expect(frame.width).toBe(Math.min(width, 284));
-    expect(frame.left).toBeGreaterThanOrEqual(8);
-    expect(frame.left + frame.width).toBeLessThanOrEqual(292);
-  });
-  it("remeasures every row when the menu language changes", async () => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
-    const menu = (language: "zh" | "en") => <CardContextMenu point={{ x: 100, y: 100 }} card={card} strings={cardStrings(language)} actions={{ children: 0, open: vi.fn() }} theme={theme} onClose={onClose} />;
-    await act(async () => {
-      tree = TestRenderer.create(menu("zh"), { createNodeMock: (element) => (element.props as { testID?: string }).testID === "task-card-menu-stage" ? { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(0, 0, 600, 720) } : null });
-    });
-    await measureMenu(145);
-    const row = () => tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-menu-measure-open");
-    const previous = row();
-    await act(async () => tree.update(menu("en")));
-    expect(row()).not.toBe(previous);
-    await measureMenu(235);
-    expect(tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-menu-popover").props.style).toMatchObject({ width: 235, opacity: 1 });
-  });
-  it.each(["ios", "android"])("keeps the tablet menu below the host header and scrolls within a short board (%s)", async (platform) => {
+  it.each([["ios", "zh"], ["ios", "en"], ["android", "zh"], ["android", "en"]] as const)("opens a titled host modal with touch-sized actions on %s in %s", async (platform, language) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
-    vi.spyOn(Dimensions, "get").mockReturnValue({ width: 744, height: 720, scale: 2, fontScale: 1 });
-    const bounds = { current: { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(0, 150, 744, 300) } } as unknown as React.RefObject<import("react-native").View>;
-    await act(async () => {
-      tree = TestRenderer.create(<MenuBoundsContext.Provider value={bounds}><CardContextMenu point={{ x: 400, y: 300 }} card={card} strings={cardStrings("en")} actions={{ children: 2, stop: vi.fn(), filters: { state: { agent: false, workspace: false, project: false }, select: vi.fn() } }} theme={theme} onClose={onClose} /></MenuBoundsContext.Provider>, {
-        createNodeMock: (element) => (element.props as { testID?: string }).testID === "task-card-menu-stage" ? { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(0, 0, 744, 720) } : null,
-      });
-    });
-    const host = (id: string) => tree.root.find((node) => typeof node.type === "string" && node.props.testID === id);
-    await measureMenu(200);
-    await act(async () => host("task-card-menu-stage").props.onLayout());
-    expect(host("task-card-menu-popover").props.style.top).toBe(158);
-    expect(tree.root.findByType(CascadeMenu).props.maxHeight).toBe(284);
-    expect(host("menu-panel").props.style.flat().find((style: { maxHeight?: number }) => style?.maxHeight === 284)).toBeDefined();
-  });
-  it.each([
-    ["ios", 540, 720, 24, 60],
-    ["ios", 540, 720, 270, 300],
-    ["ios", 744, 1133, 24, 1020],
-    ["ios", 744, 1133, 620, 60],
-    ["ios", 744, 1133, 620, 1020],
-    ["ios", 1133, 744, 1000, 620],
-    ["android", 540, 720, 420, 620],
-  ] as const)("anchors the %s tablet menu inside a %i x %i overlay", async (platform, width, height, x, y) => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
-    vi.spyOn(Dimensions, "get").mockReturnValue({ width, height, scale: 2, fontScale: 1 });
     const stop = vi.fn();
-    const select = vi.fn();
     await act(async () => {
-      tree = TestRenderer.create(<CardContextMenu point={{ x: x + 20, y: y + 40 }} card={card} strings={cardStrings("en")} actions={{ children: 2, stop, filters: { state: { agent: false, workspace: false, project: false }, select } }} theme={theme} onClose={onClose} />, {
-        createNodeMock: (element) => (element.props as { testID?: string }).testID === "task-card-menu-stage"
-          ? { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(20, 40, width, height) }
-          : null,
-      });
+      tree = TestRenderer.create(<CardContextMenu point={{ x: 400, y: 300 }} card={card} strings={cardStrings(language)} actions={{ children: 2, stop }} theme={theme} onClose={onClose} />);
     });
-    const host = (id: string) => tree.root.find((node) => typeof node.type === "string" && node.props.testID === id);
-    expect(tree.root.findAllByType("HostModal" as never)).toHaveLength(0);
-    expect(tree.root.findByType("Modal" as never).props.transparent).toBe(true);
-    await measureMenu(200);
-    await act(async () => host("task-card-menu-stage").props.onLayout());
-    const frame = host("task-card-menu-popover").props.style;
-    expect(frame.opacity).toBe(1);
-    expect(frame.width).toBe(200);
-    expect(frame.left).toBe(Math.max(8, Math.min(x + 6 + 200 <= width - 8 ? x + 6 : x - 200 - 6, width - 200 - 8)));
-    expect(frame.top).toBeGreaterThanOrEqual(8);
-    expect(frame.top + 420).toBeLessThanOrEqual(height - 8);
-    expect(frame.top).toBe(Math.max(8, Math.min(y + 6 + 420 <= height - 8 ? y + 6 : y - 420 - 6, height - 420 - 8)));
-    const menu = tree.root.findByType(CascadeMenu);
-    expect(menu.props.sections.flatMap((section: { items: { minHeight: number; submenu?: unknown }[] }) => section.items).every((item: { minHeight: number; submenu?: unknown }) => item.minHeight === 44 && !item.submenu)).toBe(true);
-    const row = (label: string) => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === label);
-    await act(async () => row(cardStrings("en").stopWithChildren).props.onPress());
+    const modal = tree.root.findByType("HostModal" as never);
+    expect(modal.props.title).toBe(card.title);
+    const rows = tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row) => row.props.style.minHeight >= 44)).toBe(true);
+    expect(tree.root.findAll((node) => (node.type as unknown) === "Icon").every((icon) => icon.props.size === 18)).toBe(true);
+    await act(async () => rows.find((row) => row.props.accessibilityLabel === cardStrings(language).stopWithChildren)!.props.onPress());
     expect(stop).toHaveBeenCalledExactlyOnceWith(true);
     expect(onClose).toHaveBeenCalledTimes(1);
-    await act(async () => row(cardStrings("en").filterAgent).props.onPress());
-    expect(select).toHaveBeenCalledExactlyOnceWith("agent");
-    await act(async () => host("task-card-menu-backdrop").props.onPress());
-    expect(onClose).toHaveBeenCalledTimes(3);
-    await act(async () => tree.root.findByType("Modal" as never).props.onRequestClose());
-    expect(onClose).toHaveBeenCalledTimes(4);
+    await act(async () => modal.props.onOpenChange(false));
+    expect(onClose).toHaveBeenCalledTimes(2);
   });
-
   it.each(["touch", "pointer", "tablet"])("starts automatic title generation from the %s menu and closes it", async (kind) => {
     const autoTitle = vi.fn();
     (globalThis as { __rnMockOS?: string }).__rnMockOS = kind === "pointer" ? "web" : "ios";
     await act(async () => {
       tree = TestRenderer.create(<CardContextMenu point={kind === "touch" ? null : { x: 20, y: 30 }} card={card} strings={cardStrings("zh")} actions={{ children: 0, autoTitle }} theme={theme} onClose={onClose} />);
     });
-    if (kind === "touch") {
+    if (kind !== "pointer") {
       await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "自动更新标题").props.onPress());
     } else {
       const menu = tree.root.findByType(CascadeMenu);
@@ -537,7 +459,7 @@ describe("task card rename entry", () => {
     await act(async () => {
       tree = TestRenderer.create(<CardContextMenu point={kind === "touch" ? null : { x: 20, y: 30 }} card={card} strings={cardStrings("zh")} actions={{ children: 0, autoTitle }} theme={theme} onClose={onClose} />);
     });
-    if (kind === "touch") {
+    if (kind !== "pointer") {
       await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "修改标题").props.onPress());
     } else {
       const menu = tree.root.findByType(CascadeMenu);

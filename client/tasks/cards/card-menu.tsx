@@ -16,7 +16,6 @@ import { TaskRenameDialog } from "./rename-dialog";
 import { taskOperationIssue } from "../availability";
 import { taskIssueText } from "./availability-tag";
 import type { TaskOperation } from "../../../shared/task-availability";
-import { CardMenuPopover } from "./card-menu-popover";
 
 export const CARD_MENU_WIDTH = 280;
 
@@ -163,8 +162,8 @@ export function useMenuCopy(): (text: string, label: string) => void {
 }
 
 /**
- * Right click opens at the pointer in the web top layer. Tablet long presses
- * anchor a popover to the touch; phones use the host's modal with inline actions.
+ * Right click opens at the pointer in the web top layer. Touch menus use the
+ * host's modal with inline actions.
  */
 export function CardContextMenu(props: {
   point: { x: number; y: number } | null;
@@ -188,8 +187,7 @@ export function CardContextMenu(props: {
       autoTitleBlockedReason={taskOperationIssue(props.card, "autoTitle") ? taskIssueText(taskOperationIssue(props.card, "autoTitle")!, props.strings === cardStrings("en") ? "en" : "zh") : undefined}
       canAutoTitle={Boolean(props.actions.autoTitle)} autoTitlePending={props.actions.autoTitlePending} />;
   }
-  if (point && Platform.OS !== "web") return <CardMenuPopover point={point} sections={sections} theme={props.theme} closeLabel={toolbarLabel("Close menu", props.strings === cardStrings("en") ? "en" : "zh")} onClose={props.onClose} />;
-  if (!point) {
+  if (!point || Platform.OS !== "web") {
     const colors = props.theme.colors;
     return (
       <Modal title={props.card.title} open onOpenChange={(open) => !open && props.onClose()}>
