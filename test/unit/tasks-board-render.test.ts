@@ -3780,6 +3780,8 @@ describe("Tasks board, tablet filters", () => {
     expect(style).toMatchObject({ position: "absolute", top: StyleSheet.flatten(hostsById("tablet-toolbar")[0]!.props.style).height as number + 6, right: 12 });
     expect(Number(style.width)).toBeLessThanOrEqual(width - 24);
     expect(Number(style.height)).toBeLessThanOrEqual(height - 18);
+    expect(style.width).toBe(Math.min(Math.round(360 * Math.max(1, base / 14)), width - 24));
+    expect(style.height).toBe(Math.min(520 * Math.max(1, base / 14), height - 18));
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
     expect(panel.props.accessibilityViewIsModal).toBe(true);
     expect(hostsById("toolbar-filters")[0]!.props.accessibilityState.expanded).toBe(true);
