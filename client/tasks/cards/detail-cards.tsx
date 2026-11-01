@@ -1526,8 +1526,8 @@ const FADE_STEPS = 6;
 /**
  * Text read from the task's timeline: the first prompt in full (the title
  * being only its first line), or the agent's latest reply. Drawn as Markdown,
- * copyable as written; sidebar tabs start expanded. A closed agent waits for
- * "Load", since reading its timeline resumes it.
+ * copyable as written; sidebar tabs start expanded. "Load" retries a read
+ * that has not started or failed.
  */
 function TimelineTextBody(props: Inner & {
   read: { prompt: FirstPrompt | LastHumanMessage; load(): void } | null | undefined;

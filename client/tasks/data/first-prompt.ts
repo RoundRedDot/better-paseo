@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useLayoutEffect, useSyncExternalStore } from "react";
 import type { PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 
 /**
@@ -6,9 +6,9 @@ import type { PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
  * only the title (the prompt's first line, cut short); the full text is the
  * first `user_message` of the agent's timeline, read once from its head.
  *
- * Reading a timeline makes the daemon load the agent: one it holds already
- * (idle, running) is read as the card opens, a closed one only when asked,
- * since loading resumes it.
+ * Reading a timeline makes the daemon load the agent, and a closed one
+ * resumes. `auto` reads as soon as the caller shows the card; otherwise
+ * the read waits for `load()`.
  */
 export type FirstPrompt =
   | { state: "idle" }
@@ -115,13 +115,13 @@ export function firstPromptStoreFor(api: PaseoApi | Api): Store {
 }
 
 /**
- * A card's first prompt. `auto` reads it as soon as the card shows (an agent
- * the daemon holds); otherwise it waits for `load()`.
+ * A card's first prompt. `auto` reads it as soon as the card shows;
+ * otherwise it waits for `load()`. Reading a closed agent resumes it.
  */
 export function useFirstPrompt(api: PaseoApi, agentId: string, auto: boolean): { prompt: FirstPrompt; load(): void } {
   const store = firstPromptStoreFor(api);
   const prompt = useSyncExternalStore(store.subscribe, () => store.read(agentId), () => store.read(agentId));
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (auto) store.request(agentId);
   }, [store, agentId, auto]);
   return { prompt, load: () => store.request(agentId) };

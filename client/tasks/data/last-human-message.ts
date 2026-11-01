@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useLayoutEffect, useSyncExternalStore } from "react";
 import type { PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import { parseSystemEnvelope } from "../../system-envelope";
 import type { FirstPrompt } from "./first-prompt";
@@ -86,12 +86,13 @@ function storeFor(api: PaseoApi | Api) {
 
 /**
  * A card's last message from a person. `auto` reads it as the card shows and
- * again when someone sends; otherwise it waits for `load()`.
+ * again when someone sends; otherwise it waits for `load()`. Reading a
+ * closed agent resumes it.
  */
 export function useLastHumanMessage(api: PaseoApi, agentId: string, version: string, auto: boolean): { prompt: LastHumanMessage; load(): void } {
   const store = storeFor(api);
   const prompt = useSyncExternalStore(store.subscribe, () => store.read(agentId), () => store.read(agentId));
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (auto) store.request(agentId, version);
   }, [store, agentId, version, auto]);
   return { prompt, load: () => store.request(agentId, version) };

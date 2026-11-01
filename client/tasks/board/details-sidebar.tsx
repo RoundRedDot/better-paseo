@@ -149,14 +149,19 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
  * provider subagent's come from the plugin server, which reads its timeline
  * off the daemon; it has no session of its own to count, and no person
  * writes to it (its prompts are the parent's).
+ *
+ * The three messages start loading as soon as the card is shown, including
+ * a closed agent. Reading its timeline resumes it; opening the card is that
+ * request, so the reader does not also press Load.
  */
 export function useDetailReads(board: BoardController, card: TaskCard | undefined) {
   const subagent = card?.subagent ? card : undefined;
   const agent = card && !card.subagent ? card : undefined;
-  const firstPrompt = useFirstPrompt(board.paseo, agent?.id ?? "", agent !== undefined && agent.closed !== true);
-  const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? lastHumanMessageVersion(agent) : "", agent !== undefined && agent.closed !== true);
+  const shown = agent !== undefined;
+  const firstPrompt = useFirstPrompt(board.paseo, agent?.id ?? "", shown);
+  const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? lastHumanMessageVersion(agent) : "", shown);
   const live = board.visible && agent !== undefined && turnRunning(agent) && agent.closed !== true;
-  const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", agent !== undefined && agent.closed !== true, live);
+  const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", shown, live);
   const sessionTokens = useSessionTokens(agent?.id ?? "", agent !== undefined && turnRunning(agent) && agent.closed !== true);
   const subagentReads = useSubagentTimeline(
     {

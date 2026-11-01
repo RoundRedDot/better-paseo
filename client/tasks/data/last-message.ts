@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useSyncExternalStore } from "react";
 import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import type { FirstPrompt } from "./first-prompt";
 import { turnRunning, type LaneId } from "../model";
@@ -11,7 +11,7 @@ import { turnRunning, type LaneId } from "../model";
  * Unlike the first prompt it moves, so each read is tied to a version the
  * caller derives from the card (a turn starting or ending, the lane); a new
  * version reads the tail again and keeps the old text up until it lands.
- * A closed agent waits for `load()`, as reading its timeline resumes it.
+ * `auto` false waits for `load()`. Reading a closed agent resumes it.
  */
 export type LastMessage = FirstPrompt;
 
@@ -256,7 +256,7 @@ function storeFor(api: PaseoApi) {
   return store;
 }
 
-/** The visible running reply observes live chunks; closed tasks still wait for an explicit load. */
+/** The visible running reply observes live chunks. Otherwise `auto` reads the tail once, including an agent the daemon has not loaded. */
 export function useLastMessage(api: PaseoApi, agentId: string, version: string, auto: boolean, live = false): { prompt: LastMessage; load(): void } {
   const store = storeFor(api);
   const prompt = useSyncExternalStore(store.subscribe, () => store.read(agentId), () => store.read(agentId));
@@ -270,7 +270,7 @@ export function useLastMessage(api: PaseoApi, agentId: string, version: string, 
     }, () => {});
     return () => { watching = false; release(); };
   }, [store, agentId, live, version]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (auto && !live) store.request(agentId, version);
   }, [store, agentId, version, auto, live]);
   return { prompt, load: () => store.request(agentId, version) };
