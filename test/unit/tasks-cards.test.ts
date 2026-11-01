@@ -1432,6 +1432,7 @@ describe("ProjectIcon", () => {
     expect(MARK_DOT_BOX).toBe(8);
     for (const density of [1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.5]) expect(Number.isInteger(MARK_DOT_BOX * density)).toBe(true);
     expect(flat(mark.props.style)).toMatchObject({ position: "absolute", top: inset - MARK_DOT_BOX / 2, right: inset - MARK_DOT_BOX / 2, width: MARK_DOT_BOX, height: MARK_DOT_BOX, borderRadius: MARK_DOT_BOX / 2, transform: [{ scale: size / MARK_DOT_BOX }] });
+    expect(flat(mark.props.style).zIndex).toBeGreaterThan(OVERLAY_ROW_Z + 1);
     expect(mark.props.pointerEvents).toBe("none");
     expect(mark.props.importantForAccessibility).toBe("no-hide-descendants");
     // At rest: an opaque grey.

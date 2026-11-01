@@ -517,6 +517,7 @@ function CornerMark(props: { color: string; inset: number }) {
         borderRadius: box / 2,
         transform: [{ scale: size / box }],
         backgroundColor: props.color,
+        zIndex: OVERLAY_ROW_Z + 2,
         ...webTransition,
       }}
       testID="task-card-subtask-mark"
