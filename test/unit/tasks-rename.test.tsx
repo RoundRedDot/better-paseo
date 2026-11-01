@@ -379,6 +379,39 @@ describe("task title editor", () => {
 
 describe("task card rename entry", () => {
   const card = sampleCards(Date.parse("2026-10-20T09:00:00Z"))[0]!;
+  async function measureMenu(width: number) {
+    const rows = tree.root.findAll((node) => typeof node.type === "string" && typeof node.props.testID === "string" && node.props.testID.startsWith("task-card-menu-measure-"));
+    await act(async () => {
+      for (const row of rows) row.props.onLayout({ nativeEvent: { layout: { width } } });
+    });
+  }
+  it.each([["zh", 145], ["en", 235], ["en", 400]] as const)("sizes the tablet menu to measured %s labels (%i pt)", async (language, width) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+    await act(async () => {
+      tree = TestRenderer.create(<CardContextMenu point={{ x: 400, y: 300 }} card={card} strings={cardStrings(language)} actions={{ children: 0 }} theme={theme} onClose={onClose} />, {
+        createNodeMock: (element) => (element.props as { testID?: string }).testID === "task-card-menu-stage" ? { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(0, 0, 300, 720) } : null,
+      });
+    });
+    await measureMenu(width);
+    const frame = tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-menu-popover").props.style;
+    expect(frame.width).toBe(Math.min(width, 284));
+    expect(frame.left).toBeGreaterThanOrEqual(8);
+    expect(frame.left + frame.width).toBeLessThanOrEqual(292);
+  });
+  it("remeasures every row when the menu language changes", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    const menu = (language: "zh" | "en") => <CardContextMenu point={{ x: 100, y: 100 }} card={card} strings={cardStrings(language)} actions={{ children: 0, open: vi.fn() }} theme={theme} onClose={onClose} />;
+    await act(async () => {
+      tree = TestRenderer.create(menu("zh"), { createNodeMock: (element) => (element.props as { testID?: string }).testID === "task-card-menu-stage" ? { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(0, 0, 600, 720) } : null });
+    });
+    await measureMenu(145);
+    const row = () => tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-menu-measure-open");
+    const previous = row();
+    await act(async () => tree.update(menu("en")));
+    expect(row()).not.toBe(previous);
+    await measureMenu(235);
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-menu-popover").props.style).toMatchObject({ width: 235, opacity: 1 });
+  });
   it.each(["ios", "android"])("keeps the tablet menu below the host header and scrolls within a short board (%s)", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     vi.spyOn(Dimensions, "get").mockReturnValue({ width: 744, height: 720, scale: 2, fontScale: 1 });
@@ -389,6 +422,7 @@ describe("task card rename entry", () => {
       });
     });
     const host = (id: string) => tree.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    await measureMenu(200);
     await act(async () => host("task-card-menu-stage").props.onLayout());
     expect(host("task-card-menu-popover").props.style.top).toBe(158);
     expect(tree.root.findByType(CascadeMenu).props.maxHeight).toBe(284);
@@ -417,11 +451,12 @@ describe("task card rename entry", () => {
     const host = (id: string) => tree.root.find((node) => typeof node.type === "string" && node.props.testID === id);
     expect(tree.root.findAllByType("HostModal" as never)).toHaveLength(0);
     expect(tree.root.findByType("Modal" as never).props.transparent).toBe(true);
+    await measureMenu(200);
     await act(async () => host("task-card-menu-stage").props.onLayout());
     const frame = host("task-card-menu-popover").props.style;
     expect(frame.opacity).toBe(1);
-    expect(frame.width).toBe(280);
-    expect(frame.left).toBe(Math.max(8, Math.min(x + 6 + 280 <= width - 8 ? x + 6 : x - 280 - 6, width - 280 - 8)));
+    expect(frame.width).toBe(200);
+    expect(frame.left).toBe(Math.max(8, Math.min(x + 6 + 200 <= width - 8 ? x + 6 : x - 200 - 6, width - 200 - 8)));
     expect(frame.top).toBeGreaterThanOrEqual(8);
     expect(frame.top + 420).toBeLessThanOrEqual(height - 8);
     expect(frame.top).toBe(Math.max(8, Math.min(y + 6 + 420 <= height - 8 ? y + 6 : y - 420 - 6, height - 420 - 8)));
