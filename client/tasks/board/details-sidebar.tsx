@@ -112,7 +112,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   const short = !tabs && !columns && (props.scrollAll === true || layout.short);
   const content = (
     <>
-      {props.stats === false ? null : <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />}
+      {props.stats === false ? null : <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} />}
       {detailProps ? (
         <TaskDetailCards key={tabs ? card?.id : undefined} {...detailProps} scrollBody={!short && !columns && !tabs} columns={columns} tabs={tabs} scrollHeader={tabs && (props.touch || layout.short || props.scrollAll === true)} />
       ) : (
@@ -190,7 +190,7 @@ const SHEET_COLUMNS = 640;
 const SHORT_COLUMN = 640;
 
 /** The board's lanes' counts after the filters, each with its lane's mark; a press shows the lane. */
-function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; onLane(lane: LaneId): void; touch: boolean }) {
+function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; onLane(lane: LaneId): void }) {
   const { board, tokens } = props;
   const showEmpty = board.showEmptyGroups;
   const options = useMemo(() => shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty), [board.tasks, board.params, showEmpty]);
@@ -218,7 +218,6 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
             theme={props.theme}
             tokens={tokens}
             animated={board.visible}
-            touch={props.touch}
             onPress={() => props.onLane(id)}
           />
         ))}
@@ -236,7 +235,6 @@ function StatCell(props: {
   theme: PluginTheme;
   tokens: TaskTokens;
   animated: boolean;
-  touch: boolean;
   onPress(): void;
 }) {
   const { tokens } = props;
@@ -262,7 +260,7 @@ function StatCell(props: {
         return {
           flex: 1,
           minWidth: 0,
-          minHeight: taskControlHeight(props.touch ? 64 : 56, scale),
+          minHeight: taskControlHeight(56, scale),
           paddingHorizontal: 8,
           paddingVertical: 6,
           borderRadius: 8,
