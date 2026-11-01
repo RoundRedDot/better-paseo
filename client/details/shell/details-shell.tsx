@@ -242,7 +242,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
     return {
       begin() {},
       move(travel) {
-        const direction = latest.current.form === "drawer" && Math.abs(travel) > navRef.current.panelWidth * SWIPE_DISTANCE_RATIO
+        const direction = Math.abs(travel) > navRef.current.panelWidth * SWIPE_DISTANCE_RATIO
           && has(travel) && (travel < 0 || navRef.current.nav.index > 1) ? (travel > 0 ? -1 : 1) : 0;
         if (direction !== hint) {
           clearHint();
@@ -427,7 +427,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
                       <Animated.View testID="details-content" style={[styles.content, { opacity: slideOpacity, transform: [{ translateX: slide }] }] as never}>
                         {entry.render()}
                       </Animated.View>
-                      {form === "drawer" ? <>
+                      {form === "drawer" || touch ? <>
                         <Animated.View testID="details-swipe-previous" pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
                           style={[styles.swipeHint, styles.swipePrevious, { opacity: previousHint, transform: [{ scale: previousHint.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }) }] }]}>
                           <View style={[styles.swipeIcon, { backgroundColor: tokens.v2.surface1 }]}><Icon name="ChevronLeft" size={20} color={tokens.foregroundMuted} /></View>

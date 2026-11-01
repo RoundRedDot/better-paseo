@@ -794,6 +794,55 @@ describe("drawer", () => {
   });
 });
 
+describe("tablet swipe hints", () => {
+  it.each([
+    ["ios", 834, 1194, "floating", -1],
+    ["ios", 834, 1194, "floating", 1],
+    ["ios", 1194, 834, "side", -1],
+    ["ios", 1194, 834, "side", 1],
+    ["android", 834, 1194, "floating", -1],
+    ["android", 1194, 834, "side", 1],
+  ] as const)("shows the correct hint on %s %i×%i %s and steps in direction %i", (os, width, height, form, direction) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    screen.width = width;
+    screen.height = height;
+    const renderer = render(slot());
+    open("b");
+    expect(seen.shell!.form).toBe(form);
+    const handlers = seen.shell!.headerHandlers as Record<string, (...args: unknown[]) => unknown>;
+    const opacity = (name: string) => value(flat(byTestId(renderer, `details-swipe-${name}`)!.props.style).opacity);
+    const endX = 400 - direction * 220;
+    act(() => {
+      handlers.onStartShouldSetPanResponderCapture!(event(400, 500, 1000));
+      handlers.onMoveShouldSetPanResponder!(event(400 - direction * 50, 500, 1500));
+      handlers.onPanResponderGrant!(event(400 - direction * 50, 500, 1500), {});
+      handlers.onPanResponderMove!(event(400 - direction * 50, 500, 1500), {});
+    });
+    expect(opacity("previous")).toBe(0);
+    expect(opacity("next")).toBe(0);
+    timings.length = 0;
+    act(() => { handlers.onPanResponderMove!(event(endX, 500, 2000), {}); });
+    expect(opacity(direction === -1 ? "previous" : "next")).toBe(1);
+    expect(opacity(direction === -1 ? "next" : "previous")).toBe(0);
+    expect(timings.filter((timing) => timing.toValue === 1 && timing.duration === 220)).toHaveLength(1);
+    act(() => { handlers.onPanResponderMove!(event(endX, 500, 2500), {}); });
+    expect(timings.filter((timing) => timing.toValue === 1 && timing.duration === 220)).toHaveLength(1);
+    act(() => { handlers.onPanResponderRelease!(event(endX, 500, 3000), {}); });
+    expect(seen.shell!.entry.id).toBe(direction === -1 ? "a" : "c");
+    expect(opacity(direction === -1 ? "previous" : "next")).toBe(0);
+    act(() => seen.shell!.close());
+  });
+
+  it("does not add swipe hints to a pointer-only desktop panel", () => {
+    webDesktop();
+    const renderer = render(slot());
+    open("b");
+    expect(byTestId(renderer, "details-swipe-previous")).toBeNull();
+    expect(byTestId(renderer, "details-swipe-next")).toBeNull();
+    act(() => seen.shell!.close());
+  });
+});
+
 describe("first open on a phone", () => {
   // Native text and images laid out while the drawer sat off the screen, under
   // JS-driven frames, stayed blank until a later layout (QA round 1, bug 1).
