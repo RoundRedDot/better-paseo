@@ -40,7 +40,7 @@ describe("Android bottom inset", () => {
 });
 
 describe("row menu", () => {
-  it.each([[390, "PanelBottom"], [700, "PanelBottom"], [1000, "PanelRight"]])("uses the panel icon for width %i", (width, icon) => {
+  it.each([[390, true], [700, true], [1000, false]] as const)("uses the panel icon for width %i", (width, bottomSheet) => {
     const dimensions = vi.spyOn(Dimensions, "get").mockReturnValue({ width, height: 844, scale: 3, fontScale: 1 });
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => {
@@ -50,7 +50,9 @@ describe("row menu", () => {
       }));
     });
     const item = renderer.root.findAll((node) => node.props.accessibilityLabel === "Open details" && node.props.accessibilityRole === "menuitem")[0]!;
-    expect(item.findAll((node) => node.props.name === icon).length).toBeGreaterThan(0);
+    expect(item.findAll((node) => node.props.testID === "bottom-sheet-icon-handle").length > 0).toBe(bottomSheet);
+    expect(item.findAll((node) => node.props.name === "Square").length > 0).toBe(bottomSheet);
+    expect(item.findAll((node) => node.props.name === "PanelRight").length > 0).toBe(!bottomSheet);
     act(() => renderer.unmount());
     dimensions.mockRestore();
   });

@@ -68,7 +68,7 @@ export function RowMenu(props: RowMenuProps) {
     copies.filter((item) => item.text).map((item) => ({ ...item, run: () => void copy(item.text, { feedback: "toast", label: item.label }) })),
     [
       ...(props.readsImage && props.onViewImage ? [{ id: "viewer", label: "View image", icon: "Image", run: props.onViewImage }] : []),
-      ...(props.hasBody && !props.detailsOpen ? [{ id: "details", label: "Open details", icon: !capabilities.hover && bottomPanel ? "PanelBottom" : "PanelRight", run: props.onOpen }] : []),
+      ...(props.hasBody && !props.detailsOpen ? [{ id: "details", label: "Open details", icon: !capabilities.hover && bottomPanel ? "BottomSheet" : "PanelRight", run: props.onOpen }] : []),
       ...(props.hasBody ? [props.expanded
         ? { id: "collapse", label: "Collapse in timeline", icon: "ChevronUp", run: props.onToggle }
         : { id: "expand", label: "Expand in timeline", icon: "ChevronDown", run: props.onToggle }] : []),
@@ -148,7 +148,13 @@ function RowMenuItem(props: { label: string; icon: string; height: number; iconS
       style={({ pressed }) => ({ height: props.height, marginHorizontal: 6, paddingHorizontal: 8, borderRadius: 6,
         flexDirection: "row", alignItems: "center", gap: 8,
         backgroundColor: pressed || hovered ? tokens.v2.surface2 : "transparent" })}>
-      <View style={{ flexShrink: 0 }}><Icon name={props.icon} size={props.iconSize} color={tokens.foregroundMuted} /></View>
+      <View style={{ flexShrink: 0 }}>{props.icon === "BottomSheet" ? (
+        <View testID="bottom-sheet-icon" style={{ width: props.iconSize, height: props.iconSize, alignItems: "center" }}>
+          <Icon name="Square" size={props.iconSize} color={tokens.foregroundMuted} />
+          <View testID="bottom-sheet-icon-handle" style={{ position: "absolute", top: props.iconSize * 7 / 24, width: props.iconSize * 7 / 24,
+            height: props.iconSize * 2 / 24, borderRadius: props.iconSize / 24, backgroundColor: tokens.foregroundMuted }} />
+        </View>
+      ) : <Icon name={props.icon} size={props.iconSize} color={tokens.foregroundMuted} />}</View>
       <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: tokens.fontUi, fontSize: block.label.size,
         lineHeight: block.label.lineHeight, color: tokens.foreground }}>{props.label}</Text>
     </Pressable>
