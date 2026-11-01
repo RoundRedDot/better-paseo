@@ -2992,10 +2992,16 @@ describe("Tasks board, lane widths", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(540);
-    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
-    const choices = () => hostsById("filter-sheet-lane-width")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio");
-    for (const [index, width, value] of [[0, 220, "narrow"], [1, 260, "default"], [2, 300, "wide"], [0, 220, "narrow"]] as const) {
-      await act(async () => choices()[index]!.props.onPress());
+    if (os === "web") act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    for (const [index, width, value, label] of [[0, 220, "narrow", "Narrow"], [1, 260, "default", "Default"], [2, 300, "wide", "Wide"], [0, 220, "narrow", "Narrow"]] as const) {
+      if (os === "web") {
+        const choices = hostsById("filter-sheet-lane-width")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "radio");
+        await act(async () => choices[index]!.props.onPress());
+      } else {
+        act(() => hostsById("tablet-view")[0]!.props.onPress());
+        act(() => menuOption("Lane width").props.onPress());
+        await act(async () => menuOption(label).props.onPress());
+      }
       await panelLag();
       expect(lanesScroll().props.contentContainerStyle.width).toBe(48 + 4 * width);
       expect(deviceTasksStore().snapshot().values?.laneWidth).toBe(value);
@@ -3739,8 +3745,8 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
   it.each(["android", "ios"])("%s preserves keepOpen, drill-down, Back and selection close", (os) => {
     mount(os, 1000);
     act(() => hostsById("tablet-view")[0]!.props.onPress());
-    act(() => menuOption("Show subtasks").props.onPress());
-    expect(menuOption("Show subtasks").props.accessibilityState.checked).toBe(false);
+    act(() => menuOption("Show the archived lane").props.onPress());
+    expect(menuOption("Show the archived lane").props.accessibilityState.checked).toBe(true);
     expect(hostsById("tablet-view-overlay")).toHaveLength(1);
     act(() => menuOption("Lane width").props.onPress());
     expect(menuOption("Wide")).toBeDefined();
@@ -3892,19 +3898,13 @@ describe("Tasks board, tablet filters", () => {
     // Three buttons at the right; a narrow board has no sidebar switch, so the subtasks switch leads instead.
     const expected = ["subtasks-toggle", "toolbar-filters", "tablet-view"];
     expect(order()).toEqual(expected);
-    // The view menu's switches follow the desktop filter bar's order; empty groups stay in the filter panel.
+    // View owns layout; subtask visibility and empty groups belong to filters.
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     const strings = BOARD_STRINGS.en;
-    const switches = [strings.emptyLanes.collapse, strings.emptyLanes.expand, strings.showSubtasks, strings.archivedLane.row, strings.emptyGroups.row];
     const items = hostsById("tablet-view-menu")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem").map(textOf);
-    expect(items.filter((text) => switches.some((label) => text.startsWith(label)))).toHaveLength(3);
-    expect(items.map((text) => switches.findIndex((label) => text.startsWith(label))).filter((index) => index >= 0).map((index) => Math.max(1, index))).toEqual([1, 2, 3]);
-    // The subtasks switch stays in the menu while it flips.
-    const subtasks = () => hostsById("tablet-view-menu")[0]!.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith(strings.showSubtasks));
-    await act(async () => subtasks().props.onPress());
-    expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
-    await act(async () => subtasks().props.onPress());
-    expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: false });
+    expect(items.some((text) => text.startsWith(strings.showSubtasks))).toBe(false);
+    expect(items.some((text) => text.startsWith(strings.emptyGroups.row))).toBe(false);
+    expect(items.some((text) => text.startsWith(strings.archivedLane.row))).toBe(true);
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     expect(order()).toEqual(expected);
@@ -3972,16 +3972,9 @@ describe("Tasks board, tablet filters", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(false)); });
     layOut(1200);
-    // Filters, View and the sidebar: the board's switches live in View.
-    expect(hostsById("tablet-toolbar-end")[0]!.findAll((n) => (n.type as unknown) === "Pressable").map((n) => n.props.testID)).toEqual(["toolbar-filters", "tablet-view", "sidebar-switch"]);
-    act(() => hostsById("tablet-view")[0]!.props.onPress());
-    const item = (label: string) => hostsById("tablet-view-menu")[0]!.find((n) => (n.type as unknown) === "Pressable" && n.props.accessibilityRole === "menuitem" && textOf(n).startsWith(label));
-    const icon = () => item("Show subtasks").findAll((n) => (n.type as unknown) === "Icon")[0]!.props.name;
-    expect(icon()).toBe("Network");
-    await act(async () => item("Show subtasks").props.onPress());
+    expect(hostsById("tablet-toolbar-end")[0]!.findAll((n) => (n.type as unknown) === "Pressable").map((n) => n.props.testID)).toEqual(["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"]);
+    await act(async () => hostsById("subtasks-toggle")[0]!.props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
-    expect(icon()).toBe("List");
-    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     const sheet = hostsById("filter-sheet-scroll")[0]!;
     act(() => hostsById("filter-sheet-workspaces-toggle")[0]!.props.onPress());
@@ -3993,14 +3986,13 @@ describe("Tasks board, tablet filters", () => {
     // Agent, label and workspace; the subtask switch is not a filter.
     expect(textOf(hostsById("tablet-filter-count")[0]!)).toBe("3");
     await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
-    await act(async () => hostsById("filter-sheet-archived")[0]!.props.onPress());
-    expect(hostsById("filter-sheet-archived")[0]!.props.accessibilityState.checked).toBe(true);
+    expect(hostsById("filter-sheet-archived")).toHaveLength(0);
     expect(host.save).not.toHaveBeenCalled();
     act(() => hostsById("filter-sheet-reset")[0]!.props.onPress());
     expect(lastBoardParams("host-1")).toMatchObject({ providers: [], labels: [], workspaceIds: [] });
   });
 
-  it("opens working sort, lane width and time-window choices from View", async () => {
+  it("opens sort and lane width from View and time range from filters", async () => {
     await act(async () => { renderer = TestRenderer.create(screen(false)); });
     layOut(1000);
     act(() => hostsById("tablet-view")[0]!.props.onPress());
@@ -4013,9 +4005,8 @@ describe("Tasks board, tablet filters", () => {
     act(() => menuOption("Lane width").props.onPress());
     await act(async () => menuOption("Wide").props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ laneWidth: "wide" });
-    act(() => hostsById("tablet-view")[0]!.props.onPress());
-    act(() => menuOption("Time range").props.onPress());
-    act(() => menuOption("7 days").props.onPress());
+    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    act(() => renderer!.root.findAllByType(WindowSegments)[0]!.props.onChange("7d"));
     expect(lastBoardParams("host-1").doneWindow).toBe("7d");
   });
 
@@ -4059,8 +4050,9 @@ describe("Tasks board, tablet filters", () => {
     const button = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-filters");
     expect(hostsById("filter-sheet-lane-width")).toHaveLength(0);
     act(() => button().props.onPress());
-    expect(hostsById("filter-sheet-lane-width")).toHaveLength(1);
-    expect(hostsById("filter-sheet-sort").length).toBeGreaterThan(0);
+    expect(hostsById("filter-sheet-lane-width")).toHaveLength(0);
+    expect(hostsById("filter-sheet-sort")).toHaveLength(0);
+    expect(hostsById("filter-sheet-range-toggle")).toHaveLength(1);
     // Native tablets retain the single row when widened.
     layOut(1600);
     expect(hostsById("filter-bar-end")).toHaveLength(0);
@@ -4234,8 +4226,8 @@ describe("Tasks board, tablet filters", () => {
     });
     layOut(width);
     const end = hostsById("tablet-toolbar-end")[0]!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
-    expect(end).toHaveLength(3);
-    expect(end).toEqual(width >= 680 ? ["toolbar-filters", "tablet-view", "sidebar-switch"] : ["subtasks-toggle", "toolbar-filters", "tablet-view"]);
+    expect(end).toHaveLength(width >= 680 ? 4 : 3);
+    expect(end).toEqual(width >= 680 ? ["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"] : ["subtasks-toggle", "toolbar-filters", "tablet-view"]);
     expect(hostsById("toolbar-archived")).toHaveLength(0);
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     const item = () => hostsById("tablet-view-menu")[0]!.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith("Show the archived lane"));
@@ -4247,7 +4239,7 @@ describe("Tasks board, tablet filters", () => {
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
-    expect(hostsById("filter-sheet-archived")[0]!.props.accessibilityState.checked).toBe(true);
+    expect(hostsById("filter-sheet-archived")).toHaveLength(0);
   });
 
   it("web switches between hierarchy and tree list icons for subtask visibility", () => {

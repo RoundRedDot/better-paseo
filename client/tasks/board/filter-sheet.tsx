@@ -38,6 +38,8 @@ export function FilterSheetBody(props: {
   hideSubtasksToggle?: boolean;
   /** Use pill-shaped agent and label options on phones. */
   phone?: boolean;
+  /** Tablets keep layout and sorting in the view menu. */
+  tablet?: boolean;
   /** Phones and tablets keep the empty-groups switch here instead of the toolbar. */
   showEmptyGroupsToggle?: boolean;
   /** Tablet toolbars keep the archived-lane control in this panel. */
@@ -76,7 +78,7 @@ export function FilterSheetBody(props: {
   // can stay at its top above the keyboard however few rows match.
   const holdTop = searching || query.trim() !== "";
   const range = (
-    <CollapsibleGroup title={strings.doneRange} icon="Clock" theme={theme} testID="filter-sheet-range" initiallyOpen={Boolean(props.phone || props.laneWidth)}>
+    <CollapsibleGroup title={strings.doneRange} icon="Clock" theme={theme} testID="filter-sheet-range" initiallyOpen={Boolean(props.phone || props.tablet || props.laneWidth)}>
       <WindowSegments value={resolved.doneWindow} onChange={(doneWindow) => setParams((p) => ({ ...p, doneWindow }))} theme={theme} strings={strings} large stretch />
     </CollapsibleGroup>
   );
@@ -133,7 +135,7 @@ export function FilterSheetBody(props: {
               testID="filter-sheet-empty-groups"
             />
           ) : null}
-          {props.phone ? range : null}
+          {props.phone || props.tablet ? range : null}
           {props.laneWidth ? (
             <>
               <SectionTitle text={strings.laneWidth.title} icon="Columns3" theme={theme} />
@@ -149,7 +151,7 @@ export function FilterSheetBody(props: {
               />
             </>
           ) : null}
-          {!props.phone && props.laneWidth ? range : null}
+          {!props.phone && !props.tablet && props.laneWidth ? range : null}
           <CollapsibleGroup title={strings.agent} icon="Bot" theme={theme} testID="filter-sheet-agents">
             {shown.agents.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
             <ChipWrap>
@@ -225,8 +227,8 @@ export function FilterSheetBody(props: {
               ))}
             </ChipWrap>
           </CollapsibleGroup>
-          {!props.phone && !props.laneWidth ? range : null}
-          {sortFirst ? null : sort}
+          {!props.phone && !props.tablet && !props.laneWidth ? range : null}
+          {sortFirst || props.tablet ? null : sort}
         </View>
       </ScrollView>
       <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: 16, flexDirection: "row", gap: 10, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>

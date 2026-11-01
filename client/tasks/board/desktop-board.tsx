@@ -603,8 +603,8 @@ export function DesktopBoard(props: {
       theme={theme}
       options={options}
       showEmptyGroupsToggle
-      showArchivedToggle={touch}
-      laneWidth={{ value: live.laneWidth, onChange: live.setLaneWidth }}
+      tablet={touch}
+      laneWidth={touch ? undefined : { value: live.laneWidth, onChange: live.setLaneWidth }}
       onDone={() => setFiltersOpen(false)}
     />
   ) : null;

@@ -2,7 +2,6 @@ import React, { useState, type ReactNode, type Ref } from "react";
 import { Platform, Pressable, View, type LayoutRectangle, type TextInput as NativeTextInput } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, useTasksFontScale, taskControlHeight } from "../typography";
 import { tipProps } from "../cards/card-hints";
 import { taskTokens } from "../cards/tokens";
@@ -56,7 +55,7 @@ export function TabletToolbar(props: {
   const [actionLayout, setActionLayout] = useState<LayoutRectangle | null>(null);
   const [viewLayout, setViewLayout] = useState<LayoutRectangle | null>(null);
   const actionWidth = actionLayout?.width ?? 0;
-  // Three buttons at the right: filters, view and the sidebar, or on a board too narrow for the sidebar's, the subtasks switch first. The other switches live in the view menu.
+  // Keep the subtask shortcut visible alongside filters and view on narrow boards.
   const minimumActionsWidth = 3 * target + 2 * 6;
   const separateFilters = compact || actionWidth === 0 || actionWidth >= 2 * target + 6;
   const menuAnchor = toolbarWidth !== null && actionLayout && viewLayout ? {
@@ -76,11 +75,9 @@ export function TabletToolbar(props: {
       ...(!separateFilters ? [{ key: "filters", label: strings.filters, icon: "ListFilter", onSelect: () => { close(); props.onFilters(); } }] : []),
       { key: "sort", label: strings.sort, icon: "ArrowUpDown", hint: "›", keepOpen: true, onSelect: () => openPage("sort") },
       { key: "width", label: strings.laneWidth.label, icon: "Columns3", submenu: laneWidthMenuSections(board.laneWidth, theme, strings, board.setLaneWidth) },
-      { key: "window", label: strings.doneRange, icon: "Clock", submenu: [{ key: "windows", items: DONE_WINDOWS.map((doneWindow) => ({ key: doneWindow, label: strings.windows[doneWindow], checked: resolved.doneWindow === doneWindow, onSelect: () => board.setParams((p) => ({ ...p, doneWindow })) })) }] },
     ] },
     { key: "visibility", items: [
       { key: "empty-lanes", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, icon: props.emptyLanes.collapsed ? "UnfoldHorizontal" : "FoldHorizontal", checked: props.emptyLanes.collapsed, disabled: props.emptyLanes.disabled, keepOpen: true, onSelect: props.emptyLanes.onToggle },
-      { key: "subtasks", label: strings.showSubtasks, icon: resolved.filters.hideSubtasks ? "List" : "Network", checked: !resolved.filters.hideSubtasks, keepOpen: true, onSelect: () => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })) },
       { key: "archived", label: strings.archivedLane.row, icon: "Archive", checked: board.showArchived, keepOpen: true, onSelect: () => board.setShowArchived(!board.showArchived) },
       { key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, leading: <PanelMark open={props.sidebar.open} side="right" color={colors.foregroundMuted} />, checked: props.sidebar.open, onSelect: props.sidebar.onToggle },
     ] },
@@ -135,7 +132,7 @@ export function TabletToolbar(props: {
           </View>
         </View>}
         <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch || searching ? 0 : 1, flexBasis: expandedSearch || searching ? "auto" : 0, minWidth: compact ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
-        {shortcuts ? null : <ToolbarButton compact={compact} icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks }))} />}
+        <ToolbarButton compact={compact} icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks }))} />
         {separateFilters ? <ToolbarButton compact={compact} icon="Filter" label={strings.filters} showLabel={labels} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
           <ToolbarButton compact={compact} icon="MoreVertical" label={strings.view} showLabel={labels} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); setSearchOpen(false); openPage(page ? null : "view"); }} />
