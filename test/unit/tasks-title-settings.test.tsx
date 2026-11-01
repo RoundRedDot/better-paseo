@@ -55,8 +55,8 @@ const customToggle = () => tree.root.find((node) => typeof node.type === "string
 
 describe("automatic title settings", () => {
   it.each([
-    ["zh", "任务开始时自动生成标题", "自动根据发送的内容优化标题。", "保存标题设置"],
-    ["en", "Generate title when the task starts", "Automatically refine the title from what you send.", "Save title settings"],
+    ["zh", "自动优化新任务标题", "自动根据发送的内容优化标题。", "保存标题设置"],
+    ["en", "Optimize new task titles automatically", "Automatically refine the title from what you send.", "Save title settings"],
   ] as const)("offers automatic titles at task start off by default and saves the setting (%s)", async (language, title, description, save) => {
     state.language = language;
     const settings = await mount({ values: titleGenerationSettingsSchema.parse({}) });
@@ -128,7 +128,7 @@ describe("automatic title settings", () => {
     expect(TITLE_GENERATION_SETTINGS.scope).toBe("host");
     expect(customToggle().props.accessibilityState.checked).toBe(false);
     expect(state.catalog).not.toHaveBeenCalled();
-    expect(tree.root.findAllByType(SettingRow).map((row) => row.props.title)).toEqual(["任务开始时自动生成标题", "自定义自动标题模型", "关闭标题生成思考模式", "Prompt", "恢复「自动标题」默认设置"]);
+    expect(tree.root.findAllByType(SettingRow).map((row) => row.props.title)).toEqual(["自动优化新任务标题", "自定义自动标题模型", "关闭标题生成思考模式", "Prompt", "恢复「自动标题」默认设置"]);
     await flushSave();
     expect(settings.save).not.toHaveBeenCalled();
     await act(async () => customToggle().props.onPress());
@@ -282,7 +282,7 @@ describe("automatic title settings", () => {
     expect(tree.root.findByType(SectionNote).props.text).toContain("Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off");
     expect(tree.root.findByType(SectionNote).props.text).not.toContain("建议在默认 prompt 末尾补充");
     expect(section.findAllByType(SettingRow).map((row) => [row.props.title, row.props.first === true])).toEqual([
-      ["任务开始时自动生成标题", true], ["自定义自动标题模型", false], ["关闭标题生成思考模式", false], ["Provider", false], ["模型", false], ["思考等级", false], ["Prompt", false], ["恢复「自动标题」默认设置", false],
+      ["自动优化新任务标题", true], ["自定义自动标题模型", false], ["关闭标题生成思考模式", false], ["Provider", false], ["模型", false], ["思考等级", false], ["Prompt", false], ["恢复「自动标题」默认设置", false],
     ]);
   });
 

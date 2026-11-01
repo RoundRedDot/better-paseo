@@ -1028,7 +1028,7 @@ on a wide page a **Desktop / Mobile** switch draws the board as a phone would. T
 
 Automatic title settings use a separate host-scoped `title-generation` record. Choose a fast model
 from that host's configured providers and edit the prompt, then save. The default prompt requests
-a short title in the user's language. **Generate title when the task starts** is off by default.
+a short title in the user's language. **Optimize new task titles automatically** is off by default.
 When enabled, it generates once as the AI starts the first message, using only its first 1000
 characters. Replies and follow-up messages do not delay or change that input. Explicit or manually
 edited titles are preserved. Starts missed during plugin downtime are not replayed; CLI/SDK
