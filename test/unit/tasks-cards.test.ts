@@ -3938,10 +3938,12 @@ describe("TaskCardView chrome", () => {
     expect(hovered.zIndex).toBe(2);
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onPressIn());
     const pressed = surface();
-    expect(pressed.backgroundColor).toBe(tokens.card.background);
+    expect(pressed.backgroundColor).toBe(compact ? tokens.card.hoverBackground : tokens.card.background);
     expect(pressed.boxShadow).toBe(tokens.card.shadowHover);
-    expect(pressed.transform).toEqual([{ scale: 1.03 }]);
+    expect(pressed.transform).toEqual(compact ? undefined : [{ scale: 1.03 }]);
     expect({ ...pressed, backgroundColor: 0, boxShadow: 0, zIndex: 0, transform: 0 }).toEqual({ ...rest, backgroundColor: 0, boxShadow: 0, zIndex: 0, transform: 0 });
+    await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onPressOut());
+    expect(surface().backgroundColor).toBe(tokens.card.background);
   });
 
   it("tints a failed card in danger red, unless it is the sidebar's card", async () => {
@@ -3955,6 +3957,17 @@ describe("TaskCardView chrome", () => {
     expect(surface().backgroundColor).toBe(tokens.card.failed);
     await act(async () => tree.update(cardElement(failed, { current: true })));
     expect(surface()).toMatchObject({ backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder });
+  });
+
+  it("keeps the phone card tint while its long-press menu is open", async () => {
+    const tokens = buildTaskTokens(LIGHT.colors);
+    const tree = await render(cardElement(sample("sample-done"), { compact: true }));
+    const card = () => hostByTestId(tree.root, "task-card-sample-done");
+    await act(async () => card().props.onPressIn());
+    await act(async () => card().props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
+    await act(async () => card().props.onPressOut());
+    expect(flat(card().props.style)).toMatchObject({ backgroundColor: tokens.card.hoverBackground });
+    expect(flat(card().props.style).transform).toBeUndefined();
   });
 });
 

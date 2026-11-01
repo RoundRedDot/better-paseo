@@ -654,15 +654,16 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   // A failed card stands out in danger red; the highlight and the sidebar's card still win.
   const failed = card.status === "failed";
-  // Hover and press never change the fill. The corner mark still wakes on hover.
+  // Phone cards retain their press tint while their menu is open.
   const lit = hovered || menuAt !== null;
+  const phonePressed = compact && (cardPressed || menuAt !== null);
   const background = props.highlighted
     ? look.highlight
     : props.current
       ? look.current
       : failed
-        ? look.failed
-        : look.background;
+        ? phonePressed ? look.failedHover : look.failed
+        : phonePressed ? look.hoverBackground : look.background;
   const activeChildren = activeStopChildren(card).length;
   const canStop = (card.stoppable || activeChildren > 0) && !!props.onStop;
   const childrenOnly = !card.stoppable;
@@ -739,7 +740,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const cornerMark = card.parent !== null
     ? markActive ? markHue(card.location, props.hostId, tokens, fold ? [fold] : undefined) : markRest(tokens, fold ?? background)
     : null;
-  // Desktop hover only deepens the shadow. A phone or iPad does that while pressed, and grows.
+  // Desktop hover deepens the shadow; iPad cards also grow while pressed.
   // An open menu keeps the shadow so the card it belongs to stays raised.
   const cardLift = surfaceLift(hovered, cardPressed, reducedMotion);
   const raised = menuAt !== null || cardLift.shadow;
@@ -754,7 +755,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     paddingTop: m.padTop,
     paddingBottom: m.padBottom,
     // Linear's card: radius 8 (measured: the arc settles 16 device px in at 2x), a hairline.
-    // Desktop hover deepens the shadow only. A phone or iPad grows while pressed.
+    // Desktop hover deepens the shadow only. iPad cards grow while pressed.
     borderRadius: CARD_RADIUS,
     // A dashed hairline breaks up into dots: the dashes take a whole point.
     borderWidth,
@@ -762,7 +763,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     borderColor: issue ? "transparent" : borderColor,
     backgroundColor: issue ? "transparent" : background,
     boxShadow: issue ? "none" : shadow,
-    ...scaleStyle(issue ? 1 : cardLift.scale),
+    ...scaleStyle(issue || compact ? 1 : cardLift.scale),
     zIndex: menuOpen || searchOpen ? 30 : hovered || cornerOpen ? 2 : 1,
     // Both Tab and composite navigation use the same outline. Unlike the
     // hover shadow it changes at once, so a departing focus cannot linger.
