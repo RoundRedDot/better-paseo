@@ -15,6 +15,7 @@ import { activeStopChildren } from "../actions/stop-targets";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { opensInPaseo, parentOpensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
 import { contextRatio, formatCardError, tildePath } from "./format";
+import { errorAction } from "./error-action";
 import { cardStart, cardTimer, startHint, timerHint } from "./card-time";
 import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
@@ -1355,6 +1356,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   // Lane blocks ------------------------------------------------------------
   const iconCell: ViewStyle = { width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" };
+  const failureAction = card.error && !card.stoppedManually ? errorAction(card.error, language) : null;
   const failure = layout.failure ? (
     <View style={[block, { flexDirection: "row", alignItems: "flex-start", gap: GAP }]} testID="task-card-reason">
       <View style={iconCell}>
@@ -1366,7 +1368,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           <Icon name="CircleX" size={m.icon} color={failed ? tokens.danger : muted} />
         )}
       </View>
-      <Text style={[text(m.blockSize, m.blockLine, failed ? tokens.danger : muted), { flex: 1 }]}>{formatCardError(card.error!)}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={text(m.blockSize, m.blockLine, failed ? tokens.danger : muted)}>{formatCardError(card.error!)}</Text>
+        {failureAction ? <Text testID="task-card-error-action" style={[text(m.blockSize, m.blockLine, muted), { marginTop: 4 }]}>{failureAction}</Text> : null}
+      </View>
     </View>
   ) : null;
 

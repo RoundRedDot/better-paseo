@@ -3959,6 +3959,7 @@ describe("TaskCardView chrome", () => {
     const tree = await render(cardElement(card, { compact }));
     expect(texts(hostByTestId(tree.root, "task-card-reason"))).toEqual([
       "You've hit your monthly spend limit · your 5-hour limit resets 5:30pm (Asia/Singapore)",
+      "检查账户或组织的支出上限，调整后继续未完成的工作。",
     ]);
   });
 
@@ -3968,7 +3969,27 @@ describe("TaskCardView chrome", () => {
   ])("preserves the available reason: %s", async (error, expected) => {
     const card = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, error };
     const tree = await render(cardElement(card));
-    expect(texts(hostByTestId(tree.root, "task-card-reason"))).toEqual([expected]);
+    expect(texts(hostByTestId(tree.root, "task-card-reason"))[0]).toBe(expected);
+  });
+
+  it.each([
+    { provider: "claude", error: "Prompt is too long", action: "缩短输入", compact: false, theme: LIGHT, language: "zh" as const },
+    { provider: "codex", error: "context_length_exceeded", action: "Shorten the input", compact: true, theme: DARK, language: "en" as const },
+    { provider: "cursor", error: "Please authenticate to continue. Run `/login` to log in.", action: "检查登录状态", compact: true, theme: LIGHT, language: "zh" as const },
+    { provider: "grok", error: "Connection closed before response completed", action: "Check the network", compact: false, theme: DARK, language: "en" as const },
+  ])("shows an actionable error on a $provider card", async ({ provider, error, action, compact, theme, language }) => {
+    const card = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, provider, error };
+    const tree = await render(cardElement(card, { compact, theme, language }));
+    expect(texts(hostByTestId(tree.root, "task-card-reason"))[0]).toBe(error);
+    expect(texts(hostByTestId(tree.root, "task-card-error-action"))[0]).toContain(action);
+  });
+
+  it("does not add a diagnosis to unknown errors or manually stopped cards", async () => {
+    const card = { ...sample("sample-done"), lane: "done" as const, status: "done" as const, error: "An unexplained failure" };
+    const tree = await render(cardElement(card));
+    expect(texts(hostByTestId(tree.root, "task-card-reason"))).toEqual([card.error]);
+    await act(async () => tree.update(cardElement({ ...card, error: "API Error: 529 Overloaded", stoppedManually: true })));
+    expect(tree.root.findAll((node) => node.props.testID === "task-card-error-action")).toHaveLength(0);
   });
 
   it("tints a failed card in danger red, unless it is the sidebar's card", async () => {
