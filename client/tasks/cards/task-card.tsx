@@ -1358,7 +1358,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const iconCell: ViewStyle = { width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" };
   const failureAction = card.error && !card.stoppedManually ? errorAction(card.error, language) : null;
   const failure = layout.failure ? (
-    <View style={[block, { flexDirection: "row", alignItems: "flex-start", gap: GAP }]} testID="task-card-reason">
+    <View style={[block, failed && !props.current && !props.highlighted ? buttonOutline(look.failedBorder, { right: null, bottom: null, left: null }) : null, { flexDirection: "row", alignItems: "flex-start", gap: GAP }]} testID="task-card-reason">
       <View style={iconCell}>
         {card.stoppedManually && !failed ? (
           // Stopped: the stop pill's solid square, not Lucide's hollow one.
