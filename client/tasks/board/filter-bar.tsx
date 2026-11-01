@@ -234,7 +234,7 @@ function DesktopToolbarView(props: {
       <View testID="desktop-toolbar-end" onLayout={(event) => setActionWidth(event.nativeEvent.layout.width)} style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: TOOLBAR_GAP }}>
       {compactActions ? (
         <>
-          {props.filters ? <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} testID="toolbar-filters" /> : null}
+          {props.filters ? <RoundButton icon="Filter" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} testID="toolbar-filters" /> : null}
         </>
       ) : <>
       {Platform.OS === "web" && props.keyHints ? (
@@ -267,7 +267,7 @@ function DesktopToolbarView(props: {
             tip={`${board.showArchived ? strings.tips.hideArchived : strings.archivedLane.row} (A)`}
             testID="toolbar-archived"
           />
-          <RoundButton icon="SlidersHorizontal" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} tip={strings.filters} testID="toolbar-filters" />
+          <RoundButton icon="Filter" label={strings.filters} theme={theme} badge={props.filters.count} onPress={props.filters.onPress} size={roundButtonSize(scale)} iconSize={roundIconSize(scale)} tip={strings.filters} testID="toolbar-filters" />
         </>
       ) : null}
       </>}
