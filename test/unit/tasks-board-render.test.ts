@@ -2026,7 +2026,7 @@ describe("Tasks board, desktop", () => {
       expect(handleSetJSResponder).toHaveBeenCalledWith(expect.any(Number), true);
       expect(flushOperations).toHaveBeenCalledTimes(1);
       expect(width()).toBe(340);
-      for (const [x, expected] of [[600, 300], [660, 240], [700, 200], [740, 200], [680, 220]] as const) {
+      for (const [x, expected] of [[600, 300], [660, 240], [700, 210], [740, 210], [680, 220]] as const) {
         act(() => handle().props.onPanResponderMove(event(x)));
         expect(width()).toBe(expected);
         expect(panel()).toBe(mountedPanel);
@@ -2062,7 +2062,7 @@ describe("Tasks board, desktop", () => {
     const handle = () => hostsById("floating-sidebar-resize")[0]!;
     const width = () => StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width;
     const event = (pageX: number) => ({ nativeEvent: { pageX } });
-    expect(handle().props.accessibilityValue.min).toBe(200);
+    expect(handle().props.accessibilityValue.min).toBe(210);
     expect(handle().props.onMoveShouldSetPanResponder({}, { dx: 3, dy: 0 })).toBe(false);
     expect(handle().props.onMoveShouldSetPanResponder({}, { dx: 8, dy: 20 })).toBe(false);
     expect(handle().props.onMoveShouldSetPanResponder({}, { dx: 8, dy: 0 })).toBe(true);
@@ -2073,7 +2073,7 @@ describe("Tasks board, desktop", () => {
     act(() => handle().props.onPanResponderMove(event(0)));
     expect(width()).toBe(480);
     act(() => handle().props.onPanResponderMove(event(800)));
-    expect(width()).toBe(200);
+    expect(width()).toBe(210);
     act(() => handle().props.onPanResponderRelease(event(450)));
     expect(width()).toBe(390);
     expect(readSidebarPreference()).toMatchObject({ width: 380, floatingWidth: 390 });
