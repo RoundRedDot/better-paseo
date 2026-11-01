@@ -20,12 +20,13 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, Modal, Platform, StyleSheet, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { useRpc } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { DetailsShellContext, type BlockEntry, type Detent, type DetailsForm, type DetailsShellValue, type DetailsZoom } from "../contracts";
 import { useBlock, useBlockList } from "../block-registry";
 import { detailsApi, useDetails } from "../details-store";
 import { DETAILS_BREAKPOINTS, floatingWidth } from "../layout-model";
-import { swipeDecision } from "../gesture-model";
+import { SWIPE_DISTANCE_RATIO, swipeDecision } from "../gesture-model";
 import { HoverPreviewContext, PreviewActionsContext, PreviewChromeContext, usePanelWrap, type PreviewActions } from "../../ui/hover-preview";
 import { PathContext, usePathContextValue } from "../../ui/path-text";
 import { TimelineProseContext } from "../../components/markdown/markdown-view";
@@ -194,6 +195,8 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   }), [agentId, entry.id, nav.index, nav.count]);
   const slide = useRef(new Animated.Value(0)).current;
   const slideOpacity = useRef(new Animated.Value(1)).current;
+  const previousHint = useRef(new Animated.Value(0)).current;
+  const nextHint = useRef(new Animated.Value(0)).current;
   const panelWidth = form === "side" ? sideWidth(layout.stage, fullscreen)
     : form === "floating" ? floatingWidth(layout.stage.width)
       : layout.stage.width;
@@ -228,15 +231,33 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
     };
   }, [agentId, step]);
   const swipe = useMemo<DragTarget>(() => {
+    let hint: -1 | 0 | 1 = 0;
     const has = (travel: number) => (travel < 0 ? navRef.current.canStep.next : navRef.current.canStep.previous);
-    const back = () => animate(slide, 0, DETAILS_MOTION.swipeMs);
+    const clearHint = () => {
+      hint = 0;
+      previousHint.setValue(0);
+      nextHint.setValue(0);
+    };
+    const back = () => { clearHint(); animate(slide, 0, DETAILS_MOTION.swipeMs); };
     return {
       begin() {},
       move(travel) {
+        const direction = latest.current.form === "drawer" && Math.abs(travel) > navRef.current.panelWidth * SWIPE_DISTANCE_RATIO
+          && has(travel) && (travel < 0 || navRef.current.nav.index > 1) ? (travel > 0 ? -1 : 1) : 0;
+        if (direction !== hint) {
+          clearHint();
+          hint = direction;
+          if (direction !== 0) {
+            const indicator = direction === -1 ? previousHint : nextHint;
+            if (latest.current.reduced) indicator.setValue(1);
+            else animate(indicator, 1, 220);
+          }
+        }
         if (latest.current.reduced) return;
         slide.setValue(has(travel) ? travel : travel * OVERDRAG);
       },
       end(travel, velocity) {
+        clearHint();
         const direction = swipeDecision(travel, velocity, navRef.current.panelWidth, has(travel));
         if (direction === 0) {
           back();
@@ -251,7 +272,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
       },
       cancel: back,
     };
-  }, [agentId, slide, slideTo]);
+  }, [agentId, slide, slideTo, previousHint, nextHint]);
 
   // The vertical drag of a drawer or floating panel, which its frame fills.
   const dragRef = useRef<DragTarget | null>(null);
@@ -402,9 +423,21 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
               <DetailsBodyContext.Provider value={bodyScroll}>
                 <TimelineProseContext.Provider value={zooms || form === "drawer"}>
                   <TextZoomContext.Provider value={textZoom}>
-                    <Animated.View testID="details-content" style={[styles.content, { opacity: slideOpacity, transform: [{ translateX: slide }] }] as never}>
-                      {entry.render()}
-                    </Animated.View>
+                    <View style={styles.content}>
+                      <Animated.View testID="details-content" style={[styles.content, { opacity: slideOpacity, transform: [{ translateX: slide }] }] as never}>
+                        {entry.render()}
+                      </Animated.View>
+                      {form === "drawer" ? <>
+                        <Animated.View testID="details-swipe-previous" pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+                          style={[styles.swipeHint, styles.swipePrevious, { opacity: previousHint, transform: [{ scale: previousHint.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }) }] }]}>
+                          <View style={[styles.swipeIcon, { backgroundColor: tokens.v2.surface1 }]}><Icon name="ChevronLeft" size={20} color={tokens.foregroundMuted} /></View>
+                        </Animated.View>
+                        <Animated.View testID="details-swipe-next" pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+                          style={[styles.swipeHint, styles.swipeNext, { opacity: nextHint, transform: [{ scale: nextHint.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }) }] }]}>
+                          <View style={[styles.swipeIcon, { backgroundColor: tokens.v2.surface1 }]}><Icon name="ChevronRight" size={20} color={tokens.foregroundMuted} /></View>
+                        </Animated.View>
+                      </> : null}
+                    </View>
                   </TextZoomContext.Provider>
                 </TimelineProseContext.Provider>
               </DetailsBodyContext.Provider>
@@ -499,6 +532,10 @@ function WebLayer({ layerRef, catches, children }: {
 const styles = StyleSheet.create({
   paneProbe: { width: "100%", height: 0 },
   content: { flexGrow: 1, flexShrink: 1, minHeight: 0 },
+  swipeHint: { position: "absolute", top: 0, bottom: 0, justifyContent: "center" },
+  swipePrevious: { left: 8 },
+  swipeNext: { right: 8 },
+  swipeIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   // The popover's own UA box (margin, border, padding, background) cleared, over the whole window.
   webLayer: {
     position: "fixed",

@@ -710,6 +710,88 @@ describe("drawer", () => {
     expect(fake.api.step).toHaveBeenCalledWith(AGENT, 1);
     expect(seen.shell!.entry.id).toBe("c");
   });
+
+  it.each([false, true])("shows the available direction while dragging and clears it on release or cancellation (reduced: %s)", (reduced) => {
+    motion.reduced = reduced;
+    const renderer = render(slot());
+    open("b");
+    const handlers = seen.shell!.headerHandlers as Record<string, (...args: unknown[]) => unknown>;
+    const opacity = (direction: string) => value(flat(byTestId(renderer, `details-swipe-${direction}`)!.props.style).opacity);
+    expect(flat(byTestId(renderer, "details-swipe-previous")!.props.style).left).toBe(8);
+    expect(flat(byTestId(renderer, "details-swipe-next")!.props.style).right).toBe(8);
+    act(() => {
+      handlers.onStartShouldSetPanResponderCapture!(event(200, 500, 1000));
+      handlers.onMoveShouldSetPanResponder!(event(140, 500, 1100));
+      handlers.onPanResponderGrant!(event(140, 500, 1100), {});
+      handlers.onPanResponderMove!(event(140, 500, 1100), {});
+    });
+    expect(opacity("next")).toBe(0);
+    timings.length = 0;
+    act(() => { handlers.onPanResponderMove!(event(80, 500, 1200), {}); });
+    expect(opacity("next")).toBe(1);
+    expect(opacity("previous")).toBe(0);
+    expect(timings.filter((timing) => timing.toValue === 1 && timing.duration === 220)).toHaveLength(reduced ? 0 : 1);
+    act(() => { handlers.onPanResponderMove!(event(60, 500, 1300), {}); });
+    expect(timings.filter((timing) => timing.toValue === 1 && timing.duration === 220)).toHaveLength(reduced ? 0 : 1);
+    act(() => { handlers.onPanResponderMove!(event(160, 500, 1400), {}); });
+    expect(opacity("next")).toBe(0);
+    act(() => { handlers.onPanResponderMove!(event(320, 500, 1500), {}); });
+    expect(opacity("previous")).toBe(1);
+    expect(opacity("next")).toBe(0);
+    act(() => { handlers.onPanResponderTerminate!(); });
+    expect(opacity("previous")).toBe(0);
+    act(() => {
+      handlers.onStartShouldSetPanResponderCapture!(event(200, 500, 2000));
+      handlers.onMoveShouldSetPanResponder!(event(80, 500, 2100));
+      handlers.onPanResponderGrant!(event(80, 500, 2100), {});
+      handlers.onPanResponderMove!(event(80, 500, 2100), {});
+      handlers.onPanResponderRelease!(event(80, 500, 2200), {});
+    });
+    expect(seen.shell!.entry.id).toBe("c");
+    expect(opacity("next")).toBe(0);
+    act(() => {
+      handlers.onStartShouldSetPanResponderCapture!(event(200, 500, 3000));
+      handlers.onMoveShouldSetPanResponder!(event(80, 500, 3100));
+      handlers.onPanResponderGrant!(event(80, 500, 3100), {});
+      handlers.onPanResponderMove!(event(80, 500, 3100), {});
+    });
+    expect(opacity("next")).toBe(0);
+    act(() => { handlers.onPanResponderTerminate!(); });
+  });
+
+  it("steps to the previous block after the left hint appears", () => {
+    const renderer = render(slot());
+    open("b");
+    const handlers = seen.shell!.headerHandlers as Record<string, (...args: unknown[]) => unknown>;
+    act(() => {
+      handlers.onStartShouldSetPanResponderCapture!(event(100, 500, 1000));
+      handlers.onMoveShouldSetPanResponder!(event(220, 500, 2000));
+      handlers.onPanResponderGrant!(event(220, 500, 2000), {});
+      handlers.onPanResponderMove!(event(220, 500, 2000), {});
+    });
+    expect(value(flat(byTestId(renderer, "details-swipe-previous")!.props.style).opacity)).toBe(1);
+    act(() => { handlers.onPanResponderRelease!(event(220, 500, 3000), {}); });
+    expect(seen.shell!.entry.id).toBe("a");
+    expect(value(flat(byTestId(renderer, "details-swipe-previous")!.props.style).opacity)).toBe(0);
+    act(() => seen.shell!.close());
+  });
+
+  it("does not promise a previous block when the oldest block can only probe for older rows", () => {
+    registerHostList(AGENT, { viewport: async () => null, scroll: () => 0 });
+    const renderer = render(slot());
+    open("a");
+    expect(seen.shell!.canStep.previous).toBe(true);
+    const handlers = seen.shell!.headerHandlers as Record<string, (...args: unknown[]) => unknown>;
+    act(() => {
+      handlers.onStartShouldSetPanResponderCapture!(event(100, 500, 1000));
+      handlers.onMoveShouldSetPanResponder!(event(220, 500, 2000));
+      handlers.onPanResponderGrant!(event(220, 500, 2000), {});
+      handlers.onPanResponderMove!(event(220, 500, 2000), {});
+    });
+    expect(value(flat(byTestId(renderer, "details-swipe-previous")!.props.style).opacity)).toBe(0);
+    act(() => { handlers.onPanResponderTerminate!(); });
+    act(() => seen.shell!.close());
+  });
 });
 
 describe("first open on a phone", () => {
