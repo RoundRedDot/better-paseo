@@ -305,11 +305,15 @@ function LiveReasoningRendererBody({
   const text = item.data.text || "";
   const streaming = item.data.phase === "streaming";
   const settledKey = streaming ? undefined : `thought:${text}`;
+  // The host updates the timestamp as a thought streams, without moving its slot.
+  const arrivalRef = useRef({ agentId, at: timestamp.getTime() });
+  if (arrivalRef.current.agentId !== agentId) arrivalRef.current = { agentId, at: timestamp.getTime() };
+  const at = arrivalRef.current.at;
   const rootRef = useRef<View>(null);
-  useTimelineEntry(agentId, timestamp.getTime(), "thought", settledKey, rootRef);
-  const anythingBelow = useHasEntryAfter(agentId, timestamp.getTime(), "thought", settledKey);
+  useTimelineEntry(agentId, at, "thought", settledKey, rootRef);
+  const anythingBelow = useHasEntryAfter(agentId, at, "thought", settledKey);
   const hostStacks = useHostStacksRows();
-  const rowBelow = useNextEntryIsRow(agentId, timestamp.getTime(), "thought", hostStacks && preferences.compactRowSpacing);
+  const rowBelow = useNextEntryIsRow(agentId, at, "thought", hostStacks && preferences.compactRowSpacing);
 
   // Collapsed by default, streaming or not (plan §3.4 item 3); the reader's
   // choice survives the remount into history through the disclosure store.

@@ -66,19 +66,29 @@ function margins(renderer: ReturnType<typeof TestRenderer.create>) {
     .map((view) => StyleSheet.flatten(view.props.style).marginBottom);
 }
 
-function thought(platform: "ios" | "android" | "web", text = "Allocating an ID", phase = "streaming") {
+function thought(platform: "ios" | "android" | "web", text = "Allocating an ID", phase = "streaming", at = 1001) {
   const props: PluginTimelineItemProps<LiveReasoningPayload> = {
     agentId: "tool-spacing-agent",
     host: { id: "local", label: "Local" },
     layout: { compact: true, platform },
     theme: { colors: {} } as never,
-    timestamp: new Date(1001),
+    timestamp: new Date(at),
     item: { type: "plugin", kind: "omp-reasoning", version: 1, data: { text, phase } },
   };
   return React.createElement(LiveReasoningRenderer, { ...props, key: "thought" });
 }
 
 describe("mobile streaming thought spacing", () => {
+  it.each(["ios", "android"] as const)("keeps a %s thought compact when its timestamp advances past the next row", async (platform) => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    const render = (at: number, phase: string) => React.createElement(React.Fragment, null,
+      thought(platform, "Considering the change", phase, at), tool("after-thought", 1002, "completed"));
+    await act(async () => { renderer = TestRenderer.create(render(1001, "streaming")); });
+    expect(margins(renderer)).toEqual([-12, undefined]);
+    await act(async () => { renderer.update(render(1003, "complete")); });
+    expect(margins(renderer)).toEqual([-12, undefined]);
+    await act(async () => renderer.unmount());
+  });
   it.each(["ios", "android"] as const)("reserves space above a %s thought across chunks, then releases it on completion", async (platform) => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     const render = (text: string, phase = "streaming") => React.createElement(React.Fragment, null,
