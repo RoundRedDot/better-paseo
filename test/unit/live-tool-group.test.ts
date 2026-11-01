@@ -297,7 +297,7 @@ describe("live tool groups", () => {
       } satisfies PluginTimelineItemProps<LiveToolCallPayload> & { key: string });
     }
     const early = (key = "early") => row(key, 20_000, "running", { type: "shell", command: "make" });
-    const done = (key = "done") => row(key, 20_005, "completed", { type: "shell", command: "make", output: "ok", exitCode: 0 });
+    const done = (key = "done", at = 20_005) => row(key, at, "completed", { type: "shell", command: "make", output: "ok", exitCode: 0 });
 
     it("draws only the row that moved on", async () => {
       let renderer!: ReturnType<typeof TestRenderer.create>;
@@ -354,11 +354,13 @@ describe("live tool groups", () => {
         };
       }
       const column = (left: number, top: number) => ({ left, top, width: 600, height: 24 });
+      // The host appends the copy as a new item, stamped with the event that made it.
+      const copy = (key: string) => done(key, 20_009);
 
       it("draws the first row only", async () => {
         let renderer!: ReturnType<typeof TestRenderer.create>;
         await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
-          done("first"), done("second")), laidOut([column(0, 100), column(0, 400)])); });
+          done("first"), copy("second")), laidOut([column(0, 100), column(0, 400)])); });
         expect(cards(renderer)).toHaveLength(1);
         await act(async () => renderer.unmount());
       });
@@ -366,7 +368,7 @@ describe("live tool groups", () => {
       it("takes back the host's gap under a copy right below it", async () => {
         let renderer!: ReturnType<typeof TestRenderer.create>;
         await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
-          done("first"), done("second")), laidOut([column(0, 100), column(0, 140)])); });
+          done("first"), copy("second")), laidOut([column(0, 100), column(0, 140)])); });
         expect(margins(renderer)[0]).toBe(-16);
         await act(async () => renderer.unmount());
       });
@@ -374,7 +376,7 @@ describe("live tool groups", () => {
       it("leaves the gap of a copy with another row between them", async () => {
         let renderer!: ReturnType<typeof TestRenderer.create>;
         await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
-          done("first"), tool("between", 20_001, "completed", "src/b.ts", "split-agent"), done("second")),
+          done("first"), tool("between", 20_001, "completed", "src/b.ts", "split-agent"), copy("second")),
         laidOut([column(0, 100), column(0, 140), column(0, 180)])); });
         expect(cards(renderer)).toHaveLength(2);
         expect(margins(renderer)[0]).not.toBe(-16);
@@ -387,7 +389,7 @@ describe("live tool groups", () => {
         let renderer!: ReturnType<typeof TestRenderer.create>;
         // The copy touches its row, as a stacking host would draw two rows.
         await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
-          done("first"), done("second")), laidOut([column(0, 100), column(0, 124)])); });
+          done("first"), copy("second")), laidOut([column(0, 100), column(0, 124)])); });
         expect(gap.hostStacksRows()).toBeNull();
         await act(async () => renderer.unmount());
         gap.resetHostRowGap();
@@ -404,10 +406,44 @@ describe("live tool groups", () => {
       it("draws the second row again once the first is gone", async () => {
         let renderer!: ReturnType<typeof TestRenderer.create>;
         await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
-          done("first"), done("second")), laidOut([column(0, 100), column(0, 400)])); });
-        await act(async () => { renderer.update(React.createElement(React.Fragment, null, done("second"))); });
+          done("first"), copy("second")), laidOut([column(0, 100), column(0, 400)])); });
+        await act(async () => { renderer.update(React.createElement(React.Fragment, null, copy("second"))); });
         expect(cards(renderer)).toHaveLength(1);
         await act(async () => renderer.unmount());
+      });
+          describe("one item drawn in two lists that share a column", () => {
+        // A phone draws every chat as wide as the screen, so a second list of
+        // the same chat (a screen kept mounted under the one shown) shares
+        // the column. The rows there carry the same host time.
+        it("keeps the row of the list registered second where both lists sit alike", async () => {
+          let renderer!: ReturnType<typeof TestRenderer.create>;
+          await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+            done("under"), done("shown")), laidOut([column(0, 300), column(0, 300)])); });
+          expect(cards(renderer)).toHaveLength(2);
+          // Neither row takes back a gap for the other.
+          expect(margins(renderer).every((margin) => margin !== -16)).toBe(true);
+          await act(async () => renderer.unmount());
+        });
+
+        it("keeps both rows once one list scrolls", async () => {
+          let renderer!: ReturnType<typeof TestRenderer.create>;
+          await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+            done("under"), done("shown")), laidOut([column(0, 100), column(0, 400)])); });
+          expect(cards(renderer)).toHaveLength(2);
+          await act(async () => renderer.unmount());
+        });
+
+        it("draws a row again once the host's time shows it is the same item", async () => {
+          let renderer!: ReturnType<typeof TestRenderer.create>;
+          const boxes = laidOut([column(0, 100), column(0, 400)]);
+          await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+            done("under", 20_005), done("shown", 20_009)), boxes); });
+          expect(cards(renderer)).toHaveLength(1);
+          await act(async () => { renderer.update(React.createElement(React.Fragment, null,
+            done("under", 20_009), done("shown", 20_009))); });
+          expect(cards(renderer)).toHaveLength(2);
+          await act(async () => renderer.unmount());
+        });
       });
     });
 

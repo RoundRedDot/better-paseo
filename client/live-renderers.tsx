@@ -195,6 +195,7 @@ function LiveToolCallRendererBody({
   const hostStacks = useHostStacksRows();
   const { group, anythingBelow, rowBelow, copiesBelow, copiesBelowHeight } = useTimelineToolGroup(
     agentId, at, view, data.phase === "complete", rootRef, hostStacks && preferences.compactRowSpacing,
+    timestamp.getTime(),
   );
   const groupFailed = group?.some((call) => call.status === "failed") ?? false;
 

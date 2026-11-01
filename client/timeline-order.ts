@@ -77,6 +77,11 @@ interface Entry {
   settledKey?: string;
   /** A call's id. Two calls in one millisecond are unordered, finished or not. */
   callId?: string;
+  /**
+   * A call's time as the host holds it now, not its arrival (`at`): the host
+   * moves it as the call updates. Every row drawing one host item has the same.
+   */
+  stamp?: number;
   /** Where the item is drawn, in the window; null when unknown. */
   measure?: () => ViewBox | null;
   tool?: ToolCallView;
@@ -183,23 +188,45 @@ function leftBehind(entries: Iterable<Entry>): { superseded: Set<Entry>; repeate
  * same, so only where they sit tells them from a copy in another pane: one
  * column is one list. The topmost keeps the call's place in the turn. A row
  * that cannot be measured (a hidden pane, not laid out yet) is left alone.
+ *
+ * On a phone one column is not always one list: every chat there is as wide as
+ * the screen, so a second list of the same chat (a screen kept mounted under
+ * the one shown) sits in the same column. The appended copy is a new host item
+ * with the time of the event that made it, while one item drawn in two lists
+ * carries one time (`sameItem`), so the two lists keep their rows. Read as
+ * copies, the row in the list on screen was hidden whenever the other list had
+ * placed its row first, as rows arriving after a reconnect do, and each hidden
+ * row left the host's 16pt gap behind.
  */
 function hostDuplicates(tied: Entry[]): Entry[] {
   if (tied.length < 2) return [];
-  const kept: ViewBox[] = [];
+  // A row hidden for one that turns out to be its own item draws again.
+  for (const entry of tied) {
+    if (entry.duplicate && tied.every((other) => other === entry || other.duplicate || sameItem(other, entry))) {
+      entry.duplicate = false;
+    }
+  }
+  const kept: { entry: Entry; box: ViewBox }[] = [];
   const placed = tied
     .filter((entry) => !entry.duplicate)
     .map((entry) => ({ entry, box: entry.measure?.() ?? null }))
     .filter((row): row is { entry: Entry; box: ViewBox } => row.box !== null && row.box.height > 0)
     .sort((a, b) => a.box.top - b.box.top);
-  for (const { entry, box } of placed) {
-    const below = kept.some((other) => Math.abs(other.left - box.left) <= 1 && Math.abs(other.width - box.width) <= 1);
+  for (const row of placed) {
+    const { entry, box } = row;
+    const below = kept.some((other) => !sameItem(other.entry, entry) &&
+      Math.abs(other.box.left - box.left) <= 1 && Math.abs(other.box.width - box.width) <= 1);
     if (below) entry.duplicate = true;
-    else kept.push(box);
+    else kept.push(row);
   }
   // With every copy hidden, none is left to draw the call.
   if (tied.every((entry) => entry.duplicate)) for (const entry of tied) entry.duplicate = false;
   return tied.filter((entry) => entry.duplicate);
+}
+
+/** One host item drawn in two lists: rows of one call with the same host time. */
+function sameItem(a: Entry, b: Entry): boolean {
+  return a.stamp !== undefined && a.stamp === b.stamp;
 }
 
 /**
@@ -550,6 +577,13 @@ function updateTool(agentId: string, entry: Entry, previous: ToolCallView | unde
   for (const viewer of slot.run.viewers) notifyGroup(viewer);
 }
 
+/** A call's host time moved without a new result: only copies care (`sameItem`). */
+function restampTool(agentId: string, entry: Entry): void {
+  const timeline = timelines.get(agentId);
+  const id = entry.tool?.callId;
+  if (timeline?.entries.has(entry) && id !== undefined && timeline.repeated.has(id)) invalidate(timeline);
+}
+
 /**
  * Keep the original slot while results update; hidden members stay registered.
  * Grouping follows the mounted timeline window and recomputes as history mounts.
@@ -564,6 +598,8 @@ function updateTool(agentId: string, entry: Entry, previous: ToolCallView | unde
  * `followRowBelow` false pins `rowBelow` to false: a row whose layout does not
  * depend on it is not drawn again each time the list mounts or unmounts the
  * item below it while scrolling. The hooks stay the same either way.
+ *
+ * `stamp` is the host's current time for the call (`Entry.stamp`).
  */
 export function useTimelineToolGroup(
   agentId: string,
@@ -572,6 +608,7 @@ export function useTimelineToolGroup(
   settled = false,
   view?: RefObject<unknown>,
   followRowBelow = true,
+  stamp: number = at,
 ): {
   group: readonly ToolCallView[] | null;
   anythingBelow: boolean;
@@ -588,17 +625,23 @@ export function useTimelineToolGroup(
     tool,
     settledKey: settled ? tool.callId : undefined,
     callId: tool.callId,
+    stamp,
     measure: view ? () => viewBox(view.current) : undefined,
   }), [agentId, at]);
   const single = useMemo(() => [tool], [tool]);
   useLayoutEffect(() => addEntry(agentId, entry), [agentId, entry]);
   useLayoutEffect(() => probeRowGap(agentId), [agentId, entry]);
   useLayoutEffect(() => {
-    if (entry.tool === tool) return;
-    const previous = entry.tool;
-    entry.tool = tool;
-    updateTool(agentId, entry, previous);
-  }, [agentId, entry, tool]);
+    const restamped = entry.stamp !== stamp;
+    entry.stamp = stamp;
+    if (entry.tool !== tool) {
+      const previous = entry.tool;
+      entry.tool = tool;
+      updateTool(agentId, entry, previous);
+    } else if (restamped) {
+      restampTool(agentId, entry);
+    }
+  }, [agentId, entry, tool, stamp]);
   const subscribe = useCallback((listener: () => void) => {
     (entry.groupListeners ??= new Set()).add(listener);
     return () => {
