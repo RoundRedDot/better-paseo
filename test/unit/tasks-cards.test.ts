@@ -3541,6 +3541,13 @@ describe("TaskDetailCards", () => {
     expect(icons(hostByTestId(tree.root, "detail-error"))).toEqual(["OctagonX"]);
   });
 
+  it("keeps the full Claude limit error in details", async () => {
+    const error = "You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message · your 5-hour limit resets 5:30pm (Asia/Singapore)";
+    const card = { ...sample("sample-failed"), error };
+    const tree = await render(details(card, {}, "en"));
+    expect(texts(hostByTestId(tree.root, "detail-error"))).toContain(error);
+  });
+
   it("leads with the permission request and its buttons while a card asks", async () => {
     const onPermission = vi.fn();
     const card = sample("sample-input");
@@ -3944,6 +3951,24 @@ describe("TaskCardView chrome", () => {
     expect({ ...pressed, backgroundColor: 0, boxShadow: 0, zIndex: 0, transform: 0 }).toEqual({ ...rest, backgroundColor: 0, boxShadow: 0, zIndex: 0, transform: 0 });
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onPressOut());
     expect(surface().backgroundColor).toBe(tokens.card.background);
+  });
+
+  it.each([false, true])("shows the limit and reset on the card (compact=%s)", async (compact) => {
+    const error = "You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message · your 5-hour limit resets 5:30pm (Asia/Singapore)";
+    const card = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, error };
+    const tree = await render(cardElement(card, { compact }));
+    expect(texts(hostByTestId(tree.root, "task-card-reason"))).toEqual([
+      "You've hit your monthly spend limit · your 5-hour limit resets 5:30pm (Asia/Singapore)",
+    ]);
+  });
+
+  it.each([
+    ["You've hit your weekly limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message", "You've hit your weekly limit"],
+    ["Provider exited with code 1: rate limit reached", "Provider exited with code 1: rate limit reached"],
+  ])("preserves the available reason: %s", async (error, expected) => {
+    const card = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, error };
+    const tree = await render(cardElement(card));
+    expect(texts(hostByTestId(tree.root, "task-card-reason"))).toEqual([expected]);
   });
 
   it("tints a failed card in danger red, unless it is the sidebar's card", async () => {

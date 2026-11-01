@@ -125,3 +125,10 @@ export function tildePath(path: string): string {
   const home = /^\/(?:Users|home)\/[^/]+(?=\/|$)/.exec(path) ?? /^[A-Za-z]:\\Users\\[^\\]+(?=\\|$)/i.exec(path);
   return home ? `~${path.slice(home[0].length)}` : path;
 }
+
+/** Keep the limit and reset on the card; the details retain the full error. */
+export function formatCardError(error: string): string {
+  const match = /^(You've hit your [^\n\u00b7]*limit) \u00b7 raise it at https:\/\/claude\.ai\/settings\/usage\?\S+(?: \u00b7 (.+))?$/.exec(error);
+  if (!match) return error;
+  return match[2] ? `${match[1]} \u00b7 ${match[2]}` : match[1]!;
+}

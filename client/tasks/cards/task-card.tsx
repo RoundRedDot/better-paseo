@@ -14,7 +14,7 @@ import type { PermissionButton, StopPhase } from "../actions";
 import { activeStopChildren } from "../actions/stop-targets";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { opensInPaseo, parentOpensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
-import { contextRatio, tildePath } from "./format";
+import { contextRatio, formatCardError, tildePath } from "./format";
 import { cardStart, cardTimer, startHint, timerHint } from "./card-time";
 import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
@@ -1366,7 +1366,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           <Icon name="CircleX" size={m.icon} color={failed ? tokens.danger : muted} />
         )}
       </View>
-      <Text style={[text(m.blockSize, m.blockLine, failed ? tokens.danger : muted), { flex: 1 }]}>{card.error}</Text>
+      <Text style={[text(m.blockSize, m.blockLine, failed ? tokens.danger : muted), { flex: 1 }]}>{formatCardError(card.error!)}</Text>
     </View>
   ) : null;
 
