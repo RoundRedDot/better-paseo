@@ -294,7 +294,7 @@ const zh: typeof en = {
   keys: { move: "移动", lane: "换列", open: "打开", space: "空格", preview: "预览", search: "搜索" },
   collapse: "折叠此列",
   expand: "展开此列",
-  emptyLanes: { collapse: "折叠数量为 0 的泳道", expand: "展开数量为 0 的泳道" },
+  emptyLanes: { collapse: "折叠空泳道", expand: "展开空泳道" },
   loadMore: "加载更多",
   loading: "加载中",
   shown: (count) => `已显示 ${count}`,
