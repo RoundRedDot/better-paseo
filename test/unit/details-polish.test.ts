@@ -12,6 +12,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 import { ANDROID_NAV_FALLBACK, androidBottomInset } from "../../client/details/shell/safe-area";
 import { RowMenu } from "../../client/details/row-menu";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
+import { Dimensions } from "./helpers/rn-mock";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -39,6 +40,21 @@ describe("Android bottom inset", () => {
 });
 
 describe("row menu", () => {
+  it.each([[390, "PanelBottom"], [700, "PanelBottom"], [1000, "PanelRight"]])("uses the panel icon for width %i", (width, icon) => {
+    const dimensions = vi.spyOn(Dimensions, "get").mockReturnValue({ width, height: 844, scale: 3, fontScale: 1 });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => {
+      renderer = TestRenderer.create(createElement(RowMenu, {
+        anchor: { x: 0, y: 300, width: 390, height: 28 }, title: "npm test", hasBody: true,
+        copyItems: [], tokens, onOpen() {}, onToggle() {}, onClose() {},
+      }));
+    });
+    const item = renderer.root.findAll((node) => node.props.accessibilityLabel === "Open details" && node.props.accessibilityRole === "menuitem")[0]!;
+    expect(item.findAll((node) => node.props.name === icon).length).toBeGreaterThan(0);
+    act(() => renderer.unmount());
+    dimensions.mockRestore();
+  });
+
   it("draws no scroll track beside its items", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => {

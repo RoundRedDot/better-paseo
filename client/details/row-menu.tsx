@@ -9,6 +9,7 @@ import { useHover } from "../ui/use-hover";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useEnhancerPreferences } from "../preferences";
 import type { CopyItem } from "./contracts";
+import { detailsForm } from "./layout-model";
 
 /** A group divider: a hairline with 4 above and below, as Paseo's menus. */
 const SEPARATOR = 9;
@@ -58,14 +59,16 @@ export function RowMenu(props: RowMenuProps) {
   // Text in the reader's block size, like the row it opened from; rows are
   // Paseo's menu pitch (line + 10) under a pointer and 44 under a finger.
   const block = tokens.typography.block;
-  const touch = useInputCapabilities().touch;
+  const capabilities = useInputCapabilities();
+  const touch = capabilities.touch;
+  const bottomPanel = detailsForm({ width: window.width, height: window.height, sidebar: 0, pointer: capabilities.hover }, null) !== "side";
   const rowHeight = touch ? 44 : block.label.lineHeight + 10;
   const copies = props.hasBody ? props.copyItems : [{ id: "title", label: "Copy title", icon: "Copy", text: props.title }];
   const groups = [
     copies.filter((item) => item.text).map((item) => ({ ...item, run: () => void copy(item.text, { feedback: "toast", label: item.label }) })),
     [
       ...(props.readsImage && props.onViewImage ? [{ id: "viewer", label: "View image", icon: "Image", run: props.onViewImage }] : []),
-      ...(props.hasBody && !props.detailsOpen ? [{ id: "details", label: "Open details", icon: "PanelRight", run: props.onOpen }] : []),
+      ...(props.hasBody && !props.detailsOpen ? [{ id: "details", label: "Open details", icon: !capabilities.hover && bottomPanel ? "PanelBottom" : "PanelRight", run: props.onOpen }] : []),
       ...(props.hasBody ? [props.expanded
         ? { id: "collapse", label: "Collapse in timeline", icon: "ChevronUp", run: props.onToggle }
         : { id: "expand", label: "Expand in timeline", icon: "ChevronDown", run: props.onToggle }] : []),
