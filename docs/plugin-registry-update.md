@@ -38,6 +38,25 @@ git rev-parse origin/main
 
 Stop when `HEAD` and `origin/main` differ, or when the work tree is dirty.
 
+## Version and release notes
+
+A plugin update moves the last number of the plugin version up by 1. Change
+that version in `package.json` and in the root package entry of
+`package-lock.json`. Leave dependency versions that use the same digits.
+
+Commit the version on plugin `main` and push `origin/main`. The pin target is
+the commit that contains the new version.
+
+Add one `releases.json` entry on `RoundRedDot/better-paseo-assets` `main` for
+that commit. Copy the previous version's `zh` and `en` notes in full, then add
+the new user-visible items. `build` is the commit time in Singapore:
+
+```bash
+TZ=Asia/Singapore git show -s --date=format-local:%Y%m%d%H%M --format=%cd <commit>
+```
+
+Push the assets repository before opening the registry pull request.
+
 ## Registry branch
 
 Fetch registry `main`, then read the current pin from that ref. The registry
@@ -79,17 +98,23 @@ git worktree add -b update/better-paseo-<short> \
 
 ## Record edit
 
-Edit `plugins/roundreddot/better-paseo.json` in the worktree. Set both fields
-to the same full target SHA:
+Edit `plugins/roundreddot/better-paseo.json` in the worktree. Set both commit
+fields to the same full target SHA:
 
 - `artifact.commit`
 - `repository.commit`
+
+Set `reviewedAt` to the current UTC time with seconds, such as
+`2026-11-01T06:41:00Z`. paseo.sh/plugins copies that field to `updatedAt` and
+uses it for Recently updated. A pin change that leaves `reviewedAt` does not
+move the listing after merge. `submittedAt` and `publishedAt` stay as they are
+on registry `main`.
 
 Leave the rest of the record as it is on registry `main`:
 
 - `id`, `artifact.kind`, `artifact.remote`, `repository.url`
 - `categories`, `submittedBy`
-- `submittedAt`, `publishedAt`, `reviewedAt`
+- `submittedAt`, `publishedAt`
 - `listing.media`
 
 The plugin ships `OVERVIEW.md` at the repo root. The registry has no
@@ -104,12 +129,13 @@ is empty. When one of those files changed, describe the change in the pull
 request body and keep the registry record fields above unless the user asked
 for a listing change.
 
-A reviewer may move `reviewedAt` later. This pull request leaves it.
+A reviewer may move `reviewedAt` to the approval time. This pull request still
+sets it, so a merge that keeps the record as written moves Recently updated.
 
-The diff is two lines in one file:
+The diff is three lines in one file:
 
 ```text
-plugins/roundreddot/better-paseo.json | 4 ++--
+plugins/roundreddot/better-paseo.json | 6 +++---
 ```
 
 ## Commit
@@ -133,7 +159,7 @@ chore: update Better Paseo plugin pin
 
 Read `git log -1 --format='%an <%ae>%n%cn <%ce>%n%s'` and
 `git diff HEAD~1 -- plugins/roundreddot/better-paseo.json` before pushing.
-The subject, author, committer, and two-line pin diff are the whole commit.
+The subject, author, committer, and three-line record diff are the whole commit.
 
 ## Validation
 
@@ -193,7 +219,11 @@ Update `roundreddot/better-paseo` from `<old full sha>` to `<new full sha>`.
 - <user-visible behavior since the old pin>
 - <one bullet per change a listing reader needs>
 
-`OVERVIEW.md`, the manifest description, package metadata, and listing media URLs are unchanged.
+`package.json` version moves from `<old version>` to `<new version>`. The directory release notes keep the `<old version>` items and add the changes above.
+
+`reviewedAt` moves to `<timestamp>` so Recently updated follows this pin. `submittedAt` and `publishedAt` stay.
+
+`OVERVIEW.md`, the manifest description, and listing media URLs are unchanged.
 
 Validation:
 
