@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
-import { open, stat, type FileHandle } from "node:fs/promises";
-import { isAbsolute, join, resolve } from "node:path";
+import { open, realpath, stat, type FileHandle } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { updateCheckRpc } from "./shared/update-check";
 import { openTerminalRpc, updateCommand } from "./shared/open-terminal";
@@ -124,6 +124,17 @@ async function resolveSelector(path: string, cwd: string): Promise<string> {
     }
   }
   return stripSelector(path);
+}
+
+/** Resolves an image only inside the workspace that supplied the request. */
+async function resolveImageTarget(requested: string, cwd: string): Promise<string> {
+  const root = await realpath(cwd);
+  const candidate = await realpath(isAbsolute(requested) ? requested : resolve(cwd, requested));
+  const outside = relative(root, candidate);
+  if (outside === ".." || outside.startsWith(`..${sep}`) || isAbsolute(outside)) {
+    throw new Error("Image path must stay inside the agent workspace.");
+  }
+  return candidate;
 }
 
 /** Runs the path press's shell command (`shellOpenCommand`), detached. */
@@ -500,9 +511,9 @@ export default function contribute(server: PluginServerContext) {
     const mime = IMAGE_MIMES[kind];
     if (!mime) return { ...empty, error: `Not an image: .${kind}` };
 
-    const target = isAbsolute(requested) ? requested : resolve(input.cwd, requested);
     let handle: FileHandle | null = null;
     try {
+      const target = await resolveImageTarget(requested, input.cwd);
       const entry = await stat(target);
       if (!entry.isFile()) return { ...empty, error: "Not a file" };
 
