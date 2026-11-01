@@ -197,6 +197,8 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   const slideOpacity = useRef(new Animated.Value(1)).current;
   const previousHint = useRef(new Animated.Value(0)).current;
   const nextHint = useRef(new Animated.Value(0)).current;
+  const previousShadow = useRef(new Animated.Value(0)).current;
+  const nextShadow = useRef(new Animated.Value(0)).current;
   const panelWidth = form === "side" ? sideWidth(layout.stage, fullscreen)
     : form === "floating" ? floatingWidth(layout.stage.width)
       : layout.stage.width;
@@ -231,28 +233,23 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
     };
   }, [agentId, step]);
   const swipe = useMemo<DragTarget>(() => {
-    let hint: -1 | 0 | 1 = 0;
     const has = (travel: number) => (travel < 0 ? navRef.current.canStep.next : navRef.current.canStep.previous);
     const clearHint = () => {
-      hint = 0;
       previousHint.setValue(0);
       nextHint.setValue(0);
+      previousShadow.setValue(0);
+      nextShadow.setValue(0);
     };
     const back = () => { clearHint(); animate(slide, 0, DETAILS_MOTION.swipeMs); };
     return {
       begin() {},
       move(travel) {
-        const direction = Math.abs(travel) > navRef.current.panelWidth * SWIPE_DISTANCE_RATIO
-          && has(travel) && (travel < 0 || navRef.current.nav.index > 1) ? (travel > 0 ? -1 : 1) : 0;
-        if (direction !== hint) {
-          clearHint();
-          hint = direction;
-          if (direction !== 0) {
-            const indicator = direction === -1 ? previousHint : nextHint;
-            if (latest.current.reduced) indicator.setValue(1);
-            else animate(indicator, 1, 220);
-          }
-        }
+        const progress = has(travel) && (travel < 0 || navRef.current.nav.index > 1)
+          ? Math.min(2, Math.abs(travel) / (navRef.current.panelWidth * SWIPE_DISTANCE_RATIO)) : 0;
+        previousHint.setValue(travel > 0 ? Math.min(1, progress) : 0);
+        nextHint.setValue(travel < 0 ? Math.min(1, progress) : 0);
+        previousShadow.setValue(travel > 0 ? Math.max(0, progress - 1) : 0);
+        nextShadow.setValue(travel < 0 ? Math.max(0, progress - 1) : 0);
         if (latest.current.reduced) return;
         slide.setValue(has(travel) ? travel : travel * OVERDRAG);
       },
@@ -272,7 +269,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
       },
       cancel: back,
     };
-  }, [agentId, slide, slideTo, previousHint, nextHint]);
+  }, [agentId, slide, slideTo, previousHint, nextHint, previousShadow, nextShadow]);
 
   // The vertical drag of a drawer or floating panel, which its frame fills.
   const dragRef = useRef<DragTarget | null>(null);
@@ -429,12 +426,18 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
                       </Animated.View>
                       {form === "drawer" || touch ? <>
                         <Animated.View testID="details-swipe-previous" pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-                          style={[styles.swipeHint, styles.swipePrevious, { opacity: previousHint, transform: [{ scale: previousHint.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }) }] }]}>
-                          <View style={[styles.swipeIcon, { backgroundColor: tokens.v2.surface1 }]}><Icon name="ChevronLeft" size={20} color={tokens.foregroundMuted} /></View>
+                          style={[styles.swipeHint, styles.swipePrevious, { opacity: previousHint, transform: [{ scale: previousHint.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1], extrapolate: "clamp" }) }] }]}>
+                          <View style={[styles.swipeIcon, { backgroundColor: tokens.v2.surface1 }]}>
+                            <Animated.View testID="details-swipe-previous-shadow" style={[styles.swipeShadow, { backgroundColor: tokens.v2.surface1, boxShadow: tokens.isDark ? "0px 3px 12px rgba(0, 0, 0, 0.5)" : "0px 3px 12px rgba(0, 0, 0, 0.3)", opacity: previousShadow }]} />
+                            <Icon name="ChevronLeft" size={20} color={tokens.foregroundMuted} />
+                          </View>
                         </Animated.View>
                         <Animated.View testID="details-swipe-next" pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-                          style={[styles.swipeHint, styles.swipeNext, { opacity: nextHint, transform: [{ scale: nextHint.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }) }] }]}>
-                          <View style={[styles.swipeIcon, { backgroundColor: tokens.v2.surface1 }]}><Icon name="ChevronRight" size={20} color={tokens.foregroundMuted} /></View>
+                          style={[styles.swipeHint, styles.swipeNext, { opacity: nextHint, transform: [{ scale: nextHint.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1], extrapolate: "clamp" }) }] }]}>
+                          <View style={[styles.swipeIcon, { backgroundColor: tokens.v2.surface1 }]}>
+                            <Animated.View testID="details-swipe-next-shadow" style={[styles.swipeShadow, { backgroundColor: tokens.v2.surface1, boxShadow: tokens.isDark ? "0px 3px 12px rgba(0, 0, 0, 0.5)" : "0px 3px 12px rgba(0, 0, 0, 0.3)", opacity: nextShadow }]} />
+                            <Icon name="ChevronRight" size={20} color={tokens.foregroundMuted} />
+                          </View>
                         </Animated.View>
                       </> : null}
                     </View>
@@ -536,6 +539,7 @@ const styles = StyleSheet.create({
   swipePrevious: { left: 8 },
   swipeNext: { right: 8 },
   swipeIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  swipeShadow: { position: "absolute", top: 0, left: 0, width: 36, height: 36, borderRadius: 18 },
   // The popover's own UA box (margin, border, padding, background) cleared, over the whole window.
   webLayer: {
     position: "fixed",
