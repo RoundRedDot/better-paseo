@@ -936,7 +936,8 @@ apply to all three.
   `menuWidth(240, scale, window.width - 16)`, with 8 pt at each screen edge. A phone long press
   opens the host `Modal` titled with the card, with flattened submenus and 18 pt icons.
 - The filter sheet opens in the host `Modal` on phones and narrow web boards. Tablets use a toolbar
-  popover with width `menuWidth(320, scale, board.width - 24)`. Sections have 16 pt padding and
+  popover with width `menuWidth(320, scale, board.width - 24)` and height `max(0, board.height - 18)`,
+  leaving room around the popover while using the available board height. Sections have 16 pt padding and
   muted `sm` titles; chips are 32 high (radius 4, accent border and `accentSoft` when on), toggle
   rows 48, sort rows 44, and the footer pins Reset and an accent Show pill, both 44.
 - While the desktop/tablet filter panel is open, its controls update immediately and lane
