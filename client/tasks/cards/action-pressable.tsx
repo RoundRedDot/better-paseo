@@ -36,7 +36,7 @@ export function useActionPressMotion(enabled: boolean) {
   };
   return {
     pressed,
-    style: { transform: [{ scale }], ...(pressed && !reduced ? { boxShadow: "0px 3px 10px rgba(0, 0, 0, 0.25)" } : {}) },
+    style: { transform: [{ scale }] },
     onPressIn: () => change(true),
     onPressOut: () => { if (!touching.current) change(false); },
     onTouchStart: () => { touching.current = true; },

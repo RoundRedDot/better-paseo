@@ -49,6 +49,7 @@ import {
 import { ActionRow, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
 import { ActionPressable } from "./action-pressable";
+import { liftsOnPress, scaleStyle, surfaceLift } from "./surface-lift";
 import { arrowInset, buttonHue, CONFIRM_STOP_ICON, requestLook, webTransition, type CardButtonLook } from "./action-style";
 import { buttonOutline } from "../board/board-style";
 import { useBreathing, useFlash } from "../board/breathing";
@@ -459,7 +460,10 @@ function DetailTab(props: { id: "info" | "messages"; selected: boolean; tokens: 
       accessibilityRole="tab"
       accessibilityState={{ selected: props.selected }}
       onPress={props.onPress}
-      style={{ flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 30 : 32, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder, backgroundColor: props.selected ? props.tokens.surface2 : hovered ? props.tokens.card.controlHover : "transparent", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 6 }}
+      style={({ pressed }) => {
+        const lift = surfaceLift(hovered, pressed);
+        return { flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 30 : 32, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder, backgroundColor: props.selected ? props.tokens.surface2 : "transparent", flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 4, paddingHorizontal: 6, boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined, ...scaleStyle(lift.scale) };
+      }}
     >
       <Icon name={props.id === "info" ? "Info" : "MessageSquare"} size={props.touch ? 12 : 14} color={color} />
       <Text numberOfLines={1} style={{ fontSize: props.touch ? F.sm : F.base, fontWeight: "500", color, flexShrink: 1 }}>{props.label}</Text>
@@ -818,18 +822,22 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
       {...tipProps(button.label)}
       onPress={props.onPress}
       {...hoverProps}
-      style={{
-        height,
-        flexDirection: "row",
-        gap: 6,
-        paddingHorizontal: 14,
-        borderRadius: 6,
-        ...buttonOutline(hue.border, {}, hovered && !props.disabled ? tokens.card.buttonShadowHover : undefined),
-        opacity: props.disabled ? 0.5 : 1,
-        backgroundColor: hovered && !props.disabled ? hue.hover : tokens.card.background,
-        alignItems: "center",
-        justifyContent: "center",
-        ...fit.style,
+      style={({ pressed }) => {
+        const lift = surfaceLift(hovered && !props.disabled, pressed && !props.disabled);
+        return {
+          height,
+          flexDirection: "row" as const,
+          gap: 6,
+          paddingHorizontal: 14,
+          borderRadius: 6,
+          ...buttonOutline(hue.border, {}, lift.shadow ? tokens.card.buttonShadowHover : undefined),
+          opacity: props.disabled ? 0.5 : 1,
+          backgroundColor: tokens.card.background,
+          alignItems: "center" as const,
+          justifyContent: "center" as const,
+          ...fit.style,
+          ...scaleStyle(lift.scale),
+        };
       }}
     >
       <Icon name={icon} size={13} color={hue.color} />
@@ -1403,7 +1411,10 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
         props.onPress();
       }}
       {...hoverProps}
-      style={{ width: 24, height: 24, borderRadius: 5, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? detailColors(props.tokens).track : "transparent", boxShadow: Platform.OS === "web" && hovered ? props.tokens.card.buttonShadowHover : undefined }}
+      style={({ pressed }) => {
+        const lift = surfaceLift(hovered, pressed);
+        return { width: 24, height: 24, borderRadius: 5, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: "transparent", boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined, ...scaleStyle(lift.scale) };
+      }}
     >
       <Icon name={props.icon} size={14} color={hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
     </Pressable>
@@ -1738,7 +1749,6 @@ function KeyCap(props: { label: string; tokens: TaskTokens }) {
 /** A round icon button: transparent at rest, filled on hover, grey when on (Linear's header buttons). */
 export function RoundIcon(props: { icon: string; label: string; size: number; tokens: TaskTokens; active?: boolean; onPress(): void; testID?: string }) {
   const { hovered, hoverProps } = useHover();
-  const fill = props.active ? props.tokens.surface2 : hovered ? props.tokens.card.controlHover : "transparent";
   return (
     <Pressable
       accessibilityRole="button"
@@ -1748,15 +1758,19 @@ export function RoundIcon(props: { icon: string; label: string; size: number; to
       onPress={props.onPress}
       {...hoverProps}
       testID={props.testID}
-      style={{
-        width: props.size,
-        height: props.size,
-        marginVertical: -(props.size - 18) / 2,
-        borderRadius: props.size / 2,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: fill,
-        boxShadow: Platform.OS === "web" && hovered ? props.tokens.card.buttonShadowHover : undefined,
+      style={({ pressed }) => {
+        const lift = surfaceLift(hovered, pressed);
+        return {
+          width: props.size,
+          height: props.size,
+          marginVertical: -(props.size - 18) / 2,
+          borderRadius: props.size / 2,
+          alignItems: "center" as const,
+          justifyContent: "center" as const,
+          backgroundColor: props.active ? props.tokens.surface2 : "transparent",
+          boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined,
+          ...scaleStyle(lift.scale),
+        };
       }}
     >
       <Icon name={props.icon} size={15} color={props.active ? props.tokens.accent : hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
@@ -1807,7 +1821,7 @@ function OutlineButton(props: {
   const chrome = 2 * (props.grow ? 10 : 12) + (leading ? 15 : 0) + (props.hint ? hintWidth : 0) + (props.trailing ? 14 : 0) + (pieces - 1) * gap + 1;
   const fit = useActionFit(props.label, `${scale}|${props.font}|${useWindowDimensions().fontScale}`, props.height, chrome);
   return (
-    <ActionPressable motion={Platform.OS !== "web"}
+    <ActionPressable motion={liftsOnPress()}
       accessibilityRole="button"
       accessibilityLabel={props.label}
       {...tipProps(props.label)}
@@ -1816,22 +1830,22 @@ function OutlineButton(props: {
       onPress={props.onPress}
       {...hoverProps}
       testID={props.testID}
-      style={{
+      style={({ pressed }) => ({
         flexGrow: props.grow ? 1 : 0,
         flexShrink: 1,
         minWidth: 0,
         height: taskControlHeight(props.height, scale),
         paddingHorizontal: props.grow ? 10 : 12,
         borderRadius: 8,
-        ...buttonOutline(hue.border, {}, hovered ? tokens.card.buttonShadowHover : undefined),
-        backgroundColor: hovered ? hue.hover : tokens.card.background,
-        flexDirection: "row",
-        alignItems: "center",
+        ...buttonOutline(hue.border, {}, surfaceLift(hovered, pressed && !disabled).shadow ? tokens.card.buttonShadowHover : undefined),
+        backgroundColor: tokens.card.background,
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
         gap,
         opacity: disabled ? 0.6 : 1,
-        justifyContent: "center",
+        justifyContent: "center" as const,
         ...fit.style,
-      }}
+      })}
     >
       {props.busy ? (
         // The running ring without its dot, in the icon's box so the button keeps its width.
@@ -1998,8 +2012,8 @@ function archivable(card: TaskCard): boolean {
 
 /**
  * The bottom bar's button: the card button's outline (`buttonHue`) at thumb
- * size. The fill is the card at rest; hovered or pressed, its hue is tinted
- * over the card and the shared hover shadow appears. A busy one drops both.
+ * size. The fill stays the card. Desktop hover deepens the shadow. A phone or iPad
+ * deepens it while pressed, and grows. A busy one does neither.
  */
 /** `arrow` ends the button in a ↗ after its label (Open tab); a square shows only the arrow. */
 function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; sidebar?: boolean; square?: boolean; grow?: boolean; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
@@ -2022,7 +2036,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const disabled = props.busy || props.disabled;
   const hovered = hover && !disabled;
   return (
-    <ActionPressable motion
+    <ActionPressable motion={liftsOnPress()}
       accessibilityRole="button"
       accessibilityLabel={props.label}
       accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
@@ -2037,8 +2051,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         flexShrink: square ? 0 : 1,
         paddingHorizontal: square ? 0 : padding,
         borderRadius: compact ? 8 : 10,
-        ...buttonOutline(hue.border, {}, hovered ? tokens.card.buttonShadowHover : undefined),
-        backgroundColor: (hovered || pressed) && !disabled ? hue.hover : tokens.card.background,
+        ...buttonOutline(hue.border, {}, surfaceLift(hovered, pressed && !disabled).shadow ? tokens.card.buttonShadowHover : undefined),
+        backgroundColor: tokens.card.background,
         opacity: disabled ? 0.6 : 1,
         flexDirection: "row",
         alignItems: "center",

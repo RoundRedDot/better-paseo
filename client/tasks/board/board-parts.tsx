@@ -7,6 +7,7 @@ import type { DoneWindow } from "../../../shared/tasks-settings";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { scaleStyle, surfaceLift } from "../cards/surface-lift";
 import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
 import { SpinnerRing } from "../cards/status-icon";
 import { tipProps } from "../cards/card-hints";
@@ -140,14 +141,14 @@ export function Segments<T extends string>(props: {
             accessibilityLabel={mark ? props.label(window) : undefined}
             {...tipProps(mark ? props.label(window) : undefined)}
             onPress={() => props.onChange(window)}
-            style={(hovered) => ({
+            style={(hovered, pressed) => ({
               height: inner,
               flex: props.stretch ? 1 : undefined,
               minWidth: mark ? inner + 8 : undefined,
               paddingHorizontal: mark ? 6 : props.large ? 12 : 9,
               borderRadius: round(inner),
               backgroundColor: on ? colors.surface2 : "transparent",
-              boxShadow: Platform.OS === "web" && hovered ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+              boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
               alignItems: "center",
               justifyContent: "center",
             })}
@@ -232,13 +233,14 @@ export function LoadMoreRow(props: {
         accessibilityRole="button"
         disabled={props.loading}
         onPress={props.onPress}
-        style={(hovered) => ({
+        style={(hovered, pressed) => ({
           height,
           paddingHorizontal: props.large ? 16 : 12,
           borderRadius: height / 2,
           borderWidth: HAIRLINE,
           borderColor: colors.border,
-          backgroundColor: hovered ? colors.surface1 : colors.surface0,
+          backgroundColor: colors.surface0,
+          boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
           flexDirection: "row",
           alignItems: "center",
           gap: 5,
@@ -307,11 +309,24 @@ export function useTap(): {
 const TAP_SLOP = 10;
 
 export function HoverPressable(
-  props: Omit<React.ComponentProps<typeof Pressable>, "style"> & { style(hovered: boolean): StyleProp<ViewStyle> },
+  props: Omit<React.ComponentProps<typeof Pressable>, "style"> & { style(hovered: boolean, pressed: boolean): StyleProp<ViewStyle> },
 ) {
-  const { style, ...rest } = props;
+  const { style, onPressIn, onPressOut, ...rest } = props;
   const { hovered, hoverProps } = useHover();
-  return <Pressable {...rest} {...hoverProps} style={style(hovered)} />;
+  const reduced = useReducedMotion();
+  const [pressed, setPressed] = useState(false);
+  const visual = style(hovered, pressed);
+  const lift = scaleStyle(surfaceLift(hovered, pressed, reduced).scale);
+  const flat = visual && typeof visual === "object" && !Array.isArray(visual) ? { ...visual, ...lift } : [visual, lift];
+  return (
+    <Pressable
+      {...rest}
+      {...hoverProps}
+      onPressIn={(event) => { setPressed(true); onPressIn?.(event); }}
+      onPressOut={(event) => { setPressed(false); onPressOut?.(event); }}
+      style={flat}
+    />
+  );
 }
 
 export interface CardCellProps {
@@ -560,6 +575,8 @@ export function RoundButton(props: {
   const pad = props.size === undefined ? 4 : 0;
   const icon = props.iconSize ?? Math.round(size / 2);
   const { hovered, hoverProps } = useHover();
+  const [pressed, setPressed] = useState(false);
+  const lift = surfaceLift(hovered, pressed);
   return (
     <Pressable
       accessibilityRole="button"
@@ -568,10 +585,12 @@ export function RoundButton(props: {
       disabled={props.disabled}
       {...tipProps(props.tip)}
       onPress={props.onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       {...hoverProps}
       hitSlop={pad || Platform.OS === "web" ? 0 : 4}
       testID={props.testID}
-      style={{ width: size + 2 * pad, height: size + 2 * pad, alignItems: "center", justifyContent: "center", opacity: props.disabled ? 0.4 : 1 }}
+      style={[{ width: size + 2 * pad, height: size + 2 * pad, alignItems: "center", justifyContent: "center", opacity: props.disabled ? 0.4 : 1 }, scaleStyle(lift.scale)]}
     >
       <View
         style={{
@@ -580,7 +599,7 @@ export function RoundButton(props: {
           borderRadius: size / 2,
           borderWidth: HAIRLINE,
           borderColor: props.active ? colors.accent : colors.border,
-          boxShadow: Platform.OS === "web" && hovered && !props.disabled ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+          boxShadow: !props.disabled && lift.shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
           alignItems: "center",
           justifyContent: "center",
         }}

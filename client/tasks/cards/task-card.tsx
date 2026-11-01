@@ -5,6 +5,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { densityOf, labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
+import { liftsOnPress, scaleStyle, surfaceLift } from "./surface-lift";
 import { useCopy } from "../../ui/use-copy";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -603,6 +604,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // the moment the pointer reached it. Native keeps the Pressable's own hover.
   const rootRef = useRef<View>(null);
   const { hovered, hoverProps } = useHover(rootRef);
+  const [cardPressed, setCardPressed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [stopAll, setStopAll] = useState(false);
   // Standalone previews own their state; board cards and motion copies share the board's.
@@ -652,16 +654,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   // A failed card stands out in danger red; the highlight and the sidebar's card still win.
   const failed = card.status === "failed";
-  // The card a right-click menu belongs to keeps its hover look while the menu is open.
+  // Hover and press never change the fill. The corner mark still wakes on hover.
   const lit = hovered || menuAt !== null;
-  /** The card's fill right now: the highlight, the sidebar's card, the failure tint, the hover grey, or the card. */
   const background = props.highlighted
     ? look.highlight
     : props.current
       ? look.current
       : failed
-        ? lit ? look.failedHover : look.failed
-        : lit ? look.hoverBackground : look.background;
+        ? look.failed
+        : look.background;
   const activeChildren = activeStopChildren(card).length;
   const canStop = (card.stoppable || activeChildren > 0) && !!props.onStop;
   const childrenOnly = !card.stoppable;
@@ -738,7 +739,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const cornerMark = card.parent !== null
     ? markActive ? markHue(card.location, props.hostId, tokens, fold ? [fold] : undefined) : markRest(tokens, fold ?? background)
     : null;
-  const shadows = lit ? [look.shadowHover] : [look.shadow];
+  // Desktop hover only deepens the shadow. A phone or iPad does that while pressed, and grows.
+  // An open menu keeps the shadow so the card it belongs to stays raised.
+  const cardLift = surfaceLift(hovered, cardPressed, reducedMotion);
+  const raised = menuAt !== null || cardLift.shadow;
+  const shadows = raised ? [look.shadowHover] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
   if (props.focused && (!WEB || issue)) shadows.push(`0px 0px 0px 1px ${tokens.foregroundMuted}`);
   const borderColor = props.highlighted ? tokens.accent : props.current ? look.currentBorder : failed ? look.failedBorder : look.border;
@@ -748,8 +753,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     paddingHorizontal: m.padH,
     paddingTop: m.padTop,
     paddingBottom: m.padBottom,
-    // Linear's card: radius 8 (measured: the arc settles 16 device px in at 2x), a hairline,
-    // and on hover only the fill and shadow change.
+    // Linear's card: radius 8 (measured: the arc settles 16 device px in at 2x), a hairline.
+    // Desktop hover deepens the shadow only. A phone or iPad grows while pressed.
     borderRadius: CARD_RADIUS,
     // A dashed hairline breaks up into dots: the dashes take a whole point.
     borderWidth,
@@ -757,6 +762,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     borderColor: issue ? "transparent" : borderColor,
     backgroundColor: issue ? "transparent" : background,
     boxShadow: issue ? "none" : shadow,
+    ...scaleStyle(issue ? 1 : cardLift.scale),
     zIndex: menuOpen || searchOpen ? 30 : hovered || cornerOpen ? 2 : 1,
     // Both Tab and composite navigation use the same outline. Unlike the
     // hover shadow it changes at once, so a departing focus cannot linger.
@@ -1510,6 +1516,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         accessibilityLabel={card.title}
         accessibilityHint={query && searchHits.length ? `${strings.searchHits.count(searchHits.length, query)}: ${searchHits.map((hit) => `${strings.searchHits.fields[hit.field]}: ${hit.snippet}`).join("; ")}` : undefined}
         onPress={pressBody}
+        onPressIn={() => setCardPressed(true)}
+        onPressOut={() => setCardPressed(false)}
         onLongPress={longPress}
         delayLongPress={LONG_PRESS_MS}
         ref={rootRef}
@@ -1693,9 +1701,9 @@ function Pill(props: PillProps) {
 
 /**
  * A pill whose press copies what it shows (model, branch, folder, path). It
- * keeps its look; a pointer over it darkens it a step as the subtasks pill
- * does, and the host's toast confirms the copy. The press stays on the pill,
- * so the card behind it is not chosen or opened.
+ * keeps its fill. Desktop hover deepens the shadow; a phone or iPad does that
+ * while pressed, and grows. The host's toast confirms the copy. The press stays
+ * on the pill, so the card behind it is not chosen or opened.
  */
 function CopyPill(props: PillProps & { copy: NonNullable<PillProps["copy"]> }) {
   const scale = useTasksFontScale();
@@ -1714,12 +1722,16 @@ function CopyPill(props: PillProps & { copy: NonNullable<PillProps["copy"]> }) {
       {...hoverProps}
       {...hintProps(props.hint)}
       testID={props.testID}
-      style={[
-        base,
-        props.clear ? { backgroundColor: "transparent" } : hovered ? { backgroundColor: mix(base.backgroundColor as string, props.tokens.foreground, 0.06) } : null,
-        WEB && hovered ? { boxShadow: props.tokens.card.buttonShadowHover } : null,
-        webTransition,
-      ]}
+      style={({ pressed }) => {
+        const lift = surfaceLift(hovered, pressed);
+        return [
+          base,
+          props.clear ? { backgroundColor: "transparent" } : null,
+          lift.shadow ? { boxShadow: props.tokens.card.buttonShadowHover } : null,
+          scaleStyle(lift.scale),
+          webTransition,
+        ];
+      }}
     >
       <PillContent {...props} />
     </Pressable>
@@ -1738,12 +1750,16 @@ function PillButton(props: PillProps & { expanded: boolean; onPress(): void }) {
       {...hoverProps}
       {...hintProps(props.hint)}
       testID={props.testID}
-      style={[
-        pillStyle(props.tokens, props.compact, props.tint ?? null, undefined, scale),
-        hovered || props.expanded ? { backgroundColor: mix(pillTint(props.tokens, props.tint ?? null).background, props.tokens.foreground, 0.06) } : null,
-        WEB && hovered ? { boxShadow: props.tokens.card.buttonShadowHover } : null,
-        webTransition,
-      ]}
+      style={({ pressed }) => {
+        const lift = surfaceLift(hovered, pressed);
+        return [
+          pillStyle(props.tokens, props.compact, props.tint ?? null, undefined, scale),
+          props.expanded ? { backgroundColor: mix(pillTint(props.tokens, props.tint ?? null).background, props.tokens.foreground, 0.06) } : null,
+          lift.shadow ? { boxShadow: props.tokens.card.buttonShadowHover } : null,
+          scaleStyle(lift.scale),
+          webTransition,
+        ];
+      }}
     >
       <PillContent {...props} color={hovered ? props.tokens.foreground : props.color} />
     </Pressable>
@@ -1953,7 +1969,7 @@ function ReadControl(props: {
   const hue = buttonHue(tokens, props.unread ? "read" : "plain");
   const color = hue.color;
   return (
-    <ActionPressable motion={compact || Platform.OS !== "web"}
+    <ActionPressable motion={liftsOnPress()}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={disabled ? { disabled: true, busy: pending } : undefined}
@@ -1967,8 +1983,8 @@ function ReadControl(props: {
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         paddingHorizontal: compact ? 12 : 10,
         borderRadius: compact ? 7 : 6,
-        ...buttonOutline(hue.border, {}, hover ? tokens.card.buttonShadowHover : undefined),
-        backgroundColor: (hover || pressed) && !disabled ? hue.hover : "transparent",
+        ...buttonOutline(hue.border, {}, surfaceLift(hover, pressed && !disabled).shadow ? tokens.card.buttonShadowHover : undefined),
+        backgroundColor: "transparent",
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
@@ -2022,7 +2038,7 @@ interface StopControlProps {
  * Stop, its confirm state, and a parent's "only this / with subtasks" menu:
  * the details sidebar's stop button at a card button's size ("Answer"'s 28,
  * radius 6), a rounded rectangle led by Lucide's Power: a danger outline and
- * text with no fill, tinted on hover. Armed, it keeps that look, says
+ * text with no fill. Desktop hover deepens its shadow; a phone or iPad does that while pressed, and grows. Armed, it keeps that look, says
  * "Confirm stop" and leads with `CONFIRM_STOP_ICON`; the parent's chevron is its end. Stopping
  * it goes back to the rest look and label, dimmed, a spinner in the icon's place.
  */
@@ -2031,8 +2047,7 @@ function StopControl(props: StopControlProps) {
   const scale = useTasksFontScale();
   const confirming = phase === "confirming";
   const stopping = phase === "stopping";
-  const pulse = useActionPressMotion((compact || Platform.OS !== "web") && !stopping);
-  const [pressedSegment, setPressedSegment] = useState<"stop" | "options">("stop");
+  const pulse = useActionPressMotion(liftsOnPress() && !stopping);
   const stopHover = useHover();
   const chevronHover = useHover();
   const anchorRef = useRef<View>(null);
@@ -2063,7 +2078,7 @@ function StopControl(props: StopControlProps) {
   ];
   const hue = buttonHue(tokens, "danger");
   const color = hue.color;
-  const fill = (hovered: boolean) => (hovered ? hue.hover : "transparent");
+  const stopRaised = !stopping && surfaceLift(stopHover.hovered || chevronHover.hovered, pulse.pressed).shadow;
   const height = taskControlHeight(compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, scale);
   // A card button's: 7 at a phone's 32, 6 at the desktop's 28, as "Answer" is.
   const round = compact ? 7 : 6;
@@ -2123,7 +2138,7 @@ function StopControl(props: StopControlProps) {
         marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
         zIndex: 40,
         borderRadius: round,
-        backgroundColor: pulse.pressed ? hue.hover : "transparent",
+        backgroundColor: "transparent",
         ...pulse.style,
         ...fit.style,
         ...(compact && props.hug && !fit.iconOnly && fit.full !== null ? { width: fit.full } : null),
@@ -2136,7 +2151,7 @@ function StopControl(props: StopControlProps) {
         accessibilityState={stopping ? { disabled: true, busy: true } : undefined}
         disabled={stopping}
         onPress={props.onPress}
-        onPressIn={() => { setPressedSegment("stop"); pulse.onPressIn(); }}
+        onPressIn={() => pulse.onPressIn()}
         onPressOut={pulse.onPressOut}
         onTouchStart={pulse.onTouchStart}
         onTouchEnd={pulse.onTouchEnd}
@@ -2145,13 +2160,13 @@ function StopControl(props: StopControlProps) {
         {...hintProps(fit.iconOnly ? props.hint : undefined)}
         style={({ pressed }) => [
           segment,
-          props.parent ? null : buttonOutline(tokens.danger, {}, stopHover.hovered && !stopping ? tokens.card.buttonShadowHover : undefined),
+          props.parent ? null : buttonOutline(tokens.danger, {}, stopRaised ? tokens.card.buttonShadowHover : undefined),
           {
             flexGrow: 1, flexShrink: 0, flexBasis: "auto",
             gap: 5,
             // The row drops the whole label when needed; keep the confirm icon and menu target.
             paddingHorizontal: fit.iconOnly ? 0 : compact ? (confirming ? 10 : 12) : 10,
-            backgroundColor: fill((stopHover.hovered || pressed || (pulse.pressed && pressedSegment === "stop")) && !stopping),
+            backgroundColor: "transparent",
             overflow: "hidden",
             borderTopLeftRadius: round,
             borderBottomLeftRadius: round,
@@ -2177,7 +2192,7 @@ function StopControl(props: StopControlProps) {
           accessibilityLabel={strings.stopOptions}
           disabled={stopping}
           onPress={props.onToggleMenu}
-          onPressIn={() => { setPressedSegment("options"); pulse.onPressIn(); }}
+          onPressIn={() => pulse.onPressIn()}
           onPressOut={pulse.onPressOut}
           onTouchStart={pulse.onTouchStart}
           onTouchEnd={pulse.onTouchEnd}
@@ -2188,7 +2203,7 @@ function StopControl(props: StopControlProps) {
             segment,
             {
               width: compact ? 36 : 26,
-              backgroundColor: fill(((chevronHover.hovered || pressed || (pulse.pressed && pressedSegment === "options")) && !stopping) || props.menuOpen),
+              backgroundColor: props.menuOpen ? hue.hover : "transparent",
               overflow: "hidden",
               borderTopRightRadius: round,
               borderBottomRightRadius: round,
@@ -2210,7 +2225,7 @@ function StopControl(props: StopControlProps) {
         <View
           pointerEvents="none"
           testID="task-card-stop-outline"
-          style={[StyleSheet.absoluteFill, buttonOutline(tokens.danger, {}, !stopping && (stopHover.hovered || chevronHover.hovered) ? tokens.card.buttonShadowHover : undefined), { borderRadius: round, opacity: stopping ? 0.6 : 1 }]}
+          style={[StyleSheet.absoluteFill, buttonOutline(tokens.danger, {}, stopRaised ? tokens.card.buttonShadowHover : undefined), { borderRadius: round, opacity: stopping ? 0.6 : 1 }]}
         />
       ) : null}
       {props.parent && props.menuOpen ? Platform.OS === "web" ? (

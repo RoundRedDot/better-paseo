@@ -27,10 +27,12 @@ export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archiv
 /**
  * Every Tasks action button's colours, on the card, in the details sidebar
  * and in the phone sheet's bar: an outline whose border, label and icon carry
- * its hue, with no fill at rest and the hue tinted over the card when hovered
- * or pressed. Plain grey (Open tab), Allow's accent, Stop and Deny's danger,
- * "Answer"'s needs-input amber, Archive's yellow, Mark read's unread green.
- * Nothing is ever solid: an armed "Confirm stop" says so in words only.
+ * its hue, with no fill. Desktop hover deepens the shadow. A phone or iPad
+ * deepens it while pressed, and grows. `hover` is the wash for an open stop
+ * menu and for contrast, not a hover or press fill. Plain grey (Open tab),
+ * Allow's accent, Stop and Deny's danger, "Answer"'s needs-input amber,
+ * Archive's yellow, Mark read's unread green. Nothing is ever solid: an armed
+ * "Confirm stop" says so in words only.
  */
 export function buttonHue(tokens: TaskTokens, look: CardButtonLook): { color: string; border: string; hover: string } {
   const card = tokens.card;

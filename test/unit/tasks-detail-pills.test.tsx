@@ -44,10 +44,21 @@ describe("detail pill sizes", () => {
     });
     const chip = renderer!.root.find((node) => (node.type as unknown) === "Pressable");
     expect(StyleSheet.flatten(chip.props.style).boxShadow).toBeUndefined();
+    expect(StyleSheet.flatten(chip.props.style).backgroundColor).toBe("transparent");
     await act(async () => chip.props.onHoverIn());
     expect(StyleSheet.flatten(chip.props.style).boxShadow).toBe(os === "web" ? tokens.card.buttonShadowHover : undefined);
+    expect(StyleSheet.flatten(chip.props.style).backgroundColor).toBe("transparent");
+    expect(StyleSheet.flatten(chip.props.style).transform).toBeUndefined();
     await act(async () => chip.props.onHoverOut());
     expect(StyleSheet.flatten(chip.props.style).boxShadow).toBeUndefined();
+    if (os !== "web") {
+      await act(async () => chip.props.onPressIn());
+      expect(StyleSheet.flatten(chip.props.style).backgroundColor).toBe("transparent");
+      expect(StyleSheet.flatten(chip.props.style).boxShadow).toBe(tokens.card.buttonShadowHover);
+      expect(StyleSheet.flatten(chip.props.style).transform).toEqual([{ scale: 1.03 }]);
+      await act(async () => chip.props.onPressOut());
+      expect(StyleSheet.flatten(chip.props.style).boxShadow).toBeUndefined();
+    }
   });
 
   it.each([

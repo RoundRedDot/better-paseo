@@ -8,7 +8,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   return { Icon: rn.View, TextInput: rn.TextInput };
 });
 const motion = vi.hoisted(() => ({ reduced: false }));
-vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced }));
+vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced, getReducedMotion: () => motion.reduced }));
 import { AccessibilityInfo, Animated } from "react-native";
 import { SearchCoverageItems } from "../../client/tasks/board/search-coverage";
 import { SearchCoverageProvider, SearchInput } from "../../client/tasks/board/search-loading";

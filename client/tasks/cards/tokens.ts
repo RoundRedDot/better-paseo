@@ -61,7 +61,7 @@ export interface TaskTokens {
 export interface CardTokens {
   /** One step lighter than the lane panel: surface0 on a light theme, surface2 on a dark one. */
   background: string;
-  /** Hover, as Linear: the fill greys a step (foreground at 4%); the border stays. */
+  /** Foreground at 4% over the card. Cards do not paint it on hover or with the menu open. */
   hoverBackground: string;
   /** The hairline outline (theme border). */
   border: string;
@@ -81,42 +81,44 @@ export interface CardTokens {
   buttonBorder: string;
   /** A neutral pill's fill (branch, folder, path, PR, a label without colour). */
   pillFill: string;
-  /** A hovered control's fill on the card. */
+  /** Foreground at 7% (10% dark). Kept for contrast and subtask rows; buttons do not paint it on hover or press. */
   controlHover: string;
   /** The 1 s background after a parent link scrolled here. */
   highlight: string;
   /** The card the details sidebar shows: the accent at 7% over the card, and its border mixed 45% towards the accent. */
   current: string;
   currentBorder: string;
-  /** A failed card: the danger hue at 5% over the card (8% dark), a step more on hover, and its border and divider mixed towards it. */
+  /** A failed card: the danger hue at 5% over the card (8% dark). The card stays this colour on hover and press. */
   failed: string;
+  /** The stronger danger mix, kept for contrast. A failed card does not paint it. */
   failedHover: string;
   failedBorder: string;
   /**
-   * The card's coloured buttons are outlines: at rest a hairline, label and
-   * icon in their hue and no fill of their own; hovered, that hue tinted over
-   * the card. Primary (Allow) in the accent.
+   * The card's coloured buttons are outlines: a hairline, label and icon in
+   * their hue, and no fill. Desktop hover deepens the shadow. A phone or iPad
+   * deepens it while pressed, and grows. Primary (Allow) uses the accent.
+   * The hue washes stay for contrast. The stop menu's open chevron paints the danger wash.
    */
   primaryBorder: string;
   primaryHover: string;
-  /** The primary button's label: the accent, readable at 4.5:1 on the card and on its hover. */
+  /** The primary button's label: the accent, readable at 4.5:1 on the card and on the accent wash. */
   primaryText: string;
-  /** Stop and Deny: a danger hairline and label; hovered, the danger tinted over the card. */
+  /** The danger wash. The stop menu's open chevron paints it; hover and press do not. */
   dangerHover: string;
   /** "Answer": the needs-input amber. */
   answerBorder: string;
   answerHover: string;
-  /** Its label and arrow: the amber, readable at 4.5:1 on the card and on its hover. */
+  /** Its label and arrow: the amber, readable at 4.5:1 on the card and on the amber wash. */
   answerText: string;
   /** Mark read on an unread card: the unread dot's green. */
   readBorder: string;
   readHover: string;
-  /** Its label and icon: the green, readable at 4.5:1 on the card and on its hover. */
+  /** Its label and icon: the green, readable at 4.5:1 on the card and on the green wash. */
   readText: string;
   /** Archive: yellow, distinct from the warning orange. */
   archiveBorder: string;
   archiveHover: string;
-  /** Its label and icon: the yellow, readable at 4.5:1 on the card and on its hover. */
+  /** Its label and icon: the yellow, readable at 4.5:1 on the card and on the yellow wash. */
   archiveText: string;
 }
 
@@ -222,7 +224,7 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
   const background = isDark ? colors.surface2 : colors.surface0;
   const fg = colors.foreground;
   const yellow = isDark ? ARCHIVE_DARK : ARCHIVE_LIGHT;
-  // An outline button's hover: its hue at 10% over the card, 16% on a dark theme.
+  // The hue wash at 10% over the card, 16% on a dark theme. Buttons do not paint it on hover or press.
   const tint = (hue: string) => mix(background, hue, isDark ? 0.16 : 0.1);
   const primaryHover = tint(colors.accent);
   const answerHover = tint(amber);

@@ -51,17 +51,26 @@ so it reads the same on any card. The transient lane/reply flash uses an animate
 
 | Token | Mix | Light / dark | Used for |
 | --- | --- | --- | --- |
-| `hoverBackground` | card → foreground | 4% | a hovered card, or one whose menu is open |
-| `controlHover` | card → foreground | 7% / 10% | round icons, a plain button's hover |
+| `hoverBackground` | card → foreground | 4% | kept; a card does not paint it on hover or with its menu open |
+| `controlHover` | card → foreground | 7% / 10% | kept for contrast and subtask rows; buttons do not paint it on hover or press |
 | `current`, `currentBorder` | card → accent; border → accent | 7% / 10%; 45% | the card shown in the details |
 | `highlight` | card → accent | 8% / 12% | a card the board just pointed at, for 1 s, with an accent border |
-| `failed`, `failedHover`, `failedBorder` | card → danger; border → danger | 5% / 8%; 8% / 12%; 35% / 40% | a failed card |
+| `failed`, `failedHover`, `failedBorder` | card → danger; border → danger | 5% / 8%; 8% / 12%; 35% / 40% | a failed card stays `failed`; `failedHover` is kept |
 | `pillFill`, `pillBorder`, `buttonBorder` | card → foreground; border → foreground | 3.5% / 6%; 5% / 8%; 5% / 20% | neutral pills, outlines |
 | `rowHover`, `rowPress`, `sunk`, `track` (`detailColors`) | card → foreground | 5%, 8%, 2.5%, 9% | detail rows, hero blocks, bars |
-| Lane panel (`boardPalette`) | `surface1` dark; halfway `surface1` → `surface2` light | hover `surface2` | lanes |
+| Lane panel (`boardPalette`) | `surface1` dark; halfway `surface1` → `surface2` light | `panelHover` is `surface2`, unused as a fill | lanes |
 
-- When states stack on a card, the first applies: highlighted, current, failed, hovered, rest.
-- Card shadow: `0 1 2` at 6% (18% dark) at rest, `0 2 6` at 7% (26% dark) hovered.
+- When states stack on a card, the first applies: highlighted, current, failed, rest. Hover and an open menu do not change the fill.
+- Card shadow: `0 1 2` at 6% (18% dark) at rest, `0 2 6` at 14% (38% dark) while a desktop card is hovered or its menu is open, and while a phone or iPad card is pressed. Buttons and capsules use that same deeper shadow (`buttonShadowHover`).
+
+### Lift
+
+Cards, the sidebar's capsules, and the board's buttons share one treatment (`surfaceLift` in `client/tasks/cards/surface-lift.ts`). It adds no colour fill.
+
+- On desktop web, a fine pointer (`(hover: hover) and (pointer: fine)`) deepens the shadow while hovered. Nothing scales.
+- On a phone, a touch browser, and an iPad (the app, trackpad included), the deeper shadow and a scale of 1.03 happen only while pressed. Hover, including an iPad pointer, does not.
+- Reduced motion skips the scale and keeps the shadow. Action buttons animate the scale over 100 ms; the other controls snap.
+- A selected, open, current, expanded, or on fill stays. The stop chevron keeps its danger wash while its menu is open. An expanded pill keeps its 6% wash. Chat rows, menu rows, detail property rows, subtask rows, and the lane panel are outside this treatment.
 - Menu chrome (`menuChrome`): `surface0`, hairline border, hover foreground 5.5% (8% dark),
   shadow `0 4 24` and `0 1 3` at 8% and 4% (45% and 30% dark). `panelChrome` reuses it.
 - Chat rows have no surface at rest: `surface1` hovered, `surface2` pressed or held. The chat's
@@ -96,6 +105,7 @@ rule: put its movement behind `motionDuration` and keep at most a short fade.
 | Running dot | 1200 pulse, opacity 1 ↔ 0.3 (4 steps on native) | | |
 | Breathing skeleton | 1200, opacity 1 → 0.5 → 1 | | held at 1 |
 | Web hover transitions (`webTransition`) | 120 on background, border, shadow, colour, opacity | ease-out | stay: no movement |
+| Phone and iPad press (`PRESS_SCALE`) | scale 1.03; action buttons 100 ms, other controls snap | | no scale; the deeper shadow stays |
 
 ### Focus, selection and scrollbars
 
@@ -119,7 +129,8 @@ rule: put its movement behind `motionDuration` and keep at most a short fade.
 - Hover comes from capability, not screen size: `useInputCapabilities` reports hover from
   `(hover: hover) and (pointer: fine)` on the web and from a real hover on native (an iPad
   pointer); touch is a coarse pointer or no hover. Every hover affordance has a touch equivalent:
-  a persistent button, a long press or a tap.
+  a persistent button, a long press or a tap. The [lift](#lift) is separate: an iPad pointer still
+  lifts on press, not on hover.
 - The board picks its touch sizes by platform: any native client is touch (`TOUCH`,
   `Platform.OS !== "web"`), so an iPad draws desktop lanes with touch targets. The phone layout
   (`compact`) is a separate switch.
@@ -432,11 +443,11 @@ control row is rounded at 6. An icon in a pill or row is the size of the Lucide 
 | --- | --- | --- | --- | --- | --- | --- |
 | Card pill | `Pill` in `task-card.tsx` | 20 (24 phone) | full | per the tints table | 11 (12 phone) | `sm` x 11/12, line x 1.25 |
 | Details chip | `Chip` in `detail-charts.tsx` | 22 (28 touch) | full | none | 14 (16 touch) | `sm` |
-| Filter bar chip, folded chip, menu button | `filter-bar.tsx` | 28 | 6 | none; `surface1` hovered or open | 14 | `base` |
+| Filter bar chip, folded chip, menu button | `filter-bar.tsx` | 28 | 6 | none; `surface1` while open | 14 | `base` |
 | Phone filter sheet chip | `filter-sheet.tsx` | 32 | 4 | none; `accentSoft` when on | 14 | `base` |
 | Menu row | `menu.tsx`, `MENU` | 32 | 6 | none; `chrome.hover` hovered | 16 | `base` |
-| Sidebar group row | `details-sidebar.tsx` | 36 (44 touch) | 6 | none; `surface2` on, `controlHover` hovered | 16 in a 20 slot | `base`, count `sm` |
-| Card button | `CardButton` in `action-buttons.tsx` | 28 (at least 32 phone) | 6 (7 phone) | none; per [Buttons](#look) hovered | 13 (14 phone) | `sm`, weight 500 |
+| Sidebar group row | `details-sidebar.tsx` | 36 (44 touch) | 6 | none; `surface2` when on | 16 in a 20 slot | `base`, count `sm` |
+| Card button | `CardButton` in `action-buttons.tsx` | 28 (at least 32 phone) | 6 (7 phone) | none; shadow per [Lift](#lift) | 13 (14 phone) | `sm`, weight 500 |
 
 All heights grow with the host's interface text size through `taskControlHeight`.
 
@@ -481,8 +492,8 @@ A label looks the same wherever it appears: a solid tag in its colour, then its 
   (`foreground` in the details): the colour is the tag's alone.
 - `TagMark` is Lucide's Tag outline, filled, built from Views (the host `Icon` only strokes and the
   sandbox has no react-native-svg). Its hole is drawn in the colour of the surface under it, so
-  pass the surface as it is right now: the card's current fill (hovered, highlighted, failed), the
-  menu row's fill (`leading` may be a function of it), the sidebar row's fill (on, hovered), the
+  pass the surface as it is right now: the card's current fill (highlighted, current, failed), the
+  menu row's fill (`leading` may be a function of it), the sidebar row's fill (on, otherwise the card), the
   board's `surface0` under a clear filter chip.
 
 ## Buttons
@@ -495,8 +506,8 @@ Unarchive, Open tab. None is ever filled with its hue.
 
 - **At rest** only the border, the label and the icon carry the button's colour. The fill is
   the surface under it: transparent on the card, the card colour in the sidebar and the bar.
-- **Hovered** (pressed on a phone, which has no hover) the button's hue is tinted over the card,
-  10% on a light theme and 16% on a dark one. The border and label stay.
+- **Hovered or pressed** follows [Lift](#lift): the shadow deepens, and a phone or iPad also
+  grows to 1.03 while pressed. The fill does not change. A desktop hover does not scale.
 - **Armed**, "Confirm stop" keeps Stop's colours exactly; its words change and its icon turns from
   Lucide's `Power` to `OctagonAlert` (`CONFIRM_STOP_ICON`), the stop sign asking for the second
   press. It keeps that icon when its label folds on a narrow row.
@@ -506,14 +517,15 @@ Unarchive, Open tab. None is ever filled with its hue.
   2x; on iOS and Android it is a plain 0.5 border. The split Stop pill gets per-side lines so its
   seam is drawn once, in the danger hue at 40%.
 - **The label and icon** are the hue pulled toward `foreground` until they read at 4.5:1 on the
-  card and on the hover tint (`readableOn`). A plain button's icon is `foregroundMuted` in the
-  sidebar and the bar.
+  card and on that hue's wash (`readableOn`). The wash is not a hover or press fill. The stop
+  chevron paints the danger wash while its menu is open. A plain button's icon is `foregroundMuted`
+  in the sidebar and the bar.
 
-| Look | Used by | Border | Label and icon | Hover |
+| Look | Used by | Border | Label and icon | Wash, not a hover fill |
 | --- | --- | --- | --- | --- |
 | `plain` | Open tab and Open parent everywhere (card, sidebar, bar), Unarchive, a permission answer that is neither | `buttonBorder`: the theme border 5% toward `foreground` (20% dark, where the border all but matches the card and a half-pixel line in it vanishes) | `foreground` | `controlHover`, `foreground` 7% (10% dark) |
 | `primary` | Allow | accent 50% (55% dark) | accent at 4.5:1 | accent tint |
-| `danger` | Stop, Confirm stop, Deny | the theme's `statusDanger` | the same | danger tint |
+| `danger` | Stop, Confirm stop, Deny | the theme's `statusDanger` | the same | danger tint; the open stop chevron paints it |
 | `answer` | "Answer", which opens the tab for a question | needs-input amber 40% (45% dark) | amber at 4.5:1 | amber tint |
 | `archive` | Archive | Archive's yellow | the yellow at 4.5:1 | yellow tint |
 | `read` | Mark read on an unread card (a failed card's stays `plain`) | unread green 40% (45% dark) | green at 4.5:1 | green tint |
@@ -583,7 +595,7 @@ bar alike. While the action is out the button:
   (`client/tasks/cards/status-icon.tsx`): the running status ring without its centre dot, a 30%
   track with a turning 90% quarter, on the running rings' shared clock. Not the platform's
   `ActivityIndicator`, whose spokes differ between iOS, Android and web;
-- dims to 0.6 opacity and drops its hover fill;
+- dims to 0.6 opacity and drops its shadow;
 - takes no second press: `disabled`, and `accessibilityState={{ disabled: true, busy: true }}`.
 
 No "…ing" labels ("Stopping…", "Unarchiving…"). A confirm step is not a working state: Stop's
@@ -837,19 +849,20 @@ apply to all three.
   24 collapse button (radius 6, `FoldHorizontal`). A history lane names its time range at `sm`.
   While loading, the count is a 14 × 10 `surface2` bar.
 - A collapsed lane is a 40 strip: the status icon, the name set vertically (Chinese stacked
-  upright, Latin turned 90° with 1 of letter spacing) and the count.
+  upright, Latin turned 90° with 1 of letter spacing) and the count. The strip and the header's
+  collapse button keep their fill and follow [Lift](#lift).
 - Cards are 12 apart. Loading draws three breathing skeleton cards (radius 6, `surface2` bars).
 - An empty lane draws `BoardEmptyState`: a dashed hairline box, radius 8, padded 28 × 20 (16 when
   narrow), a 20 muted icon, the title at weight 600 and a centred `sm` hint; a phone adds a 36
   Clear filters pill. A filter-hidden count sits under the cards as a `ListFilter` note in `sm`.
-- Load more is a 26 pill (36 on a phone) with a hairline border, `surface1` hovered.
+- Load more is a 26 pill (36 on a phone) with a hairline border and the card's rest fill. Its shadow follows [Lift](#lift).
 
 ### Toolbars
 
 | Toolbar | Height | Targets | Contents |
 | --- | --- | --- | --- |
 | Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 220 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
-| Tablet (`TabletToolbar`) | 56, 36 when narrower than 680 | 44, 28 when narrow | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when on or hovered |
+| Tablet (`TabletToolbar`) | 56, 36 when narrower than 680 | 44, 28 when narrow | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when selected or expanded |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
 - Wide desktop: the top row ends with Show groups with no tasks, then the sidebar

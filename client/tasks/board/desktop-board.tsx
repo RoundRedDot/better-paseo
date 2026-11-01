@@ -14,6 +14,7 @@ import { BoardEmptyState } from "./empty-state";
 import { LANE_EMPTY_ICON } from "./strings";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
+import { surfaceLift } from "../cards/surface-lift";
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, RollingCount, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
 import { useFlash } from "./breathing";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type EmptyLanes, type FilterMenu } from "./filter-bar";
@@ -1349,13 +1350,14 @@ function DesktopLaneView(props: DesktopLaneProps) {
         accessibilityLabel={`${strings.expand}: ${name}`}
         {...collapseTap.pressIn}
         onPress={collapseTap.tap(props.onToggle)}
-        style={(hovered) => ({
+        style={(hovered, pressed) => ({
           width: LANES.collapsed,
           alignItems: "center",
           gap: 10,
           paddingVertical: 11,
           borderRadius: PANEL_RADIUS,
-          backgroundColor: hovered ? palette.panelHover : palette.panel,
+          backgroundColor: palette.panel,
+          boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(theme).card.buttonShadowHover : undefined,
         })}
       >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
@@ -1394,13 +1396,14 @@ function DesktopLaneView(props: DesktopLaneProps) {
           accessibilityLabel={strings.collapse}
           {...collapseTap.pressIn}
           onPress={collapseTap.tap(props.onToggle)}
-          style={(hovered) => ({
+          style={(hovered, pressed) => ({
             width: 24,
             height: 24,
             borderRadius: 6,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: hovered ? palette.panelHover : "transparent",
+            backgroundColor: "transparent",
+            boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(theme).card.buttonShadowHover : undefined,
           })}
         >
           <Icon name="FoldHorizontal" size={14} color={colors.foregroundMuted} />
