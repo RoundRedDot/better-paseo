@@ -931,9 +931,10 @@ apply to all three.
   rows take the danger colour; a check is the accent.
 - On touch every row is at least 44 and submenus become a drill-down in the same panel, with a
   `›` hint and a Back row (`touchSections`).
-- The card menu opens at the pointer on the web (240 wide, submenus 220), flipping at the edges.
-  On touch a long press opens it in the host `Modal` titled with the card, its submenus flattened,
-  rows at least 44 with 18 icons.
+- The card menu opens at the pointer on the web, flipping at the edges. A tablet long press opens
+  a popover at the touch point with its submenus flattened and rows at least 44 high. Its width is
+  `menuWidth(240, scale, window.width - 16)`, with 8 pt at each screen edge. A phone long press
+  opens the host `Modal` titled with the card, with flattened submenus and 18 pt icons.
 - The filter sheet opens in the host `Modal` on phones, tablets and narrow web boards: sections
   padded 16 with muted `sm` titles, chips 32 high (radius 4, accent border and `accentSoft` when
   on), toggle rows 48, sort rows 44, and a pinned footer of Reset and an accent Show pill, both 44.

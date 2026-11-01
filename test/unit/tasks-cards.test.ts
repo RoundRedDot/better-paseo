@@ -1002,11 +1002,13 @@ describe("TaskCardView rows", () => {
     }
   });
 
-  it.each([false, true])("opens native long-press menus in the host modal (compact=%s)", async (compact) => {
+  it.each([false, true])("anchors tablet long-press menus and keeps phone menus in the host modal (compact=%s)", async (compact) => {
     const tree = await render(cardElement(sample("sample-running"), { compact }));
     await act(async () => hostByTestId(tree.root, "task-card-sample-running").props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
     expect(tree.root.findByType(CardContextMenu).props.point).toEqual(compact ? null : { x: 140, y: 280 });
-    const close = tree.root.find((node) => (node.type as unknown) === "Modal").props.onOpenChange;
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-menu-popover")).toHaveLength(compact ? 0 : 1);
+    const close = compact ? tree.root.find((node) => (node.type as unknown) === "Modal").props.onOpenChange
+      : hostByTestId(tree.root, "task-card-menu-backdrop").props.onPress;
     await act(async () => close(false));
     expect(tree.root.findAllByType(CardContextMenu)).toHaveLength(0);
   });
@@ -4311,7 +4313,8 @@ describe("TaskCardView long-press menu", () => {
     await act(async () => open());
     await act(async () => {
       const modal = tree.root.find((node) => (node.type as unknown) === "Modal");
-      modal.props.onOpenChange(false);
+      if (compact) modal.props.onOpenChange(false);
+      else modal.props.onRequestClose();
     });
     expect(rows(tree.root)).toHaveLength(0);
   });
