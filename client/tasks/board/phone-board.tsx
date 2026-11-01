@@ -929,11 +929,11 @@ const PhoneLane = memo(function PhoneLane(props: {
     />
     {scrollActions ? (
       <View testID="phone-scroll-actions" style={{ position: "absolute", right: 12, bottom: SCROLL_ACTION.bottom }}>
-        {!atBottom ? <ActionPressable motion testID="phone-scroll-bottom" accessibilityRole="button" accessibilityLabel={loadedEnd ? strings.scrollLoadedEnd : strings.scrollBottom} onPress={() => {
+        {!atBottom ? <ActionPressable motion pressedScale={isNative() ? 1.1 : 1.03} testID="phone-scroll-bottom" accessibilityRole="button" accessibilityLabel={loadedEnd ? strings.scrollLoadedEnd : strings.scrollBottom} onPress={() => {
           cancelScroll();
           if (count === 0) return;
           listRef.current?.scrollToOffset({ offset: Math.max(0, contentHeight + endSpace - viewportHeight), animated: !reduced });
-        }} style={{ width: SCROLL_ACTION.size, height: SCROLL_ACTION.size, borderRadius: SCROLL_ACTION.size / 2, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? { boxShadow: "0 3px 10px rgba(0, 0, 0, 0.2)" } : { elevation: 4, shadowColor: "#000", shadowOpacity: 0.2, shadowRadius: 5, shadowOffset: { width: 0, height: 3 } }) }}>
+        }} style={{ width: SCROLL_ACTION.size, height: SCROLL_ACTION.size, borderRadius: SCROLL_ACTION.size / 2, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? { boxShadow: "0 3px 10px rgba(0, 0, 0, 0.2)" } : { elevation: 8, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }) }}>
           <Icon name="ArrowDownToLine" size={22} color={colors.foreground} />
         </ActionPressable> : null}
       </View>

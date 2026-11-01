@@ -4822,7 +4822,8 @@ describe("Tasks board, phone", () => {
     }
   });
 
-  it("holds the bottom shortcut and still scrolls on press", () => {
+  it.each([["ios", 1.1], ["android", 1.1], ["web", 1.03]] as const)("%s holds the bottom shortcut and still scrolls on press", (os, pressedScale) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const timing = vi.spyOn(Animated, "timing");
     const spring = vi.spyOn(Animated, "spring");
     const sequence = vi.spyOn(Animated, "sequence");
@@ -4837,7 +4838,7 @@ describe("Tasks board, phone", () => {
       sequence.mockClear();
       act(() => { hostsById("phone-scroll-bottom")[0]!.props.onTouchStart({}); hostsById("phone-scroll-bottom")[0]!.props.onPressIn({}); });
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onPressOut({}));
-      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 1.03, duration: 100 }));
+      expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: pressedScale, duration: 100 }));
       expect(spring).not.toHaveBeenCalled();
       act(() => hostsById("phone-scroll-bottom")[0]!.props.onTouchEnd({}));
       expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1 }));

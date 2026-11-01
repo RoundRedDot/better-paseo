@@ -4,7 +4,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export function useActionPressMotion(enabled: boolean) {
+export function useActionPressMotion(enabled: boolean, pressedScale = 1.03) {
   const reduced = useReducedMotion();
   const [scale] = useState(() => new Animated.Value(1));
   const [pressed, setPressed] = useState(false);
@@ -20,18 +20,18 @@ export function useActionPressMotion(enabled: boolean) {
   useEffect(() => {
     if (reduced && enabled) {
       animation.current?.stop();
-      scale.setValue(pressed ? 1.03 : 1);
+      scale.setValue(pressed ? pressedScale : 1);
     }
-  }, [reduced, enabled, pressed, scale]);
+  }, [reduced, enabled, pressed, scale, pressedScale]);
   const change = (value: boolean) => {
     if (!enabled) return;
     setPressed(value);
     animation.current?.stop();
     if (reduced) {
-      scale.setValue(value ? 1.03 : 1);
+      scale.setValue(value ? pressedScale : 1);
       return;
     }
-    animation.current = Animated.timing(scale, { toValue: value ? 1.03 : 1, duration: 100, useNativeDriver: Platform.OS !== "web", isInteraction: false });
+    animation.current = Animated.timing(scale, { toValue: value ? pressedScale : 1, duration: 100, useNativeDriver: Platform.OS !== "web", isInteraction: false });
     animation.current.start();
   };
   return {
@@ -45,8 +45,8 @@ export function useActionPressMotion(enabled: boolean) {
   };
 }
 
-export function ActionPressable({ motion, style, ...props }: PressableProps & { motion: boolean }) {
-  const feedback = useActionPressMotion(motion && !props.disabled);
+export function ActionPressable({ motion, pressedScale, style, ...props }: PressableProps & { motion: boolean; pressedScale?: number }) {
+  const feedback = useActionPressMotion(motion && !props.disabled, pressedScale);
   if (!motion) return <Pressable {...props} style={style} />;
   return (
     <AnimatedPressable
