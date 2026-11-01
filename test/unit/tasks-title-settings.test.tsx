@@ -278,6 +278,7 @@ describe("automatic title settings", () => {
     const section = tree.root.findByType(Section);
     expect(section.findAllByType(SectionNote)).toHaveLength(0);
     expect(tree.root.findByType(SectionNote).props.text).toContain("后台任务不进入看板");
+    expect(tree.root.findByType(SectionNote).props.text).toContain("生成标题时，会把对话摘录和标题提示词发给一个辅助 Agent，默认使用这张卡片的 Provider 和模型；打开「自定义自动标题模型」时用所选模型。手动「生成标题」同样会发送。\n推荐 Oh My Pi");
     expect(tree.root.findByType(SectionNote).props.text).toContain("Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low");
     expect(tree.root.findByType(SectionNote).props.text).toContain("Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off");
     expect(tree.root.findByType(SectionNote).props.text).not.toContain("建议在默认 prompt 末尾补充");
@@ -341,5 +342,15 @@ describe("automatic title settings", () => {
     await act(async () => finish({ providers: ["claude"], models: [], error: "Provider offline" }));
     expect(refresh().props.disabled).toBe(false);
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert")[0]!.children.join("")).toContain("Provider offline");
+  });
+});
+
+describe("automatic title data-flow hint", () => {
+  it("states where title input is sent in English and keeps the existing hint", async () => {
+    state.language = "en";
+    await mount();
+    const text = tree.root.findByType(SectionNote).props.text as string;
+    expect(text.startsWith("Generating a title sends conversation excerpts and the title prompt to a helper agent. By default it uses this card's provider and model; with Custom automatic title model on, it uses the selected model. Generate title in the card menu sends them too.\nRecommended: Oh My Pi")).toBe(true);
+    expect(text).toContain("Title tasks stay off the board, retain history and may trigger host notifications.");
   });
 });
