@@ -788,31 +788,50 @@ describe("floating panel", () => {
 });
 
 describe("block switch height", () => {
-  it("holds the old height at fit, then moves to the new content's over 240 ms", () => {
+  it.each([false, true])("keeps the phone drawer height across navigation (reduced motion: %s)", (reduced) => {
+    motion.reduced = reduced;
+    const renderer = render(slot());
+    open("b");
+    layOut(renderer, "details-drawer", 266);
+    act(() => seen.shell!.step(1));
+    expect(seen.shell!.entry.id).toBe("c");
+    act(() => { seen.body!.laidOut(200); seen.body!.contentSized(500); });
+    expect(value(flat(byTestId(renderer, "details-drawer")!.props.style).height)).toBe(266);
+    act(() => seen.shell!.step(-1));
+    act(() => seen.body!.contentSized(40));
+    expect(seen.shell!.entry.id).toBe("b");
+    expect(value(flat(byTestId(renderer, "details-drawer")!.props.style).height)).toBe(266);
+  });
+
+  it("fits the floating panel to the new content over 240 ms", () => {
+    screen.width = 834;
+    screen.height = 1194;
     const renderer = render(slot());
     open("a");
-    layOut(renderer, "details-drawer", 266);
+    layOut(renderer, "details-floating", 266);
     act(() => seen.body!.laidOut(200));
     act(() => seen.shell!.step(1));
     expect(seen.shell!.entry.id).toBe("b");
-    expect(value(flat(byTestId(renderer, "details-drawer")!.props.style).height)).toBe(266);
+    expect(value(flat(byTestId(renderer, "details-floating")!.props.style).height)).toBe(266);
     timings.length = 0;
     act(() => seen.body!.contentSized(120));
     expect(timings).toContainEqual({ toValue: 186, duration: 240, native: false });
     // Settled: the panel lays itself out again.
-    const style = flat(byTestId(renderer, "details-drawer")!.props.style);
+    const style = flat(byTestId(renderer, "details-floating")!.props.style);
     expect(style.height).toBeUndefined();
-    expect(style.maxHeight).toBe(462);
+    expect(style.maxHeight).toBe(551);
   });
 
   it("jumps under reduced motion", () => {
     motion.reduced = true;
+    screen.width = 834;
+    screen.height = 1194;
     const renderer = render(slot());
     open("a");
-    layOut(renderer, "details-drawer", 266);
+    layOut(renderer, "details-floating", 266);
     act(() => seen.shell!.step(1));
     expect(seen.shell!.entry.id).toBe("b");
-    expect(flat(byTestId(renderer, "details-drawer")!.props.style).height).toBeUndefined();
+    expect(flat(byTestId(renderer, "details-floating")!.props.style).height).toBeUndefined();
   });
 
   it("hands a pull down at the body's top to the drawer once the body reports", () => {

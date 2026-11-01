@@ -9,8 +9,8 @@
  * always offered: three long unwrapped lines want the room as much as a long
  * output does. At full, and while a finger or a settle moves it, the height
  * is set. The panel opens off-screen, so its first layout (the measure) is
- * never seen; then it slides up. A switch to another block at fit holds the old
- * height, measures the new content in it, and moves there over 240 ms.
+ * never seen; then it slides up. On a phone, switching blocks holds the
+ * drawer's height. The floating panel adjusts to the new content at fit.
  */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { Animated, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
@@ -62,7 +62,7 @@ const STEP_MEASURE_MS = 400;
 
 export interface BottomPanelProps {
   form: BottomForm;
-  /** The open block: a switch at fit animates the height to the new content. */
+  /** The open block. */
   blockId: string;
   /** The body's reports (native), for the new content's height. */
   body: BodyWatch;
@@ -230,7 +230,7 @@ export function BottomPanel(props: BottomPanelProps) {
     }
   }, [detent, heights.full, heights.fit, fix, free, moveHeight]);
 
-  // Another block at fit: hold the height it had, measure the new content inside it, and move there.
+  // Keep the phone drawer still while navigating; the floating panel fits the new block.
   const panelRef = useRef<View>(null);
   // Grown full, it reaches the host's title bar drag (`keepOffWindowDrag`).
   useLayoutEffect(() => keepOffWindowDrag(panelRef.current), []);
@@ -238,6 +238,10 @@ export function BottomPanel(props: BottomPanelProps) {
   useLayoutEffect(() => {
     if (props.blockId === shownBlock.current) return;
     shownBlock.current = props.blockId;
+    if (props.form === "drawer") {
+      if (entered.current && !dragging.current) fix();
+      return;
+    }
     if (!entered.current || fixedRef.current || dragging.current || latest.current.reduced) return;
     const from = now.current.height;
     if (from <= 0) return;
