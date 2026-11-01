@@ -3835,6 +3835,7 @@ describe("TaskDetailCards", () => {
       expect(tree.root.findAll((node) => node.props.testID === id && node.props.tip === tip)).toHaveLength(1);
       const background = flat(chip.props.style).backgroundColor;
       const tokens = taskTokens(LIGHT);
+      expect(background).toBe(tokens.card.background);
       await act(async () => chip.props.onHoverIn());
       expect(flat(hostByTestId(tree.root, id).props.style).backgroundColor).toBe(background);
       expect(flat(hostByTestId(tree.root, id).props.style).boxShadow).toBeUndefined();

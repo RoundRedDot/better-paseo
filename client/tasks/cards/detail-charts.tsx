@@ -561,7 +561,7 @@ export function Chip(props: { tokens: TaskTokens; lead?: React.ReactNode; text: 
       {...tipProps(props.tip)}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
-      style={{ height, minWidth: height, maxWidth: "100%", paddingHorizontal: props.compact ? 9 : 8, borderRadius: height / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, backgroundColor: "transparent", boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: props.compact ? 6 : 5, ...scaleStyle(lift.scale), ...webTransition }}
+      style={{ height, minWidth: height, maxWidth: "100%", paddingHorizontal: props.compact ? 9 : 8, borderRadius: height / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, backgroundColor: props.tokens.card.background, boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: props.compact ? 6 : 5, ...scaleStyle(lift.scale), ...webTransition }}
     >
       {props.lead}
       <Text numberOfLines={1} style={{ fontSize: props.font, lineHeight: Math.round(props.font * 1.25), flexShrink: 1, color: props.muted ? props.tokens.foregroundMuted : props.tokens.foreground }}>
