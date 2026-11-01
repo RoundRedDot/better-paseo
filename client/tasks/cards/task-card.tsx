@@ -1369,7 +1369,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         )}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={text(m.blockSize, m.blockLine, failed ? tokens.danger : muted)}>{formatCardError(card.error!)}</Text>
+        <Text style={text(m.blockSize, m.blockLine, failed ? tokens.danger : muted)}>{formatCardError(card.error!, card.provider, language)}</Text>
         {failureAction ? <Text testID="task-card-error-action" style={[text(m.blockSize, m.blockLine, muted), { marginTop: 4 }]}>{failureAction}</Text> : null}
       </View>
     </View>

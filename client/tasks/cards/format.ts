@@ -126,9 +126,54 @@ export function tildePath(path: string): string {
   return home ? `~${path.slice(home[0].length)}` : path;
 }
 
-/** Keep the limit and reset on the card; the details retain the full error. */
-export function formatCardError(error: string): string {
+/** Summarize recognized errors on the card; the details retain the full error. */
+export function formatCardError(error: string, provider: string, language: TasksLanguage): string {
   const match = /^(You've hit your [^\n\u00b7]*limit) \u00b7 raise it at https:\/\/claude\.ai\/settings\/usage\?\S+(?: \u00b7 (.+))?$/.exec(error);
-  if (!match) return error;
-  return match[2] ? `${match[1]} \u00b7 ${match[2]}` : match[1]!;
+  const original = match ? match[2] ? `${match[1]} \u00b7 ${match[2]}` : match[1]! : error;
+  if (provider !== "claude") return formatProviderError(original, language);
+
+  const zh = language === "zh";
+  const reset = /your 5-hour limit resets ([^\n\u00b7]+)|(?:^|\u00b7)\s*resets ([^\n\u00b7]+)/i.exec(original);
+  const time = reset?.[1]?.trim() ?? reset?.[2]?.trim();
+  if (/claude ai usage limit reached\|\d+/i.test(error) || (!time && /\b(?:resets?|retry after|try again (?:at|in))\b/i.test(error))) return original;
+  const suffix = time ? zh ? ` · ${reset?.[1] ? "5 小时额度" : "额度"}重置时间：${time}` : ` · ${reset?.[1] ? "5-hour limit resets" : "Resets"} ${time}` : "";
+  if (/monthly spend limit/i.test(error)) return (zh ? "Claude 月度支出已达上限" : "Claude monthly spending limit reached") + suffix;
+  if (/org.s monthly usage limit/i.test(error)) return (zh ? "Claude 组织月度用量已达上限" : "Claude organization monthly usage limit reached") + suffix;
+  if (/project_spend_limit_exceeded|organization_spend_limit_exceeded/i.test(error)) return (zh ? "Claude 支出已达上限" : "Claude spending limit reached") + suffix;
+  if (/you've hit your weekly limit/i.test(error)) return (zh ? "Claude 每周用量已达上限" : "Claude weekly usage limit reached") + suffix;
+  if (/you've hit your session limit|claude ai usage limit reached|usage_limit_exceeded|you've hit your 5-hour limit|you're out of extra usage/i.test(error)) return (zh ? "Claude 用量已达上限" : "Claude usage limit reached") + suffix;
+  if (/credit balance is too low|credit_balance_exhausted/i.test(error)) return zh ? "Claude 账户余额不足" : "Claude account balance is too low";
+  if (/insufficient_quota/i.test(error)) return zh ? "Claude 账户额度不足" : "Claude account quota is insufficient";
+  if (/rate_limit_exceeded|rate_limit_error|rate limit (?:reached|exceeded)|too many requests/i.test(error)) return zh ? "Claude 请求过于频繁" : "Claude request rate limit reached";
+  if (/context_length_exceeded|context window (?:is )?(?:full|exceeded)|prompt is too long|maximum context length/i.test(error)) return zh ? "Claude 上下文过长" : "Claude context is too long";
+  if (/invalid api key|authentication_error|authentication failed|unauthorized|please authenticate|token_expired|invalid_refresh_token|\b(?:http|status|api error:)\s*401\b/i.test(error)) return zh ? "Claude 登录或 API 凭据有问题" : "Claude sign-in or API credentials need attention";
+  if (/permission_error|permission denied|forbidden|access denied|\b(?:http|status|api error:)\s*403\b/i.test(error)) return zh ? "Claude 访问权限不足" : "Claude access denied";
+  if (/model_not_found|resource_not_found|model (?:is )?(?:not found|unavailable)/i.test(error)) return zh ? "请求的模型或资源不可用" : "Requested model or resource is unavailable";
+  if (/invalid_request_error|invalid_request\b|bad request/i.test(error)) return zh ? "Claude 请求参数无效" : "Claude request is invalid";
+  if (/sandbox_error/i.test(error)) return zh ? "运行环境出错" : "Execution environment error";
+  if (/mcp_server_startup_failed/i.test(error)) return zh ? "MCP 服务启动失败" : "MCP server failed to start";
+  if (/request_timeout|api.?timeout|timed? ?out|connection_failed|connection (?:closed|failed|refused|reset)|network error|econnreset|econnrefused|enotfound/i.test(error)) return zh ? "连接失败或超时" : "Connection failed or timed out";
+  if (/overloaded_error|server_overloaded|server_is_overloaded|(?:api error:|http|status)\s*(?:500|502|503|504|529)\b/i.test(error)) return zh ? "Claude 服务暂不可用" : "Claude service is unavailable";
+  return original;
+}
+
+function formatProviderError(error: string, language: TasksLanguage): string {
+  // Keep provider-specific reset and retry details until they can be displayed faithfully.
+  if (/\b(?:resets?|retry after|try again (?:at|in))\b/i.test(error)) return error;
+  const zh = language === "zh";
+  if (/credit_balance_exhausted|credit balance is too low/i.test(error)) return zh ? "账户余额不足" : "Account balance is too low";
+  if (/insufficient_quota|individual quota reached/i.test(error)) return zh ? "账户额度不足" : "Account quota is insufficient";
+  if (/project_spend_limit_exceeded|organization_spend_limit_exceeded|monthly spend limit|org.s monthly usage limit/i.test(error)) return zh ? "账户或组织用量已达上限" : "Account or organization limit reached";
+  if (/subscription_sharing_usage_limit_exceeded|usage_limit_exceeded|you've hit your [^\n]*limit|you're out of extra usage/i.test(error)) return zh ? "账户用量已达上限" : "Account usage limit reached";
+  if (/rate_limit_exceeded|rate_limit_error|rate limit (?:reached|exceeded)|too many requests/i.test(error)) return zh ? "请求过于频繁" : "Request rate limit reached";
+  if (/context_length_exceeded|context window (?:is )?(?:full|exceeded)|prompt is too long|maximum context length/i.test(error)) return zh ? "上下文过长" : "Context is too long";
+  if (/invalid api key|authentication_error|authentication failed|unauthorized|please authenticate|token_expired|invalid_refresh_token|\b(?:http|status|api error:)\s*401\b/i.test(error)) return zh ? "登录或 API 凭据有问题" : "Sign-in or API credentials need attention";
+  if (/permission_error|permission denied|forbidden|access denied|\b(?:http|status|api error:)\s*403\b/i.test(error)) return zh ? "访问权限不足" : "Access denied";
+  if (/model_not_found|resource_not_found|model (?:is )?(?:not found|unavailable)/i.test(error)) return zh ? "请求的模型或资源不可用" : "Requested model or resource is unavailable";
+  if (/invalid_request_error|invalid_request\b|bad request/i.test(error)) return zh ? "请求参数无效" : "Request is invalid";
+  if (/sandbox_error/i.test(error)) return zh ? "运行环境出错" : "Execution environment error";
+  if (/mcp_server_startup_failed/i.test(error)) return zh ? "MCP 服务启动失败" : "MCP server failed to start";
+  if (/request_timeout|api.?timeout|timed? ?out|connection_failed|connection (?:closed|failed|refused|reset)|network error|econnreset|econnrefused|enotfound/i.test(error)) return zh ? "连接失败或超时" : "Connection failed or timed out";
+  if (/overloaded_error|server_overloaded|server_is_overloaded|(?:api error:|http|status)\s*(?:500|502|503|504|529)\b/i.test(error)) return zh ? "服务暂不可用" : "Service is unavailable";
+  return error;
 }

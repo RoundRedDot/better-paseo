@@ -1132,7 +1132,7 @@ describe("TaskCardView rows", () => {
   it("draws the failure reason in the danger colour", async () => {
     const tree = await render(cardElement(sample("sample-failed")));
     const reason = tree.root.find(
-      (node) => (node.type as unknown) === "Text" && node.props.children === "Provider exited with code 1: rate limit reached",
+      (node) => (node.type as unknown) === "Text" && node.props.children === "Claude 请求过于频繁",
     );
     expect(flat(reason.props.style).color).toBe("#d93636");
     expect(icons(tree.root)).toContain("CircleX");
@@ -1142,7 +1142,7 @@ describe("TaskCardView rows", () => {
     const card = { ...sample("sample-failed"), lane: "done" as const, status: "done" as const };
     const tree = await render(cardElement(card));
     const reason = tree.root.find(
-      (node) => (node.type as unknown) === "Text" && node.props.children === "Provider exited with code 1: rate limit reached",
+      (node) => (node.type as unknown) === "Text" && node.props.children === "Claude 请求过于频繁",
     );
     expect(flat(reason.props.style).color).toBe("#6b6b75");
     const mark = tree.root.find((node) => (node.type as unknown) === "Icon" && node.props.name === "CircleX");
@@ -3548,6 +3548,17 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-error"))).toContain(error);
   });
 
+  it("keeps the original provider error in details while showing its summary on the card", async () => {
+    const error = "Please authenticate to continue. Run `/login` to log in.";
+    const card = { ...sample("sample-done"), provider: "cursor", lane: "review" as const, status: "failed" as const, error };
+    const tree = await render(cardElement(card, { language: "zh" }));
+    expect(texts(hostByTestId(tree.root, "task-card-reason"))[0]).toBe("登录或 API 凭据有问题");
+    await act(async () => tree.unmount());
+    renderer = null;
+    const detail = await render(details(card, {}, "zh"));
+    expect(texts(hostByTestId(detail.root, "detail-error"))).toContain(error);
+  });
+
   it("leads with the permission request and its buttons while a card asks", async () => {
     const onPermission = vi.fn();
     const card = sample("sample-input");
@@ -3953,19 +3964,22 @@ describe("TaskCardView chrome", () => {
     expect(surface().backgroundColor).toBe(tokens.card.background);
   });
 
-  it.each([false, true])("shows the limit and reset on the card (compact=%s)", async (compact) => {
+  it.each([
+    { compact: false, language: "zh" as const, reason: "Claude 月度支出已达上限 · 5 小时额度重置时间：5:30pm (Asia/Singapore)", action: "检查账户或组织的支出上限，调整后继续未完成的工作。" },
+    { compact: true, language: "en" as const, reason: "Claude monthly spending limit reached · 5-hour limit resets 5:30pm (Asia/Singapore)", action: "Check the account or organization spending limit before continuing the unfinished work." },
+  ])("shows the limit and reset on the card ($language, compact=$compact)", async ({ compact, language, reason, action }) => {
     const error = "You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message · your 5-hour limit resets 5:30pm (Asia/Singapore)";
     const card = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, error };
-    const tree = await render(cardElement(card, { compact }));
+    const tree = await render(cardElement(card, { compact, language }));
     expect(texts(hostByTestId(tree.root, "task-card-reason"))).toEqual([
-      "You've hit your monthly spend limit · your 5-hour limit resets 5:30pm (Asia/Singapore)",
-      "检查账户或组织的支出上限，调整后继续未完成的工作。",
+      reason,
+      action,
     ]);
   });
 
   it.each([
-    ["You've hit your weekly limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message", "You've hit your weekly limit"],
-    ["Provider exited with code 1: rate limit reached", "Provider exited with code 1: rate limit reached"],
+    ["You've hit your weekly limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message", "Claude 每周用量已达上限"],
+    ["Provider exited with code 1: rate limit reached", "Claude 请求过于频繁"],
   ])("preserves the available reason: %s", async (error, expected) => {
     const card = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, error };
     const tree = await render(cardElement(card));
@@ -3973,14 +3987,17 @@ describe("TaskCardView chrome", () => {
   });
 
   it.each([
-    { provider: "claude", error: "Prompt is too long", action: "缩短输入", compact: false, theme: LIGHT, language: "zh" as const },
-    { provider: "codex", error: "context_length_exceeded", action: "Shorten the input", compact: true, theme: DARK, language: "en" as const },
-    { provider: "cursor", error: "Please authenticate to continue. Run `/login` to log in.", action: "检查登录状态", compact: true, theme: LIGHT, language: "zh" as const },
-    { provider: "grok", error: "Connection closed before response completed", action: "Check the network", compact: false, theme: DARK, language: "en" as const },
-  ])("shows an actionable error on a $provider card", async ({ provider, error, action, compact, theme, language }) => {
+    { provider: "claude", error: "Prompt is too long", reason: "Claude 上下文过长", action: "缩短输入", compact: false, theme: LIGHT, language: "zh" as const },
+    { provider: "codex", error: "context_length_exceeded", reason: "Context is too long", action: "Shorten the input", compact: true, theme: DARK, language: "en" as const },
+    { provider: "cursor", error: "Please authenticate to continue. Run `/login` to log in.", reason: "登录或 API 凭据有问题", action: "检查登录状态", compact: true, theme: LIGHT, language: "zh" as const },
+    { provider: "grok", error: "Connection closed before response completed", reason: "Connection failed or timed out", action: "Check the network", compact: false, theme: DARK, language: "en" as const },
+    { provider: "omp", error: "insufficient_quota", reason: "账户额度不足", action: "余额", compact: true, theme: DARK, language: "zh" as const },
+    { provider: "gemini", error: "rate_limit_error", reason: "请求过于频繁", action: "降低请求频率", compact: true, theme: LIGHT, language: "zh" as const },
+    { provider: "custom-provider", error: "model_not_found", reason: "Requested model or resource is unavailable", action: "Check the model name", compact: false, theme: DARK, language: "en" as const },
+  ])("shows an actionable error on a $provider card", async ({ provider, error, reason, action, compact, theme, language }) => {
     const card = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, provider, error };
     const tree = await render(cardElement(card, { compact, theme, language }));
-    expect(texts(hostByTestId(tree.root, "task-card-reason"))[0]).toBe(error);
+    expect(texts(hostByTestId(tree.root, "task-card-reason"))[0]).toBe(reason);
     expect(texts(hostByTestId(tree.root, "task-card-error-action"))[0]).toContain(action);
   });
 
