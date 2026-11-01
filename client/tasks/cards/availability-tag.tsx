@@ -165,7 +165,7 @@ export function AvailabilityCorner(props: {
               event?.stopPropagation?.();
               setPinned(false);
             }}
-            style={{ maxWidth: Math.round(300 * Math.max(1, scale)), paddingHorizontal: 10, paddingTop: 8, paddingBottom: 9, gap: 4, ...panelChrome(props.theme), borderRadius: 8 } as ViewStyle}
+            style={{ maxWidth: Math.round(300 * Math.max(1, scale)), paddingHorizontal: 10, paddingTop: 8, paddingBottom: 9, gap: 4, ...panelChrome(props.theme), backgroundColor: props.tokens.isDark ? "#422f10" : "#fff4ce", borderRadius: 8 } as ViewStyle}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
               <Icon name="TriangleAlert" size={13} color={props.tokens.foregroundMuted} />
