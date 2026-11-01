@@ -44,7 +44,6 @@ export function TabletToolbar(props: {
   const height = taskControlHeight(compact ? 36 : Platform.OS === "ios" ? 44 : 56, scale);
   const labels = props.width >= 1000 * Math.max(1, scale);
   const inlineSearch = Platform.OS !== "ios" && props.width >= 560 * Math.max(1, scale);
-  const shortcuts = props.width >= 680 * Math.max(1, scale);
   const [page, setPage] = useState<ViewPage | null>(null);
   const [trail, setTrail] = useState<string[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -56,7 +55,7 @@ export function TabletToolbar(props: {
   const [viewLayout, setViewLayout] = useState<LayoutRectangle | null>(null);
   const actionWidth = actionLayout?.width ?? 0;
   // Keep the subtask shortcut visible alongside filters and view on narrow boards.
-  const minimumActionsWidth = 3 * target + 2 * 6;
+  const minimumActionsWidth = 4 * target + 3 * 6;
   const separateFilters = compact || actionWidth === 0 || actionWidth >= 2 * target + 6;
   const menuAnchor = toolbarWidth !== null && actionLayout && viewLayout ? {
     right: toolbarWidth - actionLayout.x - viewLayout.x - viewLayout.width,
@@ -79,7 +78,6 @@ export function TabletToolbar(props: {
     { key: "visibility", items: [
       { key: "empty-lanes", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, icon: props.emptyLanes.collapsed ? "UnfoldHorizontal" : "FoldHorizontal", checked: props.emptyLanes.collapsed, disabled: props.emptyLanes.disabled, keepOpen: true, onSelect: props.emptyLanes.onToggle },
       { key: "archived", label: strings.archivedLane.row, icon: "Archive", checked: board.showArchived, keepOpen: true, onSelect: () => board.setShowArchived(!board.showArchived) },
-      { key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, leading: <PanelMark open={props.sidebar.open} side="right" color={colors.foregroundMuted} />, checked: props.sidebar.open, onSelect: props.sidebar.onToggle },
     ] },
   ];
   // Touch drill-down stays inside the same panel, including in iPad split view.
@@ -137,7 +135,7 @@ export function TabletToolbar(props: {
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
           <ToolbarButton compact={compact} icon="MoreVertical" label={strings.view} showLabel={labels} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); setSearchOpen(false); openPage(page ? null : "view"); }} />
         </View>
-        {shortcuts ? <ToolbarButton compact={compact} icon={<PanelMark open={props.sidebar.open} side="right" color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} theme={theme} testID="sidebar-switch" onPress={props.sidebar.onToggle} /> : null}
+        <ToolbarButton compact={compact} icon={<PanelMark open={props.sidebar.open} side="right" color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} theme={theme} testID="sidebar-switch" onPress={props.sidebar.onToggle} />
         </View>
       </View>
       {props.filters ? (

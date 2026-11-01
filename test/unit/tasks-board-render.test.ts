@@ -3895,8 +3895,7 @@ describe("Tasks board, tablet filters", () => {
     layOut(width);
     const end = () => hostsById("tablet-toolbar-end")[0]!;
     const order = () => end().findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
-    // Three buttons at the right; a narrow board has no sidebar switch, so the subtasks switch leads instead.
-    const expected = ["subtasks-toggle", "toolbar-filters", "tablet-view"];
+    const expected = ["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"];
     expect(order()).toEqual(expected);
     // View owns layout; subtask visibility and empty groups belong to filters.
     act(() => hostsById("tablet-view")[0]!.props.onPress());
@@ -3945,7 +3944,7 @@ describe("Tasks board, tablet filters", () => {
     expect(textOf(hostsById("tablet-total-reserve")[0]!)).toBe(BOARD_STRINGS[language].total(8888));
   });
 
-  it.each(["ios", "android"])("%s switches the sidebar icon in both the toolbar and View menu", async (os) => {
+  it.each(["ios", "android"])("%s keeps the sidebar switch in the toolbar and out of View", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(false)); });
     layOut(1200);
@@ -3957,10 +3956,10 @@ describe("Tasks board, tablet filters", () => {
       expect(fill(button())).toBe(open ? 3.5 : 1.5);
       act(() => hostsById("tablet-view")[0]!.props.onPress());
       const strings = renderer!.root.findByType(TabletToolbar).props.board.strings;
-      const item = menuOption(open ? strings.sidebar.hide : strings.sidebar.show);
-      expect(item.props.accessibilityState.checked).toBe(open);
-      expect(fill(item)).toBe(open ? 3.5 : 1.5);
-      await act(async () => item.props.onPress());
+      const items = hostsById("tablet-view-menu")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
+      expect(items.some((item) => textOf(item).startsWith(open ? strings.sidebar.hide : strings.sidebar.show))).toBe(false);
+      act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
+      await act(async () => button().props.onPress());
       expect(button().props.accessibilityState.selected).toBe(!open);
       expect(fill(button())).toBe(open ? 1.5 : 3.5);
       await act(async () => button().props.onPress());
@@ -4226,8 +4225,7 @@ describe("Tasks board, tablet filters", () => {
     });
     layOut(width);
     const end = hostsById("tablet-toolbar-end")[0]!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
-    expect(end).toHaveLength(width >= 680 ? 4 : 3);
-    expect(end).toEqual(width >= 680 ? ["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"] : ["subtasks-toggle", "toolbar-filters", "tablet-view"]);
+    expect(end).toEqual(["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"]);
     expect(hostsById("toolbar-archived")).toHaveLength(0);
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     const item = () => hostsById("tablet-view-menu")[0]!.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith("Show the archived lane"));
