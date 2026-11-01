@@ -192,6 +192,14 @@ const SHORT_COLUMN = 640;
 /** The board's lanes' counts after the filters, each with its lane's mark; a press shows the lane. */
 function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; onLane(lane: LaneId): void; touch: boolean }) {
   const { board, tokens } = props;
+  const scale = useTasksFontScale();
+  const [rowWidth, setRowWidth] = useState(0);
+  const [measured, setMeasured] = useState<{ value: number; scale: number; width: number } | null>(null);
+  const largestCount = Math.max(0, ...board.laneOrder.map((id) => board.lanes[id].cards.length));
+  const available = (rowWidth - 4 * (board.laneOrder.length - 1)) / board.laneOrder.length - 16;
+  const countSize = measured?.value === largestCount && measured.scale === scale && measured.width > 0 && available > 0
+    ? Math.min(F.base, Math.floor(F.base * available / measured.width * scale) / scale)
+    : F.base;
   const showEmpty = board.showEmptyGroups;
   const options = useMemo(() => shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty), [board.tasks, board.params, showEmpty]);
   const summary = filterSummary(board.params, board.defaults, options, board.strings);
@@ -207,7 +215,7 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
           </Text>
         ) : null}
       </View>
-      <View style={{ flexDirection: "row", gap: 4 }}>
+      <View testID="sidebar-stats-row" onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", gap: 4 }}>
         {board.laneOrder.map((id) => (
           <StatCell
             key={id}
@@ -219,9 +227,13 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
             tokens={tokens}
             animated={board.visible}
             touch={props.touch}
+            countSize={countSize}
             onPress={() => props.onLane(id)}
           />
         ))}
+        <View pointerEvents="none" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: "absolute", opacity: 0, flexDirection: "row" }}>
+          <Text key={`${largestCount}|${scale}`} testID="sidebar-stat-count-measure" onLayout={(event) => setMeasured({ value: largestCount, scale, width: event.nativeEvent.layout.width })} style={{ fontSize: F.base, fontWeight: "600", fontVariant: ["tabular-nums"] }}>{largestCount}</Text>
+        </View>
       </View>
     </DetailCard>
   );
@@ -237,6 +249,7 @@ function StatCell(props: {
   tokens: TaskTokens;
   animated: boolean;
   touch: boolean;
+  countSize: number;
   onPress(): void;
 }) {
   const { tokens } = props;
@@ -248,7 +261,7 @@ function StatCell(props: {
   const { hovered, hoverProps } = useHover();
   const reduced = useReducedMotion();
   const alert = props.lane === "needs_input" && (props.count ?? 0) > 0;
-  const countStyle = { fontSize: F.xl, lineHeight: HOST_LINE.xl, fontWeight: "600" as const, color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums" as const] };
+  const countStyle = { fontSize: props.countSize, lineHeight: HOST_LINE.base, fontWeight: "600" as const, color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums" as const] };
   return (
     <Pressable
       accessibilityRole="button"
@@ -291,7 +304,7 @@ function StatCell(props: {
       {props.count === null ? (
         <Text style={countStyle}>–</Text>
       ) : (
-        <RollingCount value={props.count} scope={props.scope} style={countStyle} />
+        <RollingCount value={props.count} scope={props.scope} style={countStyle} singleLine />
       )}
       {/* Keep the intrinsic label measurable while it is hidden, so resizing restores it. */}
       <View

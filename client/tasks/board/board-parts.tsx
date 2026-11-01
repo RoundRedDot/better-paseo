@@ -469,7 +469,7 @@ interface Roll {
  * it from its first value (on iOS a layout effect lands a frame late). The new
  * number keeps the slot's width; the old one draws over it, out of the flow.
  */
-export function RollingCount(props: { value: number; scope?: unknown; align?: "left" | "center"; style: StyleProp<TextStyle> }) {
+export function RollingCount(props: { value: number; scope?: unknown; align?: "left" | "center"; style: StyleProp<TextStyle>; singleLine?: boolean }) {
   const { value, scope } = props;
   const reduced = useReducedMotion();
   const [roll, setRoll] = useState<Roll>(() => ({ from: value, to: value, scope, t: null }));
@@ -486,13 +486,13 @@ export function RollingCount(props: { value: number; scope?: unknown; align?: "l
     });
     return () => animation.stop();
   }, [t]);
-  if (!t) return <Text style={props.style}>{value}</Text>;
+  if (!t) return <Text numberOfLines={props.singleLine ? 1 : undefined} style={props.style}>{value}</Text>;
   const shift = roll.to > roll.from ? MOTION.countShift : -MOTION.countShift;
   const center = props.align === "center";
   return (
     <View>
       <Animated.View style={{ opacity: t, transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [shift, 0] }) }] }}>
-        <Text style={props.style}>{roll.to}</Text>
+        <Text numberOfLines={props.singleLine ? 1 : undefined} style={props.style}>{roll.to}</Text>
       </Animated.View>
       {/* Wider than the slot, so a longer old number is not cut or wrapped. */}
       <Animated.View

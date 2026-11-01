@@ -1483,6 +1483,22 @@ describe("Tasks board, desktop", () => {
     check(!initial);
   });
 
+  it.each([false, true])("keeps all stat counts on one line at a shared size with archived=%s", (showArchived) => {
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived } };
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    const layout = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 20 } } }));
+    layout(hostsById("sidebar-stats-row")[0]!, 130);
+    layout(hostsById("sidebar-stat-count-measure")[0]!, 20);
+    const counts = renderer!.root.findByProps({ testID: "sidebar-stats" }).findAllByType(RollingCount).filter((node) => node.props.singleLine);
+    expect(counts).toHaveLength(showArchived ? 5 : 4);
+    const sizes = counts.map((node) => StyleSheet.flatten(node.props.style).fontSize);
+    expect(new Set(sizes).size).toBe(1);
+    expect(sizes[0]).toBeLessThan(14);
+    layout(hostsById("sidebar-stats-row")[0]!, 400);
+    expect(StyleSheet.flatten(counts[0]!.props.style).fontSize).toBe(14);
+  });
+
   it.each([
     ["ios", "en", 14], ["ios", "zh", 21], ["web", "en", 21],
   ] as const)("%s stats hide overflowing %s labels at UI base %i and restore them when space returns", (os, language, base) => {
