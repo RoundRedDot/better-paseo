@@ -940,10 +940,10 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
       <View style={{ paddingTop: 4, paddingBottom: bottom, paddingLeft: m.padH - 6, paddingRight: m.padH - 6 - gutter }}>
         {messageSection ? (
           <View testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
-            <View style={{ width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: detailColors(tokens).sunk }}>
-              <Icon name={section === "message" ? "MessageSquareText" : "MessageCircle"} size={16} color={section === "message" ? tokens.success : tokens.foregroundMuted} />
+            <View style={{ width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: detailColors(tokens).sunk }}>
+              <Icon name={section === "message" ? "MessageSquareText" : "MessageCircle"} size={14} color={section === "message" ? tokens.success : tokens.foregroundMuted} />
             </View>
-            <Text style={{ flex: 1, marginLeft: 8, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
+            <Text style={{ flex: 1, marginLeft: 6, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
             {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
             {read?.prompt.state === "ready" ? (
               <Pressable accessibilityRole="button" accessibilityLabel={copyLabel} {...tipProps(copyLabel)} onPress={() => void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast })} hitSlop={4} testID={`${testID}-copy`} style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
@@ -1598,7 +1598,7 @@ function TimelineTextBody(props: Inner & {
   const line = variantMetrics(PROSE, font).bodyLineHeight;
   const sunk = tokens.card.background;
   return (
-    <View style={{ paddingLeft: 42, paddingRight: 6, paddingTop: 6 }}>
+    <View style={{ paddingHorizontal: 6, paddingTop: 4 }}>
       <View>
         {props.flash ? (
           <Animated.View pointerEvents="none" testID={`${id}-flash`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }} />
@@ -1641,7 +1641,7 @@ function ReplyLoading(props: { tokens: TaskTokens; language: TasksLanguage; wait
   }, [reduced]);
   const label = props.language === "zh" ? (props.waiting ? "等待输出" : "正在回复") : (props.waiting ? "Waiting for reply" : "Replying");
   return (
-    <View testID="detail-message-working" accessibilityRole="progressbar" accessibilityLabel={label} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: props.waiting ? 42 : 0, paddingTop: 8 }}>
+    <View testID="detail-message-working" accessibilityRole="progressbar" accessibilityLabel={label} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: props.waiting ? 6 : 0, paddingTop: 8 }}>
       <View style={{ width: 14, height: 14, alignItems: "center", justifyContent: "center" }}><View testID="detail-message-working-grid" style={{ width: 26 / 3, height: 14, flexDirection: "row", flexWrap: "wrap", columnGap: 2, rowGap: 2 }}>
         {REPLY_LOADER_FRAMES[reduced ? 0 : step]!.map((opacity, index) => <View key={index} style={{ width: 10 / 3, height: 10 / 3, borderRadius: 2, backgroundColor: props.tokens.foreground, opacity }} />)}
       </View></View>
