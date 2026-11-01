@@ -17,21 +17,23 @@ function register(lastUsage: () => unknown) {
   const ledger = createTurnUsageLedger(dir);
   let ended: TurnEnded | null = null;
   let started: TurnStarted | null = null;
-  const handlers = new Map<string, (input: unknown) => Promise<unknown>>();
+  const handlers = new Map<string, (input: unknown, context: unknown) => Promise<unknown>>();
   const server = {
     on(name: string, handler: TurnEnded & TurnStarted) {
       if (name === "agent.turn_ended") ended = handler;
       if (name === "agent.turn_started") started = handler;
       return () => {};
     },
-    handle(contract: { name: string }, handler: (input: unknown) => Promise<unknown>) { handlers.set(contract.name, handler); },
+    handle(contract: { name: string }, handler: (input: unknown, context: unknown) => Promise<unknown>) { handlers.set(contract.name, handler); },
   } as unknown as PluginServerContext;
   let clock = 1000;
   registerTurnUsageServer(server, ledger, () => clock);
-  const refresh = vi.fn(async (): Promise<unknown> => ({ agent: { lastUsage: lastUsage() } }));
-  const paseo = { agents: { ref: () => ({ refresh }) } };
+  const refresh = vi.fn(async (): Promise<unknown> => ({ agent: { provider: "claude", lastUsage: lastUsage() } }));
+  const refetch = vi.fn(async (): Promise<{ entries: Array<{ turnId: string; item: unknown }>; error: null }> => ({ entries: [], error: null }));
+  const paseo = { agents: { ref: () => ({ refresh, timeline: { refetch } }) } };
   return {
     refresh,
+    refetch,
     start: (turnId: string | null, at: number, agentId = "agent-a") => {
       clock = at;
       started!({ agent: { id: agentId }, turnId }, { paseo });
@@ -41,8 +43,8 @@ function register(lastUsage: () => unknown) {
       const outcome = extra.error ? { kind, error: { message: extra.error } } : { kind };
       return ended!({ agent: { id: agentId, provider: extra.provider ?? "claude" }, turnId, outcome, timeline: extra.timeline ?? [] }, { paseo });
     },
-    read: (input: unknown) => handlers.get("turns.usage")!(input) as Promise<{ turns: unknown[] }>,
-    last: (agentIds: string[]) => handlers.get("turns.last")!({ agentIds }) as Promise<{ turns: unknown[] }>,
+    read: (input: unknown) => handlers.get("turns.usage")!(input, { paseo }) as Promise<{ turns: unknown[] }>,
+    last: (agentIds: string[]) => handlers.get("turns.last")!({ agentIds }, { paseo }) as Promise<{ turns: unknown[] }>,
   };
 }
 
@@ -174,6 +176,25 @@ describe("turn errors", () => {
     expect(turnError("codex", { kind: "failed", error: { message: " You've hit your usage limit. " } }, [])).toBe("You've hit your usage limit.");
   });
 
+  it.each([
+    ["claude", "API Error: 529 Overloaded"],
+    ["codex", "Connection closed before response completed"],
+    ["grok", "Provider exited with code 1"],
+    ["cursor", "Please authenticate to continue. Run `/login` to log in."],
+  ])("records a %s failure without relying on its wording", async (provider, message) => {
+    const server = register(() => undefined);
+    server.start("failed-turn", 1000);
+    await server.end("failed-turn", "failed", 2000, "agent-a", { provider, error: message });
+    expect((await server.last(["agent-a"])).turns).toEqual([
+      { agentId: "agent-a", startedAt: 1000, endedAt: 2000, error: message },
+    ]);
+    server.start("next-turn", 3000);
+    await server.end("next-turn", "canceled", 4000, "agent-a", { provider });
+    expect((await server.last(["agent-a"])).turns).toEqual([
+      { agentId: "agent-a", startedAt: 3000, endedAt: 4000 },
+    ]);
+  });
+
   it("records the error with the turn and answers it as the latest turn's", async () => {
     // The limit reply arrives with zero usage, so the turn has no new figure.
     const server = register(() => ({ inputTokens: 0, outputTokens: 0 }));
@@ -186,6 +207,25 @@ describe("turn errors", () => {
       { agentId: "agent-a", startedAt: 2000, endedAt: 2500, error: limit },
       { agentId: "agent-b", endedAt: 3000, error: "You've hit your usage limit." },
     ]);
+  });
+
+  it("reads the ended turn from the timeline when the host sends an empty timeline", async () => {
+    const server = register(() => undefined);
+    const monthly = "You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message · your 5-hour limit resets 5:30pm (Asia/Singapore)";
+    server.refetch.mockResolvedValueOnce({ entries: [{ turnId: "turn-1", item: reply(monthly) }], error: null });
+    await server.end("turn-1", "completed", 1000);
+    expect((await server.last(["agent-a"])).turns).toEqual([{ agentId: "agent-a", endedAt: 1000, error: monthly }]);
+    server.refetch.mockResolvedValueOnce({ entries: [{ turnId: "turn-2", item: reply(monthly) }], error: null });
+    server.start("turn-3", 2000);
+    await server.end("turn-3", "completed", 3000);
+    expect((await server.last(["agent-a"])).turns).toEqual([{ agentId: "agent-a", startedAt: 2000, endedAt: 3000 }]);
+  });
+
+  it("recovers an already recorded zero-token Claude limit on card read", async () => {
+    const server = register(() => ({ inputTokens: 0, outputTokens: 0 }));
+    await server.end("turn-1", "completed", 1000);
+    server.refetch.mockResolvedValueOnce({ entries: [{ turnId: "turn-1", item: reply(limit) }], error: null });
+    expect((await server.last(["agent-a"])).turns).toEqual([{ agentId: "agent-a", endedAt: 1000, error: limit }]);
   });
 
   it("answers a turn end that is still being recorded", async () => {

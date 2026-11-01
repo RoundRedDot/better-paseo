@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { PaseoAgentTimelineHandle } from "@getpaseo/client";
 import type { PluginServerContext, PluginTurnOutcome } from "@getpaseo/plugin/server";
 import { z } from "zod";
 import { pluginDataDir } from "./plugin-data";
@@ -91,6 +92,13 @@ export function turnError(provider: string, outcome: PluginTurnOutcome, timeline
   return CLAUDE_ERROR_REPLY.test(text) ? text : undefined;
 }
 
+/** The host may omit hook timeline items; match the tail to the recorded turn. */
+async function readTurnTail(timeline: PaseoAgentTimelineHandle, turnId: string): Promise<TurnItem[]> {
+  const page = await timeline.refetch({ direction: "tail", projection: "projected", limit: 1 });
+  const last = page.entries.at(-1);
+  return !page.error && last?.turnId === turnId ? [last.item] : [];
+}
+
 /** Turn starts kept in memory until their end; more than this means ends were missed. */
 const STARTS_KEPT = 1_000;
 
@@ -121,14 +129,22 @@ export function registerTurnUsageServer(
     const endedAt = now();
     const startedAt = starts.get(key(agent.id, turnId));
     starts.delete(key(agent.id, turnId));
-    const error = turnError(agent.provider, outcome, timeline ?? []);
-    const timing = {
-      turnId,
-      ...(startedAt !== undefined && startedAt <= endedAt ? { startedAt } : {}),
-      endedAt,
-      ...(error !== undefined ? { error } : {}),
-    };
     const done = (async () => {
+      let items: readonly TurnItem[] = timeline ?? [];
+      if (agent.provider === "claude" && outcome.kind === "completed" && items.length === 0) {
+        try {
+          items = await readTurnTail(paseo.agents.ref(agent.id).timeline, turnId);
+        } catch {
+          // A failed timeline read costs error detection, never the turn record.
+        }
+      }
+      const error = turnError(agent.provider, outcome, items);
+      const timing = {
+        turnId,
+        ...(startedAt !== undefined && startedAt <= endedAt ? { startedAt } : {}),
+        endedAt,
+        ...(error !== undefined ? { error } : {}),
+      };
       let usage: RecordedTurn["usage"];
       if (outcome.kind === "completed") {
         try {
@@ -150,18 +166,30 @@ export function registerTurnUsageServer(
     turns: (await ledger.read(agentId)).filter((turn) => since === undefined || turn.endedAt >= since),
   }));
 
-  server.handle(lastTurnsRpc, async ({ agentIds }) => {
+  server.handle(lastTurnsRpc, async ({ agentIds }, { paseo }) => {
     const turns = await Promise.all([...new Set(agentIds)].map(async (agentId): Promise<LastTurn | null> => {
       await ending.get(agentId);
       const turns = await ledger.read(agentId);
       const last = turns.at(-1);
+      let error = last?.error;
+      if (last && !error && last.usage?.inputTokens === 0 && last.usage.outputTokens === 0) {
+        try {
+          const source = paseo.agents.ref(agentId);
+          const snapshot = await source.refresh();
+          if (snapshot?.agent.provider === "claude") {
+            error = turnError("claude", { kind: "completed" }, await readTurnTail(source.timeline, last.turnId));
+          }
+        } catch {
+          // The recorded timing remains available if the timeline cannot be read.
+        }
+      }
       const cost = turns.findLast((turn) => turn.usage?.totalCostUsd !== undefined)?.usage?.totalCostUsd;
       return last
         ? {
             agentId,
             ...(last.startedAt !== undefined ? { startedAt: last.startedAt } : {}),
             endedAt: last.endedAt,
-            ...(last.error !== undefined ? { error: last.error } : {}),
+            ...(error !== undefined ? { error } : {}),
             ...(cost !== undefined ? { totalCostUsd: cost } : {}),
           }
         : null;
