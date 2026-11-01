@@ -55,8 +55,8 @@ const customToggle = () => tree.root.find((node) => typeof node.type === "string
 
 describe("automatic title settings", () => {
   it.each([
-    ["zh", "任务开始时自动生成标题", "任务开始时，自动根据第一条消息的前 2000 个字符生成一次标题。", "保存标题设置"],
-    ["en", "Generate title when the task starts", "When the task starts, automatically generate one title from the first 2000 characters of the first message.", "Save title settings"],
+    ["zh", "任务开始时自动生成标题", "自动根据发送的内容优化标题。", "保存标题设置"],
+    ["en", "Generate title when the task starts", "Automatically refine the title from what you send.", "Save title settings"],
   ] as const)("offers automatic titles at task start off by default and saves the setting (%s)", async (language, title, description, save) => {
     state.language = language;
     const settings = await mount({ values: titleGenerationSettingsSchema.parse({}) });

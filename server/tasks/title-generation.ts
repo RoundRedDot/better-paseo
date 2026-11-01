@@ -139,7 +139,7 @@ export function createTitleGenerator(deps: Dependencies) {
     if (!original.project) throw new Error("The original agent has no project placement.");
     let messages: { role: "user_message" | "assistant_message"; text: string }[];
     if (firstPrompt !== undefined) {
-      messages = [{ role: "user_message", text: firstPrompt.slice(0, 2000) }];
+      messages = [{ role: "user_message", text: firstPrompt.slice(0, 1000) }];
     } else {
       const [first, recent] = await Promise.all([
         readTitleRounds(source.timeline, "after", 1),

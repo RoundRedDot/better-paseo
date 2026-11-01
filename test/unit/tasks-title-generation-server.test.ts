@@ -573,7 +573,7 @@ describe("title when the first message starts", () => {
     expect(f.run.mock.calls[0]![0]).toBe(`${f.values.prompt}\n\n${JSON.stringify({ messages: [{ role: "user_message", text: FIRST_PROMPT }] })}`);
   });
 
-  it("uses at most 2000 characters of only the first message despite steer and replies", async () => {
+  it("uses at most 1000 characters of only the first message despite steer and replies", async () => {
     const text = FIRST_PROMPT + "x".repeat(3000);
     const f = await first([
       { turnId: "t1", item: { type: "user_message", text } },
@@ -583,7 +583,7 @@ describe("title when the first message starts", () => {
     ]);
     expect(await f.started()).toBe(true);
     expect(await f.settle()).toMatchObject({ state: "done" });
-    expect(f.run.mock.calls[0]![0]).toBe(`${f.values.prompt}\n\n${JSON.stringify({ messages: [{ role: "user_message", text: text.slice(0, 2000) }] })}`);
+    expect(f.run.mock.calls[0]![0]).toBe(`${f.values.prompt}\n\n${JSON.stringify({ messages: [{ role: "user_message", text: text.slice(0, 1000) }] })}`);
     expect(f.timeline).toHaveBeenCalledTimes(1);
   });
 
