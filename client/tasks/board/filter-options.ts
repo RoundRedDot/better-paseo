@@ -1,6 +1,6 @@
-import type { TasksHandle, WorkspaceOption } from "../data";
+import { filterLanes, withSubagentCards, type TasksHandle, type WorkspaceOption } from "../data";
 import { fallbackLabelColor } from "../label-colors";
-import { LANE_ORDER, type TaskCard } from "../model";
+import { EMPTY_FILTERS, LANE_ORDER, type TaskCard } from "../model";
 import { toggleItem, type BoardDefaults, type BoardParams } from "./params";
 import { matchesSearch, searchWords } from "./search";
 import type { BoardStrings } from "./strings";
@@ -45,8 +45,9 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
   const byWorkspace = new Map<string, number>();
   const byProvider = new Map<string, number>();
   const byLabel = new Map<string, number>();
+  const lanes = filterLanes(withSubagentCards(tasks.lanes), { ...EMPTY_FILTERS, hideSubtasks: params.hideSubtasks ?? false });
   for (const lane of LANE_ORDER) {
-    for (const card of tasks.lanes[lane].cards) {
+    for (const card of lanes[lane].cards) {
       const workspaceId = card.location.workspaceId;
       if (workspaceId) byWorkspace.set(workspaceId, (byWorkspace.get(workspaceId) ?? 0) + 1);
       byProvider.set(card.provider, (byProvider.get(card.provider) ?? 0) + 1);
