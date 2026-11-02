@@ -45,7 +45,9 @@ until it is pushed and the plugin is updated (`paseo plugin update better-paseo`
 
 The public listing on paseo.sh/plugins installs the commit pinned in
 getpaseo/plugins. Open that pin pull request with
-[plugin-registry-update.md](plugin-registry-update.md).
+[plugin-registry-update.md](plugin-registry-update.md). The same update
+publishes a GitHub release on RoundRedDot/better-paseo. The tag and the title
+are the plugin version.
 
 ## Install build
 
@@ -131,6 +133,6 @@ Unit-test fixtures and pure test helpers stay under `test/`, so plugin tests do 
 
 ## Plugin directory release information
 
-The Version tab uses the marketplace's reviewed Git commit as its target and fetches `releases.json` from the public `RoundRedDot/better-paseo-assets` repository. Its `releases` array maps each full Git `hash` to a stable `version`, a numeric 12-digit `build` and the original Markdown `notes`. The `versionNotes` array holds one concise summary per version, with `build` identifying the latest build included and `zh` and `en` arrays containing the corresponding bullet points. Maintain both arrays when publishing. The page shows at most three summaries at or before the marketplace build; a missing current summary is shown as unrecorded rather than showing a later build's changes.
+The Version tab uses the marketplace's reviewed Git commit as its target and fetches `releases.json` from the public `RoundRedDot/better-paseo-assets` repository. Its `releases` array maps each full Git `hash` to a stable `version`, a numeric 12-digit `build` and the original Markdown `notes`. A plugin update also publishes a GitHub release on RoundRedDot/better-paseo whose tag and title are that plugin version. Settings still reads `releases.json`. The `versionNotes` array holds one concise summary per version, with `build` identifying the latest build included and `zh` and `en` arrays containing the corresponding bullet points. Maintain both arrays when publishing. The page shows at most three summaries at or before the marketplace build; a missing current summary is shown as unrecorded rather than showing a later build's changes.
 
 For each release, use the commit time in Singapore time as `build` (`TZ=Asia/Singapore git show -s --date=format-local:%Y%m%d%H%M --format=%cd <commit>`), and publish the JSON before the plugin commit is deployed. Version comparison uses the three version components first and the build number only when they match. Two releases with the same version within one minute have the same build and cannot be ordered by this scheme.

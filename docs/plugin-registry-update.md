@@ -3,7 +3,8 @@
 Use this when asked to submit the plugin update PR. Follow it as written.
 The live reads are the target SHA, the pin on registry `main`, an existing open
 PR, and the changes between those two commits. Remotes, validation, commit
-identity, and the pull request shape are fixed here.
+identity, and the pull request shape are fixed here. The same update publishes
+a GitHub release named with the plugin version.
 
 This pull request changes the commit [paseo.sh/plugins](https://paseo.sh/plugins)
 installs for `roundreddot/better-paseo`. Git plugins are not bumped
@@ -56,6 +57,32 @@ TZ=Asia/Singapore git show -s --date=format-local:%Y%m%d%H%M --format=%cd <commi
 ```
 
 Push the assets repository before opening the registry pull request.
+
+## GitHub release
+
+After the version commit is on plugin `origin/main`, publish a GitHub release
+on `RoundRedDot/better-paseo`. Do this for every plugin update. The tag and
+the release name are the plugin version, with no `v` prefix. The existing
+`1.0.0` release uses that shape. Point the release at the version commit.
+
+The body is the new user-visible notes for that version, Chinese first and
+then English, plus one line that names the version and the Paseo requirement.
+Use the same new sentences added to `releases.json` for this version. Do not
+paste the carried-forward older notes into the GitHub release.
+
+```bash
+gh release create <version> --repo RoundRedDot/better-paseo \
+  --target <version commit> \
+  --title <version> \
+  --notes-file /tmp/better-paseo-release.md
+```
+
+Delete `/tmp/better-paseo-release.md` after the release exists. Confirm with
+`gh release view <version> --repo RoundRedDot/better-paseo`. The tag, the
+title, and `targetCommitish` are the plugin version and the version commit.
+
+The release does not replace `releases.json` or the registry pull request.
+Settings still reads `releases.json`.
 
 ## Registry branch
 
