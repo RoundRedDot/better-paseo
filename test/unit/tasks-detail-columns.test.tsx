@@ -390,7 +390,7 @@ describe("details columns", () => {
   it("shows long messages in full and streams the latest reply as chunks arrive", async () => {
     const first = "First prompt. ".repeat(40);
     const human = "Latest request. ".repeat(40);
-    const reply = "Live reply. ".repeat(40);
+    const reply = "Live reply. ".repeat(80);
     let emit: (event: unknown) => void = () => {};
     const refetch = vi.fn(async () => ({
       error: null, epoch: "epoch", entries: [{ timestamp: "2026-10-20T09:00:00Z", seqEnd: 0, turnId: "turn", item: { type: "assistant_message", text: reply, messageId: "message" } }],
@@ -457,6 +457,21 @@ describe("details columns", () => {
 });
 
 describe("detail message typography", () => {
+  it.each([
+    ["10 lines", Array(10).fill("line").join("\n"), false],
+    ["11 lines", Array(11).fill("line").join("\n"), true],
+    ["600 code units", "a".repeat(600), false],
+    ["601 code units", "a".repeat(601), true],
+    ["trailing blank lines", Array(10).fill("line").join("\n") + "\n\n", false],
+  ])("uses the long-message threshold for all three messages: %s", async (_name, text, long) => {
+    const message = (suffix: string) => ({ prompt: { state: "ready" as const, text, timestamp: suffix }, load() {} });
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false}
+      firstPrompt={message("2026-10-20T08:00:00Z")} humanMessage={message("2026-10-20T08:01:00Z")} lastMessage={message("2026-10-20T08:02:00Z")} />); });
+    for (const id of ["detail-prompt", "detail-human", "detail-message"]) {
+      expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === `${id}-more`)).toHaveLength(long ? 1 : 0);
+    }
+  });
+
   it.each(["web", "ios", "android"])("follows Paseo's body size for all three messages on %s", async (os) => {
     vi.stubGlobal("__rnMockOS", os);
     const message = (text: string) => ({ prompt: { state: "ready" as const, text: text.repeat(80) }, load() {} });
@@ -476,7 +491,7 @@ describe("detail message typography", () => {
         const section = host(renderer!.root, id);
         expect(section.findByType(MarkdownView).props.size).toBe(size);
         expect(section.findByType(MarkdownView).props).toMatchObject({ variant: "document", compact: detailProps.touch });
-        expect(host(section, `${id}-text`).props.style).toMatchObject({ maxHeight: 4 * variantMetrics("document", size, detailProps.touch).bodyLineHeight });
+        expect(host(section, `${id}-text`).props.style).toMatchObject({ maxHeight: 10 * variantMetrics("document", size, detailProps.touch).bodyLineHeight });
         const more = host(section, `${id}-more`);
         expect(more.findByType(Icon).props.name).toBe("ChevronsDown");
         expect(more.props.accessibilityState.expanded).toBe(false);

@@ -3356,16 +3356,16 @@ describe("TaskDetailCards", () => {
     }
   });
 
-  it("shows the first prompt as Markdown, folded to four lines, copyable, and waits for Load on a closed agent", async () => {
-    const text = ["Check whether this issue is handled:", "", "1. The board", "2. The sidebar", "3. The sheet", "4. The phone"].join("\n");
+  it("shows the first prompt as Markdown, folded to ten lines, copyable, and waits for Load on a closed agent", async () => {
+    const text = ["Check whether this issue is handled:", "", "1. The board", "2. The sidebar", "3. The sheet", "4. The phone", "5. One", "6. Two", "7. Three", "8. Four", "9. Five"].join("\n");
     const load = vi.fn();
     const tree = await render(details(sample("sample-failed"), { firstPrompt: { prompt: { state: "ready", text }, load } }, "en"));
     const sections = tree.root.findAll((node) => typeof node.type === "string" && ["detail-prompt", "detail-location", "detail-activity", "detail-usage"].includes(node.props.testID));
     expect(sections.map((node) => node.props.testID)).toEqual(["detail-location", "detail-prompt", "detail-activity", "detail-usage"]);
     const body = hostByTestId(tree.root, "detail-prompt-text");
     const size = Math.round(tree.root.findByType(MarkdownView).props.tokens.typography.content.size * 0.9);
-    expect(body.props.style).toMatchObject({ maxHeight: 4 * variantMetrics("document", size).bodyLineHeight, overflow: "hidden" });
-    expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", "Check whether this issue is handled:", "The board\nThe sidebar\nThe sheet\nThe phone", "Show all · 6 lines"]);
+    expect(body.props.style).toMatchObject({ maxHeight: 10 * variantMetrics("document", size).bodyLineHeight, overflow: "hidden" });
+    expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", "Check whether this issue is handled:", "The board\nThe sidebar\nThe sheet\nThe phone\nOne\nTwo\nThree\nFour\nFive", "Show all · 11 lines"]);
     await act(async () => hostByTestId(tree.root, "detail-prompt-more").props.onPress());
     expect(hostByTestId(tree.root, "detail-prompt-text").props.style).toBeNull();
     await act(async () => byLabel(tree.root, "Copy prompt").props.onPress({ stopPropagation: vi.fn() }));
@@ -3413,7 +3413,7 @@ describe("TaskDetailCards", () => {
     const previous = getEnhancerPreferences().markdownVariant;
     await act(async () => updateEnhancerPreferences({ markdownVariant: variant }));
     try {
-      const read = { prompt: { state: "ready", text: "First paragraph.\n\n- First item\n- Second item\n\nLast paragraph." } as const, load: vi.fn() };
+      const read = { prompt: { state: "ready", text: "First paragraph.\n\n- First item\n- Second item\n\nLast paragraph.\n\nMore.\n\nMore.\n\nMore." } as const, load: vi.fn() };
       for (const touch of [false, true]) {
         const tree = await render(details(sample("sample-failed"), { touch, firstPrompt: read, lastMessage: read }, "en"));
         for (const markdown of tree.root.findAllByType(MarkdownView)) {
@@ -3422,7 +3422,7 @@ describe("TaskDetailCards", () => {
           const root = markdown.findAll((node) => typeof node.type === "string" && flat(node.props.style).width === "100%")[0]!;
           expect(flat(root.props.style).gap).toBe(metrics.blockGap);
         }
-        expect(hostByTestId(tree.root, "detail-prompt-text").props.style.maxHeight).toBe(4 * variantMetrics(variant, tree.root.findAllByType(MarkdownView)[0]!.props.size, touch).bodyLineHeight);
+        expect(hostByTestId(tree.root, "detail-prompt-text").props.style.maxHeight).toBe(10 * variantMetrics(variant, tree.root.findAllByType(MarkdownView)[0]!.props.size, touch).bodyLineHeight);
       }
     } finally {
       await act(async () => updateEnhancerPreferences({ markdownVariant: previous }));

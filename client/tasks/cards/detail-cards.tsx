@@ -1540,7 +1540,7 @@ function repeatsFirstPrompt(human: LastHumanMessage | undefined, first: FirstPro
 }
 
 /** The lines a prompt or reply shows before "show all". */
-const PROMPT_LINES = 4;
+const PROMPT_LINES = 10;
 const FADE_STEPS = 6;
 
 /**
@@ -1615,7 +1615,7 @@ function TimelineTextBody(props: Inner & {
   }
   const text = prompt.text;
   const lines = errorLines(text);
-  const long = lines.length > PROMPT_LINES || text.length > 240;
+  const long = lines.length > PROMPT_LINES || text.length > 600;
   const folded = long && !expanded;
   const sunk = tokens.card.background;
   return (

@@ -103,7 +103,7 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
     unarchive: { pending: () => false, press() {} }, archive: { pending: () => false, press() {} },
     permissionButtons: [{ key: "allow", label: language === "zh" ? "允许" : "Allow", variant: "primary", kind: "respond", action: { behavior: "allow", id: null } }],
     onPermission() {},
-    firstPrompt: { prompt: { state: "ready", text: "Prompt\n".repeat(8) }, load() {} },
+    firstPrompt: { prompt: { state: "ready", text: "Prompt\n".repeat(11) }, load() {} },
     lastMessage: { prompt: { state: "idle" }, load() {} },
     ...overrides,
   };
@@ -271,7 +271,7 @@ describe("sidebar action tips", () => {
     expect(tip(host(root, "detail-subtasks-more"))).toBe(words.details.subtasksShowAll(12));
     await act(async () => host(root, "detail-subtasks-more").props.onPress());
     expect(tip(host(root, "detail-subtasks-more"))).toBe(words.showFewer);
-    expect(tip(host(root, "detail-prompt-more"))).toBe(words.details.showAll(8));
+    expect(tip(host(root, "detail-prompt-more"))).toBe(words.details.showAll(11));
     await act(async () => host(root, "detail-prompt-more").props.onPress());
     expect(tip(host(root, "detail-prompt-more"))).toBe(words.details.showLess);
     await act(async () => renderer!.update(<TaskDetailCards {...props} stop={{ phase: "confirming", onPress() {} }} />));
