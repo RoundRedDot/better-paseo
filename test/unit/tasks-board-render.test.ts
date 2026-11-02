@@ -404,13 +404,13 @@ describe("Tasks search coverage and centred toolbar", () => {
         const node = id === "desktop-toolbar-more" || id === "empty-lanes-toggle"
           ? button().findAll((child) => (child.type as unknown) === "View")[0]!
           : button();
-        return StyleSheet.flatten(node.props.style).borderColor;
+        return StyleSheet.flatten(node.props.style);
       };
-      expect(outline(), id).toBe("transparent");
+      expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7 });
       act(() => button().props.onHoverIn());
-      expect(outline(), id).toBe("#e2e2e6");
+      expect(outline(), id).toMatchObject({ borderColor: "#e2e2e6", borderRadius: 7 });
       act(() => button().props.onHoverOut());
-      expect(outline(), id).toBe("transparent");
+      expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7 });
       if (id !== "sidebar-switch") expect(button().find((node) => (node.type as unknown) === "Icon").props.size, id).toBe(17);
     }
     expect(StyleSheet.flatten(hostsById("panel-mark")[0]!.props.style)).toMatchObject({ width: 16, height: 13 });
@@ -423,7 +423,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(field.findAll((node) => node.props.testID === "search-full-conversation-toggle")).toHaveLength(0);
     const toggle = hostsById("search-full-conversation-toggle")[0]!;
     // The fixture uses a 15/14 font scale, so the 24-point button rounds to 26.
-    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ width: 26, height: 26, borderRadius: 13 });
+    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ width: 26, height: 26, borderRadius: 7 });
     expect(toggle.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(false));
     expect(toggle.props.accessibilityState.selected).toBe(false);
     act(() => toggle.props.onHoverIn());

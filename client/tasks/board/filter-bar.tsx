@@ -325,7 +325,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
       style={{
         width: size,
         height: size,
-        borderRadius: size / 2,
+        borderRadius: Platform.OS === "web" ? 7 : size / 2,
         borderWidth: HAIRLINE,
         borderColor: Platform.OS === "web" && !hovered ? "transparent" : colors.border,
         backgroundColor: props.open ? colors.surface2 : colors.surface0,
@@ -378,7 +378,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
         width: size,
         height: size,
         flexShrink: 0,
-        borderRadius: size / 2,
+        borderRadius: Platform.OS === "web" ? 7 : size / 2,
         borderWidth: HAIRLINE,
         borderColor: Platform.OS === "web" && !hovered ? "transparent" : colors.border,
         backgroundColor: background,

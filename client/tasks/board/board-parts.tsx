@@ -597,7 +597,7 @@ export function RoundButton(props: {
         style={{
           width: size,
           height: size,
-          borderRadius: size / 2,
+          borderRadius: props.quietOutline && Platform.OS === "web" ? 7 : size / 2,
           borderWidth: HAIRLINE,
           borderColor: props.quietOutline && Platform.OS === "web" && !hovered ? "transparent" : props.active ? colors.accent : colors.border,
           boxShadow: !props.disabled && lift.shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
