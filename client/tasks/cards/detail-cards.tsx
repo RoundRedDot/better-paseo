@@ -51,7 +51,7 @@ import { CardButton } from "./action-buttons";
 import { ActionPressable } from "./action-pressable";
 import { liftsOnPress, scaleStyle, surfaceLift } from "./surface-lift";
 import { arrowInset, buttonHue, CONFIRM_STOP_ICON, requestLook, webTransition, type CardButtonLook } from "./action-style";
-import { buttonOutline } from "../board/board-style";
+import { buttonOutline, MOTION } from "../board/board-style";
 import { useBreathing, useFlash } from "../board/breathing";
 import {
   contextView,
@@ -1624,17 +1624,16 @@ function TimelineTextBody(props: Inner & {
         {props.flash ? (
           <Animated.View pointerEvents="none" testID={`${id}-flash`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }} />
         ) : null}
-        <View style={folded ? { maxHeight: PROMPT_LINES * line, overflow: "hidden" } : null} testID={`${id}-text`}>
-          <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />
-          {folded ? (
+        <MessageText expanded={expanded} long={long} line={line} id={id} fade={folded ? (
             // A heading or code block cuts the last line anywhere: fade it out.
             <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: line, flexDirection: "column" }}>
               {Array.from({ length: FADE_STEPS }, (_, step) => (
                 <View key={step} style={{ flex: 1, backgroundColor: withAlpha(sunk, (step + 1) / FADE_STEPS) }} />
               ))}
             </View>
-          ) : null}
-        </View>
+          ) : null}>
+          <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />
+        </MessageText>
       </View>
       {long ? <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Pressable accessibilityRole="button" accessibilityState={{ expanded }} {...tipProps(expanded ? words.showLess : words.showAll(lines.length))} onPress={() => query ? setSearchFold({ query, closed: expanded }) : setOpen((was) => !was)} hitSlop={4} testID={`${id}-more`} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -1644,6 +1643,37 @@ function TimelineTextBody(props: Inner & {
       </View> : null}
       {streaming ? <ReplyLoading tokens={tokens} language={props.language} /> : null}
     </View>
+  );
+}
+
+function MessageText(props: { expanded: boolean; long: boolean; line: number; id: string; fade: React.ReactNode; children: React.ReactNode }) {
+  const reduced = useReducedMotion();
+  const [height, setHeight] = useState<number | null>(null);
+  const progress = useRef(new Animated.Value(props.expanded ? 1 : 0)).current;
+  const target = useRef(props.expanded);
+  useEffect(() => {
+    if (reduced || !props.long || height === null) {
+      target.current = props.expanded;
+      progress.setValue(props.expanded ? 1 : 0);
+      return;
+    }
+    if (target.current === props.expanded) return;
+    target.current = props.expanded;
+    const animation = Animated.timing(progress, { toValue: props.expanded ? 1 : 0, duration: props.expanded ? 180 : 140, easing: MOTION.ease, useNativeDriver: false, isInteraction: false });
+    animation.start();
+    return () => animation.stop();
+  }, [props.expanded, props.long, reduced, progress]);
+  const limit = PROMPT_LINES * props.line;
+  const style = !props.long || (props.expanded && (reduced || height === null)) ? null
+    : reduced || height === null ? { maxHeight: limit, overflow: "hidden" as const }
+    : { maxHeight: progress.interpolate({ inputRange: [0, 1], outputRange: [Math.min(limit, height), height] }), overflow: "hidden" as const };
+  return (
+    <Animated.View style={style} testID={`${props.id}-text`}>
+      <View onLayout={(event) => setHeight((current) => current === event.nativeEvent.layout.height ? current : event.nativeEvent.layout.height)}>
+        {props.children}
+      </View>
+      {props.fade}
+    </Animated.View>
   );
 }
 

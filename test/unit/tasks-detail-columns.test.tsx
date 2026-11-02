@@ -1,8 +1,11 @@
 import React from "react";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { StyleSheet } from "react-native";
+import { Animated, StyleSheet } from "react-native";
 import "./helpers/quiet-renderer";
+
+const motion = vi.hoisted(() => ({ reduced: false }));
+vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced, getReducedMotion: () => motion.reduced }));
 
 vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -53,6 +56,8 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => renderer?.unmount());
   renderer = undefined;
+  motion.reduced = false;
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -457,6 +462,37 @@ describe("details columns", () => {
 });
 
 describe("detail message typography", () => {
+  it.each(["detail-prompt", "detail-human", "detail-message"])("animates and interrupts the measured height for %s", async (id) => {
+    const message = (text: string) => ({ prompt: { state: "ready" as const, text: text.repeat(80) }, load() {} });
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false}
+      firstPrompt={message("First prompt. ")} humanMessage={message("Follow-up. ")} lastMessage={message("Latest reply. ")} />); });
+    const body = host(renderer!.root, `${id}-text`);
+    const measure = body.find((node) => typeof node.type === "string" && typeof node.props.onLayout === "function");
+    await act(async () => measure.props.onLayout({ nativeEvent: { layout: { height: 1000 } } }));
+    const stop = vi.fn();
+    const start = vi.fn();
+    const timing = vi.spyOn(Animated, "timing").mockReturnValue({ start, stop, reset() {} } as never);
+    await act(async () => host(renderer!.root, `${id}-more`).props.onPress());
+    expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1, duration: 180, useNativeDriver: false }));
+    await act(async () => host(renderer!.root, `${id}-more`).props.onPress());
+    expect(stop).toHaveBeenCalledOnce();
+    expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 0, duration: 140, useNativeDriver: false }));
+    expect(start).toHaveBeenCalledTimes(2);
+  });
+
+  it("switches immediately under reduced motion", async () => {
+    motion.reduced = true;
+    const message = { prompt: { state: "ready" as const, text: "Long message. ".repeat(80) }, load() {} };
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false} firstPrompt={message} />); });
+    const body = host(renderer!.root, "detail-prompt-text");
+    const measure = body.find((node) => typeof node.type === "string" && typeof node.props.onLayout === "function");
+    await act(async () => measure.props.onLayout({ nativeEvent: { layout: { height: 1000 } } }));
+    const timing = vi.spyOn(Animated, "timing");
+    await act(async () => host(renderer!.root, "detail-prompt-more").props.onPress());
+    expect(body.props.style).toBeNull();
+    expect(timing).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["10 lines", Array(10).fill("line").join("\n"), false],
     ["11 lines", Array(11).fill("line").join("\n"), true],
