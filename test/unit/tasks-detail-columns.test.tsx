@@ -456,7 +456,8 @@ describe("detail message typography", () => {
       for (const id of ["detail-prompt", "detail-human", "detail-message"]) {
         const section = host(renderer!.root, id);
         expect(section.findByType(MarkdownView).props.size).toBe(size);
-        expect(host(section, `${id}-text`).props.style).toMatchObject({ maxHeight: 4 * variantMetrics("compact", size).bodyLineHeight });
+        expect(section.findByType(MarkdownView).props).toMatchObject({ variant: "document", compact: detailProps.touch });
+        expect(host(section, `${id}-text`).props.style).toMatchObject({ maxHeight: 4 * variantMetrics("document", size, detailProps.touch).bodyLineHeight });
         const more = host(section, `${id}-more`);
         expect(StyleSheet.flatten(more.find((node) => (node.type as unknown) === "Text").props.style).fontSize).toBe(Math.round(HOST_FONT.sm * ui / HOST_FONT.base * factor));
         await act(async () => more.props.onPress());

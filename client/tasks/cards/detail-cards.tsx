@@ -1519,8 +1519,6 @@ function repeatsFirstPrompt(human: LastHumanMessage | undefined, first: FirstPro
 
 /** The lines a prompt or reply shows before "show all". */
 const PROMPT_LINES = 4;
-/** A prompt or reply is Markdown, set in the chat's tightest variant to fit the card. */
-const PROSE = "compact";
 const FADE_STEPS = 6;
 
 /**
@@ -1545,7 +1543,8 @@ function TimelineTextBody(props: Inner & {
   const query = props.id === "detail-prompt" ? props.searchQuery ?? "" : "";
   const [searchFold, setSearchFold] = useState({ query: "", closed: false });
   const expanded = query ? searchFold.query === query ? !searchFold.closed : true : open;
-  const prose = useThemeTokens(props.theme, useEnhancerPreferences());
+  const preferences = useEnhancerPreferences();
+  const prose = useThemeTokens(props.theme, preferences);
   const adjustment = useTasksFontAdjustment();
   const first = props.read;
   const breathing = useBreathing(first?.prompt.state === "loading");
@@ -1571,11 +1570,12 @@ function TimelineTextBody(props: Inner & {
   const renderText = useMemo(() => query ? (text: string) => highlightText(text, query, tokens.isDark) : undefined, [query, tokens.isDark]);
   if (!first) return null;
   const font = Math.round(prose.typography.content.size * 0.9 * adjustment);
+  const line = variantMetrics(preferences.markdownVariant, font, props.touch === true).bodyLineHeight;
   const small = F.sm;
   const prompt = first.prompt;
   if (streaming && (prompt.state === "loading" || prompt.state === "none")) return <ReplyLoading tokens={tokens} language={props.language} waiting />;
   if (prompt.state === "loading") {
-    return <TimelineTextSkeleton tokens={tokens} id={id} font={font} touch={props.touch === true} opacity={breathing} label={words.promptLoading} />;
+    return <TimelineTextSkeleton tokens={tokens} id={id} line={line} font={font} touch={props.touch === true} opacity={breathing} label={words.promptLoading} />;
   }
   if (prompt.state !== "ready") {
     const retry = prompt.state === "idle" || prompt.state === "error";
@@ -1595,7 +1595,6 @@ function TimelineTextBody(props: Inner & {
   const lines = errorLines(text);
   const long = lines.length > PROMPT_LINES || text.length > 240;
   const folded = long && !expanded;
-  const line = variantMetrics(PROSE, font).bodyLineHeight;
   const sunk = tokens.card.background;
   return (
     <View style={{ paddingHorizontal: 6, paddingTop: 4 }}>
@@ -1604,7 +1603,7 @@ function TimelineTextBody(props: Inner & {
           <Animated.View pointerEvents="none" testID={`${id}-flash`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }} />
         ) : null}
         <View style={folded ? { maxHeight: PROMPT_LINES * line, overflow: "hidden" } : null} testID={`${id}-text`}>
-          <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={PROSE} size={font} onRevealPath={onRevealPath} />
+          <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />
           {folded ? (
             // A heading or code block cuts the last line anywhere: fade it out.
             <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: line, flexDirection: "column" }}>
@@ -1670,14 +1669,13 @@ function useTextChanges(owner: string, text: string | null): number {
 const SKELETON_WIDTHS = ["94%", "82%", "58%"] as const;
 
 /** A read on its way: the text's sunk box with three breathing lines where the first lines will land. */
-function TimelineTextSkeleton(props: { tokens: TaskTokens; id: string; font: number; touch: boolean; opacity: Animated.Value; label: string }) {
-  const line = variantMetrics(PROSE, props.font).bodyLineHeight;
+function TimelineTextSkeleton(props: { tokens: TaskTokens; id: string; line: number; font: number; touch: boolean; opacity: Animated.Value; label: string }) {
   const colors = detailColors(props.tokens);
   return (
     <View style={{ paddingHorizontal: 6, paddingTop: 2 }} testID={`${props.id}-skeleton`} accessible accessibilityRole="progressbar" accessibilityLabel={props.label}>
       <Animated.View style={{ opacity: props.opacity, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: colors.sunk }}>
         {SKELETON_WIDTHS.map((width) => (
-          <View key={width} style={{ height: line, justifyContent: "center" }}>
+          <View key={width} style={{ height: props.line, justifyContent: "center" }}>
             <View style={{ width, height: Math.round(props.font * 0.7), borderRadius: 3, backgroundColor: colors.track }} />
           </View>
         ))}

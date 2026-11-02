@@ -130,6 +130,7 @@ import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } fro
 import { pillTint } from "../../client/tasks/cards/tokens";
 import { TasksTypography, TasksTypographyScale } from "../../client/tasks/typography";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
+import { getEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { variantMetrics } from "../../client/components/markdown/render/styles";
 import { modeIcon } from "../../client/tasks/cards/mode-icons";
 import { menuChrome } from "../../client/tasks/board/menu";
@@ -3360,7 +3361,7 @@ describe("TaskDetailCards", () => {
     expect(sections.map((node) => node.props.testID)).toEqual(["detail-location", "detail-prompt", "detail-activity", "detail-usage"]);
     const body = hostByTestId(tree.root, "detail-prompt-text");
     const size = Math.round(tree.root.findByType(MarkdownView).props.tokens.typography.content.size * 0.9);
-    expect(body.props.style).toMatchObject({ maxHeight: 4 * variantMetrics("compact", size).bodyLineHeight, overflow: "hidden" });
+    expect(body.props.style).toMatchObject({ maxHeight: 4 * variantMetrics("document", size).bodyLineHeight, overflow: "hidden" });
     expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", "Check whether this issue is handled:", "The board\nThe sidebar\nThe sheet\nThe phone", "Show all · 6 lines"]);
     await act(async () => hostByTestId(tree.root, "detail-prompt-more").props.onPress());
     expect(hostByTestId(tree.root, "detail-prompt-text").props.style).toBeNull();
@@ -3375,6 +3376,26 @@ describe("TaskDetailCards", () => {
     // The settings preview passes no prompt: no section.
     await act(async () => tree.update(details(sample("sample-failed"), {}, "en")));
     expect(tree.root.findAll((node) => node.props.testID === "detail-prompt")).toHaveLength(0);
+  });
+
+  it.each(["document", "compact", "terminal"] as const)("matches timeline %s spacing for desktop and touch messages", async (variant) => {
+    const previous = getEnhancerPreferences().markdownVariant;
+    await act(async () => updateEnhancerPreferences({ markdownVariant: variant }));
+    try {
+      const read = { prompt: { state: "ready", text: "First paragraph.\n\n- First item\n- Second item\n\nLast paragraph." } as const, load: vi.fn() };
+      for (const touch of [false, true]) {
+        const tree = await render(details(sample("sample-failed"), { touch, firstPrompt: read, lastMessage: read }, "en"));
+        for (const markdown of tree.root.findAllByType(MarkdownView)) {
+          expect(markdown.props).toMatchObject({ variant, compact: touch });
+          const metrics = variantMetrics(variant, markdown.props.size, touch);
+          const root = markdown.findAll((node) => typeof node.type === "string" && flat(node.props.style).width === "100%")[0]!;
+          expect(flat(root.props.style).gap).toBe(metrics.blockGap);
+        }
+        expect(hostByTestId(tree.root, "detail-prompt-text").props.style.maxHeight).toBe(4 * variantMetrics(variant, tree.root.findAllByType(MarkdownView)[0]!.props.size, touch).bodyLineHeight);
+      }
+    } finally {
+      await act(async () => updateEnhancerPreferences({ markdownVariant: previous }));
+    }
   });
 
   it("scales both prompt and reply prose within the compact floating sidebar scope", async () => {
