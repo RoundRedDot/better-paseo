@@ -3,7 +3,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema } from "../../shared/title-generation";
 import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
-import { Section, SectionNote, SettingRow, type PageLook } from "../../client/settings-controls";
+import { Section, SettingsTips, SettingRow, type PageLook } from "../../client/settings-controls";
 import "./helpers/quiet-renderer";
 
 const state = vi.hoisted(() => {
@@ -276,12 +276,13 @@ describe("automatic title settings", () => {
   it("keeps the section note outside the grouped rows and uses a single first row", async () => {
     await mount();
     const section = tree.root.findByType(Section);
-    expect(section.findAllByType(SectionNote)).toHaveLength(0);
-    expect(tree.root.findByType(SectionNote).props.text).toContain("后台任务不进入看板");
-    expect(tree.root.findByType(SectionNote).props.text).toContain("生成标题时，会把对话摘录和标题提示词发给一个辅助 Agent，默认使用这张卡片的 Provider 和模型；打开「自定义自动标题模型」时用所选模型。手动「生成标题」同样会发送。\n推荐 Oh My Pi");
-    expect(tree.root.findByType(SectionNote).props.text).toContain("Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low");
-    expect(tree.root.findByType(SectionNote).props.text).toContain("Claude / Haiku 5.5（claude-haiku-5-5），思考等级 off");
-    expect(tree.root.findByType(SectionNote).props.text).not.toContain("建议在默认 prompt 末尾补充");
+    expect(section.findAllByType(SettingsTips)).toHaveLength(0);
+    const tips = tree.root.findByType(SettingsTips).props.items;
+    expect(tips.map((item: { label: string }) => item.label)).toEqual(["生成方式", "推荐模型", "后台任务"]);
+    expect(tips[0].text).toContain("对话摘录和标题提示词");
+    expect(tips[1].text).toContain("deepseek/deepseek-flash");
+    expect(tips[1].text).toContain("claude-haiku-5-5");
+    expect(tips[2].text).toContain("后台任务不进入看板");
     expect(section.findAllByType(SettingRow).map((row) => [row.props.title, row.props.first === true])).toEqual([
       ["自动优化新任务标题", true], ["自定义自动标题模型", false], ["关闭标题生成思考模式", false], ["Provider", false], ["模型", false], ["思考等级", false], ["Prompt", false], ["恢复「自动标题」默认设置", false],
     ]);
@@ -349,8 +350,10 @@ describe("automatic title data-flow hint", () => {
   it("states where title input is sent in English and keeps the existing hint", async () => {
     state.language = "en";
     await mount();
-    const text = tree.root.findByType(SectionNote).props.text as string;
-    expect(text.startsWith("Generating a title sends conversation excerpts and the title prompt to a helper agent. By default it uses this card's provider and model; with Custom automatic title model on, it uses the selected model. Generate title in the card menu sends them too.\nRecommended: Oh My Pi")).toBe(true);
-    expect(text).toContain("Title tasks stay off the board, retain history and may trigger host notifications.");
+    const tips = tree.root.findByType(SettingsTips).props.items;
+    expect(tips.map((item: { label: string }) => item.label)).toEqual(["Generation", "Recommended models", "Background tasks"]);
+    expect(tips[0].text).toContain("conversation excerpts and the title prompt to a helper agent");
+    expect(tips[0].text).toContain("Manual generation also sends them");
+    expect(tips[2].text).toContain("Title tasks stay off the board");
   });
 });

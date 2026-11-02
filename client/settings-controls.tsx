@@ -233,6 +233,21 @@ export function SectionNote({ text, look }: { text: string; look: PageLook }) {
   );
 }
 
+/** Related notes grouped by subject, using the same muted colour as row descriptions. */
+export function SettingsTips({ items, look, inset = false }: { items: ReadonlyArray<{ label: string; text: string }>; look: PageLook; inset?: boolean }) {
+  const noteStyle = [styles.rowNote, settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi }];
+  return (
+    <View style={[styles.tips, inset ? (look.compact ? styles.sectionTitleInset : styles.sectionTitleDesktop) : null]}>
+      {items.map((item) => (
+        <View key={item.label} style={[styles.tip, look.compact ? styles.tipCompact : null]}>
+          <Text style={[noteStyle, styles.tipLabel]}>{item.label}</Text>
+          <Text style={[noteStyle, look.compact ? null : styles.tipText]}>{item.text}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /**
  * One setting. Touch: a list row: the label and its note, the control beside
  * them (a switch) or under them (`stacked`, a segmented control). Desktop: the
@@ -326,6 +341,11 @@ const styles = StyleSheet.create({
   sectionTitleInset: { paddingHorizontal: space.lg },
   sectionTitleDesktop: { paddingHorizontal: space.xs },
   sectionNote: { marginTop: -space.xs },
+  tips: { gap: space.sm },
+  tip: { flexDirection: "row", flexWrap: "wrap", columnGap: space.md, rowGap: 2 },
+  tipCompact: { flexDirection: "column" },
+  tipLabel: { width: 92, fontWeight: "500" },
+  tipText: { flexGrow: 1, flexShrink: 1, flexBasis: 180, minWidth: 0 },
   group: { borderRadius: radiusV2.card, overflow: "hidden" },
   groupDesktop: { borderWidth: 1 },
   // Touch: the rule runs from the inset, like a native grouped list.

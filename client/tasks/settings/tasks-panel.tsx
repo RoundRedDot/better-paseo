@@ -21,7 +21,7 @@ import {
 } from "../../../shared/tasks-settings";
 import { CARD_TITLE_LINE_COUNTS } from "../device-store";
 import { mix, radiusV2, space } from "../../components/theme-tokens";
-import { PHONE_PREVIEW_WIDTH, PlainButton, Section, Segmented, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "../../settings-controls";
+import { PHONE_PREVIEW_WIDTH, PlainButton, Section, Segmented, SettingsTips, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "../../settings-controls";
 import { HOST_FONT, TaskText, TasksTypography } from "../typography";
 import { StatusIcon } from "../cards";
 import { taskTokens } from "../cards/tokens";
@@ -550,7 +550,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
       )}
       <SettingRow
         title={strings.showSubtasks}
-        description={strings.showSubtasksHint}
+        description={<SettingsTips items={strings.showSubtasksTips} look={look} />}
         control={
           <Toggle
             value={!values.board.hideSubtasks}
@@ -563,7 +563,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
       />
       <SettingRow
         title={strings.showEmptyGroups}
-        description={strings.showEmptyGroupsHint}
+        description={<SettingsTips items={strings.showEmptyGroupsTips} look={look} />}
         control={
           <Toggle
             value={values.board.showEmptyGroups}

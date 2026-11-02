@@ -44,7 +44,7 @@ function expectSettingsSizes(base: number) {
   const titles = renderer!.root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === t.pageTitle);
   expect(titles.some((node) => StyleSheet.flatten(node.props.style).fontSize === base + 2)).toBe(true);
   expect(textStyle(t.languageTitle)).toMatchObject({ fontSize: base, lineHeight: Math.round(base * 1.4) });
-  expect(textStyle(t.languageDescription).fontSize).toBe(base - 1);
+  expect(textStyle(t.languageTips[0]!.text).fontSize).toBe(base - 1);
   expect(textStyle(t.sectionGeneral).fontSize).toBe(base - 1);
   expect(textStyle(t.previewHide).fontSize).toBe(base - 1);
   expect(textStyle(t.languageEnglish).fontSize).toBe(base - 1);

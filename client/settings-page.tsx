@@ -46,7 +46,7 @@ import { SettingsPreview } from "./settings-preview";
 import { selectionCodeText } from "./components/selection-actions";
 import { CommandBand } from "./ui/command-band";
 import { SelectableSpan, SelectableText } from "./ui/prose-text";
-import { PHONE_PREVIEW_WIDTH, PlainButton, Section, SectionNote, Segmented, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "./settings-controls";
+import { PHONE_PREVIEW_WIDTH, PlainButton, Section, SectionNote, Segmented, SettingsTips, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "./settings-controls";
 import { setSettingsTab, useSettingsTab, type SettingsTab } from "./settings-tab";
 import { TasksSettingsPanel } from "./tasks/settings/tasks-panel";
 import type { SyncStatus } from "./state/preference-sync";
@@ -729,7 +729,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
       <Section title={t.sectionGeneral} look={look}>
         <SettingRow
           title={t.languageTitle}
-          description={t.languageDescription}
+          description={<SettingsTips items={t.languageTips} look={look} />}
           control={
             <Segmented<SettingsLanguagePreference>
               label={t.languageTitle}
@@ -956,7 +956,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         />
         <SettingRow
           title={t.markdownTitle}
-          description={t.markdownDescription}
+          description={<SettingsTips items={t.markdownTips} look={look} />}
           control={
             <Toggle
               value={preferences.assistantMarkdown}

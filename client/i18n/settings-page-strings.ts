@@ -52,6 +52,7 @@ const en = {
   languageTitle: "Language",
   languageDescription:
     "For this page, the toolbar tooltips and the Tasks board. Follow Paseo uses the language set in Paseo, or the device's when Paseo follows the system.",
+  languageTips: [{ label: "Scope", text: "For this page, the toolbar tooltips and the Tasks board." }, { label: "Follow Paseo", text: "Uses the language set in Paseo, or the device’s when Paseo follows the system." }],
   languageSystem: "Follow Paseo",
   languageEnglish: "English",
   languageChinese: "简体中文",
@@ -137,6 +138,7 @@ const en = {
   markdownTitle: "Plugin markdown for replies",
   markdownDescription:
     "Headings, lists and highlighted code blocks drawn by the plugin. It has no mermaid diagrams, images or Paseo's file-path links; turn it off when a reply needs them.",
+  markdownTips: [{ label: "Supported", text: "Headings, lists and highlighted code blocks drawn by the plugin." }, { label: "Limitations", text: "It has no mermaid diagrams, images or Paseo’s file-path links; turn it off when a reply needs them." }],
   markdownStyleTitle: "Markdown style",
   markdownStyleDescription:
     "Document is airy, for long answers. Compact is tighter, for short ones. Terminal sets the text in the code font.",
@@ -258,6 +260,7 @@ const zh: SettingsStrings = {
   sectionGeneral: "通用",
   languageTitle: "语言",
   languageDescription: "本页、工具栏提示和任务看板使用的语言。“跟随 Paseo”使用 Paseo 里设置的语言；Paseo 跟随系统时按设备语言判断。",
+  languageTips: [{ label: "使用范围", text: "本页、工具栏提示和任务看板使用的语言。" }, { label: "跟随 Paseo", text: "使用 Paseo 里设置的语言；Paseo 跟随系统时按设备语言判断。" }],
   languageSystem: "跟随 Paseo",
   languageEnglish: "English",
   languageChinese: "简体中文",
@@ -335,6 +338,7 @@ const zh: SettingsStrings = {
   bubbleDescription: "显示 token 用量和复制按钮；支持的粘贴图片一并显示，其他附件交给 Paseo。",
   markdownTitle: "回复使用插件 Markdown",
   markdownDescription: "由插件绘制标题、列表和语法高亮代码块。不支持 mermaid 图表、图片和 Paseo 的文件路径链接，需要时请关闭。",
+  markdownTips: [{ label: "支持内容", text: "由插件绘制标题、列表和语法高亮代码块。" }, { label: "使用限制", text: "不支持 mermaid 图表、图片和 Paseo 的文件路径链接，需要时请关闭。" }],
   markdownStyleTitle: "Markdown 样式",
   markdownStyleDescription: "“文档”排版舒展，适合长回答；“紧凑”间距更小，适合短回复；“终端”正文使用代码字体。",
   markdownDocument: "文档",
