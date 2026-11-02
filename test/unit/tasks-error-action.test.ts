@@ -88,6 +88,14 @@ describe("card error reset times", () => {
 });
 
 describe("other provider card error summaries", () => {
+  it("summarizes the Antigravity quota message without implying a live countdown", () => {
+    const error = "Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 4h52m54s.";
+    expect(formatCardError(error, "antigravity", "zh")).toBe("个人额度已用完 · 报错时距重置 4h52m54s");
+    expect(formatCardError(error, "antigravity", "en")).toBe("Individual quota reached · Resets in 4h52m54s at time of error");
+    expect(errorAction(error, "zh")).toBe("查看账户用量，等待重置或升级订阅。");
+    expect(errorAction(error, "en")).toBe("Check account usage, wait for the reset, or upgrade your subscription.");
+    expect(formatCardError(`${error} Extra details`, "antigravity", "zh")).toBe(`${error} Extra details`);
+  });
   it.each([
     ["codex", "You've hit your usage limit.", "账户用量已达上限", "Account usage limit reached"],
     ["codex", "credit_balance_exhausted", "账户余额不足", "Account balance is too low"],

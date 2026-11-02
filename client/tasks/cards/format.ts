@@ -171,6 +171,10 @@ const UNPARSED_RESET = /\b(?:resets?|retry after|try again (?:at|in))\b|usage li
 
 /** Summarize recognized errors on the card; the details retain the full error. */
 export function formatCardError(error: string, provider: string, language: TasksLanguage, now: number = Date.now()): string {
+  const quota = /^Individual quota reached\. Please upgrade your subscription to increase your limits\. Resets in ([\dhms]+)\.$/i.exec(error.trim());
+  if (provider === "antigravity" && quota) {
+    return language === "zh" ? `个人额度已用完 · 报错时距重置 ${quota[1]}` : `Individual quota reached · Resets in ${quota[1]} at time of error`;
+  }
   const match = /^(You've hit your [^\n\u00b7]*limit) \u00b7 raise it at https:\/\/claude\.ai\/settings\/usage\?\S+(?: \u00b7 (.+))?$/.exec(error);
   const original = match ? match[2] ? `${match[1]} \u00b7 ${match[2]}` : match[1]! : error;
   const reset = cardErrorReset(original, now);

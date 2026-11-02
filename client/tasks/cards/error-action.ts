@@ -6,6 +6,9 @@ import type { TasksLanguage } from "../i18n";
  */
 export function errorAction(error: string, language: TasksLanguage, hasReset = false): string | null {
   const zh = language === "zh";
+  if (/^Individual quota reached\. Please upgrade your subscription to increase your limits\. Resets in [\dhms]+\.$/i.test(error.trim())) {
+    return zh ? "查看账户用量，等待重置或升级订阅。" : "Check account usage, wait for the reset, or upgrade your subscription.";
+  }
   if (/credit_balance_exhausted|credit balance is too low|insufficient_quota/i.test(error)) {
     return zh ? "检查服务商的余额和用量限制，再继续未完成的工作。" : "Check the provider's balance and usage limits, then continue the unfinished work.";
   }
