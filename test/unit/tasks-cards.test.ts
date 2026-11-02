@@ -3365,7 +3365,7 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", "Check whether this issue is handled:", "The board\nThe sidebar\nThe sheet\nThe phone", "Show all · 6 lines"]);
     await act(async () => hostByTestId(tree.root, "detail-prompt-more").props.onPress());
     expect(hostByTestId(tree.root, "detail-prompt-text").props.style).toBeNull();
-    await act(async () => byLabel(tree.root, "Copy prompt").props.onPress());
+    await act(async () => byLabel(tree.root, "Copy prompt").props.onPress({ stopPropagation: vi.fn() }));
     expect(clipboard.copyText).toHaveBeenLastCalledWith(text);
 
     await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt: { prompt: { state: "idle" }, load } }, "en")));
@@ -3376,6 +3376,34 @@ describe("TaskDetailCards", () => {
     // The settings preview passes no prompt: no section.
     await act(async () => tree.update(details(sample("sample-failed"), {}, "en")));
     expect(tree.root.findAll((node) => node.props.testID === "detail-prompt")).toHaveLength(0);
+  });
+
+  it.each(["web", "ios", "android"])("toggles each entire message heading and keeps copying independent on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    resetSectionChoices();
+    try {
+      const read = (text: string) => ({ prompt: { state: "ready", text } as const, load: vi.fn() });
+      const tree = await render(details(sample("sample-failed"), { touch: os !== "web", firstPrompt: read("First prompt"), humanMessage: read("Follow-up"), lastMessage: read("Latest reply") }, "en"));
+      for (const [id, text] of [["detail-prompt", "First prompt"], ["detail-human", "Follow-up"], ["detail-message", "Latest reply"]] as const) {
+        const heading = () => hostByTestId(tree.root, `${id}-heading`);
+        expect(heading().type).toBe("Pressable");
+        expect(heading().props.accessibilityState.expanded).toBe(true);
+        const stopPropagation = vi.fn();
+        await act(async () => hostByTestId(tree.root, `${id}-copy`).props.onPress({ stopPropagation }));
+        expect(stopPropagation).toHaveBeenCalledOnce();
+        expect(clipboard.copyText).toHaveBeenLastCalledWith(text);
+        expect(heading().props.accessibilityState.expanded).toBe(true);
+        await act(async () => heading().props.onPress());
+        expect(heading().props.accessibilityState.expanded).toBe(false);
+        expect(tree.root.findAll((node) => node.props.testID === `${id}-text`)).toHaveLength(0);
+        await act(async () => heading().props.onPress());
+        expect(heading().props.accessibilityState.expanded).toBe(true);
+        expect(hostByTestId(tree.root, `${id}-text`)).toBeDefined();
+      }
+    } finally {
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+      resetSectionChoices();
+    }
   });
 
   it.each(["document", "compact", "terminal"] as const)("matches timeline %s spacing for desktop and touch messages", async (variant) => {
@@ -3415,7 +3443,7 @@ describe("TaskDetailCards", () => {
     const sections = tree.root.findAll((node) => typeof node.type === "string" && ["detail-prompt", "detail-message", "detail-location"].includes(node.props.testID));
     expect(sections.map((node) => node.props.testID)).toEqual(["detail-location", "detail-prompt", "detail-message"]);
     expect(texts(hostByTestId(tree.root, "detail-message"))).toEqual(["Last reply", "Four subagents failed."]);
-    await act(async () => byLabel(tree.root, "Copy message").props.onPress());
+    await act(async () => byLabel(tree.root, "Copy message").props.onPress({ stopPropagation: vi.fn() }));
     expect(clipboard.copyText).toHaveBeenLastCalledWith("Four subagents failed.");
 
     await act(async () => tree.update(details(sample("sample-failed"), { firstPrompt, lastMessage: { prompt: { state: "none" }, load } }, "zh")));
@@ -3488,7 +3516,7 @@ describe("TaskDetailCards", () => {
     expect(timing.mock.calls.filter(([, config]) => (config as { toValue: number }).toValue === FLASH.peak)).toHaveLength(0);
     await act(async () => tree.update(details({ ...running, lane: "done", status: "done" }, { lastMessage: reply("Hello **world**") }, "en")));
     expect(markdown().props.streaming).toBe(false);
-    await act(async () => byLabel(tree.root, "Copy message").props.onPress());
+    await act(async () => byLabel(tree.root, "Copy message").props.onPress({ stopPropagation: vi.fn() }));
     expect(clipboard.copyText).toHaveBeenLastCalledWith("Hello **world**");
     timing.mockRestore();
   });
@@ -3502,7 +3530,7 @@ describe("TaskDetailCards", () => {
     expect(tree.root.findAll((node) => node.props.testID === "detail-message-copy")).toHaveLength(0);
     await act(async () => tree.update(details(running, { lastMessage: { prompt: { state: "ready", text: "Reply" }, load } }, "zh")));
     expect(hostByTestId(tree.root, "detail-message-working").props.accessibilityLabel).toBe("正在回复");
-    await act(async () => byLabel(tree.root, "复制消息").props.onPress());
+    await act(async () => byLabel(tree.root, "复制消息").props.onPress({ stopPropagation: vi.fn() }));
     expect(clipboard.copyText).toHaveBeenLastCalledWith("Reply");
     await act(async () => tree.update(details({ ...running, lane: "done", status: "done" }, { lastMessage: { prompt: { state: "ready", text: "Reply" }, load } }, "zh")));
     expect(tree.root.findAll((node) => node.props.testID === "detail-message-working")).toHaveLength(0);
@@ -3536,7 +3564,7 @@ describe("TaskDetailCards", () => {
     const tree = await render(details(sample("sample-failed"), { firstPrompt, humanMessage, lastMessage }, "en"));
     expect(shown(tree)).toEqual(ids);
     expect(texts(hostByTestId(tree.root, "detail-human"))).toEqual(expect.arrayContaining(["Last sent message", "Retry the failed ones"]));
-    await act(async () => byLabel(tree.root, "Copy sent message").props.onPress());
+    await act(async () => byLabel(tree.root, "Copy sent message").props.onPress({ stopPropagation: vi.fn() }));
     expect(clipboard.copyText).toHaveBeenLastCalledWith("Retry the failed ones");
 
     // The first prompt again (one turn so far): its own section shows it.

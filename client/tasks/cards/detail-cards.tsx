@@ -939,21 +939,21 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
       {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginLeft: m.padH, marginRight: m.padH - gutter, backgroundColor: tokens.card.border }} /> : null}
       <View style={{ paddingTop: 4, paddingBottom: bottom, paddingLeft: m.padH - 6, paddingRight: m.padH - 6 - gutter }}>
         {messageSection ? (
-          <View testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
+          <Pressable {...ROW_ROLE} accessibilityLabel={props.closed ? words.expand(title) : words.collapse(title)} {...tipProps(props.closed ? words.expand(title) : words.collapse(title))} accessibilityState={{ expanded: !props.closed }} onPress={() => props.onToggleSection(!props.closed)} testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
             <View style={{ width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: detailColors(tokens).sunk }}>
               <Icon name={section === "message" ? "MessageSquareText" : "MessageCircle"} size={14} color={section === "message" ? tokens.success : tokens.foregroundMuted} />
             </View>
             <Text style={{ flex: 1, marginLeft: 6, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
             {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
             {read?.prompt.state === "ready" ? (
-              <Pressable accessibilityRole="button" accessibilityLabel={copyLabel} {...tipProps(copyLabel)} onPress={() => void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast })} hitSlop={4} testID={`${testID}-copy`} style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
+              <Pressable accessibilityRole="button" accessibilityLabel={copyLabel} {...tipProps(copyLabel)} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} hitSlop={4} testID={`${testID}-copy`} style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
                 <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
               </Pressable>
             ) : null}
-            <Pressable accessibilityRole="button" accessibilityLabel={props.closed ? words.expand(title) : words.collapse(title)} {...tipProps(props.closed ? words.expand(title) : words.collapse(title))} accessibilityState={{ expanded: !props.closed }} onPress={() => props.onToggleSection(!props.closed)} style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
+            <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
               <View style={{ transform: [{ rotate: props.closed ? "-90deg" : "0deg" }] }}><Icon name="ChevronDown" size={14} color={tokens.foregroundMuted} /></View>
-            </Pressable>
-          </View>
+            </View>
+          </Pressable>
         ) : (
           <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryTip={messageTime ? formatFullStamp(new Date(at)) : undefined} trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined} closed={props.closed} language={props.language} onPress={() => props.onToggleSection(!props.closed)} />
         )}
