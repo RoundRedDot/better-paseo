@@ -166,7 +166,7 @@ function DesktopToolbarView(props: {
         testID="desktop-toolbar-search"
         {...tipProps(`${strings.search} (/)`)}
         style={{
-          height: taskControlHeight(28, scale),
+          height: taskControlHeight(32, scale),
           flex: 1,
           minWidth: 0,
           flexDirection: "row",
