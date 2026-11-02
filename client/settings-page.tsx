@@ -642,7 +642,7 @@ function VersionSection({ look, language, version, autoUpdateCheck, native }: { 
   {state.state === "done" ? <Section title={t.releaseNotesTitle} look={look}>
     <View style={{ paddingHorizontal: space.lg, paddingVertical: look.compact ? 11 : 14 }}>
       {state.notes.status === "available"
-        ? <MarkdownView text={state.notes[language]} tokens={look.tokens} variant="compact" compact={look.compact} size={look.tokens.typography.ui.size} />
+        ? <MarkdownView text={state.notes[language]} tokens={look.tokens} variant="document" compact={look.compact} size={look.tokens.typography.ui.size} />
         : <Text style={[styles.rowNote, settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi }]}>
             {state.notes.status === "missing" ? t.releaseNotesMissing : t.releaseNotesUnavailable}
           </Text>}
