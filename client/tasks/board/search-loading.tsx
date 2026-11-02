@@ -147,7 +147,7 @@ export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme;
   const reduced = useReducedMotion();
   const scale = useTasksFontScale();
   const size = !compact && Platform.OS === "web" ? taskControlHeight(24, scale) : compact ? 36 : 32;
-  const iconSize = !compact && Platform.OS === "web" ? taskControlHeight(14, scale) : 16;
+  const iconSize = !compact && Platform.OS === "web" ? taskControlHeight(16, scale) : 16;
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);
   if (!context?.onFullConversationChange) return null;
@@ -155,7 +155,7 @@ export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme;
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
     accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={toggle} hitSlop={4} {...hoverProps}
     onPressIn={() => setPressed(true)} onPressOut={() => setPressed(false)}
-    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.colors.border, borderRadius: size / 2, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0, boxShadow: lift.shadow ? taskTokens(theme).card.buttonShadowHover : undefined, ...scaleStyle(lift.scale) }}>
+    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: !compact && Platform.OS === "web" && !hovered ? "transparent" : theme.colors.border, borderRadius: size / 2, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0, boxShadow: lift.shadow ? taskTokens(theme).card.buttonShadowHover : undefined, ...scaleStyle(lift.scale) }}>
     <Icon icon={on ? FULL_TEXT_SEARCH_ICON : OUTLINE_SEARCH_ICON} size={iconSize} color={theme.colors.foreground} />
   </Pressable>;
 }

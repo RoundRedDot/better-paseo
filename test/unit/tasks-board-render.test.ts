@@ -35,7 +35,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   }
   Modal.Content = (props: Props) => React.createElement("ModalContent", null, props.children);
   return {
-    Icon: (props: Props) => React.createElement("Icon", { name: props.name }),
+    Icon: (props: Props) => React.createElement("Icon", { name: props.name, size: props.size }),
     FlatList,
     Modal,
     ScrollView: rn.ScrollView,
@@ -394,6 +394,27 @@ describe("search coverage render isolation", () => {
 });
 
 describe("Tasks search coverage and centred toolbar", () => {
+  it("shows desktop toolbar outlines only on hover and enlarges their icons", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(2400);
+    for (const id of ["search-full-conversation-toggle", "desktop-toolbar-more", "sidebar-switch", "empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle"]) {
+      const button = () => hostsById(id)[0]!;
+      const outline = () => {
+        const node = id === "desktop-toolbar-more" || id === "empty-lanes-toggle"
+          ? button().findAll((child) => (child.type as unknown) === "View")[0]!
+          : button();
+        return StyleSheet.flatten(node.props.style).borderColor;
+      };
+      expect(outline(), id).toBe("transparent");
+      act(() => button().props.onHoverIn());
+      expect(outline(), id).toBe("#e2e2e6");
+      act(() => button().props.onHoverOut());
+      expect(outline(), id).toBe("transparent");
+      if (id !== "sidebar-switch") expect(button().find((node) => (node.type as unknown) === "Icon").props.size, id).toBe(17);
+    }
+    expect(StyleSheet.flatten(hostsById("panel-mark")[0]!.props.style)).toMatchObject({ width: 16, height: 13 });
+  });
   it("places the full-text switch outside the search field with an explanatory hover tip", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false)); });

@@ -43,6 +43,7 @@ const DIVIDER_MARGIN = 4;
 const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
 const roundButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 24 : 36, scale);
 const roundIconSize = (scale: number) => Platform.OS === "web" ? taskControlHeight(14, scale) : Math.round(roundButtonSize(scale) / 2);
+const actionIconSize = (scale: number) => Platform.OS === "web" ? taskControlHeight(16, scale) : roundIconSize(scale);
 const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale));
 
 export type EmptyLanes = { collapsed: boolean; disabled: boolean; onToggle(): void };
@@ -74,12 +75,13 @@ function MoreActions({ board, theme, items, updateAvailable }: { board: BoardCon
     <View style={{ zIndex: 20 }}>
     <RoundButton
       icon="MoreVertical"
+      quietOutline
       label={`${busy ? board.strings.refreshTasks : board.strings.more}${updateAvailable ? `, ${updateLabel}` : ""}`}
       theme={theme}
       onPress={() => setOpen(!open)}
       busy={busy}
       size={roundButtonSize(scale)}
-      iconSize={roundIconSize(scale)}
+      iconSize={actionIconSize(scale)}
       tip={busy ? `${board.strings.refreshTasks} (⌥R)` : board.strings.more}
       testID="desktop-toolbar-more"
     />
@@ -285,12 +287,13 @@ function EmptyLanesButton({ emptyLanes, strings, theme }: { emptyLanes: EmptyLan
   return (
     <RoundButton
       icon={emptyLanes.collapsed ? "UnfoldHorizontal" : "FoldHorizontal"}
+      quietOutline
       label={label}
       selected={emptyLanes.collapsed}
       disabled={emptyLanes.disabled}
       theme={theme}
       onPress={emptyLanes.onToggle}
-      size={roundButtonSize(scale)} iconSize={roundIconSize(scale)}
+      size={roundButtonSize(scale)} iconSize={actionIconSize(scale)}
       tip={`${label} (E)`}
       testID="empty-lanes-toggle"
     />
@@ -324,7 +327,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
         height: size,
         borderRadius: size / 2,
         borderWidth: HAIRLINE,
-        borderColor: colors.border,
+        borderColor: Platform.OS === "web" && !hovered ? "transparent" : colors.border,
         backgroundColor: props.open ? colors.surface2 : colors.surface0,
         boxShadow: lift.shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
         ...scaleStyle(lift.scale),
@@ -348,7 +351,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
   const spaceKeys = useSwitchSpace(props.onPress);
   const scale = useTasksFontScale();
   const size = roundButtonSize(scale);
-  const icon = roundIconSize(scale);
+  const icon = actionIconSize(scale);
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
   const reduced = useReducedMotion();
@@ -377,7 +380,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
         flexShrink: 0,
         borderRadius: size / 2,
         borderWidth: HAIRLINE,
-        borderColor: colors.border,
+        borderColor: Platform.OS === "web" && !hovered ? "transparent" : colors.border,
         backgroundColor: background,
         boxShadow: lift.shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
         ...scaleStyle(lift.scale),
@@ -405,7 +408,6 @@ export function PanelMark(props: { open: boolean; side: "right" | "bottom"; colo
       style={{
         width: 16,
         height: 13,
-        transform: Platform.OS === "web" ? [{ scale: 14 / 16 }] : undefined,
         borderWidth: 1.5,
         borderRadius: 2.5,
         borderColor: props.color,

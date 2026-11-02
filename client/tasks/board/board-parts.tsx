@@ -568,6 +568,7 @@ export function RoundButton(props: {
   tip?: string;
   /** A loading ring replaces the icon while true, read out as busy. */
   busy?: boolean;
+  quietOutline?: boolean;
 }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
@@ -598,7 +599,7 @@ export function RoundButton(props: {
           height: size,
           borderRadius: size / 2,
           borderWidth: HAIRLINE,
-          borderColor: props.active ? colors.accent : colors.border,
+          borderColor: props.quietOutline && Platform.OS === "web" && !hovered ? "transparent" : props.active ? colors.accent : colors.border,
           boxShadow: !props.disabled && lift.shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
           alignItems: "center",
           justifyContent: "center",
