@@ -287,7 +287,7 @@ describe("other detail callers", () => {
   });
   it("opens the checklist row menu from a task title instead of the old press preview", () => {
     render(<TaskList data={todo} tokens={tokens} />);
-    const title = renderer!.root.find((node) => String(node.type) === "Text" && node.props.onLongPress && textOf(node) === "Fix the bug");
+    const title = renderer!.root.find((node) => String(node.type) === "Text" && node.props.onLongPress && textOf(node) === "1. Fix the bug");
     expect(title.props.delayLongPress).toBe(500);
     act(() => title.props.onLongPress());
     expect(menuLabels()).toEqual(["Copy", "Open details", "Collapse in timeline"]);

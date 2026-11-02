@@ -75,10 +75,10 @@ function mount(element: React.ReactElement) {
 }
 
 function titles(root: Node) {
-  return root.findAll((node) => (node.type as unknown) === "Text" && data.tasks.some((task) => task.title === node.props.children));
+  return root.findAll((node) => (node.type as unknown) === "Text" && data.tasks.some((task, index) => `${index + 1}. ${task.title}` === node.props.children));
 }
 function title(root: Node, text: string) {
-  return titles(root).find((node) => node.props.children === text)!;
+  return titles(root).find((node) => node.props.children.endsWith(`. ${text}`))!;
 }
 function popOut(root: Node) {
   return root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Open tasks in a window");
@@ -196,11 +196,18 @@ describe("task status timeline", () => {
       const root = mount(React.createElement(TaskList, { data, tokens, full })).root;
       const connectors = root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "task-connector");
       expect(connectors).toHaveLength(2);
-      expect(connectors[1]!.parent!.parent!.findAll((node) => (node.type as unknown) === "Text" && node.props.children === LONG)).toHaveLength(1);
+      expect(connectors[1]!.parent!.parent!.findAll((node) => (node.type as unknown) === "Text" && node.props.children === `2. ${LONG}`)).toHaveLength(1);
       expect(root.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "CircleCheck")).toHaveLength(1);
       act(() => renderer!.unmount());
       renderer = undefined;
     }
+  });
+});
+
+describe("task numbering", () => {
+  it.each([false, true])("numbers every status in order with full=%s", (full) => {
+    const root = mount(React.createElement(TaskList, { data, tokens, full })).root;
+    expect(titles(root).map((node) => node.props.children)).toEqual(data.tasks.map((task, index) => `${index + 1}. ${task.title}`));
   });
 });
 

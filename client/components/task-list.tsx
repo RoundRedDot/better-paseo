@@ -414,7 +414,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
                     })}
                 style={[styles.title, unwrapped ? styles.titleUnwrapped : styles.titleFill, isDone && styles.titleDone]}
               >
-                {task.title}
+                {`${index + 1}. ${task.title}`}
               </Text>
               {isBlocked ? (
                 <Text
