@@ -79,9 +79,10 @@ const BUDGET = {
   notice: 5,
   /**
    * Four tasks: the header row and four task rows; the ring is a quarter full.
-   * The header's window button (its slot, press and icon) adds three.
+   * The header's window button adds three. Four row wrappers, three connectors,
+   * and the running task's circle add eight views for the status timeline.
    */
-  tasks: 30,
+  tasks: 38,
 } as const;
 
 describe("collapsed row view budget", () => {

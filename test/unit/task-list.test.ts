@@ -129,7 +129,7 @@ describe("a tapped task title", () => {
 
   it("no longer changes the task's status; the status slot still does", () => {
     const root = mount(React.createElement(TaskList, { data, tokens })).root;
-    const marks = () => root.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "Check");
+    const marks = () => root.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "CircleCheck");
     expect(marks()).toHaveLength(1);
     act(() => title(root, "Read the code").props.onPress());
     expect(marks()).toHaveLength(1);
@@ -180,13 +180,27 @@ describe("the header's progress mark", () => {
 
   it("is a ring while tasks remain", () => {
     const root = mount(React.createElement(TaskList, { data, tokens })).root;
-    expect(progress(root)).toEqual({ ring: 1, checks: [] });
+    expect(progress(root)).toEqual({ ring: 1, checks: [tokens.success] });
   });
 
   it("turns into a checked circle once every task is done, beside the header's own", () => {
     const done = { ...data, tasks: data.tasks.map((task) => ({ ...task, status: "completed" as const })) };
     const root = mount(React.createElement(TaskList, { data: done, tokens })).root;
-    expect(progress(root)).toEqual({ ring: 0, checks: [tokens.success, tokens.success] });
+    expect(progress(root)).toEqual({ ring: 0, checks: Array(5).fill(tokens.success) });
+  });
+});
+
+describe("task status timeline", () => {
+  it("connects adjacent tasks without extending beyond the first and last, including in the preview", () => {
+    for (const full of [false, true]) {
+      const root = mount(React.createElement(TaskList, { data, tokens, full })).root;
+      const connectors = root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "task-connector");
+      expect(connectors).toHaveLength(2);
+      expect(connectors[1]!.parent!.parent!.findAll((node) => (node.type as unknown) === "Text" && node.props.children === LONG)).toHaveLength(1);
+      expect(root.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "CircleCheck")).toHaveLength(1);
+      act(() => renderer!.unmount());
+      renderer = undefined;
+    }
   });
 });
 
@@ -285,7 +299,7 @@ describe("the checklist's floating panel", () => {
     }
     // Status marks stay in their slot, on the title's line.
     const row = inScroller[0]!.parent!.parent!;
-    expect(row.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "Check").length).toBeGreaterThan(0);
+    expect(row.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "CircleCheck").length).toBeGreaterThan(0);
   });
 
   it("has no hover, long press or window inside another preview", () => {

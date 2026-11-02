@@ -195,6 +195,25 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
           borderWidth: 1.5,
           borderColor: tokens.foregroundSubtle,
         },
+        activeRing: {
+          width: DISCLOSURE_HEADER.icon,
+          height: DISCLOSURE_HEADER.icon,
+          borderRadius: DISCLOSURE_HEADER.icon / 2,
+          borderWidth: 1.5,
+          borderColor: tokens.accent,
+          alignItems: "center",
+          justifyContent: "center",
+        },
+        connector: {
+          position: "absolute",
+          left: (DISCLOSURE_HEADER.icon - 1) / 2,
+          width: 1,
+          backgroundColor: tokens.border,
+        },
+        connectorBetween: {
+          top: (rowHeight + DISCLOSURE_HEADER.icon) / 2 + 2,
+          bottom: -((rowHeight - DISCLOSURE_HEADER.icon) / 2 - 2),
+        },
         title: {
           fontFamily: tokens.fontUi,
           fontSize: block.label.size,
@@ -344,16 +363,16 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
         </View>
       )}
 
-      {(!detailsEnabled || listExpanded ? tasks : []).map((task) => {
+      {(!detailsEnabled || listExpanded ? tasks : []).map((task, index) => {
         const isDone = task.status === "completed";
         const isActive = task.status === "in_progress";
         const isBlocked = task.status === "blocked";
         const isBlockedOpen = expandedBlockedId === task.id;
         const isOpen = full || expanded.has(task.id);
         const mark = isActive ? (
-          <RunningDot color={tokens.accent} accessibilityLabel="In progress" />
+          <View style={styles.activeRing}><RunningDot color={tokens.accent} accessibilityLabel="In progress" /></View>
         ) : isDone ? (
-          <Icon name="Check" size={DISCLOSURE_HEADER.icon} color={tokens.success} />
+          <Icon name="CircleCheck" size={DISCLOSURE_HEADER.icon} color={tokens.success} />
         ) : isBlocked ? (
           <Icon name="TriangleAlert" size={DISCLOSURE_HEADER.icon} color={tokens.warning} />
         ) : (
@@ -361,7 +380,8 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
         );
 
         return (
-          <React.Fragment key={task.id}>
+          <View key={task.id}>
+            {index < tasks.length - 1 ? <View pointerEvents="none" testID="task-connector" style={[styles.connector, styles.connectorBetween]} /> : null}
             <View style={[styles.row, isOpen ? styles.rowOpen : styles.rowClosed]}>
               {full ? (
                 <View style={[styles.slot, styles.slotOpen]}>{mark}</View>
@@ -420,7 +440,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
                 </Text>
               </FadeIn>
             ) : null}
-          </React.Fragment>
+          </View>
         );
       })}
       {detailsEnabled && menuAnchor ? <RowMenu anchor={menuAnchor} title="Tasks" hasBody
