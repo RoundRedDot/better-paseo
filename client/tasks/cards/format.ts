@@ -126,17 +126,59 @@ export function tildePath(path: string): string {
   return home ? `~${path.slice(home[0].length)}` : path;
 }
 
+/** When a limit lifts, as the error states it. */
+export interface CardErrorReset {
+  /** Claude's "your 5-hour limit resets …", as opposed to the limit itself resetting. */
+  fiveHour: boolean;
+  /** The provider's own wording ("5:30pm (Asia/Singapore)"), or a local clock time for an epoch. */
+  time: string;
+}
+
+/** The provider's time, up to the end of its sentence or its `·` segment, without the full stop. */
+const RESET_TIME = String.raw`([^\n\u00b7]+?)(?:\.(?:\s|$)|\s*(?:\u00b7|\n|$))`;
+const FIVE_HOUR_RESET = new RegExp(String.raw`your 5-hour limit resets (?:at )?` + RESET_TIME, "i");
+const RESET_AT = new RegExp(String.raw`\b(?:resets|try again at) (?:at )?` + RESET_TIME, "i");
+const DURATION = /^(?:in|after)\b|^\d+(?:\.\d+)?\s*(?:s|secs?|seconds?|m|mins?|minutes?|h|hrs?|hours?|d|days?)$/i;
+
+/**
+ * The instant a limit resets: "resets X", "try again at X", or Claude's
+ * "usage limit reached|<epoch seconds>". A duration ("resets in 5 minutes",
+ * "retry after 30 seconds") is not an instant and gives null, so the card
+ * keeps the provider's own words for it.
+ */
+export function cardErrorReset(error: string, now: number): CardErrorReset | null {
+  const epoch = /claude ai usage limit reached\|(\d{9,13})\b/i.exec(error);
+  if (epoch) {
+    const value = Number(epoch[1]);
+    return { fiveHour: false, time: formatClockTime(value < 1e12 ? value * 1000 : value, now) };
+  }
+  const fiveHour = FIVE_HOUR_RESET.exec(error);
+  const time = (fiveHour ?? RESET_AT.exec(error))?.[1]?.trim();
+  // A time of day or a date has a digit; "try again at a later time" is neither.
+  if (!time || !/\d/.test(time) || DURATION.test(time)) return null;
+  return { fiveHour: !!fiveHour, time };
+}
+
+function resetSuffix(reset: CardErrorReset | null, language: TasksLanguage): string {
+  if (!reset) return "";
+  return language === "zh"
+    ? ` · ${reset.fiveHour ? "5 小时额度" : "额度"}重置时间：${reset.time}`
+    : ` · ${reset.fiveHour ? "5-hour limit resets" : "Resets"} ${reset.time}`;
+}
+
+/** Reset or retry wording that `cardErrorReset` could not turn into an instant. */
+const UNPARSED_RESET = /\b(?:resets?|retry after|try again (?:at|in))\b|usage limit reached\|/i;
+
 /** Summarize recognized errors on the card; the details retain the full error. */
-export function formatCardError(error: string, provider: string, language: TasksLanguage): string {
+export function formatCardError(error: string, provider: string, language: TasksLanguage, now: number = Date.now()): string {
   const match = /^(You've hit your [^\n\u00b7]*limit) \u00b7 raise it at https:\/\/claude\.ai\/settings\/usage\?\S+(?: \u00b7 (.+))?$/.exec(error);
   const original = match ? match[2] ? `${match[1]} \u00b7 ${match[2]}` : match[1]! : error;
-  if (provider !== "claude") return formatProviderError(original, language);
+  const reset = cardErrorReset(original, now);
+  if (provider !== "claude") return formatProviderError(original, language, reset);
 
   const zh = language === "zh";
-  const reset = /your 5-hour limit resets ([^\n\u00b7]+)|(?:^|\u00b7)\s*resets ([^\n\u00b7]+)/i.exec(original);
-  const time = reset?.[1]?.trim() ?? reset?.[2]?.trim();
-  if (/claude ai usage limit reached\|\d+/i.test(error) || (!time && /\b(?:resets?|retry after|try again (?:at|in))\b/i.test(error))) return original;
-  const suffix = time ? zh ? ` · ${reset?.[1] ? "5 小时额度" : "额度"}重置时间：${time}` : ` · ${reset?.[1] ? "5-hour limit resets" : "Resets"} ${time}` : "";
+  if (!reset && UNPARSED_RESET.test(original)) return original;
+  const suffix = resetSuffix(reset, language);
   if (/monthly spend limit/i.test(error)) return (zh ? "Claude 月度支出已达上限" : "Claude monthly spending limit reached") + suffix;
   if (/org.s monthly usage limit/i.test(error)) return (zh ? "Claude 组织月度用量已达上限" : "Claude organization monthly usage limit reached") + suffix;
   if (/project_spend_limit_exceeded|organization_spend_limit_exceeded/i.test(error)) return (zh ? "Claude 支出已达上限" : "Claude spending limit reached") + suffix;
@@ -157,14 +199,17 @@ export function formatCardError(error: string, provider: string, language: Tasks
   return original;
 }
 
-function formatProviderError(error: string, language: TasksLanguage): string {
-  // Keep provider-specific reset and retry details until they can be displayed faithfully.
-  if (/\b(?:resets?|retry after|try again (?:at|in))\b/i.test(error)) return error;
+function formatProviderError(error: string, language: TasksLanguage, reset: CardErrorReset | null): string {
+  // A duration or an unrecognized reset keeps the provider's own words; an instant becomes the card's reset time.
+  if (!reset && UNPARSED_RESET.test(error)) return error;
   const zh = language === "zh";
-  if (/credit_balance_exhausted|credit balance is too low/i.test(error)) return zh ? "账户余额不足" : "Account balance is too low";
-  if (/insufficient_quota|individual quota reached/i.test(error)) return zh ? "账户额度不足" : "Account quota is insufficient";
-  if (/project_spend_limit_exceeded|organization_spend_limit_exceeded|monthly spend limit|org.s monthly usage limit/i.test(error)) return zh ? "账户或组织用量已达上限" : "Account or organization limit reached";
-  if (/subscription_sharing_usage_limit_exceeded|usage_limit_exceeded|you've hit your [^\n]*limit|you're out of extra usage/i.test(error)) return zh ? "账户用量已达上限" : "Account usage limit reached";
+  const suffix = resetSuffix(reset, language);
+  if (/credit_balance_exhausted|credit balance is too low/i.test(error)) return reset ? error : zh ? "账户余额不足" : "Account balance is too low";
+  if (/insufficient_quota|individual quota reached/i.test(error)) return (zh ? "账户额度不足" : "Account quota is insufficient") + suffix;
+  if (/project_spend_limit_exceeded|organization_spend_limit_exceeded|monthly spend limit|org.s monthly usage limit/i.test(error)) return (zh ? "账户或组织用量已达上限" : "Account or organization limit reached") + suffix;
+  if (/subscription_sharing_usage_limit_exceeded|usage_limit_exceeded|you've hit your [^\n]*limit|you're out of extra usage/i.test(error)) return (zh ? "账户用量已达上限" : "Account usage limit reached") + suffix;
+  // Past here no summary is a limit that resets: a time beside it would be read as one.
+  if (reset) return error;
   if (/rate_limit_exceeded|rate_limit_error|rate limit (?:reached|exceeded)|too many requests/i.test(error)) return zh ? "请求过于频繁" : "Request rate limit reached";
   if (/context_length_exceeded|context window (?:is )?(?:full|exceeded)|prompt is too long|maximum context length/i.test(error)) return zh ? "上下文过长" : "Context is too long";
   if (/invalid api key|authentication_error|authentication failed|unauthorized|please authenticate|token_expired|invalid_refresh_token|\b(?:http|status|api error:)\s*401\b/i.test(error)) return zh ? "登录或 API 凭据有问题" : "Sign-in or API credentials need attention";

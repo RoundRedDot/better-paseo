@@ -14,7 +14,7 @@ import type { PermissionButton, StopPhase } from "../actions";
 import { activeStopChildren } from "../actions/stop-targets";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { opensInPaseo, parentOpensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
-import { contextRatio, formatCardError, tildePath } from "./format";
+import { cardErrorReset, contextRatio, formatCardError, tildePath } from "./format";
 import { errorAction } from "./error-action";
 import { cardStart, cardTimer, startHint, timerHint } from "./card-time";
 import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
@@ -782,8 +782,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     marginTop: m.rowGap,
     paddingTop: m.rowGap,
     borderTopWidth: 1,
-    borderTopColor: failed && !props.current && !props.highlighted ? look.failedBorder : look.border,
+    borderTopColor: look.border,
   };
+  // The shared block rule is 1 px. A failed card's rules (its reason and its
+  // subtasks) are the 0.5 pt danger outline, selected or not. On the web that
+  // outline is an inset shadow, so the 1 px border has to be cleared first or
+  // it stays and the line reads as a whole pixel.
+  const failedRule: ViewStyle[] | null = failed
+    ? [{ borderTopWidth: 0 }, buttonOutline(look.failedBorder, { right: null, bottom: null, left: null })]
+    : null;
 
   const location = card.location;
   const metaParts: string[] = [];
@@ -1355,17 +1362,14 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   // Lane blocks ------------------------------------------------------------
   const iconCell: ViewStyle = { width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" };
-  const failureAction = card.error && !card.stoppedManually ? errorAction(card.error, language) : null;
-  // The shared block rule is 1 px. A failed card's rule is the 0.5 pt outline.
-  // On the web that outline is an inset shadow, so the 1 px border has to be
-  // cleared first or it stays and the line reads as a whole pixel.
-  const failedRule = failed && !props.current && !props.highlighted;
+  // The reset time and the next step read the same instant; `now` only tells today from another day.
+  const errorNow = props.now ?? Date.now();
+  const failureAction = card.error && !card.stoppedManually ? errorAction(card.error, language, cardErrorReset(card.error, errorNow) !== null) : null;
   const failure = layout.failure ? (
     <View
       style={[
         block,
-        failedRule ? { borderTopWidth: 0 } : null,
-        failedRule ? buttonOutline(look.failedBorder, { right: null, bottom: null, left: null }) : null,
+        failedRule,
         { flexDirection: "row", alignItems: "flex-start", gap: GAP },
       ]}
       testID="task-card-reason"
@@ -1380,7 +1384,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         )}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={text(m.blockSize, m.blockLine, failed ? tokens.danger : muted)}>{formatCardError(card.error!, card.provider, language)}</Text>
+        {/* Three lines at most: the details keep the whole error. */}
+        <Text numberOfLines={3} style={text(m.blockSize, m.blockLine, failed ? tokens.danger : muted)}>{formatCardError(card.error!, card.provider, language, errorNow)}</Text>
         {failureAction ? <Text testID="task-card-error-action" style={[text(m.blockSize, m.blockLine, muted), { marginTop: 4 }]}>{failureAction}</Text> : null}
       </View>
     </View>
@@ -1435,7 +1440,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const subtaskList =
     layout.subtasks ? (
       <SubtaskPanel expanded={expanded} animated={props.animated}>
-        <View style={[block, { paddingTop: m.rowGap - 4 }]} testID="task-card-subtasks">
+        <View style={[block, failedRule, { paddingTop: m.rowGap - 4 }]} testID="task-card-subtasks">
           {card.children.map((child) => (
             <SubtaskRow
               key={child.id}

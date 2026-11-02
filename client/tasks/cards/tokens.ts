@@ -88,10 +88,11 @@ export interface CardTokens {
   /** The card the details sidebar shows: the accent at 7% over the card, and its border mixed 45% towards the accent. */
   current: string;
   currentBorder: string;
-  /** A failed card: the danger hue at 5% over the card (8% dark). The card stays this colour on hover and press. */
+  /** A failed card: the danger hue at 5% over the card (8% dark). It stays this colour on desktop hover and iPad press. */
   failed: string;
-  /** The stronger danger mix, kept for contrast. A failed card does not paint it. */
+  /** The stronger danger mix (8%, 12% dark): a failed phone card while it is pressed or its menu is open. */
   failedHover: string;
+  /** A failed card's outline and its 0.5 pt block rules, selected or not. */
   failedBorder: string;
   /**
    * The card's coloured buttons are outlines: a hairline, label and icon in

@@ -178,6 +178,9 @@ const DARK = {
 
 const NOW = Date.parse("2026-10-20T09:00:00.000Z");
 
+/** A provider error longer than the card shows: six lines of a stack. */
+const LONG_ERROR = ["Unexpected provider failure", "  at step one", "  at step two", "  at step three", "  at step four", "  at step five"].join("\n");
+
 describe("unavailable task operations", () => {
   const hints = (tree: ReactTestRenderer) => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-availability-hint");
 
@@ -3591,6 +3594,13 @@ describe("TaskDetailCards", () => {
     expect(icons(hostByTestId(tree.root, "detail-error"))).toEqual(["OctagonX"]);
   });
 
+  it("keeps a reason the card caps at three lines whole in details", async () => {
+    const failed = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, error: LONG_ERROR };
+    const tree = await render(details(failed, {}, "zh"));
+    const body = hostByTestId(tree.root, "detail-error").find((node) => (node.type as unknown) === "Text" && node.props.children === LONG_ERROR);
+    expect(body.props.numberOfLines).toBeUndefined();
+  });
+
   it("keeps the full Claude limit error in details", async () => {
     const error = "You've hit your monthly spend limit · raise it at https://claude.ai/settings/usage?from=cc_cli_limit_message · your 5-hour limit resets 5:30pm (Asia/Singapore)";
     const card = { ...sample("sample-failed"), error };
@@ -4068,20 +4078,78 @@ describe("TaskCardView chrome", () => {
     const tree = await render(cardElement(failed));
     const surface = () => flat(hostByTestId(tree.root, "task-card-sample-done").props.style);
     expect(surface()).toMatchObject({ backgroundColor: tokens.card.failed, borderColor: tokens.card.failedBorder });
-    const rule = () => flat(hostByTestId(tree.root, "task-card-reason").props.style);
-    expect(rule()).toMatchObject({ borderTopWidth: 0.5, borderTopColor: tokens.card.failedBorder });
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onHoverIn());
     expect(surface().backgroundColor).toBe(tokens.card.failed);
     await act(async () => tree.update(cardElement(failed, { current: true })));
     expect(surface()).toMatchObject({ backgroundColor: tokens.card.current, borderColor: tokens.card.currentBorder });
-    expect(rule().borderTopWidth).toBe(1);
+    await act(async () => tree.update(cardElement(failed, { highlighted: true })));
+    expect(surface()).toMatchObject({ backgroundColor: tokens.card.highlight, borderColor: tokens.accent });
+    // The reason keeps its danger red under the selection.
+    const reason = tree.root.find((node) => (node.type as unknown) === "Text" && node.props.children === "Claude 用量已达上限");
+    expect(flat(reason.props.style).color).toBe(tokens.danger);
+  });
+
+  it("mixes the failed tint at 5% on a light theme and 8% on a dark one", async () => {
+    for (const [theme, ratio] of [[LIGHT, 0.05], [DARK, 0.08]] as const) {
+      const tokens = buildTaskTokens(theme.colors);
+      expect(tokens.card.failed).toBe(mix(tokens.card.background, tokens.danger, ratio));
+      const failed = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, error: "HTTP 503" };
+      const tree = await render(cardElement(failed, { theme }));
+      expect(flat(hostByTestId(tree.root, "task-card-sample-done").props.style).backgroundColor).toBe(tokens.card.failed);
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
+  });
+
+  it("deepens a failed phone card's tint while it is pressed, and drops it after", async () => {
+    const tokens = buildTaskTokens(LIGHT.colors);
+    const failed = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, error: "HTTP 503" };
+    const tree = await render(cardElement(failed, { compact: true }));
+    const card = () => hostByTestId(tree.root, "task-card-sample-done");
+    await act(async () => card().props.onPressIn());
+    expect(flat(card().props.style).backgroundColor).toBe(tokens.card.failedHover);
+    await act(async () => card().props.onPressOut());
+    expect(flat(card().props.style).backgroundColor).toBe(tokens.card.failed);
+  });
+
+  it("draws a failed card's reason and subtask rules at 0.5 pt, selected or not", async () => {
+    const tokens = buildTaskTokens(LIGHT.colors);
+    const failed = { ...sample("sample-running"), lane: "review" as const, status: "failed" as const, stoppable: false, error: "HTTP 503" };
+    const states = [{}, { current: true }, { highlighted: true }];
+    const rules = (tree: ReactTestRenderer) => ["task-card-reason", "task-card-subtasks"].map((id) => flat(hostByTestId(tree.root, id).props.style));
+    const tree = await render(cardElement(failed, { subtasksExpanded: true }));
+    for (const state of states) {
+      await act(async () => tree.update(cardElement(failed, { subtasksExpanded: true, ...state })));
+      for (const rule of rules(tree)) expect(rule).toMatchObject({ borderTopWidth: 0.5, borderTopColor: tokens.card.failedBorder });
+    }
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     try {
-      await act(async () => tree.update(cardElement(failed)));
-      expect(rule()).toMatchObject({ borderTopWidth: 0, boxShadow: `inset 0 0.5px 0 0 ${tokens.card.failedBorder}` });
+      for (const state of states) {
+        await act(async () => tree.update(cardElement(failed, { subtasksExpanded: true, ...state })));
+        for (const rule of rules(tree)) expect(rule).toMatchObject({ borderTopWidth: 0, boxShadow: `inset 0 0.5px 0 0 ${tokens.card.failedBorder}` });
+      }
     } finally {
       delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
     }
+    // Any other card keeps the shared 1 px rule.
+    const running = sample("sample-running");
+    await act(async () => tree.update(cardElement(running, { subtasksExpanded: true, current: true })));
+    expect(flat(hostByTestId(tree.root, "task-card-subtasks").props.style)).toMatchObject({ borderTopWidth: 1, borderTopColor: tokens.card.border });
+  });
+
+  it("caps a long reason at three lines on the card", async () => {
+    const failed = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, error: LONG_ERROR };
+    const tree = await render(cardElement(failed));
+    const reason = hostByTestId(tree.root, "task-card-reason").find((node) => (node.type as unknown) === "Text" && node.props.children === LONG_ERROR);
+    expect(reason.props.numberOfLines).toBe(3);
+  });
+
+  it("puts a limit's reset time on the card and waits for it in the next step", async () => {
+    const card = { ...sample("sample-done"), provider: "codex", lane: "review" as const, status: "failed" as const, error: "You've hit your usage limit. Upgrade to Pro or try again at 3:04 PM." };
+    const tree = await render(cardElement(card));
+    expect(texts(hostByTestId(tree.root, "task-card-reason"))).toEqual(["账户用量已达上限 · 额度重置时间：3:04 PM", "额度重置后继续未完成的工作。"]);
+    await act(async () => tree.update(cardElement({ ...card, error: "You've hit your usage limit. Try again in 5 minutes." }, { language: "en" })));
+    expect(texts(hostByTestId(tree.root, "task-card-reason"))).toEqual(["You've hit your usage limit. Try again in 5 minutes.", "Check account usage and continue once the limit is restored."]);
   });
 
   it("keeps the phone card tint while its long-press menu is open", async () => {
