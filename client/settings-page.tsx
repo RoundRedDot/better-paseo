@@ -624,6 +624,7 @@ function VersionSection({ look, language, version, autoUpdateCheck, native }: { 
   {(updateAvailable || orderUnknown) && state.state === "done" ? <Section title={orderUnknown ? t.versionMarketCommand : t.versionUpdateCommand} look={look}>
       <View style={{ paddingHorizontal: space.lg, paddingVertical: look.compact ? 11 : 14, gap: space.sm }}>
         <Text style={[styles.rowNote, settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi }]}>{orderUnknown ? t.versionMarketCommandHint : t.versionCommandHint}</Text>
+        {orderUnknown ? <Text style={[styles.rowNote, settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi }]}>{t.versionCommandHint}</Text> : null}
         <CommandBand tokens={look.tokens} style={{ borderLeftWidth: 0, borderRadius: radiusV2.block }}>
           <SelectableText {...selectionCodeText} style={{ fontFamily: look.tokens.fontMono, fontSize: look.tokens.typography.mono.size, lineHeight: look.tokens.typography.mono.lineHeight, color: look.tokens.row.outputText, backgroundColor: "transparent" }}>
             <SelectableSpan style={{ color: look.tokens.row.meta }}>{"$ "}</SelectableSpan>{command}

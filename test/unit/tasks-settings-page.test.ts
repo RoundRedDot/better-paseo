@@ -654,6 +654,7 @@ it("shows the revision and an explanation when the version map is unavailable", 
   expect(textOf(r.root)).toContain("Latest version2222222");
   expect(textOf(r.root)).not.toContain(SETTINGS_STRINGS.en.versionUnmapped);
   expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionMarketCommandHint);
+  expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionCommandHint);
   expect(button(r, SETTINGS_STRINGS.en.versionCopyMarketCommand)).toBeTruthy();
   expect(textOf(r.root.findByType(CommandBand))).toBe("$ paseo plugin update better-paseo");
   expect(byTestID(r, "update-badge")).toHaveLength(0);
@@ -679,7 +680,7 @@ it.each([
     SETTINGS_STRINGS.en.versionUpdateCommand,
     SETTINGS_STRINGS.en.releaseNotesTitle,
   ]);
-  expect(textOf(r.root)).toContain("Copy and run this command on the host running Paseo.");
+  expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionCommandHint);
   expect(textOf(r.root)).toContain(command);
   expect(textOf(r.root.findByType(CommandBand))).toBe(`$ ${command}`);
   expect(r.root.findAll((node) => node.props.accessibilityLabel === "Go to update")).toHaveLength(0);
