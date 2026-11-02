@@ -35,6 +35,8 @@ export const highlightRpc = defineRpc({
     filename: z.string().optional(),
     dark: z.boolean(),
     diffBodyCode: z.string().optional(),
+    /** Paseo's Appearance > Syntax theme id; absent means the daemon's own GitHub pair. */
+    syntaxTheme: z.string().optional(),
   }),
   output: z.object({
     /** One entry per code line, in order; each line is its tokens in order. */

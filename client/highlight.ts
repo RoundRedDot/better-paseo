@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRpc } from "@getpaseo/plugin/client";
-import { highlightRpc, type HighlightLine, type HighlightToken } from "../shared/highlight-rpc";
+import {
+  highlightRpc,
+  type HighlightLine,
+  type HighlightToken,
+} from "../shared/highlight-rpc";
 import { perfCount, probeHighlightRpc } from "./debug/perf";
 
 export type { HighlightLine, HighlightToken };
@@ -11,6 +15,8 @@ export interface HighlightRequest {
   filename?: string;
   dark: boolean;
   diffBodyCode?: string;
+  /** Paseo's Appearance > Syntax theme id, so the daemon picks the reader's palette. */
+  syntaxTheme?: string;
   /** False: answer from the cache only and never call the daemon. */
   enabled?: boolean;
 }
@@ -82,6 +88,7 @@ function fnv1a(str: string): string {
 function cacheKey(request: HighlightRequest): string {
   return [
     request.dark ? "dark" : "light",
+    request.syntaxTheme ?? "",
     request.language ?? "",
     request.filename ?? "",
     String(request.code.length),
@@ -162,6 +169,7 @@ type HighlightCall = (input: {
   language?: string;
   filename?: string;
   dark: boolean;
+  syntaxTheme?: string;
   diffBodyCode?: string;
 }) => Promise<unknown>;
 
@@ -179,6 +187,7 @@ function fetchLines(key: string, call: HighlightCall, request: HighlightRequest)
     language: request.language,
     filename: request.filename,
     dark: request.dark,
+    syntaxTheme: request.syntaxTheme,
     diffBodyCode: request.diffBodyCode ? request.diffBodyCode : undefined,
   })
     .then((answer) => {
@@ -202,12 +211,12 @@ function fetchLines(key: string, call: HighlightCall, request: HighlightRequest)
  */
 export function useHighlightedLines(request: HighlightRequest): HighlightResponse {
   const call: HighlightCall = useRpc(highlightRpc);
-  const { code, language, filename, dark, diffBodyCode, enabled = true } = request;
+  const { code, language, filename, dark, syntaxTheme, diffBodyCode, enabled = true } = request;
   const key = useMemo(() => {
     if (code.length === 0) return null;
     perfCount("highlight.cacheKey");
     return cacheKey(request);
-  }, [code, language, filename, dark, diffBodyCode]);
+  }, [code, language, filename, dark, syntaxTheme, diffBodyCode]);
   // Reading the cache during render, not in an effect, is what removes the
   // unhighlighted frame on a block that was tokenised once already.
   const cached = key !== null ? (cache.get(key) ?? null) : null;
@@ -216,13 +225,13 @@ export function useHighlightedLines(request: HighlightRequest): HighlightRespons
   useEffect(() => {
     if (!enabled || key === null || cache.has(key)) return;
     let mounted = true;
-    void fetchLines(key, call, { code, language, filename, dark, diffBodyCode }).then(() => {
+    void fetchLines(key, call, { code, language, filename, dark, syntaxTheme, diffBodyCode }).then(() => {
       if (mounted) bumpRevision((revision) => revision + 1);
     });
     return () => {
       mounted = false;
     };
-  }, [key, call, code, language, filename, dark, diffBodyCode, enabled]);
+  }, [key, call, code, language, filename, dark, syntaxTheme, diffBodyCode, enabled]);
 
   return cached ?? EMPTY_RESPONSE;
 }

@@ -20,7 +20,9 @@ vi.mock("@getpaseo/plugin/client/react-native", () => ({ TextInput: "TextInput",
 vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => state.language, resolveTasksLanguage: () => state.language }));
 vi.mock("../../client/tasks/chunk/load", async () => import("../../client/tasks/settings/tasks-panel"));
 vi.mock("../../client/state/preference-sync-slot", () => ({ usePreferenceSettings: () => ({ status: "ready", failed: false }) }));
-vi.mock("../../client/ui/tokens/host-appearance-shim", () => ({ useHostAppearance: () => null, builtinNativeRead: () => null }));
+vi.mock("../../client/ui/tokens/host-appearance-shim", async (original) => ({
+  ...await original<object>(), useHostAppearance: () => null, builtinNativeRead: () => null,
+}));
 vi.mock("../../client/i18n/host-language", async (original) => ({ ...await original<object>(), useHostLanguageVersion() {} }));
 vi.mock("../../client/ui/wide-host-column", () => ({ useWideHostColumn() {} }));
 vi.mock("../../client/settings-preview", () => ({ SettingsPreview: () => null }));
