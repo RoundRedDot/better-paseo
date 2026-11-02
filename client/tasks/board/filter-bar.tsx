@@ -165,7 +165,7 @@ function DesktopToolbarView(props: {
         {...tipProps(`${strings.search} (/)`)}
         style={{
           height: taskControlHeight(28, scale),
-          width: 220,
+          width: 400,
           maxWidth: "100%",
           flexShrink: 1,
           minWidth: 0,
