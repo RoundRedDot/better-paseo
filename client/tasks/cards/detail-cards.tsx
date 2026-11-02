@@ -1637,7 +1637,8 @@ function TimelineTextBody(props: Inner & {
         </View>
       </View>
       {long ? <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Pressable accessibilityRole="button" {...tipProps(expanded ? words.showLess : words.showAll(lines.length))} onPress={() => query ? setSearchFold({ query, closed: expanded }) : setOpen((was) => !was)} hitSlop={4} testID={`${id}-more`}>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded }} {...tipProps(expanded ? words.showLess : words.showAll(lines.length))} onPress={() => query ? setSearchFold({ query, closed: expanded }) : setOpen((was) => !was)} hitSlop={4} testID={`${id}-more`} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Icon name={expanded ? "ChevronUp" : "ChevronDown"} size={14} color={tokens.foregroundMuted} />
             <Text style={{ fontSize: small, color: tokens.foregroundMuted }}>{expanded ? words.showLess : words.showAll(lines.length)}</Text>
           </Pressable>
       </View> : null}
