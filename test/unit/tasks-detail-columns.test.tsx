@@ -25,7 +25,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 vi.mock("../../client/components/markdown/markdown-view", () => ({ MarkdownView: () => null }));
 
 import { TaskDetailCards, type TaskDetailCardsProps } from "../../client/tasks/cards/detail-cards";
-import { ScrollView } from "@getpaseo/plugin/client/react-native";
+import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
 import { taskTokens } from "../../client/tasks/cards/tokens";
 import { permissionButtons } from "../../client/tasks/actions";
 import { useLastMessage } from "../../client/tasks/data/last-message";
@@ -73,17 +73,24 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
-  it("shows the complete pending question in the phone messages tab", async () => {
+  it.each([false, true])("shows a read-only pending question with selection marks (multiSelect: %s)", async (multiSelect) => {
     const base = props(false);
     const card = { ...base.card, lane: "needs_input" as const, permission: {
       requestId: "q", kind: "question" as const, title: "Question", summary: "Keep the timer?", actions: [], remaining: 0,
-      questions: [{ question: "Keep the timer?", multiSelect: false, options: [{ label: "Keep", description: "Shows elapsed time" }, { label: "Remove", description: "Matches iOS" }] }],
+      questions: [{ question: "Keep the timer?", multiSelect, options: [{ label: "Keep", description: "Shows elapsed time" }, { label: "Remove", description: "Matches iOS" }] }],
     } };
     await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...base} card={card} columns={false} tabs scrollHeader />); });
     const messages = host(renderer!.root, "detail-tab-messages-content");
     const question = host(messages, "detail-pending-questions");
     const text = question.findAll((node) => (node.type as unknown) === "Text").map((node) => node.props.children);
     expect(text).toEqual(expect.arrayContaining(["Keep the timer?", "Keep", "Shows elapsed time", "Remove", "Matches iOS"]));
+    expect(StyleSheet.flatten(host(question, "detail-pending-question").props.style)).toMatchObject({ borderWidth: 1, backgroundColor: THEME.colors.surface1 });
+    const options = question.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-pending-option");
+    expect(options).toHaveLength(2);
+    for (const option of options) {
+      expect(option.findByType(Icon).props.name).toBe(multiSelect ? "Square" : "Circle");
+      expect(option.props.onPress).toBeUndefined();
+    }
   });
   it("uses larger detail tabs on desktop", async () => {
     await act(async () => {
