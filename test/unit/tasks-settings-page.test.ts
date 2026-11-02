@@ -45,7 +45,6 @@ const { resetTasksEnabled, setTasksBoardOpener, tasksEnabled } = await import(".
 const { SETTINGS_STRINGS } = await import("../../client/i18n/settings-page-strings");
 const { resetEnabledNotice } = await import("../../client/tasks/settings/use-tasks-form");
 const { BetterPaseoSettingsPage } = await import("../../client/settings-page");
-const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
 const { CommandBand } = await import("../../client/ui/command-band");
 const { Section, SettingRow } = await import("../../client/settings-controls");
 const { setSettingsTab } = await import("../../client/settings-tab");
@@ -499,7 +498,7 @@ describe("Tasks half of the settings page", () => {
 it("checks the plugin directory version from its settings tab", async () => {
   makeSettings();
   setSettingsTab("display");
-  state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValueOnce({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0", currentBuild: 202610311637, latestBuild: 202610311557 }, notes: { status: "available", en: "- Fix scrolling", zh: "- 修复滚动" } });
+  state.rpc.mockResolvedValueOnce({ state: "idle" }).mockResolvedValueOnce({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.0", currentBuild: 202610311637, latestBuild: 202610311557 }, notes: { status: "available", releases: [{ version: "1.0.0", en: ["Fix scrolling"], zh: ["修复滚动"] }] } });
   let r!: Renderer;
   act(() => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
   await act(async () => { radio(r, SETTINGS_STRINGS.en.tabsLabel, SETTINGS_STRINGS.en.tabVersion).props.onPress(); });
@@ -509,7 +508,7 @@ it("checks the plugin directory version from its settings tab", async () => {
   expect(textOf(r.root)).toContain("Current version1.0.1(1111111)");
   expect(textOf(r.root)).toContain("Latest version1.0.0(2222222)");
   expect(textOf(r.root)).not.toContain("202610311637");
-  expect(r.root.findByType(MarkdownView).props.text).toBe("- Fix scrolling");
+  expect(textOf(r.root)).toContain("Fix scrolling");
   expect(r.root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === SETTINGS_STRINGS.en.releaseNotesTitle)).toHaveLength(1);
   act(() => r.unmount());
 });
@@ -530,12 +529,35 @@ it("shows the latest release notes even when the installation is up to date", as
   makeSettings();
   setSettingsTab("version");
   state.rpc.mockReset();
-  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "1".repeat(40), matches: true, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.1", currentBuild: 202610311637, latestBuild: 202610311637 }, notes: { status: "available", en: "- Market release notes", zh: "- 市场版本说明" } });
+  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "1".repeat(40), matches: true, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.0.1", currentBuild: 202610311637, latestBuild: 202610311637 }, notes: { status: "available", releases: [{ version: "1.0.1", en: ["Market release notes"], zh: ["市场版本说明"] }] } });
   let r!: Renderer;
   await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
-  expect(r.root.findByType(MarkdownView).props.text).toBe("- Market release notes");
+  expect(textOf(r.root)).toContain("Market release notes");
   expect(byTestID(r, "update-badge")).toHaveLength(0);
   expect(r.root.findAll((node) => node.props.accessibilityLabel === "Copy update command")).toHaveLength(0);
+  act(() => r.unmount());
+});
+
+it.each(["en", "zh"] as const)("renders version summaries with wrapping text in %s", async (language) => {
+  makeSettings();
+  updateEnhancerPreferences({ language });
+  setSettingsTab("version");
+  state.rpc.mockReset();
+  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "1".repeat(40), matches: true, checkedAt: 1,
+    versions: { status: "available", current: "1.1.5", latest: "1.1.5", currentBuild: 202611020746, latestBuild: 202611020746 },
+    notes: { status: "available", releases: [
+      { version: "1.1.5", en: ["A long update that wraps naturally"], zh: ["一条会自动换行的更新说明"] },
+      { version: "1.1.4", en: ["Previous update"], zh: ["上一版本更新"] },
+    ] } });
+  let r!: Renderer;
+  await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "ios", compact: true } as never, host: {} as never })); });
+  const text = language === "en" ? "A long update that wraps naturally" : "一条会自动换行的更新说明";
+  const body = r.root.find((node) => (node.type as unknown) === "Text" && node.props.children === text);
+  expect(StyleSheet.flatten(body.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
+  expect(body.props.numberOfLines).toBeUndefined();
+  expect(textOf(r.root)).toContain("1.1.5");
+  expect(textOf(r.root)).toContain("1.1.4");
+  expect(textOf(r.root)).not.toContain(language === "en" ? "一条会自动换行的更新说明" : "A long update that wraps naturally");
   act(() => r.unmount());
 });
 

@@ -38,18 +38,18 @@ describe("market update check", () => {
       return new Response(JSON.stringify({ releases: [
         { hash: current, version: "1.0.1", build: 202610311637, notes: { zh: "- 当前版本", en: "- Installed version" } },
         { hash: latest, version: "1.0.0", build: 202610311557, notes: { zh: "- 修复滚动", en: "- Fix scrolling" } },
-      ] }));
+      ], versionNotes: [{ version: "1.0.0", build: 202610311557, zh: ["修复滚动"], en: ["Fix scrolling"] }] }));
     });
     const check = createUpdateCheck({ fetchVersion: fetchVersion as typeof fetch, connect });
     check("check");
-    expect(await finish(check)).toMatchObject({ state: "done", matches: false, versions: { status: "available", current: "1.0.1", latest: "1.0.0" }, notes: { status: "available", zh: "- 修复滚动", en: "- Fix scrolling" } });
+    expect(await finish(check)).toMatchObject({ state: "done", matches: false, versions: { status: "available", current: "1.0.1", latest: "1.0.0" }, notes: { status: "available", releases: [{ version: "1.0.0", zh: ["修复滚动"], en: ["Fix scrolling"] }] } });
     expect(String(fetchVersion.mock.calls[1]?.[0])).toBe("https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/releases.json");
     expect(fetchVersion).toHaveBeenCalledTimes(2);
   });
 
   it("does not invent a version or notes when a revision is missing", async () => {
     const connect = vi.fn(async () => ({ listPlugins: async () => plugins, close: async () => {} }) as never);
-    const fetchVersion = (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh") ? market() : new Response(JSON.stringify({ releases: [{ hash: current, version: "1.0.1", build: 202610311637, notes: { zh: "- 当前", en: "- Installed" } }] }))) as typeof fetch;
+    const fetchVersion = (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh") ? market() : new Response(JSON.stringify({ releases: [{ hash: current, version: "1.0.1", build: 202610311637, notes: { zh: "- 当前", en: "- Installed" } }], versionNotes: [] }))) as typeof fetch;
     const check = createUpdateCheck({ fetchVersion, connect });
     check("check");
     expect(await finish(check)).toMatchObject({ state: "done", versions: { status: "available", current: "1.0.1", latest: null }, notes: { status: "missing" } });
@@ -60,10 +60,35 @@ describe("market update check", () => {
     const fetchVersion = (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh") ? market(current) : new Response(JSON.stringify({ releases: [
       { hash: latest, version: "1.1.0", build: 202610311700, notes: { zh: "未发布", en: "Unpublished" } },
       { hash: current, version: "1.0.1", build: 202610311637, notes: { zh: "市场版本说明", en: "Market release notes" } },
-    ] }))) as typeof fetch;
+    ], versionNotes: [{ version: "1.0.1", build: 202610311637, zh: ["市场版本说明"], en: ["Market release notes"] }, { version: "1.1.0", build: 202610311700, zh: ["未发布"], en: ["Unpublished"] }] }))) as typeof fetch;
     const check = createUpdateCheck({ fetchVersion, connect });
     check("check");
-    expect(await finish(check)).toMatchObject({ state: "done", matches: true, notes: { status: "available", zh: "市场版本说明", en: "Market release notes" } });
+    expect(await finish(check)).toMatchObject({ state: "done", matches: true, notes: { status: "available", releases: [{ version: "1.0.1", zh: ["市场版本说明"], en: ["Market release notes"] }] } });
+  });
+
+  it("shows only the three newest distinct versions available at the marketplace build", async () => {
+    const connect = vi.fn(async () => ({ listPlugins: async () => plugins, close: async () => {} }) as never);
+    const versionNotes = ["1.1.2", "1.1.5", "1.1.3", "1.1.6", "1.1.4"].map((version, i) => ({
+      version, build: 202611010000 + Number(version.split(".")[2]), zh: [`中文 ${i}`], en: [`English ${i}`],
+    }));
+    const fetchVersion = (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh") ? market() : new Response(JSON.stringify({
+      releases: [{ hash: latest, version: "1.1.5", build: 202611010005, notes: { zh: "完整说明", en: "Full notes" } }], versionNotes,
+    }))) as typeof fetch;
+    const check = createUpdateCheck({ fetchVersion, connect });
+    check("check");
+    const result = await finish(check);
+    expect(result.state === "done" && result.notes.status === "available" && result.notes.releases.map((entry) => entry.version)).toEqual(["1.1.5", "1.1.4", "1.1.3"]);
+  });
+
+  it("does not show a summary written for a later build of the marketplace version", async () => {
+    const connect = vi.fn(async () => ({ listPlugins: async () => plugins, close: async () => {} }) as never);
+    const fetchVersion = (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh") ? market() : new Response(JSON.stringify({
+      releases: [{ hash: latest, version: "1.0.1", build: 202610311637, notes: { zh: "说明", en: "Notes" } }],
+      versionNotes: [{ version: "1.0.1", build: 202610311700, zh: ["后续"], en: ["Later"] }],
+    }))) as typeof fetch;
+    const check = createUpdateCheck({ fetchVersion, connect });
+    check("check");
+    expect(await finish(check)).toMatchObject({ state: "done", notes: { status: "missing" } });
   });
 
   it("reports matching revisions and rejects malformed market data", async () => {

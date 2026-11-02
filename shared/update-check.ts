@@ -14,7 +14,7 @@ export const updateCheckRpc = defineRpc({
       z.object({ status: z.literal("available"), current: z.string().nullable(), latest: z.string().nullable(), currentBuild: z.number().nullable(), latestBuild: z.number().nullable() }),
       z.object({ status: z.literal("unavailable") }),
     ]), notes: z.discriminatedUnion("status", [
-      z.object({ status: z.literal("available"), zh: z.string(), en: z.string() }),
+      z.object({ status: z.literal("available"), releases: z.array(z.object({ version: z.string(), zh: z.array(z.string()), en: z.array(z.string()) })).min(1).max(3) }),
       z.object({ status: z.literal("missing") }),
       z.object({ status: z.literal("unavailable") }),
     ]) }),

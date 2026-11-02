@@ -43,7 +43,6 @@ import { usePreferenceSettings } from "./state/preference-sync-slot";
 import { useCopy } from "./ui/use-copy";
 import { useWideHostColumn } from "./ui/wide-host-column";
 import { SettingsPreview } from "./settings-preview";
-import { MarkdownView } from "./components/markdown/markdown-view";
 import { selectionCodeText } from "./components/selection-actions";
 import { CommandBand } from "./ui/command-band";
 import { SelectableSpan, SelectableText } from "./ui/prose-text";
@@ -640,9 +639,19 @@ function VersionSection({ look, language, version, autoUpdateCheck, native }: { 
       </View>
   </Section> : null}
   {state.state === "done" ? <Section title={t.releaseNotesTitle} look={look}>
-    <View style={{ paddingHorizontal: space.lg, paddingVertical: look.compact ? 11 : 14 }}>
+    <View style={{ paddingHorizontal: 18, paddingVertical: 20 }}>
       {state.notes.status === "available"
-        ? <MarkdownView text={state.notes[language]} tokens={look.tokens} variant="document" compact={look.compact} size={look.tokens.typography.ui.size} />
+        ? <View style={{ gap: 24 }}>
+            {state.notes.releases.map((release) => <View key={release.version} style={{ gap: 12 }}>
+              <Text style={[settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi, fontWeight: "600" }]}>{release.version}</Text>
+              <View style={{ gap: 15 }}>
+                {release[language].map((item, index) => <View key={index} style={{ flexDirection: "row", alignItems: "flex-start", gap: 13 }}>
+                  <View style={{ width: 5, height: 5, borderRadius: 3, marginTop: Math.round((look.tokens.typography.ui.size + 1) * 1.56 / 2 - 2.5), backgroundColor: look.tokens.foregroundMuted }} />
+                  <Text style={{ flex: 1, minWidth: 0, color: look.tokens.foreground, fontFamily: look.tokens.fontUi, fontSize: look.tokens.typography.ui.size + 1, lineHeight: Math.round((look.tokens.typography.ui.size + 1) * 1.56) }}>{item}</Text>
+                </View>)}
+              </View>
+            </View>)}
+          </View>
         : <Text style={[styles.rowNote, settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi }]}>
             {state.notes.status === "missing" ? t.releaseNotesMissing : t.releaseNotesUnavailable}
           </Text>}
