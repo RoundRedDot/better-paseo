@@ -80,7 +80,7 @@ function MoreActions({ board, theme, items, updateAvailable }: { board: BoardCon
       theme={theme}
       onPress={() => setOpen(!open)}
       busy={busy}
-      size={roundButtonSize(scale)}
+      size={toolbarButtonSize(scale)}
       iconSize={actionIconSize(scale)}
       tip={busy ? `${board.strings.refreshTasks} (⌥R)` : board.strings.more}
       testID="desktop-toolbar-more"
@@ -147,7 +147,7 @@ function DesktopToolbarView(props: {
   const updateAvailable = useUpdateIndicator(board.hostId, board.visible);
   const updateLabel = SETTINGS_STRINGS[useTasksLanguage()].versionBadge;
   const actionCount = (props.filters ? 4 : 1) + Number(!!props.sidebar);
-  const compactActions = actionWidth > 0 && actionWidth < actionCount * roundButtonSize(scale) + (actionCount - 1) * TOOLBAR_GAP;
+  const compactActions = actionWidth > 0 && actionWidth < actionCount * roundButtonSize(scale) + (1 + Number(!!props.sidebar) + Number(!!props.filters)) * (toolbarButtonSize(scale) - roundButtonSize(scale)) + (actionCount - 1) * TOOLBAR_GAP;
   const moreItems: MenuSection["items"] = [
     ...(compactActions && props.filters ? [
       { key: "empty", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, disabled: props.emptyLanes.disabled, onSelect: props.emptyLanes.onToggle },
@@ -293,7 +293,7 @@ function EmptyLanesButton({ emptyLanes, strings, theme }: { emptyLanes: EmptyLan
       disabled={emptyLanes.disabled}
       theme={theme}
       onPress={emptyLanes.onToggle}
-      size={roundButtonSize(scale)} iconSize={actionIconSize(scale)}
+      size={toolbarButtonSize(scale)} iconSize={actionIconSize(scale)}
       tip={`${label} (E)`}
       testID="empty-lanes-toggle"
     />
@@ -304,7 +304,7 @@ function EmptyLanesButton({ emptyLanes, strings, theme }: { emptyLanes: EmptyLan
 function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void; theme: PluginTheme; label: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
-  const size = roundButtonSize(scale);
+  const size = toolbarButtonSize(scale);
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
   const reduced = useReducedMotion();
@@ -350,7 +350,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
   const colors = props.theme.colors;
   const spaceKeys = useSwitchSpace(props.onPress);
   const scale = useTasksFontScale();
-  const size = roundButtonSize(scale);
+  const size = toolbarButtonSize(scale);
   const icon = actionIconSize(scale);
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);

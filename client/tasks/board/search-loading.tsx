@@ -146,7 +146,7 @@ export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme;
   const [pressed, setPressed] = useState(false);
   const reduced = useReducedMotion();
   const scale = useTasksFontScale();
-  const size = !compact && Platform.OS === "web" ? taskControlHeight(24, scale) : compact ? 36 : 32;
+  const size = !compact && Platform.OS === "web" ? taskControlHeight(28, scale) : compact ? 36 : 32;
   const iconSize = !compact && Platform.OS === "web" ? taskControlHeight(16, scale) : 16;
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);

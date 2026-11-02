@@ -406,9 +406,9 @@ describe("Tasks search coverage and centred toolbar", () => {
           : button();
         return StyleSheet.flatten(node.props.style);
       };
-      expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7 });
+      expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7, width: 30, height: 30 });
       act(() => button().props.onHoverIn());
-      expect(outline(), id).toMatchObject({ borderColor: "#e2e2e6", borderRadius: 7 });
+      expect(outline(), id).toMatchObject({ borderColor: "#e2e2e6", borderRadius: 7, width: 30, height: 30 });
       act(() => button().props.onHoverOut());
       expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7 });
       if (id !== "sidebar-switch") expect(button().find((node) => (node.type as unknown) === "Icon").props.size, id).toBe(17);
@@ -422,8 +422,8 @@ describe("Tasks search coverage and centred toolbar", () => {
     const field = hostsById("desktop-toolbar-search")[0]!;
     expect(field.findAll((node) => node.props.testID === "search-full-conversation-toggle")).toHaveLength(0);
     const toggle = hostsById("search-full-conversation-toggle")[0]!;
-    // The fixture uses a 15/14 font scale, so the 24-point button rounds to 26.
-    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ width: 26, height: 26, borderRadius: 7 });
+    // The fixture uses a 15/14 font scale, so the 28-point button rounds to 30.
+    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ width: 30, height: 30, borderRadius: 7 });
     expect(toggle.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(false));
     expect(toggle.props.accessibilityState.selected).toBe(false);
     act(() => toggle.props.onHoverIn());
@@ -4230,10 +4230,10 @@ describe("Tasks board, tablet filters", () => {
     expect(textOf(archived())).toBe("");
     expect(archived().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Archive");
     expect(hostsById("archived-lane-toggle")).toHaveLength(0);
-    // The same size as the sidebar switch they sit beside.
+    // Folded archive and filter controls keep their compact size.
     const size = (testID: string) => StyleSheet.flatten(renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID).props.style).width;
-    if (hostsById("sidebar-switch").length) expect(size("toolbar-archived")).toBe(size("sidebar-switch"));
-    expect(size("toolbar-filters")).toBe(size("sidebar-switch"));
+    expect(size("toolbar-archived")).toBe(size("toolbar-filters"));
+    if (hostsById("sidebar-switch").length) expect(size("sidebar-switch")).toBeGreaterThan(size("toolbar-filters"));
     expect(archived().props).toMatchObject({ accessibilityLabel: "Show the archived lane", accessibilityState: { selected: false } });
     // Struck through while off.
     const slashed = () => archived().findAll((node) => (node.type as unknown) === "View" && node.props.testID === "slash-mark").length > 0;
