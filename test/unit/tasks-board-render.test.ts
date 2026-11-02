@@ -394,6 +394,15 @@ describe("search coverage render isolation", () => {
 });
 
 describe("Tasks search coverage and centred toolbar", () => {
+  it("matches the search group to the measured filter controls", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    for (const width of [385, 420]) {
+      act(() => hostsById("filter-bar-controls")[0]!.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 30 } } }));
+      expect(StyleSheet.flatten(hostsById("desktop-toolbar-search-group")[0]!.props.style).width).toBe(width);
+    }
+  });
   it("shows desktop toolbar outlines only on hover and enlarges their icons", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false)); });

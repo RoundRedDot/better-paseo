@@ -110,6 +110,7 @@ function DesktopToolbarView(props: {
   theme: PluginTheme;
   searchRef: Ref<NativeTextInput>;
   keyHints: boolean;
+  filterControlsWidth?: number;
   filterOptions?: FilterOptions;
   menu: FilterMenu | null;
   setMenu(menu: FilterMenu | null): void;
@@ -160,14 +161,13 @@ function DesktopToolbarView(props: {
   return (
     <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 11 }}>
       <View testID="desktop-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 }}>
+      <View testID="desktop-toolbar-search-group" style={{ width: props.filterControlsWidth || 432, maxWidth: "100%", minWidth: 0, flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
       <View
         testID="desktop-toolbar-search"
         {...tipProps(`${strings.search} (/)`)}
         style={{
           height: taskControlHeight(28, scale),
-          width: 400,
-          maxWidth: "100%",
-          flexShrink: 1,
+          flex: 1,
           minWidth: 0,
           flexDirection: "row",
           alignItems: "center",
@@ -194,6 +194,7 @@ function DesktopToolbarView(props: {
         ) : null}
       </View>
       <FullConversationSwitch theme={theme} />
+      </View>
       {chips.length ? (
         <View testID="desktop-toolbar-search-summary" style={{ flexDirection: "row", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 1, gap: 10 }}>
           {chips.map((entry) =>
@@ -457,6 +458,7 @@ function DesktopFilterBarView(props: {
   menu: FilterMenu | null;
   setMenu(menu: FilterMenu | null): void;
   onMore(): void;
+  onControlsWidth?(width: number): void;
   /** The empty lanes' fold; the desktop bar keeps it beside the board's other switches. */
   emptyLanes?: EmptyLanes;
 }) {
@@ -548,7 +550,7 @@ function DesktopFilterBarView(props: {
           right, when they do not. */}
       <View pointerEvents="box-none" onLayout={fit.box("filters")} style={{ flex: 1, minWidth: tablet ? 4 * toolbarButtonSize(scale) + 3 * TOOLBAR_GAP : FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
         {/* The buttons hold one line: once their words would wrap them, they draw their icons alone. */}
-        <View testID="filter-bar-controls" pointerEvents="box-none" onLayout={fit.box("controls")} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: 1 }}>
+        <View testID="filter-bar-controls" pointerEvents="box-none" onLayout={(event) => { fit.box("controls")(event); props.onControlsWidth?.(event.nativeEvent.layout.width); }} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: 1 }}>
           <MenuButton icon={FILTER_ICONS.agent} label={words.agent} compact={compact} tip={tip(words.agent, strings.tips.agent)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
             <CascadeMenu
               sections={withEmptyGroups(agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) }))))}

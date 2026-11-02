@@ -231,6 +231,7 @@ export function DesktopBoard(props: {
   const [shown, setShown] = useState<"card" | "switch" | null>(null);
   const [selection, dispatch] = useReducer(selectionReducer, NO_SELECTION);
   const [boardWidth, setBoardWidth] = useState(0);
+  const [filterControlsWidth, setFilterControlsWidth] = useState(0);
   const [boardHeight, setBoardHeight] = useState(0);
   const [detent, setDetent] = useState<SheetDetent>("half");
   const modeRef = useRef<SidebarMode | null>(null);
@@ -625,6 +626,7 @@ export function DesktopBoard(props: {
         theme={theme}
         searchRef={searchRef}
         keyHints={boardWidth === 0 || boardWidth >= KEY_HINTS_MIN_WIDTH * Math.max(1, scale)}
+        filterControlsWidth={sheetMode ? undefined : filterControlsWidth}
         filterOptions={options ?? undefined}
         menu={menu}
         setMenu={setMenu}
@@ -641,6 +643,7 @@ export function DesktopBoard(props: {
           setMenu={setMenu}
           emptyLanes={emptyLanesSwitch}
           onMore={openFilterPanel}
+          onControlsWidth={setFilterControlsWidth}
         />
       )}
       {/* Tablets use the toolbar popover; narrow web layouts use the host's filter panel. */}
