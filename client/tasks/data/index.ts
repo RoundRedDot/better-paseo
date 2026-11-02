@@ -2814,8 +2814,11 @@ function firstMessagesOf(lanes: Record<LaneId, LaneModel>, read: (card: TaskCard
 
 /**
  * The lanes after the filter bar and search; pure. Hidden subtasks stay on
- * their parent's card; a running, waiting or failed one keeps its own card
- * unless its parent's card is in the same lane and already shows it.
+ * their parent's card. A running one keeps its own card only while no
+ * parent's card on the board lists it, whatever lane that parent is in (one
+ * waiting for input still shows its running subtasks). A waiting or failed
+ * one needs a person, so it keeps its own card unless its parent's card is in
+ * the same lane and already shows it.
  */
 export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilters, firstMessages?: ReadonlyMap<string, string>): Record<LaneId, LaneModel> {
   const query = filters.query.trim().toLowerCase();
@@ -2831,9 +2834,10 @@ export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilt
     if (!matches(card)) return false;
     if (!filters.hideSubtasks || card.parent === null) return true;
     if (card.status !== "running" && card.status !== "needs_input" && card.status !== "failed") return false;
-    // A parent left on the lane shows it as a row, or its own parent does.
+    // A parent left on the board shows it as a row, or its own parent does.
     const parent = byId.get(card.parent.id);
-    return !(parent && parent.lane === card.lane && matches(parent));
+    if (!parent || !matches(parent) || !parent.children.some((child) => child.id === card.id)) return true;
+    return card.status === "running" ? false : parent.lane !== card.lane;
   };
   const out = {} as Record<LaneId, LaneModel>;
   for (const id of LANE_ORDER) out[id] = { ...lanes[id], cards: lanes[id].cards.filter(keep) };

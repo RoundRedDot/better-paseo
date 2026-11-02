@@ -833,7 +833,7 @@ describe("Tasks data store", () => {
     }
   });
 
-  it("keeps actionable child tasks visible when hiding other subtasks", () => {
+  it("keeps waiting and failed child tasks visible when hiding other subtasks, folding running ones into a listed parent", () => {
     const samples = new Map(sampleCards().map((card) => [card.id, card]));
     const parentId = "orchestrator-parent";
     const child = (id: string, sampleId: string): TaskCard => ({
@@ -869,9 +869,10 @@ describe("Tasks data store", () => {
       hideSubtasks: true,
     };
 
+    // The running subtask is a row on its parent's card, whatever lane that card is in.
     const hidden = filterLanes(lanes, filters);
     expect(hidden.needs_input.cards.map((card) => card.id)).toEqual(["child-needs-input"]);
-    expect(hidden.running.cards.map((card) => card.id)).toEqual(["child-running"]);
+    expect(hidden.running.cards.map((card) => card.id)).toEqual([]);
     expect(hidden.review.cards.map((card) => card.id)).toEqual(["child-failed"]);
     expect(hidden.done.cards.map((card) => card.id)).toEqual([parentId]);
     expect(hidden.done.cards[0]?.children.map((childCard) => childCard.id)).toEqual(children.map((card) => card.id));
@@ -894,6 +895,24 @@ describe("Tasks data store", () => {
     // With the parent filtered out, the running subtask has no row to stand in for it.
     expect(filterLanes(waitingLanes, { ...filters, providers: [children[0]!.provider] }).running.cards.map((card) => card.id))
       .toEqual(["child-running"]);
+
+    // A parent waiting for input lists its running subtasks: they fold into it, and the waiting
+    // subtask beside it in the same lane does too. The failed one, a lane away, keeps its card.
+    const asking: TaskCard = { ...parent, lane: "needs_input", status: "needs_input", provider: "parent-only" };
+    const askingLanes = Object.fromEntries(LANE_ORDER.map((id) => [id, {
+      ...lanes[id],
+      cards: [asking, ...children].filter((card) => card.lane === id),
+    }])) as Record<LaneId, LaneModel>;
+    const askingFolded = filterLanes(askingLanes, filters);
+    expect(askingFolded.needs_input.cards.map((card) => card.id)).toEqual([parentId]);
+    expect(askingFolded.running.cards.map((card) => card.id)).toEqual([]);
+    expect(askingFolded.review.cards.map((card) => card.id)).toEqual(["child-failed"]);
+    // A parent whose card does not list the subtask has no row to stand in for it.
+    const unlisted = Object.fromEntries(LANE_ORDER.map((id) => [id, {
+      ...askingLanes[id],
+      cards: askingLanes[id].cards.map((card) => card.id === parentId ? { ...card, children: [] } : card),
+    }])) as Record<LaneId, LaneModel>;
+    expect(filterLanes(unlisted, filters).running.cards.map((card) => card.id)).toEqual(["child-running"]);
   });
 
   it("notifies store listeners once for a multi-agent subscription snapshot", async () => {

@@ -82,8 +82,10 @@ describe("task search fields", () => {
   });
 
   it("lets a matching running child stand alone when the parent's first message does not match", () => {
-    const parent = { ...card, lane: "running" as const, status: "running" as const };
-    const child = { ...parent, id: "child", parent: { id: parent.id, title: parent.title, missing: false, archived: false } };
+    const running = { ...card, lane: "running" as const, status: "running" as const };
+    const child = { ...running, id: "child", parent: { id: running.id, title: running.title, missing: false, archived: false } };
+    // Its card lists the child as a row, as the store builds it.
+    const parent = { ...running, children: [{ id: child.id, title: child.title, status: child.status }] };
     const lanes = lanesFor(parent, child);
     const filters = { ...EMPTY_FILTERS, query: "dragonfruit", hideSubtasks: true };
     expect(filterLanes(lanes, filters, new Map([[child.id, "Dragonfruit"]])).running.cards).toEqual([child]);
