@@ -577,6 +577,21 @@ function recentIso(ageMs: number) {
 }
 
 describe("Tasks data store", () => {
+  it("retains the full pending Claude question and options for details", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("asking", { provider: "claude", status: "running", pendingPermissions: [{
+        id: "q", provider: "claude", name: "AskUserQuestion", kind: "question", title: "Question",
+        input: { questions: [{ question: "Keep the timer?", header: "Timer", options: [{ label: "Keep", description: "Shows elapsed time" }, { label: "Remove", description: "Matches iOS" }], multiSelect: false }] },
+      }] })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.byId.get("asking")?.permission?.questions).toMatchObject([{ question: "Keep the timer?", options: [{ label: "Keep", description: "Shows elapsed time" }, { label: "Remove", description: "Matches iOS" }] }]);
+      await act(async () => { fake.upsertAgent(activeAgent("asking", { provider: "claude", status: "running", pendingPermissions: [] })); });
+      expect(mounted.current.byId.get("asking")?.permission).toBeNull();
+    } finally { mounted.unmount(); }
+  });
   it.each(["request_user_input", "request_user_input_async"])("summarizes structured questions from %s and follows pending updates", async (name) => {
     const question = "按仓库的 Plan-first 要求，请确认这份修改范围。";
     const permission = {

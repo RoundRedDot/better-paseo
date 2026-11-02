@@ -366,6 +366,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
                 }}
               >
                 {(id === "info" ? info : messages).map((section, index) => sectionView(section, index > 0))}
+                {id === "messages" ? <PendingQuestions card={card} tokens={tokens} language={props.language} /> : null}
               </View>
             ))}
           </SheetScrollView>
@@ -381,6 +382,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             <View style={{ flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" }}>
               <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("messages", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("messages", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("messages", { content: height })} testID="detail-tab-messages-scroll">
                 {messages.map((section, index) => sectionView(section, index > 0))}
+                <PendingQuestions card={card} tokens={tokens} language={props.language} />
               </ScrollView>
             </View>
           </>
@@ -403,6 +405,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
         <View style={{ flex: 1, minWidth: 0 }}>
           <ScrollView key={`${card.id}-sections`} style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 2, paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-column-sections">
             {rightOrder.map((section, index) => sectionView(section, index > 0))}
+            <PendingQuestions card={card} tokens={tokens} language={props.language} />
           </ScrollView>
         </View>
       </View>
@@ -414,15 +417,31 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
       {props.scrollBody ? (
         <ScrollView key={card.id} style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-body-scroll">
           {sections}
+          <PendingQuestions card={card} tokens={tokens} language={props.language} />
         </ScrollView>
       ) : (
-        <View style={{ paddingBottom: 4 }}>{sections}</View>
+        <View style={{ paddingBottom: 4 }}>{sections}<PendingQuestions card={card} tokens={tokens} language={props.language} /></View>
       )}
     </View>
   );
 }
 
 type ScrollEdge = { y: number; viewport: number; content: number };
+
+function PendingQuestions({ card, tokens, language }: { card: TaskCard; tokens: TaskTokens; language: TasksLanguage }) {
+  const questions = card.lane === "needs_input" ? card.permission?.questions : undefined;
+  if (!questions?.length) return null;
+  return <View testID="detail-pending-questions" style={{ paddingHorizontal: 12, paddingVertical: 12, gap: 12 }}>
+    <Text style={{ fontSize: F.sm, fontWeight: "600", color: tokens.foreground }}>{language === "zh" ? "待回答问题" : "Questions awaiting an answer"}</Text>
+    {questions.map((question, index) => <View key={index} style={{ gap: 8 }}>
+      <Text style={{ fontSize: F.sm, color: tokens.foreground }}>{question.question}</Text>
+      {question.options.map((option, optionIndex) => <View key={optionIndex} style={{ paddingLeft: 12, gap: 2 }}>
+        <Text style={{ fontSize: F.sm, color: tokens.foreground }}>{option.label}</Text>
+        {option.description ? <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{option.description}</Text> : null}
+      </View>)}
+    </View>)}
+  </View>;
+}
 
 function emptyScrollEdge(): ScrollEdge {
   return { y: 0, viewport: 0, content: 0 };

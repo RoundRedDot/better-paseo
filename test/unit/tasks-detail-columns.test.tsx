@@ -73,6 +73,18 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it("shows the complete pending question in the phone messages tab", async () => {
+    const base = props(false);
+    const card = { ...base.card, lane: "needs_input" as const, permission: {
+      requestId: "q", kind: "question" as const, title: "Question", summary: "Keep the timer?", actions: [], remaining: 0,
+      questions: [{ question: "Keep the timer?", multiSelect: false, options: [{ label: "Keep", description: "Shows elapsed time" }, { label: "Remove", description: "Matches iOS" }] }],
+    } };
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...base} card={card} columns={false} tabs scrollHeader />); });
+    const messages = host(renderer!.root, "detail-tab-messages-content");
+    const question = host(messages, "detail-pending-questions");
+    const text = question.findAll((node) => (node.type as unknown) === "Text").map((node) => node.props.children);
+    expect(text).toEqual(expect.arrayContaining(["Keep the timer?", "Keep", "Shows elapsed time", "Remove", "Matches iOS"]));
+  });
   it("uses larger detail tabs on desktop", async () => {
     await act(async () => {
       renderer = TestRenderer.create(<TaskDetailCards {...props(false)} touch={false} columns={false} tabs />);

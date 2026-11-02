@@ -148,6 +148,7 @@ export interface TaskPermission {
   title: string;
   /** The command or file the request is about, one line; null when none. */
   summary: string | null;
+  questions?: import("../tools/user-questions").UserQuestion[];
   /** The request's own buttons; empty means draw Allow and Deny. */
   actions: TaskPermissionAction[];
   remaining: number;
