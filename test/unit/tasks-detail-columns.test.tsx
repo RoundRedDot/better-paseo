@@ -478,11 +478,11 @@ describe("detail message typography", () => {
         expect(section.findByType(MarkdownView).props).toMatchObject({ variant: "document", compact: detailProps.touch });
         expect(host(section, `${id}-text`).props.style).toMatchObject({ maxHeight: 4 * variantMetrics("document", size, detailProps.touch).bodyLineHeight });
         const more = host(section, `${id}-more`);
-        expect(more.findByType(Icon).props.name).toBe("ChevronDown");
+        expect(more.findByType(Icon).props.name).toBe("ChevronsDown");
         expect(more.props.accessibilityState.expanded).toBe(false);
         expect(StyleSheet.flatten(more.find((node) => (node.type as unknown) === "Text").props.style).fontSize).toBe(Math.round(HOST_FONT.sm * ui / HOST_FONT.base * factor));
         await act(async () => more.props.onPress());
-        expect(more.findByType(Icon).props.name).toBe("ChevronUp");
+        expect(more.findByType(Icon).props.name).toBe("ChevronsUp");
         expect(more.props.accessibilityState.expanded).toBe(true);
         expect(host(section, `${id}-text`).props.style).toBeNull();
         expect(section.findByType(MarkdownView).props.size).toBe(size);
