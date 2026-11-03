@@ -10,8 +10,8 @@ export function SubagentLabel(props: { language: TasksLanguage; tokens: TaskToke
   const strings = cardStrings(props.language);
   return (
     <View {...tipProps(strings.subagentCard)} accessibilityLabel={strings.subagentCard} testID={props.testID}
-      style={{ flexShrink: 0, alignSelf: "flex-start", borderWidth: 1, borderColor: props.tokens.borderStrong, borderRadius: 4, paddingHorizontal: 4 }}>
-      <Text style={{ fontSize: 11, lineHeight: 18, color: props.tokens.foregroundMuted }}>{strings.subagentLabel}</Text>
+      style={{ flexShrink: 0, alignSelf: "flex-start", borderWidth: 1, borderColor: props.tokens.borderStrong, borderRadius: 3, paddingHorizontal: 3 }}>
+      <Text style={{ fontSize: 10, lineHeight: 14, color: props.tokens.foregroundMuted }}>{strings.subagentLabel}</Text>
     </View>
   );
 }
