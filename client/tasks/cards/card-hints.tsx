@@ -175,7 +175,7 @@ function HintLayer(props: {
         const mark = next.getBoundingClientRect();
         // Absolute children sit inside the card's border.
         const anchor = { left: mark.left - box.left - card.clientLeft, top: mark.top - box.top - card.clientTop, width: mark.width, height: mark.height };
-        setShown({ text, place: place(anchor, { width: card.clientWidth, height: card.clientHeight }), titleAnchor: attribute === "bchint" && next.getAttribute("data-bchint") === "title" ? next : null });
+        setShown({ text, place: place(anchor, { width: card.clientWidth, height: card.clientHeight }), titleAnchor: attribute === "bchint" && ["title", "permission-question"].includes(next.getAttribute("data-bchint") ?? "") ? next : null });
       }, HINT_DELAY_MS);
     };
     const leave = () => {

@@ -1346,6 +1346,15 @@ describe("TaskCardView rows", () => {
     expect(all).toContain("Run npm run db:migrate");
     expect(all.some((text) => text.includes(" · npm run"))).toBe(false);
   });
+
+  it("renders pending questions at the next font size", async () => {
+    const base = sample("sample-input");
+    const card: TaskCard = { ...base, permission: { ...base.permission!, kind: "question", title: "A long question", summary: "More details" } };
+    const tree = await render(cardElement(card));
+    const question = tree.root.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2 && texts(node).includes("A long question · More details"));
+    expect(question.props.numberOfLines).toBe(2);
+    expect(flat(question.props.style)).toMatchObject({ fontSize: 14, lineHeight: 20 });
+  });
 });
 
 describe("ProjectIcon", () => {
