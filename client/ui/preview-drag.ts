@@ -16,6 +16,8 @@ export interface FrameDrag {
   margin: number;
   min: PreviewSize;
   commit(next: PreviewBox): void;
+  /** The finger lifted or was taken after a drag: a frame drawn on the fly can settle. */
+  end?(): void;
 }
 
 interface TouchPointEvent {
@@ -57,9 +59,11 @@ export function toolbarResponder(drag: FrameDrag) {
     },
     onResponderRelease() {
       active = null;
+      drag.end?.();
     },
     onResponderTerminate() {
       active = null;
+      drag.end?.();
     },
     onResponderTerminationRequest: () => false,
   };
@@ -93,9 +97,11 @@ export function edgeResponder(edge: PreviewEdge, drag: FrameDrag) {
     },
     onResponderRelease() {
       active = null;
+      drag.end?.();
     },
     onResponderTerminate() {
       active = null;
+      drag.end?.();
     },
   };
 }

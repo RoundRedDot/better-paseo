@@ -481,6 +481,12 @@ function PressPreview({ preview, tokens, wraps = true, wrapDisabled = false, chi
   }, [memoryKey, wrapOn]);
   const measured = useRef(false);
   const boxRef = useRef<PreviewBox | null>(null);
+  // A drag draws the frame through these, not a render per move: the body
+  // and the toolbar stay as they are until the finger lifts (`drag.end`).
+  const [dragging, setDragging] = useState(false);
+  const draggingRef = useRef(false);
+  const live = useRef<{ x: Animated.Value; y: Animated.Value; width: Animated.Value; height: Animated.Value } | null>(null);
+  if (!live.current) live.current = { x: new Animated.Value(0), y: new Animated.Value(0), width: new Animated.Value(0), height: new Animated.Value(0) };
   const boundsRef = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
   const frameReady = useRef(false);
   useLayoutEffect(() => {
@@ -506,7 +512,8 @@ function PressPreview({ preview, tokens, wraps = true, wrapDisabled = false, chi
   }, Platform.OS) : null;
   const shown = maximizedBox ?? box ?? (natural && stage ? pressPreviewOrigin(stage, natural, Platform.OS) : null);
   const entrance = usePreviewEntrance({ ready: modalShown && shown !== null, quiet: preview.quiet });
-  boxRef.current = shown;
+  // Mid-drag the box the finger set is newer than any render's.
+  if (!draggingRef.current) boxRef.current = shown;
   if (stage) boundsRef.current = stage;
   const drag = useRef<FrameDrag>(null!);
   if (!drag.current) {
@@ -520,7 +527,22 @@ function PressPreview({ preview, tokens, wraps = true, wrapDisabled = false, chi
         if (current && current.x === next.x && current.y === next.y && current.width === next.width && current.height === next.height) return;
         boxRef.current = next;
         if (memoryKeyRef.current) rememberPreview(memoryKeyRef.current, { box: next });
+        const values = live.current!;
+        values.x.setValue(next.x);
+        values.y.setValue(next.y);
+        values.width.setValue(next.width);
+        values.height.setValue(next.height);
+        // The first move renders once, to draw the frame from the values and fill it; later ones only set them.
+        if (draggingRef.current) return;
+        draggingRef.current = true;
         setBox(next);
+        setDragging(true);
+      },
+      end() {
+        if (!draggingRef.current) return;
+        draggingRef.current = false;
+        setBox(boxRef.current);
+        setDragging(false);
       },
     };
   }
@@ -551,7 +573,7 @@ function PressPreview({ preview, tokens, wraps = true, wrapDisabled = false, chi
                 remembered,
               }}>
                 <PreviewDragContext.Provider value={preview.maximized ? null : gestures.toolbar}>
-                  <View
+                  <Animated.View
                     {...selectionSurface}
                     testID="hover-preview"
                     accessibilityViewIsModal
@@ -560,7 +582,9 @@ function PressPreview({ preview, tokens, wraps = true, wrapDisabled = false, chi
                       styles.panel, styles.pressPanel, pressLook(tokens),
                       // Centred in the band until its own height is known; then the same
                       // spot, absolutely, so a drag can move it without a jump.
-                      shown
+                      dragging
+                        ? { position: "absolute", left: live.current.x, top: live.current.y, width: live.current.width, height: live.current.height }
+                        : shown
                         ? { position: "absolute", left: shown.x, top: shown.y, width: shown.width, height: shown.height }
                         : frame
                           ? { width: frame.width, maxHeight: frame.maxHeight }
@@ -569,7 +593,7 @@ function PressPreview({ preview, tokens, wraps = true, wrapDisabled = false, chi
                   >
                     {children}
                     {shown && !preview.maximized ? <PreviewEdges edges={gestures.edges} /> : null}
-                  </View>
+                  </Animated.View>
                 </PreviewDragContext.Provider>
               </PreviewActionsContext.Provider>
             </HoverPreviewContext.Provider>

@@ -94,7 +94,7 @@ function flat(style: unknown): Record<string, unknown> {
   return Object.assign({}, ...[style].flat(3).filter(Boolean));
 }
 function panels(root: Node) {
-  return root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "hover-preview");
+  return root.findAll((node) => ((node.type as unknown) === "View" || (node.type as unknown) === "Animated.View") && node.props.testID === "hover-preview");
 }
 
 beforeEach(() => {

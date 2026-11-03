@@ -324,6 +324,22 @@ export function DesktopBoard(props: {
     const lanes = boardLaneLayout(boardWidth, archivedSwitch.drawn, collapsedState, board.laneWidth, viewport, laneSizing);
     return `${lanes.scroll}${lanesInView(laneOrder, collapsed, lanes.laneWidth, rowScrollX.current, viewport)}`;
   };
+  // The same for the tablet's floating panel, which covers the lanes' right side.
+  const floatingViewRef = useRef<(width: number) => string>(() => "");
+  floatingViewRef.current = (width: number) => lanesInView(laneOrder, collapsed, layout.laneWidth, rowScrollX.current, lanesWidth - tabletSidebarWidth(boardWidth, width));
+  const floatingView = useRef<string | null>(null);
+  // The panel draws a dragged width itself (`FloatingSidebar`); the board takes it only when another lane comes into view.
+  const dragFloating = useCallback((width: number | null) => {
+    if (width === null) {
+      floatingView.current = null;
+      setFloatingDragWidth(null);
+      return;
+    }
+    const view = floatingViewRef.current(width);
+    if (view === floatingView.current) return;
+    floatingView.current = view;
+    setFloatingDragWidth(width);
+  }, []);
   const fitInline = useCallback((width: number) => sidebarWidth(latest.current.boardWidth, width, "inline"), []);
   // The view the board last drew for the dragged width.
   const dragView = useRef<string | null>(null);
@@ -766,7 +782,7 @@ export function DesktopBoard(props: {
             resize={tabletFloating ? {
               label: strings.sidebar.resize,
               max: tabletSidebarWidth(boardWidth, TABLET_SIDEBAR.max),
-              onDrag: setFloatingDragWidth,
+              onDrag: dragFloating,
               onResize: (width) => setPreference((current) => ({ ...current, floatingWidth: width })),
             } : undefined}
           >
@@ -1045,6 +1061,8 @@ function FloatingSidebar(props: {
   latest.current = props;
   const handleRef = useRef<View>(null);
   const [dragging, setDragging] = useState(false);
+  // The width while the edge is dragged: each move sets it here, not in the board, which renders only when its lanes need it.
+  const liveWidth = useRef(new Animated.Value(props.width)).current;
   const releaseGestures = useRef<(() => void) | null>(null);
   useEffect(() => () => releaseGestures.current?.(), []);
   const pan = useMemo(() => {
@@ -1065,10 +1083,15 @@ function FloatingSidebar(props: {
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         startWidth = latest.current.width;
+        liveWidth.setValue(startWidth);
         releaseGestures.current = holdHostGestures(handleRef.current);
         setDragging(true);
       },
-      onPanResponderMove: (event) => latest.current.resize?.onDrag(widthAt(event)),
+      onPanResponderMove: (event) => {
+        const width = widthAt(event);
+        liveWidth.setValue(width);
+        latest.current.resize?.onDrag(width);
+      },
       onPanResponderRelease: (event) => {
         releaseGestures.current?.();
         releaseGestures.current = null;
@@ -1102,7 +1125,7 @@ function FloatingSidebar(props: {
         top: props.flushRight ? 0 : 4,
         right: props.flushRight ? 0 : SIDEBAR.gap,
         bottom: props.flushRight ? 0 : 12,
-        width: props.width,
+        width: dragging ? liveWidth : props.width,
         padding: 8,
         paddingLeft: props.resize ? 12 : 8,
         ...(props.flushRight ? { paddingTop: 4, paddingBottom: 12, paddingRight: 10 } : null),

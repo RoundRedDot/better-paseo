@@ -47,7 +47,8 @@ function render(language = "", text = source, closed = true) {
     });
   });
 }
-const hosts = (id: string) => renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === id);
+// The long-press panel is an Animated.View: its frame follows a drag without a render.
+const hosts = (id: string) => renderer.root.findAll((node) => (String(node.type) === "View" || String(node.type) === "Animated.View") && node.props.testID === id);
 const buttons = (label: string) => renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === label);
 const press = (label: string) => act(() => buttons(label)[0]!.props.onPress());
 const previewWrap = () => hosts("hover-preview-start")[0]!.find((node) =>

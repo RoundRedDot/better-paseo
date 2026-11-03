@@ -200,6 +200,11 @@ function textOf(node: ReactTestInstance | string): string {
 /** A size on iOS or Android with no interface size set: the host's native default is 15 against its 14 ramp. */
 const NATIVE = (size: number) => Math.round(size * 15 / 14);
 
+/** A style number, or what an animated value holds now (the RN mock's `__value`). */
+function liveNumber(value: unknown): unknown {
+  return typeof value === "object" && value !== null && "__value" in value ? (value as { __value: number }).__value : value;
+}
+
 function layOut(width: number) {
   const laidOut = new Set<unknown>();
   for (let pass = 0; pass < 4; pass++) {
@@ -2117,7 +2122,7 @@ describe("Tasks board, desktop", () => {
       toggleSidebarControl();
       const handle = () => hostsById("floating-sidebar-resize")[0]!;
       const panel = () => hostsById("sidebar-floating")[0]!;
-      const width = () => StyleSheet.flatten(panel().props.style).width;
+      const width = () => liveNumber(StyleSheet.flatten(panel().props.style).width);
       const event = (pageX: number) => ({ nativeEvent: { pageX } });
       const mountedPanel = panel();
       const mountedHandle = handle();
@@ -2130,6 +2135,14 @@ describe("Tasks board, desktop", () => {
       expect(handleSetJSResponder).toHaveBeenCalledWith(expect.any(Number), true);
       expect(flushOperations).toHaveBeenCalledTimes(1);
       expect(width()).toBe(340);
+      // The panel takes each move itself; the board draws only the first, while the lanes' view holds.
+      act(() => handle().props.onPanResponderMove(event(570)));
+      const board = hostsById("tasks-board-area")[0]!.props;
+      for (const x of [572, 575, 579]) {
+        act(() => handle().props.onPanResponderMove(event(x)));
+        expect(width()).toBe(340 - (x - 560));
+        expect(hostsById("tasks-board-area")[0]!.props).toBe(board);
+      }
       for (const [x, expected] of [[600, 300], [660, 240], [700, 210], [740, 210], [680, 220]] as const) {
         act(() => handle().props.onPanResponderMove(event(x)));
         expect(width()).toBe(expected);
@@ -2164,7 +2177,7 @@ describe("Tasks board, desktop", () => {
     layOut(900);
     toggleSidebarControl();
     const handle = () => hostsById("floating-sidebar-resize")[0]!;
-    const width = () => StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width;
+    const width = () => liveNumber(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width);
     const event = (pageX: number) => ({ nativeEvent: { pageX } });
     expect(handle().props.accessibilityValue.min).toBe(210);
     expect(handle().props.onMoveShouldSetPanResponder({}, { dx: 3, dy: 0 })).toBe(false);

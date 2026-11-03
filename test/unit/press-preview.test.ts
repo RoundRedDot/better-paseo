@@ -86,7 +86,7 @@ function row(renderer: ReturnType<typeof TestRenderer.create>): ReactTestInstanc
 }
 
 const panels = (renderer: ReturnType<typeof TestRenderer.create>) =>
-  renderer.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "hover-preview");
+  renderer.root.findAll((node) => ((node.type as unknown) === "View" || (node.type as unknown) === "Animated.View") && node.props.testID === "hover-preview");
 const panel = (renderer: ReturnType<typeof TestRenderer.create>) => {
   const [found] = panels(renderer);
   if (!found) throw new Error("no preview panel");
@@ -330,14 +330,24 @@ describe("dragging the long-press preview", () => {
     act(() => { toolbar.props.onResponderGrant(at(120, 280)); });
     // The window is as wide as the stage allows, so it slides only vertically: 190 + 60.
     expect(StyleSheetFlat(panel(renderer).props.style)).toMatchObject({ left: 8, top: 250, width: 374, height: 280 });
+    act(() => { toolbar.props.onResponderRelease(); });
+    expect(StyleSheetFlat(panel(renderer).props.style)).toMatchObject({ left: 8, top: 250, width: 374, height: 280 });
 
     const east = panel(renderer).findByProps({ testID: "hover-preview-edge-e" });
     act(() => { east.props.onResponderGrant(at(370, 300)); });
     act(() => { east.props.onResponderMove(at(368, 300)); });
     expect(StyleSheetFlat(panel(renderer).props.style).width).toBe(374);
+    act(() => { east.props.onResponderMove(at(340, 300)); });
+    // The first move draws the frame from animated values; the moves after it set them without a render.
+    const drawn = panel(renderer).props;
     act(() => { east.props.onResponderMove(at(330, 300)); });
+    expect(panel(renderer).props).toBe(drawn);
     // Dragging the right edge left by 40 narrows it; the left edge stays.
     expect(StyleSheetFlat(panel(renderer).props.style)).toMatchObject({ left: 8, width: 334, height: 280 });
+    act(() => { east.props.onResponderRelease(); });
+    // The lift hands the box back to the render: plain numbers, where the finger left it.
+    expect(panel(renderer).props.style.flat?.(Infinity).find((part: { width?: unknown } | null) => part && "width" in part).width).toBe(334);
+    expect(StyleSheetFlat(panel(renderer).props.style)).toMatchObject({ left: 8, top: 250, width: 334, height: 280 });
 
     const narrowed = panel(renderer).findByProps({ testID: "hover-preview-toolbar" });
     act(() => { narrowed.props.onStartShouldSetResponderCapture(at(40, 200)); });
@@ -469,5 +479,8 @@ describe("wrapping lines in the long-press preview", () => {
 function StyleSheetFlat(style: unknown): Record<string, unknown> {
   if (!style) return {};
   if (Array.isArray(style)) return Object.assign({}, ...style.map(StyleSheetFlat));
-  return typeof style === "object" ? (style as Record<string, unknown>) : {};
+  if (typeof style !== "object") return {};
+  // An animated value reads as what it holds now (the RN mock's `__value`).
+  return Object.fromEntries(Object.entries(style as Record<string, unknown>).map(([key, value]) =>
+    [key, typeof value === "object" && value !== null && "__value" in value ? (value as { __value: number }).__value : value]));
 }

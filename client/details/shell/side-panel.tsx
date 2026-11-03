@@ -3,7 +3,9 @@
  * clamp(0.36W, 420, 640) wide (400 in a phone's landscape), full height
  * under the status bar, a 1px left border, no handle and no dim. Its full
  * screen is a wider panel. On desktop web an 8 wide zone on its left edge
- * drags its width between 360 and 0.6W, kept for the session.
+ * drags its width between 360 and 0.6W, kept for the session. A drag frame
+ * writes the width to the page, at most once a frame; the panel renders
+ * once, on release, so the details do not draw again on every move.
  */
 import React, { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Platform, StyleSheet, View, type ViewStyle } from "react-native";
@@ -105,10 +107,13 @@ export function SidePanel(props: {
   const edge = useRef<View>(null);
   useLayoutEffect(() => {
     if (!props.resizable || Platform.OS !== "web") return;
+    const node = panel.current as unknown as HTMLElement | null;
+    const rerender = () => setDragged((count) => count + 1);
     return bindEdgeDrag(edge.current, () => sideWidth(latest.current.stage, false), (next) => {
       sessionWidth = Math.round(Math.max(SIDE.min, Math.min(latest.current.stage.width * SIDE.max, next)));
-      setDragged((count) => count + 1);
-    });
+      if (node?.style) node.style.width = `${sideWidth(latest.current.stage, latest.current.wide)}px`;
+      else rerender();
+    }, rerender);
   }, [props.resizable]);
 
   const palette = detailsPalette(tokens);
@@ -146,19 +151,39 @@ export function SidePanel(props: {
   );
 }
 
-/** Drags the panel's left edge: the width grows as the pointer moves left. Web only. */
-function bindEdgeDrag(node: unknown, read: () => number, write: (width: number) => void): () => void {
+/**
+ * Drags the panel's left edge: the width grows as the pointer moves left,
+ * written at most once a frame (`write`); `release` follows the last one.
+ * Web only.
+ */
+function bindEdgeDrag(node: unknown, read: () => number, write: (width: number) => void, release: () => void): () => void {
   const element = node as HTMLElement | null;
   if (!element || typeof element.addEventListener !== "function") return () => {};
   const doc = element.ownerDocument;
+  const view = doc.defaultView;
   let start: { x: number; width: number } | null = null;
+  let pending: number | null = null;
+  let frame = 0;
+  const flush = () => {
+    frame = 0;
+    if (pending === null) return;
+    const width = pending;
+    pending = null;
+    write(width);
+  };
   const move = (event: PointerEvent) => {
     if (!start) return;
     event.preventDefault();
-    write(start.width + (start.x - event.clientX));
+    pending = start.width + (start.x - event.clientX);
+    if (!view?.requestAnimationFrame) flush();
+    else if (!frame) frame = view.requestAnimationFrame(flush);
   };
   const end = () => {
+    if (!start) return;
     start = null;
+    if (frame) view?.cancelAnimationFrame(frame);
+    flush();
+    release();
     doc.removeEventListener("pointermove", move);
     doc.removeEventListener("pointerup", end);
     doc.removeEventListener("pointercancel", end);
@@ -173,7 +198,13 @@ function bindEdgeDrag(node: unknown, read: () => number, write: (width: number) 
   };
   element.addEventListener("pointerdown", down);
   return () => {
-    end();
+    if (frame) view?.cancelAnimationFrame(frame);
+    frame = 0;
+    pending = null;
+    start = null;
+    doc.removeEventListener("pointermove", move);
+    doc.removeEventListener("pointerup", end);
+    doc.removeEventListener("pointercancel", end);
     element.removeEventListener("pointerdown", down);
   };
 }
