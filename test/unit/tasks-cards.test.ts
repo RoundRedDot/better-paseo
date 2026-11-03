@@ -2159,6 +2159,11 @@ describe("TaskCardView actions", () => {
     );
     const list = hostByTestId(tree.root, "task-card-subtasks");
     // Drawn without a hover: the button is what tells it from a child with a tab of its own.
+    expect(texts(hostByTestId(list, "subtask-session-label-sub-1"))).toEqual(["会话内"]);
+    expect(hostByTestId(list, "subtask-sub-1").props.accessibilityHint).toBe(cardStrings("zh").subagentCard);
+    expect(hostByTestId(list, "subtask-title-sub-1").props.numberOfLines).toBe(1);
+    expect(flat(hostByTestId(list, "subtask-title-sub-1").props.style)).toMatchObject({ flex: 1, minWidth: 0 });
+    for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-session-label-${child.id}`)).toHaveLength(0);
     expect(icons(hostByTestId(list, "subtask-parent-tab-sub-1"))).toEqual(["CornerLeftUp"]);
     // Provider facts and timing use the same secondary component as ordinary subtasks.
     const facts = hostByTestId(list, "subtask-meta-sub-1");
@@ -2196,6 +2201,7 @@ describe("TaskCardView actions", () => {
     const onDetails = vi.fn();
     const onStop = vi.fn();
     const tree = await render(cardElement(card, { onOpen, onSelect, onDetails, onStop }));
+    expect(texts(hostByTestId(tree.root, "task-card-session-label"))).toEqual(["会话内"]);
     // The type as the timeline's icon in place of its name; the screen reader still hears it.
     expect(texts(hostByTestId(tree.root, "pill-model"))).toContain("Opus 5.5 · High · 12.4k tokens");
     expect(icons(hostByTestId(tree.root, "pill-model"))).toEqual(["Shapes"]);
@@ -2459,6 +2465,8 @@ describe("TaskDetailCards", () => {
       const tree = await render(surface);
       const rows = tree.root.findAllByType(SubtaskRow);
       expect(rows.map((row) => row.props.child.id).sort()).toEqual(card.children.map((child) => child.id).sort());
+      expect(texts(rows.find((row) => row.props.child.id === "provider")!.find((node) => typeof node.type === "string" && node.props.testID?.includes("session-label-provider")))).toEqual(["会话内"]);
+      expect(rows.filter((row) => row.props.child.id !== "provider").every((row) => row.findAll((node) => typeof node.type === "string" && node.props.testID?.includes("session-label")).length === 0)).toBe(true);
       // Native surfaces all use the same touch targets, even a wide tablet sidebar.
       expect(rows.every((row) => row.props.touch)).toBe(true);
       const byId = card.children.map((child) => {
@@ -3346,6 +3354,17 @@ describe("TaskDetailCards", () => {
     expect(icons(jump)).toEqual(["CornerLeftUp"]);
     jump.props.onPress();
     expect(onOpen).toHaveBeenCalledWith(base.id);
+  });
+
+  it("labels a provider subagent in the details header in both languages", async () => {
+    const base = sample("sample-running");
+    const card = { ...base, children: [], subagent: { subtitle: null } };
+    const tree = await render(details(card, {}, "en"));
+    expect(texts(hostByTestId(tree.root, "detail-session-label"))).toEqual(["In session"]);
+    await act(async () => tree.update(details(card, {}, "zh")));
+    expect(texts(hostByTestId(tree.root, "detail-session-label"))).toEqual(["会话内"]);
+    await act(async () => tree.update(details(base)));
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-session-label")).toHaveLength(0);
   });
 
   it("keeps shared metadata and context icons in a narrow card while abbreviating its heading", async () => {

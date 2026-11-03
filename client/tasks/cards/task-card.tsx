@@ -30,6 +30,7 @@ import { TitleLoading } from "./title-loading";
 import { TitleUndo } from "./title-undo";
 import { useRevealedTitle } from "./title-reveal";
 import { SubtaskRow } from "./subtask-row";
+import { SubagentLabel } from "./subagent-label";
 import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
 import { subtaskFinished } from "./details-format";
 import { ActionRow, useActionFit } from "./action-row";
@@ -943,6 +944,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           animated={props.animated}
         />
       </View>
+      {card.subagent ? <SubagentLabel language={language} tokens={tokens} testID="task-card-session-label" /> : null}
       {updatingTitle ? <TitleLoading title={shownTitle} titleLines={props.titleLines ?? 2} mutedColor={tokens.foregroundMuted}
         // A band of light: towards the card's fill on a light theme, keeping the glyphs
         // readable under it, and the text color on a dark one.
@@ -1541,7 +1543,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         nativeID={props.focusId}
         {...(WEB ? { dataSet: { bctaskcard: card.id } } : null)}
         accessibilityLabel={card.title}
-        accessibilityHint={query && searchHits.length ? `${strings.searchHits.count(searchHits.length, query)}: ${searchHits.map((hit) => `${strings.searchHits.fields[hit.field]}: ${hit.snippet}`).join("; ")}` : undefined}
+        accessibilityHint={[card.subagent ? strings.subagentCard : null, query && searchHits.length ? `${strings.searchHits.count(searchHits.length, query)}: ${searchHits.map((hit) => `${strings.searchHits.fields[hit.field]}: ${hit.snippet}`).join("; ")}` : null].filter(Boolean).join(". ") || undefined}
         onPress={pressBody}
         onPressIn={() => setCardPressed(true)}
         onPressOut={() => setCardPressed(false)}

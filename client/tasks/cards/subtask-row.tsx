@@ -15,6 +15,7 @@ import { TitleUndo } from "./title-undo";
 import { cardStart, cardTimer } from "./card-time";
 import { hintProps, tipProps } from "./card-hints";
 import { ChildMark } from "./child-mark";
+import { SubagentLabel } from "./subagent-label";
 import { ContextRing } from "./context-ring";
 import { useTime, type TimeSource } from "./clock";
 import { titlePrefix } from "./details-format";
@@ -85,6 +86,7 @@ export function SubtaskRow(props: SubtaskRowProps) {
     <Pressable
       {...(web ? { role: "group" as const } : { accessibilityRole: "button" as const })}
       accessibilityLabel={props.accessibilityLabel ?? child.title}
+      accessibilityHint={child.kind === "provider" ? cardStrings(props.language).subagentCard : undefined}
       {...tipProps(props.onPress ? props.pressTip : undefined)}
       disabled={!props.onPress && !props.onOpen}
       onPress={props.onPress}
@@ -109,7 +111,8 @@ export function SubtaskRow(props: SubtaskRowProps) {
         <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={fill} animated={props.animated} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }} testID={`${prefix}-content-${child.id}`}>
-        <View testID={`${prefix}-title-row-${child.id}`} style={{ flexDirection: "row", alignItems: "center", marginRight: props.onOpen ? target + 8 : undefined }}>
+        <View testID={`${prefix}-title-row-${child.id}`} style={{ flexDirection: "row", alignItems: "center", gap: child.kind === "provider" ? 6 : 0, marginRight: props.onOpen ? target + 8 : undefined }}>
+        {child.kind === "provider" ? <SubagentLabel language={props.language} tokens={tokens} testID={`${prefix}-session-label-${child.id}`} /> : null}
         {updatingTitle ? <View style={{ flex: 1, minWidth: 0 }} testID={`${prefix}-title-${child.id}`}><TitleLoading title={shownTitle} titleLines={1} mutedColor={tokens.foregroundMuted} highlightColor={tokens.isDark ? tokens.foreground : mix(fill, tokens.foregroundMuted, 0.45)} animated={props.animated} accessibilityLabel={cardStrings(props.language).autoTitlePending} style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead }} /></View> : <Text numberOfLines={1} ellipsizeMode="tail" style={{ flex: 1, minWidth: 0, fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: props.muted ? tokens.foregroundMuted : tokens.foreground }} testID={`${prefix}-title-${child.id}`}>
           {tag ? <Text style={{ color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${tag} `}</Text> : null}
           {rest}

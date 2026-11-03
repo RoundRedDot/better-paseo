@@ -30,6 +30,7 @@ import { TagMark } from "./tag-mark";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
 import { SubtaskRow } from "./subtask-row";
+import { SubagentLabel } from "./subagent-label";
 import { TitleUndo } from "./title-undo";
 import { ArchivedTag } from "./archived-tag";
 import { useTime, type TimeSource } from "./clock";
@@ -640,6 +641,7 @@ function DetailHeader(props: Inner) {
         {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={m.round} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
       </View>
       <View style={{ marginTop: 2, flexDirection: "row", alignItems: "center", gap: 6 }}>
+      {card.subagent ? <SubagentLabel language={props.language} tokens={tokens} testID="detail-session-label" /> : null}
       <Text style={{ flex: 1, minWidth: 0, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
         {highlightText(card.title, props.searchQuery ?? "", tokens.isDark)}
       </Text>
