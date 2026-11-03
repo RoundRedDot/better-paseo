@@ -4,7 +4,9 @@ Use this when asked to submit the plugin update PR. Follow it as written.
 The live reads are the target SHA, the pin on registry `main`, an existing open
 PR, and the changes between those two commits. Remotes, validation, commit
 identity, and the pull request shape are fixed here. The same update publishes
-a GitHub release named with the plugin version.
+a GitHub release on `RoundRedDot/better-paseo`. The tag and the title are the
+same string: the plugin version, with no `v` prefix. The pull request and the
+release are one update. Report it only after both exist.
 
 This pull request changes the commit [paseo.sh/plugins](https://paseo.sh/plugins)
 installs for `roundreddot/better-paseo`. Git plugins are not bumped
@@ -60,15 +62,26 @@ Push the assets repository before opening the registry pull request.
 
 ## GitHub release
 
-After the version commit is on plugin `origin/main`, publish a GitHub release
-on `RoundRedDot/better-paseo`. Do this for every plugin update. The tag and
-the release name are the plugin version, with no `v` prefix. The existing
-`1.0.0` release uses that shape. Point the release at the version commit.
+After the version commit is on plugin `origin/main`, and before opening the
+registry pull request, publish a GitHub release on `RoundRedDot/better-paseo`.
+Do this for every plugin update. The tag and the title are the same string,
+the plugin version, with no `v` prefix. `1.0.0` and later releases use that
+shape. Point the release at the version commit.
 
-The body is the new user-visible notes for that version, Chinese first and
-then English, plus one line that names the version and the Paseo requirement.
-Use the same new sentences added to `releases.json` for this version. Do not
-paste the carried-forward older notes into the GitHub release.
+`/tmp/better-paseo-release.md` is the body. The first line names this version
+and the minimum from `paseo-plugin.json` `requirements.paseo`. For `>=0.14.0`
+that line is `Better Paseo <version>. Requires Paseo 0.14.0 or later.` Then
+the new user-visible notes for this version, Chinese first and then English.
+Use the same new sentences added to `releases.json`. Do not paste the
+carried-forward older notes into the GitHub release.
+
+```text
+Better Paseo <version>. Requires Paseo <minimum> or later.
+
+- <new Chinese note>
+
+- <the same note in English>
+```
 
 ```bash
 gh release create <version> --repo RoundRedDot/better-paseo \
@@ -77,12 +90,18 @@ gh release create <version> --repo RoundRedDot/better-paseo \
   --notes-file /tmp/better-paseo-release.md
 ```
 
-Delete `/tmp/better-paseo-release.md` after the release exists. Confirm with
-`gh release view <version> --repo RoundRedDot/better-paseo`. The tag, the
-title, and `targetCommitish` are the plugin version and the version commit.
+Delete `/tmp/better-paseo-release.md` after the release exists. Confirm before
+opening the pull request:
 
-The release does not replace `releases.json` or the registry pull request.
-Settings still reads `releases.json`.
+```bash
+gh release view <version> --repo RoundRedDot/better-paseo \
+  --json tagName,name,targetCommitish,isDraft,url
+```
+
+`tagName` and `name` are the version. `targetCommitish` is the version commit.
+`isDraft` is false. A mismatch stops the update. Correct the release, then
+continue. The release does not replace `releases.json` or the registry pull
+request. Settings still reads `releases.json`.
 
 ## Registry branch
 
@@ -280,8 +299,13 @@ Expect `state` `OPEN`, base `main`, head
 author and committer `luke <luopeihuan@gmail.com>`, and one file,
 `plugins/roundreddot/better-paseo.json`.
 
-Report the pull request URL. Registry `main` keeps serving the previous pin
-until the pull request merges. Merging is a separate request.
+Report the pull request URL and the GitHub release URL together. Registry
+`main` keeps serving the previous pin until the pull request merges. Merging
+is a separate request.
+
+The release from the section above must already exist. A pull request whose
+version has no matching release is not a finished plugin update. Create that
+release before opening the pull request.
 
 Keep the worktree. Leave the original registry checkout on its previous branch.
 
