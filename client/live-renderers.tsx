@@ -58,6 +58,7 @@ import {
   userMessagePropsEqual,
 } from "./state/render-equality";
 import { noteTimelineRowShown } from "./state/startup-settled";
+import { useHeldRow } from "./ui/hidden-row";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -900,6 +901,8 @@ function SenderlessAgentMessage(props: PluginTimelineItemProps<LiveToolCallPaylo
 }
 
 export function LiveToolCallRenderer(props: PluginTimelineItemProps<LiveToolCallPayload>) {
+  const held = useHeldRow({ compact: props.layout.compact, window: true });
+  if (held) return held;
   const data = props.item.data;
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="tool">
     <ChatComposerContext.Provider value={props.composer}>
@@ -910,30 +913,40 @@ export function LiveToolCallRenderer(props: PluginTimelineItemProps<LiveToolCall
 }
 
 export function LiveReasoningRenderer(props: PluginTimelineItemProps<LiveReasoningPayload>) {
+  const held = useHeldRow({ compact: props.layout.compact, window: true });
+  if (held) return held;
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="thought">
     <ChatComposerContext.Provider value={props.composer}><ReasoningMemo {...props} /></ChatComposerContext.Provider>
   </BlockPlacement>;
 }
 
 export function LiveTodoRenderer(props: PluginTimelineItemProps<LiveTodoPayload>) {
+  const held = useHeldRow({ compact: props.layout.compact, window: true });
+  if (held) return held;
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="todo">
     <ChatComposerContext.Provider value={props.composer}><TodoMemo {...props} /></ChatComposerContext.Provider>
   </BlockPlacement>;
 }
 
 export function LiveAssistantRenderer(props: PluginTimelineItemProps<LiveAssistantPayload>) {
+  const held = useHeldRow({ compact: props.layout.compact });
+  if (held) return held;
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="activity">
     <ChatComposerContext.Provider value={props.composer}><AssistantMemo {...props} /></ChatComposerContext.Provider>
   </BlockPlacement>;
 }
 
 export function LiveNoticeRenderer(props: PluginTimelineItemProps<LiveNoticePayload>) {
+  const held = useHeldRow({ compact: props.layout.compact, window: true });
+  if (held) return held;
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="activity">
     <ChatComposerContext.Provider value={props.composer}><NoticeMemo {...props} /></ChatComposerContext.Provider>
   </BlockPlacement>;
 }
 
 export function LiveUserMessageRenderer(props: PluginTimelineItemProps<LiveUserMessagePayload>) {
+  const held = useHeldRow({ compact: props.layout.compact });
+  if (held) return held;
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="activity">
     <ChatComposerContext.Provider value={props.composer}><UserMessageMemo {...props} /></ChatComposerContext.Provider>
   </BlockPlacement>;
