@@ -33,9 +33,18 @@ describe("the streaming palette follows the reader's syntax theme", () => {
     expect(paletteFor(syntaxTheme).keyword).toBe(keyword);
   });
 
-  // Shiki ships no light flavour for these three, so their light fences use GitHub.
-  it.each(["tokyo-night", "nord", "dracula"] as const)("%s stays GitHub Light in a light surface", (syntaxTheme) => {
-    expect(paletteFor(syntaxTheme, true)).toEqual(paletteFor("github", true));
+  // Nord has no light flavour in Shiki and none vendored here, so its light
+  // fences stay on GitHub Light; Dracula and Tokyo Night read their own palettes.
+  it("nord keeps GitHub Light in a light surface", () => {
+    expect(paletteFor("nord", true)).toEqual(paletteFor("github", true));
+  });
+
+  it.each([
+    ["dracula", "#A3144D"],
+    ["tokyo-night", "#7B43BA"],
+  ] as const)("%s keywords %s in a light surface", (syntaxTheme, keyword) => {
+    expect(paletteFor(syntaxTheme, true).keyword).toBe(keyword);
+    expect(paletteFor(syntaxTheme, true)).not.toEqual(paletteFor("github", true));
   });
 
   it("tints diffs with the host's status colours, not the syntax theme", () => {

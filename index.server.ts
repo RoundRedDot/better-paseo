@@ -19,6 +19,7 @@ import { imageRpc } from "./shared/image-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
 import { perfDumpRpc } from "./shared/perf-rpc";
 import { EMBEDDED_FONTS } from "./server/font-data";
+import { LIGHT_SYNTAX_THEMES } from "./server/light-syntax-themes";
 import { MARK_BITMAPS } from "./server/mark-bitmaps";
 import { writePerfDump } from "./server/perf-dump";
 import { registerTasksServer } from "./server/tasks/register";
@@ -164,8 +165,12 @@ const GITHUB: ThemePair = [
  *
  * The id names the palette family; the scheme comes from the client, because
  * one daemon serves readers in light and dark at the same time. Shiki 4.4.3
- * ships no light flavour for Tokyo Night, Nord or Dracula, so those three reuse
- * GitHub Light in light mode rather than inventing a palette.
+ * ships no light flavour for Tokyo Night, Nord or Dracula: Alucard (Dracula's
+ * own light half) and Tokyo Night Light are vendored from their published
+ * palettes, and Nord alone still reuses GitHub Light rather than inventing one.
+ *
+ * A vendored theme needs no import — its data is already in this build, so its
+ * loader only hands it over.
  */
 const SYNTAX_THEMES: Record<string, ThemePair> = {
   github: GITHUB,
@@ -185,9 +190,15 @@ const SYNTAX_THEMES: Record<string, ThemePair> = {
     ["solarized-dark", () => import("@shikijs/themes/solarized-dark")],
     ["solarized-light", () => import("@shikijs/themes/solarized-light")],
   ],
-  "tokyo-night": [["tokyo-night", () => import("@shikijs/themes/tokyo-night")], GITHUB[1]],
+  "tokyo-night": [
+    ["tokyo-night", () => import("@shikijs/themes/tokyo-night")],
+    ["tokyo-night-light", async () => LIGHT_SYNTAX_THEMES["tokyo-night-light"]],
+  ],
   nord: [["nord", () => import("@shikijs/themes/nord")], GITHUB[1]],
-  dracula: [["dracula", () => import("@shikijs/themes/dracula")], GITHUB[1]],
+  dracula: [
+    ["dracula", () => import("@shikijs/themes/dracula")],
+    ["alucard", async () => LIGHT_SYNTAX_THEMES.alucard],
+  ],
 };
 
 /**

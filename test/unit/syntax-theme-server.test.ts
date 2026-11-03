@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 
 import { buildThemeTokens } from "../../client/components/theme-tokens";
+import { LIGHT_SYNTAX_THEMES } from "../../server/light-syntax-themes";
 import { PASEO_SYNTAX_THEMES, type PaseoSyntaxThemeId } from "../../client/ui/tokens/host-appearance-shim";
 
 interface Answer {
@@ -57,11 +58,13 @@ describe("the daemon follows Paseo's syntax theme", () => {
     ["gruvbox", "dark", "gruvbox-dark-medium"],
     ["solarized", "light", "solarized-light"],
     ["tokyo-night", "dark", "tokyo-night"],
+    // The two families Shiki has no light flavour for and this plugin vendors one.
+    ["tokyo-night", "light", "tokyo-night-light"],
+    ["dracula", "light", "alucard"],
     // A client that names no theme gets today's pair.
     [undefined, "dark", "github-dark-default"],
-    // Shiki ships no light flavour for these three, so the scheme keeps GitHub.
+    // Nord is the one family still left on GitHub Light in a light scheme.
     ["nord", "light", "github-light-default"],
-    ["dracula", "light", "github-light-default"],
     // An id from a newer host than this table.
     ["unknown-id", "dark", "github-dark-default"],
   ] as const)("maps %s (%s) to %s", async (syntaxTheme, scheme, theme) => {
@@ -112,7 +115,12 @@ describe("the daemon follows Paseo's syntax theme", () => {
       for (const dark of [true, false]) {
         const theme = (await handler({ code: CODE, language: "typescript", dark, syntaxTheme })).theme;
         if (!highlighter.getLoadedThemes().includes(theme)) {
-          await highlighter.loadTheme(await import(`@shikijs/themes/${theme}`));
+          // A vendored palette is not an `@shikijs/themes` subpath, so the computed
+          // import below cannot reach it; the daemon reads it out of its own build.
+          await highlighter.loadTheme(
+            LIGHT_SYNTAX_THEMES[theme as keyof typeof LIGHT_SYNTAX_THEMES] ??
+              (await import(`@shikijs/themes/${theme}`)).default,
+          );
         }
         expect(probe(theme), `${syntaxTheme} ${dark ? "dark" : "light"}`)
           .toEqual(normalise(clientPalette(syntaxTheme, dark)));

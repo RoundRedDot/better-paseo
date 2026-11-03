@@ -322,7 +322,7 @@ interface SyntaxRoles {
   function: string;
 }
 
-/** GitHub Light Default: the light row for every family Shiki gives no light flavour. */
+/** GitHub Light Default: the light row for the family Shiki gives no light flavour. */
 const GITHUB_LIGHT: SyntaxRoles = {
   keyword: "#cf222e",
   string: "#0a3069",
@@ -344,7 +344,9 @@ const GITHUB_LIGHT: SyntaxRoles = {
  * `PASEO_SYNTAX_THEMES` without a row is a type error.
  *
  * The light column matches the daemon's mapping: Shiki 4.4.3 ships no light
- * flavour for Tokyo Night, Nord or Dracula, so those reuse GitHub Light.
+ * flavour for Nord, so that one reuses GitHub Light, while Dracula reads the
+ * vendored Alucard palette and Tokyo Night its own light theme (both in
+ * `server/light-syntax-themes.ts`).
  */
 const THEME_SYNTAX_ROLES: Record<PaseoSyntaxThemeId, Record<"dark" | "light", SyntaxRoles>> = {
   github: {
@@ -369,7 +371,7 @@ const THEME_SYNTAX_ROLES: Record<PaseoSyntaxThemeId, Record<"dark" | "light", Sy
   },
   "tokyo-night": {
     dark: { keyword: "#9d7cd8", string: "#9ece6a", number: "#ff9e64", comment: "#51597d", property: "#ff9e64", function: "#7aa2f7" },
-    light: GITHUB_LIGHT,
+    light: { keyword: "#7B43BA", string: "#385F0D", number: "#965027", comment: "#888B94", property: "#965027", function: "#2959AA" },
   },
   nord: {
     dark: { keyword: "#81a1c1", string: "#a3be8c", number: "#b48ead", comment: "#616e88", property: "#d8dee9", function: "#88c0d0" },
@@ -377,7 +379,7 @@ const THEME_SYNTAX_ROLES: Record<PaseoSyntaxThemeId, Record<"dark" | "light", Sy
   },
   dracula: {
     dark: { keyword: "#ff79c6", string: "#f1fa8c", number: "#bd93f9", comment: "#6272a4", property: "#bd93f9", function: "#50fa7b" },
-    light: GITHUB_LIGHT,
+    light: { keyword: "#A3144D", string: "#846E15", number: "#644AC9", comment: "#6C664B", property: "#644AC9", function: "#14710A" },
   },
 };
 
