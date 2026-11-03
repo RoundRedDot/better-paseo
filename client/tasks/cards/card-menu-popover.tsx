@@ -21,27 +21,37 @@ export function CardMenuPopover(props: {
   const sections = props.sections.map((section) => ({ ...section, items: section.items
     .flatMap((item) => item.submenu ? item.submenu.flatMap((group) => group.items) : [item])
     .map((item) => ({ ...item, minHeight: 44 })) }));
+  // The overlay's own size is not final on its first layout: iOS starts from the
+  // screen's size in the device's orientation, Android from the screen less its
+  // system bars, and the real size arrives a layout later. Placing against it
+  // drew the menu flipped or clamped higher for a frame, then moved it down.
+  // Inside the board the board's frame decides alone, which is the same on
+  // every measure; the overlay only gives the offset between the two spaces.
   const measure = () => {
     stageRef.current?.measureInWindow((sx, sy, sw, sh) => {
-      const place = (boardTop: number, boardBottom: number) => {
-        const topEdge = Math.max(0, boardTop - sy) + MENU_EDGE;
-        const bottomEdge = Math.min(sh, boardBottom - sy) - MENU_EDGE;
-        const menu = menuWidth(240, scale, sw - MENU_EDGE * 2);
+      const place = (areaLeft: number, areaTop: number, areaRight: number, areaBottom: number) => {
+        const leftEdge = Math.max(0, areaLeft) + MENU_EDGE;
+        const rightEdge = areaRight - MENU_EDGE;
+        const topEdge = Math.max(0, areaTop) + MENU_EDGE;
+        const bottomEdge = areaBottom - MENU_EDGE;
+        const menu = menuWidth(240, scale, rightEdge - leftEdge);
         const maxHeight = Math.min(MENU.maxHeight, Math.max(0, bottomEdge - topEdge));
         const menuHeight = Math.min(layoutMenu(sections, scale).height + 2 * StyleSheet.hairlineWidth, maxHeight);
         const x = props.point.x - sx;
         const y = props.point.y - sy;
-        const left = x + 6 + menu <= sw - MENU_EDGE ? x + 6 : x - menu - 6;
+        const left = x + 6 + menu <= rightEdge ? x + 6 : x - menu - 6;
         const top = y + 6 + menuHeight <= bottomEdge ? y + 6 : y - menuHeight - 6;
-        setFrame({
-          left: Math.max(MENU_EDGE, Math.min(left, sw - menu - MENU_EDGE)),
+        const next = {
+          left: Math.max(leftEdge, Math.min(left, rightEdge - menu)),
           top: Math.max(topEdge, Math.min(top, bottomEdge - menuHeight)),
           width: menu,
           maxHeight,
-        });
+        };
+        setFrame((was) => was && was.left === next.left && was.top === next.top && was.width === next.width && was.maxHeight === next.maxHeight ? was : next);
       };
-      if (!boundsRef?.current) return place(sy, sy + sh);
-      boundsRef.current.measureInWindow((_x, by, _width, height) => place(by, by + height));
+      const stage = () => place(0, 0, sw, sh);
+      if (!boundsRef?.current) return stage();
+      boundsRef.current.measureInWindow((bx, by, bw, bh) => (bw > 0 && bh > 0 ? place(bx - sx, by - sy, bx + bw - sx, by + bh - sy) : stage()));
     });
   };
   return (

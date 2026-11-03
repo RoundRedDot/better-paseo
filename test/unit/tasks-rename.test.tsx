@@ -410,6 +410,29 @@ describe("task card rename entry", () => {
     expect(tree.root.findByType(CascadeMenu).props.maxHeight).toBe(284);
     expect(host("menu-panel").props.style.flat().find((style: { maxHeight?: number }) => style?.maxHeight === 284)).toBeDefined();
   });
+  it.each([["android", 560, 720], ["ios", 1376, 1032]] as const)("keeps the %s tablet menu still when the overlay's first layout has the wrong height", async (platform, first, real) => {
+    // The overlay first lays out at the screen size the platform guesses (Android: less the
+    // system bars; iOS: the device orientation's), then at its real size a layout later.
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    vi.spyOn(Dimensions, "get").mockReturnValue({ width: 1376, height: real, scale: 2, fontScale: 1 });
+    const bounds = { current: { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(280, 60, 1096, real - 60) } } as unknown as React.RefObject<import("react-native").View>;
+    let stage: { width: number; height: number } = { width: real === 720 ? 1376 : 1032, height: first };
+    await act(async () => {
+      tree = TestRenderer.create(<MenuBoundsContext.Provider value={bounds}><CardContextMenu point={{ x: 900, y: real - 470 }} card={card} strings={cardStrings("en")} actions={{ children: 2, stop: vi.fn(), filters: { state: { agent: false, workspace: false, project: false }, select: vi.fn() } }} theme={theme} onClose={onClose} /></MenuBoundsContext.Provider>, {
+        createNodeMock: (element) => (element.props as { testID?: string }).testID === "task-card-menu-stage" ? { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(0, 0, stage.width, stage.height) } : null,
+      });
+    });
+    const host = (id: string) => tree.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    await act(async () => host("task-card-menu-stage").props.onLayout());
+    const shown = { ...host("task-card-menu-popover").props.style };
+    expect(shown.opacity).toBe(1);
+    // Below the touch, as the board has room for it.
+    expect(shown.top).toBe(real - 470 + 6);
+    stage = { width: 1376, height: real };
+    await act(async () => host("task-card-menu-stage").props.onLayout());
+    await act(async () => tree.root.findByType("Modal" as never).props.onShow());
+    expect(host("task-card-menu-popover").props.style).toEqual(shown);
+  });
   it.each([
     ["ios", 540, 720, 24, 60],
     ["ios", 540, 720, 270, 300],
