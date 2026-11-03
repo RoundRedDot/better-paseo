@@ -339,7 +339,16 @@ export function registerTasksServer(
   tokens: SessionTokenReader = createSessionTokenReader(),
 ): void {
   server.registerSettings(TASKS_SETTINGS);
-  const titleSettings = registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available);
+  const titleSettings = registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available, async (agentId) => {
+    const daemon = await host.connect();
+    if (!daemon) throw new Error("Could not reach the Paseo daemon.");
+    try {
+      if (!daemon.deleteAgent) throw new Error("This Paseo cannot delete agents.");
+      await daemon.deleteAgent(agentId);
+    } finally {
+      await daemon.close();
+    }
+  });
   const availability = createTaskAvailability(titleSettings, host.available, async () => (await resolveCli()) !== null, host.available);
   server.handle(tasksAvailabilityRpc, (input, { paseo }) => availability(paseo, input.agentIds));
   server.handle(conversationSearchRpc, (input, { paseo }) => searchConversationPage(paseo, host, input));

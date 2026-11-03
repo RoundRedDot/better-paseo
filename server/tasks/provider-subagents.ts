@@ -29,6 +29,7 @@ export interface SeedDaemon {
 
 /** The daemon's own client as the board's server uses it: the seed, metadata updates and attention. */
 export interface HostDaemon extends SeedDaemon {
+  deleteAgent?(agentId: string): Promise<void>;
   updateAgent(agentId: string, updates: { name: string }): Promise<void>;
   inspectWorkspaceRecovery?(workspaceId: string): Promise<{ kind: "recoverable"; action: "unarchive" | "restore" } | { kind: "unavailable"; message: string }>;
   restoreWorkspace?(workspaceId: string): Promise<void>;

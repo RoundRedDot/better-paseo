@@ -50,12 +50,13 @@ async function fixture() {
   const read = vi.fn(async () => ({ status: "ready" as const, revision: "1", values }));
   const rename = vi.fn(async () => ({ ok: true, error: null as string | null }));
   const canRename = vi.fn(() => true);
+  const deleteHelper = vi.fn(async (_id: string) => {});
   const delay = vi.fn(async (_ms: number) => {});
-  const service = createTitleGenerator({ settings: { read, subscribe: () => () => {} }, rename, directory, canRename, delay });
+  const service = createTitleGenerator({ settings: { read, subscribe: () => () => {} }, rename, directory, canRename, deleteHelper, delay });
   const state = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "status", mode }, api);
   const start = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "start", mode }, api);
   const settle = async (mode: "apply" | "preview" = "apply") => { await expect.poll(() => state(mode).state).not.toBe("running"); return state(mode); };
-  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, refreshWorkspace, timeline, listModels, snapshot, values, read, rename, canRename, delay, state, start, settle };
+  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, refreshWorkspace, timeline, listModels, snapshot, values, read, rename, canRename, deleteHelper, delay, state, start, settle };
 }
 
 describe("background title generation", () => {
@@ -108,6 +109,28 @@ describe("background title generation", () => {
     expect(await f.settle()).toMatchObject({ state: "done" });
     expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
     expect(f.state("preview")).toEqual({ state: "done", title: "Preview title" });
+  });
+
+  it("deletes the created helper after archiving on success and failure", async () => {
+    const f = await fixture();
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.deleteHelper).toHaveBeenCalledExactlyOnceWith("helper");
+    expect(f.archive.mock.invocationCallOrder[0]).toBeLessThan(f.deleteHelper.mock.invocationCallOrder[0]!);
+    f.run.mockResolvedValueOnce({ status: "error", lastMessage: "", error: "Provider failed" });
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "error", error: "Provider failed" });
+    expect(f.deleteHelper).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a generated title when helper deletion fails", async () => {
+    const f = await fixture();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    f.deleteHelper.mockRejectedValueOnce(new Error("Delete failed"));
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Delete failed"));
+    log.mockRestore();
   });
 
   it("does not rename after a preview failure", async () => {
@@ -214,7 +237,7 @@ describe("background title generation", () => {
 
   it("exposes each selectable model's thinking options and default in the settings catalog", async () => {
     const handle = vi.fn();
-    registerTitleGeneration({ registerSettings: vi.fn(), handle, on: vi.fn() } as unknown as Parameters<typeof registerTitleGeneration>[0], vi.fn(), () => true);
+    registerTitleGeneration({ registerSettings: vi.fn(), handle, on: vi.fn() } as unknown as Parameters<typeof registerTitleGeneration>[0], vi.fn(), () => true, vi.fn());
     const models = handle.mock.calls.find(([contract]) => contract.name === titleModelsRpc.name)![1];
     const paseo = { providers: {
       snapshot: async () => ({ entries: [{ provider: "claude", enabled: true }, { provider: "cursor", enabled: false }] }),
@@ -667,7 +690,7 @@ describe("title when the first message starts", () => {
 
   it("registers only a turn-start hook and returns before title generation", () => {
     const on = vi.fn();
-    registerTitleGeneration({ registerSettings: vi.fn(() => ({ read: async () => ({ status: "ready", revision: "1", values: titleGenerationSettingsSchema.parse({}) }) })), handle: vi.fn(), on } as unknown as Parameters<typeof registerTitleGeneration>[0], vi.fn(), () => true);
+    registerTitleGeneration({ registerSettings: vi.fn(() => ({ read: async () => ({ status: "ready", revision: "1", values: titleGenerationSettingsSchema.parse({}) }) })), handle: vi.fn(), on } as unknown as Parameters<typeof registerTitleGeneration>[0], vi.fn(), () => true, vi.fn());
     expect(on.mock.calls.map(([name]) => name)).toEqual(["agent.turn_started"]);
     expect(on.mock.calls[0]![1]({ agent: { id: "a", cwd: "/x", provider: "codex" }, turnId: "t1" }, { paseo: {} })).toBeUndefined();
   });

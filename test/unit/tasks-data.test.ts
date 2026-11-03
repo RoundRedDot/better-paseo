@@ -2528,6 +2528,23 @@ describe("Tasks data store, archived lane", () => {
     }
   });
 
+  it("hides title helpers even after their background workspace is archived", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("helper", { status: "closed", workspaceId: "ws-helper", archivedAt: recentIso(2_000), updatedAt: recentIso(2_000), labels: { "better-paseo.purpose": "title-generation" } }),
+        activeAgent("ordinary", { status: "closed", workspaceId: "ws-helper", archivedAt: recentIso(2_000), updatedAt: recentIso(2_000) }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(ids(mounted.current.lanes.archived)).toEqual(["ordinary"]);
+      expect(mounted.current.byId.has("helper")).toBe(false);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("removes a restored background helper from the archived lane", async () => {
     const fake = createFakePaseo({
       agents: [activeAgent("helper", { status: "closed", workspaceId: "ws-helper", archivedAt: recentIso(2_000), updatedAt: recentIso(2_000) })],

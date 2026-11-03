@@ -1,3 +1,6 @@
+export const TITLE_HELPER_LABEL = "better-paseo.purpose";
+export const TITLE_HELPER_PURPOSE = "title-generation";
+
 import { defineRpc, defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";
 
