@@ -310,7 +310,7 @@ export function PhoneBoard(props: {
           theme={theme}
           onPress={() => setSearchOpen((open) => !open)}
         />
-        <Text numberOfLines={1} style={{ flexShrink: 1, marginLeft: -4, fontSize: F.lg, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>
+        <Text pointerEvents="none" numberOfLines={1} style={{ flexShrink: 1, marginLeft: -10, fontSize: F.lg, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>
           {strings.total(board.total)}
         </Text>
         {board.params.sort ? (
