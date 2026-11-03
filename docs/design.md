@@ -70,7 +70,7 @@ Cards, the sidebar's capsules, and the board's buttons share one treatment (`sur
 - On desktop web, a fine pointer (`(hover: hover) and (pointer: fine)`) deepens the shadow while hovered. Nothing scales.
 - On a phone, a touch browser, and an iPad (the app, trackpad included), the deeper shadow and a scale of 1.03 happen only while pressed. Hover, including an iPad pointer, does not.
 - Reduced motion skips the scale and keeps the shadow. Action buttons animate the scale over 100 ms; the other controls snap.
-- A selected, open, current, expanded, or on fill stays. The stop chevron keeps its danger wash while its menu is open. An expanded pill keeps its 6% wash. Chat rows, menu rows, detail property rows, subtask rows, and the lane panel are outside this treatment.
+- A selected, open, current, expanded, or on fill stays where the control has one. The tablet toolbar's Subtasks switch has no selected fill. The stop chevron keeps its danger wash while its menu is open. An expanded pill keeps its 6% wash. Chat rows, menu rows, detail property rows, subtask rows, and the lane panel are outside this treatment.
 - Menu chrome (`menuChrome`): `surface0`, hairline border, hover foreground 5.5% (8% dark),
   shadow `0 4 24` and `0 1 3` at 8% and 4% (45% and 30% dark). `panelChrome` reuses it.
 - Chat rows have no surface at rest: `surface1` hovered, `surface2` pressed or held. The chat's
@@ -862,7 +862,7 @@ apply to all three.
 | Toolbar | Height | Targets | Contents |
 | --- | --- | --- | --- |
 | Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 400 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
-| Tablet (`TabletToolbar`) | 56, 36 when narrower than 680 | 44, 28 when narrow | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when selected or expanded |
+| Tablet (`TabletToolbar`) | 48 | 40 | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when selected or expanded, except the Subtasks switch |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
 - Wide desktop: the top row ends with Show groups with no tasks, then the sidebar
@@ -886,6 +886,8 @@ apply to all three.
   Running and Review excluded by hiding subtasks under the other current filters; Done and
   Archived do not contribute. This badge appears only while subtasks are hidden, including on
   the phone and desktop switches. The phone/desktop Filters badge retains its accent treatment.
+- The tablet Subtasks switch stays transparent in both states; its icon and hidden-card badge
+  communicate the state. Keep its accessibility selected state and the normal press lift.
 - Round buttons (`RoundButton`) are a 36 circle in a 44 target with a hairline, an accent border
   when active, and a badge at least 20 high on the accent with a 2 pt `surface0` ring.
 - An on/off switch in a toolbar is a round button whose icon tells the state; Archived is struck
