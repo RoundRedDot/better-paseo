@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import type { PluginLifecycleEvents, PluginServerContext, PluginSettings } from "@getpaseo/plugin/server";
 import { z } from "zod";
-import { TITLE_GENERATION_SETTINGS, TITLE_HELPER_LABEL, TITLE_HELPER_PURPOSE, titleGenerationSettingsSchema, titleModelsRpc, titleUpdateRpc, type TitleUpdateState } from "../../shared/title-generation";
+import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, TITLE_HELPER_LABEL, TITLE_HELPER_PURPOSE, titleGenerationSettingsSchema, titleLanguageRpc, titleModelsRpc, titleUpdateRpc, type TitleUpdateState } from "../../shared/title-generation";
 import { pluginDataDir } from "../plugin-data";
 import { taskIssueError, taskUpdateIssue } from "./availability";
 
@@ -104,6 +104,7 @@ export function createTitleGenerator(deps: Dependencies) {
   /** Agents being checked or already given an automatic title in this process: one try each. */
   const checking = new Set<string>();
   const attempted = new Set<string>();
+  let language: "en" | "zh" | undefined;
 
   async function generate(agentId: string, paseo: PaseoApi, stream: (update: { text?: string; helperId: string }) => void, mode: "apply" | "preview", keepTitle?: string, firstPrompt?: string): Promise<string> {
     if (!deps.canRename()) throw new Error("This host cannot update agent titles.");
@@ -181,7 +182,10 @@ export function createTitleGenerator(deps: Dependencies) {
       } catch {
         // Without a live timeline the title lands whole when the turn ends.
       }
-      const result = await helper.run(`${config.prompt}\n\n${JSON.stringify({ messages })}`, { timeoutMs: 60_000 });
+      const prompt = language && config.prompt === DEFAULT_TITLE_PROMPT
+        ? config.prompt.replace("Use the language of the first user message.", `Prefer ${language === "zh" ? "Chinese" : "English"}, the user's interface language.`)
+        : language ? `Prefer ${language === "zh" ? "Chinese" : "English"}, the user's interface language, unless the following custom instructions specify a language.\n\n${config.prompt}` : config.prompt;
+      const result = await helper.run(`${prompt}\n\n${JSON.stringify({ messages })}`, { timeoutMs: 60_000 });
       if (result.status !== "idle") throw new Error(result.error || `Title generation ended with status: ${result.status}.`);
       const parsed = generatedTitle.safeParse(result.lastMessage);
       if (!parsed.success) throw new Error("The model must return one title between 1 and 80 characters, without explanations or line breaks.");
@@ -235,6 +239,7 @@ export function createTitleGenerator(deps: Dependencies) {
   }
 
   return {
+    setLanguage(next: "en" | "zh") { language = next; },
     request(input: { agentId: string; action: "start" | "status"; mode?: "apply" | "preview" }, paseo: PaseoApi): TitleUpdateState {
       if (input.action === "status") return jobs.get(`${input.mode ?? "apply"}:${input.agentId}`) ?? { state: "idle" };
       return start(input.agentId, paseo, input.mode ?? "apply");
@@ -269,6 +274,7 @@ export function createTitleGenerator(deps: Dependencies) {
 export function registerTitleGeneration(server: PluginServerContext, rename: Dependencies["rename"], canRename: Dependencies["canRename"], deleteHelper: Dependencies["deleteHelper"]) {
   const settings = server.registerSettings(TITLE_GENERATION_SETTINGS);
   const generator = createTitleGenerator({ settings, rename, canRename, deleteHelper, directory: join(pluginDataDir(), "title-helper") });
+  server.handle(titleLanguageRpc, ({ language }) => { generator.setLanguage(language); return { ok: true as const }; });
   server.handle(titleUpdateRpc, (input, { paseo }) => generator.request(input, paseo));
   // Not awaited: the title takes longer than the host's 30-second hook limit.
   server.on("agent.turn_started", (event, context) => {

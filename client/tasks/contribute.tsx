@@ -1,6 +1,8 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { settingsRpc } from "@getpaseo/plugin";
 import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings";
+import { titleLanguageRpc } from "../../shared/title-generation";
+import { subscribeEnhancerPreferences } from "../preferences";
 import {
   setTasksBoardOpener,
   setTasksEnabled,
@@ -59,6 +61,11 @@ export function contributeTasks(client: PluginClientContext): () => void {
   const unsubscribeChunk = subscribeChunk(startData);
   startData();
   let language = resolveTasksLanguage();
+  const syncLanguage = () => {
+    const current = language;
+    void Promise.resolve().then(() => client.rpc(titleLanguageRpc, { language: current })).catch((error: unknown) => console.error("Could not sync title language", error));
+  };
+  syncLanguage();
 
   const registerBoard = () => {
     const titles = BOARD_STRINGS[language];
@@ -123,6 +130,7 @@ export function contributeTasks(client: PluginClientContext): () => void {
     const next = resolveTasksLanguage();
     if (!live || next === language) return;
     language = next;
+    syncLanguage();
     if (removeBoard) {
       removeBoard();
       removeBoard = registerBoard();
@@ -130,6 +138,7 @@ export function contributeTasks(client: PluginClientContext): () => void {
   };
   const unsubscribeEnabled = subscribeTasksEnabled(applyEnabled);
   const unsubscribeLanguage = onTasksLanguageChange(relabel);
+  const unsubscribePreferences = subscribeEnhancerPreferences(relabel);
   // On iOS and Android the host's language arrives from AsyncStorage after
   // this first look, with or without a Tasks component mounted.
   const unsubscribeHostLanguage = subscribeHostLanguage(relabel);
@@ -159,6 +168,7 @@ export function contributeTasks(client: PluginClientContext): () => void {
     live = false;
     unsubscribeEnabled();
     unsubscribeLanguage();
+    unsubscribePreferences();
     unsubscribeHostLanguage();
     removeBoard?.();
     removeBoard = null;

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { PaseoApi } from "@getpaseo/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTitleGenerator, registerTitleGeneration } from "../../server/tasks/title-generation";
-import { titleGenerationSettingsSchema, titleModelsRpc } from "../../shared/title-generation";
+import { DEFAULT_TITLE_PROMPT, titleGenerationSettingsSchema, titleModelsRpc } from "../../shared/title-generation";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -60,6 +60,26 @@ async function fixture() {
 }
 
 describe("background title generation", () => {
+  it.each([["zh", "Chinese"], ["en", "English"]] as const)("prefers the %s interface language for the default prompt", async (language, name) => {
+    const f = await fixture();
+    f.values.prompt = DEFAULT_TITLE_PROMPT;
+    f.service.setLanguage(language);
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.run.mock.calls[0]![0]).toContain(`Prefer ${name}, the user's interface language.`);
+    expect(f.run.mock.calls[0]![0]).not.toContain("Use the language of the first user message.");
+  });
+
+  it("updates the preferred language and leaves custom language instructions in control", async () => {
+    const f = await fixture();
+    f.values.prompt = "Write the title in Japanese.";
+    f.service.setLanguage("zh");
+    f.service.setLanguage("en");
+    f.start("preview");
+    expect(await f.settle("preview")).toMatchObject({ state: "done" });
+    expect(f.run.mock.calls[0]![0]).toContain("Prefer English, the user's interface language, unless the following custom instructions specify a language.\n\nWrite the title in Japanese.");
+  });
+
   it.each(["apply", "preview"] as const)("rejects a recycled workspace before reading history or creating a helper (%s)", async (mode) => {
     const f = await fixture();
     f.original.agent.cwd = join(f.directory, "recycled-worktree");
@@ -585,6 +605,15 @@ describe("title when the first message starts", () => {
     f.values.afterFirstReply = false;
     expect(await f.started()).toBe(false);
     expect(f.refresh).not.toHaveBeenCalled();
+  });
+
+  it("uses the synced interface language for automatic generation", async () => {
+    const f = await first();
+    f.values.prompt = DEFAULT_TITLE_PROMPT;
+    f.service.setLanguage("zh");
+    expect(await f.started()).toBe(true);
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.run.mock.calls[0]![0]).toContain("Prefer Chinese, the user's interface language.");
   });
 
   it.each(["Fix the card title", "", null])("starts without waiting for an assistant reply (%j)", async (title) => {

@@ -69,6 +69,7 @@ import { resetTasksLanguage, resolveTasksLanguage } from "../../client/tasks/i18
 import { resetHostLanguageForTests } from "../../client/i18n/host-language";
 import { contributeTasks } from "../../client/tasks/contribute";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
+import { titleLanguageRpc } from "../../shared/title-generation";
 // These tests start from the board and the archived lane both off; the stock settings turn both on.
 const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...STOCK_SETTINGS.board, showArchived: false } };
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
@@ -232,7 +233,7 @@ describe("Tasks board screen, opt-in", () => {
     });
     expect(textOf(renderer!.root)).toContain("The Tasks board is off");
     expect(textOf(renderer!.root)).toContain("Tasks board in Better Paseo's settings");
-    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledTimes(2);
     expect(host.settingsHooks).toBe(0);
     expect(fake.openSubscriptions()).toBe(0);
   });
@@ -378,7 +379,7 @@ describe("Tasks registrations, opt-in", () => {
       const plugin = client(offRecord);
       contributeTasks(plugin.value as never);
       await flush();
-      expect(plugin.value.rpc).toHaveBeenCalledTimes(1);
+      expect(plugin.value.rpc).toHaveBeenCalledTimes(2);
       expect(plugin.kinds()).toEqual(["screen"]);
       expect(tasksEnabled()).toBe(false);
       expect(vi.getTimerCount()).toBe(0);
@@ -442,6 +443,7 @@ describe("Tasks registrations, opt-in", () => {
     const plugin = client(() => Promise.resolve({ status: "ready", revision: "1", values: { enabled: true } }));
     contributeTasks(plugin.value as never);
     await flush();
+    expect(plugin.value.rpc).toHaveBeenCalledWith(titleLanguageRpc, { language: "zh" });
     expect(Object.fromEntries(plugin.active.map((entry) => [entry.kind, typeof entry.title === "function" ? entry.title() : entry.title]))).toEqual({
       screen: "任务",
       sidebar: "任务",
@@ -450,6 +452,7 @@ describe("Tasks registrations, opt-in", () => {
     updateEnhancerPreferences({ language: "en" });
     resolveTasksLanguage();
     await flush();
+    expect(plugin.value.rpc).toHaveBeenCalledWith(titleLanguageRpc, { language: "en" });
     expect(Object.fromEntries(plugin.active.map((entry) => [entry.kind, typeof entry.title === "function" ? entry.title() : entry.title]))).toEqual({
       screen: "Tasks",
       sidebar: "Tasks",

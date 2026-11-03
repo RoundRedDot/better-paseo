@@ -35,6 +35,12 @@ export const titleUpdateRpc = defineRpc({
   output: titleUpdateStateSchema,
 });
 
+export const titleLanguageRpc = defineRpc({
+  name: "tasks.title-language",
+  input: z.object({ language: z.enum(["en", "zh"]) }),
+  output: z.object({ ok: z.literal(true) }),
+});
+
 export const titleModelsRpc = defineRpc({
   name: "tasks.title-models",
   input: z.object({ provider: z.string() }),
