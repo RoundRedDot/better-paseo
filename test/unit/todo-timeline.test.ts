@@ -120,8 +120,9 @@ function rootStyles(renderer: Renderer) {
  */
 function drawnAt(...boxes: Array<{ top: number; height: number }>) {
   let index = 0;
-  return (element: { props?: { onLayout?: unknown } }) => {
-    if (typeof element.props?.onLayout !== "function") {
+  return (element: React.ReactElement) => {
+    const props = element.props as { onLayout?: unknown };
+    if (typeof props.onLayout !== "function") {
       return { getBoundingClientRect: () => ({ left: 0, top: 0, width: 0, height: 0 }) };
     }
     const box = boxes[index++] ?? { top: 0, height: 0 };
