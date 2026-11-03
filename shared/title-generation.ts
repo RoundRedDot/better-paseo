@@ -24,7 +24,7 @@ export const titleUpdateStateSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("idle") }),
   // The title streams in as `text`; `helperId` is the helper agent whose live timeline announces each chunk.
   z.object({ state: z.literal("running"), text: z.string().optional(), helperId: z.string().optional() }),
-  z.object({ state: z.literal("done"), title: z.string() }),
+  z.object({ state: z.literal("done"), title: z.string(), previousTitle: z.string().optional() }),
   z.object({ state: z.literal("error"), error: z.string() }),
 ]);
 export type TitleUpdateState = z.output<typeof titleUpdateStateSchema>;
@@ -33,6 +33,12 @@ export const titleUpdateRpc = defineRpc({
   name: "tasks.title-update",
   input: z.object({ agentId: z.string().min(1), action: z.enum(["start", "status"]), mode: z.enum(["apply", "preview"]).default("apply") }),
   output: titleUpdateStateSchema,
+});
+
+export const titleUndoRpc = defineRpc({
+  name: "tasks.title-undo",
+  input: z.object({ agentId: z.string().min(1), title: z.string().min(1), previousTitle: z.string().trim().min(1) }),
+  output: z.object({ ok: z.boolean(), error: z.string().nullable() }),
 });
 
 export const titleLanguageRpc = defineRpc({

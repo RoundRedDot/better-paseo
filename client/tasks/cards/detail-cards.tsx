@@ -19,7 +19,7 @@ import type { TasksLanguage } from "../i18n";
 import type { SessionTokens } from "../../../shared/tasks-rpc";
 import { opensInPaseo, parentOpensInPaseo, turnRunning, type PermissionKind, type TaskCard, type TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
-import type { TitleUpdateControl } from "../actions/title-update";
+import { useTitleUpdateState, type TitleUpdateControl } from "../actions/title-update";
 import type { FirstPrompt } from "../data/first-prompt";
 import type { LastHumanMessage } from "../data/last-human-message";
 import type { LastMessage } from "../data/last-message";
@@ -30,6 +30,7 @@ import { TagMark } from "./tag-mark";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
 import { SubtaskRow } from "./subtask-row";
+import { TitleUndo } from "./title-undo";
 import { ArchivedTag } from "./archived-tag";
 import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
@@ -508,6 +509,10 @@ function stopLabel(props: TaskDetailCardsProps): string | null {
 /** The header: status, title, the agent's chips and labels, the actions, then the block the card needs first. */
 function DetailHeader(props: Inner) {
   const { card, m, tokens, touch = false } = props;
+  const titleUpdate = useTitleUpdateState(props.titleUpdates, card.id);
+  useEffect(() => {
+    if (titleUpdate.state === "done" && card.title === titleUpdate.title) props.titleUpdates?.showUndo(card.id);
+  }, [titleUpdate, card.id, card.title, props.titleUpdates]);
   const cardText = cardStrings(props.language);
   const { pair } = cardText.hint;
   const small = F.sm;
@@ -634,9 +639,12 @@ function DetailHeader(props: Inner) {
         <View style={{ flex: 1 }} />
         {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={m.round} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
       </View>
-      <Text style={{ marginTop: 2, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
+      <View style={{ marginTop: 2, flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Text style={{ flex: 1, minWidth: 0, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
         {highlightText(card.title, props.searchQuery ?? "", tokens.isDark)}
       </Text>
+      <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} />
+      </View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }} testID="detail-agent">
         <Chip
           tokens={tokens}

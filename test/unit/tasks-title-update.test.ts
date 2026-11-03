@@ -5,6 +5,38 @@ import type { TitleUpdateState } from "../../shared/title-generation";
 afterEach(() => vi.useRealTimers());
 
 describe("title update state", () => {
+  it("offers one shared undo for five seconds after the reveal, and restores the previous title", async () => {
+    vi.useFakeTimers();
+    const restore = vi.fn(async () => ({ ok: true, error: null }));
+    const control = createTitleUpdateControl(async () => ({ state: "done", title: "New", previousTitle: "Original" }), undefined, restore);
+    control.start("a");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(control.undoState("a")?.ready).toBe(false);
+    control.showUndo("a");
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(control.undoState("a")?.ready).toBe(true);
+    await control.undoTitle("a");
+    expect(restore).toHaveBeenCalledExactlyOnceWith({ agentId: "a", title: "New", previousTitle: "Original" });
+    expect(control.undoState("a")).toBeNull();
+    control.start("b");
+    await vi.advanceTimersByTimeAsync(0);
+    control.showUndo("b");
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(control.undoState("b")).toBeNull();
+    await control.undoTitle("b");
+    expect(restore).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces restore failures and prevents a second write", async () => {
+    const restore = vi.fn(async () => ({ ok: false, error: "Changed elsewhere" }));
+    const control = createTitleUpdateControl(async () => ({ state: "done", title: "New", previousTitle: "Original" }), undefined, restore);
+    control.start("a");
+    await vi.waitFor(() => expect(control.read("a").state).toBe("done"));
+    control.showUndo("a");
+    await expect(control.undoTitle("a")).rejects.toThrow("Changed elsewhere");
+    await control.undoTitle("a");
+    expect(restore).toHaveBeenCalledTimes(1);
+  });
   it("holds the card through completion until its reveal finishes, without changing the hold on chunks", async () => {
     vi.useFakeTimers();
     const call = vi.fn(async (): Promise<TitleUpdateState> => ({ state: "running" }));

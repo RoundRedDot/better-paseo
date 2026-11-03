@@ -27,6 +27,7 @@ import { subagentFacts } from "../subagent-type";
 import { identityColor, ProjectIcon, projectViewKey } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
 import { TitleLoading } from "./title-loading";
+import { TitleUndo } from "./title-undo";
 import { useRevealedTitle } from "./title-reveal";
 import { SubtaskRow } from "./subtask-row";
 import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
@@ -963,6 +964,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       >
         {mark(shownTitle)}
       </Text>}
+      <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={language} touch={compact || TOUCH} />
       {hasMeta ? null : ringFor(m.titleLine)}
     </View>
   );
@@ -1445,6 +1447,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             <SubtaskRow
               key={child.id}
               child={child}
+              titleUpdates={props.titleUpdates}
               theme={theme}
               tokens={tokens}
               touch={compact || TOUCH}

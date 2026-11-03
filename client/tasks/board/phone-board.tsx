@@ -619,6 +619,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           permissionButtons={board.buttonsFor(card)}
           onPermission={onPermission}
           onJump={props.onShow}
+          titleUpdates={board.callbacks.titleUpdates}
           firstPrompt={firstPrompt}
           humanMessage={humanMessage}
           lastMessage={lastMessage}

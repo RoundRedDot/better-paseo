@@ -117,6 +117,25 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it("shares the undo button across detail titles and subtask rows", async () => {
+    vi.useFakeTimers();
+    const restore = vi.fn(async () => ({ ok: true, error: null }));
+    const titleUpdates = createTitleUpdateControl(async () => ({ state: "done", title: "New title", previousTitle: "Previous title" }), undefined, restore);
+    const props = details("en", "sample-running", { titleUpdates });
+    const child = props.card.children[0]!;
+    const subject = { ...props.card, id: child.id, title: child.title, children: [] };
+    const root = await render(<><TaskDetailCards {...props} /><TaskDetailCards {...props} card={subject} /></>);
+    await act(async () => { titleUpdates.start(child.id); await vi.advanceTimersByTimeAsync(0); });
+    for (let i = 0; i < 40; i++) await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+    const buttons = root.findAll((node) => typeof node.type === "string" && node.props.testID === `task-title-undo-${child.id}`);
+    expect(buttons).toHaveLength(2);
+    expect(buttons.every((node) => tip(node) === cardStrings("en").undoTitle && !node.props.disabled)).toBe(true);
+    const stopPropagation = vi.fn();
+    await act(async () => buttons[0]!.props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(restore).toHaveBeenCalledExactlyOnceWith({ agentId: child.id, title: "New title", previousTitle: "Previous title" });
+    expect(titleUpdates.undoState(child.id)).toBeNull();
+  });
   it("shows the subtask title shimmer while its title is generated and revealed", async () => {
     vi.useFakeTimers();
     let resolve!: (value: { state: "done"; title: string }) => void;

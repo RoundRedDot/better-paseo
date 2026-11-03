@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -11,6 +11,7 @@ import { mix, withAlpha } from "../../components/theme-tokens";
 import { useTitleUpdateState, type TitleUpdateControl } from "../actions/title-update";
 import { useRevealedTitle } from "./title-reveal";
 import { TitleLoading } from "./title-loading";
+import { TitleUndo } from "./title-undo";
 import { cardStart, cardTimer } from "./card-time";
 import { hintProps, tipProps } from "./card-hints";
 import { ChildMark } from "./child-mark";
@@ -65,6 +66,9 @@ export function SubtaskRow(props: SubtaskRowProps) {
   const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
   const shownTitle = useRevealedTitle(streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : child.title), Boolean(streamedTitle) || titleUpdate.state === "done", props.animated !== false);
   const updatingTitle = titleUpdate.state === "running" || titleUpdate.state === "done" && shownTitle !== titleUpdate.title;
+  useEffect(() => {
+    if (titleUpdate.state === "done" && shownTitle === titleUpdate.title) props.titleUpdates?.showUndo(child.id);
+  }, [titleUpdate, shownTitle, child.id, props.titleUpdates]);
   const { prefix: tag, rest } = titlePrefix(shownTitle);
   return (
     <Pressable
@@ -94,10 +98,13 @@ export function SubtaskRow(props: SubtaskRowProps) {
         <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={fill} animated={props.animated} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }} testID={`${prefix}-content-${child.id}`}>
-        {updatingTitle ? <View style={{ marginRight: props.onOpen ? target + 8 : undefined }} testID={`${prefix}-title-${child.id}`}><TitleLoading title={shownTitle} titleLines={1} mutedColor={tokens.foregroundMuted} highlightColor={tokens.isDark ? tokens.foreground : mix(fill, tokens.foregroundMuted, 0.45)} animated={props.animated} accessibilityLabel={cardStrings(props.language).autoTitlePending} style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead }} /></View> : <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: props.muted ? tokens.foregroundMuted : tokens.foreground, marginRight: props.onOpen ? target + 8 : undefined }} testID={`${prefix}-title-${child.id}`}>
+        <View testID={`${prefix}-title-row-${child.id}`} style={{ flexDirection: "row", alignItems: "center", marginRight: props.onOpen ? target + 8 : undefined }}>
+        {updatingTitle ? <View style={{ flex: 1, minWidth: 0 }} testID={`${prefix}-title-${child.id}`}><TitleLoading title={shownTitle} titleLines={1} mutedColor={tokens.foregroundMuted} highlightColor={tokens.isDark ? tokens.foreground : mix(fill, tokens.foregroundMuted, 0.45)} animated={props.animated} accessibilityLabel={cardStrings(props.language).autoTitlePending} style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead }} /></View> : <Text numberOfLines={1} ellipsizeMode="tail" style={{ flex: 1, minWidth: 0, fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: props.muted ? tokens.foregroundMuted : tokens.foreground }} testID={`${prefix}-title-${child.id}`}>
           {tag ? <Text style={{ color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${tag} `}</Text> : null}
           {rest}
         </Text>}
+        <TitleUndo agentId={child.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} />
+        </View>
         <SubtaskMetadata child={child} tokens={tokens} language={props.language} now={props.now} clock={props.clock} testIDPrefix={prefix} />
         {/* Only the title reserves space; the metadata uses the full content width. */}
         {props.onOpen ? (

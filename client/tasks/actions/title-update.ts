@@ -1,7 +1,7 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { useRpc } from "@getpaseo/plugin/client";
 import type { PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
-import { titleUpdateRpc, type TitleUpdateState } from "../../../shared/title-generation";
+import { titleUndoRpc, titleUpdateRpc, type TitleUpdateState } from "../../../shared/title-generation";
 
 const IDLE: TitleUpdateState = { state: "idle" };
 const RUNNING: TitleUpdateState = { state: "running" };
@@ -19,8 +19,10 @@ const streamed = (state: TitleUpdateState | undefined) => state?.state === "runn
  * its live timeline (`watch`) asks for the status at each chunk, so the
  * text streams in; the poll stays as the fallback.
  */
-export function createTitleUpdateControl(call: Call, watch?: Watch) {
+export function createTitleUpdateControl(call: Call, watch?: Watch, restore?: (input: { agentId: string; title: string; previousTitle: string }) => Promise<{ ok: boolean; error: string | null }>) {
   const states = new Map<string, TitleUpdateState>();
+  const undo = new Map<string, { title: string; previousTitle: string; ready: boolean }>();
+  const undoTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const listeners = new Set<() => void>();
   const interrupted = new Set<string>();
   /** Jobs the board follows without a click: they fail silently. */
@@ -28,6 +30,12 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
   /** Status asks left for each job the board is waiting to see start. */
   const asksLeft = new Map<string, number>();
   let revealing: ReadonlySet<string> = new Set();
+  const clearUndo = (id: string) => {
+    const timer = undoTimers.get(id);
+    if (timer) clearTimeout(timer);
+    undoTimers.delete(id);
+    if (undo.delete(id)) for (const listener of listeners) listener();
+  };
   const set = (id: string, state: TitleUpdateState) => {
     states.set(id, state);
     if ((state.state === "error" || state.state === "idle") && revealing.has(id)) {
@@ -41,6 +49,7 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
     /** The card keeps its place until its final title has been displayed. Stable between chunks. */
     revealing: () => revealing,
     finishReveal(agentId: string) {
+      control.showUndo(agentId);
       if (!revealing.has(agentId)) return;
       const next = new Set(revealing);
       next.delete(agentId);
@@ -53,6 +62,23 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
       if (state === "error" || state === "done") set(agentId, IDLE);
     },
     read: (id: string) => states.get(id) ?? IDLE,
+    undoState: (id: string) => undo.get(id) ?? null,
+    showUndo(agentId: string) {
+      const item = undo.get(agentId);
+      if (!item || item.ready) return;
+      undo.set(agentId, { ...item, ready: true });
+      undoTimers.set(agentId, setTimeout(() => clearUndo(agentId), 5000));
+      for (const listener of listeners) listener();
+    },
+    async undoTitle(agentId: string) {
+      const item = undo.get(agentId);
+      if (!item?.ready || !restore) return;
+      const generated = states.get(agentId);
+      clearUndo(agentId);
+      const result = await restore({ agentId, title: item.title, previousTitle: item.previousTitle });
+      if (!result.ok) throw new Error(result.error ?? "Could not restore the title.");
+      if (states.get(agentId) === generated) set(agentId, IDLE);
+    },
     subscribe(listener: () => void) {
       listeners.add(listener);
       return () => { listeners.delete(listener); };
@@ -61,6 +87,7 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
       // A click on a job the board only follows makes its outcome the user's.
       quiet.delete(agentId);
       if (states.get(agentId)?.state === "running") return;
+      clearUndo(agentId);
       revealing = new Set(revealing).add(agentId);
       set(agentId, RUNNING);
       follow(agentId, false);
@@ -116,6 +143,7 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
         }
         // Only a running job is this one: a settled result is an earlier job's.
         if (result.state !== "running" || states.get(agentId)?.state === "running") return;
+        clearUndo(agentId);
         quiet.add(agentId);
         revealing = new Set(revealing).add(agentId);
         set(agentId, RUNNING);
@@ -144,7 +172,10 @@ export function createTitleUpdateControl(call: Call, watch?: Watch) {
           }
         }
         interrupted.delete(agentId);
-        if (result.state === "done") set(agentId, result);
+        if (result.state === "done") {
+          if (result.previousTitle && restore) undo.set(agentId, { title: result.title, previousTitle: result.previousTitle, ready: false });
+          set(agentId, result);
+        }
         else if (quiet.has(agentId)) set(agentId, IDLE);
         else if (result.state === "idle") set(agentId, { state: "error", error: "The title generation task was lost. Please retry." });
         else set(agentId, result);
@@ -169,13 +200,14 @@ export type TitleUpdateControl = ReturnType<typeof createTitleUpdateControl>;
 const controls = new WeakMap<PaseoApi, TitleUpdateControl>();
 export function useTitleUpdateControl(paseo: PaseoApi, mode: "apply" | "preview" = "apply"): TitleUpdateControl {
   const call = useRpc(titleUpdateRpc);
+  const restore = useRpc(titleUndoRpc);
   return useMemo(() => {
     const existing = mode === "apply" ? controls.get(paseo) : undefined;
     if (existing) return existing;
-    const control = createTitleUpdateControl((input) => call({ ...input, mode }), (helperId, onChunk) => watchReply(paseo, helperId, onChunk));
+    const control = createTitleUpdateControl((input) => call({ ...input, mode }), (helperId, onChunk) => watchReply(paseo, helperId, onChunk), mode === "apply" ? restore : undefined);
     if (mode === "apply") controls.set(paseo, control);
     return control;
-  }, [paseo, call, mode]);
+  }, [paseo, call, restore, mode]);
 }
 
 type LiveApi = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "subscribe"> } } };
@@ -192,5 +224,10 @@ export function watchReply(api: LiveApi, helperId: string, onChunk: () => void):
 const noSubscribe = () => () => {};
 export function useTitleUpdateState(control: TitleUpdateControl | undefined, agentId: string): TitleUpdateState {
   const snapshot = () => control?.read(agentId) ?? IDLE;
+  return useSyncExternalStore(control?.subscribe ?? noSubscribe, snapshot, snapshot);
+}
+
+export function useTitleUndoState(control: TitleUpdateControl | undefined, agentId: string) {
+  const snapshot = () => control?.undoState(agentId) ?? null;
   return useSyncExternalStore(control?.subscribe ?? noSubscribe, snapshot, snapshot);
 }

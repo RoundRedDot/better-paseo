@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import type { PluginLifecycleEvents, PluginServerContext, PluginSettings } from "@getpaseo/plugin/server";
 import { z } from "zod";
-import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, TITLE_HELPER_LABEL, TITLE_HELPER_PURPOSE, titleGenerationSettingsSchema, titleLanguageRpc, titleModelsRpc, titleUpdateRpc, type TitleUpdateState } from "../../shared/title-generation";
+import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, TITLE_HELPER_LABEL, TITLE_HELPER_PURPOSE, titleGenerationSettingsSchema, titleLanguageRpc, titleModelsRpc, titleUndoRpc, titleUpdateRpc, type TitleUpdateState } from "../../shared/title-generation";
 import { pluginDataDir } from "../plugin-data";
 import { taskIssueError, taskUpdateIssue } from "./availability";
 
@@ -106,7 +106,7 @@ export function createTitleGenerator(deps: Dependencies) {
   const attempted = new Set<string>();
   let language: "en" | "zh" | undefined;
 
-  async function generate(agentId: string, paseo: PaseoApi, stream: (update: { text?: string; helperId: string }) => void, mode: "apply" | "preview", keepTitle?: string, firstPrompt?: string): Promise<string> {
+  async function generate(agentId: string, paseo: PaseoApi, stream: (update: { text?: string; helperId: string }) => void, mode: "apply" | "preview", keepTitle?: string, firstPrompt?: string): Promise<{ title: string; previousTitle?: string }> {
     if (!deps.canRename()) throw new Error("This host cannot update agent titles.");
     const settings = await deps.settings.read();
     if (settings.status !== "ready") throw new Error("Title generation settings are invalid.");
@@ -115,6 +115,7 @@ export function createTitleGenerator(deps: Dependencies) {
     const source = paseo.agents.ref(agentId);
     const original = await source.refresh();
     if (!original) throw new Error("The original agent no longer exists.");
+    const previousTitle = original.agent.title;
     // An automatic title replaces only the title it was checked against.
     if (keepTitle !== undefined && (original.agent.title ?? "") !== keepTitle) throw new Error("The title changed before generation. Keep the current title.");
     const issue = await taskUpdateIssue(original, paseo);
@@ -206,7 +207,7 @@ export function createTitleGenerator(deps: Dependencies) {
       if (cleanup.error) throw new Error(`${generationFailure === null ? "" : `${String(generationFailure)}; `}Could not archive the title helper: ${cleanup.error}`);
     }
 
-    if (mode === "preview") return title;
+    if (mode === "preview") return { title };
     await (deps.delay ?? sleep)(TITLE_SAVE_DELAY_MS);
     const current = await source.refresh();
     if (!current) throw new Error("The original agent no longer exists.");
@@ -215,7 +216,7 @@ export function createTitleGenerator(deps: Dependencies) {
     if (current.agent.title !== original.agent.title) throw new Error("The title changed during generation. Keep the current title and retry if needed.");
     const renamed = await deps.rename(agentId, title);
     if (!renamed.ok) throw new Error(renamed.error || "Could not update the title.");
-    return title;
+    return previousTitle?.trim() && previousTitle !== title ? { title, previousTitle } : { title };
   }
 
   function start(agentId: string, paseo: PaseoApi, mode: "apply" | "preview", keepTitle?: string, firstPrompt?: string): TitleUpdateState {
@@ -232,7 +233,7 @@ export function createTitleGenerator(deps: Dependencies) {
       jobs.set(key, latest);
     };
     void generate(agentId, paseo, stream, mode, keepTitle, firstPrompt).then(
-      (title) => jobs.set(key, { state: "done", title }),
+      (result) => jobs.set(key, { state: "done", ...result }),
       (error: unknown) => jobs.set(key, { state: "error", error: error instanceof Error ? error.message : String(error) }),
     );
     return pending;
@@ -240,6 +241,13 @@ export function createTitleGenerator(deps: Dependencies) {
 
   return {
     setLanguage(next: "en" | "zh") { language = next; },
+    async undo(input: { agentId: string; title: string; previousTitle: string }, paseo: PaseoApi) {
+      const current = await paseo.agents.ref(input.agentId).refresh();
+      const issue = await taskUpdateIssue(current, paseo);
+      if (issue) return { ok: false, error: taskIssueError(issue) };
+      if (current?.agent.title !== input.title) return { ok: false, error: "The title has changed since it was generated." };
+      return deps.rename(input.agentId, input.previousTitle);
+    },
     request(input: { agentId: string; action: "start" | "status"; mode?: "apply" | "preview" }, paseo: PaseoApi): TitleUpdateState {
       if (input.action === "status") return jobs.get(`${input.mode ?? "apply"}:${input.agentId}`) ?? { state: "idle" };
       return start(input.agentId, paseo, input.mode ?? "apply");
@@ -276,6 +284,7 @@ export function registerTitleGeneration(server: PluginServerContext, rename: Dep
   const generator = createTitleGenerator({ settings, rename, canRename, deleteHelper, directory: join(pluginDataDir(), "title-helper") });
   server.handle(titleLanguageRpc, ({ language }) => { generator.setLanguage(language); return { ok: true as const }; });
   server.handle(titleUpdateRpc, (input, { paseo }) => generator.request(input, paseo));
+  server.handle(titleUndoRpc, (input, { paseo }) => generator.undo(input, paseo));
   // Not awaited: the title takes longer than the host's 30-second hook limit.
   server.on("agent.turn_started", (event, context) => {
     if (!context?.paseo) return;

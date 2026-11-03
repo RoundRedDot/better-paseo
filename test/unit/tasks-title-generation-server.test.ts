@@ -60,6 +60,24 @@ async function fixture() {
 }
 
 describe("background title generation", () => {
+  it("restores the recorded title only while the generated title remains current", async () => {
+    const f = await fixture();
+    f.start();
+    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title", previousTitle: "Original" });
+    f.original.agent.title = "Updated 中文 title";
+    expect(await f.service.undo({ agentId: "source", title: "Updated 中文 title", previousTitle: "Original" }, f.api)).toEqual({ ok: true, error: null });
+    expect(f.rename).toHaveBeenLastCalledWith("source", "Original");
+    f.original.agent.title = "Another edit";
+    expect(await f.service.undo({ agentId: "source", title: "Updated 中文 title", previousTitle: "Original" }, f.api)).toMatchObject({ ok: false });
+    expect(f.rename).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not offer an undo when the original persisted title is empty", async () => {
+    const f = await fixture();
+    f.original.agent.title = "";
+    f.start();
+    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title" });
+  });
   it.each([["zh", "Chinese"], ["en", "English"]] as const)("prefers the %s interface language for the default prompt", async (language, name) => {
     const f = await fixture();
     f.values.prompt = DEFAULT_TITLE_PROMPT;
@@ -287,7 +305,7 @@ describe("background title generation", () => {
     expect(f.state()).toEqual({ state: "idle" });
     expect(f.start()).toEqual({ state: "running" });
     expect(f.start()).toEqual({ state: "running" });
-    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title", previousTitle: "Original" });
     expect(f.workspace).toHaveBeenCalledExactlyOnceWith({ source: { kind: "directory", path: f.directory, projectId: "source-project" }, background: true, title: "Title generation" });
     expect(f.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ config: { provider: "claude/claude-haiku-5-5", systemPrompt: expect.stringContaining("Do not use tools") } }));
     expect(f.run.mock.calls[0]).toEqual([expect.stringContaining("Use an actionable title"), { timeoutMs: 60_000 }]);
@@ -421,11 +439,11 @@ describe("background title generation", () => {
     await expect.poll(() => f.state()).toEqual({ state: "running", helperId: "helper", text: "Updated " });
     expect(f.subscribe.mock.invocationCallOrder[0]).toBeLessThan(f.run.mock.invocationCallOrder[0]!);
     finish();
-    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title", previousTitle: "Original" });
     expect(f.live.unsubscribe).toHaveBeenCalledTimes(1);
     // A late chunk cannot reopen the settled job.
     chunk({ type: "assistant_message", text: " again" });
-    expect(f.state()).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(f.state()).toEqual({ state: "done", title: "Updated 中文 title", previousTitle: "Original" });
   });
 
   it("streams the whole title, then saves it a second after the stream ends", async () => {
@@ -440,7 +458,7 @@ describe("background title generation", () => {
     expect(f.state()).toEqual({ state: "running", helperId: "helper", text: "Updated 中文 title" });
     expect(f.rename).not.toHaveBeenCalled();
     wake();
-    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title", previousTitle: "Original" });
     expect(f.rename).toHaveBeenCalledExactlyOnceWith("source", "Updated 中文 title");
     // The source is read again after the wait, so a manual rename meanwhile still wins.
     expect(f.delay.mock.invocationCallOrder[0]).toBeLessThan(f.refresh.mock.invocationCallOrder[1]!);
@@ -466,7 +484,7 @@ describe("background title generation", () => {
     const f = await fixture();
     f.subscribe.mockImplementationOnce(() => { throw new Error("No live timeline"); });
     f.start();
-    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title", previousTitle: "Original" });
   });
 
   it("requires explicit model configuration and a conversation without provisioning resources", async () => {
@@ -516,7 +534,7 @@ describe("background title generation", () => {
     expect(await f.settle()).toEqual({ state: "error", error: "Provider unavailable" });
     expect(f.archive).toHaveBeenCalledTimes(1);
     f.start();
-    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title" });
+    expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title", previousTitle: "Original" });
     expect(f.rename).toHaveBeenCalledTimes(1);
   });
 
@@ -713,7 +731,7 @@ describe("title when the first message starts", () => {
     expect(f.start()).toMatchObject({ state: "running" });
     await expect.poll(() => f.run.mock.calls.length).toBe(1);
     finish();
-    expect(await f.settle()).toEqual({ state: "done", title: "Menu title" });
+    expect(await f.settle()).toEqual({ state: "done", title: "Menu title", previousTitle: "Fix the card title" });
     expect(f.create).toHaveBeenCalledTimes(1);
   });
 

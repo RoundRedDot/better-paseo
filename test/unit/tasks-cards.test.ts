@@ -469,6 +469,20 @@ function sample(id: string): TaskCard {
 
 let renderer: ReactTestRenderer | null = null;
 
+it("offers the same restore action beside a card title after the reveal", async () => {
+  const restore = vi.fn(async () => ({ ok: true, error: null }));
+  const control = createTitleUpdateControl(async () => ({ state: "done", title: "New title", previousTitle: "Original" }), undefined, restore);
+  const card = sampleCards(NOW)[0]!;
+  const tree = await render(cardElement(card, { titleUpdates: control, animated: false }));
+  await act(async () => { control.start(card.id); await Promise.resolve(); });
+  const button = hostByTestId(tree.root, `task-title-undo-${card.id}`);
+  expect(button.props.accessibilityLabel).toBe(cardStrings("zh").undoTitle);
+  const stopPropagation = vi.fn();
+  await act(async () => button.props.onPress({ stopPropagation }));
+  expect(stopPropagation).toHaveBeenCalledOnce();
+  expect(restore).toHaveBeenCalledExactlyOnceWith({ agentId: card.id, title: "New title", previousTitle: "Original" });
+});
+
 it("keeps title-generation progress and failure visible on the card after its menu closes", async () => {
   let fail!: (error: Error) => void;
   const control = createTitleUpdateControl(() => new Promise((_resolve, reject) => { fail = reject; }));
@@ -2054,7 +2068,7 @@ describe("TaskCardView actions", () => {
       expect(flat(content.props.style).flexDirection).toBeUndefined(); // Native View defaults to column.
       expect(texts(content)[0]).toBe(child.title);
       expect(content.findAll((node) => node === title || node === time)).toHaveLength(2);
-      expect(flat(title.props.style).flex).toBeUndefined();
+      expect(flat(title.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
       expect(title.props.numberOfLines).toBe(1);
       expect(title.props.ellipsizeMode).toBe("tail");
       expect(flat(hostByTestId(row, `subtask-status-${child.id}`).props.style).flexShrink).toBe(0);
@@ -2063,7 +2077,7 @@ describe("TaskCardView actions", () => {
       // The jump button occupies only the title line; metadata reaches the right edge.
       expect(openStyle).toMatchObject({ position: "absolute", top: 0, right: 0, flexShrink: 0 });
       expect(openStyle.height).toBe(flat(title.props.style).lineHeight);
-      expect(flat(title.props.style).marginRight).toBe(Number(openStyle.width) + 8);
+      expect(flat(hostByTestId(row, `subtask-title-row-${child.id}`).props.style).marginRight).toBe(Number(openStyle.width) + 8);
       expect(flat(content.props.style).paddingRight).toBeUndefined();
       expect(flat(hostByTestId(content, `subtask-meta-${child.id}`).props.style).marginRight).toBeUndefined();
       expect(content.findAll((node) => node === open)).toHaveLength(1);
@@ -3263,7 +3277,7 @@ describe("TaskDetailCards", () => {
     expect(hostByTestId(row, `detail-subtask-meta-${child.id}`).findByType(ContextRing).props.ratio).toBe(0.6);
     expect(flat(content.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
     expect(flat(content.props.style).flexDirection).toBeUndefined();
-    expect((content.children[0] as ReactTestInstance).props.testID).toBe(`detail-subtask-title-${child.id}`);
+    expect((content.children[0] as ReactTestInstance).props.testID).toBe(`detail-subtask-title-row-${child.id}`);
     expect(flat(secondary.props.style)).toMatchObject({ flexDirection: "row", flexWrap: "nowrap" });
     expect(texts(hostByTestId(secondary, `detail-subtask-time-${child.id}`))).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
     expect(texts(secondary)).toEqual(["Opus 4.7", "High", "Bypass", formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
@@ -3278,7 +3292,7 @@ describe("TaskDetailCards", () => {
     const buttonStyle = flat(button.props.style);
     expect(buttonStyle).toMatchObject({ position: "absolute", top: 0, right: 0, flexShrink: 0 });
     expect(buttonStyle.height).toBe(flat(title.props.style).lineHeight);
-    expect(flat(title.props.style).marginRight).toBe(Number(buttonStyle.width) + 8);
+    expect(flat(hostByTestId(row, `detail-subtask-title-row-${child.id}`).props.style).marginRight).toBe(Number(buttonStyle.width) + 8);
     expect(flat(content.props.style).paddingRight).toBeUndefined();
     expect(flat(secondary.props.style).marginRight).toBeUndefined();
     expect(content.findAll((node) => node === button)).toHaveLength(1);
