@@ -90,11 +90,11 @@ export function FilterSheetBody(props: {
     </View>
   );
   return (
-    <View style={{ flex: 1, minHeight: 0 }}>
+    <View style={props.tablet ? { flexShrink: 1, minHeight: 0 } : { flex: 1, minHeight: 0 }}>
       <ScrollView
         ref={scrollRef}
         {...detailScrollProps("inset")}
-        style={{ flex: 1 }}
+        style={props.tablet ? { flexGrow: 0, flexShrink: 1 } : { flex: 1 }}
         keyboardShouldPersistTaps="handled"
         stickyHeaderIndices={[1, 3]}
         onLayout={(event: LayoutChangeEvent) => setViewport(event.nativeEvent.layout.height)}

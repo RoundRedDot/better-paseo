@@ -52,6 +52,7 @@ export function TabletToolbar(props: {
   const [toolbarWidth, setToolbarWidth] = useState<number | null>(null);
   const [actionLayout, setActionLayout] = useState<LayoutRectangle | null>(null);
   const [viewLayout, setViewLayout] = useState<LayoutRectangle | null>(null);
+  const [filterLayout, setFilterLayout] = useState<LayoutRectangle | null>(null);
   const actionWidth = actionLayout?.width ?? 0;
   // Keep the subtask shortcut visible alongside filters and view on narrow boards.
   const minimumActionsWidth = 4 * target;
@@ -62,6 +63,10 @@ export function TabletToolbar(props: {
     right: toolbarWidth - actionLayout.x - viewLayout.x - viewLayout.width,
     top: actionLayout.y + viewLayout.y + target + 6,
   } : null;
+  const filterAnchor = separateFilters ? filterLayout : viewLayout;
+  const filterRight = toolbarWidth !== null && actionLayout && filterAnchor
+    ? Math.min(props.width - menuWidth(320, scale, props.width - 24) - 12, Math.max(12, toolbarWidth - actionLayout.x - filterAnchor.x - filterAnchor.width))
+    : 12;
   const resolved = resolveBoardParams(board.params, board.defaults);
   const count = activeFilterCount(board.params, board.defaults);
   const textStyle = { fontSize: F.base, fontWeight: "600" as const, color: colors.foreground, fontVariant: ["tabular-nums" as const] };
@@ -133,7 +138,7 @@ export function TabletToolbar(props: {
         </View>}
         <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch || searching || !centered ? 0 : 1, flexBasis: expandedSearch || searching || !centered ? "auto" : 0, minWidth: compact && centered ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 0 }}>
         <ToolbarButton icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => { closeEmptySearch(); board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })); }} />
-        {separateFilters ? <ToolbarButton icon="Filter" label={strings.filters} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /> : null}
+        {separateFilters ? <View testID="tablet-filter-anchor" onLayout={(event) => setFilterLayout(event.nativeEvent.layout)}><ToolbarButton icon="Filter" label={strings.filters} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /></View> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
           <ToolbarButton icon="MoreVertical" label={strings.view} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); closeEmptySearch(); openPage(page ? null : "view"); }} />
         </View>
@@ -141,7 +146,7 @@ export function TabletToolbar(props: {
         </View>
       </View>
       {props.filters ? (
-        <View testID="tablet-filter-popover" accessibilityViewIsModal onAccessibilityEscape={props.filters.onClose} style={{ position: "absolute", top: height + 6, right: 12, width: menuWidth(320, scale, props.width - 24), height: Math.max(0, props.filters.height - 18), borderRadius: 12, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface1, boxShadow: menuChrome(theme).shadow, elevation: 8, paddingBottom: 16, overflow: "hidden", zIndex: 30 }}>
+        <View testID="tablet-filter-popover" onAccessibilityEscape={props.filters.onClose} style={{ position: "absolute", top: height + 6, right: filterRight, width: menuWidth(320, scale, props.width - 24), maxHeight: Math.max(0, props.filters.height - 18), borderRadius: 12, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface1, boxShadow: menuChrome(theme).shadow, elevation: 8, paddingBottom: 16, overflow: "hidden", zIndex: 30 }}>
           <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, height: taskControlHeight(48, scale), borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
             <Text accessibilityRole="header" style={{ flex: 1, fontSize: F.base, fontWeight: "600", color: colors.foreground }}>{strings.filters}</Text>
             <ToolbarButton size={compact ? 28 : 44} icon="X" label={strings.closeMenu} theme={theme} testID="tablet-filter-close" onPress={props.filters.onClose} />
