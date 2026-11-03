@@ -1430,6 +1430,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
     return clip(
       <HoverPressable
         ref={pillRef}
+        lift={false}
         accessibilityRole="button"
         accessibilityLabel={`${strings.expand}: ${name}`}
         {...collapseTap.pressIn}
@@ -1440,8 +1441,8 @@ function DesktopLaneView(props: DesktopLaneProps) {
           gap: 10,
           paddingVertical: 11,
           borderRadius: PANEL_RADIUS,
-          backgroundColor: palette.panel,
-          boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(theme).card.buttonShadowHover : undefined,
+          backgroundColor: pressed ? palette.panelHover : palette.panel,
+          boxShadow: surfaceLift(hovered, false).shadow ? taskTokens(theme).card.buttonShadowHover : undefined,
         })}
       >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />

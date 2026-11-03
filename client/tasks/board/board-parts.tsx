@@ -309,14 +309,14 @@ export function useTap(): {
 const TAP_SLOP = 10;
 
 export function HoverPressable(
-  props: Omit<React.ComponentProps<typeof Pressable>, "style"> & { style(hovered: boolean, pressed: boolean): StyleProp<ViewStyle> },
+  props: Omit<React.ComponentProps<typeof Pressable>, "style"> & { lift?: boolean; style(hovered: boolean, pressed: boolean): StyleProp<ViewStyle> },
 ) {
-  const { style, onPressIn, onPressOut, ...rest } = props;
+  const { style, onPressIn, onPressOut, lift: liftEnabled = true, ...rest } = props;
   const { hovered, hoverProps } = useHover();
   const reduced = useReducedMotion();
   const [pressed, setPressed] = useState(false);
   const visual = style(hovered, pressed);
-  const lift = scaleStyle(surfaceLift(hovered, pressed, reduced).scale);
+  const lift = scaleStyle(liftEnabled ? surfaceLift(hovered, pressed, reduced).scale : 1);
   const flat = visual && typeof visual === "object" && !Array.isArray(visual) ? { ...visual, ...lift } : [visual, lift];
   return (
     <Pressable

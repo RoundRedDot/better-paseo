@@ -1013,6 +1013,23 @@ describe("Tasks board, desktop", () => {
     expect(cards().map((card) => card.props.card.id)).toContain("sample-running");
   });
 
+  it("changes only the collapsed lane background while pressed on iPad", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    act(() => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Collapse lane")[1]!.props.onPress());
+    const strip = () => pressable("Expand lane: Running");
+    const idle = StyleSheet.flatten(strip().props.style);
+    act(() => strip().props.onPressIn({ nativeEvent: { pageX: 100, pageY: 40 } }));
+    const pressed = StyleSheet.flatten(strip().props.style);
+    expect(pressed.backgroundColor).not.toBe(idle.backgroundColor);
+    expect({ ...pressed, backgroundColor: idle.backgroundColor }).toEqual(idle);
+    act(() => strip().props.onPressOut({}));
+    expect(StyleSheet.flatten(strip().props.style)).toEqual(idle);
+    act(() => strip().props.onPress());
+    expect(cards().map((card) => card.props.card.id)).toContain("sample-running");
+  });
+
   it.each(["web", "ios"])("toggles only the displayed empty lanes on %s and remembers their state", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(screen(false, { q: "ring" })); });
