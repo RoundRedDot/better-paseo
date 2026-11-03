@@ -300,7 +300,7 @@ export function PhoneBoard(props: {
 
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0 }}>
-      <View style={{ minHeight: 52, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 16, paddingRight: 6 }}>
+      <View style={{ minHeight: 52, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 6, paddingRight: 6 }}>
         <RoundButton
           icon="Search"
           iconSize={22}
