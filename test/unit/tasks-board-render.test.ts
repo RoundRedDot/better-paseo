@@ -777,7 +777,7 @@ describe("Tasks board, desktop", () => {
     updateEnhancerPreferences({ language });
     await act(async () => { renderer = TestRenderer.create(screen(false, { agent: "codex", ws: "wks_sample", win: "7d", sort: "title-asc" })); });
     layOut(width);
-    if (os === "ios") act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    if (os !== "web") act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     const field = () => renderer!.root.find((node) => (node.type as unknown) === "TextInput" && node.props.accessibilityLabel === BOARD_STRINGS[language].search);
     const clear = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === BOARD_STRINGS[language].menuSearch.clear);
     const before = lastBoardParams("host-1");
@@ -2084,8 +2084,8 @@ describe("Tasks board, desktop", () => {
     }
   });
 
-  it("iPad drags the floating edge, clamps both ends, cancels and remembers a released width", () => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+  it.each(["ios", "android"])("%s drags the floating edge, clamps both ends, cancels and remembers a released width", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(900);
     toggleSidebarControl();
@@ -3764,8 +3764,8 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(style(bar()).height).toBe(height);
   });
 
-  it("starts iPad search collapsed on a wide toolbar", () => {
-    mount("ios", 1000);
+  it.each(["ios", "android"])("starts %s search collapsed on a wide toolbar", (os) => {
+    mount(os, 1200);
     expect(hostsById("tablet-toolbar-search")).toHaveLength(0);
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
@@ -3901,7 +3901,7 @@ describe("Tasks board, tablet filters", () => {
 
   it.each([
     ["ios", 480, "zh", 14], ["ios", 800, "en", 14], ["ios", 1200, "zh", 21],
-    ["android", 600, "en", 21], ["android", 800, "zh", 14], ["android", 1200, "en", 21],
+    ["android", 600, "en", 21], ["android", 800, "zh", 14], ["android", 1200, "en", 14], ["android", 1200, "en", 21],
   ] as const)("%s at %i pt has one %s toolbar at UI base %i", (os, width, language, base) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     updateEnhancerPreferences({ language });
@@ -3921,7 +3921,7 @@ describe("Tasks board, tablet filters", () => {
     }
     const filters = hostsById("toolbar-filters")[0]!;
     const view = hostsById("tablet-view")[0]!;
-    const labels = width >= 1000 * Math.max(1, base / 14);
+    const labels = os !== "android" && width >= 1000 * Math.max(1, base / 14);
     expect(textOf(filters).includes(BOARD_STRINGS[language].filters)).toBe(labels);
     expect(textOf(view).includes(BOARD_STRINGS[language].view)).toBe(labels);
     act(() => view.props.onPress());
@@ -3980,7 +3980,7 @@ describe("Tasks board, tablet filters", () => {
       expect(StyleSheet.flatten(reserve.props.style)).toMatchObject({ fontVariant: ["tabular-nums"], opacity: 0 });
       expect(hostsById("tablet-toolbar-total")[0]!.props.accessibilityLabel).toBe(BOARD_STRINGS[language].total(total));
       const slot = StyleSheet.flatten(hostsById("tablet-total-slot")[0]!.props.style);
-      const search = StyleSheet.flatten(hostsById("tablet-toolbar-search")[0]!.props.style);
+      const search = StyleSheet.flatten(hostsById("tablet-search-toggle")[0]!.props.style);
       slotStyle ??= slot; searchStyle ??= search;
       expect(slot).toEqual(slotStyle); expect(search).toEqual(searchStyle);
       // Only the invisible ruler participates in the slot's intrinsic width.

@@ -243,12 +243,12 @@ export function DesktopBoard(props: {
   const inline = open && !floating;
   // Too narrow to float beside the lanes: the details rise from the bottom instead, and the lanes make room under them.
   const inSheet = floating && mode === "sheet";
-  const ipadFloating = Platform.OS === "ios" && floating && !inSheet;
+  const tabletFloating = touch && floating && !inSheet;
   useEffect(() => {
-    if (!ipadFloating) setFloatingDragWidth(null);
-  }, [ipadFloating]);
+    if (!tabletFloating) setFloatingDragWidth(null);
+  }, [tabletFloating]);
   const sheetRoom = inSheet ? sheetHeight(boardHeight, detent) : 0;
-  const panelWidth = ipadFloating
+  const panelWidth = tabletFloating
     ? tabletSidebarWidth(boardWidth, floatingDragWidth ?? preference.floatingWidth)
     : sidebarWidth(boardWidth, dragWidth ?? preference.width, floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
@@ -260,7 +260,7 @@ export function DesktopBoard(props: {
   // An outgoing lane still occupies its slot until the complete panel has slid out.
   const layout = boardLaneLayout(boardWidth, archivedSwitch.drawn, collapsedState, board.laneWidth, lanesWidth, laneSizing);
   // A floating panel covers the lanes' right side: the row scrolls far enough for the last lane to come out from under it.
-  const coverRoom = floating && !inSheet ? panelWidth + (ipadFloating ? 0 : SIDEBAR.gap) : 0;
+  const coverRoom = floating && !inSheet ? panelWidth + (tabletFloating ? 0 : SIDEBAR.gap) : 0;
 
   const toggleSidebar = useCallback(() => {
     if (shown) setShown(null);
@@ -298,7 +298,7 @@ export function DesktopBoard(props: {
     if (selectedGone) dispatch({ type: "clear" });
   }, [selectedGone]);
 
-  const floatWidth = Platform.OS === "ios" ? tabletSidebarWidth(boardWidth, preference.floatingWidth) : sidebarWidth(boardWidth, preference.width, "floating");
+  const floatWidth = touch ? tabletSidebarWidth(boardWidth, preference.floatingWidth) : sidebarWidth(boardWidth, preference.width, "floating");
   const latest = useRef({ board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed });
   latest.current = { board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed };
   const sheetMode = mode === "sheet";
@@ -346,7 +346,7 @@ export function DesktopBoard(props: {
       const folded = now.collapsed.includes(lane);
       if (folded) setCollapsed((current) => current.filter((id) => id !== lane));
       const laneWidth = folded ? boardLaneLayout(now.boardWidth, now.board.laneOrder, now.collapsed.filter((id) => id !== lane), now.board.laneWidth, now.lanesWidth, laneSizing).laneWidth : now.laneWidth;
-      const cover = now.inSheet ? LANES.edge : now.floating ? now.floatWidth + (Platform.OS === "ios" ? SIDEBAR.gap : 2 * SIDEBAR.gap) : now.boardWidth - now.lanesWidth;
+      const cover = now.inSheet ? LANES.edge : now.floating ? now.floatWidth + (touch ? SIDEBAR.gap : 2 * SIDEBAR.gap) : now.boardWidth - now.lanesWidth;
       const scrolled = uncover(lane, cover, laneWidth);
       setFlash((was) => ({ lane, key: (was?.key ?? 0) + 1, delay: scrolled ? LANE_FLASH.afterScrollMs : 0 }));
     },
@@ -396,7 +396,7 @@ export function DesktopBoard(props: {
         if (location) setTimeout(() => scrollTo(location.lane, location.index, 0.05), 80);
         uncover(card.lane, LANES.edge);
       } else {
-        uncover(card.lane, now.floatWidth + (Platform.OS === "ios" ? SIDEBAR.gap : 2 * SIDEBAR.gap));
+        uncover(card.lane, now.floatWidth + (touch ? SIDEBAR.gap : 2 * SIDEBAR.gap));
       }
     },
     [touch, uncover, scrollTo],
@@ -736,15 +736,15 @@ export function DesktopBoard(props: {
           <FloatingSidebar
             width={panelWidth}
             theme={theme}
-            flushRight={ipadFloating}
-            resize={ipadFloating ? {
+            flushRight={tabletFloating}
+            resize={tabletFloating ? {
               label: strings.sidebar.resize,
               max: tabletSidebarWidth(boardWidth, TABLET_SIDEBAR.max),
               onDrag: setFloatingDragWidth,
               onResize: (width) => setPreference((current) => ({ ...current, floatingWidth: width })),
             } : undefined}
           >
-            {ipadFloating ? <TasksTypographyScale factor={TABLET_SIDEBAR.fontScale}>{sidebar}</TasksTypographyScale> : sidebar}
+            {tabletFloating ? <TasksTypographyScale factor={TABLET_SIDEBAR.fontScale}>{sidebar}</TasksTypographyScale> : sidebar}
           </FloatingSidebar>
         ) : null}
       </View>
@@ -992,6 +992,8 @@ function FloatingSidebar(props: {
   latest.current = props;
   const handleRef = useRef<View>(null);
   const [dragging, setDragging] = useState(false);
+  const releaseGestures = useRef<(() => void) | null>(null);
+  useEffect(() => () => releaseGestures.current?.(), []);
   const pan = useMemo(() => {
     let touchX = 0;
     let startWidth = 0;
@@ -1010,18 +1012,21 @@ function FloatingSidebar(props: {
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         startWidth = latest.current.width;
-        // iOS releases this native gesture lock when the touch ends.
-        holdHostGestures(handleRef.current);
+        releaseGestures.current = holdHostGestures(handleRef.current);
         setDragging(true);
       },
       onPanResponderMove: (event) => latest.current.resize?.onDrag(widthAt(event)),
       onPanResponderRelease: (event) => {
+        releaseGestures.current?.();
+        releaseGestures.current = null;
         const resize = latest.current.resize;
         resize?.onResize(widthAt(event));
         resize?.onDrag(null);
         setDragging(false);
       },
       onPanResponderTerminate: () => {
+        releaseGestures.current?.();
+        releaseGestures.current = null;
         latest.current.resize?.onDrag(null);
         setDragging(false);
       },
