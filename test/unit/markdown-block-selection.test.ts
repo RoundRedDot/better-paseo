@@ -66,7 +66,10 @@ describe("iOS single Markdown block selection", () => {
     render("- 第一项内容换行时与正文对齐\n- Second item");
     const style = native()[0]!.props.markdownStyle.list;
     expect(style.bulletSize).toBe(4);
-    expect(style.markerMinWidth + style.gapWidth).toBe(20);
+    expect(style.markerMinWidth + style.gapWidth).toBe(22);
+    render("1. Ordered item");
+    const ordered = native()[0]!.props.markdownStyle.list;
+    expect(ordered.markerMinWidth + ordered.gapWidth).toBe(20);
   });
   it.each([
     ["**first** and `code`", "first and code"],
@@ -175,7 +178,7 @@ describe("mobile nested list markers", () => {
       })).toEqual([0, 20, 40, 0]);
       for (const marker of markers) {
         const style = StyleSheet.flatten(marker.props.style);
-        expect(style.width).toBe(20);
+        expect(style.width).toBe(22);
         expect(style.fontSize).toBeLessThan(tokens.typography.content.size);
       }
       expect(renderer!.root.findAll((node) => String(node.type) === "Text" && node.props.children === "1.")).toHaveLength(1);

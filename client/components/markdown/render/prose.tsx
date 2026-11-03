@@ -1,6 +1,6 @@
 import React, { useContext, useMemo, type ElementType } from "react";
 import { Platform, processColor, StyleSheet, type TextProps, type TextStyle } from "react-native";
-import type { Token } from "../../../vendor/marked";
+import type { Token, Tokens } from "../../../vendor/marked";
 import { ProseSpan, ProseText } from "../../../ui/prose-text";
 import { PathContext } from "../../../ui/path-text";
 import { useCopy } from "../../../ui/use-copy";
@@ -9,7 +9,7 @@ import { formatPath } from "../../../paths/format-path";
 import { openLink } from "../../open-link";
 import { space } from "../../theme-tokens";
 import type { RenderContext } from "./context";
-import { MARKER_GAP } from "./styles";
+import { MARKER_GAP, MOBILE_BULLET_GAP } from "./styles";
 import { BlockSelectionContext } from "./block-selection";
 import { renderInline } from "./inline";
 import { escapeProse, nativeBlockSource, nativeProseSource, type NativeProseSource } from "./native-prose-source";
@@ -50,7 +50,7 @@ export function NativeProseGroup({ context, tokens, inQuote = false }: {
     blockTokens={tokens} gap={inQuote ? space.xs : context.metrics.blockGap} />;
 }
 
-function nativeStyle(style: TextProps["style"], context: RenderContext, gap = 0) {
+function nativeStyle(style: TextProps["style"], context: RenderContext, gap = 0, unordered = false) {
   const base = StyleSheet.flatten(style) ?? {};
   const { styles, tokens, metrics } = context;
   const color = (value: TextStyle["color"]) => processColor(value ?? base.color ?? tokens.foreground);
@@ -70,7 +70,7 @@ function nativeStyle(style: TextProps["style"], context: RenderContext, gap = 0)
     list: { fontFamily: base.fontFamily ?? tokens.fontUi ?? "System", fontSize: base.fontSize ?? metrics.bodySize,
       fontWeight: String(base.fontWeight ?? "400"), color: color(base.color), lineHeight: base.lineHeight ?? metrics.bodyLineHeight,
       marginTop: 0, marginBottom: gap, marginLeft: metrics.indentStep,
-      markerMinWidth: metrics.markerWidth - MARKER_GAP, gapWidth: MARKER_GAP, itemSpacing: metrics.itemGap,
+      markerMinWidth: metrics.markerWidth - MARKER_GAP, gapWidth: MARKER_GAP + (unordered ? MOBILE_BULLET_GAP : 0), itemSpacing: metrics.itemGap,
       bulletColor: processColor(tokens.foregroundMuted), bulletSize: 4,
       markerColor: processColor(tokens.foregroundMuted), markerFontWeight: "400" },
   };
@@ -81,7 +81,8 @@ function IOSProse({ context, tokens, text, prefix, style, blockTokens, gap, ...r
   const source = useMemo<NativeProseSource>(() => blockTokens ? nativeBlockSource(blockTokens) : text === undefined
     ? nativeProseSource(tokens ?? []) : { markdown: escapeProse(text), links: [] }, [tokens, text, blockTokens]);
   const markdown = prefix ? escapeProse(prefix) + source.markdown : source.markdown;
-  const markdownStyle = useMemo(() => nativeStyle(style, context, gap), [style, context, gap]);
+  const unordered = blockTokens?.some((token) => token.type === "list" && !(token as Tokens.List).ordered) ?? false;
+  const markdownStyle = useMemo(() => nativeStyle(style, context, gap, unordered), [style, context, gap, unordered]);
   // The host uses the GFM container for lists; its native block layout owns wrapping.
   const Component = blockTokens?.some((token) => token.type === "list") ? NativeListProse : NativeProse;
   const props = { ...rest, markdown, markdownStyle, style: [style, { backgroundColor: "transparent" }],

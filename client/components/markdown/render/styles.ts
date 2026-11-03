@@ -183,6 +183,7 @@ export const CHAR_RATIO_DIGIT = 0.62;
 // A marker sits in a fixed column, so its width has to carry the gutter the
 // style adds; an estimate that forgets it wraps `2.` onto a second line.
 export const MARKER_GAP = 6;
+export const MOBILE_BULLET_GAP = 2;
 // The inline-code chip's own horizontal padding, counted twice per chip when a
 // table column is measured, and matched by the cell's padding so a chip never
 // sits against the column edge.
@@ -406,7 +407,7 @@ export function buildStyles(
     indent2: { marginLeft: metrics.indentStep * 2 },
     indent3: { marginLeft: metrics.indentStep * 3 },
     markerBullet: {
-      width: metrics.markerWidth,
+      width: metrics.markerWidth + (web ? 0 : MOBILE_BULLET_GAP),
       flexShrink: 0,
       fontFamily: bodyFont,
       fontSize: web ? metrics.bodySize : Math.round(metrics.bodySize * 0.75),
