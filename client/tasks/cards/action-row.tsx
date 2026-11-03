@@ -60,6 +60,15 @@ export function ActionRow(props: { children: ReactNode; gap?: number; style?: St
 }
 
 /**
+ * A measured width rounded up to whole points, ignoring float noise: native
+ * Yoga snaps frames to the pixel grid in float32, so a 24 pt label can read
+ * 24.000004, which a plain `Math.ceil` makes 25.
+ */
+export function layoutCeil(width: number): number {
+  return Math.ceil(width - 0.01);
+}
+
+/**
  * Measure the untruncated label once per text/typography change, retaining it
  * while icon-only. `keep` marks the row's main answer, folded last.
  */
@@ -77,8 +86,12 @@ export function useActionFit(label: string, typography: string, iconWidth: numbe
   }, [register, id, index, full, iconWidth, keep]);
   const iconOnly = square || (full !== null && context?.folded.has(id) === true);
   const labelLayout = context ? (event: LayoutChangeEvent) => {
-    const width = Math.ceil(event.nativeEvent.layout.width);
-    setMeasured((old) => old?.key === key && old.width === width ? old : { key, width });
+    const width = layoutCeil(event.nativeEvent.layout.width);
+    // Native snaps a label to the pixel grid by where it sits, so a 45.9 pt
+    // label reads 46 or 46.33 as the row moves it, and rounding up flipped
+    // the button between two widths forever. The text and type are the
+    // key, so its true width cannot shrink: keep the widest reading.
+    setMeasured((old) => old?.key === key && old.width >= width ? old : { key, width });
   } : undefined;
   const style: ViewStyle | undefined = context ? iconOnly
     ? { width: iconWidth, minWidth: iconWidth, flexGrow: 0, flexShrink: 0, paddingHorizontal: 0 }

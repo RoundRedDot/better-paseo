@@ -1300,12 +1300,14 @@ describe("TaskCardView rows", () => {
     expect(flat(hostByTestId(tree.root, "task-card-actions").props.style).flexWrap).toBeUndefined();
     const stop = () => flat(hostByTestId(tree.root, "task-card-stop").props.style);
     // The shared action row owns folding; no button shrinks its label independently.
-    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 0, flexBasis: "auto" });
+    // A zero basis, raised to the label by minWidth: native Yoga gave an "auto"
+    // one the whole row (tasks-card-action-layout.test.ts lays it out).
+    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 0, flexBasis: 0 });
     // No `flex` beside `flexShrink`: React Native Web warns when they update together.
     expect(stop().flex).toBeUndefined();
     expect(icons(byLabel(tree.root, "Stop"))).toEqual(["Power"]);
     await act(async () => tree.update(element("confirming")));
-    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 0, flexBasis: "auto" });
+    expect(stop()).toMatchObject({ flexGrow: 1, flexShrink: 0, flexBasis: 0 });
     expect(stop().flex).toBeUndefined();
     const confirm = byLabel(tree.root, "Confirm stop");
     expect(flat(confirm.props.style)).toMatchObject({ minHeight: 32, paddingHorizontal: 10 });

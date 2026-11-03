@@ -46,7 +46,7 @@ import {
   subtaskHeading,
   type SubtaskSummaryPart,
 } from "./details-format";
-import { ActionRow, useActionFit } from "./action-row";
+import { ActionRow, layoutCeil, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
 import { ActionPressable } from "./action-pressable";
 import { liftsOnPress, scaleStyle, surfaceLift } from "./surface-lift";
@@ -1898,7 +1898,7 @@ function OutlineButton(props: {
       {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: props.font, fontWeight: "500", color: hue.color }}>
         {props.label}
       </Text>}
-      {!fit.iconOnly && props.hint ? <View onLayout={(event) => setHintWidth(Math.ceil(event.nativeEvent.layout.width))} style={{ flexShrink: 0 }}>{props.hint}</View> : null}
+      {!fit.iconOnly && props.hint ? <View onLayout={(event) => setHintWidth(layoutCeil(event.nativeEvent.layout.width))} style={{ flexShrink: 0 }}>{props.hint}</View> : null}
       {props.trailing && !(fit.iconOnly && props.busy) ? (
         <>
           {fit.iconOnly ? null : <View style={{ flex: 1 }} />}
