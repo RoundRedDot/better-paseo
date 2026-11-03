@@ -21,6 +21,7 @@ const { blockSelectionText } = await import("../../client/components/markdown/re
 const { Lexer } = await import("../../client/vendor/marked");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { Linking } = await import("react-native");
+const { StyleSheet } = await import("react-native");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const os = globalThis as { __rnMockOS?: string };
@@ -61,6 +62,12 @@ afterEach(() => {
 });
 
 describe("iOS single Markdown block selection", () => {
+  it("keeps a small unordered marker within the existing list column", () => {
+    render("- 第一项内容换行时与正文对齐\n- Second item");
+    const style = native()[0]!.props.markdownStyle.list;
+    expect(style.bulletSize).toBe(4);
+    expect(style.markerMinWidth + style.gapWidth).toBe(20);
+  });
   it.each([
     ["**first** and `code`", "first and code"],
     ["## Heading words", "Heading words"],
@@ -142,5 +149,36 @@ describe("iOS single Markdown block selection", () => {
   it.each(["web", "android"])("leaves %s selection unchanged", (platform) => {
     os.__rnMockOS = platform; render("First.\n\nSecond.");
     expect(frames()).toHaveLength(0); expect(menus()).toHaveLength(0);
+  });
+});
+
+describe("mobile nested list markers", () => {
+  it.each(["ios", "android"] as const)("keeps nesting and marker columns on %s while streaming and settled", (platform) => {
+    os.__rnMockOS = platform;
+    const mobileTokens = { ...tokens, platform };
+    const source = "- 第一层较长的内容会换行\n  - 第二层\n    - Third level\n  1. Ordered\n- Last";
+    const view = (streaming: boolean) => React.createElement(MarkdownView, {
+      text: source, tokens: mobileTokens, variant: "document", compact: true, streaming,
+    });
+    for (const streaming of [true, false]) {
+      act(() => {
+        if (renderer) renderer.update(view(streaming));
+        else renderer = TestRenderer.create(view(streaming));
+      });
+      const markers = renderer!.root.findAll((node) => String(node.type) === "Text" &&
+        ["•", "◦", "‣"].includes(node.props.children));
+      expect(markers.map((node) => node.props.children)).toEqual(["•", "◦", "‣", "•"]);
+      expect(markers.map((node) => {
+        let parent = node.parent;
+        while (parent && String(parent.type) !== "View") parent = parent.parent;
+        return StyleSheet.flatten(parent!.props.style).marginLeft;
+      })).toEqual([0, 20, 40, 0]);
+      for (const marker of markers) {
+        const style = StyleSheet.flatten(marker.props.style);
+        expect(style.width).toBe(20);
+        expect(style.fontSize).toBeLessThan(tokens.typography.content.size);
+      }
+      expect(renderer!.root.findAll((node) => String(node.type) === "Text" && node.props.children === "1.")).toHaveLength(1);
+    }
   });
 });

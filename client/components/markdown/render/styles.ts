@@ -409,7 +409,7 @@ export function buildStyles(
       width: metrics.markerWidth,
       flexShrink: 0,
       fontFamily: bodyFont,
-      fontSize: metrics.bodySize,
+      fontSize: web ? metrics.bodySize : Math.round(metrics.bodySize * 0.75),
       lineHeight: metrics.bodyLineHeight,
       color: tokens.foregroundMuted,
       ...unselectable,

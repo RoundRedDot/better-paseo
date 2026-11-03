@@ -267,7 +267,7 @@ function collectRows(
         ),
       );
     }
-    for (const child of nested) collectRows(child, depth + 1, context, itemKey, options, out);
+    nested.forEach((child, index) => collectRows(child, depth + 1, context, `${itemKey}n${index}`, options, out));
   });
 }
 
