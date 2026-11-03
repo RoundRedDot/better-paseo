@@ -158,6 +158,14 @@ it("keeps a resized web column through streaming updates and leaves other column
   const widths = () => renderer.root.findAll((node) => String(node.type) === "Text" && node.props.testID === "markdown-table-cell")
     .map((node) => Object.assign({}, ...node.props.style.filter(Boolean)).width as number);
   const before = widths();
+  const resizeHandles = renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-table-resize");
+  expect(resizeHandles).toHaveLength(2);
+  const frame = renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-table-frame")[0]!;
+  expect(frame.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-table-resize")).toHaveLength(2);
+  expect(resizeHandles[0]!.props.style).toMatchObject({ top: 0, bottom: 0 });
+  const indicators = renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-table-resize-indicator");
+  expect(indicators).toHaveLength(2);
+  expect(indicators[0]!.props.style.backgroundColor).toBe(tokens.foregroundMuted);
   const event = (x: number) => ({ pointerType: "mouse", pointerId: 1, button: 0, clientX: x, preventDefault() {}, stopPropagation() {} });
   act(() => { handles[0]!.node.get("pointerdown")!(event(100)); handles[0]!.doc.get("pointermove")!(event(160)); handles[0]!.doc.get("pointerup")!(event(160)); });
   expect(widths()).toEqual([before[0]! + 60, before[1], before[2]! + 60, before[3]]);

@@ -39,8 +39,8 @@ export function bindTableResize(node: HTMLElement, current: { current: { width: 
   };
 }
 
-export function TableResizeHandle({ left, width, minWidth, onResize }: {
-  left: number; width: number; minWidth: number; onResize(width: number): void;
+export function TableResizeHandle({ left, width, minWidth, color, onResize }: {
+  left: number; width: number; minWidth: number; color: string; onResize(width: number): void;
 }) {
   const ref = useRef<View>(null);
   const current = useRef({ width, minWidth, onResize });
@@ -51,6 +51,9 @@ export function TableResizeHandle({ left, width, minWidth, onResize }: {
   }, []);
   return <View ref={ref} testID="markdown-table-resize" style={{
     position: "absolute", left: left - 6, top: 0, bottom: 0, width: 12,
-    cursor: "col-resize",
-  } as never} />;
+    cursor: "col-resize", alignItems: "center",
+  } as never}>
+    <View testID="markdown-table-resize-indicator" pointerEvents="none"
+      style={{ position: "absolute", top: 8, width: 3, height: 16, borderRadius: 2, backgroundColor: color }} />
+  </View>;
 }

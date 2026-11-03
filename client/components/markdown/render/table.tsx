@@ -173,10 +173,6 @@ export function MdTable({
           </Text>
         );
       })}
-      {row === 0 && Platform.OS === "web" && widths.map((width, column) => (
-        <TableResizeHandle key={column} left={columnStarts[column]! + width - TABLE_DIVIDER_WIDTH}
-          width={width} minWidth={metrics.columnMin} onResize={(next) => setResized((previous) => ({ ...previous, [column]: next }))} />
-      ))}
     </View>
   );
 
@@ -188,7 +184,7 @@ export function MdTable({
         contentContainerStyle={[styles.tableContent, copyStyles.content]}
         scrollEnabled={!selection.dragging}
         onScrollBeginDrag={ranges.length > 0 ? selection.dismiss : undefined}>
-        <View ref={frameRef} style={styles.tableFrame} {...selection.frameProps}>
+        <View ref={frameRef} testID="markdown-table-frame" style={styles.tableFrame} {...selection.frameProps}>
           {reuseNode(reuse, `${keyPrefix}h`, rowSource(0, token.header, token.rows.length === 0),
             cellTokens(token.header), () => drawRow(undefined, 0, `${keyPrefix}h`, token.header, styles.tableHeaderRow,
               styles.tableHeaderCell, token.rows.length === 0))}
@@ -198,6 +194,11 @@ export function MdTable({
             return reuseNode(reuse, rowKey, rowSource(rowIndex + 1, row, last), cellTokens(row),
               () => drawRow(rowKey, rowIndex + 1, `${rowKey}c`, row, styles.tableRow, styles.tableCell, last));
           })}
+          {Platform.OS === "web" && widths.map((width, column) => (
+            <TableResizeHandle key={column} left={columnStarts[column]! + width - TABLE_DIVIDER_WIDTH}
+              width={width} minWidth={metrics.columnMin} color={context.tokens.foregroundMuted}
+              onResize={(next) => setResized((previous) => ({ ...previous, [column]: next }))} />
+          ))}
         </View>
       </ScrollView>
       {/* Over the scroller rather than in it: a scroller clips what passes its
