@@ -3880,6 +3880,8 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
     expect(hostParentOf(hostsById("tablet-toolbar-search-group")[0]!)?.props.testID).toBe("tablet-toolbar-start");
     expect(StyleSheet.flatten(hostsById("search-full-conversation-toggle")[0]!.props.style)).toMatchObject({ borderWidth: 0, borderRadius: 7 });
+    const fullSearchIcon = hostsById("search-full-conversation-toggle")[0]!.findAll((node) => node.props.icon?.svg)[0]!;
+    expect(fullSearchIcon.props.size).toBe(18);
   });
 
   it.each(["android", "ios"])("%s preserves keepOpen, drill-down, Back and selection close", (os) => {
@@ -3936,6 +3938,7 @@ describe("Tasks board, tablet filters", () => {
     expect(Number(style.maxHeight)).toBeLessThanOrEqual(height - 18);
     expect(style.width).toBe(Math.min(Math.round(320 * Math.max(1, base / 14)), width - 24));
     expect(style.maxHeight).toBe(Math.max(0, height - 18));
+    expect(style.minHeight).toBe(Math.max(0, (height - 18) * 0.75));
     expect(style.height).toBeUndefined();
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
     expect(panel.props.accessibilityViewIsModal).toBeUndefined();
@@ -3973,6 +3976,7 @@ describe("Tasks board, tablet filters", () => {
     for (const height of [400, 1100, 300]) {
       act(() => hostsById("tasks-board-area")[0]!.props.onLayout({ nativeEvent: { layout: { width: 800, height } } }));
       expect(StyleSheet.flatten(hostsById("tablet-filter-popover")[0]!.props.style).maxHeight).toBe(height - 18);
+      expect(StyleSheet.flatten(hostsById("tablet-filter-popover")[0]!.props.style).minHeight).toBe((height - 18) * 0.75);
       expect(hostsById("filter-sheet-workspaces-toggle")[0]!.props.accessibilityState.expanded).toBe(true);
       expect(hostParentOf(hostsById("filter-sheet-footer")[0]!)).toBe(hostParentOf(hostsById("filter-sheet-scroll")[0]!));
     }

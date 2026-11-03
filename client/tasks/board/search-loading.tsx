@@ -140,14 +140,14 @@ const OUTLINE_SEARCH_ICON: PluginIcon = {
   svg: `${SVG_HEAD}<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h3.5"/><path d="M8 19h3.5"/><circle cx="16.5" cy="15.5" r="3.5"/><path d="m22 21-3-3"/></svg>`,
 };
 
-export function FullConversationSwitch({ theme, compact }: { theme: PluginTheme; compact?: boolean }) {
+export function FullConversationSwitch({ theme, compact, iconSize: requestedIconSize }: { theme: PluginTheme; compact?: boolean; iconSize?: number }) {
   const { context } = useSearchCoverage();
   const { hovered, hoverProps } = useHover();
   const [pressed, setPressed] = useState(false);
   const reduced = useReducedMotion();
   const scale = useTasksFontScale();
   const size = !compact && Platform.OS === "web" ? taskControlHeight(28, scale) : compact ? 36 : 32;
-  const iconSize = !compact && Platform.OS === "web" ? taskControlHeight(16, scale) : 16;
+  const iconSize = requestedIconSize ?? (!compact && Platform.OS === "web" ? taskControlHeight(16, scale) : 16);
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);
   if (!context?.onFullConversationChange) return null;
