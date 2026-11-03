@@ -158,8 +158,8 @@ let latestControl: StopControl | undefined;
 const activeAgents = new Set<string>();
 const cards = new Map<string, TaskCard>();
 
-function StopProbe({ confirmStop, verify = false }: { confirmStop: boolean; verify?: boolean }) {
-  latestControl = useStopControl({ confirmStop, cardById: (id) => cards.get(id), isActive: verify ? (agentId) => activeAgents.has(agentId) : undefined });
+function StopProbe({ verify = false }: { verify?: boolean }) {
+  latestControl = useStopControl({ cardById: (id) => cards.get(id), isActive: verify ? (agentId) => activeAgents.has(agentId) : undefined });
   return React.createElement("probe");
 }
 
@@ -201,10 +201,10 @@ describe("Tasks stop control", () => {
     vi.useRealTimers();
   });
 
-  async function mount(confirmStop: boolean, verify = false) {
+  async function mount(verify = false) {
     let renderer!: ReactTestRenderer;
     await act(async () => {
-      renderer = TestRenderer.create(React.createElement(StopProbe, { confirmStop, verify }));
+      renderer = TestRenderer.create(React.createElement(StopProbe, { verify }));
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
@@ -222,14 +222,12 @@ describe("Tasks stop control", () => {
   it("keeps availability false until the one capability request returns true", async () => {
     const response = deferred<{ stop: boolean }>();
     mocks.capabilities.mockReturnValue(response.promise);
-    const mounted = await mount(true);
+    const mounted = await mount();
     expect(mounted.control().available).toBe(false);
     expect(mocks.capabilities).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      mounted.renderer.update(React.createElement(StopProbe, {
-        confirmStop: true,
-      }));
+      mounted.renderer.update(React.createElement(StopProbe, {}));
       response.resolve({ stop: true });
       await Promise.resolve();
       await Promise.resolve();
@@ -241,7 +239,7 @@ describe("Tasks stop control", () => {
 
   it("confirms within three seconds, tracks successful stops, and clears the marker on a new run", async () => {
     mocks.stop.mockResolvedValue({ results: [{ agentId: "agent-a", ok: true, error: null }] });
-    const mounted = await mount(true);
+    const mounted = await mount();
     const card = taskCard("agent-a");
 
     act(() => mounted.control().press(card));
@@ -267,7 +265,7 @@ describe("Tasks stop control", () => {
     const confirm = vi.fn(() => false);
     world.confirm = confirm;
     try {
-      const mounted = await mount(true);
+      const mounted = await mount();
       await act(async () => {
         mounted.control().press(taskCard("agent-a"), { dialog: true });
         await Promise.resolve();
@@ -291,28 +289,9 @@ describe("Tasks stop control", () => {
     }
   });
 
-  it("stops a context menu's Stop at once when confirm before stopping is off", async () => {
-    mocks.stop.mockResolvedValue({ results: [{ agentId: "agent-a", ok: true, error: null }] });
-    const world = globalThis as { confirm?: unknown };
-    const confirm = vi.fn(() => false);
-    world.confirm = confirm;
-    try {
-      const mounted = await mount(false);
-      await act(async () => {
-        mounted.control().press(taskCard("agent-a"), { dialog: true });
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(confirm).not.toHaveBeenCalled();
-      expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["agent-a"] });
-    } finally {
-      delete world.confirm;
-    }
-  });
-
   it("cancels confirmation and returns to idle after the three-second timeout", async () => {
     vi.useFakeTimers();
-    const mounted = await mount(true);
+    const mounted = await mount();
     act(() => mounted.control().press(taskCard("agent-a")));
     expect(mounted.control().phase("agent-a")).toBe("confirming");
     act(() => mounted.control().cancel("agent-a"));
@@ -325,9 +304,9 @@ describe("Tasks stop control", () => {
     expect(mocks.stop).not.toHaveBeenCalled();
   });
 
-  it("stops immediately without confirmation and includes only active direct children", async () => {
+  it("confirms before stopping only active direct children", async () => {
     mocks.stop.mockResolvedValue({ results: [{ agentId: "parent", ok: true, error: null }] });
-    const mounted = await mount(false);
+    const mounted = await mount();
     const card = taskCard("parent", [
       { id: "running-child", title: "Running", status: "running" },
       { id: "waiting-child", title: "Waiting", status: "needs_input" },
@@ -336,6 +315,7 @@ describe("Tasks stop control", () => {
     ]);
 
     await act(async () => {
+      mounted.control().press(card, { withChildren: true });
       mounted.control().press(card, { withChildren: true });
       await Promise.resolve();
       await Promise.resolve();
@@ -379,8 +359,8 @@ describe("Tasks stop control", () => {
     middle.stoppable = false;
     const parent = taskCard("parent", [{ id: middle.id, title: "Middle", status: "running" }]);
     parent.stoppable = false;
-    const mounted = await mount(false, true);
-    await act(async () => mounted.control().press(parent, { withChildren: true }));
+    const mounted = await mount(true);
+    await act(async () => { mounted.control().press(parent, { withChildren: true }); mounted.control().press(parent, { withChildren: true }); });
     expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["grandchild"] });
     expect(mounted.control().phase("parent")).toBe("stopping");
     expect([...mounted.control().stoppedManually]).toEqual(["grandchild"]);
@@ -396,7 +376,7 @@ describe("Tasks stop control", () => {
       { id: "remaining", title: "Remaining", status: "needs_input" },
     ]);
     parent.stoppable = false;
-    const mounted = await mount(true);
+    const mounted = await mount();
     act(() => mounted.control().press(parent, { withChildren: true }));
     cards.set("child", { ...cards.get("child")!, stoppable: false });
     await act(async () => mounted.control().press(parent, { withChildren: true }));
@@ -408,7 +388,7 @@ describe("Tasks stop control", () => {
     mocks.language.mockReturnValue(language);
     const parent = taskCard("parent", [{ id: "child", title: "Child", status: "needs_input" }]);
     parent.stoppable = false;
-    const mounted = await mount(true);
+    const mounted = await mount();
     act(() => mounted.control().press(parent, { withChildren: true }));
     expect(lastAlert().title).toBe(language === "zh" ? "停止 1 个子任务？" : "Stop 1 subtask?");
     await act(async () => lastAlert().confirm.onPress());
@@ -418,7 +398,7 @@ describe("Tasks stop control", () => {
   it("does not arm or send an empty stop when only provider work remains", async () => {
     const parent = taskCard("parent", [{ id: "provider", title: "Provider", kind: "provider", status: "running" }]);
     parent.stoppable = false;
-    const mounted = await mount(true);
+    const mounted = await mount();
     act(() => mounted.control().press(parent, { withChildren: true }));
     expect(mounted.control().phase("parent")).toBe("idle");
     expect(mocks.stop).not.toHaveBeenCalled();
@@ -427,7 +407,7 @@ describe("Tasks stop control", () => {
 
   it("cancels a self-only confirmation when the parent ends, even if the next caller requests children", async () => {
     const parent = taskCard("parent", [{ id: "child", title: "Child", status: "running" }]);
-    const mounted = await mount(true);
+    const mounted = await mount();
     act(() => mounted.control().press(parent, { withChildren: false }));
     expect(mounted.control().phase("parent")).toBe("confirming");
     cards.set(parent.id, { ...parent, stoppable: false, waitingOnSubtasks: true });
@@ -444,7 +424,7 @@ describe("Tasks stop control", () => {
   it("keeps a children-only confirmation from stopping a parent that resumes meanwhile", async () => {
     const parent = taskCard("parent", [{ id: "child", title: "Child", status: "running" }]);
     parent.stoppable = false;
-    const mounted = await mount(true);
+    const mounted = await mount();
     act(() => mounted.control().press(parent, { withChildren: true }));
     expect(mounted.control().phase(parent.id)).toBe("confirming");
     cards.set(parent.id, { ...parent, stoppable: true, waitingOnSubtasks: false });
@@ -455,7 +435,7 @@ describe("Tasks stop control", () => {
   it("quietly ignores a self-only stop when the agent has just finished", async () => {
     const parent = taskCard("parent");
     parent.stoppable = false;
-    const mounted = await mount(true);
+    const mounted = await mount();
     act(() => mounted.control().press(parent));
     expect(mocks.stop).not.toHaveBeenCalled();
     expect(mocks.toastError).not.toHaveBeenCalled();
@@ -467,7 +447,7 @@ describe("Tasks stop control", () => {
     middle.stoppable = false;
     const parent = taskCard("parent", [{ id: middle.id, title: "Middle", status: "running" }]);
     parent.stoppable = false;
-    const mounted = await mount(true);
+    const mounted = await mount();
     act(() => mounted.control().press(parent, { withChildren: true }));
     expect(mocks.stop).not.toHaveBeenCalled();
     expect(mocks.toastError).toHaveBeenCalledWith("No stoppable tasks or subtasks");
@@ -481,8 +461,8 @@ describe("Tasks stop control", () => {
       if (agentIds.includes("child-50")) throw new Error("RPC unavailable");
       return { results: agentIds.map((agentId) => ({ agentId, ok: true, error: null })) };
     });
-    const mounted = await mount(false);
-    await act(async () => mounted.control().press(parent, { withChildren: true }));
+    const mounted = await mount();
+    await act(async () => { mounted.control().press(parent, { withChildren: true }); mounted.control().press(parent, { withChildren: true }); });
     expect(mocks.stop.mock.calls.map(([input]) => input.agentIds.length)).toEqual([50, 1]);
     expect(mounted.control().stoppedManually.size).toBe(50);
     expect(mounted.control().stoppedManually.has("parent")).toBe(false);
@@ -500,7 +480,7 @@ describe("Tasks stop control", () => {
   it.each(["ios", "android"])("asks in a system dialog on %s, and a double tap never stops", async (os) => {
     mocks.platform.OS = os;
     mocks.stop.mockResolvedValue({ results: [{ agentId: "agent-a", ok: true, error: null }] });
-    const mounted = await mount(true);
+    const mounted = await mount();
     const card = taskCard("agent-a");
 
     act(() => mounted.control().press(card));
@@ -524,7 +504,7 @@ describe("Tasks stop control", () => {
 
   it("stops nothing when the dialog is cancelled or dismissed, and asks again on the next press", async () => {
     mocks.platform.OS = "ios";
-    const mounted = await mount(true);
+    const mounted = await mount();
     const card = taskCard("agent-a");
 
     act(() => mounted.control().press(card));
@@ -540,7 +520,7 @@ describe("Tasks stop control", () => {
   it("names the subtasks a native stop takes along, and stops them on confirm", async () => {
     mocks.platform.OS = "android";
     mocks.language.mockReturnValue("zh");
-    const mounted = await mount(true);
+    const mounted = await mount();
     const card = taskCard("parent", [
       { id: "running-child", title: "Running", status: "running" },
       { id: "done-child", title: "Done", status: "done" },
@@ -556,17 +536,6 @@ describe("Tasks stop control", () => {
     expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["parent", "running-child"] });
   });
 
-  it("stops on the first press on native when confirmation is off", async () => {
-    mocks.platform.OS = "ios";
-    const mounted = await mount(false);
-    await act(async () => {
-      mounted.control().press(taskCard("agent-a"));
-      await Promise.resolve();
-    });
-    expect(mocks.alert).not.toHaveBeenCalled();
-    expect(mocks.stop).toHaveBeenCalledWith({ agentIds: ["agent-a"] });
-  });
-
   it("heads the dialog with the stop and gives the task's name, cut when long", () => {
     const card = taskCard("agent-a");
     expect(stopDialogText(card, { self: true, children: 0 }, "zh")).toEqual({ title: "停止任务？", message: "Task agent-a", cancel: "取消", confirm: "停止" });
@@ -578,7 +547,7 @@ describe("Tasks stop control", () => {
   });
 
   it("disarms every armed stop at once (Esc), and says when none was armed", async () => {
-    const mounted = await mount(true);
+    const mounted = await mount();
     act(() => mounted.control().press(taskCard("agent-a")));
     act(() => mounted.control().press(taskCard("agent-b")));
     let disarmed = false;
@@ -594,8 +563,9 @@ describe("Tasks stop control", () => {
     vi.useFakeTimers();
     mocks.stop.mockResolvedValue({ results: [{ agentId: "agent-a", ok: true, error: null }] });
     activeAgents.add("agent-a");
-    const mounted = await mount(false, true);
+    const mounted = await mount(true);
     await act(async () => {
+      mounted.control().press(taskCard("agent-a"));
       mounted.control().press(taskCard("agent-a"));
       await Promise.resolve();
       await Promise.resolve();
@@ -617,8 +587,9 @@ describe("Tasks stop control", () => {
     vi.useFakeTimers();
     mocks.stop.mockResolvedValue({ results: [{ agentId: "zombie", ok: true, error: null }] });
     activeAgents.add("zombie");
-    const mounted = await mount(false, true);
+    const mounted = await mount(true);
     await act(async () => {
+      mounted.control().press(taskCard("zombie"));
       mounted.control().press(taskCard("zombie"));
       await Promise.resolve();
       await Promise.resolve();
@@ -634,8 +605,9 @@ describe("Tasks stop control", () => {
   it("fails a stop whose RPC never answers", async () => {
     vi.useFakeTimers();
     mocks.stop.mockReturnValue(new Promise(() => {}));
-    const mounted = await mount(false, true);
+    const mounted = await mount(true);
     await act(async () => {
+      mounted.control().press(taskCard("agent-a"));
       mounted.control().press(taskCard("agent-a"));
       await Promise.resolve();
     });
@@ -651,11 +623,11 @@ describe("Tasks stop control", () => {
 
   it("reads the server's earlier stops once, and survives a server without the RPC", async () => {
     mocks.stopped.mockResolvedValue({ stops: [{ agentId: "agent-a", stoppedAt: "2026-10-20T10:00:00.000Z" }] });
-    const mounted = await mount(true);
+    const mounted = await mount();
     expect(mocks.stopped).toHaveBeenCalledTimes(1);
     expect([...mounted.control().restored]).toEqual([["agent-a", "2026-10-20T10:00:00.000Z"]]);
     mocks.stopped.mockRejectedValue(new Error("Unknown RPC tasks.stopped"));
-    const old = await mount(true);
+    const old = await mount();
     expect(old.control().restored.size).toBe(0);
   });
 
@@ -664,7 +636,7 @@ describe("Tasks stop control", () => {
     mocks.stopped.mockResolvedValue({ stops: [{ agentId: "agent-a", stoppedAt: "2026-10-20T10:00:00.000Z" }] });
     const seen: Array<{ stop: boolean; read: boolean; restored: number }> = [];
     function Both() {
-      const stop = useStopControl({ confirmStop: false, cardById: (id) => cards.get(id) });
+      const stop = useStopControl({ cardById: (id) => cards.get(id) });
       const read = useReadControl({});
       seen.push({ stop: stop.available, read: read.available, restored: stop.restored.size });
       return React.createElement("probe");
@@ -702,9 +674,10 @@ describe("Tasks stop control", () => {
     mocks.stop.mockResolvedValue({ results: [
       { agentId: "agent-a", ok: false, error: "Paseo CLI timed out." },
     ] });
-    const mounted = await mount(false);
+    const mounted = await mount();
 
     await act(async () => {
+      mounted.control().press(taskCard("agent-a"));
       mounted.control().press(taskCard("agent-a"));
       await Promise.resolve();
       await Promise.resolve();
@@ -713,6 +686,7 @@ describe("Tasks stop control", () => {
 
     mocks.stop.mockRejectedValueOnce(new Error("RPC unavailable"));
     await act(async () => {
+      mounted.control().press(taskCard("agent-b"));
       mounted.control().press(taskCard("agent-b"));
       await Promise.resolve();
       await Promise.resolve();

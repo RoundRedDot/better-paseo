@@ -98,7 +98,7 @@ export interface StopControl {
   available: boolean;
   phase(agentId: string): StopPhase;
   /**
-   * First press arms confirmation (unless `board.confirmStop` is off); the second press within 3 s stops.
+   * First press arms confirmation; the second press within 3 s stops.
    * On iOS and Android the first press asks in a system dialog instead: a quick double tap would
    * land both presses inside the 3 s, and Stop is always drawn on a touch card.
    * `dialog`: ask in a dialog on web too (a context menu's Stop, which has no button to arm).
@@ -251,7 +251,6 @@ function stillRunningMessage(count: number, language: TasksLanguage): string {
  * and loses its "Stopped manually" marker.
  */
 export function useStopControl(options: {
-  confirmStop: boolean;
   cardById(agentId: string): TaskCard | undefined;
   isActive?: (agentId: string) => boolean;
   /** Where the failures are said; the host's toast unless given (the phone board says them at its bottom). */
@@ -442,7 +441,7 @@ export function useStopControl(options: {
       return;
     }
 
-    if (options.confirmStop && (Platform.OS !== "web" || stopOptions?.dialog === true)) {
+    if (Platform.OS !== "web" || stopOptions?.dialog === true) {
       askingRef.current = true;
       const close = () => {
         askingRef.current = false;
@@ -469,7 +468,7 @@ export function useStopControl(options: {
       return;
     }
 
-    if (options.confirmStop && currentPhase !== "confirming") {
+    if (currentPhase !== "confirming") {
       clearTimer(agentId);
       updatePhase(agentId, "confirming");
       const timer = setTimeout(() => {
@@ -481,7 +480,7 @@ export function useStopControl(options: {
     }
 
     run(agentId, agentIds);
-  }, [available, cancel, clearTimer, options.confirmStop, run, updatePhase]);
+  }, [available, cancel, clearTimer, run, updatePhase]);
 
   // One object until something in it changes: the lanes' lists take it as `extraData`.
   return useMemo(

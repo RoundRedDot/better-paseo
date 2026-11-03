@@ -210,7 +210,6 @@ Better Paseo 的设置里开启看板后，侧边栏顶部（新建工作区、�
 | 泳道宽度 | `board.laneWidth` | 紧凑 / 默认 / 宽松 | 默认（桌面、Web 和平板；手机一次一列，不显示此项） |
 | 显示子任务 | `board.hideSubtasks`（取反；原「默认隐藏子任务」） | 开 / 关 | 开 |
 | 显示全部 | `board.showEmptyGroups` | 开 / 关 | 开（见「过滤与搜索」；桌面在第一行侧栏开关左边和 Agent、项目、Workspace 下拉底部，窄屏和平板在筛选面板里） |
-| 停止前二次确认 | `board.confirmStop` | 开 / 关 | 开（确认方式见「操作」的停止一行） |
 | 侧边栏入口计数 | `sidebar.count` | 待输入 · 运行中 · 待查看（`all`）/ 只显示待输入（`input-only`）/ 不显示（`none`） | `all`（旧值 `running-and-input` 读作 `all`） |
 
 启用开关、卡片、自动标题、看板和侧边栏都可单独恢复默认；卡片重置包括 `mobile.compactCards` 和本机标题行数，看板重置包括归档泳道设置。页面底部的「恢复默认设置」仍可恢复全部选项，并保留看板启用状态。设置 schema 带 `version`（目前是 1），以后增删字段用 `migrate` 迁移旧值；每个字段的坏值单独回退到默认，不会让整条记录失效。
@@ -242,7 +241,7 @@ provider 内部的 subagent（Claude Code 的 Agent 工具、Codex 和 Pi 自己
 | 操作 | 触发方式 | 实现 | 出现在 | 版本 |
 | --- | --- | --- | --- | --- |
 | 跳到 tab | 「打开 tab」；桌面上双击卡片或聚焦后按 Enter；子任务行、详情和右键菜单里的打开 | `navigation.openAgent({ agentId })`；provider subagent 打开父任务 | 本身已归档的以外的所有卡片 | 已做 |
-| 停止 | 桌面悬停显示停止按钮（触屏常驻）。Web 上点一下变成「确认停止」，3 秒内再点才执行；iOS 和 Android 上弹系统对话框（标题「停止任务？」或「停止任务和 N 个子任务？」，正文是任务名），只有它的破坏性按钮才停止；Web 右键菜单里的停止走 Electron 的原生对话框，纯 Web 用浏览器的 `confirm`。`board.confirmStop` 关掉后一次即停 | 插件服务端 RPC `tasks.stop` 调 `paseo agent stop <id>`（见技术方案） | 运行中、待输入 | 已做 |
+| 停止 | 桌面悬停显示停止按钮（触屏常驻）。Web 上点一下变成「确认停止」，3 秒内再点才执行；iOS 和 Android 上弹系统对话框（标题「停止任务？」或「停止任务和 N 个子任务？」，正文是任务名），只有它的破坏性按钮才停止；Web 右键菜单里的停止走 Electron 的原生对话框，纯 Web 用浏览器的 `confirm` | 插件服务端 RPC `tasks.stop` 调 `paseo agent stop <id>`（见技术方案） | 运行中、待输入 | 已做 |
 | 连同子任务一起停止 | 父卡片停止按钮的下拉项（仅停止此任务 / 连同子任务一起停止） | 一次 RPC 传入父和运行中、待输入的直接子任务，服务端逐个停止 | 有运行中或待输入子任务的父卡片 | 已做 |
 | 批准或拒绝权限 | 卡片内嵌权限请求摘要 + 按钮 | `agents.ref(id).respondToPermission({ requestId, response })` | 待输入 | 已做 |
 | 标为已读 | 卡片上停止的位置（桌面悬停时出现，触屏常驻，手机在卡片的操作行）、右键菜单 | 插件服务端 RPC `tasks.read`，经自己的 daemon 连接调 `DaemonClient.clearAgentAttention`，和在 Paseo 里打开 tab 的效果一样；`tasks.reads` 记下已读，agent 开始新一轮前卡片留在已完成列 | 待查看 | 已做 |

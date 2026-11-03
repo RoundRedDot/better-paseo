@@ -160,7 +160,6 @@ export const tasksSettingsSchema = z.object({
     .object({
       doneWindow: z.enum(DONE_WINDOWS).catch("24h"),
       hideSubtasks: flag(false),
-      confirmStop: flag(true),
       laneWidth: z.enum(LANE_WIDTHS).catch("default"),
       /**
        * An archived lane after done: archived tasks, and those of archived
@@ -176,7 +175,7 @@ export const tasksSettingsSchema = z.object({
        */
       showEmptyGroups: flag(true),
     })
-    .catch({ doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: true, showEmptyGroups: true }),
+    .catch({ doneWindow: "24h", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true }),
   sidebar: z.object({ count: z.enum(SIDEBAR_COUNTS).catch("all") }).catch({ count: "all" }),
 });
 

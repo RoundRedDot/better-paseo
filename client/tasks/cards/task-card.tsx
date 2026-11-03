@@ -71,8 +71,7 @@ export interface CardCallbacks {
   onReveal(agentId: string, parentId?: string): void;
   /**
    * Stop, if the card is stoppable and Stop is available. `dialog`: a context
-   * menu's Stop, which asks in a dialog instead of arming the button (unless
-   * `board.confirmStop` is off).
+   * menu's Stop, which asks in a dialog instead of arming the button.
    */
   onStop?(card: TaskCard, options?: { withChildren?: boolean; dialog?: boolean }): void;
   onCancelStop?(agentId: string): void;
@@ -1594,7 +1593,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             open: props.onOpen && ownTab ? () => props.onOpen?.(card.id) : undefined,
             openParent: parentOpens ? () => props.onOpen?.(card.parent!.id) : undefined,
             revealParent: card.parent ? () => props.onReveal(card.parent!.id) : undefined,
-            // Stop asks in a dialog first (unless confirm before stopping is off): there is no button to arm.
+            // Stop asks in a dialog first: there is no button to arm.
             stop: canStop && props.stopPhase !== "stopping"
               ? (withChildren) => {
                   setStopAll(withChildren);

@@ -869,7 +869,7 @@ subscription, and the board's code is not fetched. Its options are listed under
   its parent link remains above. A parent carries a subtask pill with a count per status; pressing
   it lists the children on the card, and a press on
   a child's row reveals and flashes that child's card.
-- **Stop**, behind a Power icon, leads the buttons. With **Confirm before stopping** on, it asks
+- **Stop**, behind a Power icon, leads the buttons. It asks
   for a second press on web and in the system dialog on iOS and Android. A parent can stop alone or
   with its running children. On a waiting desktop card Stop moves to the menu and the details,
   leaving the footer to the request: tool, plan and mode requests can be allowed or denied on the
@@ -1052,7 +1052,6 @@ agent API is required.
 | Board | Lane width | Default | Narrow (260–280pt), Default (300–340pt) or Wide (340–400pt) on desktop, web and tablets, the same choice as the board's lane width menu; a board too narrow for them scrolls the lanes sideways. Phones show one lane at a time and hide this option. |
 | Board | Show subtasks | On | Off, subtasks fold into their parent's card; running, waiting and failed ones keep their own card unless the parent's card is in the same lane. The toolbar switch changes only that board. |
 | Board | Show groups with no tasks | On | The filters and the sidebar list every agent, project, workspace and label in Paseo, with 0 where the board has none, including Done and Archived. Also a switch on the toolbar. |
-| Board | Confirm before stopping | On | Stop asks for a second press on web, and in the system dialog on iOS and Android. |
 | Sidebar | Sidebar entry count | Waiting · Running · Review | Or Waiting only, or hidden. |
 | Phone | Use minimal cards on phones | Off | On, phones draw the Minimal card whatever the density. |
 | Reset | Restore the Tasks defaults | — | Puts every Tasks option back; the board stays on or off. Asks for confirmation. |

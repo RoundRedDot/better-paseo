@@ -53,7 +53,6 @@ export interface TasksSettingsStrings {
   showEmptyGroups: string;
   showEmptyGroupsHint: string;
   showEmptyGroupsTips: ReadonlyArray<{ label: string; text: string }>;
-  confirmStop: string;
   laneWidth: string;
   /** Says the phone ignores it: there one lane fills the screen. */
   laneWidthHint: string;
@@ -137,7 +136,6 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     showEmptyGroups: "Show all",
     showEmptyGroupsTips: [{ label: "Visibility", text: "The filters and the sidebar list every Agent, project, workspace and label in Paseo, with 0 where the board has none, including Done and Archived." }, { label: "Storage", text: "Saved on this device only." }],
     showEmptyGroupsHint: "The filters and the sidebar list every Agent, project, workspace and label in Paseo, with 0 where the board has none, including Done and Archived. Saved on this device only.",
-    confirmStop: "Confirm before stopping",
     laneWidth: "Lane width",
     laneWidthHint: "Saved on this device only. On desktop, web and tablets. Phones show one lane at a time.",
     laneWidths: { narrow: "Narrow", default: "Default", wide: "Wide" },
@@ -217,7 +215,6 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     showEmptyGroups: "显示全部",
     showEmptyGroupsTips: [{ label: "显示范围", text: "筛选菜单和侧栏也显示看板上没有任务的 Agent、项目、工作区和标签，已完成和已归档计入。" }, { label: "保存位置", text: "仅保存在当前设备。" }],
     showEmptyGroupsHint: "筛选菜单和侧栏也显示看板上没有任务的 Agent、项目、工作区和标签，已完成和已归档计入。仅保存在当前设备。",
-    confirmStop: "停止前二次确认",
     laneWidth: "泳道宽度",
     laneWidthHint: "用于桌面和非手机布局；仅保存在当前设备。",
     laneWidths: { narrow: "紧凑", default: "默认", wide: "宽松" },

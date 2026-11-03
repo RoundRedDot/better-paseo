@@ -18,7 +18,7 @@ describe("tasks settings", () => {
       density: "standard",
       card: { ...CARD_PRESETS.standard.fields, labelLimit: "2" },
       mobile: { compactCards: false },
-      board: { doneWindow: "24h", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: true, showEmptyGroups: true },
+      board: { doneWindow: "24h", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true },
       sidebar: { count: "all" },
     });
   });
@@ -43,15 +43,15 @@ describe("tasks settings", () => {
       card: { provider: false, labelLimit: "9" },
       board: { doneWindow: "7d", confirmStop: "yes", laneWidth: "huge" },
     });
+    expect(tasksSettingsSchema.parse({ board: { confirmStop: false } }).board).toEqual(DEFAULT_TASKS_SETTINGS.board);
     expect(parsed.density).toBe("standard");
     expect(parsed.card.provider).toBe(false);
     expect(parsed.card.labelLimit).toBe("2");
-    expect(parsed.board).toEqual({ doneWindow: "7d", hideSubtasks: false, confirmStop: true, laneWidth: "default", showArchived: true, showEmptyGroups: true });
+    expect(parsed.board).toEqual({ doneWindow: "7d", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true });
     // A record saved before the lane width existed keeps its other board options.
     expect(tasksSettingsSchema.parse({ board: { doneWindow: "all", hideSubtasks: true } }).board).toEqual({
       doneWindow: "all",
       hideSubtasks: true,
-      confirmStop: true,
       laneWidth: "default",
       showArchived: true,
       showEmptyGroups: true,

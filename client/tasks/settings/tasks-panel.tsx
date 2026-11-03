@@ -574,18 +574,6 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         }
         look={look}
       />
-      <SettingRow
-        title={strings.confirmStop}
-        control={
-          <Toggle
-            value={values.board.confirmStop}
-            onChange={(next) => void commit({ ...values, board: { ...values.board, confirmStop: next } })}
-            label={strings.confirmStop}
-            look={look}
-          />
-        }
-        look={look}
-      />
       <ModuleResetRow
         module={strings.boardTitle}
         strings={strings}
