@@ -653,10 +653,11 @@ describe("Tasks search coverage and centred toolbar", () => {
       expect(hostParentOf(total)).toBe(bar);
       expect(hostParentOf(end)).toBe(bar);
       if (os !== "web") expect(StyleSheet.flatten(start.props.style)).toMatchObject({ marginLeft: -8, marginRight: 8 });
-      for (const side of [start, end]) expect(StyleSheet.flatten(side.props.style)).toMatchObject({ flex: 1, flexBasis: 0 });
+      expect(StyleSheet.flatten(start.props.style)).toMatchObject({ flex: 1, flexBasis: 0 });
+      expect(StyleSheet.flatten(end.props.style)).toMatchObject(os !== "web" && width < 440 ? { flex: 0, flexBasis: "auto" } : { flex: 1, flexBasis: 0 });
       // Equal flex alone is insufficient in Yoga when one side has a larger minimum.
       expect(StyleSheet.flatten(start.props.style).minWidth).toBe(StyleSheet.flatten(end.props.style).minWidth);
-      if (os !== "web" && width < 680) expect(StyleSheet.flatten(end.props.style).minWidth).toBeGreaterThan(0);
+      if (os !== "web" && width >= 440 && width < 680) expect(StyleSheet.flatten(end.props.style).minWidth).toBeGreaterThan(0);
       else expect(StyleSheet.flatten(end.props.style).minWidth).toBe(0);
       expect(StyleSheet.flatten(end.props.style).justifyContent).toBe("flex-end");
       expect(start.findAll((node) => (node.type as unknown) === "TextInput" || node.props.testID === "tablet-search-toggle").length).toBeGreaterThan(0);
@@ -3806,7 +3807,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostParentOf(search())?.props.testID).toBe("tablet-toolbar-search-group");
     expect(hostParentOf(hostsById("tablet-toolbar-search-group")[0]!)?.props.testID).toBe("tablet-toolbar-start");
     expect(bar().findAll((node) => node === search())).toHaveLength(1);
-    expect(style(search())).toMatchObject({ height: Math.round(28 * base / 14), flex: 1, minWidth: 0 });
+    expect(style(search())).toMatchObject({ height: Math.round(40 * base / 14), flex: 1, minWidth: 0 });
     expect(style(search()).position).toBeUndefined();
     expect(hostsById("tablet-toolbar-total")).toHaveLength(0);
     expect(style(hostsById("tablet-toolbar-start")[0]!).minWidth).toBe(0);
@@ -3835,6 +3836,28 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostsById("tablet-toolbar-search")).toHaveLength(0);
     expect(hostsById("tablet-toolbar-total")).toHaveLength(1);
     expect(style(bar()).height).toBe(height);
+  });
+
+  it.each([["ios", 600], ["ios", 1200], ["android", 600], ["android", 1200]] as const)("%s at %i keeps the search compact and dismisses only an empty query", (os, width) => {
+    mount(os, width);
+    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    expect(style(hostsById("tablet-toolbar-search-group")[0]!).maxWidth).toBe(238);
+    expect(hostsById("tablet-toolbar-backdrop")).toHaveLength(1);
+    act(() => hostsById("search-full-conversation-toggle")[0]!.props.onPress());
+    expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
+    const input = () => hostsById("tablet-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput");
+    act(() => input().props.onChangeText("needle"));
+    expect(hostsById("tablet-toolbar-backdrop")).toHaveLength(0);
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
+    expect(input().props.value).toBe("needle");
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
+    expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
+    act(() => hostsById("tablet-search-clear")[0]!.props.onPress());
+    expect(hostsById("tablet-toolbar-backdrop")).toHaveLength(1);
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
+    expect(hostsById("tablet-toolbar-search")).toHaveLength(0);
+    expect(hostsById("tablet-search-toggle")).toHaveLength(1);
   });
 
   it.each(["ios", "android"])("starts %s search collapsed on a wide toolbar", (os) => {
@@ -3983,22 +4006,20 @@ describe("Tasks board, tablet filters", () => {
     layOut(width);
     expect(hostsById("filter-bar")).toHaveLength(0);
     const bar = hostsById("tablet-toolbar")[0]!;
-    const compact = width < 680 * Math.max(1, base / 14);
-    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ height: Math.round((compact ? 36 : 44) * Math.max(1, base / 14)), flexDirection: "row", flexShrink: 0 });
-    expect(StyleSheet.flatten(hostsById("tablet-toolbar-end")[0]!.props.style).gap).toBe(2);
+    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ height: Math.round(48 * Math.max(1, base / 14)), flexDirection: "row", flexShrink: 0 });
+    expect(StyleSheet.flatten(hostsById("tablet-toolbar-end")[0]!.props.style).gap).toBe(0);
     const buttons = bar.findAll((n) => (n.type as unknown) === "Pressable" && n.props.testID !== "search-full-conversation-toggle");
     for (const button of buttons) {
       const style = StyleSheet.flatten(button.props.style);
-      expect(style.height).toBe(Math.round((compact ? 28 : os === "ios" ? 40 : 44) * Math.max(1, base / 14)));
+      expect(style.height).toBe(Math.round(40 * Math.max(1, base / 14)));
       expect(style.borderRadius).toBe(7);
       const icon = button.find((node) => button.props.testID === "sidebar-switch" ? typeof node.type === "string" && node.props.testID === "panel-mark" : (node.type as unknown) === "Icon");
-      expect(StyleSheet.flatten(hostParentOf(icon)!.props.style)).toMatchObject({ width: compact ? 16 : 18, height: compact ? 16 : 18 });
+      expect(StyleSheet.flatten(hostParentOf(icon)!.props.style)).toMatchObject({ width: 18, height: 18 });
     }
     const filters = hostsById("toolbar-filters")[0]!;
     const view = hostsById("tablet-view")[0]!;
-    const labels = os !== "android" && width >= 1000 * Math.max(1, base / 14);
-    expect(textOf(filters).includes(BOARD_STRINGS[language].filters)).toBe(labels);
-    expect(textOf(view).includes(BOARD_STRINGS[language].view)).toBe(labels);
+    expect(textOf(filters).includes(BOARD_STRINGS[language].filters)).toBe(false);
+    expect(textOf(view).includes(BOARD_STRINGS[language].view)).toBe(false);
     act(() => view.props.onPress());
     expect(hostsById("tablet-view-menu")).toHaveLength(1);
     // Tablets leave the empty-groups switch to the filter panel.
@@ -4142,7 +4163,8 @@ describe("Tasks board, tablet filters", () => {
     const field = renderer!.root.find((n) => (n.type as unknown) === "TextInput");
     act(() => field.props.onChangeText("ping"));
     expect(lastBoardParams("host-1").query).toBe("ping");
-    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
+    expect(hostsById("tablet-toolbar-backdrop")).toHaveLength(0);
+    expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
     expect(hostsById("tablet-search-popover")).toHaveLength(0);
   });
 
