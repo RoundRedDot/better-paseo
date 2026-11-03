@@ -196,7 +196,7 @@ export function MdTable({
           })}
           {Platform.OS === "web" && widths.map((width, column) => (
             <TableResizeHandle key={column} left={columnStarts[column]! + width - TABLE_DIVIDER_WIDTH}
-              width={width} minWidth={metrics.columnMin} color={context.tokens.foregroundMuted}
+              width={width} minWidth={metrics.columnMin}
               onResize={(next) => setResized((previous) => ({ ...previous, [column]: next }))} />
           ))}
         </View>
