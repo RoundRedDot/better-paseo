@@ -303,6 +303,8 @@ export function PhoneBoard(props: {
       <View style={{ minHeight: 52, flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 16, paddingRight: 6 }}>
         <RoundButton
           icon="Search"
+          iconSize={22}
+          borderless
           label={strings.searchButton}
           active={searchOpen || board.params.query !== ""}
           theme={theme}
@@ -341,6 +343,8 @@ export function PhoneBoard(props: {
         <View style={{ flexDirection: "row" }}>
           <RoundButton
             icon={filters.hideSubtasks ? "List" : "Network"}
+            iconSize={22}
+            borderless
             label={strings.showSubtasks}
             selected={!filters.hideSubtasks}
             cornerBadge={board.hiddenSubtasks}
@@ -350,6 +354,8 @@ export function PhoneBoard(props: {
           />
           <RoundButton
             icon="Archive"
+            iconSize={22}
+            borderless
             label={strings.archivedLane.row}
             selected={board.showArchived}
             slashed={!board.showArchived}
@@ -357,7 +363,7 @@ export function PhoneBoard(props: {
             onPress={() => board.setShowArchived(!board.showArchived)}
             testID="phone-archived"
           />
-          <RoundButton icon="MoreVertical" label={strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
+          <RoundButton icon="MoreVertical" iconSize={22} borderless label={strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
         </View>
       </View>
       <PhoneSearch

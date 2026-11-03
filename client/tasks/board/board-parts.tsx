@@ -569,6 +569,7 @@ export function RoundButton(props: {
   /** A loading ring replaces the icon while true, read out as busy. */
   busy?: boolean;
   quietOutline?: boolean;
+  borderless?: boolean;
 }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
@@ -598,14 +599,14 @@ export function RoundButton(props: {
           width: size,
           height: size,
           borderRadius: props.quietOutline && Platform.OS === "web" ? 7 : size / 2,
-          borderWidth: HAIRLINE,
+          borderWidth: props.borderless ? 0 : HAIRLINE,
           borderColor: props.quietOutline && Platform.OS === "web" && !hovered ? "transparent" : props.active ? colors.accent : colors.border,
           boxShadow: !props.disabled && lift.shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : <Icon name={props.icon} size={icon} color={colors.foreground} />}
+        {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : <Icon name={props.icon} size={icon} color={props.borderless && props.active ? colors.accent : colors.foreground} />}
         {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={colors.surface0} /> : null}
         <CornerBadge count={props.cornerBadge ?? 0} theme={props.theme} style={{ bottom: 0, right: 0 }} testID={props.testID ? `${props.testID}-count` : undefined} />
       </View>

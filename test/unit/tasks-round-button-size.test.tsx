@@ -23,4 +23,16 @@ describe("RoundButton", () => {
     expect(renderer.root.find((node) => (node.type as unknown) === "Icon").props.size).toBe(14);
     act(() => renderer.unmount());
   });
+
+  it("keeps the touch target and active indication without an outline", () => {
+    let renderer!: TestRenderer.ReactTestRenderer;
+    const theme = { colors: { border: "gray", foreground: "black", accent: "blue" } } as PluginTheme;
+    act(() => { renderer = TestRenderer.create(<RoundButton icon="Search" label="Search" theme={theme} onPress={() => {}} iconSize={22} borderless active />); });
+    const button = renderer.root.find((node) => (node.type as unknown) === "Pressable");
+    const circle = renderer.root.findAll((node) => (node.type as unknown) === "View").find((node) => node.props.style?.borderRadius === 18);
+    expect(button.props.style[0]).toMatchObject({ width: 44, height: 44 });
+    expect(circle?.props.style.borderWidth).toBe(0);
+    expect(renderer.root.find((node) => (node.type as unknown) === "Icon").props).toMatchObject({ size: 22, color: "blue" });
+    act(() => renderer.unmount());
+  });
 });
