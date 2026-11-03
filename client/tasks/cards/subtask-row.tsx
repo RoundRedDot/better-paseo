@@ -7,7 +7,10 @@ import type { TasksLanguage } from "../i18n";
 import type { TaskChild } from "../model";
 import { subagentFacts, subagentTypeIcon } from "../subagent-type";
 import { useHover } from "../../ui/use-hover";
-import { withAlpha } from "../../components/theme-tokens";
+import { mix, withAlpha } from "../../components/theme-tokens";
+import { useTitleUpdateState, type TitleUpdateControl } from "../actions/title-update";
+import { useRevealedTitle } from "./title-reveal";
+import { TitleLoading } from "./title-loading";
 import { cardStart, cardTimer } from "./card-time";
 import { hintProps, tipProps } from "./card-hints";
 import { ChildMark } from "./child-mark";
@@ -43,6 +46,7 @@ export interface SubtaskRowProps extends TimeSource {
   onLongPress?(): void;
   onOpen?(): void;
   onContextMenu?(point: { x: number; y: number }): void;
+  titleUpdates?: TitleUpdateControl;
 }
 
 export function SubtaskRow(props: SubtaskRowProps) {
@@ -57,7 +61,11 @@ export function SubtaskRow(props: SubtaskRowProps) {
   const fill = hovered && props.onPress ? tokens.card.controlHover : props.backdrop;
   const line = Math.round(HOST_LINE.smRead * scale);
   const target = touch ? 32 : 22;
-  const { prefix: tag, rest } = titlePrefix(child.title);
+  const titleUpdate = useTitleUpdateState(props.titleUpdates, child.id);
+  const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
+  const shownTitle = useRevealedTitle(streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : child.title), Boolean(streamedTitle) || titleUpdate.state === "done", props.animated !== false);
+  const updatingTitle = titleUpdate.state === "running" || titleUpdate.state === "done" && shownTitle !== titleUpdate.title;
+  const { prefix: tag, rest } = titlePrefix(shownTitle);
   return (
     <Pressable
       {...(web ? { role: "group" as const } : { accessibilityRole: "button" as const })}
@@ -86,10 +94,10 @@ export function SubtaskRow(props: SubtaskRowProps) {
         <ChildMark child={child} tokens={tokens} theme={props.theme} backdrop={fill} animated={props.animated} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }} testID={`${prefix}-content-${child.id}`}>
-        <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: props.muted ? tokens.foregroundMuted : tokens.foreground, marginRight: props.onOpen ? target + 8 : undefined }} testID={`${prefix}-title-${child.id}`}>
+        {updatingTitle ? <View style={{ marginRight: props.onOpen ? target + 8 : undefined }} testID={`${prefix}-title-${child.id}`}><TitleLoading title={shownTitle} titleLines={1} mutedColor={tokens.foregroundMuted} highlightColor={tokens.isDark ? tokens.foreground : mix(fill, tokens.foregroundMuted, 0.45)} animated={props.animated} accessibilityLabel={cardStrings(props.language).autoTitlePending} style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead }} /></View> : <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: props.muted ? tokens.foregroundMuted : tokens.foreground, marginRight: props.onOpen ? target + 8 : undefined }} testID={`${prefix}-title-${child.id}`}>
           {tag ? <Text style={{ color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${tag} `}</Text> : null}
           {rest}
-        </Text>
+        </Text>}
         <SubtaskMetadata child={child} tokens={tokens} language={props.language} now={props.now} clock={props.clock} testIDPrefix={prefix} />
         {/* Only the title reserves space; the metadata uses the full content width. */}
         {props.onOpen ? (

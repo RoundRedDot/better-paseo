@@ -19,6 +19,7 @@ import type { TasksLanguage } from "../i18n";
 import type { SessionTokens } from "../../../shared/tasks-rpc";
 import { opensInPaseo, parentOpensInPaseo, turnRunning, type PermissionKind, type TaskCard, type TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
+import type { TitleUpdateControl } from "../actions/title-update";
 import type { FirstPrompt } from "../data/first-prompt";
 import type { LastHumanMessage } from "../data/last-human-message";
 import type { LastMessage } from "../data/last-message";
@@ -174,6 +175,7 @@ export interface TaskDetailCardsProps extends TimeSource {
   /** A parent or subtask row: show that card. */
   onJump?(agentId: string): void;
   onSubtaskMenu?(agentId: string, point: { x: number; y: number }): void;
+  titleUpdates?: TitleUpdateControl;
   /** The task's first prompt, read from its timeline; absent leaves the section out (the settings preview). */
   firstPrompt?: { prompt: FirstPrompt; load(): void } | null;
   /** The last message a person sent, read back from the timeline's tail; absent (or the first prompt again) leaves the section out. */
@@ -1464,6 +1466,7 @@ function Subtasks(props: Inner) {
           theme={props.theme}
           language={props.language}
           child={child}
+          titleUpdates={props.titleUpdates}
           touch={props.touch === true || Platform.OS !== "web"}
           backdrop={tokens.card.background}
           testIDPrefix="detail-subtask"

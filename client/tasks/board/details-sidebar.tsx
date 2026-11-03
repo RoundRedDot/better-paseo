@@ -99,6 +99,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
         onPermission: (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button),
         onJump: jump,
         onSubtaskMenu: (id: string, point: { x: number; y: number }) => setMenu({ id, point }),
+        titleUpdates: board.callbacks.titleUpdates,
         firstPrompt,
         sessionTokens,
         humanMessage,

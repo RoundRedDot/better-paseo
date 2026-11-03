@@ -56,6 +56,7 @@ import { TaskDetailCards, type TaskDetailCardsProps } from "../../client/tasks/c
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { LANE_ORDER } from "../../client/tasks/model";
 import { previewSampleCards } from "../../client/tasks/sample-cards";
+import { createTitleUpdateControl } from "../../client/tasks/actions/title-update";
 
 const NOW = Date.parse("2026-10-20T09:00:00Z");
 const THEME = { colors: {
@@ -116,6 +117,22 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it("shows the subtask title shimmer while its title is generated and revealed", async () => {
+    vi.useFakeTimers();
+    let resolve!: (value: { state: "done"; title: string }) => void;
+    const titleUpdates = createTitleUpdateControl(() => new Promise((done) => { resolve = done; }));
+    const props = details("en", "sample-running", { titleUpdates });
+    const child = props.card.children[0]!;
+    const root = await render(<TaskDetailCards {...props} />);
+    await act(async () => titleUpdates.start(child.id));
+    const row = () => host(root, `detail-subtask-${child.id}`);
+    expect(host(row(), "task-title-update-shimmer").props.accessibilityState.busy).toBe(true);
+    await act(async () => resolve({ state: "done", title: "A newly generated title" }));
+    expect(host(row(), "task-title-update-shimmer")).toBeTruthy();
+    for (let i = 0; i < 40; i++) await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+    expect(row().findAll((node) => node.props.testID === "task-title-update-shimmer")).toHaveLength(0);
+    expect(host(row(), `detail-subtask-title-${child.id}`).findAll((node) => typeof node.type === "string" && node.children.includes("A newly generated title"))).toHaveLength(1);
+  });
   it("opens the selected subtask's card menu without navigating", async () => {
     const cards = previewSampleCards(NOW);
     const parent = cards.find((card) => card.id === "sample-running")!;
