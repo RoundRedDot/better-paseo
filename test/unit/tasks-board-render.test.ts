@@ -652,6 +652,7 @@ describe("Tasks search coverage and centred toolbar", () => {
       expect(hostParentOf(start)).toBe(bar);
       expect(hostParentOf(total)).toBe(bar);
       expect(hostParentOf(end)).toBe(bar);
+      if (os !== "web") expect(StyleSheet.flatten(start.props.style)).toMatchObject({ marginLeft: -8, marginRight: 8 });
       for (const side of [start, end]) expect(StyleSheet.flatten(side.props.style)).toMatchObject({ flex: 1, flexBasis: 0 });
       // Equal flex alone is insufficient in Yoga when one side has a larger minimum.
       expect(StyleSheet.flatten(start.props.style).minWidth).toBe(StyleSheet.flatten(end.props.style).minWidth);
