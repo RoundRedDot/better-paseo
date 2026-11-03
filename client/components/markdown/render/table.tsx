@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useRef } from "react";
+import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { Platform, ScrollView, StyleSheet, Text, View, type TextStyle, type ViewStyle } from "react-native";
 import type { Tokens } from "../../../vendor/marked";
 import type { RenderContext } from "./context";
@@ -10,6 +10,7 @@ import { addsCellRange, bindTableCellSelection, TABLE_CELL_TEST_ID } from "./tab
 import { useTableCellSelection } from "./table-touch-selection";
 import { rangeHas, rangeText, rowSpan, type CellRange } from "./table-range";
 import { FLOAT } from "../../../ui/tokens/float";
+import { TableResizeHandle } from "./table-resize";
 import {
   ALIGN_KEYS,
   CHAR_RATIO_MONO,
@@ -96,7 +97,8 @@ export function MdTable({
   keyPrefix: string;
 }) {
   const { styles, metrics } = context;
-  const widths = columnWidths(token, metrics, measuredRows(token, open));
+  const [resized, setResized] = useState<Record<number, number>>({});
+  const widths = columnWidths(token, metrics, measuredRows(token, open)).map((width, column) => resized[column] ?? width);
   const frameRef = useRef<View>(null);
   const rowRefs = useRef<(View | null)[]>([]);
   // Read when pressed, so the copy control keeps one callback and skips the
@@ -171,6 +173,10 @@ export function MdTable({
           </Text>
         );
       })}
+      {row === 0 && Platform.OS === "web" && widths.map((width, column) => (
+        <TableResizeHandle key={column} left={columnStarts[column]! + width - TABLE_DIVIDER_WIDTH}
+          width={width} minWidth={metrics.columnMin} onResize={(next) => setResized((previous) => ({ ...previous, [column]: next }))} />
+      ))}
     </View>
   );
 

@@ -137,3 +137,34 @@ describe("a native table's host views", () => {
     act(() => renderer.unmount());
   });
 });
+
+it("keeps a resized web column through streaming updates and leaves other columns automatic", () => {
+  (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  const handles: { node: Map<string, (event: unknown) => void>; doc: Map<string, (event: unknown) => void> }[] = [];
+  const target = (map: Map<string, (event: unknown) => void>) => ({
+    addEventListener: (name: string, fn: (event: unknown) => void) => map.set(name, fn),
+    removeEventListener: (name: string) => map.delete(name),
+  });
+  const text = "| a | b |\n| --- | --- |\n| x | y |";
+  const streamingView = (value: string) => React.createElement(MarkdownView, { text: value, tokens, variant: "document", streaming: true });
+  let renderer!: ReturnType<typeof TestRenderer.create>;
+  act(() => { renderer = TestRenderer.create(streamingView(text), { createNodeMock: (element) => {
+    if ((element.props as { testID?: string }).testID !== "markdown-table-resize") return null;
+    const map = new Map<string, (event: unknown) => void>();
+    const doc = new Map<string, (event: unknown) => void>();
+    handles.push({ node: map, doc });
+    return { ...target(map), ownerDocument: target(doc) };
+  } }); });
+  const widths = () => renderer.root.findAll((node) => String(node.type) === "Text" && node.props.testID === "markdown-table-cell")
+    .map((node) => Object.assign({}, ...node.props.style.filter(Boolean)).width as number);
+  const before = widths();
+  const event = (x: number) => ({ pointerType: "mouse", pointerId: 1, button: 0, clientX: x, preventDefault() {}, stopPropagation() {} });
+  act(() => { handles[0]!.node.get("pointerdown")!(event(100)); handles[0]!.doc.get("pointermove")!(event(160)); handles[0]!.doc.get("pointerup")!(event(160)); });
+  expect(widths()).toEqual([before[0]! + 60, before[1], before[2]! + 60, before[3]]);
+  act(() => renderer.update(streamingView(`${text}\n| more | a much longer value that widens the second column |\n`)));
+  const after = widths();
+  expect(after[0]).toBe(before[0]! + 60);
+  expect(after[1]).toBeGreaterThan(before[1]!);
+  act(() => renderer.unmount());
+  delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+});

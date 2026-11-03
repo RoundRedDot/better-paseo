@@ -79,6 +79,7 @@ function createNodeMock() {
     removeAttribute: (name: string) => void attributes.delete(name),
     getAttribute: (name: string) => attributes.get(name) ?? null,
     addEventListener() {}, removeEventListener() {},
+    ownerDocument: { addEventListener() {}, removeEventListener() {} },
     contains: () => false, closest: () => null, querySelector: () => null, querySelectorAll: () => [],
     getBoundingClientRect: () => ({ x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 }),
     measure() {}, measureInWindow() {}, focus() {}, blur() {},

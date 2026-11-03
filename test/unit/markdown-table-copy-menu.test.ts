@@ -67,7 +67,8 @@ function render(text = SOURCE, composer?: { appendText(text: string): boolean })
     renderer = TestRenderer.create(
       React.createElement(ChatComposerContext.Provider, { value: composer },
         React.createElement(MarkdownView, { text, tokens, variant: "document" })),
-      { createNodeMock: (element) => domNode((element.props as { style?: unknown }).style) },
+      { createNodeMock: (element) => domNode((element.props as { style?: unknown; testID?: string }).style,
+        (element.props as { testID?: string }).testID) },
     );
   });
   return renderer!;
@@ -82,15 +83,16 @@ interface EventTargetMock {
 }
 interface DomNodeMock extends EventTargetMock {
   mock: unknown;
+  testID?: string;
   ownerDocument: EventTargetMock & { defaultView: EventTargetMock };
   style: { setProperty: ReturnType<typeof vi.fn> };
   contains(other: unknown): boolean;
 }
 
 /** Enough of a DOM element for the hover and dismiss bindings, tagged with its host's style. */
-function domNode(style: unknown): DomNodeMock {
+function domNode(style: unknown, testID?: string): DomNodeMock {
   const doc = { ...target(), defaultView: target() };
-  const node: DomNodeMock = { mock: style, ...target(), ownerDocument: doc, style: { setProperty: vi.fn() },
+  const node: DomNodeMock = { mock: style, testID, ...target(), ownerDocument: doc, style: { setProperty: vi.fn() },
     contains: (other) => other === node };
   nodes.push(node);
   return node;
@@ -192,7 +194,7 @@ describe("Markdown table copy menu", () => {
       && node.props.testID === "markdown-table-cell");
     expect(cells.map((node) => node.children.join(""))).toEqual(["A", "B", "one", "two"]);
     expect(cells.every((node) => node.props.selectable)).toBe(true);
-    const frames = nodes.filter((node) => node.listeners.get("dblclick")?.size);
+    const frames = nodes.filter((node) => node.testID !== "markdown-table-resize" && node.listeners.get("dblclick")?.size);
     expect(frames).toHaveLength(1);
     act(() => renderer!.unmount());
     renderer = undefined;
@@ -200,7 +202,7 @@ describe("Markdown table copy menu", () => {
   });
 
   function doubleClick(index: number) {
-    const frame = nodes.find((node) => node.listeners.get("dblclick")?.size)!;
+    const frame = nodes.find((node) => node.testID !== "markdown-table-resize" && node.listeners.get("dblclick")?.size)!;
     const props = renderer!.root.findAll((node) => String(node.type) === "Text"
       && node.props.testID === "markdown-table-cell")[index]!.props;
     const cell = {
