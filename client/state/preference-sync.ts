@@ -56,8 +56,12 @@ export interface PreferenceSyncDeps {
 }
 
 export interface PreferenceSync {
-  /** The latest `useSettings` state and its actions. Idempotent per revision. */
-  report(state: RemoteSettings, actions: RemoteActions): void;
+  /**
+   * The latest `useSettings` state and its actions. Idempotent per revision.
+   * A read made outside the hook (`watchPreferenceChanges`) has no actions
+   * and keeps the last ones.
+   */
+  report(state: RemoteSettings, actions?: RemoteActions): void;
   /**
    * The record read while the plugin loads (`readPreferencesAtStartup`),
    * before any renderer mounts the settings hook. Applied only while the
@@ -167,7 +171,7 @@ export function createPreferenceSync(deps: PreferenceSyncDeps): PreferenceSync {
 
   return {
     report(state, nextActions) {
-      actions = nextActions;
+      if (nextActions) actions = nextActions;
       const seen =
         state.status === "ready" || state.status === "invalid"
           ? `${state.status}:${state.revision}`

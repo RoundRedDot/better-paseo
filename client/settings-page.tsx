@@ -700,6 +700,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
 
   const nativeChoices = platform === "web" ? [] : NATIVE_MONO_CHOICES[platform];
   const previews = preferences.hoverPreview;
+  const chat = preferences.chatEnabled;
 
   // The web page also previews a phone: iOS rows at a phone's width, with
   // the platform monospace and inline code without a fill.
@@ -728,6 +729,20 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
     <View style={styles.options}>
       <Section title={t.sectionGeneral} look={look}>
         <SettingRow
+          title={t.chatEnabledTitle}
+          description={t.chatEnabledDescription}
+          control={
+            <Toggle
+              value={chat}
+              onChange={(chatEnabled) => updateEnhancerPreferences({ chatEnabled })}
+              label={t.chatEnabledTitle}
+              look={look}
+            />
+          }
+          look={look}
+          first
+        />
+        <SettingRow
           title={t.languageTitle}
           description={<SettingsTips items={t.languageTips} look={look} />}
           control={
@@ -744,7 +759,6 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
             />
           }
           look={look}
-          first
           stacked
         />
       </Section>
@@ -848,7 +862,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         {hostTypography ? null : <SectionNote text={native ? t.paseoFontsNative : t.paseoFontsWeb} look={look} />}
       </View>
 
-      <Section title={t.sectionTools} look={look}>
+      <Section title={t.sectionTools} look={look} hidden={!chat}>
         <SettingRow
           title={t.blockSizeTitle}
           description={t.blockSizeDescription(BLOCK_FONT_SIZE_MIN, BLOCK_FONT_SIZE_MAX)}
@@ -909,7 +923,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         />
       </Section>
 
-      <Section title={t.sectionSpacing} look={look}>
+      <Section title={t.sectionSpacing} look={look} hidden={!chat}>
         <SettingRow
           title={t.rowSpacingTitle}
           description={t.rowSpacingDescription}
@@ -939,7 +953,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         />
       </Section>
 
-      <Section title={t.sectionMessages} look={look}>
+      <Section title={t.sectionMessages} look={look} hidden={!chat}>
         <SettingRow
           title={t.bubbleTitle}
           description={t.bubbleDescription}
@@ -1004,7 +1018,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         )}
       </Section>
 
-      <Section title={t.sectionPreview} look={look}>
+      <Section title={t.sectionPreview} look={look} hidden={!chat}>
         <SettingRow
           title={t.hoverPreviewTitle}
           description={t.hoverPreviewDescription}
