@@ -5,9 +5,15 @@ import "./helpers/quiet-renderer";
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 const hover = vi.hoisted(() => new Map<string, () => void>());
+const contextMenus = vi.hoisted(() => new Map<string, (point: { x: number; y: number }) => void>());
 const actions = vi.hoisted(() => ({ copy: vi.fn(), reveal: vi.fn(async () => ({ error: null })) }));
 vi.mock("../../client/web", async (original) => ({
   ...await original<object>(),
+  bindContextMenu: (node: { props: { testID?: string } } | null, open: (point: { x: number; y: number }) => void) => {
+    const id = node?.props.testID;
+    if (id) contextMenus.set(id, open);
+    return () => { if (id) contextMenus.delete(id); };
+  },
   bindRowHover: (node: { props: { testID?: string } } | null, enter: () => void) => {
     const id = node?.props.testID;
     if (id) hover.set(id, enter);
@@ -110,6 +116,27 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it("opens the selected subtask's card menu without navigating", async () => {
+    const cards = previewSampleCards(NOW);
+    const parent = cards.find((card) => card.id === "sample-running")!;
+    const child = cards.find((card) => card.id === "sample-child-1")!;
+    const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: cards.filter((card) => card.lane === id) }]));
+    const onOpen = vi.fn();
+    const onReveal = vi.fn();
+    const board = {
+      language: "en", strings: BOARD_STRINGS.en, params: EMPTY_PARAMS, lanes,
+      tasks: { ready: true }, cardById: (id: string) => cards.find((card) => card.id === id),
+      callbacks: { onOpen, onReveal }, stop: { phase: () => "idle" }, read: { available: false, pending: () => false }, unarchive: { available: false }, archive: { pending: () => false },
+      buttonsFor: () => [],
+    } as unknown as BoardController;
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: parent.id, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={onReveal} touch={false} stats={false} />);
+    await act(async () => contextMenus.get(`detail-subtask-${child.id}`)!({ x: 20, y: 30 }));
+    expect(root.findAll((node) => node.props.accessibilityLabel === cardStrings("en").copyTitle).length).toBeGreaterThan(0);
+    expect(onReveal).not.toHaveBeenCalled();
+    const open = root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === cardStrings("en").openTab && node.props.accessibilityRole === "menuitem");
+    await act(async () => open.props.onPress());
+    expect(onOpen).toHaveBeenCalledWith(child.id);
+  });
   it.each([false, true])("shows project paths and workspace projects on a separate line (touch=%s)", async (touch) => {
     const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: [] }]));
     const board = {

@@ -173,6 +173,7 @@ export interface TaskDetailCardsProps extends TimeSource {
   onPermission?(button: PermissionButton): void;
   /** A parent or subtask row: show that card. */
   onJump?(agentId: string): void;
+  onSubtaskMenu?(agentId: string, point: { x: number; y: number }): void;
   /** The task's first prompt, read from its timeline; absent leaves the section out (the settings preview). */
   firstPrompt?: { prompt: FirstPrompt; load(): void } | null;
   /** The last message a person sent, read back from the timeline's tail; absent (or the first prompt again) leaves the section out. */
@@ -1473,6 +1474,7 @@ function Subtasks(props: Inner) {
           pressTip={child.kind === "provider" ? cardText.openParentTab : words.locate}
           openTip={child.kind === "provider" ? cardText.openParentTab : props.strings.openTab}
           onPress={subtaskPress(props, child)}
+          onContextMenu={props.onSubtaskMenu ? (point) => props.onSubtaskMenu?.(child.id, point) : undefined}
           onLongPress={touch && props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
           onOpen={props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
         />

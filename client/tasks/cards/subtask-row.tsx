@@ -1,4 +1,4 @@
-import React, { useRef, useState, type ReactNode } from "react";
+import React, { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -18,6 +18,7 @@ import { contextRatio, formatThinkingLevel } from "./format";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { cardStrings } from "./strings";
 import type { TaskTokens } from "./tokens";
+import { bindContextMenu } from "../../web";
 
 /** One design for expanded board cards, the details sidebar and the mobile sheet. */
 export interface SubtaskRowProps extends TimeSource {
@@ -41,12 +42,14 @@ export interface SubtaskRowProps extends TimeSource {
   onPress?(): void;
   onLongPress?(): void;
   onOpen?(): void;
+  onContextMenu?(point: { x: number; y: number }): void;
 }
 
 export function SubtaskRow(props: SubtaskRowProps) {
   const { child, tokens, touch } = props;
   const scale = useTasksFontScale();
   const rowRef = useRef<View>(null);
+  useLayoutEffect(() => props.onContextMenu ? bindContextMenu(rowRef.current, props.onContextMenu) : undefined, [props.onContextMenu]);
   const { hovered, hoverProps } = useHover(rowRef);
   const web = Platform.OS === "web";
   const showOpen = !!props.onOpen && (touch || !web || hovered || child.kind === "provider");

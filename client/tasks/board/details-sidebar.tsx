@@ -22,6 +22,10 @@ import { toggleItem } from "./params";
 import { matchesSearch, searchWords } from "./search";
 import type { SelectionAction, SidebarSelection } from "./sidebar-model";
 import { findCard, type BoardController } from "./use-board";
+import { CardContextMenu } from "../cards/card-menu";
+import { cardStrings } from "../cards/strings";
+import { parentOpensInPaseo } from "../model";
+import { useTitleUpdateState } from "../actions/title-update";
 
 type GroupKind = "agent" | "project" | "workspace" | "label";
 const GROUP_KINDS: readonly GroupKind[] = ["agent", "project", "workspace", "label"];
@@ -58,6 +62,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   const tokens = taskTokens(theme);
   // Pixel-by-pixel resizes only change the browser's layout, not this subtree.
   const [layout, setLayout] = useState({ short: false, wide: false });
+  const [menu, setMenu] = useState<{ id: string; point: { x: number; y: number } } | null>(null);
   const card = selection.id ? board.cardById(selection.id) : undefined;
   useParentTitle(board, card);
   const shown = card && selection.id ? findCard(board.lanes, selection.id) !== null : false;
@@ -93,6 +98,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
         permissionButtons: board.buttonsFor(card),
         onPermission: (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button),
         onJump: jump,
+        onSubtaskMenu: (id: string, point: { x: number; y: number }) => setMenu({ id, point }),
         firstPrompt,
         sessionTokens,
         humanMessage,
@@ -112,6 +118,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   const short = !tabs && !columns && (props.scrollAll === true || layout.short);
   const content = (
     <>
+      {menu && board.cardById(menu.id) ? <SidebarCardMenu board={board} card={board.cardById(menu.id)!} theme={theme} point={menu.point} onClose={() => setMenu(null)} /> : null}
       {props.stats === false ? null : <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />}
       {detailProps ? (
         <TaskDetailCards key={tabs ? card?.id : undefined} {...detailProps} scrollBody={!short && !columns && !tabs} columns={columns} tabs={tabs} scrollHeader={tabs && (props.touch || layout.short || props.scrollAll === true)} />
@@ -141,6 +148,28 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
       {content}
     </View>
   );
+}
+
+function SidebarCardMenu(props: { board: BoardController; card: TaskCard; theme: PluginTheme; point: { x: number; y: number }; onClose(): void }) {
+  const { board, card } = props;
+  const callbacks = board.callbacks;
+  const title = useTitleUpdateState(callbacks.titleUpdates, card.id);
+  const children = activeStopChildren(card).length;
+  const canStop = (card.stoppable || children > 0) && !!callbacks.onStop;
+  return <CardContextMenu point={props.point} card={card} theme={props.theme} strings={cardStrings(board.language)} onClose={props.onClose} actions={{
+    autoTitle: callbacks.titleUpdates ? () => callbacks.titleUpdates?.start(card.id) : undefined,
+    autoTitlePending: title.state === "running" || board.callbacks.titleUpdates?.revealing().has(card.id),
+    open: callbacks.onOpen && !card.subagent ? () => callbacks.onOpen?.(card.id) : undefined,
+    openParent: callbacks.onOpen && parentOpensInPaseo(card) ? () => callbacks.onOpen?.(card.parent!.id) : undefined,
+    revealParent: card.parent ? () => callbacks.onReveal(card.parent!.id) : undefined,
+    stop: canStop && board.stop.phase(card.id) !== "stopping" ? (withChildren) => callbacks.onStop?.(card, { withChildren, dialog: true }) : undefined,
+    children: canStop && card.stoppable ? children : 0,
+    childrenOnly: !card.stoppable,
+    read: !canStop && card.readable && callbacks.onRead && !board.read.pending(card.id) ? () => callbacks.onRead?.(card) : undefined,
+    unarchive: card.archived === "agent" && callbacks.onUnarchive ? () => callbacks.onUnarchive?.(card.id) : undefined,
+    archive: card.lane === "done" && !card.archived && callbacks.onArchive && !board.archive.pending(card.id) ? () => callbacks.onArchive?.(card.id) : undefined,
+    filters: callbacks.onFilter && callbacks.filterState ? { state: callbacks.filterState(card), select: (by) => callbacks.onFilter?.(card, by) } : undefined,
+  }} />;
 }
 
 /**
