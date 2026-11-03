@@ -308,7 +308,7 @@ export function PhoneBoard(props: {
           theme={theme}
           onPress={() => setSearchOpen((open) => !open)}
         />
-        <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.lg, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>
+        <Text numberOfLines={1} style={{ flexShrink: 1, marginLeft: -4, fontSize: F.lg, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>
           {strings.total(board.total)}
         </Text>
         {board.params.sort ? (
@@ -338,25 +338,27 @@ export function PhoneBoard(props: {
           </Pressable>
         ) : null}
         <View style={{ flex: 1 }} />
-        <RoundButton
-          icon={filters.hideSubtasks ? "List" : "Network"}
-          label={strings.showSubtasks}
-          selected={!filters.hideSubtasks}
-          cornerBadge={board.hiddenSubtasks}
-          theme={theme}
-          onPress={() => board.setParams((params) => ({ ...params, hideSubtasks: !(params.hideSubtasks ?? board.defaults.hideSubtasks) }))}
-          testID="phone-subtasks"
-        />
-        <RoundButton
-          icon="Archive"
-          label={strings.archivedLane.row}
-          selected={board.showArchived}
-          slashed={!board.showArchived}
-          theme={theme}
-          onPress={() => board.setShowArchived(!board.showArchived)}
-          testID="phone-archived"
-        />
-        <RoundButton icon="MoreVertical" label={strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
+        <View style={{ flexDirection: "row" }}>
+          <RoundButton
+            icon={filters.hideSubtasks ? "List" : "Network"}
+            label={strings.showSubtasks}
+            selected={!filters.hideSubtasks}
+            cornerBadge={board.hiddenSubtasks}
+            theme={theme}
+            onPress={() => board.setParams((params) => ({ ...params, hideSubtasks: !(params.hideSubtasks ?? board.defaults.hideSubtasks) }))}
+            testID="phone-subtasks"
+          />
+          <RoundButton
+            icon="Archive"
+            label={strings.archivedLane.row}
+            selected={board.showArchived}
+            slashed={!board.showArchived}
+            theme={theme}
+            onPress={() => board.setShowArchived(!board.showArchived)}
+            testID="phone-archived"
+          />
+          <RoundButton icon="MoreVertical" label={strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
+        </View>
       </View>
       <PhoneSearch
         visible={searchOpen || board.params.query !== ""}
