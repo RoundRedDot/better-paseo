@@ -137,7 +137,7 @@ export function TabletToolbar(props: {
           </View>
         </View>}
         <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch || searching || !centered ? 0 : 1, flexBasis: expandedSearch || searching || !centered ? "auto" : 0, minWidth: compact && centered ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 0 }}>
-        <ToolbarButton icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => { closeEmptySearch(); board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })); }} />
+        <ToolbarButton icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} hideSelectedBackground badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => { closeEmptySearch(); board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })); }} />
         {separateFilters ? <View testID="tablet-filter-anchor" onLayout={(event) => setFilterLayout(event.nativeEvent.layout)}><ToolbarButton icon="Filter" label={strings.filters} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /></View> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
           <ToolbarButton icon="MoreVertical" label={strings.view} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); closeEmptySearch(); openPage(page ? null : "view"); }} />
@@ -164,13 +164,13 @@ export function TabletToolbar(props: {
   );
 }
 
-function ToolbarButton(props: { icon: string | React.ReactElement; label: string; theme: PluginTheme; onPress(): void; testID: string; selected?: boolean; expanded?: boolean; badge?: number; badgeTestID?: string; slashed?: boolean; size?: number }) {
+function ToolbarButton(props: { icon: string | React.ReactElement; label: string; theme: PluginTheme; onPress(): void; testID: string; selected?: boolean; hideSelectedBackground?: boolean; expanded?: boolean; badge?: number; badgeTestID?: string; slashed?: boolean; size?: number }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const target = taskControlHeight(props.size ?? 40, scale);
   const iconSize = 18;
   return (
-    <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered, pressed) => ({ minWidth: target, height: target, flexShrink: 0, borderRadius: 7, backgroundColor: props.expanded || props.selected ? colors.surface1 : "transparent", boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
+    <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered, pressed) => ({ minWidth: target, height: target, flexShrink: 0, borderRadius: 7, backgroundColor: props.expanded || (props.selected && !props.hideSelectedBackground) ? colors.surface1 : "transparent", boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
       <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
         {typeof props.icon === "string" ? <Icon name={props.icon} size={iconSize} color={colors.foreground} /> : props.icon}
         {props.slashed ? <SlashMark size={iconSize} color={colors.foreground} gap={colors.surface0} /> : null}

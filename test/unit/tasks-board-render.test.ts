@@ -4146,8 +4146,12 @@ describe("Tasks board, tablet filters", () => {
     await act(async () => { renderer = TestRenderer.create(screen(false)); });
     layOut(1200);
     expect(hostsById("tablet-toolbar-end")[0]!.findAll((n) => (n.type as unknown) === "Pressable").map((n) => n.props.testID)).toEqual(["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"]);
+    expect(hostsById("subtasks-toggle")[0]!.props.accessibilityState.selected).toBe(true);
+    expect(StyleSheet.flatten(hostsById("subtasks-toggle")[0]!.props.style).backgroundColor).toBe("transparent");
     await act(async () => hostsById("subtasks-toggle")[0]!.props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
+    expect(hostsById("subtasks-toggle")[0]!.props.accessibilityState.selected).toBe(false);
+    expect(StyleSheet.flatten(hostsById("subtasks-toggle")[0]!.props.style).backgroundColor).toBe("transparent");
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     const sheet = hostsById("filter-sheet-scroll")[0]!;
     act(() => hostsById("filter-sheet-workspaces-toggle")[0]!.props.onPress());
