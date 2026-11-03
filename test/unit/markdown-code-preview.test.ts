@@ -28,6 +28,7 @@ import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { updateEnhancerPreferences, resetEnhancerPreferences } from "../../client/preferences";
 import { StyleSheet } from "./helpers/rn-mock";
 import { PreviewLines } from "../../client/ui/preview-lines";
+import { HoverPreviewContext } from "../../client/ui/hover-preview";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const platform = globalThis as { __rnMockOS?: string };
@@ -62,6 +63,17 @@ afterEach(() => {
 });
 
 describe("Markdown code window", () => {
+  it("hides the window button inside a detail context while keeping copy", async () => {
+    platform.__rnMockOS = "web";
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(HoverPreviewContext.Provider, { value: true },
+        view("```markdown\n# Detail\n```")));
+    });
+    expect(buttons("Open Markdown in a window")).toHaveLength(0);
+    expect(buttons("Copy code")).toHaveLength(1);
+    await act(async () => buttons("Copy code")[0]!.props.onPress());
+    expect(state.copy).toHaveBeenCalledWith("# Detail");
+  });
   it("keeps raw text wrapping available after the desktop layer reports fitting lines", () => {
     platform.__rnMockOS = "web";
     render("markdown");

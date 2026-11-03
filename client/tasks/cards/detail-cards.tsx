@@ -10,6 +10,7 @@ import { variantMetrics } from "../../components/markdown/render/styles";
 import { useThemeTokens, withAlpha } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
+import { HoverPreviewContext } from "../../ui/hover-preview";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { useInputCapabilities } from "../../ui/use-input-capabilities";
@@ -1649,7 +1650,9 @@ function TimelineTextBody(props: Inner & {
               ))}
             </View>
           ) : null}>
-          <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />
+          <HoverPreviewContext.Provider value>
+            <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />
+          </HoverPreviewContext.Provider>
         </MessageText>
       </View>
       {long ? <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
