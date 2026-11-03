@@ -41,7 +41,7 @@ export function TabletToolbar(props: {
   const scale = useTasksFontScale();
   const compact = props.width < 680 * Math.max(1, scale);
   const target = taskControlHeight(compact ? 28 : Platform.OS === "ios" ? 40 : 44, scale);
-  const height = taskControlHeight(compact ? 36 : Platform.OS === "ios" ? 44 : 56, scale);
+  const height = taskControlHeight(compact ? 36 : 44, scale);
   const labels = Platform.OS !== "android" && props.width >= 1000 * Math.max(1, scale);
   const inlineSearch = Platform.OS === "web" && props.width >= 560 * Math.max(1, scale);
   const [page, setPage] = useState<ViewPage | null>(null);
@@ -55,8 +55,8 @@ export function TabletToolbar(props: {
   const [viewLayout, setViewLayout] = useState<LayoutRectangle | null>(null);
   const actionWidth = actionLayout?.width ?? 0;
   // Keep the subtask shortcut visible alongside filters and view on narrow boards.
-  const minimumActionsWidth = 4 * target + 3 * 6;
-  const separateFilters = compact || actionWidth === 0 || actionWidth >= 2 * target + 6;
+  const minimumActionsWidth = 4 * target + 3 * 2;
+  const separateFilters = compact || actionWidth === 0 || actionWidth >= 2 * target + 2;
   const menuAnchor = toolbarWidth !== null && actionLayout && viewLayout ? {
     right: toolbarWidth - actionLayout.x - viewLayout.x - viewLayout.width,
     top: actionLayout.y + viewLayout.y + target + 6,
@@ -129,7 +129,7 @@ export function TabletToolbar(props: {
             </View>
           </View>
         </View>}
-        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch || searching ? 0 : 1, flexBasis: expandedSearch || searching ? "auto" : 0, minWidth: compact ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: expandedSearch || searching ? 0 : 1, flexBasis: expandedSearch || searching ? "auto" : 0, minWidth: compact ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
         <ToolbarButton compact={compact} icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks }))} />
         {separateFilters ? <ToolbarButton compact={compact} icon="Filter" label={strings.filters} showLabel={labels} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
