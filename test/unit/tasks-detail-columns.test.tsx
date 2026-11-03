@@ -89,6 +89,8 @@ describe("details columns", () => {
     const question = host(messages, "detail-pending-questions");
     const text = question.findAll((node) => (node.type as unknown) === "Text").map((node) => node.props.children);
     expect(text).toEqual(expect.arrayContaining(["Keep the timer?", "Keep", "Shows elapsed time", "Remove", "Matches iOS"]));
+    const questionText = question.find((node) => (node.type as unknown) === "Text" && node.props.children === "Keep the timer?");
+    expect(StyleSheet.flatten(questionText.props.style).fontSize).toBe(HOST_FONT.base);
     expect(StyleSheet.flatten(host(question, "detail-pending-question").props.style)).toMatchObject({ borderWidth: 1, backgroundColor: THEME.colors.surface1 });
     const options = question.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-pending-option");
     expect(options).toHaveLength(2);

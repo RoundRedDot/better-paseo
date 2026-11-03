@@ -434,7 +434,7 @@ function PendingQuestions({ card, tokens, language }: { card: TaskCard; tokens: 
   return <View testID="detail-pending-questions" style={{ paddingHorizontal: 12, paddingVertical: 12, gap: 12 }}>
     <Text style={{ fontSize: F.sm, fontWeight: "600", color: tokens.foreground }}>{language === "zh" ? "待回答问题" : "Questions awaiting an answer"}</Text>
     {questions.map((question, index) => <View key={index} testID="detail-pending-question" style={{ gap: 16, padding: 12, borderWidth: 1, borderColor: tokens.border, borderRadius: 8, backgroundColor: tokens.surface1 }}>
-      <Text style={{ fontSize: F.sm, color: tokens.foreground }}>{question.question}</Text>
+      <Text style={{ fontSize: F.base, color: tokens.foreground }}>{question.question}</Text>
       {question.options.map((option, optionIndex) => <View key={optionIndex} testID="detail-pending-option" style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
         <View style={{ paddingTop: 2 }}><Icon name={question.multiSelect ? "Square" : "Circle"} size={16} color={tokens.foregroundMuted} /></View>
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
