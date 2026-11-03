@@ -8,7 +8,7 @@ import type { TaskChild } from "../model";
 import { subagentFacts, subagentTypeIcon } from "../subagent-type";
 import { useHover } from "../../ui/use-hover";
 import { mix, withAlpha } from "../../components/theme-tokens";
-import { useTitleUpdateState, type TitleUpdateControl } from "../actions/title-update";
+import { useTitleUndoState, useTitleUpdateState, type TitleUpdateControl } from "../actions/title-update";
 import { useRevealedTitle } from "./title-reveal";
 import { TitleLoading } from "./title-loading";
 import { TitleUndo } from "./title-undo";
@@ -63,6 +63,17 @@ export function SubtaskRow(props: SubtaskRowProps) {
   const line = Math.round(HOST_LINE.smRead * scale);
   const target = touch ? 32 : 22;
   const titleUpdate = useTitleUpdateState(props.titleUpdates, child.id);
+  const undoVisible = useTitleUndoState(props.titleUpdates, child.id)?.ready === true;
+  const [undoSlot, setUndoSlot] = useState(undoVisible);
+  useEffect(() => {
+    if (undoVisible) {
+      setUndoSlot(true);
+      return;
+    }
+    if (!undoSlot) return;
+    const timer = setTimeout(() => setUndoSlot(false), 160);
+    return () => clearTimeout(timer);
+  }, [undoVisible, undoSlot]);
   const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
   const shownTitle = useRevealedTitle(streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : child.title), Boolean(streamedTitle) || titleUpdate.state === "done", props.animated !== false);
   const updatingTitle = titleUpdate.state === "running" || titleUpdate.state === "done" && shownTitle !== titleUpdate.title;
@@ -103,10 +114,8 @@ export function SubtaskRow(props: SubtaskRowProps) {
           {tag ? <Text style={{ color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`${tag} `}</Text> : null}
           {rest}
         </Text>}
-        <TitleUndo agentId={child.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} />
         </View>
         <SubtaskMetadata child={child} tokens={tokens} language={props.language} now={props.now} clock={props.clock} testIDPrefix={prefix} />
-        {/* Only the title reserves space; the metadata uses the full content width. */}
         {props.onOpen ? (
           <Pressable
             accessibilityRole="button"
@@ -131,6 +140,11 @@ export function SubtaskRow(props: SubtaskRowProps) {
           >
             <Icon name={child.kind === "provider" ? "CornerLeftUp" : "ArrowUpRight"} size={touch ? 16 : 14} color={tokens.foregroundMuted} />
           </Pressable>
+        ) : null}
+        {(undoVisible || undoSlot) ? (
+          <View pointerEvents="box-none" style={{ position: "absolute", right: props.onOpen ? target + 4 : 0, top: (line - taskControlHeight(touch ? 44 : 30, scale)) / 2 }}>
+            <TitleUndo agentId={child.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} fadeColor={fill} fadeHeight={line} />
+          </View>
         ) : null}
       </View>
     </Pressable>

@@ -38,6 +38,10 @@ import type { TaskCard } from "../../client/tasks/model";
 import type { StopPhase } from "../../client/tasks/actions";
 import { permissionButtons } from "../../client/tasks/actions";
 import { TaskCardView, type TaskCardViewProps } from "../../client/tasks/cards";
+import { SubtaskRow } from "../../client/tasks/cards/subtask-row";
+import { taskTokens } from "../../client/tasks/cards/tokens";
+import { createTitleUpdateControl } from "../../client/tasks/actions/title-update";
+import { TasksTypographyScale } from "../../client/tasks/typography";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { estimateTextWidth, hostChildren, settleHostLayout, type Frame } from "./helpers/yoga-host-layout";
 
@@ -179,6 +183,59 @@ function overflows(frames: Map<ReactTestInstance, Frame>, textScale: number): st
 }
 
 describe("phone card action bar under native (Yoga) layout", () => {
+  it.each([240, 300, 340].flatMap((width) => [1, 1.35, 1.8].flatMap((scale) => (["zh", "en"] as const).map((language) => [width, scale, language] as const))))(
+    "overlays sidebar undo to the left of Open without resizing the title at %ipt, scale %f, %s",
+    async (width, textScale, language) => {
+      const child = { ...sample("sample-running").children[0]!, title: language === "zh" ? "非常长的子任务标题用于验证排版和按钮位置" : "A very long subtask title for layout and button placement" };
+      const control = createTitleUpdateControl(async () => ({ state: "done", title: child.title, previousTitle: "Previous" }), undefined, async () => ({ ok: true, error: null }));
+      control.start(child.id);
+      await vi.waitFor(() => expect(control.read(child.id).state).toBe("done"));
+      control.showUndo(child.id);
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TasksTypographyScale, {
+          factor: textScale,
+          children: React.createElement(SubtaskRow, { child, tokens: taskTokens(THEME), theme: THEME, language, touch: true, backdrop: THEME.colors.surface0, openLabel: "Open", onPress() {}, onOpen() {}, titleUpdates: control, animated: false }),
+        }));
+      });
+      const host = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+      const content = () => host(`subtask-content-${child.id}`);
+      const frames = await settleHostLayout(content, { width });
+      const undo = frames.get(host(`task-title-undo-${child.id}`))!;
+      const open = frames.get(host(`subtask-open-${child.id}`))!;
+      const title = frames.get(host(`subtask-title-${child.id}`))!;
+      const titleWidth = title.width;
+      const fade = frames.get(host(`task-title-undo-fade-${child.id}`))!;
+      const meta = frames.get(host(`subtask-meta-${child.id}`))!;
+      expect(fade.top).toBeCloseTo(title.top, 0);
+      expect(fade.top + fade.height).toBeLessThanOrEqual(meta.top + 0.5);
+      expect(undo.left + undo.width).toBeLessThanOrEqual(open.left);
+      expect(undo.top + undo.height / 2).toBeCloseTo(open.top + open.height / 2, 0);
+      await act(async () => control.undoTitle(child.id));
+      const after = await settleHostLayout(content, { width });
+      expect(after.get(host(`subtask-title-${child.id}`))!.width).toBeCloseTo(titleWidth, 0);
+    },
+  );
+  it.each([240, 300, 340].flatMap((width) => [1, 1.8].flatMap((scale) => (["zh", "en"] as const).map((language) => [width, scale, language] as const))))(
+    "overlays card undo and its fade without changing the title width at %ipt, scale %f, %s",
+    async (width, textScale, language) => {
+      const card = { ...sample("sample-running"), title: language === "zh" ? "很长的任务标题用于验证自动更新后的按钮和渐变显示" : "A long task title to verify the undo button and fading" };
+      const control = createTitleUpdateControl(async () => ({ state: "done", title: card.title, previousTitle: "Previous" }), undefined, async () => ({ ok: true, error: null }));
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: phoneCard(card, language, { titleUpdates: control, animated: false }) }));
+      });
+      const host = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+      const row = () => host("task-card-title-row");
+      const before = await settleHostLayout(row, { width });
+      const titleWidth = before.get(host("task-card-title"))!.width;
+      await act(async () => { control.start(card.id); await Promise.resolve(); });
+      const after = await settleHostLayout(row, { width });
+      const undo = after.get(host(`task-title-undo-${card.id}`))!;
+      expect(after.get(host("task-card-title"))!.width).toBeCloseTo(titleWidth, 0);
+      expect(undo.left + undo.width).toBeCloseTo(width, 0);
+      expect(after.has(host(`task-title-undo-fade-${card.id}`))).toBe(true);
+      await act(async () => control.undoTitle(card.id));
+    },
+  );
   for (const item of CASES) {
     describe(item.name, () => {
       it.each(WIDTHS.flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).map((language) => [width, scale, language] as const))))(

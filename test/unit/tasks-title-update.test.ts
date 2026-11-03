@@ -5,6 +5,33 @@ import type { TitleUpdateState } from "../../shared/title-generation";
 afterEach(() => vi.useRealTimers());
 
 describe("title update state", () => {
+  it("keeps undo available while hovered and restarts five seconds after the last surface is left", async () => {
+    vi.useFakeTimers();
+    const control = createTitleUpdateControl(async () => ({ state: "done", title: "New", previousTitle: "Original" }), undefined, async () => ({ ok: true, error: null }));
+    control.start("a");
+    await vi.advanceTimersByTimeAsync(0);
+    control.showUndo("a");
+    const card = Symbol("card");
+    const detail = Symbol("detail");
+    await vi.advanceTimersByTimeAsync(4900);
+    control.enterUndo("a", card);
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(control.undoState("a")?.ready).toBe(true);
+    control.enterUndo("a", detail);
+    control.leaveUndo("a", card);
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(control.undoState("a")?.ready).toBe(true);
+    control.leaveUndo("a", detail);
+    await vi.advanceTimersByTimeAsync(4000);
+    control.enterUndo("a", card);
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(control.undoState("a")?.ready).toBe(true);
+    control.leaveUndo("a", card);
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(control.undoState("a")?.ready).toBe(true);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(control.undoState("a")).toBeNull();
+  });
   it("offers one shared undo for five seconds after the reveal, and restores the previous title", async () => {
     vi.useFakeTimers();
     const restore = vi.fn(async () => ({ ok: true, error: null }));

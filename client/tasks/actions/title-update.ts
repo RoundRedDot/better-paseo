@@ -23,6 +23,7 @@ export function createTitleUpdateControl(call: Call, watch?: Watch, restore?: (i
   const states = new Map<string, TitleUpdateState>();
   const undo = new Map<string, { title: string; previousTitle: string; ready: boolean }>();
   const undoTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const undoHovers = new Map<string, Set<symbol>>();
   const listeners = new Set<() => void>();
   const interrupted = new Set<string>();
   /** Jobs the board follows without a click: they fail silently. */
@@ -34,7 +35,13 @@ export function createTitleUpdateControl(call: Call, watch?: Watch, restore?: (i
     const timer = undoTimers.get(id);
     if (timer) clearTimeout(timer);
     undoTimers.delete(id);
+    undoHovers.delete(id);
     if (undo.delete(id)) for (const listener of listeners) listener();
+  };
+  const scheduleUndoExpiry = (id: string) => {
+    const timer = undoTimers.get(id);
+    if (timer) clearTimeout(timer);
+    undoTimers.set(id, setTimeout(() => clearUndo(id), 5000));
   };
   const set = (id: string, state: TitleUpdateState) => {
     states.set(id, state);
@@ -67,8 +74,24 @@ export function createTitleUpdateControl(call: Call, watch?: Watch, restore?: (i
       const item = undo.get(agentId);
       if (!item || item.ready) return;
       undo.set(agentId, { ...item, ready: true });
-      undoTimers.set(agentId, setTimeout(() => clearUndo(agentId), 5000));
+      scheduleUndoExpiry(agentId);
       for (const listener of listeners) listener();
+    },
+    enterUndo(agentId: string, surface: symbol) {
+      if (!undo.get(agentId)?.ready) return;
+      const hovers = undoHovers.get(agentId) ?? new Set<symbol>();
+      hovers.add(surface);
+      undoHovers.set(agentId, hovers);
+      const timer = undoTimers.get(agentId);
+      if (timer) clearTimeout(timer);
+      undoTimers.delete(agentId);
+    },
+    leaveUndo(agentId: string, surface: symbol) {
+      const hovers = undoHovers.get(agentId);
+      if (!hovers?.delete(surface)) return;
+      if (hovers.size) return;
+      undoHovers.delete(agentId);
+      if (undo.get(agentId)?.ready) scheduleUndoExpiry(agentId);
     },
     async undoTitle(agentId: string) {
       const item = undo.get(agentId);

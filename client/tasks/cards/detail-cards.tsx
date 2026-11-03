@@ -643,7 +643,9 @@ function DetailHeader(props: Inner) {
       <Text style={{ flex: 1, minWidth: 0, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
         {highlightText(card.title, props.searchQuery ?? "", tokens.isDark)}
       </Text>
-      <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} />
+      <View pointerEvents="box-none" style={{ position: "absolute", right: 0, top: 0 }}>
+        <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} fadeColor={tokens.card.background} />
+      </View>
       </View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }} testID="detail-agent">
         <Chip

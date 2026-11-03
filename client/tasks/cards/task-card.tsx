@@ -964,8 +964,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       >
         {mark(shownTitle)}
       </Text>}
-      <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={language} touch={compact || TOUCH} />
       {hasMeta ? null : ringFor(m.titleLine)}
+      <View pointerEvents="box-none" style={{ position: "absolute", right: 0, top: 0 }}>
+        <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={language} touch={compact || TOUCH} fadeColor={background} />
+      </View>
     </View>
   );
 

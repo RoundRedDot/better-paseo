@@ -117,6 +117,19 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it("restarts the countdown if a hovered undo button is unmounted", async () => {
+    vi.useFakeTimers();
+    const child = details("en").card.children[0]!;
+    const titleUpdates = createTitleUpdateControl(async () => ({ state: "done", title: child.title, previousTitle: "Previous" }), undefined, async () => ({ ok: true, error: null }));
+    const root = await render(<TaskDetailCards {...details("en", "sample-running", { titleUpdates })} />);
+    await act(async () => { titleUpdates.start(child.id); await vi.advanceTimersByTimeAsync(0); });
+    const button = host(root, `task-title-undo-${child.id}`);
+    await act(async () => button.props.onHoverIn());
+    await act(async () => renderer!.unmount());
+    renderer = undefined;
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(titleUpdates.undoState(child.id)).toBeNull();
+  });
   it("shares the undo button across detail titles and subtask rows", async () => {
     vi.useFakeTimers();
     const restore = vi.fn(async () => ({ ok: true, error: null }));
@@ -130,6 +143,16 @@ describe("sidebar action tips", () => {
     const buttons = root.findAll((node) => typeof node.type === "string" && node.props.testID === `task-title-undo-${child.id}`);
     expect(buttons).toHaveLength(2);
     expect(buttons.every((node) => tip(node) === cardStrings("en").undoTitle && !node.props.disabled)).toBe(true);
+    expect(buttons.map((node) => StyleSheet.flatten(node.props.style).backgroundColor)).toEqual(["transparent", "transparent"]);
+    await act(async () => hover.get(`detail-subtask-${child.id}`)!());
+    await act(async () => buttons[0]!.props.onHoverIn());
+    expect(StyleSheet.flatten(buttons[0]!.props.style).backgroundColor).not.toBe("transparent");
+    expect(StyleSheet.flatten(buttons[0]!.props.style).backgroundColor).not.toBe(StyleSheet.flatten(host(root, `detail-subtask-${child.id}`).props.style).backgroundColor);
+    expect(StyleSheet.flatten(buttons[1]!.props.style).backgroundColor).toBe("transparent");
+    await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+    expect(titleUpdates.undoState(child.id)?.ready).toBe(true);
+    await act(async () => buttons[0]!.props.onHoverOut());
+    expect(StyleSheet.flatten(buttons[0]!.props.style).backgroundColor).toBe("transparent");
     const stopPropagation = vi.fn();
     await act(async () => buttons[0]!.props.onPress({ stopPropagation }));
     expect(stopPropagation).toHaveBeenCalledOnce();
