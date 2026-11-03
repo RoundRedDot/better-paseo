@@ -115,11 +115,15 @@ function rootStyles(renderer: Renderer) {
 /**
  * Item roots drawn at these boxes, in mount order, as the web reads them. The
  * drawing item's own box does not follow its margins here, which is what the
- * renderer must not be fooled by.
+ * renderer must not be fooled by. A held row's placeholder also takes a ref,
+ * and it is not a root: only the view that lays out (`onLayout`) is measured.
  */
 function drawnAt(...boxes: Array<{ top: number; height: number }>) {
   let index = 0;
-  return () => {
+  return (element: { props?: { onLayout?: unknown } }) => {
+    if (typeof element.props?.onLayout !== "function") {
+      return { getBoundingClientRect: () => ({ left: 0, top: 0, width: 0, height: 0 }) };
+    }
     const box = boxes[index++] ?? { top: 0, height: 0 };
     return { getBoundingClientRect: () => ({ left: 0, width: 600, ...box }) };
   };
