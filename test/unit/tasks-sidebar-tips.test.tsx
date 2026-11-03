@@ -295,14 +295,14 @@ describe("sidebar action tips", () => {
     for (const tab of tabs) expect(tip(tab)).toBe(tab.props.accessibilityLabel);
     const iconSizes = () => tabs.map((tab) => tab.find((node) => (node.type as unknown) === "Icon").props.size);
     expect(iconSizes()).toEqual([18, 18, 18, 18]);
+    // The tabs share their row equally: it alone is laid out, four tabs `width` wide.
+    const tabsAt = (width: number) => host(root, "sidebar-group-tabs").props.onLayout({ nativeEvent: { layout: { width: 4 * width + 2 * 10 + 3 * 6 } } });
     await act(async () => {
-      for (const tab of tabs) {
-        tab.props.onLayout({ nativeEvent: { layout: { width: 160 } } });
-        host(tab, "sidebar-group-tab-measure").props.onLayout({ nativeEvent: { layout: { width: 40 } } });
-      }
+      tabsAt(160);
+      for (const tab of tabs) host(tab, "sidebar-group-tab-measure").props.onLayout({ nativeEvent: { layout: { width: 40 } } });
     });
     expect(iconSizes()).toEqual([14, 14, 14, 14]);
-    await act(async () => tabs[0]!.props.onLayout({ nativeEvent: { layout: { width: 30 } } }));
+    await act(async () => tabsAt(30));
     expect(iconSizes()).toEqual([18, 18, 18, 18]);
     const filter = root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
     expect(tip(filter)).toBe("Claude");

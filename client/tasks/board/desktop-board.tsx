@@ -314,6 +314,32 @@ export function DesktopBoard(props: {
   lanesInViewRef.current = { order: laneOrder, collapsed, laneWidth: layout.laneWidth, viewWidth };
   const [scrolledInView, setInView] = useState("");
   const inView = boardWidth > 0 ? lanesInView(laneOrder, collapsed, layout.laneWidth, rowScrollX.current, viewWidth) : scrolledInView;
+
+  // What the inline sidebar's width changes in the lanes: whether the row
+  // scrolls and which lanes it shows. Lane widths follow the board's width,
+  // not the sidebar's (`boardLaneLayout`).
+  const dragViewRef = useRef<(width: number) => string>(() => "");
+  dragViewRef.current = (width: number) => {
+    const viewport = Math.max(0, boardWidth - sidebarWidth(boardWidth, width, "inline") - SIDEBAR.gap);
+    const lanes = boardLaneLayout(boardWidth, archivedSwitch.drawn, collapsedState, board.laneWidth, viewport, laneSizing);
+    return `${lanes.scroll}${lanesInView(laneOrder, collapsed, lanes.laneWidth, rowScrollX.current, viewport)}`;
+  };
+  const fitInline = useCallback((width: number) => sidebarWidth(latest.current.boardWidth, width, "inline"), []);
+  // The view the board last drew for the dragged width.
+  const dragView = useRef<string | null>(null);
+  // `drawn`: the column already took the width on the page. The board then
+  // draws again only when the lanes' view changes, not on every frame.
+  const dragSidebar = useCallback((width: number | null, drawn: boolean) => {
+    if (width === null) {
+      dragView.current = null;
+      setDragWidth(null);
+      return;
+    }
+    const view = dragViewRef.current(width);
+    if (drawn && view === dragView.current) return;
+    dragView.current = view;
+    setDragWidth(width);
+  }, []);
   const highlightedLane = board.highlighted ? findCard(lanes, board.highlighted)?.lane ?? null : null;
 
   // A floating panel lands on the lanes' right side, where the card just
@@ -714,7 +740,7 @@ export function DesktopBoard(props: {
           {unfilteredEmpty ? <BoardEmpty board={board} theme={theme} /> : null}
         </View>
         {mode === "inline" && !floating ? (
-          <SidebarColumn open={inline} width={panelWidth} theme={theme} onDrag={setDragWidth} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
+          <SidebarColumn open={inline} width={panelWidth} theme={theme} fit={fitInline} onDrag={dragSidebar} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
             {sidebar}
           </SidebarColumn>
         ) : null}
@@ -843,8 +869,21 @@ function LaneGap(props: { onPress(): void }) {
  * left inset holding the drag handle on web. A drag
  * resizes the column and the lanes' viewport, at most once a frame; the
  * release keeps the width. A double click puts 380 back.
+ *
+ * A drag frame writes the column's width straight to the page (`fit` clamps
+ * it as the board would) and tells the board with `drawn` true, so the
+ * board renders again only when the lanes need it. Without the page's
+ * nodes (a test renderer) the board draws every frame.
  */
-function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme; onDrag(width: number | null): void; onResize(width: number): void; children: React.ReactNode }) {
+function SidebarColumn(props: {
+  open: boolean;
+  width: number;
+  theme: PluginTheme;
+  fit(width: number): number;
+  onDrag(width: number | null, drawn: boolean): void;
+  onResize(width: number): void;
+  children: React.ReactNode;
+}) {
   const reduced = useReducedMotion();
   const { hovered, hoverProps } = useHover();
   const [dragging, setDragging] = useState(false);
@@ -865,6 +904,10 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
     return () => animation.stop();
   }, [progress, props.open, reduced]);
   const lastDown = useRef(0);
+  const live = useRef(props);
+  live.current = props;
+  const slotRef = useRef<View>(null);
+  const panelRef = useRef<View>(null);
   const handleRef = useRef<View>(null);
   const indicatorRef = useRef<View>(null);
   const dom = () => [handleRef.current, indicatorRef.current] as unknown as [HTMLElement | null, HTMLElement | null];
@@ -874,12 +917,19 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
     const at = Date.now();
     if (at - lastDown.current < 350) {
       lastDown.current = 0;
-      props.onResize(SIDEBAR.width);
+      live.current.onResize(SIDEBAR.width);
       return;
     }
     lastDown.current = at;
     const x0 = event.nativeEvent.pageX;
-    const width0 = props.width;
+    const width0 = live.current.width;
+    const slot = slotRef.current as unknown as HTMLElement | null;
+    const panel = panelRef.current as unknown as HTMLElement | null;
+    const paint = slot?.style && panel?.style ? (to: number) => {
+      const fitted = live.current.fit(to);
+      slot.style.width = `${fitted + SIDEBAR.gap}px`;
+      panel.style.width = `${fitted}px`;
+    } : null;
     let width = width0;
     const [handle] = dom();
     const body = document.body.style;
@@ -897,7 +947,8 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
         frame = requestAnimationFrame(() => {
           frame = 0;
           follow(pointerY);
-          props.onDrag(width);
+          paint?.(width);
+          live.current.onDrag(width, paint !== null);
         });
       }
     };
@@ -908,8 +959,8 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
       Object.assign(body, restore);
       setResizing(handle, false);
       setDragging(false);
-      props.onDrag(null);
-      if (width !== width0) props.onResize(width);
+      live.current.onDrag(null, false);
+      if (width !== width0) live.current.onResize(width);
     };
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
@@ -941,6 +992,7 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
   return (
     // Animate only the slot and surface: fixed-width cards do not reflow on every frame.
     <Animated.View
+      ref={slotRef}
       testID="sidebar-slot"
       pointerEvents={props.open ? "auto" : "none"}
       aria-hidden={!props.open}
@@ -949,6 +1001,7 @@ function SidebarColumn(props: { open: boolean; width: number; theme: PluginTheme
       style={{ width: reduced ? props.width + SIDEBAR.gap : progress.interpolate({ inputRange: [0, 1], outputRange: [0, props.width + SIDEBAR.gap] }), flexShrink: 0, minHeight: 0 }}
     >
       <Animated.View
+        ref={panelRef}
         testID="sidebar-inline"
         {...(Platform.OS === "web" ? { onPointerEnter: hoverProps.onHoverIn, onPointerLeave: hoverProps.onHoverOut } : {})}
         style={{

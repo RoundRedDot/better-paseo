@@ -1469,6 +1469,69 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it("draws a dragged sidebar on the page and renders the board only when the lanes' view changes", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, laneWidth: "narrow" } };
+    const listeners = new Map<string, (event: { pageX: number; clientY: number }) => void>();
+    vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
+    vi.stubGlobal("document", {
+      body: { style: {} },
+      addEventListener: (name: string, handler: (event: { pageX: number; clientY: number }) => void) => listeners.set(name, handler),
+      removeEventListener: (name: string) => listeners.delete(name),
+    });
+    vi.stubGlobal("requestAnimationFrame", (callback: () => void) => setTimeout(callback, 16));
+    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+    // Page nodes for the column, the handle and the indicator: what a drag frame writes to.
+    const nodes = new Map<string, { style: Record<string, string> }>();
+    const createNodeMock = (element: React.ReactElement) => {
+      const id = (element.props as { testID?: string }).testID;
+      if (id !== "sidebar-slot" && id !== "sidebar-inline" && id !== "sidebar-resize") return null;
+      const node = { style: {} as Record<string, string>, setAttribute() {}, removeAttribute() {}, getBoundingClientRect: () => ({ top: 0, height: 800 }) };
+      nodes.set(id, node);
+      return node;
+    };
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false), { createNodeMock }); });
+      layOut(1600);
+      const drawnWidth = () => StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).width;
+      const row = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.horizontal === true);
+      expect(drawnWidth()).toBe(380);
+      expect(row().props.scrollEnabled).toBe(false);
+      act(() => hostsById("sidebar-resize")[0]!.props.onPointerDown({ nativeEvent: { pageX: 1000, clientY: 200 } }));
+      const drawn = new Set<number>();
+      let pageX = 1000;
+      const frame = (to: number) => {
+        pageX = to;
+        act(() => listeners.get("pointermove")!({ pageX, clientY: 200 }));
+        act(() => { vi.advanceTimersByTime(16); });
+        drawn.add(drawnWidth());
+      };
+      for (let delta = 1; delta <= 40; delta++) frame(1000 - delta);
+      // Every frame reached the page; the board drew the first one only, the lanes' view holding.
+      expect(nodes.get("sidebar-inline")!.style.width).toBe("420px");
+      expect(nodes.get("sidebar-slot")!.style.width).toBe("432px");
+      expect([...drawn]).toEqual([381]);
+      expect(row().props.scrollEnabled).toBe(false);
+      // Wide enough that the lanes no longer fit beside it: the board draws, and the row scrolls.
+      let step = 0;
+      while (!row().props.scrollEnabled && step++ < 400) frame(pageX - 1);
+      expect(row().props.scrollEnabled).toBe(true);
+      expect(drawnWidth()).toBe(380 + 1000 - pageX);
+      const before = drawn.size;
+      for (let delta = 1; delta <= 10; delta++) frame(pageX - 1);
+      expect(drawn.size).toBe(before);
+      expect(nodes.get("sidebar-inline")!.style.width).toBe(`${380 + 1000 - pageX}px`);
+      act(() => listeners.get("pointerup")!({ pageX, clientY: 200 }));
+      expect(drawnWidth()).toBe(380 + 1000 - pageX);
+      expect(readSidebarPreference().width).toBe(380 + 1000 - pageX);
+      expect(listeners.has("pointermove")).toBe(false);
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it.each([false, true])("keeps sidebar content stable during window resizing (selected=%s)", (selected) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false)); });
@@ -1540,10 +1603,15 @@ describe("Tasks board, desktop", () => {
     });
     layOut(1600);
     const label = () => hostsById("sidebar-stat-label-running");
-    const heading = () => hostsById("sidebar-stat-heading-running")[0]!;
     const measure = () => hostsById("sidebar-stat-measure-running")[0]!;
     const stat = () => hostsById("sidebar-stat-running")[0]!;
     const layout = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 20 } } }));
+    // The cells share the stats row, so it alone is laid out: a heading `width` wide in each cell.
+    const lanes = renderer!.root.findAll((node) => typeof node.type === "string" && /^sidebar-stat-heading-/.test(node.props.testID ?? "")).length;
+    expect(hostsById("sidebar-stat-heading-running")[0]!.props.onLayout).toBeUndefined();
+    const heading = () => ({ props: { onLayout: (event: { nativeEvent: { layout: { width: number } } }) => hostsById("sidebar-stats-row")[0]!.props.onLayout({
+      nativeEvent: { layout: { ...event.nativeEvent.layout, width: (event.nativeEvent.layout.width + 2 * StyleSheet.hairlineWidth + 16) * lanes + 4 * (lanes - 1) } },
+    }) } }) as unknown as ReactTestInstance;
     layout(heading(), 100);
     layout(measure(), 60);
     expect(label()).toHaveLength(1);
@@ -1577,9 +1645,13 @@ describe("Tasks board, desktop", () => {
     const tabs = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "tab");
     const labels = () => hostsById("sidebar-group-tab-label");
     const measureTab = (tab: ReactTestInstance, width: number) => layout(tab.find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure"), width);
+    // The tabs share their row equally, so it alone is laid out: four tabs `width` wide.
+    expect(tabs()[0]!.props.onLayout).toBeUndefined();
+    const tabsAt = (width: number) => layout(hostsById("sidebar-group-tabs")[0]!, 4 * width + 2 * 10 + 3 * 6);
     expect(labels()).toHaveLength(0);
     // Three short labels fit, but the longest still forces the entire row to icons.
-    tabs().forEach((tab, index) => { layout(tab, 100); measureTab(tab, index === 2 ? 90 : 40); });
+    tabsAt(100);
+    tabs().forEach((tab, index) => measureTab(tab, index === 2 ? 90 : 40));
     expect(labels()).toHaveLength(0);
     measureTab(tabs()[2]!, 60);
     expect(labels()).toHaveLength(4);
@@ -1590,7 +1662,7 @@ describe("Tasks board, desktop", () => {
       const label = () => tab().findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-label");
       expect(label()).toHaveLength(1);
       const basis = StyleSheet.flatten(tab().props.style).flexBasis;
-      layout(tab(), 50);
+      tabsAt(50);
       expect(labels()).toHaveLength(0);
       expect(tab().findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(1);
       expect(StyleSheet.flatten(tab().props.style).flexBasis).toBe(basis);
@@ -1602,7 +1674,7 @@ describe("Tasks board, desktop", () => {
       expect(label()).toHaveLength(0);
       expect(measure()).toBe(measurement);
       expect(StyleSheet.flatten(measure().props.style).fontWeight).toBe("500");
-      layout(tab(), 120);
+      tabsAt(120);
       expect(labels()).toHaveLength(4);
       expect(textOf(label()[0]!)).toBe(word);
       // An updated measurement (font or translation) can hide the label without a resize.
@@ -1625,10 +1697,10 @@ describe("Tasks board, desktop", () => {
     toggleSidebarControl();
     const tabs = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "tab");
     const layout = (node: ReactTestInstance, width: number) => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } });
-    act(() => tabs().forEach((tab, index) => {
-      layout(tab.find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure"), 60 + index * 20);
-      layout(tab, 50);
-    }));
+    act(() => {
+      tabs().forEach((tab, index) => layout(tab.find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure"), 60 + index * 20));
+      layout(hostsById("sidebar-group-tabs")[0]!, 4 * 50 + 2 * 10 + 3 * 6);
+    });
     const labels = () => hostsById("sidebar-group-tab-label");
     const sizes = () => tabs().map((tab) => {
       const { flexBasis, flexGrow, flexShrink, minWidth, height, paddingHorizontal } = StyleSheet.flatten(tab.props.style);
@@ -1647,7 +1719,7 @@ describe("Tasks board, desktop", () => {
       expect(hostsById("sidebar-group-tab-measure")).toEqual(measurements);
       expect(tabs()[index]!.props.accessibilityState).toEqual({ selected: true });
     }
-    act(() => tabs().forEach((tab) => layout(tab, 180)));
+    act(() => layout(hostsById("sidebar-group-tabs")[0]!, 4 * 180 + 2 * 10 + 3 * 6));
     expect(labels()).toHaveLength(4);
     const textStyles = labels().map((node) => StyleSheet.flatten(node.props.style));
     act(() => tabs()[1]!.props.onPress());

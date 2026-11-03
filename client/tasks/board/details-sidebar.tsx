@@ -202,6 +202,9 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   const [measured, setMeasured] = useState<{ value: number; scale: number; width: number } | null>(null);
   const largestCount = Math.max(0, ...board.laneOrder.map((id) => board.lanes[id].cards.length));
   const available = (rowWidth - 4 * (board.laneOrder.length - 1)) / board.laneOrder.length - 16;
+  // Each cell's heading spans the cell inside its padding and border. Taken
+  // from the row's one layout: a resize then measures one node, not one per lane.
+  const headingWidth = rowWidth > 0 ? available - 2 * StyleSheet.hairlineWidth : null;
   const countSize = measured?.value === largestCount && measured.scale === scale && measured.width > 0 && available > 0
     ? Math.min(F.base, Math.floor(F.base * available / measured.width * scale) / scale)
     : F.base;
@@ -233,6 +236,7 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
             animated={board.visible}
             touch={props.touch}
             countSize={countSize}
+            headingWidth={headingWidth}
             onPress={() => props.onLane(id)}
           />
         ))}
@@ -255,11 +259,12 @@ function StatCell(props: {
   animated: boolean;
   touch: boolean;
   countSize: number;
+  /** The width the mark and label share, from the stats row's layout; null until it is laid out. */
+  headingWidth: number | null;
   onPress(): void;
 }) {
-  const { tokens } = props;
+  const { tokens, headingWidth } = props;
   const scale = useTasksFontScale();
-  const [headingWidth, setHeadingWidth] = useState<number | null>(null);
   const [labelSize, setLabelSize] = useState<{ key: string; width: number } | null>(null);
   const labelKey = `${props.label}|${scale}`;
   const hideLabel = headingWidth !== null && labelSize?.key === labelKey && labelSize.width + 13 + 5 > headingWidth + 0.5;
@@ -296,7 +301,6 @@ function StatCell(props: {
     >
       <View
         testID={`sidebar-stat-heading-${props.lane}`}
-        onLayout={(event) => setHeadingWidth(event.nativeEvent.layout.width)}
         style={{ flexDirection: "row", alignItems: "center", gap: 5 }}
       >
         <StatusIcon kind={LANE_STATUS[props.lane]} size={13} theme={props.theme} animated={props.animated} />
@@ -420,11 +424,7 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
 
   return (
     <DetailCard tokens={tokens} style={{ flexShrink: 1, minHeight: 0, paddingTop: 12, paddingBottom: 8 }} testID="sidebar-groups">
-      <View style={{ flexDirection: "row", gap: 6, paddingHorizontal: 10, paddingBottom: 10 }}>
-        {GROUP_KINDS.map((id) => (
-          <Segment key={id} id={id} icon={FILTER_ICONS[id]} label={strings.groups[id]} showLabel={showLabels} onFit={reportFit} on={kind === id} tokens={tokens} touch={props.touch} onPress={() => setKind(id)} />
-        ))}
-      </View>
+      <SegmentRow labels={strings.groups} kind={kind} onKind={setKind} showLabels={showLabels} onFit={reportFit} tokens={tokens} touch={props.touch} />
       <View style={{ paddingHorizontal: 10, paddingBottom: 8 }}>
         <View testID="sidebar-groups-search" style={{ height: taskControlHeight(props.touch ? 36 : 28, scale), flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: searchFocused ? props.theme.colors.foregroundMuted : props.theme.colors.border }}>
           <Icon name="Search" size={13} color={tokens.foregroundMuted} />
@@ -473,11 +473,54 @@ function Initial(props: { name: string; tokens: TaskTokens }) {
   );
 }
 
+const SEGMENT_GAP = 6;
+const SEGMENT_ROW_PAD = 10;
+
+/**
+ * The group tabs' row. It alone is measured: the four tabs share it equally
+ * (`flexBasis` 0), so a resize lays out one node instead of four, and only
+ * this row and its tabs draw again, not the group list under it.
+ */
+function SegmentRow(props: {
+  labels: Record<GroupKind, string>;
+  kind: GroupKind;
+  onKind(kind: GroupKind): void;
+  showLabels: boolean;
+  onFit(id: GroupKind, key: string, fits: boolean): void;
+  tokens: TaskTokens;
+  touch: boolean;
+}) {
+  const [rowWidth, setRowWidth] = useState<number | null>(null);
+  const width = rowWidth === null ? null : (rowWidth - 2 * SEGMENT_ROW_PAD - SEGMENT_GAP * (GROUP_KINDS.length - 1)) / GROUP_KINDS.length;
+  return (
+    <View
+      testID="sidebar-group-tabs"
+      onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)}
+      style={{ flexDirection: "row", gap: SEGMENT_GAP, paddingHorizontal: SEGMENT_ROW_PAD, paddingBottom: 10 }}
+    >
+      {GROUP_KINDS.map((id) => (
+        <Segment key={id} id={id} icon={FILTER_ICONS[id]} label={props.labels[id]} width={width} showLabel={props.showLabels} onFit={props.onFit} on={props.kind === id} tokens={props.tokens} touch={props.touch} onPress={() => props.onKind(id)} />
+      ))}
+    </View>
+  );
+}
+
 /** Linear's segmented pills: outlined, grey when chosen. */
-function Segment(props: { id: GroupKind; icon: string; label: string; showLabel: boolean; onFit(id: GroupKind, key: string, fits: boolean): void; on: boolean; tokens: TaskTokens; touch: boolean; onPress(): void }) {
-  const { tokens } = props;
+function Segment(props: {
+  id: GroupKind;
+  icon: string;
+  label: string;
+  /** Its share of the row (`SegmentRow`); null until the row is laid out. */
+  width: number | null;
+  showLabel: boolean;
+  onFit(id: GroupKind, key: string, fits: boolean): void;
+  on: boolean;
+  tokens: TaskTokens;
+  touch: boolean;
+  onPress(): void;
+}) {
+  const { tokens, width } = props;
   const scale = useTasksFontScale();
-  const [width, setWidth] = useState<number | null>(null);
   const [labelSize, setLabelSize] = useState<{ key: string; width: number } | null>(null);
   const labelKey = `${props.label}|${scale}`;
   const labelWidth = labelSize?.key === labelKey ? labelSize.width : null;
@@ -499,7 +542,6 @@ function Segment(props: { id: GroupKind; icon: string; label: string; showLabel:
       onPress={props.onPress}
       {...hoverProps}
       testID={`sidebar-group-tab-${props.icon}`}
-      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
       style={({ pressed }) => {
         const lift = surfaceLift(hovered, pressed, reduced);
         return {
