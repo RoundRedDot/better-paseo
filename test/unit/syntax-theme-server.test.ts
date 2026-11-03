@@ -58,14 +58,13 @@ describe("the daemon follows Paseo's syntax theme", () => {
     ["gruvbox", "dark", "gruvbox-dark-medium"],
     ["solarized", "light", "solarized-light"],
     ["tokyo-night", "dark", "tokyo-night"],
-    // The two families Shiki has no light flavour for and this plugin vendors one.
+    // The three families Shiki has no light flavour for and this plugin vendors.
     ["tokyo-night", "light", "tokyo-night-light"],
     ["dracula", "light", "alucard"],
+    ["nord", "light", "polar"],
     // A client that names no theme gets today's pair.
     [undefined, "dark", "github-dark-default"],
-    // Nord is the one family still left on GitHub Light in a light scheme.
-    ["nord", "light", "github-light-default"],
-    // An id from a newer host than this table.
+    // Only an id this table does not know falls back.
     ["unknown-id", "dark", "github-dark-default"],
   ] as const)("maps %s (%s) to %s", async (syntaxTheme, scheme, theme) => {
     const answer = await (await highlightHandler())({
