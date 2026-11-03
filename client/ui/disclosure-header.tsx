@@ -163,6 +163,8 @@ export interface DisclosureHeaderProps {
    * itself (`flex: 1`, `minWidth: 0`).
    */
   target?: ReactNode;
+  /** Show the start of prose targets, leaving the end to the row's ellipsis. */
+  targetTruncation?: "middle" | "tail";
   /** Number of operations sharing this header; single calls have no badge. */
   count?: number;
   /**
@@ -269,6 +271,7 @@ export function DisclosureHeader({
   iconIsStatus = false,
   verb,
   target,
+  targetTruncation = "middle",
   count,
   meta,
   metaLead,
@@ -442,6 +445,7 @@ export function DisclosureHeader({
         {...((inert ? surfaceProps(selectionSurface, codeSurface) : codeSurface) as object)}
         selectable={inert && !detailsEnabled}
         numberOfLines={1}
+        ellipsizeMode="tail"
         style={[
           styles.targetText,
           textSelect,
@@ -453,7 +457,7 @@ export function DisclosureHeader({
           },
         ]}
       >
-        {truncateMiddle(target, budget)}
+        {targetTruncation === "tail" ? target : truncateMiddle(target, budget)}
       </Text>
     ) : (
       target

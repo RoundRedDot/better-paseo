@@ -127,6 +127,19 @@ describe("AskUserQuestion transcript data", () => {
 });
 
 describe("AskUserQuestion presentation", () => {
+  it.each([false, true])("starts a long question row at the beginning (compact: %s)", (compact) => {
+    const question = `拍板 1/12: ${"问题内容很长".repeat(30)}`;
+    const data = call({ questions: [{ question, options: [{ label: "Yes" }] }] });
+    let view!: ReturnType<typeof TestRenderer.create>;
+    act(() => { view = TestRenderer.create(React.createElement(ToolCallout, { data, tokens, compact })); });
+    try {
+      const title = view.root.findAll((node) => (node.type as unknown) === "Text" &&
+        typeof node.props.children === "string" && node.props.children.startsWith("拍板 1/12:"))[0]!;
+      expect(title.props.children).toContain("拍板 1/12:");
+      expect(title.props.numberOfLines).toBe(1);
+      expect(title.props.ellipsizeMode).toBe("tail");
+    } finally { act(() => view.unmount()); }
+  });
   it.each(["统一规则：回 0 再开流 (Recommended)", "先记录日志，稍后再处理"])("maps the screenshot's answer to an option or custom content: %s", (answer) => {
     updateEnhancerPreferences({ language: "en" });
     const question = "未掉线时点「继续」、戒指回「不在暂停态」（StateConflict）怎么处理?";

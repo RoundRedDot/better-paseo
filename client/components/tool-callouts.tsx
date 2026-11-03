@@ -342,6 +342,7 @@ export function ToolCallout({
       verbColor={agentStateColor}
       metaFont={summary.agent ? "ui" : "mono"}
       target={target}
+      targetTruncation={!groupCalls && readUserQuestions(data) ? "tail" : "middle"}
       count={groupCalls?.length}
       meta={meta}
       metaLead={metaLead}
