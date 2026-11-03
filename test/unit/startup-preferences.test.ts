@@ -218,6 +218,43 @@ describe("preferences read while the plugin loads", () => {
     expect(plugin.observers.size).toBe(0);
   });
 
+  it("reads a change the host had not answered when the last settings hook unmounts", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const { contribute, preferences, slot, React, renderer } = await load();
+    const off = { status: "ready", revision: "r1", values: { chatEnabled: false } };
+    let record: unknown = off;
+    const plugin = fakeClient(() => Promise.resolve(record));
+    const cleanup = contribute(plugin.client as never);
+    await flush();
+
+    // The settings page is open, with chat off.
+    host.settings = { ...off, save: vi.fn(), reset: vi.fn(), reload: vi.fn(() => Promise.resolve()) };
+    const Page = () => {
+      slot.usePreferenceSettings();
+      return null;
+    };
+    let page!: ReactTestRenderer;
+    await renderer.act(async () => {
+      page = renderer.create(React.createElement(Page));
+    });
+
+    // Another client turns chat on. The host reads it for the open page, so
+    // the watcher does not.
+    record = { status: "ready", revision: "r2", values: { chatEnabled: true } };
+    plugin.push("presentation");
+    await flush();
+    expect(plugin.rpc).toHaveBeenCalledTimes(1);
+
+    // The page closes before the host's read answers: no hook reports it.
+    await renderer.act(async () => page.unmount());
+    await flush();
+    expect(plugin.rpc).toHaveBeenCalledTimes(2);
+    expect(preferences.getEnhancerPreferences().chatEnabled).toBe(true);
+    for (const id of TRANSFORMERS) expect(plugin.active(id)).toHaveLength(1);
+
+    cleanup();
+  });
+
   it("leaves a daemon with no record yet to the settings hook", async () => {
     const { contribute, preferences } = await load();
     const plugin = fakeClient(() =>

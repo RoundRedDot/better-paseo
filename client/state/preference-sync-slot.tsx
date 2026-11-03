@@ -64,6 +64,12 @@ let mountedHooks = 0;
 // copy is then stale and the host does not read it again when a hook mounts
 // (`refetchOnMount: false`), so the next hook reads it before it reports.
 let hookCacheStale = false;
+// The daemon changed the record while a hook was mounted. The host reads it
+// for that hook, but if the last hook unmounts before that read reports, no
+// one reports it; the watcher then reads it at the handoff.
+let changedWhileMounted = false;
+// The watcher's read; null while no watcher runs.
+let readFromDaemon: (() => void) | null = null;
 let refreshing = false;
 const refreshListeners = new Set<() => void>();
 function subscribeRefresh(listener: () => void) {
@@ -80,10 +86,26 @@ const isRefreshing = () => refreshing;
  * and the settings page mounts it only while open. Listens for the host's
  * `plugin_settings_changed` push, which the daemon sends to every client, and
  * reads the record again. While a hook is mounted the host reads it for that
- * hook. Lives for the plugin's whole load. Returns the cleanup.
+ * hook; when the last hook unmounts after such a change, the watcher reads it
+ * too. Lives for the plugin's whole load. Returns the cleanup.
  */
 export function watchPreferenceChanges(client: Pick<PluginClientContext, "paseo" | "rpc">): () => void {
   let live = true;
+  // Only the latest read reports: an earlier one may answer last.
+  let latestRead = 0;
+  const read = () => {
+    hookCacheStale = true;
+    const id = ++latestRead;
+    readRecord(client).then(
+      (state) => {
+        if (live && id === latestRead && state) preferenceSync.report(state);
+      },
+      () => {
+        // The next hook to mount reads the record (`hookCacheStale`).
+      },
+    );
+  };
+  readFromDaemon = read;
   const observation = client.paseo.observeEvents(["status.plugin_settings_changed"]);
   const unsubscribe = observation.subscribe({
     snapshot() {},
@@ -91,20 +113,16 @@ export function watchPreferenceChanges(client: Pick<PluginClientContext, "paseo"
       if (message.type !== "status") return;
       const { status, settingsId } = message.payload;
       if (status !== "plugin_settings_changed" || settingsId !== PREFERENCES_SETTINGS.id) return;
-      if (mountedHooks > 0) return;
-      hookCacheStale = true;
-      readRecord(client).then(
-        (state) => {
-          if (live && state) preferenceSync.report(state);
-        },
-        () => {
-          // The next hook to mount reads the record (`hookCacheStale`).
-        },
-      );
+      if (mountedHooks > 0) {
+        changedWhileMounted = true;
+        return;
+      }
+      read();
     },
   });
   return () => {
     live = false;
+    if (readFromDaemon === read) readFromDaemon = null;
     unsubscribe();
     void observation.release();
   };
@@ -141,7 +159,10 @@ export function usePreferenceSettings(): SyncStatus {
       void actions.reload().then(done, done);
     }
     return () => {
-      mountedHooks--;
+      if (--mountedHooks === 0 && changedWhileMounted) {
+        changedWhileMounted = false;
+        readFromDaemon?.();
+      }
     };
   }, []);
   const remote: RemoteSettings =
