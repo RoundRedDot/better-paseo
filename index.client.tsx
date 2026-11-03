@@ -8,7 +8,7 @@ import { installPointerFocusRing } from "./client/components/focus-ring";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import { followPreference } from "./client/state/follow-preference";
-import { readPreferencesAtStartup } from "./client/state/preference-sync-slot";
+import { readPreferencesAtStartup, watchPreferenceChanges } from "./client/state/preference-sync-slot";
 import { perfSlashCommand } from "./client/debug/perf-command";
 import { loadMark } from "./client/debug/load-marks";
 import { scheduleLoadTraceDump } from "./client/debug/load-trace";
@@ -42,6 +42,9 @@ export default function contribute(client: PluginClientContext) {
   // mount. A record that differs from the defaults reaches the transformers
   // below (`followPreference`) as soon as it answers, not one projection later.
   const stopPreferenceRead = readPreferencesAtStartup(client);
+  // Other clients' changes, also while no plugin row or settings page is
+  // mounted (the chat switch off): the switch must be able to come back on.
+  const stopPreferenceWatch = watchPreferenceChanges(client);
 
   // Every chat contribution follows General → Enable Better Paseo chat. Off
   // leaves the whole timeline to Paseo; the Tasks board does not depend on it.
@@ -292,6 +295,7 @@ export default function contribute(client: PluginClientContext) {
   return () => {
     stopLoadTrace();
     stopPreferenceRead();
+    stopPreferenceWatch();
     removeTasks();
     removeSettings();
     removePerfCommand();

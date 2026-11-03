@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactTestRenderer } from "react-test-renderer";
+import "./helpers/quiet-renderer";
 
 // contribute() asks the daemon for the stored preferences itself, so iOS and
 // Android (no localStorage) do not project the first timeline with the
@@ -6,12 +8,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: () => null }));
+// What the host's `useSettings` answers: its react-query cache.
+const host = vi.hoisted(() => ({ settings: { status: "loading" } as Record<string, unknown> }));
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined,
   useWorkspace: () => undefined,
   useRpc: () => () => Promise.resolve(null),
   usePaseo: () => null,
-  useSettings: () => ({ status: "loading" }),
+  useSettings: () => host.settings,
 }));
 vi.mock("../../client/live-renderers", () => ({
   LiveToolCallRenderer: () => null,
@@ -43,8 +47,23 @@ function fakeClient(read: () => unknown) {
     if (contract.name === "settings.presentation.read") return read();
     return Promise.reject(new Error(`unexpected rpc ${contract.name}`));
   });
+  // The host's session events: `push` delivers one to every observer.
+  const observers = new Set<{ update(message: unknown): void }>();
+  const observeEvents = vi.fn(() => ({
+    subscribe(observer: { update(message: unknown): void }) {
+      observers.add(observer);
+      return () => observers.delete(observer);
+    },
+    release: () => Promise.resolve(),
+  }));
+  const push = (settingsId: string) => {
+    for (const observer of observers) {
+      observer.update({ type: "status", payload: { status: "plugin_settings_changed", pluginId: "better-paseo", settingsId } });
+    }
+  };
   const client = {
     rpc,
+    paseo: { observeEvents },
     addTimelineTransformer(contribution: { id: string; transform: Transform }) {
       const entry = { id: contribution.id, transform: contribution.transform, removed: false };
       registrations.push(entry);
@@ -56,7 +75,7 @@ function fakeClient(read: () => unknown) {
     addSlashCommand: () => () => {},
   };
   const active = (id: string) => registrations.filter((entry) => entry.id === id && !entry.removed);
-  return { client, rpc, registrations, active };
+  return { client, rpc, registrations, active, push, observers };
 }
 
 const flush = async () => {
@@ -69,12 +88,17 @@ async function load() {
   vi.resetModules();
   const { default: contribute } = await import("../../index.client");
   const preferences = await import("../../client/preferences");
-  return { contribute, preferences };
+  const slot = await import("../../client/state/preference-sync-slot");
+  // The same module instances as the plugin's: React after the reset.
+  const React = await import("react");
+  const renderer = await import("react-test-renderer");
+  return { contribute, preferences, slot, React, renderer };
 }
 
 describe("preferences read while the plugin loads", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    host.settings = { status: "loading" };
   });
 
   it("asks while contribute runs and applies the record before any row mounts", async () => {
@@ -132,6 +156,66 @@ describe("preferences read while the plugin loads", () => {
     for (const id of TRANSFORMERS) expect(plugin.active(id)).toHaveLength(1);
     cleanup();
     expect(plugin.registrations.every((entry) => entry.removed)).toBe(true);
+  });
+
+  it("turns the chat back on from another client after the settings page closed", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const { contribute, preferences, slot, React, renderer } = await load();
+    const off = { status: "ready", revision: "r1", values: { chatEnabled: false } };
+    const on = { status: "ready", revision: "r2", values: { chatEnabled: true } };
+    let record: unknown = off;
+    const plugin = fakeClient(() => Promise.resolve(record));
+    const cleanup = contribute(plugin.client as never);
+    await flush();
+    for (const id of TRANSFORMERS) expect(plugin.active(id)).toEqual([]);
+
+    // The settings page opens and closes: the last settings hook unmounts.
+    const reload = vi.fn(() => Promise.resolve());
+    host.settings = { ...off, save: vi.fn(), reset: vi.fn(), reload };
+    const Page = () => {
+      slot.usePreferenceSettings();
+      return null;
+    };
+    let page!: ReactTestRenderer;
+    await renderer.act(async () => {
+      page = renderer.create(React.createElement(Page));
+    });
+    await renderer.act(async () => page.unmount());
+    expect(reload).not.toHaveBeenCalled();
+
+    // Another client turns the chat on; no plugin row or page is mounted.
+    record = on;
+    plugin.push("tasks");
+    await flush();
+    expect(plugin.rpc).toHaveBeenCalledTimes(1);
+    plugin.push("presentation");
+    await flush();
+    expect(plugin.rpc).toHaveBeenCalledTimes(2);
+    expect(preferences.getEnhancerPreferences().chatEnabled).toBe(true);
+    for (const id of TRANSFORMERS) expect(plugin.active(id)).toHaveLength(1);
+
+    // The page opens again on the host's stale copy (r1, chat off): the hook
+    // reads it again instead of turning the chat back off.
+    let settle!: () => void;
+    reload.mockImplementation(() => new Promise<void>((resolve) => (settle = resolve)));
+    await renderer.act(async () => {
+      page = renderer.create(React.createElement(Page));
+    });
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(preferences.getEnhancerPreferences().chatEnabled).toBe(true);
+    host.settings = { ...on, save: vi.fn(), reset: vi.fn(), reload };
+    await renderer.act(async () => settle());
+    expect(preferences.getEnhancerPreferences().chatEnabled).toBe(true);
+    for (const id of TRANSFORMERS) expect(plugin.active(id)).toHaveLength(1);
+
+    // While a hook is mounted the host reads the record for it.
+    plugin.push("presentation");
+    await flush();
+    expect(plugin.rpc).toHaveBeenCalledTimes(2);
+
+    await renderer.act(async () => page.unmount());
+    cleanup();
+    expect(plugin.observers.size).toBe(0);
   });
 
   it("leaves a daemon with no record yet to the settings hook", async () => {

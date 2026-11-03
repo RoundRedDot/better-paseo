@@ -21,29 +21,92 @@ export const preferenceSync = createPreferenceSync({
 });
 setPreferencePersister((values) => preferenceSync.request(values));
 
+/** One read of the daemon's record through the settings RPC; null if unusable. */
+async function readRecord(client: Pick<PluginClientContext, "rpc">): Promise<RemoteSettings | null> {
+  const result: unknown = await client.rpc(settingsRpc(PREFERENCES_SETTINGS.id).read, {});
+  if (!result || typeof result !== "object") return null;
+  const read = result as { status?: unknown; revision?: unknown; values?: unknown; error?: unknown };
+  if (typeof read.revision !== "string") return null;
+  if (read.status === "ready") {
+    return { status: "ready", values: preferencesSchema.parse(read.values ?? {}), revision: read.revision };
+  }
+  if (read.status === "invalid") return { status: "invalid", error: String(read.error ?? ""), revision: read.revision };
+  return null;
+}
+
 /**
  * Reads the daemon's record once, from `contribute()`, so the store holds it
  * before the first row mounts the settings hook below. Without it iOS and
  * Android (no `localStorage`) project the first timeline with the defaults,
  * then re-register their transformers and project it again when a row's hook
- * answers. The same settings RPC the hook calls; the hook stays the ongoing
- * sync (saves, other clients' changes). Returns the cancel for the cleanup.
+ * answers. The same settings RPC the hook calls; the hook and
+ * `watchPreferenceChanges` stay the ongoing sync. Returns the cancel for the
+ * cleanup.
  */
 export function readPreferencesAtStartup(client: Pick<PluginClientContext, "rpc">): () => void {
   let live = true;
-  // Sent now rather than a tick later; a synchronous throw becomes a rejection.
-  new Promise((resolve) => resolve(client.rpc(settingsRpc(PREFERENCES_SETTINGS.id).read, {})))
-    .then((result) => {
-      if (!live || !result || typeof result !== "object") return;
-      const read = result as { status?: unknown; revision?: unknown; values?: unknown };
-      if (read.status !== "ready" || typeof read.revision !== "string") return;
-      preferenceSync.prime({ status: "ready", values: preferencesSchema.parse(read.values ?? {}), revision: read.revision });
+  // Sent now: an async function runs to its first await, and a synchronous throw becomes a rejection.
+  readRecord(client)
+    .then((state) => {
+      if (live && state) preferenceSync.prime(state);
     })
     .catch(() => {
       // The settings hook reads again once a row mounts.
     });
   return () => {
     live = false;
+  };
+}
+
+// The settings hooks mounted now: the leading row's and the settings page's.
+let mountedHooks = 0;
+// The daemon changed the record while no hook was mounted. The host's cached
+// copy is then stale and the host does not read it again when a hook mounts
+// (`refetchOnMount: false`), so the next hook reads it before it reports.
+let hookCacheStale = false;
+let refreshing = false;
+const refreshListeners = new Set<() => void>();
+function subscribeRefresh(listener: () => void) {
+  refreshListeners.add(listener);
+  return () => {
+    refreshListeners.delete(listener);
+  };
+}
+const isRefreshing = () => refreshing;
+
+/**
+ * Keeps the store in step with the daemon while no settings hook is mounted:
+ * with General → Enable Better Paseo chat off, no plugin row mounts the hook,
+ * and the settings page mounts it only while open. Listens for the host's
+ * `plugin_settings_changed` push, which the daemon sends to every client, and
+ * reads the record again. While a hook is mounted the host reads it for that
+ * hook. Lives for the plugin's whole load. Returns the cleanup.
+ */
+export function watchPreferenceChanges(client: Pick<PluginClientContext, "paseo" | "rpc">): () => void {
+  let live = true;
+  const observation = client.paseo.observeEvents(["status.plugin_settings_changed"]);
+  const unsubscribe = observation.subscribe({
+    snapshot() {},
+    update(message) {
+      if (message.type !== "status") return;
+      const { status, settingsId } = message.payload;
+      if (status !== "plugin_settings_changed" || settingsId !== PREFERENCES_SETTINGS.id) return;
+      if (mountedHooks > 0) return;
+      hookCacheStale = true;
+      readRecord(client).then(
+        (state) => {
+          if (live && state) preferenceSync.report(state);
+        },
+        () => {
+          // The next hook to mount reads the record (`hookCacheStale`).
+        },
+      );
+    },
+  });
+  return () => {
+    live = false;
+    unsubscribe();
+    void observation.release();
   };
 }
 
@@ -64,6 +127,23 @@ export function usePreferenceSettings(): SyncStatus {
     reset: () => latest.current.reset(),
     reload: () => latest.current.reload(),
   }).current;
+  const waiting = useSyncExternalStore(subscribeRefresh, isRefreshing, isRefreshing);
+  // Declared before the report below, so a stale cached record is never reported.
+  useEffect(() => {
+    mountedHooks++;
+    if (hookCacheStale) {
+      hookCacheStale = false;
+      refreshing = true;
+      const done = () => {
+        refreshing = false;
+        for (const listener of refreshListeners) listener();
+      };
+      void actions.reload().then(done, done);
+    }
+    return () => {
+      mountedHooks--;
+    };
+  }, []);
   const remote: RemoteSettings =
     state.status === "ready"
       ? { status: "ready", values: state.values, revision: state.revision }
@@ -75,9 +155,11 @@ export function usePreferenceSettings(): SyncStatus {
   const revision = "revision" in remote ? remote.revision : "";
   const error = "error" in remote ? remote.error : "";
   useEffect(() => {
+    // Read the flag, not `waiting`: a hook mounted in this commit may have set it.
+    if (refreshing) return;
     preferenceSync.report(remote, actions);
     // `remote` is rebuilt every render; its identity is its status and revision.
-  }, [remote.status, revision, error]);
+  }, [remote.status, revision, error, waiting]);
   return useSyncExternalStore(preferenceSync.subscribe, preferenceSync.status, preferenceSync.status);
 }
 
