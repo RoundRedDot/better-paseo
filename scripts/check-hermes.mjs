@@ -361,6 +361,15 @@ var client = new Proxy({
     if (!isComponentType(c.Component)) problems.push("Screen " + c.id + " is not a component");
     return function () {};
   },
+  // The host's PaseoApi (paseo >=0.14): contribute() watches settings pushes.
+  paseo: {
+    observeEvents: function () {
+      return {
+        subscribe: function () { return function () {}; },
+        release: function () { return Promise.resolve(); },
+      };
+    },
+  },
 }, {
   get: function (t, key) {
     if (key in t) return t[key];
