@@ -570,6 +570,7 @@ export function RoundButton(props: {
   busy?: boolean;
   quietOutline?: boolean;
   borderless?: boolean;
+  style?: StyleProp<ViewStyle>;
 }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
@@ -592,7 +593,7 @@ export function RoundButton(props: {
       {...hoverProps}
       hitSlop={pad || Platform.OS === "web" ? 0 : 4}
       testID={props.testID}
-      style={[{ width: size + 2 * pad, height: size + 2 * pad, alignItems: "center", justifyContent: "center", opacity: props.disabled ? 0.4 : 1 }, scaleStyle(lift.scale)]}
+      style={[{ width: size + 2 * pad, height: size + 2 * pad, alignItems: "center", justifyContent: "center", opacity: props.disabled ? 0.4 : 1 }, scaleStyle(lift.scale), props.style]}
     >
       <View
         style={{

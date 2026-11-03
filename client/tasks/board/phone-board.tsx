@@ -356,6 +356,7 @@ export function PhoneBoard(props: {
             icon="Archive"
             iconSize={22}
             borderless
+            style={{ marginLeft: -6 }}
             label={strings.archivedLane.row}
             selected={board.showArchived}
             slashed={!board.showArchived}
@@ -363,7 +364,7 @@ export function PhoneBoard(props: {
             onPress={() => board.setShowArchived(!board.showArchived)}
             testID="phone-archived"
           />
-          <RoundButton icon="MoreVertical" iconSize={22} borderless label={strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
+          <RoundButton icon="MoreVertical" iconSize={22} borderless style={{ marginLeft: -6 }} label={strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
         </View>
       </View>
       <PhoneSearch
