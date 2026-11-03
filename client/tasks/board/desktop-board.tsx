@@ -26,6 +26,7 @@ import { menuChrome } from "./menu-model";
 import { DetailsSidebar } from "./details-sidebar";
 import { BoardTips } from "../cards/card-hints";
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
+import { laneChurn } from "./lane-motion-plan";
 import { LaneSwap, useLaneSlide, useLaneWidth } from "./lane-resize";
 import {
   NO_SELECTION,
@@ -138,9 +139,9 @@ export function DesktopBoard(props: {
   // hides cards in every lane (the subtasks switch) held the knob for as long
   // as the new cards took to mount, or stalled it half way.
   const live = props.board;
-  // Web: the bars show a switch's new state in the frame it is pressed; the
-  // lanes and the sidebar take it in a render React can pause (`DEFER_LANES`).
-  const board = useDeferredWithin(useLaggedWhile(live, filtersOpen, FILTER_PANEL_LAG_MS), DEFER_LANES, DEFER_LANES_MAX_MS);
+  // The bars show a switch's new state in the frame it is pressed; the lanes
+  // and the sidebar take it in a later render (`DEFER_LANES_MAX_MS`).
+  const board = useDeferredWithin(useLaggedWhile(live, filtersOpen, FILTER_PANEL_LAG_MS), true, DEFER_LANES_MAX_MS);
   const scale = useTasksFontScale();
   const theme = screen.theme;
   const colors = theme.colors;
@@ -611,8 +612,14 @@ export function DesktopBoard(props: {
 
   const breathing = useBreathing(!tasks.ready && board.visible);
   const reduced = useReducedMotion();
+  // Native: after a switch that adds or hides cards in every lane (subtasks),
+  // a lane out of the row's view shows its cards as they were for a moment,
+  // so only the cards on screen mount in the switch's frame. A lane wanted in
+  // view takes the board at once. The lane motion follows what the lanes show.
+  const wantedLanes = `${inView}${focus ? `|${focus.lane}|` : ""}${flash ? `|${flash.lane}|` : ""}${highlightedLane ? `|${highlightedLane}|` : ""}`;
+  const shownLanes = useOffscreenLanes(lanes, wantedLanes, { on: OFFSCREEN_LAG, churnLimit: LANE_CHURN_LIMIT ?? 0 });
   // Filters, sort and search are the user's: lanes that change with them take their new order at once.
-  const motion = useLaneMotion(lanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: true, churnLimit: LANE_CHURN_LIMIT });
+  const motion = useLaneMotion(shownLanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: true, churnLimit: LANE_CHURN_LIMIT });
   const renderCopy = useCallback(
     (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact={false} fresh={false} copy callbacks={callbacks} />,
     [board, theme, callbacks],
@@ -727,7 +734,7 @@ export function DesktopBoard(props: {
                     {/* On touch the gap between two lanes is a blank to tap too, inside the scroll row. */}
                     {touch && index > 0 ? <LaneGap onPress={letGo} /> : null}
                     <DesktopLane
-                      lane={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.last : lanes[id]}
+                      lane={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.last : shownLanes[id]}
                       width={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.width : layout.laneWidth}
                       collapsed={collapsedState.includes(id)}
                       sizing={`${sizing}|${collapsedState.includes(id)}`}
@@ -744,7 +751,7 @@ export function DesktopBoard(props: {
                       bottomRoom={sheetRoom}
                       onBlank={touch ? letGo : undefined}
                       flash={flash?.lane === id ? flash : null}
-                      inView={inView.includes(`|${id}|`) || focus?.lane === id || flash?.lane === id || highlightedLane === id}
+                      inView={wantedLanes.includes(`|${id}|`)}
                       hidden={board.hidden[id]}
                     />
                   </React.Fragment>
@@ -803,19 +810,18 @@ export function DesktopBoard(props: {
 }
 
 /**
- * Web: a board switch (subtasks, archived, empty lanes) redraws every lane
- * and the sidebar, mounting cards by the dozen, in one 50-80 ms frame. Behind
- * `useDeferredValue` the bars still answer in the frame of the press, and the
- * lanes render in slices between frames; only the commit is one piece. Native
- * keeps its own timing (`useLaggedWhile` above, the lane motion's cover).
- */
-const DEFER_LANES = Platform.OS === "web";
-
-/**
+ * A board switch (subtasks, archived, empty lanes) redraws every lane and the
+ * sidebar, mounting cards by the dozen: one 50-80 ms frame on the web, and on
+ * an iPad some 180 ms in which even the switch's own button did not change.
+ * Behind `useDeferredValue` the bars answer in the frame of the press and the
+ * lanes follow in a render of their own (in slices between frames on the
+ * web); only the commit is one piece. The lane motion decides in that render,
+ * with the lanes it draws.
+ *
  * A deferred render starts over whenever the board changes again, and the
  * daemon can send a change every few milliseconds (git status across many
  * workspaces, streaming agents): after this long the lanes take the board at
- * once, as they would without `DEFER_LANES`.
+ * once, as they would without the deferral.
  */
 const DEFER_LANES_MAX_MS = 120;
 
@@ -872,6 +878,66 @@ export function useLaggedWhile<T>(value: T, lag: boolean, ms: number): T {
     if (timer.current) clearTimeout(timer.current);
   }, []);
   return shown.current;
+}
+
+/**
+ * Native: the subtasks switch mounts new cards in every lane, and on an iPad
+ * the ones in lanes past the row's edge cost the switch's frame as much as
+ * those on screen. Those lanes take such a change later instead, as late as
+ * one out of view draws first, after the lanes on screen have added their
+ * next cards out of view (`LANE_FILL_MS`).
+ */
+const OFFSCREEN_LAG = Platform.OS !== "web";
+
+/**
+ * `lanes`, but when more than `churnLimit` cards come or go at once (a change
+ * the lane motion shows without motion) a lane not in `wanted` (`|id|`
+ * entries) keeps the model it showed until `ms` later; then every lane behind
+ * takes the latest at once. A smaller change, which the lanes may animate
+ * between each other, reaches every lane at once. A lane that comes into
+ * `wanted` is never behind. Unchanged, the result keeps its identity.
+ */
+export function useOffscreenLanes(lanes: Record<LaneId, LaneModel>, wanted: string, options: { on: boolean; churnLimit: number; ms?: number }): Record<LaneId, LaneModel> {
+  const [, wake] = useReducer((count: number) => count + 1, 0);
+  const shown = useRef(lanes);
+  const latest = useRef(lanes);
+  // Set while lanes are behind: later changes wait for the same timer.
+  const holding = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  latest.current = lanes;
+  const was = shown.current;
+  const ms = options.ms ?? OFFSCREEN_DRAW_MS;
+  let next = lanes;
+  if (options.on && was !== lanes && (holding.current || laneChurn(was, lanes, LANE_ORDER, options.churnLimit) > options.churnLimit)) {
+    for (const id of LANE_ORDER) {
+      if (was[id] === lanes[id] || wanted.includes(`|${id}|`)) continue;
+      if (next === lanes) next = { ...lanes };
+      next[id] = was[id];
+    }
+  }
+  // The same lanes as last time keep the same record, so the lane motion sees no change.
+  if (next !== lanes && LANE_ORDER.every((id) => next[id] === was[id])) next = was;
+  shown.current = next;
+  const behind = next !== lanes;
+  holding.current = behind;
+  useEffect(() => {
+    if (!behind) {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      return;
+    }
+    if (timer.current) return;
+    timer.current = setTimeout(() => {
+      timer.current = null;
+      shown.current = latest.current;
+      holding.current = false;
+      wake();
+    }, ms);
+  });
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  return next;
 }
 
 /** The gap between two lanes on touch: a blank to tap, as the lanes' headers and empty space are. */
@@ -1270,12 +1336,13 @@ const LANE_CHURN_LIMIT = Platform.OS === "web" ? undefined : 6;
 const LANE_FILL_MS = Platform.OS === "web" ? undefined : MOTION.slideMs + MOTION.fadeDelayMs;
 
 /**
- * Web: how many cards a lane adds to its list at a time, out of view. The
- * lanes fill together, in one render: after the subtasks switch showed
- * their cards, eight a lane mounted some twenty cards no one could see yet
- * in a single frame, just as the cards' slides ended.
+ * How many cards a lane adds to its list at a time, out of view. The lanes
+ * fill together, in one render: after the subtasks switch showed their cards,
+ * eight a lane mounted some twenty cards no one could see yet in a single
+ * frame, just as the cards' slides ended (on an iPad, a 60 ms frame while
+ * the new cards faded in).
  */
-const LANE_BATCH = Platform.OS === "web" ? 4 : 8;
+const LANE_BATCH = 4;
 
 interface LaneFlash {
   lane: LaneId;
