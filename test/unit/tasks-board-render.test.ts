@@ -2,6 +2,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import "./helpers/quiet-renderer";
+import { measureHostTree } from "./helpers/yoga-host-layout";
 
 vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -3924,8 +3925,8 @@ describe("Tasks board, tablet filters", () => {
     expect(StyleSheet.flatten(hostsById("tablet-filter-popover")[0]!.props.style).right).toBeLessThanOrEqual(800 - 320 - 24);
   });
 
-  it.each([[320, 240, 14], [320, 300, 14], [800, 600, 14], [800, 900, 14], [800, 1200, 14], [1200, 900, 21]])("iPad filters drop below the toolbar within %i x %i at UI base %i", (width, height, base) => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+  it.each(["ios", "android"].flatMap((os) => ([[320, 240, 14], [320, 300, 14], [800, 600, 14], [800, 900, 14], [800, 1200, 14], [1200, 300, 14], [1200, 900, 21]] as const).map(([width, height, base]) => ({ os, width, height, base }))))("$os filters fit $width x $height at UI base $base", ({ os, width, height, base }) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
     layOut(width);
     act(() => hostsById("tasks-board-area")[0]!.props.onLayout({ nativeEvent: { layout: { width, height } } }));
@@ -3935,11 +3936,14 @@ describe("Tasks board, tablet filters", () => {
     const style = StyleSheet.flatten(panel.props.style);
     expect(style).toMatchObject({ position: "absolute", top: StyleSheet.flatten(hostsById("tablet-toolbar")[0]!.props.style).height as number + 6, right: 12 });
     expect(Number(style.width)).toBeLessThanOrEqual(width - 24);
-    expect(Number(style.maxHeight)).toBeLessThanOrEqual(height - 18);
     expect(style.width).toBe(Math.min(Math.round(320 * Math.max(1, base / 14)), width - 24));
-    expect(style.maxHeight).toBe(Math.max(0, height - 18));
-    expect(style.minHeight).toBe(Math.max(0, (height - 18) * 0.75));
-    expect(style.height).toBeUndefined();
+    expect(style.height).toBe(Math.max(0, height - 18));
+    const frames = measureHostTree(panel, { width });
+    const panelFrame = frames.get(panel)!;
+    const footerFrame = frames.get(hostsById("filter-sheet-footer")[0]!)!;
+    expect(panelFrame.height).toBe(height - 18);
+    expect(footerFrame.top + footerFrame.height).toBeLessThanOrEqual(panelFrame.top + panelFrame.height);
+    expect(frames.get(hostsById("filter-sheet-scroll")[0]!)!.height).toBeGreaterThan(0);
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
     expect(panel.props.accessibilityViewIsModal).toBeUndefined();
     expect(hostsById("toolbar-filters")[0]!.props.accessibilityState.expanded).toBe(true);
@@ -3975,8 +3979,7 @@ describe("Tasks board, tablet filters", () => {
     act(() => hostsById("filter-sheet-workspaces-toggle")[0]!.props.onPress());
     for (const height of [400, 1100, 300]) {
       act(() => hostsById("tasks-board-area")[0]!.props.onLayout({ nativeEvent: { layout: { width: 800, height } } }));
-      expect(StyleSheet.flatten(hostsById("tablet-filter-popover")[0]!.props.style).maxHeight).toBe(height - 18);
-      expect(StyleSheet.flatten(hostsById("tablet-filter-popover")[0]!.props.style).minHeight).toBe((height - 18) * 0.75);
+      expect(StyleSheet.flatten(hostsById("tablet-filter-popover")[0]!.props.style).height).toBe(height - 18);
       expect(hostsById("filter-sheet-workspaces-toggle")[0]!.props.accessibilityState.expanded).toBe(true);
       expect(hostParentOf(hostsById("filter-sheet-footer")[0]!)).toBe(hostParentOf(hostsById("filter-sheet-scroll")[0]!));
     }
