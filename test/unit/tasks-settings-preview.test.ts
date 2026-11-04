@@ -182,6 +182,19 @@ describe("Tasks board preview", () => {
     expect(previewLanes(Date.now(), "zh").done.find((card) => card.stoppedManually)!.error).not.toBe("Stopped manually");
   });
 
+  it("adds and drops the host tag in the preview as the Host switch changes", () => {
+    const standard = applyDensity(DEFAULT_TASKS_SETTINGS, "standard");
+    const r = draw({ hostId: "host-local", values: standard }, 1400);
+    const tags = () => r.root.findAll((node) => node.props.testID === "task-card-host");
+    expect(tags().length).toBeGreaterThan(0);
+    expect(textOf(r.root)).toContain("Oh My Pi");
+    draw({ hostId: "host-local", values: setCardSetting(standard, "host", false) });
+    expect(tags()).toHaveLength(0);
+    expect(textOf(r.root)).not.toContain("Oh My Pi");
+    draw({ hostId: "host-local", values: standard });
+    expect(tags().length).toBeGreaterThan(0);
+  });
+
   it("uses several long titles in the settings preview to demonstrate title line limits", () => {
     const lanes = previewLanes(0, "en");
     const longTitles = Object.values(lanes).flat().filter((card) => card.title.length >= 120);
