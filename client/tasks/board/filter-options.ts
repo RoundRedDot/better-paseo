@@ -219,11 +219,12 @@ export type ChipGroupKind = "workspace" | "label" | "agent";
 export type FilterUnit = "host" | "agent" | "project" | "workspace" | "label";
 
 /**
- * Agent, Labels, Project, Workspace. The filter bar, the sidebar's tabs,
- * the filter sheet and a card's filter menu all follow this order. A card
- * menu has no single label, so it keeps the other three in this sequence.
+ * Host, Agent, Labels, Project, Workspace. The filter bar, the sidebar's
+ * tabs, the filter sheet and a card's filter menu all follow this order. A
+ * card menu has no single label, so it keeps the other three in this
+ * sequence; a host is not a card's own property, so that menu leaves it out.
  */
-export const FILTER_GROUP_ORDER = ["agent", "label", "project", "workspace"] as const satisfies readonly FilterUnit[];
+export const FILTER_GROUP_ORDER = ["host", "agent", "label", "project", "workspace"] as const satisfies readonly FilterUnit[];
 
 /** Each unit's Lucide icon, the same in the filter buttons, folded chips, chip menus and the sidebar's groups. */
 export const FILTER_ICONS: Readonly<Record<FilterUnit, string>> = {
