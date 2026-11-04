@@ -5,7 +5,7 @@ import { connectHostDaemon } from "./tasks/provider-subagents";
 import { isNewerVersion, updateCheckRpc } from "../shared/update-check";
 
 const REGISTRY_URL = "https://plugins.paseo.sh/plugins/roundreddot/better-paseo.json";
-const RELEASES_URL = "https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/releases-v2.json";
+const RELEASES_URL = "https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/versions.json";
 const NOTES_URL = "https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main";
 const MAX_RESPONSE_BYTES = 64 * 1024;
 export const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
@@ -138,7 +138,7 @@ export function createUpdateCheck(deps = { fetchVersion: fetch, connect: connect
         const recentVersions = published ? [...new Set(releases.filter((entry) => entry.build <= published.build && !isNewerVersion(published.version, entry.version, 0, 0)).map((entry) => entry.version))]
           .sort((a, b) => isNewerVersion(a, b, 0, 0) ? 1 : isNewerVersion(b, a, 0, 0) ? -1 : 0).slice(0, 3) : [];
         const versionNotes = (await Promise.all(recentVersions.map(async (version) => {
-          const response = await deps.fetchVersion(`${NOTES_URL}/changelog-${version}.json`, { signal: AbortSignal.timeout(10_000), cache: "no-store" });
+          const response = await deps.fetchVersion(`${NOTES_URL}/changelogs/v${version}.json`, { signal: AbortSignal.timeout(10_000), cache: "no-store" });
           if (!response.ok) throw new Error("Could not read release notes.");
           return notesSchema.parse(await readJson(response)).versionNotes.filter((entry) => entry.version === version);
         }))).flat();

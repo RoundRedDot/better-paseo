@@ -43,14 +43,14 @@ describe("market update check", () => {
     const check = createUpdateCheck({ fetchVersion: fetchVersion as typeof fetch, connect });
     check("check");
     expect(await finish(check)).toMatchObject({ state: "done", matches: false, versions: { status: "available", current: "1.0.1", latest: "1.0.0" }, notes: { status: "available", releases: [{ version: "1.0.0", zh: ["修复滚动"], en: ["Fix scrolling"] }] } });
-    expect(String(fetchVersion.mock.calls[1]?.[0])).toBe("https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/releases-v2.json");
-    expect(fetchVersion.mock.calls.slice(2).map((call) => String(call[0]))).toContain("https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/changelog-1.0.0.json");
+    expect(String(fetchVersion.mock.calls[1]?.[0])).toBe("https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/versions.json");
+    expect(fetchVersion.mock.calls.slice(2).map((call) => String(call[0]))).toContain("https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/changelogs/v1.0.0.json");
     expect(fetchVersion).toHaveBeenCalledTimes(3);
   });
 
   it("keeps version mappings when the separate notes request fails", async () => {
     const connect = vi.fn(async () => ({ listPlugins: async () => plugins, close: async () => {} }) as never);
-    const fetchVersion = (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh") ? market() : String(url).endsWith("releases-v2.json")
+    const fetchVersion = (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh") ? market() : String(url).endsWith("versions.json")
       ? new Response(JSON.stringify({ releases: [{ hash: current, version: "1.2.0", build: 202611040115 }, { hash: latest, version: "1.2.0", build: 202611032055 }] }))
       : new Response("", { status: 503 })) as typeof fetch;
     const check = createUpdateCheck({ fetchVersion, connect });
@@ -60,7 +60,7 @@ describe("market update check", () => {
 
   it("selects the most recent notes snapshot at or before the market build", async () => {
     const connect = vi.fn(async () => ({ listPlugins: async () => plugins, close: async () => {} }) as never);
-    const fetchVersion = (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh") ? market() : String(url).endsWith("releases-v2.json")
+    const fetchVersion = (async (url: string | URL | Request) => String(url).includes("plugins.paseo.sh") ? market() : String(url).endsWith("versions.json")
       ? new Response(JSON.stringify({ releases: [{ hash: latest, version: "1.2.0", build: 202611032055 }] }))
       : new Response(JSON.stringify({ versionNotes: [
         { version: "1.2.0", build: 202611032000, zh: ["旧说明"], en: ["Old"] },
