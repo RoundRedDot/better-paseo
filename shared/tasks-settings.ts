@@ -240,7 +240,7 @@ export function setCardSetting<Key extends keyof CardSettings>(
 /** The card a client draws: the minimal preset on a compact layout when `mobile.compactCards` is on. */
 export function effectiveCard(settings: TasksSettings, compact: boolean): CardSettings {
   if (compact && settings.mobile.compactCards) {
-    return { ...CARD_PRESETS.minimal.fields, labelLimit: CARD_PRESETS.minimal.labelLimit };
+    return { ...CARD_PRESETS.minimal.fields, host: settings.card.host, labelLimit: CARD_PRESETS.minimal.labelLimit };
   }
   return settings.card;
 }
