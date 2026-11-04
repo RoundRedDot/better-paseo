@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { START_IDLE_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -241,14 +241,16 @@ describe("Tasks data store refresh", () => {
       return { fake, mounted, push, lanesOf };
     }
 
-    it("keeps the card in the running lane through it", async () => {
+    it("shows the card once its first turn starts, already running, and never in another lane", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
         const created = Date.now();
         await push(starting("initializing", new Date(created).toISOString()));
         await push(starting("idle", new Date(created + 1).toISOString()));
         await push(activeAgent("fresh", { status: "running", createdAt: new Date(created).toISOString(), updatedAt: new Date(created + 8).toISOString(), lastUserMessageAt: new Date(created + 8).toISOString(), activeTurn: { id: "t1", startedAt: new Date(created + 8).toISOString() } as never }));
-        expect(lanesOf).toEqual(["running", "running", "running"]);
+        // Starting up and the idle after it wait for the turn: the card first shows running.
+        expect(lanesOf).toEqual(["none", "none", "running"]);
+        expect(mounted.current.byId.get("fresh")?.status).toBe("running");
         // The held idle is dropped: nothing moves it later.
         await act(async () => {
           vi.advanceTimersByTime(START_IDLE_HOLD_MS + 100);
@@ -268,12 +270,28 @@ describe("Tasks data store refresh", () => {
         const created = Date.now();
         await push(starting("initializing", new Date(created).toISOString()));
         await push(starting("idle", new Date(created + 1).toISOString()));
-        expect(lanesOf).toEqual(["running", "running"]);
+        expect(lanesOf).toEqual(["none", "none"]);
         await act(async () => {
           vi.advanceTimersByTime(START_IDLE_HOLD_MS);
           await flush(4);
         });
         expect(mounted.current.byId.get("fresh")?.lane).toBe("done");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("shows an agent slow to start as starting up once the wait is over", async () => {
+      const { mounted, push, lanesOf } = await mountWith();
+      try {
+        await push(starting("initializing", new Date().toISOString()));
+        expect(lanesOf).toEqual(["none"]);
+        await act(async () => {
+          vi.advanceTimersByTime(START_INIT_HOLD_MS);
+          await flush(4);
+        });
+        expect(mounted.current.byId.get("fresh")).toMatchObject({ lane: "running" });
       } finally {
         vi.useRealTimers();
         mounted.unmount();

@@ -396,6 +396,14 @@ const SUBAGENT_SETTLE_MS = 1_500;
  * agent made without a prompt shows idle after it.
  */
 export const START_IDLE_HOLD_MS = 1_000;
+/**
+ * A new agent's first snapshot, `initializing`, waits this long for the next:
+ * its turn starts some 10 ms later, and the card drawn as starting up was
+ * drawn again whole as running as it came in (a second commit and text layout
+ * of the card, ~80 ms on a low-end phone, mid-entrance). A provider slow to
+ * start shows its card as starting up after the wait.
+ */
+export const START_INIT_HOLD_MS = 300;
 /** A parent off the board that this many failures bring in, at most; the rest wait for the board. */
 const SUBAGENT_PARENTS_FETCHED = 20;
 const SUBAGENT_KEY = "provider-subagents";
@@ -930,8 +938,8 @@ function createStore(api: PaseoApi): TaskStore {
   const latestUpdates = new Map<string, number>();
   /** Agents being read again by id after a stale update (`confirmAgent`). */
   const confirmChecks = new Set<string>();
-  /** A starting agent's idle, held for its first turn (`START_IDLE_HOLD_MS`). */
-  const startIdles = new Map<string, { sourceKey: string; update: AgentUpdateEnvelope; updatedAt: number; timer: ReturnType<typeof setTimeout> }>();
+  /** A starting agent's snapshot held for its first turn (`START_INIT_HOLD_MS`, `START_IDLE_HOLD_MS`). */
+  const startIdles = new Map<string, { sourceKey: string; update: AgentUpdateEnvelope; status: string; updatedAt: number; timer: ReturnType<typeof setTimeout> }>();
   /** Provider subagents by parent, as `tasks.subagents` last answered. */
   const subagentsByParent = new Map<string, ProviderSubagent[]>();
   let subagentVersion: string | undefined;
@@ -1262,13 +1270,18 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   /**
-   * An idle that only says the agent has not started its first turn yet: its
-   * card still shows it starting up, and nothing about it asks for the user.
+   * A snapshot that only says the agent has not started its first turn yet:
+   * a new agent's `initializing`, or the idle after it, with nothing that asks
+   * for the user. How long it waits for the turn, or null when it does not.
    */
-  function isStartingIdle(agent: PaseoAgent): boolean {
-    if (agent.status !== "idle" || entries.get(agent.id)?.agent.status !== "initializing") return false;
-    if (agent.lastUserMessageAt || agent.activeTurn || agent.requiresAttention || agent.lastError) return false;
-    return (agent.pendingPermissions ?? []).length === 0;
+  function startingHold(agent: PaseoAgent): number | null {
+    if (agent.lastUserMessageAt || agent.activeTurn || agent.requiresAttention || agent.lastError) return null;
+    if ((agent.pendingPermissions ?? []).length > 0) return null;
+    const shown = entries.get(agent.id)?.agent.status;
+    const held = startIdles.get(agent.id)?.status;
+    if (agent.status === "initializing") return shown === undefined ? START_INIT_HOLD_MS : null;
+    if (agent.status === "idle" && (shown ?? held) === "initializing") return START_IDLE_HOLD_MS;
+    return null;
   }
 
   function applyAgentUpdate(sourceKey: string, update: AgentUpdateEnvelope, released = false) {
@@ -1282,23 +1295,25 @@ function createStore(api: PaseoApi): TaskStore {
         confirmAgent(agent.id);
         return;
       }
+      const hold = released ? null : startingHold(agent);
       const held = startIdles.get(agent.id);
       if (held && (!released || epoch(agent.updatedAt) > held.updatedAt)) {
-        // A newer update (its first turn) replaces the held idle.
+        // A newer update (its first turn, or the idle after its start) replaces the held one.
         clearTimeout(held.timer);
         startIdles.delete(agent.id);
       }
-      if (!released && isStartingIdle(agent)) {
+      if (hold !== null) {
         const run = generation;
         startIdles.set(agent.id, {
           sourceKey,
           update,
+          status: agent.status,
           updatedAt: epoch(agent.updatedAt),
           timer: setTimeout(() => {
             if (run !== generation || startIdles.get(agent.id)?.update !== update) return;
             startIdles.delete(agent.id);
             batchUpdates(() => applyAgentUpdate(sourceKey, update, true));
-          }, START_IDLE_HOLD_MS),
+          }, hold),
         });
         return;
       }
@@ -1339,7 +1354,7 @@ function createStore(api: PaseoApi): TaskStore {
     void api.agents.ref(id).refresh().then((result) => {
       if (run !== generation || memberSetsContaining(id).length > 0) return;
       // Still starting: the held idle decides, after its wait.
-      if (result && startIdles.has(id) && isStartingIdle(result.agent)) return;
+      if (result && startIdles.has(id) && startingHold(result.agent) !== null) return;
       if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) {
         dropIfUnreferenced(id);
         return;
