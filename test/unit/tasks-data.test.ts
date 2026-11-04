@@ -1027,6 +1027,42 @@ describe("Tasks data store", () => {
     expect(filterLanes(unlisted, filters).running.cards.map((card) => card.id)).toEqual(["child-running"]);
   });
 
+  it("keeps the board quiet for a workspace update that changes nothing it shows, and keeps its workspace options", async () => {
+    const fake = createFakePaseo({ agents: [activeAgent("in-ws", { status: "running" })], workspaces: [workspace()] });
+    const mounted = await mountTasks(fake, "24h");
+    const flush = async () => { for (let index = 0; index < 8; index += 1) await Promise.resolve(); };
+    try {
+      const before = mounted.current;
+      const count = async (change: () => void) => {
+        storeNotificationProbe.count = 0;
+        storeNotificationProbe.enabled = true;
+        try {
+          await act(async () => { change(); await flush(); });
+        } finally {
+          storeNotificationProbe.enabled = false;
+        }
+        return storeNotificationProbe.count;
+      };
+      // An agent in it starts: the daemon sends the workspace's new activity, which no card or list shows.
+      expect(await count(() => fake.upsertWorkspace({ ...workspace(), status: "running", statusEnteredAt: recentIso(0), activityAt: recentIso(0) } as never))).toBe(0);
+      expect(mounted.current).toBe(before);
+      // An agent update draws a new snapshot, with the same workspace options.
+      await act(async () => { fake.upsertAgent(activeAgent("in-ws", { status: "running", title: "Renamed task", updatedAt: recentIso(0) })); await flush(); });
+      expect(mounted.current).not.toBe(before);
+      expect(mounted.current.workspaces).toBe(before.workspaces);
+      // A renamed workspace is news: its option changes, and its card's workspace with it.
+      expect(await count(() => fake.upsertWorkspace({ ...workspace(), title: "Renamed workspace" } as never))).toBeGreaterThan(0);
+      expect(mounted.current.workspaces).not.toBe(before.workspaces);
+      expect(mounted.current.workspaces.map((option) => option.name)).toEqual(["Renamed workspace"]);
+      // A branch switch reaches the card even though the workspace's options stay.
+      const options = mounted.current.workspaces;
+      expect(await count(() => fake.upsertWorkspace({ ...workspace(), title: "Renamed workspace", gitRuntime: { currentBranch: "feature", isDirty: false, aheadBehind: { ahead: 0, behind: 0 } } } as never))).toBeGreaterThan(0);
+      expect(mounted.current.workspaces).toBe(options);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("notifies store listeners once for a multi-agent subscription snapshot", async () => {
     const agents = Array.from({ length: 120 }, (_, index) => activeAgent(`snapshot-${index}`, { status: "running" }));
     const fake = createFakePaseo({ agents });

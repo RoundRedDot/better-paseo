@@ -276,9 +276,59 @@ function parentIdOf(agent: PaseoAgent): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+/** What the board reads of a workspace besides its cards: the filter's option, labels, and whether its cards show. */
+function boardShapeOf(workspace: PaseoWorkspace): string {
+  return JSON.stringify([
+    workspace.title ?? null,
+    workspace.name,
+    workspace.projectId,
+    workspace.projectCustomName ?? null,
+    workspace.projectDisplayName ?? null,
+    workspace.workspaceDirectory ?? null,
+    workspace.projectRootPath ?? null,
+    workspace.labels ?? null,
+    Boolean(workspace.background),
+    workspace.archivingAt ?? null,
+  ]);
+}
+
+function sameWorkspaceOptions(sorted: readonly WorkspaceOption[], next: readonly WorkspaceOption[]): boolean {
+  if (sorted.length !== next.length) return false;
+  const byId = new Map(sorted.map((option) => [option.id, option]));
+  return next.every((option) => {
+    const known = byId.get(option.id);
+    return known !== undefined &&
+      known.name === option.name &&
+      known.projectId === option.projectId &&
+      known.projectName === option.projectName &&
+      known.projectKey === option.projectKey &&
+      known.projectIcon === option.projectIcon &&
+      known.folder === option.folder &&
+      known.projectPath === option.projectPath;
+  });
+}
+
+/**
+ * Text order for the store's lists: one `Intl.Collator` for every comparison.
+ * On Android, Hermes answers each `localeCompare` from the platform's collator
+ * anew: sorting some 160 workspaces that way took 50-86 ms of a low-end
+ * phone's JS thread on every board update. Same order as `localeCompare`.
+ */
+const compareText: (left: string, right: string) => number = (() => {
+  const Collator = (globalThis as { Intl?: { Collator?: new () => { compare(left: string, right: string): number } } }).Intl?.Collator;
+  if (typeof Collator === "function") {
+    try {
+      return new Collator().compare;
+    } catch {
+      // No usable collator: fall through.
+    }
+  }
+  return (left, right) => left.localeCompare(right);
+})();
+
 function taskLabels(workspace: PaseoWorkspace | undefined, colorNames: ReadonlyMap<string, string>): TaskLabel[] {
   return [...new Set(workspace?.labels ?? [])]
-    .sort((a, b) => a.localeCompare(b))
+    .sort(compareText)
     .map((name) => ({ name, color: colorNames.get(name) ?? fallbackLabelColor(name) }));
 }
 
@@ -1014,11 +1064,13 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   /** A card, its parent's list of children, and its children's parent row. */
-  function refreshWithKin(id: string) {
-    refreshFinalCard(id);
+  /** Whether any of the cards changed. */
+  function refreshWithKin(id: string): boolean {
+    let changed = refreshFinalCard(id);
     const parentId = parentByChild.get(id);
-    if (parentId) refreshFinalCard(parentId);
-    for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
+    if (parentId && refreshFinalCard(parentId)) changed = true;
+    for (const childId of childrenByParent.get(id) ?? []) if (refreshFinalCard(childId)) changed = true;
+    return changed;
   }
 
   function refreshFinalCard(id: string): boolean {
@@ -1080,7 +1132,7 @@ function createStore(api: PaseoApi): TaskStore {
                 : null;
             })
             .filter((child): child is TaskChild => child !== null)
-            .sort((left, right) => left.title.localeCompare(right.title))
+            .sort((left, right) => compareText(left.title, right.title))
         : [],
     }, subagentsByParent.get(id)), readMarks.get(id), latestFailure(id))), archivedKind);
     const previous = cards.get(id);
@@ -1598,6 +1650,7 @@ function createStore(api: PaseoApi): TaskStore {
       void loader(ids.slice(start, start + LAST_TURN_BATCH)).then((turns) => {
         if (run !== generation) return;
         batchUpdates(() => {
+          let changed = false;
           for (const turn of turns) {
             const knownError = turnErrors.get(turn.agentId);
             const errorChanged = turn.error
@@ -1613,11 +1666,12 @@ function createStore(api: PaseoApi): TaskStore {
             const newer = !known || known.endedAt < turn.endedAt;
             if (newer) lastTurns.set(turn.agentId, { startedAt: turn.startedAt ?? null, endedAt: turn.endedAt });
             if (!newer && !errorChanged && !costChanged) continue;
-            refreshFinalCard(turn.agentId);
+            if (refreshFinalCard(turn.agentId)) changed = true;
             const parent = parentByChild.get(turn.agentId);
-            if (parent) refreshFinalCard(parent);
+            if (parent && refreshFinalCard(parent)) changed = true;
           }
-          notify();
+          // A reply that changes no card (the turns the board already drew) redraws nothing.
+          if (changed) notify();
         });
       }).catch(() => {
         // An older server without `turns.last`, or a failed read: the cards say "—".
@@ -1836,18 +1890,26 @@ function createStore(api: PaseoApi): TaskStore {
     }
   }
 
+  /**
+   * A workspace's new state. The daemon sends one whenever a workspace's
+   * activity changes (an agent in it starts or stops), mostly with nothing a
+   * card or the board's lists show: the board hears of it only when a card or
+   * what the board reads of a workspace changed.
+   */
   function updateWorkspace(workspace: PaseoWorkspace) {
+    const previous = workspaces.get(workspace.id);
     workspaces.set(workspace.id, workspace);
     if (workspace.archivingAt) workspaceArchiveTimes.set(workspace.id, workspace.archivingAt);
     else workspaceArchiveTimes.delete(workspace.id);
+    let changed = !previous || boardShapeOf(previous) !== boardShapeOf(workspace);
     for (const [id, entry] of entries) {
       if (entry.agent.workspaceId !== workspace.id) continue;
       const project = projects.get(workspace.projectId);
       const base = buildBaseCard(entry, workspace, project, colorNames, modelCatalogs.get(entry.agent.provider), projectIcons.get(workspace.projectId));
       baseCards.set(id, base);
-      refreshWithKin(id);
+      if (refreshWithKin(id)) changed = true;
     }
-    notify();
+    if (changed) notify();
   }
 
   /**
@@ -2303,7 +2365,20 @@ function createStore(api: PaseoApi): TaskStore {
     notify();
   }
 
+  /**
+   * The workspace filter's options, the same array while none of them
+   * changed: an agent update leaves the workspaces as they were, and sorting
+   * them again on every snapshot was most of a snapshot's cost on a phone.
+   */
+  let workspaceOptions: WorkspaceOption[] = [];
   function upsertWorkspacesOptions(): WorkspaceOption[] {
+    const next = buildWorkspaceOptions();
+    if (sameWorkspaceOptions(workspaceOptions, next)) return workspaceOptions;
+    workspaceOptions = next.sort((a, b) => compareText(a.projectName, b.projectName) || compareText(a.name, b.name));
+    return workspaceOptions;
+  }
+
+  function buildWorkspaceOptions(): WorkspaceOption[] {
     return [...workspaces.values()]
       .filter((workspace) => !workspace.background && !workspace.archivingAt)
       .map((workspace) => {
@@ -2319,8 +2394,7 @@ function createStore(api: PaseoApi): TaskStore {
           folder: typeof workspace.workspaceDirectory === "string" ? pathTail(workspace.workspaceDirectory) : null,
           projectPath: project?.projectRootPath || workspace.projectRootPath || null,
         };
-      })
-      .sort((a, b) => a.projectName.localeCompare(b.projectName) || a.name.localeCompare(b.name));
+      });
   }
 
   /**
@@ -2405,8 +2479,8 @@ function createStore(api: PaseoApi): TaskStore {
       counts,
       byId,
       workspaces: upsertWorkspacesOptions(),
-      providers: [...providersById].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label)),
-      labels: [...labelsByName.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      providers: [...providersById].map(([id, label]) => ({ id, label })).sort((a, b) => compareText(a.label, b.label)),
+      labels: [...labelsByName.values()].sort((a, b) => compareText(a.name, b.name)),
       ready: statusReady && attentionReady && workspacesReady,
       error,
       refresh,
