@@ -43,9 +43,10 @@ async function fixture() {
   const listModels = vi.fn(async (_provider: string) => ({ error: null as string | null, models: [
     { id: "claude-haiku-5-5", thinkingOptions: [{ id: "off", label: "Off" }, { id: "high", label: "High" }] },
   ] }));
-  const refreshWorkspace = vi.fn(async (): Promise<{ projectId: string } | null> => ({ projectId: "source-project" }));
+  const refreshWorkspace = vi.fn(async (): Promise<{ projectId: string; name: string } | null> => ({ projectId: "source-project", name: "Other workspace" }));
+  const setTitle = vi.fn(async (_title: string) => ({ title: _title }));
   const snapshot = vi.fn(async () => ({ entries: [{ provider: "codex", enabled: true, status: "ready" }, { provider: "claude", enabled: true, status: "ready" }] }));
-  const api = { providers: { listModels, snapshot }, agents: { ref: vi.fn(() => ({ refresh, timeline: { refetch: timeline } })) }, workspaces: { create: workspace, ref: () => ({ refresh: refreshWorkspace }) } } as unknown as PaseoApi;
+  const api = { providers: { listModels, snapshot }, agents: { ref: vi.fn(() => ({ refresh, timeline: { refetch: timeline } })) }, workspaces: { create: workspace, ref: () => ({ refresh: refreshWorkspace, setTitle }) } } as unknown as PaseoApi;
   const values = titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "claude", model: "claude-haiku-5-5", prompt: "Use an actionable title" });
   const read = vi.fn(async () => ({ status: "ready" as const, revision: "1", values }));
   const rename = vi.fn(async () => ({ ok: true, error: null as string | null }));
@@ -56,7 +57,7 @@ async function fixture() {
   const state = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "status", mode }, api);
   const start = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "start", mode }, api);
   const settle = async (mode: "apply" | "preview" = "apply") => { await expect.poll(() => state(mode).state).not.toBe("running"); return state(mode); };
-  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, refreshWorkspace, timeline, listModels, snapshot, values, read, rename, canRename, deleteHelper, delay, state, start, settle };
+  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, refreshWorkspace, setTitle, timeline, listModels, snapshot, values, read, rename, canRename, deleteHelper, delay, state, start, settle };
 }
 
 describe("background title generation", () => {
@@ -632,6 +633,35 @@ describe("title when the first message starts", () => {
     expect(await f.started()).toBe(true);
     expect(await f.settle()).toMatchObject({ state: "done" });
     expect(f.run.mock.calls[0]![0]).toContain("Prefer Chinese, the user's interface language.");
+  });
+
+  it("updates the workspace only when its current name matches the original task title", async () => {
+    const f = await first();
+    f.refreshWorkspace.mockResolvedValue({ projectId: "source-project", name: "Fix the card title" });
+    expect(await f.started()).toBe(true);
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.setTitle).toHaveBeenCalledExactlyOnceWith("Updated 中文 title");
+    expect(f.rename.mock.invocationCallOrder[0]).toBeLessThan(f.setTitle.mock.invocationCallOrder[0]!);
+  });
+
+  it("keeps a different workspace name and does not sync manual title generation", async () => {
+    const f = await first();
+    expect(await f.started()).toBe(true);
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.setTitle).not.toHaveBeenCalled();
+    f.refreshWorkspace.mockResolvedValue({ projectId: "source-project", name: "Fix the card title" });
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(f.setTitle).not.toHaveBeenCalled();
+  });
+
+  it("does not update the workspace if the task rename fails", async () => {
+    const f = await first();
+    f.refreshWorkspace.mockResolvedValue({ projectId: "source-project", name: "Fix the card title" });
+    f.rename.mockResolvedValue({ ok: false, error: "Rename failed" });
+    expect(await f.started()).toBe(true);
+    expect(await f.settle()).toEqual({ state: "error", error: "Rename failed" });
+    expect(f.setTitle).not.toHaveBeenCalled();
   });
 
   it.each(["Fix the card title", "", null])("starts without waiting for an assistant reply (%j)", async (title) => {
