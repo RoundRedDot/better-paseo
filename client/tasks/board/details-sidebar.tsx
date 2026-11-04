@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { useHosts, type PluginHostSummary } from "@getpaseo/plugin/client";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import { tipProps } from "../cards/card-hints";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
@@ -16,6 +17,7 @@ import { useFirstPrompt } from "../data/first-prompt";
 import { lastHumanMessageVersion, useLastHumanMessage } from "../data/last-human-message";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
+import { DEFAULT_LOCAL_LABEL } from "../data/multi-host";
 import { useSubagentTimeline } from "../data/subagent-timeline";
 import { FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption, type ShownFilterOptions } from "./filter-options";
 import { RollingCount, RollingTotal } from "./board-parts";
@@ -29,8 +31,8 @@ import { cardStrings } from "../cards/strings";
 import { parentOpensInPaseo } from "../model";
 import { useTitleUpdateState } from "../actions/title-update";
 
-type GroupKind = "agent" | "project" | "workspace" | "label";
-const GROUP_KINDS: readonly GroupKind[] = ["agent", "project", "workspace", "label"];
+type GroupKind = "host" | "agent" | "project" | "workspace" | "label";
+const GROUP_KINDS: readonly GroupKind[] = ["host", "agent", "project", "workspace", "label"];
 
 export interface DetailsSidebarProps {
   board: BoardController;
@@ -508,26 +510,57 @@ interface GroupRow {
 }
 
 /**
- * With no card chosen: Agent, Project, Workspace and Label counts (every
- * loaded card, including done and archived), a row a filter; those at 0 too
- * while `board.showEmptyGroups` is on.
+ * With no card chosen: Host, Agent, Project, Workspace and Label counts
+ * (every loaded card, including done and archived), a row a filter; those at
+ * 0 too while `board.showEmptyGroups` is on.
  */
 function GroupCard(props: { board: BoardController; options: ShownFilterOptions; theme: PluginTheme; tokens: TaskTokens; touch: boolean }) {
   const { board, options, tokens } = props;
   const strings = board.strings.sidebar;
   const scale = useTasksFontScale();
+  // Hosts come live from the app; until one is listed, the board's own host stands in.
+  const hosts = useHosts();
   const [labelFits, setLabelFits] = useState<Partial<Record<GroupKind, { key: string; fits: boolean }>>>({});
   const reportFit = useCallback((id: GroupKind, key: string, fits: boolean) => {
     setLabelFits((previous) => previous[id]?.key === key && previous[id]?.fits === fits ? previous : { ...previous, [id]: { key, fits } });
   }, []);
-  // All four labels appear together, only after every current measurement fits.
+  // All five labels appear together, only after every current measurement fits.
   const showLabels = GROUP_KINDS.every((id) => labelFits[id]?.key === `${strings.groups[id]}|${scale}` && labelFits[id]?.fits);
   const [kind, setKind] = useState<GroupKind>("agent");
-  const [queries, setQueries] = useState<Record<GroupKind, string>>({ agent: "", project: "", workspace: "", label: "" });
+  const [queries, setQueries] = useState<Record<GroupKind, string>>({ host: "", agent: "", project: "", workspace: "", label: "" });
   const [searchFocused, setSearchFocused] = useState(false);
   const query = queries[kind];
   const rows = useMemo<GroupRow[]>(() => {
     const byCount = (a: { count: number }, b: { count: number }) => b.count - a.count;
+    if (kind === "host") {
+      const hostCounts = new Map<string, number>();
+      for (const card of board.tasks.byId.values()) {
+        if (card.hostId) hostCounts.set(card.hostId, (hostCounts.get(card.hostId) ?? 0) + 1);
+      }
+      // The local host stands in until `useHosts` lists one; the row that clears the filter holds `board.total`.
+      const known: readonly PluginHostSummary[] = hosts.length
+        ? hosts
+        : [{ serverId: board.hostId, label: DEFAULT_LOCAL_LABEL, status: "online" }];
+      const picked = new Set(board.params.hostIds);
+      const allHosts: GroupRow = {
+        id: "all-hosts",
+        label: board.strings.allHosts,
+        count: board.total,
+        on: board.params.hostIds.length === 0,
+        lead: <Icon name={FILTER_ICONS.host} size={16} color={tokens.foregroundMuted} />,
+        toggle: () => board.setParams((params) => ({ ...params, hostIds: [] })),
+      };
+      const hostRows: GroupRow[] = known.map((host) => ({
+        id: host.serverId,
+        label: host.label,
+        count: hostCounts.get(host.serverId) ?? 0,
+        on: picked.has(host.serverId),
+        detail: host.status !== "online" ? host.status : undefined,
+        lead: <Icon name={FILTER_ICONS.host} size={16} color={host.status === "online" ? tokens.status.success : tokens.foregroundMuted} />,
+        toggle: () => board.setParams((params) => ({ ...params, hostIds: toggleItem(params.hostIds, host.serverId) })),
+      }));
+      return [allHosts, ...(showEmpty ? hostRows : hostRows.filter((row) => row.count > 0 || row.on))];
+    }
     if (kind === "agent") {
       return [...options.agents]
         .sort(byCount)
@@ -568,7 +601,7 @@ function GroupCard(props: { board: BoardController; options: ShownFilterOptions;
         toggle: () => board.setParams((params) => toggleProject(params, project)),
       }))
       .sort(byCount);
-  }, [kind, options, board, tokens]);
+  }, [kind, options, board, tokens, hosts, showEmpty]);
   const words = searchWords(query);
   const visibleRows = rows.filter((row) => matchesSearch([row.label, row.detail], words));
   useRequestProjectIcons([...new Set(rows.flatMap((row) => (row.iconFor ? [row.iconFor] : [])))], board.tasks.requestProjectIcon);
@@ -628,8 +661,8 @@ const SEGMENT_GAP = 6;
 const SEGMENT_ROW_PAD = 10;
 
 /**
- * The group tabs' row. It alone is measured: the four tabs share it equally
- * (`flexBasis` 0), so a resize lays out one node instead of four, and only
+ * The group tabs' row. It alone is measured: the five tabs share it equally
+ * (`flexBasis` 0), so a resize lays out one node instead of five, and only
  * this row and its tabs draw again, not the group list under it.
  */
 function SegmentRow(props: {
