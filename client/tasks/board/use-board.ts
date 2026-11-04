@@ -404,7 +404,11 @@ export function useBoard(
     setFullConversationSearchState(on);
     latest.current.toast.show(latest.current.strings.fullConversationToast(on));
   }, []);
-  const write = useCallback((agentId: string, operation: TaskOperation, action: () => void) => {
+  const write = useCallback((agentId: string, operation: TaskOperation, action: () => void, targetHostId?: string) => {
+    if (targetHostId && targetHostId !== hostId) {
+      action();
+      return;
+    }
     const current = latest.current;
     void current.availability.check(agentId, operation).then((issue) => {
       if (latest.current.paseo !== current.paseo) return;
@@ -414,7 +418,7 @@ export function useBoard(
       }
       action();
     });
-  }, []);
+  }, [hostId]);
   const setLaneWidth = useCallback((width: LaneWidth) => {
     void updateDevice({ laneWidth: width }).catch(() => latest.current.toast.error(latest.current.strings.laneWidth.saveFailed));
   }, [updateDevice]);
@@ -511,7 +515,7 @@ export function useBoard(
           void respondToPermission(target, card.id, button, requestId).catch((error: unknown) =>
             latest.current.toast.error(latest.current.strings.answerFailed(errorText(error))),
           );
-        });
+        }, card.hostId);
       },
       onDetails: (card) => handlers.current?.details(card),
       onFilter: (card, by) => setParams((current) => filterToCard(current, card, latest.current.tasks.workspaces, by)),
