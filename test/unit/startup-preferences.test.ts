@@ -130,6 +130,79 @@ describe("preferences read while the plugin loads", () => {
     expect(plugin.registrations.every((entry) => entry.removed)).toBe(true);
   });
 
+  it("leaves local file replies native while enhancing other replies", async () => {
+    const { contribute, preferences } = await load();
+    preferences.updateEnhancerPreferences({ fileOpeningMode: "paseo" });
+    const plugin = fakeClient(() => new Promise(() => {}));
+    const cleanup = contribute(plugin.client as never);
+    const [assistant] = plugin.active("omp-enhanced-assistant");
+    for (const phase of ["streaming", "complete"]) {
+      for (const text of ["[Design](docs/WORKFLOW-draft7.md)", "Read `src/main.ts`.",
+        "![Image](file:///tmp/screenshot.png)"]) {
+        expect(assistant!.transform({ item: { type: "assistant_message", text }, phase })).toBeUndefined();
+      }
+      const text = "[Docs](https://example.com/notes.md)";
+      expect(assistant!.transform({ item: { type: "assistant_message", text }, phase }))
+        .toMatchObject({ items: [{ kind: "omp-assistant", data: { text } }] });
+    }
+    cleanup();
+  });
+
+  it("checks imported history prose without treating tool output as links", async () => {
+    const { contribute, preferences } = await load();
+    const plugin = fakeClient(() => new Promise(() => {}));
+    const cleanup = contribute(plugin.client as never);
+    const tool = "[external_agent_tool_result]\nRead `src/main.ts` and [file](LICENSE)\n[/external_agent_tool_result]\n";
+    const transform = (text: string) => plugin.active("omp-enhanced-assistant")[0]!.transform({
+      item: { type: "assistant_message", text, messageId: "imported-1" }, phase: "complete",
+    });
+    expect(transform(tool)).toMatchObject({ items: [{ kind: "omp-tool-call" }] });
+    expect(transform(tool + "Done. [Docs](https://example.com/notes.md)")).toMatchObject({
+      items: [{ kind: "omp-tool-call" }, { kind: "omp-assistant" }],
+    });
+    expect(transform(tool + "Read [License](LICENSE)")).toMatchObject({
+      items: [{ kind: "omp-tool-call" }, { kind: "omp-assistant" }],
+    });
+    preferences.updateEnhancerPreferences({ fileOpeningMode: "paseo" });
+    expect(transform(tool)).toMatchObject({ items: [{ kind: "omp-tool-call" }] });
+    // Native/plugin rows cannot be mixed: a real prose file link hands the
+    // complete original item (including imported markers) to the host.
+    expect(transform(tool + "Read [License](LICENSE)")).toBeUndefined();
+    expect(transform("Read `src/main.ts`.\n" + tool)).toBeUndefined();
+    cleanup();
+  });
+
+  it("reprojects stored file-opening choices and cleans up both preference subscriptions", async () => {
+    const { contribute, preferences } = await load();
+    let answer!: (value: unknown) => void;
+    const plugin = fakeClient(() => new Promise((resolve) => (answer = resolve)));
+    const cleanup = contribute(plugin.client as never);
+    const input = { item: { type: "assistant_message", text: "[Design](docs/WORKFLOW-draft7.md)" }, phase: "complete" };
+    const active = () => plugin.active("omp-enhanced-assistant");
+    const first = active()[0]!;
+    expect(preferences.getEnhancerPreferences().fileOpeningMode).toBe("better-paseo");
+    expect(first.transform(input)).toBeDefined();
+    answer({ status: "ready", revision: "r1", values: { fileOpeningMode: "paseo" } });
+    await flush();
+    expect(first.removed).toBe(true);
+    expect(active()).toHaveLength(1);
+    expect(active()[0]!.transform(input)).toBeUndefined();
+
+    preferences.updateEnhancerPreferences({ fileOpeningMode: "better-paseo" });
+    expect(active()).toHaveLength(1);
+    expect(active()[0]!.transform(input)).toMatchObject({ items: [{ data: { text: input.item.text } }] });
+    preferences.updateEnhancerPreferences({ assistantMarkdown: false });
+    preferences.updateEnhancerPreferences({ fileOpeningMode: "paseo" });
+    expect(active()).toHaveLength(1);
+    expect(active()[0]!.transform({ ...input, item: { ...input.item, text: "Ordinary prose" } })).toBeUndefined();
+
+    cleanup();
+    expect(plugin.registrations.every((entry) => entry.removed)).toBe(true);
+    const count = plugin.registrations.length;
+    preferences.updateEnhancerPreferences({ fileOpeningMode: "better-paseo", assistantMarkdown: true });
+    expect(plugin.registrations).toHaveLength(count);
+  });
+
   it("registers nothing again when the record matches the defaults", async () => {
     const { contribute, preferences } = await load();
     const plugin = fakeClient(() =>

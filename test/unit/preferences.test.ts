@@ -34,6 +34,15 @@ const V1 = {
 };
 
 describe("preferences v2 defaults", () => {
+  it("defaults old or unknown file-opening choices to Better Paseo", () => {
+    expect(DEFAULT_PREFERENCES.fileOpeningMode).toBe("better-paseo");
+    const { fileOpeningMode: _mode, ...older } = storedPart(DEFAULT_PREFERENCES);
+    expect(parsePreferences(older).fileOpeningMode).toBe("better-paseo");
+    for (const fileOpeningMode of [undefined, null, "unknown", 1]) {
+      expect(preferencesSchema.parse({ fileOpeningMode }).fileOpeningMode).toBe("better-paseo");
+    }
+    expect(parsePreferences({ fileOpeningMode: "paseo" }).fileOpeningMode).toBe("paseo");
+  });
   it("enables hover previews for old records and preserves an explicit opt-out", () => {
     expect(DEFAULT_PREFERENCES.hoverPreview).toBe(true);
     const { hoverPreview: _hover, ...older } = storedPart(DEFAULT_PREFERENCES);
@@ -287,6 +296,19 @@ describe("daemon-backed store (S5 fix round 1)", () => {
     expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ detailsFontSize: 18 }));
     mod.resetEnhancerPreferences();
     expect(mod.getEnhancerPreferences().detailsFontSize).toBe(14);
+  });
+  it("persists the file-opening mode, applies host changes and resets the default", async () => {
+    const { mod, local } = await freshModule();
+    const persist = vi.fn();
+    mod.setPreferencePersister(persist);
+    mod.updateEnhancerPreferences({ fileOpeningMode: "paseo" });
+    expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ fileOpeningMode: "paseo" }));
+    expect(readStoredPreferences(local).fileOpeningMode).toBe("paseo");
+    mod.applyStoredPreferences({ ...storedPart(DEFAULT_PREFERENCES), fileOpeningMode: "better-paseo" });
+    expect(mod.getEnhancerPreferences().fileOpeningMode).toBe("better-paseo");
+    mod.updateEnhancerPreferences({ fileOpeningMode: "paseo" });
+    mod.resetEnhancerPreferences();
+    expect(mod.getEnhancerPreferences().fileOpeningMode).toBe("better-paseo");
   });
   it("persists the hover choice to the daemon and reloads it from the cache", async () => {
     const { mod, local } = await freshModule();
