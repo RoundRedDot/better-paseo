@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
-import type { PaseoAgentRefetchResult, PaseoApi, PaseoProviderModelsResult } from "@getpaseo/client";
+import type { PaseoAgentRefetchResult, PaseoApi, PaseoProviderModelsResult, PaseoWorkspace } from "@getpaseo/client";
 import type { PluginSettings } from "@getpaseo/plugin/server";
 import { type TaskAvailability, type TaskIssue, unavailableTask } from "../../shared/task-availability";
 import { titleGenerationSettingsSchema } from "../../shared/title-generation";
@@ -23,16 +23,48 @@ export function taskIssueError(issue: TaskIssue): string {
   return `Task operation unavailable (${issue.code})${issue.detail ? `: ${issue.detail}` : "."}`;
 }
 
-/** Metadata and filesystem checks do not load a provider session or read its timeline. */
-export async function taskUpdateState(source: PaseoAgentRefetchResult | null, paseo: PaseoApi): Promise<{ issue: TaskIssue | null; archivedWorkspaceId: string | null }> {
-  if (!source) return { issue: { code: "agent_missing", detail: null }, archivedWorkspaceId: null };
+type TaskUpdateState = { issue: TaskIssue | null; archivedWorkspaceId: string | null };
+
+/** Everything but the workspace record; `workspaceId` is set when that record still has to be read. */
+async function taskPlacementState(source: PaseoAgentRefetchResult | null): Promise<TaskUpdateState & { workspaceId: string | null }> {
+  if (!source) return { issue: { code: "agent_missing", detail: null }, archivedWorkspaceId: null, workspaceId: null };
   const directory = await taskDirectoryIssue(source.agent.cwd);
-  if (directory) return { issue: directory, archivedWorkspaceId: null };
-  if (!source.agent.workspaceId) return { issue: { code: "workspace_unavailable", detail: null }, archivedWorkspaceId: null };
-  const workspace = await paseo.workspaces.ref(source.agent.workspaceId).refresh();
-  if (!workspace) return { issue: { code: "workspace_unavailable", detail: source.agent.cwd }, archivedWorkspaceId: source.agent.workspaceId };
-  if (workspace.archivingAt) return { issue: { code: "workspace_unavailable", detail: source.agent.cwd }, archivedWorkspaceId: null };
+  if (directory) return { issue: directory, archivedWorkspaceId: null, workspaceId: null };
+  if (!source.agent.workspaceId) return { issue: { code: "workspace_unavailable", detail: null }, archivedWorkspaceId: null, workspaceId: null };
+  return { issue: null, archivedWorkspaceId: null, workspaceId: source.agent.workspaceId };
+}
+
+function workspaceState(cwd: string, workspaceId: string, workspace: PaseoWorkspace | null): TaskUpdateState {
+  if (!workspace) return { issue: { code: "workspace_unavailable", detail: cwd }, archivedWorkspaceId: workspaceId };
+  if (workspace.archivingAt) return { issue: { code: "workspace_unavailable", detail: cwd }, archivedWorkspaceId: null };
   return { issue: null, archivedWorkspaceId: null };
+}
+
+/** Metadata and filesystem checks do not load a provider session or read its timeline. */
+export async function taskUpdateState(source: PaseoAgentRefetchResult | null, paseo: PaseoApi): Promise<TaskUpdateState> {
+  const { workspaceId, ...state } = await taskPlacementState(source);
+  if (!workspaceId) return state;
+  return workspaceState(source!.agent.cwd, workspaceId, await paseo.workspaces.ref(workspaceId).refresh());
+}
+
+/**
+ * The workspaces of `ids`, read the way `workspaces.ref(id).refresh()` reads
+ * one: pages of 200, background included, stopping once every id has turned
+ * up, and to the last page while one has not. An id on none of the pages is
+ * the SDK's null, so a miss here needs no second read. The daemon rebuilds the
+ * whole directory for each page, so one scan per batch replaces one per card.
+ */
+async function listTaskWorkspaces(paseo: PaseoApi, ids: ReadonlySet<string>): Promise<ReadonlyMap<string, PaseoWorkspace>> {
+  const workspaces = new Map<string, PaseoWorkspace>();
+  const remaining = new Set(ids);
+  let cursor: string | undefined;
+  while (remaining.size > 0) {
+    const page = await paseo.workspaces.list({ filter: { includeBackground: true }, page: { limit: 200, ...(cursor ? { cursor } : {}) } });
+    for (const entry of page.entries) if (remaining.delete(entry.id)) workspaces.set(entry.id, entry);
+    cursor = page.pageInfo.nextCursor ?? undefined;
+    if (!cursor) break;
+  }
+  return workspaces;
 }
 
 export async function taskUpdateIssue(source: PaseoAgentRefetchResult | null, paseo: PaseoApi): Promise<TaskIssue | null> {
@@ -44,10 +76,18 @@ export function createTaskAvailability(settings: PluginSettings<typeof titleGene
     const [config, providers, unarchive] = await Promise.all([settings.read(), paseo.providers.snapshot(), canUnarchive()]);
     const catalogs = new Map<string, Promise<Pick<PaseoProviderModelsResult, "error" | "models">>>();
     const entries = [];
-    // Bound daemon requests; cards share provider catalogs within this batch.
+    // Bound daemon requests: agents are read one at a time, then the workspace
+    // pages once for the whole batch. Reading it after every agent keeps it
+    // at least as new as each agent's workspace id, as the per-card read was.
+    const placements = [];
     for (const agentId of [...new Set(agentIds)]) {
       const source = await paseo.agents.ref(agentId).refresh();
-      const { issue, archivedWorkspaceId } = await taskUpdateState(source, paseo);
+      placements.push({ agentId, source, placement: await taskPlacementState(source) });
+    }
+    const workspaces = await listTaskWorkspaces(paseo, new Set(placements.flatMap(({ placement }) => placement.workspaceId ? [placement.workspaceId] : [])));
+    // Cards share provider catalogs within this batch.
+    for (const { agentId, source, placement: { workspaceId, ...placed } } of placements) {
+      const { issue, archivedWorkspaceId } = workspaceId ? workspaceState(source!.agent.cwd, workspaceId, workspaces.get(workspaceId) ?? null) : placed;
       if (issue || !source) {
         const availability = unavailableTask(issue!);
         if (source && archivedWorkspaceId) {

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createTaskAvailability, taskDirectoryIssue, taskUpdateIssue } from "../../server/tasks/availability";
 import { titleGenerationSettingsSchema } from "../../shared/title-generation";
 import { tasksAvailabilityRpc } from "../../shared/task-availability";
+import { fakeWorkspaceDirectory, type FakeWorkspace } from "./helpers/fake-workspace-directory";
 
 const directories: string[] = [];
 afterEach(async () => { for (const directory of directories.splice(0)) { await chmod(directory, 0o700); await rm(directory, { recursive: true, force: true }); } });
@@ -15,19 +16,21 @@ async function fixture() {
   directories.push(directory);
   const source = { agent: { cwd: directory, workspaceId: "workspace-a", provider: "codex", model: "gpt-5.5" }, project: { projectKey: "project-a" } as object | null };
   const refresh = vi.fn(async () => source as typeof source | null);
-  const workspace = vi.fn(async () => ({ archivingAt: null as string | null }) as { archivingAt: string | null } | null);
+  const workspaces: FakeWorkspace[] = [{ id: "workspace-a", activityAt: "2026-10-28T00:00:00Z", archivingAt: null }];
+  const directoryApi = fakeWorkspaceDirectory(workspaces);
+  const workspace = directoryApi.fetchWorkspaces;
   const timeline = vi.fn();
   const providers = [{ provider: "codex", enabled: true, status: "ready" }, { provider: "claude", enabled: true, status: "ready" }];
   const snapshot = vi.fn(async () => ({ entries: providers }));
   const listModels = vi.fn(async () => ({ error: null as string | null, models: [{ id: "gpt-5.5", isSelectable: true }] }));
-  const api = { agents: { ref: () => ({ refresh, timeline: { refetch: timeline } }) }, workspaces: { ref: () => ({ refresh: workspace }) }, providers: { snapshot, listModels } } as unknown as PaseoApi;
+  const api = { agents: { ref: () => ({ refresh, timeline: { refetch: timeline } }) }, workspaces: directoryApi.api, providers: { snapshot, listModels } } as unknown as PaseoApi;
   const values = titleGenerationSettingsSchema.parse({});
   const settings = { read: vi.fn(async () => ({ status: "ready" as const, revision: "1", values })), subscribe: () => () => {} };
   const canRename = vi.fn(() => true);
   const canUnarchive = vi.fn(async () => true);
   const canRestore = vi.fn(() => true);
   const read = createTaskAvailability(settings, canRename, canUnarchive, canRestore);
-  return { directory, source, refresh, workspace, timeline, providers, snapshot, listModels, values, canRename, canUnarchive, canRestore, api, read };
+  return { directory, source, refresh, workspaces, workspace, timeline, providers, snapshot, listModels, values, canRename, canUnarchive, canRestore, api, read };
 }
 
 describe("task operation availability", () => {
@@ -63,18 +66,19 @@ describe("task operation availability", () => {
   it("distinguishes missing records and unavailable or archiving workspaces", async () => {
     const f = await fixture();
     expect(await taskUpdateIssue(null, f.api)).toEqual({ code: "agent_missing", detail: null });
-    f.workspace.mockResolvedValueOnce(null).mockResolvedValueOnce({ archivingAt: "2026-10-28T00:00:00Z" });
+    f.workspaces[0]!.archivedAt = "2026-10-28T00:00:00Z";
     const archived = (await f.read(f.api, ["a"])).entries[0]!.availability;
     expect(archived.issue?.code).toBe("workspace_unavailable");
     expect(archived.blocked.unarchive).toBeUndefined();
     expect(archived.blocked.rename?.code).toBe("workspace_unavailable");
+    Object.assign(f.workspaces[0]!, { archivedAt: null, archivingAt: "2026-10-28T00:00:00Z" });
     const archiving = (await f.read(f.api, ["a"])).entries[0]!.availability;
     expect(archiving.blocked.unarchive?.code).toBe("workspace_unavailable");
   });
 
   it("still checks the CLI and provider before unarchiving an unavailable workspace", async () => {
     const f = await fixture();
-    f.workspace.mockResolvedValue(null);
+    f.workspaces.length = 0;
     f.canUnarchive.mockResolvedValue(false);
     expect((await f.read(f.api, ["a"])).entries[0]!.availability.blocked.unarchive?.code).toBe("unsupported");
     f.canUnarchive.mockResolvedValue(true);
