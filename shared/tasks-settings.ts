@@ -22,6 +22,7 @@ export const CARD_FIELDS = [
   "thinking",
   "project",
   "projectIcon",
+  "host",
   "workspace",
   "branch",
   "gitStatus",
@@ -77,6 +78,7 @@ export const CARD_PRESETS: Readonly<Record<DensityPreset, CardFieldPreset>> = {
       thinking: true,
       project: false,
       projectIcon: false,
+      host: false,
       workspace: false,
       branch: false,
       gitStatus: false,
@@ -97,6 +99,7 @@ export const CARD_PRESETS: Readonly<Record<DensityPreset, CardFieldPreset>> = {
       thinking: true,
       project: true,
       projectIcon: true,
+      host: true,
       workspace: true,
       branch: true,
       gitStatus: false,
@@ -117,6 +120,7 @@ export const CARD_PRESETS: Readonly<Record<DensityPreset, CardFieldPreset>> = {
       thinking: true,
       project: true,
       projectIcon: true,
+      host: true,
       workspace: true,
       branch: true,
       gitStatus: true,
@@ -145,8 +149,23 @@ const cardSchema = z
   })
   .catch({ ...STANDARD_CARD });
 
+/**
+ * Records saved before the card gained the host switch: their `card` has no
+ * `host`, so it fills in from the density the record names (else standard)
+ * instead of reading off the standard preset and turning a minimal card
+ * `custom`.
+ */
+function migrateCardHost(raw: unknown): unknown {
+  if (raw === null || typeof raw !== "object") return raw;
+  const record = raw as Record<string, unknown>;
+  const card = record.card;
+  if (card === null || typeof card !== "object" || "host" in card) return raw;
+  const density = DENSITY_PRESETS.find((preset) => preset === record.density) ?? "standard";
+  return { ...record, card: { ...card, host: CARD_PRESETS[density].fields.host } };
+}
+
 /** Keys follow the spec: `card.provider`, `board.doneWindow`, `mobile.compactCards`, `sidebar.count`. */
-export const tasksSettingsSchema = z.object({
+const tasksSettingsShape = z.object({
   /**
    * On by default; off, there is no sidebar entry, no Command Center item
    * and no agent subscription. A record without the key reads on.
@@ -178,6 +197,8 @@ export const tasksSettingsSchema = z.object({
     .catch({ doneWindow: "24h", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true }),
   sidebar: z.object({ count: z.enum(SIDEBAR_COUNTS).catch("all") }).catch({ count: "all" }),
 });
+
+export const tasksSettingsSchema = z.preprocess(migrateCardHost, tasksSettingsShape);
 
 export type TasksSettings = z.output<typeof tasksSettingsSchema>;
 

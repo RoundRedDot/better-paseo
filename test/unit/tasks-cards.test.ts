@@ -845,6 +845,19 @@ describe("TaskCardView rows", () => {
     expect(plain.root.findAll((node) => node.props.testID === "task-card-host")).toHaveLength(0);
   });
 
+  it("draws the host tag only while the Host switch is on", async () => {
+    const remote = { ...sample("sample-running"), hostId: "host-2", hostLabel: "Studio" };
+    const on = await render(cardElement(remote, { hostId: "host-1" }));
+    expect(texts(hostByTestId(on.root, "task-card-host"))).toEqual(["Studio"]);
+    act(() => on.unmount());
+    const off = await render(cardElement(remote, { hostId: "host-1", fields: fields("standard", { host: false }) }));
+    expect(off.root.findAll((node) => node.props.testID === "task-card-host")).toHaveLength(0);
+    // Minimal keeps it off too, whatever the card carries.
+    act(() => off.unmount());
+    const minimal = await render(cardElement(remote, { hostId: "host-1", fields: fields("minimal") }));
+    expect(minimal.root.findAll((node) => node.props.testID === "task-card-host")).toHaveLength(0);
+  });
+
   it("switches from relative time to a full timestamp when the board clock crosses midnight", async () => {
     let time = new Date(2026, 9, 21, 23, 59, 59).getTime();
     const clock = createTaskClock(() => time);

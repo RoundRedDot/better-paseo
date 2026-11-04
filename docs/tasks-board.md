@@ -185,6 +185,7 @@ Better Paseo 的设置里开启看板后，侧边栏顶部（新建工作区、�
 | 思考等级 | `card.thinking` | 开 | 开 | 开 |
 | 项目 | `card.project` | 关 | 开 | 开 |
 | 项目图标 | `card.projectIcon` | 关 | 开 | 开 |
+| 主机标签（来自其他主机时） | `card.host` | 关 | 开 | 开 |
 | workspace 名称 | `card.workspace` | 关 | 开 | 开 |
 | 分支 | `card.branch` | 关 | 开 | 开 |
 | Git 状态（未提交改动、领先 / 落后） | `card.gitStatus` | 关 | 关 | 开 |

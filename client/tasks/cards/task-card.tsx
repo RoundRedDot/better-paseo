@@ -832,8 +832,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   let parentTag: string | null = null;
   if (card.parent?.archivedAs === "workspace") parentTag = strings.workspaceArchived;
   else if (card.parent?.archivedAs === "agent" || (card.parent?.missing && card.parent.archived === true)) parentTag = strings.archived;
-  // A card from another host says which one; this board's own cards need no tag.
-  const hostLabel = card.hostLabel && card.hostId !== undefined && card.hostId !== null && card.hostId !== props.hostId ? card.hostLabel : null;
+  // A card from another host says which one, while the Host switch is on and the
+  // board knows its own host; this board's own cards need no tag.
+  const hostLabel =
+    fields.host && props.hostId !== undefined && card.hostLabel && card.hostId !== undefined && card.hostId !== null && card.hostId !== props.hostId
+      ? card.hostLabel
+      : null;
   // Beside a context ring the text fades out before it instead of ending in
   // an ellipsis: clipped, with the fade only once the text no longer fits.
   const metaRing = hasMeta ? ringFor(m.metaLine) : null;
