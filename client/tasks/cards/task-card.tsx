@@ -753,7 +753,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const raised = menuAt !== null || cardLift.shadow;
   const shadows = raised ? [look.shadowHover] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
-  if (props.focused && (!WEB || issue)) shadows.push(`0px 0px 0px 1px ${tokens.foregroundMuted}`);
+  const focusRing = props.focused && (!WEB || issue) ? `0px 0px 0px 1px ${tokens.foregroundMuted}` : undefined;
+  if (focusRing) shadows.push(focusRing);
   const borderColor = props.highlighted ? tokens.accent : props.current ? look.currentBorder : failed ? look.failedBorder : look.border;
   const borderWidth = dashed ? 1 : StyleSheet.hairlineWidth;
   const shadow = shadows.join(", ");
@@ -1601,6 +1602,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     borderWidth,
     dashed,
     shadow,
+    notchFocus: focusRing ? `inset ${focusRing}` : undefined,
     // The theme border all but vanishes on a dark card; a chosen, highlighted or failed card's rule takes its tinted border.
     rule: props.highlighted || props.current || failed ? borderColor : look.buttonBorder,
   };

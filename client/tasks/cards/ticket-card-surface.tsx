@@ -24,6 +24,8 @@ export interface TicketLook {
   dashed: boolean;
   /** The card's CSS box-shadow (rest or hover, with the focus ring on native). */
   shadow: string;
+  /** The focus ring drawn inside each notch, when present. */
+  notchFocus?: string;
   /** The dashed rule's colour. */
   rule: string;
 }
@@ -43,26 +45,6 @@ export interface TicketFrame {
 /** The outer arc's radius: the hole and the border drawn round it. */
 export function ticketReach(borderWidth: number): number {
   return TICKET_NOTCH + borderWidth;
-}
-
-/** The card's outside shadows turned inward, so each hole is shaded as the board under the card's edge would be. */
-export function insetShadows(shadow: string): string | undefined {
-  if (!shadow || shadow === "none") return undefined;
-  const parts: string[] = [];
-  let depth = 0;
-  let start = 0;
-  for (let index = 0; index < shadow.length; index++) {
-    const char = shadow[index];
-    if (char === "(") depth++;
-    else if (char === ")") depth--;
-    else if (char === "," && depth === 0) {
-      parts.push(shadow.slice(start, index));
-      start = index + 1;
-    }
-  }
-  parts.push(shadow.slice(start));
-  const inset = parts.map((part) => part.trim()).filter(Boolean).map((part) => (/^inset\b/.test(part) ? part : `inset ${part}`));
-  return inset.length ? inset.join(", ") : undefined;
 }
 
 /** A horizontal run of `TICKET_RULE` dashes as a repeated gradient tile: web CSS, and React Native's own background image on iOS and Android. */
@@ -93,8 +75,8 @@ function surface(look: TicketLook): ViewStyle {
  * and positioned from their box: the card's surface down to the notches (cut
  * at its top-right corner too when `fold` is given), then the band they sit
  * in. The band paints the card's fill around two open half circles and the
- * card's border round them, so the board, a selection's or failure's tint and
- * the shadow show through the holes: nothing is covered in the board's colour.
+ * card's border round them, so the board shows through the holes regardless of
+ * the card's selection or failure tint.
  */
 export function TicketHead(props: { look: TicketLook; frame: TicketFrame; fold?: { size: number; color: string } | null }) {
   const { look, frame, fold } = props;
@@ -143,7 +125,6 @@ function TicketBand(props: { look: TicketLook; style: ViewStyle }) {
   const reach = ticketReach(look.borderWidth);
   const inner = TICKET_NOTCH + look.borderWidth / 2;
   const outer = inner + reach;
-  const holeShadow = insetShadows(look.shadow);
   const side = (at: "left" | "right") => {
     const centre = at === "left" ? 0 : reach;
     return (
@@ -168,7 +149,7 @@ function TicketBand(props: { look: TicketLook; style: ViewStyle }) {
           borderRadius: reach,
           borderWidth: look.borderWidth,
           borderColor: look.borderColor,
-          boxShadow: holeShadow,
+          boxShadow: look.notchFocus,
           ...webTransition,
         }} />
       </View>

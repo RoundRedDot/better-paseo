@@ -37,7 +37,7 @@ import type { TaskCard } from "../../client/tasks/model";
 import { TaskCardView, type TaskCardViewProps } from "../../client/tasks/cards";
 import { taskTokens } from "../../client/tasks/cards/tokens";
 import { FOLD_TINT } from "../../client/tasks/cards/task-card";
-import { TICKET_NOTCH, TICKET_RULE, dashedRule, insetShadows } from "../../client/tasks/cards/ticket-card-surface";
+import { TICKET_NOTCH, TICKET_RULE, dashedRule } from "../../client/tasks/cards/ticket-card-surface";
 import { TasksTypographyScale } from "../../client/tasks/typography";
 import { mix } from "../../client/components/theme-tokens";
 import { settleHostLayout, type Frame } from "./helpers/yoga-host-layout";
@@ -144,7 +144,7 @@ describe("scheduled task card: surface", () => {
       expect(fill.backgroundColor).toBeUndefined();
       expect((fill.width as number) / 2 - (fill.borderWidth as number)).toBeCloseTo(TICKET_NOTCH + BORDER / 2);
       const arc = styleOf(tree.root, `task-card-ticket-arc-${side}`);
-      expect(arc).toMatchObject({ width: REACH * 2, height: REACH * 2, borderRadius: REACH, borderWidth: BORDER, borderColor: tokens.card.border, boxShadow: `inset ${tokens.card.shadow}` });
+      expect(arc).toMatchObject({ width: REACH * 2, height: REACH * 2, borderRadius: REACH, borderWidth: BORDER, borderColor: tokens.card.border, boxShadow: undefined });
       expect(arc.backgroundColor).toBeUndefined();
       expect(styleOf(tree.root, `task-card-ticket-notch-${side}`)).toMatchObject({ width: REACH, height: REACH * 2, overflow: "hidden" });
     }
@@ -184,12 +184,12 @@ describe("scheduled task card: surface", () => {
     await act(async () => tree.update(element(base, { theme: theme as never, focused: true })));
     const ring = `0px 0px 0px 1px ${tokens.foregroundMuted}`;
     for (const part of parts) expect(String(styleOf(tree.root, part).boxShadow)).toContain(ring);
-    for (const side of ["left", "right"]) expect(String(styleOf(tree.root, `task-card-ticket-arc-${side}`).boxShadow)).toBe(`inset ${tokens.card.shadow}, inset ${ring}`);
+    for (const side of ["left", "right"]) expect(styleOf(tree.root, `task-card-ticket-arc-${side}`).boxShadow).toBe(`inset ${ring}`);
     // Hover deepens every section's shadow together.
     await act(async () => tree.update(element(base, { theme: theme as never })));
     await act(async () => host(tree.root, `task-card-${base.id}`).props.onPressIn());
     for (const part of parts) expect(styleOf(tree.root, part).boxShadow).toBe(tokens.card.shadowHover);
-    for (const side of ["left", "right"]) expect(styleOf(tree.root, `task-card-ticket-arc-${side}`).boxShadow).toBe(`inset ${tokens.card.shadowHover}`);
+    for (const side of ["left", "right"]) expect(styleOf(tree.root, `task-card-ticket-arc-${side}`).boxShadow).toBeUndefined();
   });
 
   it("folds an unavailable ticket's corner over its head and keeps the dot on the flap", async () => {
@@ -365,14 +365,5 @@ describe("scheduled task card: where the notches land", () => {
     // One title line further down, still between the title and the pills.
     expect(at(two, "task-card-ticket-band").top - top1).toBe(title.height - at(one, "task-card-title").height);
     expect(title.height).toBeGreaterThan(at(one, "task-card-title").height);
-  });
-});
-
-describe("ticket helpers", () => {
-  it("turns the card's shadows inward, colours with commas included", () => {
-    expect(insetShadows("0px 1px 2px rgba(0, 0, 0, 0.06)")).toBe("inset 0px 1px 2px rgba(0, 0, 0, 0.06)");
-    expect(insetShadows("0px 2px 6px rgba(0, 0, 0, 0.14), 0px 0px 0px 1px #6b6b75")).toBe("inset 0px 2px 6px rgba(0, 0, 0, 0.14), inset 0px 0px 0px 1px #6b6b75");
-    expect(insetShadows("none")).toBeUndefined();
-    expect(insetShadows("")).toBeUndefined();
   });
 });

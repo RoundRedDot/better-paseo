@@ -699,14 +699,14 @@ describe("A scheduled task's ticket card on web", () => {
     expect(rule.experimental_backgroundImage).toBeUndefined();
     // The outline goes round the card, so the sections keep only the card's own shadow.
     for (const part of ["task-card-ticket-head-surface", "task-card-ticket-tail-surface"]) expect(flat(host(root, part).props.style).boxShadow).toBe(tokens.card.shadow);
-    expect(flat(host(root, "task-card-ticket-arc-left").props.style).boxShadow).toBe(`inset ${tokens.card.shadow}`);
+    expect(flat(host(root, "task-card-ticket-arc-left").props.style).boxShadow).toBeUndefined();
     for (const part of ["task-card-ticket-head-surface", "task-card-ticket-tail-surface", "task-card-ticket-band-fill", "task-card-ticket-fill-left", "task-card-ticket-arc-right"]) {
       expect(flat(host(root, part).props.style).transitionProperty).toContain("box-shadow");
     }
     expect(host(root, "task-card-ticket-band").props["aria-hidden"]).toBe(true);
     await act(async () => hovers.get("task-card-sample-running")!.enter());
     for (const part of ["task-card-ticket-head-surface", "task-card-ticket-tail-surface"]) expect(flat(host(root, part).props.style).boxShadow).toBe(tokens.card.shadowHover);
-    expect(flat(host(root, "task-card-ticket-arc-right").props.style).boxShadow).toBe(`inset ${tokens.card.shadowHover}`);
+    expect(flat(host(root, "task-card-ticket-arc-right").props.style).boxShadow).toBeUndefined();
     // The footer's stop menu still rises over the rows after it, inside the tail.
     const footer = host(root, "task-card-footer");
     expect(flat(footer.props.style).zIndex).toBe(OVERLAY_ROW_Z);
