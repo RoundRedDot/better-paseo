@@ -137,7 +137,7 @@ import { DesktopFilterBar as DesktopFilterBarMemo, DesktopToolbar as DesktopTool
 import { LaneWidthMark } from "../../client/tasks/board/lane-width-mark";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
-import { ANNOUNCE_AFTER_MS, FLASH_AFTER_ENTER_MS, FLASH_AFTER_SCROLL_MS, resetNewCards } from "../../client/tasks/board/new-cards";
+import { ANNOUNCE_AFTER_MS, FLASH_AFTER_ENTER_MS, FLASH_AFTER_SCROLL_MS, newCardStore, resetNewCards } from "../../client/tasks/board/new-cards";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
 import { ACTIVE_LANE_ORDER as LANE_ORDER, type TaskCard } from "../../client/tasks/model";
 import { BrandMark, DetailActionBar, PiMark, TagMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
@@ -5879,7 +5879,8 @@ describe("Tasks board, new tasks", () => {
     const pairs = target.props.viewabilityConfigCallbackPairs as { onViewableItemsChanged(info: unknown): void }[];
     act(() => pairs[0]!.onViewableItemsChanged({ viewableItems: ids.map((id) => ({ key: id, item: null, index: data.findIndex((card) => card.id === id), isViewable: true })), changed: [] }));
   }
-  const outlined = (id: string) => hostsById(`card-new-${id}`).length > 0;
+  // Its outline layer is drawn from the start; breathing is the store's flash for it.
+  const outlined = (id: string) => hostsById(`card-new-${id}`).length > 0 && newCardStore("host-1").flash(id).key !== 0;
 
   async function mount(compact: boolean, os: string, extra: ReturnType<typeof makeAgent>[] = []) {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;

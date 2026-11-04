@@ -11,9 +11,10 @@
  * announced; each card and lane reads its own part.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import type { ViewToken } from "react-native";
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../model";
-import { FLASH } from "./breathing";
+import { Animated, type ViewToken } from "react-native";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { FLASH, flashAnimation } from "./breathing";
 import { MOTION } from "./board-style";
 
 /** A task created longer ago than this is not new: unarchived, paged in, or brought back by a filter. */
@@ -58,6 +59,8 @@ export interface NewCardStore {
   /** The lanes holding new cards not seen yet. */
   lanes(): ReadonlySet<LaneId>;
   flash(id: string): NewCardFlash;
+  /** The card is new and not seen yet, or breathing: it may breathe while drawn. */
+  mayFlash(card: TaskCard, now?: number): boolean;
   subscribe(listener: () => void): () => void;
   /** Forget everything (tests, a board that goes away for good). */
   reset(): void;
@@ -192,6 +195,8 @@ export function createNewCardStore(): NewCardStore {
     pending: (lane) => pendingByLane[lane] ?? NO_IDS,
     lanes: () => laneSet,
     flash: (id) => flashes.get(id) ?? NO_FLASH,
+    // A card drawn in the render that brings it in is not tracked yet: new to the board then too.
+    mayFlash: (card, now = Date.now()) => pending.has(card.id) || flashes.has(card.id) || (known !== null && !known.has(card.id) && isNewTask(card, now)),
     subscribe(listener) {
       listeners.add(listener);
       return () => {
@@ -265,11 +270,40 @@ export function useUnseenLanes(hostId: string): ReadonlySet<LaneId> {
   return useSyncExternalStore(store.subscribe, store.lanes, store.lanes);
 }
 
-/** A card's outline; none for a copy of a card (a ghost, the phone's outgoing lane). */
-export function useNewCardFlash(hostId: string, id: string, off: boolean): NewCardFlash {
+/**
+ * A new card's outline: its opacity, or null for a card that will not
+ * breathe (seen before, or a copy of a card: a ghost, the phone's outgoing
+ * lane). The layer is there from the card's first frame and the breath runs
+ * on the animation driver: seeing the card renders nothing, where mounting the
+ * layer then cost a commit and a native layout of the card (~70 ms on a
+ * low-end phone).
+ */
+export function useNewCardOutline(hostId: string, card: TaskCard, off: boolean): Animated.Value | null {
   const store = newCardStore(hostId);
-  const read = () => (off ? NO_FLASH : store.flash(id));
-  return useSyncExternalStore(off ? noSubscribe : store.subscribe, read, read);
+  const reduced = useReducedMotion();
+  // Decided as the card mounts, as its entrance is.
+  const [value] = useState(() => (!off && store.mayFlash(card) ? new Animated.Value(0) : null));
+  const id = card.id;
+  useEffect(() => {
+    if (!value) return;
+    let last = 0;
+    let animation: Animated.CompositeAnimation | null = null;
+    const run = () => {
+      const flash = store.flash(id);
+      if (flash.key === 0 || flash.key === last) return;
+      last = flash.key;
+      animation?.stop();
+      animation = flashAnimation(value, { delay: flash.delay, pulses: FLASH_PULSES, peak: 1, reduced });
+      animation.start();
+    };
+    run();
+    const unsubscribe = store.subscribe(run);
+    return () => {
+      unsubscribe();
+      animation?.stop();
+    };
+  }, [store, id, value, reduced]);
+  return value;
 }
 
 /**

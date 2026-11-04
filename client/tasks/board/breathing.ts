@@ -52,14 +52,20 @@ export function useFlash(key: number, delay = 0, pulses = 2, peak: number = FLAS
       value.setValue(0);
       return;
     }
-    const to = (toValue: number, duration: number, wait = 0) => Animated.timing(value, { toValue, duration, delay: wait, easing: breathe, useNativeDriver: nativeDriver });
-    const { inMs, outMs } = FLASH;
-    const steps = reduced
-      ? [to(peak, 0, delay), to(0, 0, MOTION.highlightMs)]
-      : Array.from({ length: pulses }, (_, index) => [to(peak, inMs, index === 0 ? delay : 0), to(0, outMs)]).flat();
-    const animation = Animated.sequence(steps);
+    const animation = flashAnimation(value, { delay, pulses, peak, reduced });
     animation.start();
     return () => animation.stop();
   }, [key, delay, pulses, peak, reduced, value]);
   return value;
+}
+
+/** A flash on `value` (see `useFlash`), to start where no render is wanted. */
+export function flashAnimation(value: Animated.Value, options: { delay: number; pulses: number; peak: number; reduced: boolean }): Animated.CompositeAnimation {
+  const { delay, pulses, peak, reduced } = options;
+  const to = (toValue: number, duration: number, wait = 0) => Animated.timing(value, { toValue, duration, delay: wait, easing: breathe, useNativeDriver: nativeDriver });
+  const { inMs, outMs } = FLASH;
+  const steps = reduced
+    ? [to(peak, 0, delay), to(0, 0, MOTION.highlightMs)]
+    : Array.from({ length: pulses }, (_, index) => [to(peak, inMs, index === 0 ? delay : 0), to(0, outMs)]).flat();
+  return Animated.sequence(steps);
 }

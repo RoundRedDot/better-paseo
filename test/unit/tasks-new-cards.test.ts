@@ -5,7 +5,7 @@ import type { LaneId, LaneModel, TaskCard } from "../../client/tasks/model";
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 
-import { ANNOUNCE_AFTER_MS, FLASH_AFTER_ENTER_MS, FLASH_AFTER_SCROLL_MS, NEW_WINDOW_MS, createNewCardStore, pillDirection } from "../../client/tasks/board/new-cards";
+import { ANNOUNCE_AFTER_MS, FLASH_AFTER_ENTER_MS, FLASH_AFTER_SCROLL_MS, NEW_WINDOW_MS, createNewCardStore, newCardStore, pillDirection, resetNewCards, useNewCardOutline } from "../../client/tasks/board/new-cards";
 import { FRESH_MS, useFreshIds } from "../../client/tasks/board/board-parts";
 
 const NOW = Date.parse("2026-11-04T12:00:00Z");
@@ -82,6 +82,35 @@ describe("new card store", () => {
     expect(pillDirection(cards, ["c"], 0)).toBe("down");
     expect(pillDirection(cards, ["a"], 1)).toBe("up");
     expect(pillDirection(cards, ["a"], -1)).toBe("down");
+  });
+});
+
+describe("useNewCardOutline", () => {
+  afterEach(() => resetNewCards());
+
+  it("draws the layer from the card's first frame and starts its breath without a render", async () => {
+    const { Animated } = await import("react-native");
+    const started = vi.fn();
+    vi.spyOn(Animated, "sequence").mockImplementation(() => ({ start: started, stop() {}, reset() {} }) as never);
+    const store = newCardStore("host");
+    store.track(lanes([card("old", "running", NEW_WINDOW_MS * 2)]));
+    const fresh = card("fresh", "running");
+    const renders: (unknown | null)[] = [];
+    function Cell(props: { card: TaskCard; off?: boolean }) {
+      renders.push(useNewCardOutline("host", props.card, props.off ?? false));
+      return null;
+    }
+    let renderer!: TestRenderer.ReactTestRenderer;
+    // Drawn in the render that brings it in, before the board tracks it.
+    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null, React.createElement(Cell, { card: fresh }), React.createElement(Cell, { card: card("old", "running", NEW_WINDOW_MS * 2) }), React.createElement(Cell, { card: fresh, off: true }))); });
+    expect(renders.slice(0, 3).map((value) => value !== null)).toEqual([true, false, false]);
+    act(() => store.track(lanes([card("old", "running", NEW_WINDOW_MS * 2), fresh])));
+    const count = renders.length;
+    act(() => store.seen(["fresh"]));
+    expect(renders.length).toBe(count);
+    expect(started).toHaveBeenCalledTimes(1);
+    act(() => renderer.unmount());
+    vi.restoreAllMocks();
   });
 });
 

@@ -18,7 +18,7 @@ import type { BoardStrings } from "./strings";
 import type { BoardController } from "./use-board";
 import { useCardMotion } from "./lane-motion";
 import { useFlash } from "./breathing";
-import { useNewCardFlash } from "./new-cards";
+import { useNewCardOutline } from "./new-cards";
 import { withAlpha } from "../../components/theme-tokens";
 
 const nativeDriver = Platform.OS !== "web";
@@ -405,8 +405,7 @@ export function CardCell(props: CardCellProps) {
   const onArrive = useCallback(() => setArrival((key) => key + 1), []);
   const flashOpacity = useFlash(board.visible ? arrival : 0);
   // A new task, once seen: its outline breathes in its lane's colour.
-  const newFlash = useNewCardFlash(board.hostId, card.id, props.copy ?? false);
-  const outlineOpacity = useFlash(board.visible ? newFlash.key : 0, newFlash.delay, 2, 1);
+  const outline = useNewCardOutline(board.hostId, card, props.copy ?? false);
   const motion = useCardMotion(card.id, nodeRef, props.copy ?? false, onArrive);
   useEffect(() => {
     if (!register) return;
@@ -456,11 +455,11 @@ export function CardCell(props: CardCellProps) {
           testID={`card-flash-${card.id}`}
           style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: taskTokens(props.theme).isDark ? "#ffffff" : "#000000", opacity: flashOpacity }}
         />
-        {newFlash.key !== 0 ? (
+        {outline ? (
           <Animated.View
             pointerEvents="none"
             testID={`card-new-${card.id}`}
-            style={{ ...newOutline(props.theme, card.lane), opacity: outlineOpacity }}
+            style={{ ...newOutline(props.theme, card.lane), opacity: outline }}
           />
         ) : null}
       </Animated.View>
