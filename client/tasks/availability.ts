@@ -77,6 +77,8 @@ export function useTaskAvailability(tasks: TasksHandle, visible: boolean, hostId
   latest.current = load;
   const scope = useRef(hostId);
   scope.current = hostId;
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
   const store = availabilityStore(usePaseo());
   const get = useCallback(() => store.get(hostId), [store, hostId]);
   const states = useSyncExternalStore(store.subscribe, get, get);
@@ -108,7 +110,7 @@ export function useTaskAvailability(tasks: TasksHandle, visible: boolean, hostId
     return () => { cancelled = true; clearTimeout(timer); };
   }, [key, visible, apply]);
   const check = useCallback(async (agentId: string, operation: TaskOperation) => {
-    const card = tasks.byId.get(agentId);
+    const card = tasksRef.current.byId.get(agentId);
     if (card?.hostId && card.hostId !== hostId) {
       return undefined;
     }
