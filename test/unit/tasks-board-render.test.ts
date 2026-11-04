@@ -2259,6 +2259,18 @@ describe("Tasks board, desktop", () => {
     expect(child.props.onUnarchive).toBeUndefined();
   });
 
+  it.each([false, true])("opens a hidden subtask's details from its parent (compact: %s)", (compact) => {
+    act(() => { renderer = TestRenderer.create(screen(compact, { q: "ring", sub: "1" })); });
+    if (!compact) layOut(1600);
+    else act(() => pressable("Running 1").props.onPress());
+    const parent = cards().find((card) => card.props.card.id === "sample-running")!;
+    expect(cards().some((card) => card.props.card.id === "sample-child-1")).toBe(false);
+    act(() => parent.props.onReveal("sample-child-1", "sample-running"));
+    expect(renderer!.root.findByType(TaskDetailCards).props.card.id).toBe("sample-child-1");
+    expect(host.toast).not.toHaveBeenCalled();
+    expect(openAgent).not.toHaveBeenCalled();
+  });
+
   it("hands the cards Unarchive when the host has the CLI", async () => {
     host.canStop = true;
     await act(async () => {

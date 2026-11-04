@@ -416,8 +416,8 @@ export function DesktopBoard(props: {
   props.handlers.current = {
     reveal,
     // A long press on a compact or touch card: the same as a click.
-    details(card) {
-      showCard(card);
+    details(card, preview) {
+      showCard(card, preview);
     },
   };
 

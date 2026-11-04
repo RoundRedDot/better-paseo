@@ -1476,7 +1476,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               language={language}
               now={props.now}
               clock={props.clock}
-              onPress={() => child.kind === "provider" ? props.onReveal(child.id, card.id) : props.onReveal(child.id)}
+              onPress={() => props.onReveal(child.id, card.id)}
               onOpen={props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
             />
           ))}

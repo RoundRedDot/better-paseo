@@ -298,7 +298,7 @@ describe("TaskCardView on web", () => {
     const row = root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Measure the sidebar ring 运行中");
     expect(row.props.role).toBe("group");
     row.props.onPress();
-    expect(onReveal).toHaveBeenCalledWith("sample-child-1");
+    expect(onReveal).toHaveBeenCalledWith("sample-child-1", "sample-running");
     expect(nestedButtons(root)).toEqual([]);
     await act(async () => renderer.unmount());
   });

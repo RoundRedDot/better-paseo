@@ -2044,7 +2044,7 @@ describe("TaskCardView actions", () => {
       tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
     );
     byLabel(tree.root, "Measure the sidebar ring 运行中").props.onPress();
-    expect(onReveal).toHaveBeenCalledWith("sample-child-1");
+    expect(onReveal).toHaveBeenCalledWith("sample-child-1", "sample-running");
     const list = hostByTestId(tree.root, "task-card-subtasks");
     // Each row: the agent's mark on the left, aligned with the title's first line, its status on the
     // corner in every state; no state words.
@@ -2093,7 +2093,7 @@ describe("TaskCardView actions", () => {
       expect(flat(hostByTestId(content, `subtask-meta-${child.id}`).props.style).marginRight).toBeUndefined();
       expect(content.findAll((node) => node === open)).toHaveLength(1);
       row.props.onPress();
-      expect(onReveal).toHaveBeenLastCalledWith(child.id);
+      expect(onReveal).toHaveBeenLastCalledWith(child.id, base.id);
     }
     if (compact) {
       byLabel(byLabel(list, `${base.children[0]!.title} ${cardStrings("zh").status[base.children[0]!.status]}`), cardStrings("zh").openInWorkspace).props.onPress();
