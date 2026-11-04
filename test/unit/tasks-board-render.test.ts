@@ -1,6 +1,7 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
+import type { TasksHandle } from "../../client/tasks/data";
 import "./helpers/quiet-renderer";
 import { measureHostTree } from "./helpers/yoga-host-layout";
 
@@ -61,6 +62,8 @@ const host = vi.hoisted(() => ({
   rowRenders: 0,
   /** A fake daemon's API: the board then reads the real store (`useTasks`) instead of the samples. */
   liveTasks: null as unknown,
+  /** The sample handle the data mock exports; the board's multi-host hook returns it. */
+  boardHandle: null as TasksHandle | null,
 }));
 // The details read a card's first prompt from its timeline: one stable client whose timelines are empty.
 const paseo = vi.hoisted(() => ({
@@ -71,6 +74,8 @@ const paseo = vi.hoisted(() => ({
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => paseo,
+  useHosts: () => [],
+  getPaseoClient: () => paseo,
   useRpc: (contract: { name: string }) => (input: { agentIds?: string[] }) => Promise.resolve(contract.name === "tasks.availability" ? { entries: input.agentIds!.map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) } : contract.name === "settings.update-check" ? host.updateState : { stop: host.canStop }),
   useSettings: (definition: { id: string }) => {
     const values = definition.id === "title-generation" ? host.titleSettings : host.settings;
@@ -108,7 +113,11 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
     resolveParent: vi.fn(),
     refreshParent: vi.fn(async () => false),
     requestProjectIcon: vi.fn(),
+    refreshReads: vi.fn(),
   };
+  // The lanes are built by filtering the samples per lane, which the compiler cannot see through.
+  const sample = handle as unknown as TasksHandle;
+  host.boardHandle = sample;
   return {
     ...actual,
     __handle: handle,
@@ -118,6 +127,22 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
       host.countScope = scope ?? null;
       return { ...(host.counts ?? handle.counts), ready: true };
     },
+  };
+});
+
+// The board reads its cards through the multi-host aggregator; the samples above stand in for it.
+// A mock factory is hoisted, so the real module comes through `importOriginal` rather than a static import.
+vi.mock("../../client/tasks/data/multi-host", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../client/tasks/data/multi-host")>();
+  return {
+    ...actual,
+    useMultiHostTasks: ((paseo: unknown, hostId: string, options: Parameters<typeof actual.useMultiHostTasks>[2], selected?: readonly string[], beforeRelease?: (paseo: never) => void) => {
+      // A live fake daemon (`host.liveTasks`) keeps the real store through the real aggregator.
+      if (host.liveTasks) return actual.useMultiHostTasks(host.liveTasks as never, hostId, options, selected, beforeRelease as never);
+      const handle = host.boardHandle;
+      if (!handle) throw new Error("board handle not initialised");
+      return handle;
+    }) as typeof actual.useMultiHostTasks,
   };
 });
 
@@ -2248,7 +2273,7 @@ describe("Tasks board, desktop", () => {
     layOut(1600);
     const child = cards().find((card) => card.props.card.id === "sample-child-1")!;
     act(() => child.props.onOpen("sample-child-1"));
-    expect(openAgent).toHaveBeenCalledWith({ agentId: "sample-child-1" });
+    expect(openAgent).toHaveBeenCalledWith({ serverId: "host-1", agentId: "sample-child-1" });
     act(() => child.props.onReveal("sample-running"));
     expect(host.toast).toHaveBeenCalledWith("Hidden by the current filters");
     expect(child.props.fields).toEqual(DEFAULT_TASKS_SETTINGS.card);
@@ -2288,7 +2313,7 @@ describe("Tasks board, desktop", () => {
       expect(openAgent).not.toHaveBeenCalled();
       expect(host.toast).toHaveBeenCalledWith("Unarchive this task to open it in Paseo");
       act(() => card.props.onOpen("sample-done"));
-      expect(openAgent).toHaveBeenCalledWith({ agentId: "sample-done" });
+      expect(openAgent).toHaveBeenCalledWith({ serverId: "host-1", agentId: "sample-done" });
     } finally {
       handle.byId.delete("archived-task");
     }
@@ -2337,7 +2362,7 @@ describe("Tasks board, desktop", () => {
       expect(title()).toBe(next.title);
       expect(openAgent).not.toHaveBeenCalled();
       key("Enter");
-      expect(openAgent).toHaveBeenCalledWith({ agentId: next.id });
+      expect(openAgent).toHaveBeenCalledWith({ serverId: "host-1", agentId: next.id });
       key("Escape");
       expect(hostsById("detail-title")).toHaveLength(0);
       if (panel !== "sidebar-inline") expect(hostsById(panel)).toHaveLength(0);
@@ -2417,7 +2442,7 @@ describe("Tasks board, desktop", () => {
       expect(open.stopPropagation).toHaveBeenCalledTimes(1);
       expect(doc.activeElement).toBe(root);
       expect(board().props["aria-activedescendant"]).toBe("task-card-sample-done");
-      expect(openAgent.mock.calls).toEqual([[{ agentId: "sample-done" }]]);
+      expect(openAgent.mock.calls).toEqual([[{ serverId: "host-1", agentId: "sample-done" }]]);
       key(" ");
       expect(cards().some((card) => card.props.current)).toBe(false);
       expect(cards().filter((card) => card.props.focused).map((card) => card.props.card.id)).toEqual(["sample-done"]);
@@ -2493,7 +2518,7 @@ describe("Tasks board, desktop", () => {
       expect(hostsById("detail-title")).toHaveLength(0);
       const open = key("Enter", true);
       expect(open.stopPropagation).toHaveBeenCalledTimes(1);
-      expect(openAgent.mock.calls).toEqual([[{ agentId: focused.props.card.id }]]);
+      expect(openAgent.mock.calls).toEqual([[{ serverId: "host-1", agentId: focused.props.card.id }]]);
     } finally {
       act(() => renderer?.unmount());
       renderer = undefined;
@@ -2715,7 +2740,7 @@ describe("Tasks board, desktop", () => {
     const controls = () => view("filter-bar-controls");
     const group = () => hostParentOf(controls())!;
     const words = () => controls().findAll((node) => (node.type as unknown) === "Text").map(textOf);
-    expect(words()).toEqual(["Agent", "Project", "Workspace", "Labels"]);
+    expect(words()).toEqual(["Host", "Agent", "Project", "Workspace", "Labels"]);
     const dividers = () => ["board-switches-divider", "lane-width-divider", "done-window-divider"].flatMap(hostsById);
     expect(dividers()).toHaveLength(3);
 
@@ -2727,15 +2752,15 @@ describe("Tasks board, desktop", () => {
     expect(dividers()).toHaveLength(0);
     expect(view("filter-bar-end").findAll((node) => (node.type as unknown) === "Text" && textOf(node) === "Sort")).toHaveLength(0);
     const named = (bar: ReactTestInstance) => bar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel);
-    expect(named(controls())).toEqual(["Agent", "Project", "Workspace", "Labels"]);
+    expect(named(controls())).toEqual(["Host", "Agent", "Project", "Workspace", "Labels"]);
     expect(named(view("filter-bar-end"))).toContain("Sort");
 
-    // Restoring five labels also restores each chevron and rectangular padding: 5 * (40 + 27) = 335.
+    // Restoring six labels also restores each chevron and rectangular padding: 6 * (40 + 27) = 402.
     const hidden = view("filter-bar-words");
     expect(hidden.props["aria-hidden"]).toBe(true);
     expect(StyleSheet.flatten(hidden.props.style)).toMatchObject({ position: "absolute", opacity: 0 });
     const dropped = hidden.findAll((node) => (node.type as unknown) === "Text");
-    expect(dropped.map(textOf)).toEqual(["Agent", "Project", "Workspace", "Labels", "Sort"]);
+    expect(dropped.map(textOf)).toEqual(["Host", "Agent", "Project", "Workspace", "Labels", "Sort"]);
     lay(controls(), { width: 300 });
     lay(view("filter-bar-end"), { width: 300 });
     for (const text of dropped) act(() => text.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 40, height: 18 } } }));
@@ -2751,8 +2776,8 @@ describe("Tasks board, desktop", () => {
     lay(group(), { width: 675 });
     expect(words()).toEqual([]);
     expect(dividers()).toHaveLength(0);
-    // 300 + 335 + 3 * (1 + 8 + 10), plus the 12pt slack, fits at 704.
-    lay(group(), { width: 704 });
+    // 300 + 402 + 3 * (1 + 8 + 10), plus the 12pt slack, fits at 795.
+    lay(group(), { width: 800 });
     expect(words()).toEqual(expect.arrayContaining(["Project", "Labels"]));
     expect(dividers()).toHaveLength(3);
     expect(renderer!.root.findAll((node) => node.props.testID === "filter-bar-words")).toHaveLength(0);

@@ -216,10 +216,11 @@ export interface ActiveChip {
 export type ChipGroupKind = "workspace" | "label" | "agent";
 
 /** What a filter picks, as the folded chips and the sidebar's groups count it. */
-export type FilterUnit = "agent" | "project" | "workspace" | "label";
+export type FilterUnit = "host" | "agent" | "project" | "workspace" | "label";
 
 /** Each unit's Lucide icon, the same in the filter buttons, folded chips, chip menus and the sidebar's groups. */
 export const FILTER_ICONS: Readonly<Record<FilterUnit, string>> = {
+  host: "Server",
   agent: "Bot",
   project: "FolderKanban",
   workspace: "FolderGit2",

@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { Platform, Pressable, View, useWindowDimensions, type LayoutChangeEvent, type TextInput as NativeTextInput } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
+import { useHosts } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
@@ -12,7 +13,7 @@ import { FILTER_ICONS, activeChips, clearedParams, emptyGroupsIcon, groupChips, 
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { activeFilterCount, resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
-import { PROJECT_MENU_WIDTH, agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
+import { PROJECT_MENU_WIDTH, agentMenuSections, chipGroupMenuSections, hostMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
 import { CascadeMenu, MenuBoundsContext } from "./menu";
 import { MENU_EDGE, menuWidth, type MenuSection } from "./menu-model";
 import { LABEL_GAP, nextBarLayout, type BarBoxes, type BarLayout, type Box } from "./label-fit";
@@ -29,7 +30,7 @@ import { useUpdateIndicator } from "./update-indicator";
 import { SETTINGS_STRINGS } from "../../i18n/settings-page-strings";
 import { useTasksLanguage } from "../i18n";
 
-export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
+export type FilterMenu = "host" | "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
 /** Toolbar labels follow the host base size on every platform. */
 const toolbarFontSize = () => F.base;
@@ -469,12 +470,14 @@ function DesktopFilterBarView(props: {
   const colors = theme.colors;
   const strings = board.strings;
   const { params, setParams, defaults } = board;
+  const hosts = useHosts();
   const resolved = resolveBoardParams(params, defaults);
   const count = (list: readonly unknown[]) => (list.length ? ` · ${list.length}` : "");
   const toggle = (menuId: FilterMenu) => setMenu(menu === menuId ? null : menuId);
   const shown = shownFilterOptions(options, board.showEmptyGroups);
   useRequestProjectIcons(iconlessProjects(menu === "project" ? shown.projects.map((project) => project.group) : menu === "workspace" ? shown.workspaceGroups : []), board.tasks.requestProjectIcon);
   const words = {
+    host: strings.filterHost + count(params.hostIds),
     project: strings.project + count(shown.projects.filter((project) => project.on)),
     workspace: strings.workspace + count(params.workspaceIds),
     agent: strings.agent + count(params.providers),
@@ -484,6 +487,7 @@ function DesktopFilterBarView(props: {
   };
   // Every word the buttons drop when icon-only: the toggles' only while they show.
   const fit = useLabelFit([
+    words.host,
     words.agent,
     words.project,
     words.workspace,
@@ -551,6 +555,23 @@ function DesktopFilterBarView(props: {
       <View pointerEvents="box-none" onLayout={fit.box("filters")} style={{ flex: 1, minWidth: tablet ? 4 * toolbarButtonSize(scale) + 3 * TOOLBAR_GAP : FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
         {/* The buttons hold one line: once their words would wrap them, they draw their icons alone. */}
         <View testID="filter-bar-controls" pointerEvents="box-none" onLayout={(event) => { fit.box("controls")(event); props.onControlsWidth?.(event.nativeEvent.layout.width); }} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: 1 }}>
+          <MenuButton icon={FILTER_ICONS.host} label={words.host} compact={compact} tip={tip(words.host, strings.filterHost)} open={menu === "host"} onPress={() => toggle("host")} theme={theme}>
+            <CascadeMenu
+              sections={hostMenuSections(
+                hosts,
+                params.hostIds,
+                strings,
+                (id) => setParams((p) => ({ ...p, hostIds: toggleItem(p.hostIds, id) })),
+                () => setParams((p) => ({ ...p, hostIds: [] })),
+                board.hostId,
+              )}
+              theme={theme}
+              width={menuWidth(220, scale, window.width - MENU_EDGE * 2)}
+              top={toolbarButtonSize(scale) + 6}
+              align="left"
+              onClose={() => setMenu(null)}
+            />
+          </MenuButton>
           <MenuButton icon={FILTER_ICONS.agent} label={words.agent} compact={compact} tip={tip(words.agent, strings.tips.agent)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
             <CascadeMenu
               sections={withEmptyGroups(agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) }))))}

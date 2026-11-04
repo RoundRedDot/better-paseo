@@ -19,7 +19,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 import { Dimensions, StyleSheet } from "react-native";
 import { CascadeMenu, MenuBoundsContext } from "../../client/tasks/board/menu";
 import { MENU, MENU_EDGE, MENU_FOCUS, filterMenuSections, layoutMenu, menuChrome, menuRowHeight, menuWidth, menuKeyReducer, panelMaxHeight, selectableItems, submenuPlacement, type MenuItem, type MenuSection } from "../../client/tasks/board/menu-model";
-import { SORT_GROUPS, SORT_ICONS, projectMenuSections, sortMenuSections } from "../../client/tasks/board/board-menus";
+import { SORT_GROUPS, SORT_ICONS, hostMenuSections, projectMenuSections, sortMenuSections } from "../../client/tasks/board/board-menus";
 import { SORT_KEYS, type BoardSort } from "../../client/tasks/board/sort";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 
@@ -34,6 +34,35 @@ function textOf(node: ReactTestInstance | string): string {
   if (typeof node === "string") return node;
   return node.children.map(textOf).join("");
 }
+
+it("lists the hosts under an All hosts reset row, marks the picked and the offline ones", () => {
+  const toggle = vi.fn();
+  const clear = vi.fn();
+  const strings = BOARD_STRINGS.en;
+  const [section] = hostMenuSections(
+    [
+      { serverId: "host-1", label: "Local", status: "online" },
+      { serverId: "host-2", label: "Studio", status: "offline" },
+    ],
+    ["host-2"],
+    strings,
+    toggle,
+    clear,
+  );
+  const items = section!.items;
+  expect(items.map((item) => item.label)).toEqual([strings.allHosts, "Local", "Studio"]);
+  expect(items.map((item) => item.checked)).toEqual([false, false, true]);
+  expect(items[2]!.hint).toBe("offline");
+  expect(items[1]!.hint).toBeUndefined();
+  items[0]!.onSelect!();
+  expect(clear).toHaveBeenCalledTimes(1);
+  items[1]!.onSelect!();
+  expect(toggle).toHaveBeenCalledWith("host-1");
+  // No host listed yet: the board's own host stands in, and All hosts is the whole selection.
+  const [local] = hostMenuSections([], [], strings, toggle, clear, "host-9");
+  expect(local!.items.map((item) => item.label)).toEqual([strings.allHosts, "This host"]);
+  expect(local!.items[0]!.checked).toBe(true);
+});
 
 it("uses touch row heights in both menu layout and scaled hit targets", () => {
   const item: MenuItem = { key: "touch", label: "View", minHeight: 44 };
