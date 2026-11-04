@@ -185,3 +185,18 @@ describe("mobile nested list markers", () => {
     }
   });
 });
+
+describe("desktop list markers", () => {
+  it("uses a narrower bullet column at each depth without changing ordered markers", () => {
+    os.__rnMockOS = "web";
+    const webTokens = { ...tokens, platform: "web" as const };
+    act(() => { renderer = TestRenderer.create(React.createElement(MarkdownView, {
+      text: "- First\n  - Nested\n  1. Ordered", tokens: webTokens, variant: "document",
+    })); });
+    const markers = renderer!.root.findAll((node) => String(node.type) === "Text" &&
+      ["•", "◦"].includes(node.props.children));
+    expect(markers.map((node) => StyleSheet.flatten(node.props.style).width)).toEqual([14, 14]);
+    const ordered = renderer!.root.find((node) => String(node.type) === "Text" && node.props.children === "1.");
+    expect(StyleSheet.flatten(ordered.props.style).width).toBeGreaterThanOrEqual(20);
+  });
+});
