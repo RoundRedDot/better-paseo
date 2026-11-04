@@ -3,6 +3,7 @@ import { classifyTool, type ToolCallPayload } from "../../client/tools/classify"
 import { summarizeTool } from "../../client/tools/summarize";
 import { providerName, shortAgentId, shouldFold } from "../../client/tools/agent-row";
 import { readPermissionRequest } from "../../client/tools/agent-status";
+import { toolbarLabel } from "../../client/i18n/toolbar-strings";
 
 /** The shape Codex's async question takes in a needs-permission notification. */
 function questionBody(): string {
@@ -22,6 +23,11 @@ function paseo(name: string, input: Record<string, unknown>, output: unknown, st
 }
 
 describe("agent row grammar", () => {
+  it.each([["Needs answer", "需要回答"], ["Respond", "回复"], ["Allowed", "已允许"], ["Denied", "已拒绝"],
+    ["Running subtask", "正在执行子任务"], ["Checking permissions", "正在检查权限"]])("localizes %s", (en, zh) => {
+    expect(toolbarLabel(en, "zh")).toBe(zh);
+    expect(toolbarLabel(en, "en")).toBe(en);
+  });
   it.each([
     ["create running", paseo("create_agent", { title: "Builder", provider: "claude" }, null, "running"),
       { verb: "Creating", target: "Builder", meta: ["Claude"], tone: "default" }],

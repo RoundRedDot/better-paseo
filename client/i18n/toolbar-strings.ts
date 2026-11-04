@@ -6,6 +6,20 @@
 import { resolveLanguage, type SettingsLanguagePreference } from "./settings-strings";
 
 const ZH: Readonly<Record<string, string>> = {
+  "Needs answer": "需要回答", "Needs permission": "需要授权", Respond: "回复", Responding: "回复中", Responded: "已回复",
+  Allowed: "已允许", Denied: "已拒绝", Message: "消息", Finished: "已完成", Errored: "出错", Closed: "已关闭", Canceled: "已取消",
+  "Checking status": "正在检查状态", Status: "状态", "Reading activity": "正在读取活动", Activity: "活动",
+  "Listing agents": "正在列出 Agent", "Listed agents": "已列出 Agent", "List agents": "列出 Agent",
+  "Checking permissions": "正在检查权限", "Pending permissions": "待处理权限",
+  "Canceling turn": "正在取消轮次", "Canceled turn": "已取消轮次", "Cancel turn": "取消轮次",
+  "Closing agent": "正在关闭 Agent", "Closed agent": "已关闭 Agent", "Close agent": "关闭 Agent",
+  Archiving: "正在归档", Archived: "已归档", Archive: "归档", Updating: "正在更新", Updated: "已更新", Update: "更新",
+  "Setting mode": "正在设置模式", "Set mode": "已设置模式",
+  "Running subtask": "正在执行子任务", "Subtask failed": "子任务失败", Subtask: "子任务",
+  Creating: "正在创建", Created: "已创建", "Create failed": "创建失败", "Create canceled": "创建已取消",
+  "Sending prompt": "正在发送提示", "Sent prompt": "已发送提示", "Prompt failed": "提示发送失败", "Prompt canceled": "提示发送已取消",
+  "Listing providers": "正在列出提供商", Providers: "提供商", "Listing models": "正在列出模型", Models: "模型",
+  "Listing profiles": "正在列出配置", Profiles: "配置", "Inspecting provider": "正在查看提供商", Provider: "提供商",
   Copy: "复制",
   "Copy selected": "复制选中",
   Copied: "已复制",

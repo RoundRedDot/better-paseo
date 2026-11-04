@@ -54,6 +54,9 @@ import { mcpServiceIcon } from "../tools/mcp-service-icon";
 import { commandIcon } from "../tools/command-icon";
 import type { CopyItem } from "../details/contracts";
 import { useZoomedTokens } from "../ui/text-zoom";
+import { toolbarLabel } from "../i18n/toolbar-strings";
+import { useHostLanguageVersion } from "../i18n/host-language";
+import { useEnhancerPreferences } from "../preferences";
 
 /**
  * The muted icon a settled call shows in the row's status slot: one Lucide
@@ -208,6 +211,9 @@ export function ToolCallout({
   const scrollAnchor = useScrollAnchor(expanded);
 
   const summary = useMemo(() => groupCalls ? summarizeToolGroup(groupCalls) : summarizeTool(data), [data, groupCalls]);
+  const { language } = useEnhancerPreferences();
+  useHostLanguageVersion();
+  const verb = summary.agent ? toolbarLabel(summary.verb, language) : summary.verb;
   const iconName = useMemo(() => toolCallIconName(data), [data]);
   const agentTarget = useAgentRowTarget(summary);
   const pathContext = useContext(PathContext);
@@ -337,7 +343,7 @@ export function ToolCallout({
       inert={!hasDetail}
       icon={statusIcon}
       iconIsStatus={running || failed}
-      verb={summary.verb}
+      verb={verb}
       keepVerb={Boolean(summary.agent)}
       verbColor={agentStateColor}
       metaFont={summary.agent ? "ui" : "mono"}
@@ -348,12 +354,12 @@ export function ToolCallout({
       metaLead={metaLead}
       actions={actions}
       onLongPress={viewsImage ? openViewer : capabilities.touch ? onLongPress : undefined}
-      accessibilityLabel={[summary.verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
+      accessibilityLabel={[verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
       onPreviewOpen={requestImage}
       previewWraps={!drawsImage}
       pressPreview={!viewsImage}
       previewKey={previewKey}
-      detailsTitle={{ text: summary.agent ? [summary.verb, agentTarget.text].filter(Boolean).join(" · ")
+      detailsTitle={{ text: summary.agent ? [verb, agentTarget.text].filter(Boolean).join(" · ")
         : groupCalls ? [summary.verb, summary.target].filter(Boolean).join(" ")
         : data.shell?.command || data.command || (summary.targetIsPath ? data.filePath : undefined) || summary.target || summary.verb,
         mono: !summary.agent && Boolean(summary.targetIsPath || data.command || data.shell?.command) }}
@@ -670,10 +676,12 @@ function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, str
   fitControls?: boolean;
 }) {
   const summary = useMemo(() => summarizeTool(call), [call]);
+  const { language } = useEnhancerPreferences();
+  useHostLanguageVersion();
   const agentTarget = useAgentRowTarget(summary);
   const agent = summary.agent;
   // An agent card's preview is named in words: "Finished - tasks B" (design 3).
-  const agentLabel = agent ? [summary.verb, agentTarget.text].filter(Boolean).join(" · ") : undefined;
+  const agentLabel = agent ? [toolbarLabel(summary.verb, language), agentTarget.text].filter(Boolean).join(" · ") : undefined;
   const agentColor = agent ? summary.tone === "danger" ? tokens.danger : summary.tone === "warning" ? tokens.warning :
     agent.iconTone === "success" ? tokens.success : tokens.foregroundMuted : undefined;
   return (
