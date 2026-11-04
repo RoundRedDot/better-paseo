@@ -1695,17 +1695,17 @@ describe("Tasks board, desktop", () => {
     const tabs = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "tab");
     const labels = () => hostsById("sidebar-group-tab-label");
     const measureTab = (tab: ReactTestInstance, width: number) => layout(tab.find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure"), width);
-    // The tabs share their row equally, so it alone is laid out: four tabs `width` wide.
+    // The tabs share their row equally, so it alone is laid out: five tabs `width` wide.
     expect(tabs()[0]!.props.onLayout).toBeUndefined();
-    const tabsAt = (width: number) => layout(hostsById("sidebar-group-tabs")[0]!, 4 * width + 2 * 10 + 3 * 6);
+    const tabsAt = (width: number) => layout(hostsById("sidebar-group-tabs")[0]!, 5 * width + 2 * 10 + 4 * 6);
     expect(labels()).toHaveLength(0);
     // Three short labels fit, but the longest still forces the entire row to icons.
     tabsAt(100);
-    tabs().forEach((tab, index) => measureTab(tab, index === 2 ? 90 : 40));
+    tabs().forEach((tab, index) => measureTab(tab, index === 3 ? 90 : 40));
     expect(labels()).toHaveLength(0);
-    measureTab(tabs()[2]!, 60);
-    expect(labels()).toHaveLength(4);
-    for (const kind of ["agent", "project", "workspace", "label"] as const) {
+    measureTab(tabs()[3]!, 60);
+    expect(labels()).toHaveLength(5);
+    for (const kind of ["host", "agent", "project", "workspace", "label"] as const) {
       const word = BOARD_STRINGS[language].sidebar.groups[kind];
       const tab = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "tab" && node.props.accessibilityLabel === word);
       const measure = () => tab().find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure");
@@ -1725,22 +1725,22 @@ describe("Tasks board, desktop", () => {
       expect(measure()).toBe(measurement);
       expect(StyleSheet.flatten(measure().props.style).fontWeight).toBe("500");
       tabsAt(120);
-      expect(labels()).toHaveLength(4);
+      expect(labels()).toHaveLength(5);
       expect(textOf(label()[0]!)).toBe(word);
       // An updated measurement (font or translation) can hide the label without a resize.
       layout(measure(), 140);
       expect(labels()).toHaveLength(0);
       layout(measure(), 60);
-      expect(labels()).toHaveLength(4);
+      expect(labels()).toHaveLength(5);
     }
     // A new language or font size invalidates the whole row until remeasured.
     act(() => renderer!.update(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base + 2 } } })));
     expect(labels()).toHaveLength(0);
     tabs().forEach((tab) => measureTab(tab, 60));
-    expect(labels()).toHaveLength(4);
+    expect(labels()).toHaveLength(5);
   });
 
-  it("keeps all four icon-only group tabs equal and their labels stable through repeated clicks", () => {
+  it("keeps all five icon-only group tabs equal and their labels stable through repeated clicks", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(900);
@@ -1749,7 +1749,7 @@ describe("Tasks board, desktop", () => {
     const layout = (node: ReactTestInstance, width: number) => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } });
     act(() => {
       tabs().forEach((tab, index) => layout(tab.find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure"), 60 + index * 20));
-      layout(hostsById("sidebar-group-tabs")[0]!, 4 * 50 + 2 * 10 + 3 * 6);
+      layout(hostsById("sidebar-group-tabs")[0]!, 5 * 50 + 2 * 10 + 4 * 6);
     });
     const labels = () => hostsById("sidebar-group-tab-label");
     const sizes = () => tabs().map((tab) => {
@@ -1758,22 +1758,22 @@ describe("Tasks board, desktop", () => {
     });
     expect(labels()).toHaveLength(0);
     const original = sizes();
-    expect(original).toHaveLength(4);
+    expect(original).toHaveLength(5);
     expect(original.every((size) => size.flexBasis === 0 && size.flexGrow === 1)).toBe(true);
     expect(original.every((size) => JSON.stringify(size) === JSON.stringify(original[0]))).toBe(true);
     const measurements = hostsById("sidebar-group-tab-measure");
-    for (const index of [1, 2, 3, 0, 2, 0]) {
+    for (const index of [1, 2, 3, 4, 0, 2]) {
       act(() => tabs()[index]!.props.onPress());
       expect(labels()).toHaveLength(0);
       expect(sizes()).toEqual(original);
       expect(hostsById("sidebar-group-tab-measure")).toEqual(measurements);
       expect(tabs()[index]!.props.accessibilityState).toEqual({ selected: true });
     }
-    act(() => layout(hostsById("sidebar-group-tabs")[0]!, 4 * 180 + 2 * 10 + 3 * 6));
-    expect(labels()).toHaveLength(4);
+    act(() => layout(hostsById("sidebar-group-tabs")[0]!, 5 * 180 + 2 * 10 + 4 * 6));
+    expect(labels()).toHaveLength(5);
     const textStyles = labels().map((node) => StyleSheet.flatten(node.props.style));
     act(() => tabs()[1]!.props.onPress());
-    expect(labels()).toHaveLength(4);
+    expect(labels()).toHaveLength(5);
     expect(labels().map((node) => StyleSheet.flatten(node.props.style).fontWeight)).toEqual(textStyles.map((style) => style.fontWeight));
   });
 
@@ -1793,6 +1793,54 @@ describe("Tasks board, desktop", () => {
     expect(row().props.accessibilityState).toEqual({ checked: true });
     act(() => row().props.onPress());
     expect(lastBoardParams("host-1").workspaceIds).toEqual([]);
+  });
+
+  it("counts the active cards by host in the sidebar's groups, an 'All hosts' row a filter", () => {
+    // The data mock's handle, as the board reads the samples through it.
+    const fake = data as unknown as { __handle: { lanes: Record<string, { cards: unknown[] }> } };
+    const total = (["needs_input", "running", "review", "done", "archived"] as const).reduce((sum, lane) => sum + fake.__handle.lanes[lane]!.cards.length, 0);
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2000);
+    const groups = () => renderer!.root.findByProps({ testID: "sidebar-groups" });
+    const rows = () => groups().findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function");
+    act(() => groups().findByProps({ accessibilityRole: "tab", accessibilityLabel: "Host" }).props.onPress());
+    // No host is listed yet: the board's own host stands in, and no sample card is tagged with one.
+    expect(rows().map((node) => node.props.accessibilityLabel)).toEqual([`All hosts ${total}`, "This host 0"]);
+    expect(rows().map((node) => node.props.accessibilityState)).toEqual([{ checked: true }, { checked: false }]);
+    act(() => rows()[1]!.props.onPress());
+    expect(lastBoardParams("host-1").hostIds).toEqual(["host-1"]);
+    expect(rows().map((node) => node.props.accessibilityState)).toEqual([{ checked: false }, { checked: true }]);
+    act(() => rows()[0]!.props.onPress());
+    expect(lastBoardParams("host-1").hostIds).toEqual([]);
+    // A host with no card is listed until the switch hides it; the selected one stays.
+    act(() => rows()[1]!.props.onPress());
+    act(() => { void deviceTasksStore().update({ showEmptyGroups: false }); renderer!.update(screen(false)); });
+    expect(rows().map((node) => node.props.accessibilityLabel)).toEqual([`All hosts ${total}`, "This host 0"]);
+    act(() => rows()[0]!.props.onPress());
+    expect(rows().map((node) => node.props.accessibilityLabel)).toEqual([`All hosts ${total}`]);
+    act(() => { void deviceTasksStore().update({ showEmptyGroups: true }); renderer!.update(screen(false)); });
+    expect(rows()).toHaveLength(2);
+  });
+
+  it("counts a host's cards from the loaded board when the aggregator tags them", () => {
+    // The data mock's handle, as the board reads the samples through it.
+    const fake = data as unknown as { __handle: { byId: Map<string, TaskCard> } };
+    const saved = fake.__handle.byId;
+    fake.__handle.byId = new Map([...saved].map(([id, card]) => [id, { ...card, hostId: "host-1" }]));
+    try {
+      act(() => {
+        renderer = TestRenderer.create(screen(false));
+      });
+      layOut(2000);
+      const groups = () => renderer!.root.findByProps({ testID: "sidebar-groups" });
+      act(() => groups().findByProps({ accessibilityRole: "tab", accessibilityLabel: "Host" }).props.onPress());
+      const rows = () => groups().findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function");
+      expect(rows().map((node) => node.props.accessibilityLabel)).toEqual([`All hosts ${saved.size}`, `This host ${saved.size}`]);
+    } finally {
+      fake.__handle.byId = saved;
+    }
   });
 
   it("draws the sidebar's label rows with a solid tag whose hole follows the row's fill", () => {

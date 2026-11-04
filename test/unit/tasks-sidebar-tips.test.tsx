@@ -20,7 +20,7 @@ vi.mock("../../client/web", async (original) => ({
     return () => { if (id) hover.delete(id); };
   },
 }));
-vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => actions.reveal }));
+vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => actions.reveal, useHosts: () => [] }));
 // Node has no matchMedia, which reads as touch and hides Open folder; these are mouse sidebars.
 vi.mock("../../client/ui/use-input-capabilities", async (original) => ({
   ...await original<object>(),
@@ -377,19 +377,19 @@ describe("sidebar action tips", () => {
     expectActionTips(root);
     for (const id of LANE_ORDER) expect(tip(host(root, `sidebar-stat-${id}`))).toBe(BOARD_STRINGS[language].lanes[id]);
     const tabs = root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "tab");
-    expect(tabs).toHaveLength(4);
+    expect(tabs).toHaveLength(5);
     for (const tab of tabs) expect(tip(tab)).toBe(tab.props.accessibilityLabel);
     const iconSizes = () => tabs.map((tab) => tab.find((node) => (node.type as unknown) === "Icon").props.size);
-    expect(iconSizes()).toEqual([18, 18, 18, 18]);
-    // The tabs share their row equally: it alone is laid out, four tabs `width` wide.
-    const tabsAt = (width: number) => host(root, "sidebar-group-tabs").props.onLayout({ nativeEvent: { layout: { width: 4 * width + 2 * 10 + 3 * 6 } } });
+    expect(iconSizes()).toEqual([18, 18, 18, 18, 18]);
+    // The tabs share their row equally: it alone is laid out, five tabs `width` wide.
+    const tabsAt = (width: number) => host(root, "sidebar-group-tabs").props.onLayout({ nativeEvent: { layout: { width: 5 * width + 2 * 10 + 4 * 6 } } });
     await act(async () => {
       tabsAt(160);
       for (const tab of tabs) host(tab, "sidebar-group-tab-measure").props.onLayout({ nativeEvent: { layout: { width: 40 } } });
     });
-    expect(iconSizes()).toEqual([14, 14, 14, 14]);
+    expect(iconSizes()).toEqual([14, 14, 14, 14, 14]);
     await act(async () => tabsAt(30));
-    expect(iconSizes()).toEqual([18, 18, 18, 18]);
+    expect(iconSizes()).toEqual([18, 18, 18, 18, 18]);
     const filter = root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
     expect(tip(filter)).toBe("Claude");
     await act(async () => filter.props.onPress());
