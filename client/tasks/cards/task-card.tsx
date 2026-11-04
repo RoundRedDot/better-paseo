@@ -898,8 +898,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const shownParentTag = historyTip === null ? parentTag(parentArchive, null) : null;
   const metaLine = Math.round(m.metaLine * scale);
   const historySize = CONTEXT_RING_BITMAPS.card.size;
-  // A card from another host says which one; this board's own cards need no tag.
-  const hostLabel = card.hostLabel && card.hostId !== undefined && card.hostId !== null && card.hostId !== props.hostId ? card.hostLabel : null;
+  // A card from another host says which one, while the Host switch is on and the
+  // board knows its own host; this board's own cards need no tag.
+  const hostLabel =
+    fields.host && props.hostId !== undefined && card.hostLabel && card.hostId !== undefined && card.hostId !== null && card.hostId !== props.hostId
+      ? card.hostLabel
+      : null;
   // Beside a context ring the text fades out before it instead of ending in
   // an ellipsis: clipped, with the fade only once the text no longer fits.
   const metaRing = hasMeta ? ringFor(m.metaLine, historyTip !== null) : null;
