@@ -1082,6 +1082,16 @@ describe("TaskCardView rows", () => {
     expect(texts(hostByTestId(tree.root, "task-card-timer"))).toEqual([expected]);
   });
 
+  it("tags a card from another host with its label and leaves the board's own cards untagged", async () => {
+    const remote = { ...sample("sample-running"), hostId: "host-2", hostLabel: "Studio" };
+    const tagged = await render(cardElement(remote, { hostId: "host-1" }));
+    expect(texts(hostByTestId(tagged.root, "task-card-host"))).toEqual(["Studio"]);
+    act(() => tagged.unmount());
+    const local = { ...sample("sample-running"), hostId: "host-1", hostLabel: "This host" };
+    const plain = await render(cardElement(local, { hostId: "host-1" }));
+    expect(plain.root.findAll((node) => node.props.testID === "task-card-host")).toHaveLength(0);
+  });
+
   it("switches from relative time to a full timestamp when the board clock crosses midnight", async () => {
     let time = new Date(2026, 9, 21, 23, 59, 59).getTime();
     const clock = createTaskClock(() => time);

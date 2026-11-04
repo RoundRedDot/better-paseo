@@ -43,6 +43,7 @@ import { buttonHue, cardButtonHeight, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_I
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu, openToolbarDetailsLayer } from "../../web";
 import { ArchivedTag, parentTag } from "./archived-tag";
+import { HostTag } from "./host-tag";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import type { CardFilterKind, CardFilterState } from "../board/filter-options";
 import { layoutMenu } from "../board/menu-model";
@@ -633,8 +634,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const [ringOpen, setRingOpen] = useState(false);
   // The warning corner's hint is open (hovered, focused or pinned): the card rises over the next one.
   const [cornerOpen, setCornerOpen] = useState(false);
-  // The meta row's widths while a context ring shares it: the row, its text, and the archived tag.
-  const [metaFit, setMetaFit] = useState({ row: 0, text: 0, tag: 0 });
+  // The meta row's widths while a context ring shares it: the row, its text, the host and archived tags.
+  const [metaFit, setMetaFit] = useState({ row: 0, text: 0, tag: 0, host: 0 });
   // Right click and tablet long press keep their window point.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | "touch" | null>(null);
   useLayoutEffect(
@@ -865,6 +866,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   if (card.parent?.archivedAs === "workspace") parentArchive = strings.workspaceArchived;
   else if (card.parent?.archivedAs === "agent" || (card.parent?.missing && card.parent.archived === true)) parentArchive = strings.archived;
   const shownParentTag = parentTag(parentArchive, card.parent?.detached ? { label: strings.parentHistory, tip: strings.parentHistoryHint(parentArchive, card.parent.archived) } : null);
+  // A card from another host says which one; this board's own cards need no tag.
+  const hostLabel = card.hostLabel && card.hostId !== undefined && card.hostId !== null && card.hostId !== props.hostId ? card.hostLabel : null;
   // Beside a context ring the text fades out before it instead of ending in
   // an ellipsis: clipped, with the fade only once the text no longer fits.
   const metaRing = hasMeta ? ringFor(m.metaLine) : null;
@@ -876,7 +879,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           setMetaFit((was) => (was[key] === width ? was : { ...was, [key]: width }));
         }
       : undefined;
-  const tagSpace = shownParentTag !== null ? metaFit.tag + ARCHIVED_TAG_GAP : 0;
+  const tagSpace = (shownParentTag !== null ? metaFit.tag + ARCHIVED_TAG_GAP : 0) + (hostLabel !== null ? metaFit.host + (metaText ? ARCHIVED_TAG_GAP : 0) : 0);
   const metaCut = clip && metaFit.row > 0 && metaFit.text + tagSpace >= metaFit.row - 0.5;
   const clipText = clip ? CLIP_TEXT : null;
   const metaRow = hasMeta ? (
@@ -943,6 +946,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           ) : null}
           {metaCut ? <EdgeFade color={background} /> : null}
         </View>
+        {hostLabel !== null ? (
+          <View style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("host")}>
+            <HostTag tokens={tokens} label={hostLabel} testID="task-card-host" />
+          </View>
+        ) : null}
         {shownParentTag !== null ? (
           <View {...tipProps(shownParentTag.tip ?? pair(strings.details.parent, shownParentTag.label))} style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("tag")} testID="task-card-meta-parent-tag-tip">
             <ArchivedTag tokens={tokens} label={shownParentTag.label} icon={shownParentTag.icon} testID="task-card-meta-archived" />
