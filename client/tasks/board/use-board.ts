@@ -1,7 +1,7 @@
 import { useHomeDirectory } from "../../state/home-directory";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
-import { usePaseo, useSettings } from "@getpaseo/plugin/client";
+import { usePaseo, useSettings, getPaseoClient } from "@getpaseo/plugin/client";
 import { useTitleUpdateControl } from "../actions/title-update";
 import { TITLE_GENERATION_SETTINGS } from "../../../shared/title-generation";
 import { useToast } from "@getpaseo/plugin/client/ui";
@@ -9,7 +9,8 @@ import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
 import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, useUnreadControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl, type UnreadControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
-import { filterLanes, openedTask, setTasksArchivedLane, useTasks, withSubagentCards, type TasksHandle } from "../data";
+import { filterLanes, openedTask, setTasksArchivedLane, withSubagentCards, type TasksHandle } from "../data";
+import { useMultiHostTasks } from "../data/multi-host";
 import { useSearchFirstPrompts, retrySearchPrompt, type SearchCoverageControl } from "../data/search-first-prompts";
 import { useSearchConversations } from "../data/search-conversations";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -310,7 +311,8 @@ export function useBoard(
   // Closed, the board's data stays warm a while, so a quick reopen sends nothing.
   // After a reconnect the last cards stand in until the store is ready.
   const visible = useBoardVisible(rootRef, compact);
-  const availability = useTaskAvailability(useCarriedTasks(hostId, options, useTasks(paseo, options, lingerBoard)), visible, hostId);
+  const rawTasks = useMultiHostTasks(paseo, hostId, options, filters.hostIds, lingerBoard);
+  const availability = useTaskAvailability(useCarriedTasks(hostId, options, rawTasks), visible, hostId);
   const tasks = availability.tasks;
   const searchHistoryLoading = useSearchHistory(tasks, filters.query, visible, searchCancelled);
   useEffect(() => {
@@ -510,7 +512,7 @@ export function useBoard(
     }
     const navigation = latest.current.props.navigation;
     if (!navigation) return;
-    navigation.openAgent({ agentId });
+    navigation.openAgent({ serverId: card?.hostId ?? hostId, agentId });
     // Opened is seen: a task marked unread does not stay in review.
     openedTask(latest.current.paseo, agentId);
   }, []);
@@ -546,7 +548,16 @@ export function useBoard(
         handlers.current?.reveal(agentId);
       },
       // No CLI on the daemon's machine (`tasks.capabilities`): no Stop on any card.
-      onStop: stopAvailable ? (card, stopOptions) => latest.current.stop.press(card, stopOptions) : undefined,
+      onStop: stopAvailable
+        ? (card, stopOptions) => {
+            // The local host's CLI stops local agents only: a remote card's Stop lives in its own tab.
+            if (card.hostId && card.hostId !== latest.current.props.host.id) {
+              latest.current.toast.error(latest.current.strings.remoteHostStopHint);
+              return;
+            }
+            latest.current.stop.press(card, stopOptions);
+          }
+        : undefined,
       onCancelStop: (agentId) => latest.current.stop.cancel(agentId),
       // The server cannot reach the daemon itself: no Mark read either.
       onRead: readAvailable ? (card) => write(card.id, "read", () => latest.current.read.press(card)) : undefined,
@@ -567,7 +578,17 @@ export function useBoard(
         const requestId = card.permission?.requestId;
         if (!requestId) return;
         write(card.id, "permission", () => {
-          void respondToPermission(latest.current.paseo, card.id, button, requestId).catch((error: unknown) =>
+          // A remote card's request lives on its own daemon; the local client cannot answer it.
+          let target = latest.current.paseo;
+          if (card.hostId && card.hostId !== hostId) {
+            try {
+              target = getPaseoClient(card.hostId);
+            } catch (error) {
+              latest.current.toast.error(errorText(error));
+              return;
+            }
+          }
+          void respondToPermission(target, card.id, button, requestId).catch((error: unknown) =>
             latest.current.toast.error(latest.current.strings.answerFailed(errorText(error))),
           );
         });

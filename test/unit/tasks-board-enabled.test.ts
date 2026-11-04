@@ -55,6 +55,8 @@ const host = vi.hoisted(() => ({
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => host.paseo,
+  useHosts: () => [],
+  getPaseoClient: () => host.paseo,
   useRpc: (contract: { name: string }) => (input: { agentIds?: string[] }) => Promise.resolve(contract.name === "tasks.availability" ? { entries: input.agentIds!.map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) } : { stop: false }),
   useSettings: (definition: { id: string }) => definition.id === "tasks-device"
     ? { status: "ready", values: host.device.values, revision: host.device.revision, saving: false, saveError: null, save: async (values: Record<string, unknown>) => { host.device = { values, revision: JSON.stringify(values) }; return true; }, reload: async () => {} }

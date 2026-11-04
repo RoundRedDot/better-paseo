@@ -52,6 +52,8 @@ const host = vi.hoisted(() => ({
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => host.paseo,
+  useHosts: () => [],
+  getPaseoClient: () => host.paseo,
   useRpc: (contract: { name: string }) => (input: { agentIds?: string[] }) => Promise.resolve(contract.name === "tasks.availability" ? { entries: input.agentIds!.map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) } : contract.name === "settings.agent-updates" ? { state: "idle", entries: [], error: null } : { stop: false }),
   useSettings: () => (host.settings ? { status: "ready", values: host.settings, revision: "1", saving: false, saveError: null } : { status: "loading" }),
 }));

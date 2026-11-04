@@ -40,7 +40,8 @@ export interface MultiHostControls {
   requestProjectIcon(projectId: string): void;
 }
 
-const DEFAULT_LOCAL_LABEL = "This host";
+/** The local host's label until `useHosts` names it. */
+export const DEFAULT_LOCAL_LABEL = "This host";
 
 /**
  * The hosts a multi-host board reads: every online host, the local one first,
