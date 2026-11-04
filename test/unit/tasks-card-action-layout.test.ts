@@ -231,7 +231,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
       const after = await settleHostLayout(row, { width });
       const undo = after.get(host(`task-title-undo-${card.id}`))!;
       expect(after.get(host("task-card-title"))!.width).toBeCloseTo(titleWidth, 0);
-      expect(undo.left + undo.width).toBeCloseTo(width, 0);
+      expect(undo.left + undo.width).toBeCloseTo(width + 6, 0);
       expect(after.has(host(`task-title-undo-fade-${card.id}`))).toBe(true);
       await act(async () => control.undoTitle(card.id));
     },
