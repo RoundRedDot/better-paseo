@@ -354,8 +354,8 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
       const from = before.laneOf.get(id) === lane ? before.cards.get(id) : undefined;
       // Laid out just out of view, it slides in with the cards around it (the list scrolled back).
       if (from) next.push({ key: id, card, from, to, fade: "none", reveal: false, start: at, duration: MOTION.slideMs, origin });
-      // Came in from out of view: it fades in once the cards around it are on their way.
-      else next.push({ key: id, card, from: to, to, fade: "in", reveal: false, start: at + MOTION.fadeDelayMs, duration: MOTION.fadeMs, origin });
+      // Came in from out of view: it enters (as `EnterOnMount` does under it) once the cards around it are on their way.
+      else next.push({ key: id, card, from: to, to, fade: "in", reveal: false, start: at + MOTION.enterDelayMs, duration: MOTION.enterMs, origin });
     }
     if (!next.some((ghost) => Number.isFinite(ghost.start))) {
       uncover();
@@ -410,7 +410,10 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
       if (!COVER || !viewport) return;
       const changed = new Set(coveredLanes);
       LANE_ORDER.forEach((lane) => {
-        if (!sameCards(last[lane].cards, next[lane].cards)) changed.add(lane);
+        // Cards added after a lane's last one (a new task in the running lane)
+        // move nothing on screen: they enter under no cover, and the lane's
+        // cards are not drawn a second time for it.
+        if (!sameCards(last[lane].cards, next[lane].cards) && !appended(last[lane].cards, next[lane].cards)) changed.add(lane);
       });
       const { byId, laneOf } = index(next);
       const origin = { x: viewport.x, y: viewport.y };
@@ -506,6 +509,13 @@ export function createLaneMotionStore(flights: boolean): LaneMotionStore {
     },
   };
   return store;
+}
+
+/** `next` is `last` with cards added after its last one, and at least one card was before them. */
+export function appended(last: readonly { id: string }[], next: readonly { id: string }[]): boolean {
+  if (last.length === 0 || next.length <= last.length) return false;
+  for (let index = 0; index < last.length; index++) if (last[index]!.id !== next[index]!.id) return false;
+  return true;
 }
 
 function laneRectOf(frame: MotionFrame, id: string): Rect | null {
@@ -653,7 +663,14 @@ const GhostCard = memo(function GhostCard(props: { ghost: Ghost; onDone(key: str
         : ghost.fade === "in"
           ? t.interpolate({ inputRange: [0, 1], outputRange: [0, 1] })
           : 1;
-    const scale = ghost.fade === "out" ? t.interpolate({ inputRange: [0, 1], outputRange: [1, 0.96] }) : 1;
+    const scale =
+      ghost.fade === "out"
+        ? t.interpolate({ inputRange: [0, 1], outputRange: [1, 0.96] })
+        : ghost.fade === "in"
+          ? t.interpolate({ inputRange: [0, 1], outputRange: [MOTION.enterScale, 1] })
+          : 1;
+    // A card coming in rises into its place as it enters.
+    const rise = ghost.fade === "in" ? MOTION.enterShift : 0;
     return {
       position: "absolute" as const,
       left: ghost.from.x - origin.x,
@@ -662,7 +679,7 @@ const GhostCard = memo(function GhostCard(props: { ghost: Ghost; onDone(key: str
       opacity,
       transform: [
         { translateX: t.interpolate({ inputRange: [0, 1], outputRange: [0, dx] }) },
-        { translateY: t.interpolate({ inputRange: [0, 1], outputRange: [0, dy] }) },
+        { translateY: t.interpolate({ inputRange: [0, 1], outputRange: [rise, dy] }) },
         { scale },
       ],
     };

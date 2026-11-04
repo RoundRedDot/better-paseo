@@ -15,7 +15,8 @@ import { LANE_EMPTY_ICON } from "./strings";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
 import { surfaceLift } from "../cards/surface-lift";
-import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, RollingCount, SkeletonCard, VerticalLabel, useBreathing, useFreshIds, useTap } from "./board-parts";
+import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, NewCardsDot, NewCardsPill, RollingCount, SkeletonCard, VerticalLabel, laneHue, useBreathing, useFreshIds, useTap } from "./board-parts";
+import { pillDirection, useSeenCards, useTrackNewCards, useUnseenCards } from "./new-cards";
 import { useFlash } from "./breathing";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type EmptyLanes, type FilterMenu } from "./filter-bar";
 import { TabletToolbar } from "./tablet-toolbar";
@@ -620,6 +621,7 @@ export function DesktopBoard(props: {
   const shownLanes = useOffscreenLanes(lanes, wantedLanes, { on: OFFSCREEN_LAG, churnLimit: LANE_CHURN_LIMIT ?? 0 });
   // Filters, sort and search are the user's: lanes that change with them take their new order at once.
   const motion = useLaneMotion(shownLanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: true, churnLimit: LANE_CHURN_LIMIT });
+  useTrackNewCards(board.hostId, shownLanes, tasks.ready);
   const renderCopy = useCallback(
     (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact={false} fresh={false} copy callbacks={callbacks} />,
     [board, theme, callbacks],
@@ -1333,7 +1335,7 @@ const LANE_CHURN_LIMIT = Platform.OS === "web" ? undefined : 6;
  * new cards faded in and the counts rolled. A list short of cards on screen
  * still fills at once (`VirtualizedList`'s high-priority update).
  */
-const LANE_FILL_MS = Platform.OS === "web" ? undefined : MOTION.slideMs + MOTION.fadeDelayMs;
+const LANE_FILL_MS = Platform.OS === "web" ? undefined : MOTION.slideMs + MOTION.enterDelayMs;
 
 /**
  * How many cards a lane adds to its list at a time, out of view. The lanes
@@ -1425,11 +1427,15 @@ function DesktopLaneView(props: DesktopLaneProps) {
   const count = lane.cards.length;
   const titleSize = laneTitle().size;
   const countStyle = { fontSize: titleSize, color: colors.foregroundMuted, fontVariant: ["tabular-nums" as const] };
-  const fresh = useFreshIds(
+  const isFresh = useFreshIds(
     lane.cards.map((card) => card.id),
     ready,
     board.scope,
   );
+  const reduced = useReducedMotion();
+  // New tasks: seen once on screen; until then the list's pill, or the collapsed lane's dot, says so.
+  const unseen = useUnseenCards(board.hostId, lane.id);
+  const seen = useSeenCards(board.hostId, lane.id, board.visible && props.inView && !props.collapsed);
   const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
   const pillRef = useRef<View | null>(null);
   // Cards that change lanes fly to the list, or to the pill of a collapsed lane.
@@ -1450,7 +1456,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
   // No clock in here: a tick reaches the timer texts, not the list and its rows.
   const { focusIndex, currentId, callbacks } = props;
   const { highlighted, stop, read, fields } = board;
-  const extraData = useMemo(() => ({ focusIndex, highlighted, stop, read, fields, fresh, currentId }), [focusIndex, highlighted, stop, read, fields, fresh, currentId]);
+  const extraData = useMemo(() => ({ focusIndex, highlighted, stop, read, fields, currentId }), [focusIndex, highlighted, stop, read, fields, currentId]);
   const renderItem = useCallback(
     ({ item, index }: { item: TaskCard; index: number }) => (
       <CardCell
@@ -1460,11 +1466,11 @@ function DesktopLaneView(props: DesktopLaneProps) {
         compact={false}
         focused={focusIndex === index}
         current={currentId === item.id}
-        fresh={fresh.has(item.id)}
+        fresh={isFresh(item.id)}
         callbacks={callbacks}
       />
     ),
-    [board, theme, focusIndex, currentId, fresh, callbacks],
+    [board, theme, focusIndex, currentId, isFresh, callbacks],
   );
 
   // Taps that a quick swipe starting on them must not fire (see `useTap`).
@@ -1515,6 +1521,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
         {ready ? <RollingCount value={count} scope={board.scope} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
+        <NewCardsDot on={unseen.length > 0} hue={laneHue(theme, lane.id)} testID={`lane-new-dot-${lane.id}`} />
       </HoverPressable>,
     );
   }
@@ -1581,6 +1588,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
           } : null)}
           ref={setList}
           style={covered ? HIDDEN : undefined}
+          viewabilityConfigCallbackPairs={seen.viewabilityConfigCallbackPairs}
           data={lane.cards}
           keyExtractor={(card) => card.id}
           extraData={extraData}
@@ -1629,6 +1637,27 @@ function DesktopLaneView(props: DesktopLaneProps) {
           }
         />
       )}
+      {loadingFirst ? null : (
+        <NewCardsPill
+          count={unseen.length}
+          direction={pillDirection(lane.cards, unseen, seen.firstShown())}
+          inset={pillDirection(lane.cards, unseen, seen.firstShown()) === "up" ? taskControlHeight(40, scale) + 8 : 12 + props.bottomRoom}
+          hue={laneHue(theme, lane.id)}
+          theme={theme}
+          strings={strings}
+          onPress={() => {
+            const index = lane.cards.findIndex((card) => card.id === unseen[0]);
+            if (index < 0) return;
+            try {
+              listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: !reduced });
+            } catch {
+              // Not laid out yet: `onScrollToIndexFailed` gets it there.
+            }
+          }}
+          testID={`lane-new-pill-${lane.id}`}
+        />
+      )}
     </View>,
   );
 }
+

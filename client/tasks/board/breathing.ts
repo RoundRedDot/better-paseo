@@ -40,9 +40,10 @@ const breathe = (t: number) => (1 - Math.cos(Math.PI * t)) / 2;
 /**
  * A flash's opacity, for an accent fill laid over a background: `pulses` slow
  * pulses each time `key` moves past 0, after `delay`; one still beat under
- * reduced motion.
+ * reduced motion. `peak` is the opacity at the top of a pulse: a layer that
+ * carries its own strength (a new card's outline) goes to 1.
  */
-export function useFlash(key: number, delay = 0, pulses = 2): Animated.Value {
+export function useFlash(key: number, delay = 0, pulses = 2, peak: number = FLASH.peak): Animated.Value {
   const reduced = useReducedMotion();
   const value = useRef(new Animated.Value(0)).current;
   useEffect(() => {
@@ -52,13 +53,13 @@ export function useFlash(key: number, delay = 0, pulses = 2): Animated.Value {
       return;
     }
     const to = (toValue: number, duration: number, wait = 0) => Animated.timing(value, { toValue, duration, delay: wait, easing: breathe, useNativeDriver: nativeDriver });
-    const { peak, inMs, outMs } = FLASH;
+    const { inMs, outMs } = FLASH;
     const steps = reduced
       ? [to(peak, 0, delay), to(0, 0, MOTION.highlightMs)]
       : Array.from({ length: pulses }, (_, index) => [to(peak, inMs, index === 0 ? delay : 0), to(0, outMs)]).flat();
     const animation = Animated.sequence(steps);
     animation.start();
     return () => animation.stop();
-  }, [key, delay, pulses, reduced, value]);
+  }, [key, delay, pulses, peak, reduced, value]);
   return value;
 }

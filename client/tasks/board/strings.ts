@@ -32,6 +32,10 @@ const en = {
   total: (count: number) => `${count} ${count === 1 ? "task" : "tasks"}`,
   /** `total` without its number, for a count that rolls on its own. */
   totalUnit: (count: number): string => (count === 1 ? "task" : "tasks"),
+  /** A lane's pill for new tasks out of view; it scrolls to the first. */
+  newTasks: (count: number) => `${count} new ${count === 1 ? "task" : "tasks"}`,
+  /** The phone tab's and the collapsed lane's dot. */
+  newTasksIn: (lane: string) => `New tasks in ${lane}`,
   search: "Search tasks",
   fullConversationSearch: "Full search",
   fullConversationShort: "Full",
@@ -234,6 +238,8 @@ const zh: typeof en = {
   boardEmptyHint: "在任一工作区启动任务后，它会按状态出现在这里",
   windows: { "24h": "24 小时", "7d": "7 天", all: "全部" },
   total: (count) => `${count} 个任务`,
+  newTasks: (count) => `${count} 个新任务`,
+  newTasksIn: (lane) => `${lane}有新任务`,
   totalUnit: () => "个任务",
   search: "搜索任务",
   fullConversationSearch: "全文搜索",

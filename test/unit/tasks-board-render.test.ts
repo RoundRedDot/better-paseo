@@ -21,7 +21,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     const empty = props.ListEmptyComponent as React.ReactNode;
     return React.createElement(
       "FlatList",
-      { ref: props.ref, testID: props.testID, refreshing: props.refreshing, onRefresh: props.onRefresh, alwaysBounceVertical: props.alwaysBounceVertical, onContentSizeChange: props.onContentSizeChange, onScroll: props.onScroll, contentContainerStyle: props.contentContainerStyle, onScrollToIndexFailed: props.onScrollToIndexFailed, onEndReached: props.onEndReached, data: props.data },
+      { ref: props.ref, testID: props.testID, refreshing: props.refreshing, onRefresh: props.onRefresh, alwaysBounceVertical: props.alwaysBounceVertical, onContentSizeChange: props.onContentSizeChange, onScroll: props.onScroll, contentContainerStyle: props.contentContainerStyle, onScrollToIndexFailed: props.onScrollToIndexFailed, onEndReached: props.onEndReached, data: props.data, viewabilityConfigCallbackPairs: props.viewabilityConfigCallbackPairs },
       data.length
         ? data.map((item, index) => {
             host.rowRenders += 1;
@@ -137,6 +137,7 @@ import { DesktopFilterBar as DesktopFilterBarMemo, DesktopToolbar as DesktopTool
 import { LaneWidthMark } from "../../client/tasks/board/lane-width-mark";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
+import { ANNOUNCE_AFTER_MS, FLASH_AFTER_ENTER_MS, FLASH_AFTER_SCROLL_MS, resetNewCards } from "../../client/tasks/board/new-cards";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
 import { ACTIVE_LANE_ORDER as LANE_ORDER, type TaskCard } from "../../client/tasks/model";
 import { BrandMark, DetailActionBar, PiMark, TagMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
@@ -349,6 +350,7 @@ beforeEach(() => {
   host.rowRenders = 0;
   host.liveTasks = null;
   resetBoardSessions();
+  resetNewCards();
   resetSidebarPreference();
   vi.useFakeTimers();
 });
@@ -5858,5 +5860,146 @@ describe("Tasks Command Center item", () => {
     const openScreen = vi.fn();
     items[0]!.onSelect({ context: "global", openScreen });
     expect(openScreen).toHaveBeenCalledWith({ screenId: "tasks", params: { q: "ring" } });
+  });
+});
+
+describe("Tasks board, new tasks", () => {
+  const old = new Date(Date.parse("2026-10-20T12:00:00Z")).toISOString();
+  const running = (id: string, createdAt: string) => makeAgent({ id, title: `Task ${id}`, workspaceId: "ws", status: "running", createdAt, updatedAt: createdAt, lastUserMessageAt: createdAt });
+  const review = (id: string) => makeAgent({ id, title: `Task ${id}`, workspaceId: "ws", status: "idle", requiresAttention: true, attentionReason: "finished", createdAt: old, updatedAt: old, lastUserMessageAt: old });
+
+  /** The list drawing `lane`'s cards: the phone's page, or the desktop lane. */
+  function list(lane: string): ReactTestInstance {
+    return renderer!.root.find((node) => (node.type as unknown) === "FlatList" && Array.isArray(node.props.data) && (node.props.data as TaskCard[]).some((card) => card.lane === lane) && (hostsById(`phone-lane-${lane}`).length === 0 || hostsById(`phone-lane-${lane}`)[0]!.findAll((inner) => inner === node).length > 0));
+  }
+  /** The list reports which of its cards are on screen, as `VirtualizedList` does. */
+  function onScreen(lane: string, ids: string[]) {
+    const target = list(lane);
+    const data = target.props.data as TaskCard[];
+    const pairs = target.props.viewabilityConfigCallbackPairs as { onViewableItemsChanged(info: unknown): void }[];
+    act(() => pairs[0]!.onViewableItemsChanged({ viewableItems: ids.map((id) => ({ key: id, item: null, index: data.findIndex((card) => card.id === id), isViewable: true })), changed: [] }));
+  }
+  const outlined = (id: string) => hostsById(`card-new-${id}`).length > 0;
+
+  async function mount(compact: boolean, os: string, extra: ReturnType<typeof makeAgent>[] = []) {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const scrollToIndex = vi.fn();
+    const fake = createFakePaseo({ agents: [running("a", old), running("b", old), review("c"), ...extra] });
+    host.liveTasks = fake.paseo;
+    await act(async () => { renderer = TestRenderer.create(screen(compact), { createNodeMock: (element) => element.type === "FlatList" ? { scrollToIndex, scrollToOffset: vi.fn() } : null }); });
+    layOut(compact ? 390 : 2400);
+    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    const push = async (agent: ReturnType<typeof makeAgent>, wait = 0) => {
+      await act(async () => { fake.pushAgentSnapshot(agent); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(wait); });
+    };
+    /** Past the moment a new card's lane starts saying so. */
+    const announce = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(ANNOUNCE_AFTER_MS); }); };
+    return { fake, push, announce, scrollToIndex };
+  }
+
+  it.each(["ios", "web"])("%s marks the tab of a lane not shown, and outlines the new card once its lane is", async (os) => {
+    const { push, announce } = await mount(true, os);
+    act(() => hostsById("phone-stat-review")[0]!.props.onPress());
+    await push(running("fresh", new Date().toISOString()));
+    // Not at once: a card the user looks at is reported on screen a few frames after it came.
+    expect(hostsById("phone-new-dot-running")).toHaveLength(0);
+    await announce();
+    expect(hostsById("phone-new-dot-running")).toHaveLength(1);
+    expect(hostsById("phone-new-dot-review")).toHaveLength(0);
+    expect(hostsById("phone-new-pill-review").length).toBe(0);
+    if (os !== "web") {
+      // The page beside the one shown sees its cards, but nobody looks at it.
+      onScreen("running", ["a", "b", "fresh"]);
+      expect(hostsById("phone-new-dot-running")).toHaveLength(1);
+      expect(outlined("fresh")).toBe(false);
+    }
+    act(() => hostsById("phone-stat-running")[0]!.props.onPress());
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    if (os === "web") onScreen("running", ["a", "b", "fresh"]);
+    expect(hostsById("phone-new-dot-running")).toHaveLength(0);
+    expect(outlined("fresh")).toBe(true);
+    expect(outlined("a")).toBe(false);
+    // It breathes twice and goes; scrolled away and back, it does not breathe again.
+    await act(async () => { await vi.advanceTimersByTimeAsync(FLASH_AFTER_SCROLL_MS + 2800 + 50); });
+    expect(outlined("fresh")).toBe(false);
+    onScreen("running", ["a"]);
+    onScreen("running", ["a", "b", "fresh"]);
+    expect(outlined("fresh")).toBe(false);
+  });
+
+  it.each(["ios", "web"])("%s offers a pill for a new card below the screen, and scrolls to it", async (os) => {
+    const { push, announce, scrollToIndex } = await mount(true, os);
+    act(() => hostsById("phone-stat-running")[0]!.props.onPress());
+    onScreen("running", ["a", "b"]);
+    await push(running("fresh", new Date().toISOString()));
+    await announce();
+    // The running lane keeps its oldest task first: the new one is last, out of view.
+    expect((list("running").props.data as TaskCard[]).map((card) => card.id)).toEqual(["a", "b", "fresh"]);
+    const pill = () => hostsById("phone-new-pill-running");
+    expect(pill()).toHaveLength(1);
+    expect(pill()[0]!.props.accessibilityLabel).toBe("1 new task");
+    expect(outlined("fresh")).toBe(false);
+    act(() => pill()[0]!.props.onPress());
+    expect(scrollToIndex).toHaveBeenLastCalledWith({ index: 2, viewPosition: 0.5, animated: true });
+    // It sinks away, then goes.
+    vi.spyOn(Animated, "timing").mockImplementation(() => ({ start: (done?: (result: { finished: boolean }) => void) => done?.({ finished: true }), stop() {}, reset() {} }) as never);
+    onScreen("running", ["b", "fresh"]);
+    expect(outlined("fresh")).toBe(true);
+    expect(pill()).toHaveLength(0);
+  });
+
+  it("outlines a new card seen as it comes in once its entrance settles, and offers no pill for it", async () => {
+    const { push } = await mount(true, "ios");
+    act(() => hostsById("phone-stat-running")[0]!.props.onPress());
+    onScreen("running", ["a", "b"]);
+    await push(running("fresh", new Date().toISOString()));
+    // The list reports the new row a little after it came.
+    await act(async () => { await vi.advanceTimersByTimeAsync(50); });
+    onScreen("running", ["a", "b", "fresh"]);
+    expect(outlined("fresh")).toBe(true);
+    const outline = hostsById("card-new-fresh")[0]!;
+    expect(StyleSheet.flatten(outline.props.style)).toMatchObject({ borderWidth: 1.5, borderRadius: 8 });
+    expect(FLASH_AFTER_ENTER_MS).toBeGreaterThan(FLASH_AFTER_SCROLL_MS);
+    await act(async () => { await vi.advanceTimersByTimeAsync(ANNOUNCE_AFTER_MS); });
+    expect(hostsById("phone-new-pill-running")).toHaveLength(0);
+  });
+
+  it("does not count a task that was created a while ago (unarchived, paged in), or the tasks it starts with", async () => {
+    const { push } = await mount(true, "ios", [running("startup", new Date().toISOString())]);
+    act(() => hostsById("phone-stat-review")[0]!.props.onPress());
+    expect(hostsById("phone-new-dot-running")).toHaveLength(0);
+    await push(running("returning", new Date(Date.now() - 5 * 60_000).toISOString()), ANNOUNCE_AFTER_MS);
+    expect(hostsById("phone-new-dot-running")).toHaveLength(0);
+    await push(running("fresh", new Date().toISOString()), ANNOUNCE_AFTER_MS);
+    expect(hostsById("phone-new-dot-running")).toHaveLength(1);
+  });
+
+  it("forgets a new task that leaves its lane before it was seen", async () => {
+    const { push } = await mount(true, "ios");
+    act(() => hostsById("phone-stat-review")[0]!.props.onPress());
+    const now = new Date().toISOString();
+    await push(running("fresh", now), ANNOUNCE_AFTER_MS);
+    expect(hostsById("phone-new-dot-running")).toHaveLength(1);
+    await push(makeAgent({ id: "fresh", title: "Task fresh", workspaceId: "ws", status: "idle", requiresAttention: true, attentionReason: "finished", createdAt: now, updatedAt: new Date(Date.now() + 1000).toISOString(), lastUserMessageAt: now }));
+    expect(hostsById("phone-new-dot-running")).toHaveLength(0);
+    expect(hostsById("phone-new-dot-review")).toHaveLength(0);
+  });
+
+  it("on the desktop floats a pill over the lane, and marks a collapsed lane", async () => {
+    const { push, scrollToIndex } = await mount(false, "web");
+    onScreen("running", ["a", "b"]);
+    await push(running("fresh", new Date().toISOString()), ANNOUNCE_AFTER_MS);
+    const pill = () => hostsById("lane-new-pill-running");
+    expect(pill()).toHaveLength(1);
+    act(() => pill()[0]!.props.onPress());
+    expect(scrollToIndex).toHaveBeenLastCalledWith({ index: 2, viewPosition: 0.5, animated: true });
+    onScreen("running", ["a", "b", "fresh"]);
+    expect(outlined("fresh")).toBe(true);
+    await push(running("later", new Date().toISOString()), ANNOUNCE_AFTER_MS);
+    act(() => hostsById("lane-header-running")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === BOARD_STRINGS.en.collapse)[0]!.props.onPress());
+    layOut(2400);
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    expect(hostsById("lane-new-dot-running")).toHaveLength(1);
   });
 });

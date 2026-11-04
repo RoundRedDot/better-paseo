@@ -18,6 +18,8 @@ import type { BoardStrings } from "./strings";
 import type { BoardController } from "./use-board";
 import { useCardMotion } from "./lane-motion";
 import { useFlash } from "./breathing";
+import { useNewCardFlash } from "./new-cards";
+import { withAlpha } from "../../components/theme-tokens";
 
 const nativeDriver = Platform.OS !== "web";
 
@@ -259,18 +261,36 @@ export function LoadMoreRow(props: {
  * Opacity 0 -> 1 once on mount: a card that came into the lane without a
  * flight. It waits while the cards below slide out of its way. No motion when reduced.
  */
-function FadeOnMount({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+/**
+ * A card that came into its lane enters: it rises into its place and grows a
+ * little as it fades in (`MOTION.enter*`). Decided at mount, so the first frame
+ * that draws the card already has it at the start of its entrance.
+ */
+function EnterOnMount({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const reduced = useReducedMotion();
   // Decided at mount: switching the wrapper later would remount the card.
   const play = useRef(enabled && !reduced).current;
-  const opacity = useRef(new Animated.Value(play ? 0 : 1)).current;
+  const [t] = useState(() => new Animated.Value(play ? 0 : 1));
+  const style = useMemo(
+    () =>
+      play
+        ? {
+            opacity: t,
+            transform: [
+              { translateY: t.interpolate({ inputRange: [0, 1], outputRange: [MOTION.enterShift, 0] }) },
+              { scale: t.interpolate({ inputRange: [0, 1], outputRange: [MOTION.enterScale, 1] }) },
+            ],
+          }
+        : null,
+    [play, t],
+  );
   useEffect(() => {
     if (!play) return;
-    const animation = Animated.timing(opacity, { toValue: 1, duration: MOTION.fadeMs, delay: MOTION.fadeDelayMs, useNativeDriver: nativeDriver });
+    const animation = Animated.timing(t, { toValue: 1, duration: MOTION.enterMs, delay: MOTION.enterDelayMs, easing: MOTION.ease, useNativeDriver: nativeDriver });
     animation.start();
     return () => animation.stop();
-  }, [play, opacity]);
-  return play ? <Animated.View style={{ opacity }}>{children}</Animated.View> : <>{children}</>;
+  }, [play, t]);
+  return style ? <Animated.View style={style}>{children}</Animated.View> : <>{children}</>;
 }
 
 /** A `Pressable` whose style follows the pointer on web and on native pointers. */
@@ -329,6 +349,28 @@ export function HoverPressable(
   );
 }
 
+/** A lane's colour: the hue of its status icon. */
+export function laneHue(theme: PluginTheme, lane: LaneId): string {
+  const status = taskTokens(theme).status;
+  return lane === "needs_input" ? status.warning : lane === "running" ? status.running : theme.colors.accent;
+}
+
+/** A new card's outline at full strength: its opacity breathes it in and out. */
+function newOutline(theme: PluginTheme, lane: LaneId): ViewStyle {
+  const hue = laneHue(theme, lane);
+  return {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: withAlpha(hue, 0.55),
+    backgroundColor: withAlpha(hue, taskTokens(theme).isDark ? 0.1 : 0.07),
+  };
+}
+
 export interface CardCellProps {
   card: TaskCard;
   board: BoardController;
@@ -362,6 +404,9 @@ export function CardCell(props: CardCellProps) {
   const [arrival, setArrival] = useState(0);
   const onArrive = useCallback(() => setArrival((key) => key + 1), []);
   const flashOpacity = useFlash(board.visible ? arrival : 0);
+  // A new task, once seen: its outline breathes in its lane's colour.
+  const newFlash = useNewCardFlash(board.hostId, card.id, props.copy ?? false);
+  const outlineOpacity = useFlash(board.visible ? newFlash.key : 0, newFlash.delay, 2, 1);
   const motion = useCardMotion(card.id, nodeRef, props.copy ?? false, onArrive);
   useEffect(() => {
     if (!register) return;
@@ -378,7 +423,7 @@ export function CardCell(props: CardCellProps) {
   return (
     <View ref={nodeRef} collapsable={false}>
       <Animated.View style={motion ? { opacity: motion.opacity, transform: [{ translateX: motion.x }, { translateY: motion.y }] } : undefined}>
-        <FadeOnMount enabled={props.fresh}>
+        <EnterOnMount enabled={props.fresh}>
           <TaskCardView
             card={card}
             searchQuery={board.params.query.trim().toLowerCase()}
@@ -405,12 +450,19 @@ export function CardCell(props: CardCellProps) {
             hostId={board.hostId}
             {...(props.callbacks ?? board.callbacks)}
           />
-        </FadeOnMount>
+        </EnterOnMount>
         <Animated.View
           pointerEvents="none"
           testID={`card-flash-${card.id}`}
           style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: taskTokens(props.theme).isDark ? "#ffffff" : "#000000", opacity: flashOpacity }}
         />
+        {newFlash.key !== 0 ? (
+          <Animated.View
+            pointerEvents="none"
+            testID={`card-new-${card.id}`}
+            style={{ ...newOutline(props.theme, card.lane), opacity: outlineOpacity }}
+          />
+        ) : null}
       </Animated.View>
     </View>
   );
@@ -418,37 +470,137 @@ export function CardCell(props: CardCellProps) {
 
 /**
  * The ids a lane has not shown before, so only a card that arrives (a status
- * change, a new agent) fades in; scrolling a virtualised list back to a card
- * does not. The first ready render seeds the set without fading anything.
- * A card that leaves the lane is forgotten, so it fades in again when it comes
+ * change, a new agent) enters; scrolling a virtualised list back to a card
+ * does not. The first ready render seeds the set without any entering.
+ * A card that leaves the lane is forgotten, so it enters again when it comes
  * back, unless the user's own `scope` (search, sort) took it away and brought
  * it back.
+ *
+ * Read by a row as it mounts, which is the only time it matters (the entrance
+ * is decided at mount): one reader for the lane's life, so a card that comes
+ * in, and the render after it that no longer counts it, do not change the
+ * list's `renderItem` and redraw every row. A card counts as arriving for
+ * `FRESH_MS` after its lane first had it: a list past its first rows mounts
+ * a new one in a later batch, after the render that brought it.
  */
-export function useFreshIds(ids: readonly string[], ready: boolean, scope?: unknown): ReadonlySet<string> {
+export function useFreshIds(ids: readonly string[], ready: boolean, scope?: unknown, now: () => number = Date.now): (id: string) => boolean {
   const seen = useRef<Set<string> | null>(null);
   const seenScope = useRef<unknown>(scope);
-  const last = useRef<ReadonlySet<string>>(NO_IDS);
-  const fresh = new Set<string>();
-  if (ready && seen.current) for (const id of ids) if (!seen.current.has(id)) fresh.add(id);
+  const arrived = useRef(new Map<string, number>());
+  const clock = useRef(now);
+  clock.current = now;
+  if (ready && seen.current) {
+    const at = now();
+    for (const id of ids) if (!seen.current.has(id) && !arrived.current.has(id)) arrived.current.set(id, at);
+  }
   useEffect(() => {
     if (!ready) return;
     if (!seen.current || seenScope.current === scope) seen.current = new Set();
     seenScope.current = scope;
     for (const id of ids) seen.current.add(id);
+    const at = clock.current();
+    for (const [id, since] of arrived.current) if (at - since >= FRESH_MS || !seen.current.has(id)) arrived.current.delete(id);
   });
-  // The same set while its ids hold, so a list's `extraData` does not change for nothing.
-  if (!sameIds(last.current, fresh)) last.current = fresh.size === 0 ? NO_IDS : fresh;
-  return last.current;
+  return useCallback((id: string) => {
+    const since = arrived.current.get(id);
+    return since !== undefined && clock.current() - since < FRESH_MS;
+  }, []);
 }
 
-const NO_IDS: ReadonlySet<string> = new Set();
+/** How long a card that came into a lane still enters when its row mounts. */
+export const FRESH_MS = 1000;
 
-function sameIds(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
-  if (left.size !== right.size) return false;
-  for (const id of right) if (!left.has(id)) return false;
-  return true;
+
+
+
+/**
+ * New tasks a lane holds out of view: a pill floating over the list, at the
+ * edge they are past. It rises in as the first comes and sinks away once the
+ * last is seen; pressing it scrolls to the first.
+ */
+export function NewCardsPill(props: {
+  count: number;
+  direction: "up" | "down";
+  /** From the list's edge it floats at. */
+  inset: number;
+  hue: string;
+  theme: PluginTheme;
+  strings: BoardStrings;
+  onPress(): void;
+  testID?: string;
+}) {
+  const { count, direction, theme } = props;
+  const reduced = useReducedMotion();
+  const on = count > 0;
+  const [mounted, setMounted] = useState(on);
+  const [label, setLabel] = useState(count);
+  // The number it last showed stays while it sinks away.
+  if (on && label !== count) setLabel(count);
+  if (on && !mounted) setMounted(true);
+  const [t] = useState(() => new Animated.Value(0));
+  useEffect(() => {
+    if (!mounted) return;
+    const animation = Animated.timing(t, { toValue: on ? 1 : 0, duration: reduced ? 0 : on ? 220 : 160, easing: MOTION.ease, useNativeDriver: nativeDriver });
+    animation.start(({ finished }) => {
+      if (finished && !on) setMounted(false);
+    });
+    return () => animation.stop();
+  }, [on, mounted, reduced, t]);
+  if (!mounted) return null;
+  const colors = theme.colors;
+  const up = direction === "up";
+  const shift = up ? -10 : 10;
+  return (
+    <View pointerEvents="box-none" style={{ position: "absolute", left: 0, right: 0, alignItems: "center", ...(up ? { top: props.inset } : { bottom: props.inset }) }}>
+      <Animated.View style={{ opacity: t, transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [shift, 0] }) }] }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={props.strings.newTasks(label)}
+          disabled={!on}
+          onPress={props.onPress}
+          testID={props.testID}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            minHeight: 30,
+            paddingLeft: 10,
+            paddingRight: 12,
+            borderRadius: 15,
+            borderWidth: HAIRLINE,
+            borderColor: colors.border,
+            backgroundColor: taskTokens(theme).card.background,
+            ...(Platform.OS === "web"
+              ? { boxShadow: "0px 8px 24px -6px rgba(0, 0, 0, 0.16), 0px 2px 6px -2px rgba(0, 0, 0, 0.08)" }
+              : { elevation: 6, shadowColor: "#000", shadowOpacity: 0.16, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } }),
+          } as ViewStyle}
+        >
+          <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: props.hue }} />
+          <Text style={{ fontSize: F.sm, fontWeight: "600", color: colors.foreground, fontVariant: ["tabular-nums"] }}>{props.strings.newTasks(label)}</Text>
+          <Icon name={up ? "ArrowUp" : "ArrowDown"} size={13} color={props.hue} />
+        </Pressable>
+      </Animated.View>
+    </View>
+  );
 }
 
+/** A lane with new tasks not seen yet, where its cards are not shown: the phone's other tabs, a collapsed lane. */
+export function NewCardsDot(props: { on: boolean; hue: string; testID?: string }) {
+  const reduced = useReducedMotion();
+  const [t] = useState(() => new Animated.Value(props.on ? 1 : 0));
+  useEffect(() => {
+    const animation = Animated.timing(t, { toValue: props.on ? 1 : 0, duration: reduced ? 0 : props.on ? 240 : 160, easing: MOTION.ease, useNativeDriver: nativeDriver });
+    animation.start();
+    return () => animation.stop();
+  }, [props.on, reduced, t]);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      testID={props.on ? props.testID : undefined}
+      style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: props.hue, opacity: t, transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }] }}
+    />
+  );
+}
 
 /** A count on its way from `from` to `to`; `t` runs 0 → 1, null once it has arrived. */
 interface Roll {

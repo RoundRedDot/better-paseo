@@ -130,9 +130,16 @@ export const MOTION = {
   laneOutMs: 120,
   /** How far lane content travels on a switch. */
   laneShift: 24,
-  /** A card that came into a lane from out of view fades in, once the cards below are half way out of its place. */
-  fadeMs: 120,
-  fadeDelayMs: 120,
+  /**
+   * A card that came into a lane from out of view (a new task, a card that
+   * was out of view) enters: it rises `enterShift` into its place and grows
+   * from `enterScale` as it fades in, a beat after the cards below start to
+   * make room. Transform and opacity only, so native runs it on the UI thread.
+   */
+  enterMs: 260,
+  enterDelayMs: 60,
+  enterShift: 10,
+  enterScale: 0.985,
   /** A card moved within its lane (one above it left or came in) slides to its new place. */
   slideMs: 240,
   /** A card that changed lanes travels from its old place to its new one. */
