@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { START_IDLE_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -221,6 +221,79 @@ describe("Tasks data store refresh", () => {
     } finally {
       mounted.unmount();
     }
+  });
+
+  describe("a new agent's idle before its first turn", () => {
+    // Paseo 0.15 sends a prompted agent's start as initializing, then idle (newer, never prompted), then running.
+    const starting = (status: "initializing" | "idle", updatedAt: string) => activeAgent("fresh", { status, createdAt: recentIso(0), updatedAt, lastUserMessageAt: null, activeTurn: null });
+    async function mountWith() {
+      const fake = createFakePaseo({ agents: [activeAgent("old", { status: "running", updatedAt: recentIso(60_000) })], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "all");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const lanesOf: string[] = [];
+      const push = async (agent: ReturnType<typeof activeAgent>) => {
+        await act(async () => {
+          fake.upsertAgent(agent);
+          await flush(4);
+        });
+        lanesOf.push(mounted.current.byId.get("fresh")?.lane ?? "none");
+      };
+      return { fake, mounted, push, lanesOf };
+    }
+
+    it("keeps the card in the running lane through it", async () => {
+      const { mounted, push, lanesOf } = await mountWith();
+      try {
+        const created = Date.now();
+        await push(starting("initializing", new Date(created).toISOString()));
+        await push(starting("idle", new Date(created + 1).toISOString()));
+        await push(activeAgent("fresh", { status: "running", createdAt: new Date(created).toISOString(), updatedAt: new Date(created + 8).toISOString(), lastUserMessageAt: new Date(created + 8).toISOString(), activeTurn: { id: "t1", startedAt: new Date(created + 8).toISOString() } as never }));
+        expect(lanesOf).toEqual(["running", "running", "running"]);
+        // The held idle is dropped: nothing moves it later.
+        await act(async () => {
+          vi.advanceTimersByTime(START_IDLE_HOLD_MS + 100);
+          await flush(4);
+        });
+        expect(mounted.current.byId.get("fresh")).toMatchObject({ lane: "running", status: "running" });
+        expect(mounted.current.lanes.done.cards.map((card) => card.id)).not.toContain("fresh");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("shows an agent made without a prompt as idle once the wait is over", async () => {
+      const { mounted, push, lanesOf } = await mountWith();
+      try {
+        const created = Date.now();
+        await push(starting("initializing", new Date(created).toISOString()));
+        await push(starting("idle", new Date(created + 1).toISOString()));
+        expect(lanesOf).toEqual(["running", "running"]);
+        await act(async () => {
+          vi.advanceTimersByTime(START_IDLE_HOLD_MS);
+          await flush(4);
+        });
+        expect(mounted.current.byId.get("fresh")?.lane).toBe("done");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("does not hold an idle that ends a turn, or one that asks for the user", async () => {
+      const { mounted, push } = await mountWith();
+      try {
+        await push(activeAgent("fresh", { status: "running", updatedAt: recentIso(10) }));
+        await push(activeAgent("fresh", { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(0) }));
+        expect(mounted.current.byId.get("fresh")?.lane).toBe("review");
+        await push(starting("initializing", recentIso(-10)));
+        await push(activeAgent("fresh", { status: "idle", requiresAttention: true, attentionReason: "error", lastUserMessageAt: null, updatedAt: recentIso(-20) }));
+        expect(mounted.current.byId.get("fresh")?.lane).toBe("review");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
   });
 
   it("keeps the loaded done pages while it reads them again, then swaps them in at once", async () => {

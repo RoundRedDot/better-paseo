@@ -336,6 +336,16 @@ const SUBAGENT_POLL_BOARD_MS = 15_000;
 const SUBAGENT_POLL_MS = 60_000;
 /** Agent updates often travel together; one read follows a burst. */
 const SUBAGENT_SETTLE_MS = 1_500;
+/**
+ * A new agent given a prompt reports itself idle for a moment between
+ * starting up and its first turn: Paseo 0.15 sends `initializing`, then
+ * `idle` (newer, never prompted), then `running` some 10 ms later. Applied,
+ * that idle took the card out of the running lane and back within a frame or
+ * two, the board flew it there and back as it came in, and its entrance and
+ * the lane's cover ran twice. Such an idle waits this long for the turn; an
+ * agent made without a prompt shows idle after it.
+ */
+export const START_IDLE_HOLD_MS = 1_000;
 /** A parent off the board that this many failures bring in, at most; the rest wait for the board. */
 const SUBAGENT_PARENTS_FETCHED = 20;
 const SUBAGENT_KEY = "provider-subagents";
@@ -870,6 +880,8 @@ function createStore(api: PaseoApi): TaskStore {
   const latestUpdates = new Map<string, number>();
   /** Agents being read again by id after a stale update (`confirmAgent`). */
   const confirmChecks = new Set<string>();
+  /** A starting agent's idle, held for its first turn (`START_IDLE_HOLD_MS`). */
+  const startIdles = new Map<string, { sourceKey: string; update: AgentUpdateEnvelope; updatedAt: number; timer: ReturnType<typeof setTimeout> }>();
   /** Provider subagents by parent, as `tasks.subagents` last answered. */
   const subagentsByParent = new Map<string, ProviderSubagent[]>();
   let subagentVersion: string | undefined;
@@ -1197,7 +1209,17 @@ function createStore(api: PaseoApi): TaskStore {
     else sourceMembers.get(ATTENTION_KEY)?.delete(agent.id);
   }
 
-  function applyAgentUpdate(sourceKey: string, update: AgentUpdateEnvelope) {
+  /**
+   * An idle that only says the agent has not started its first turn yet: its
+   * card still shows it starting up, and nothing about it asks for the user.
+   */
+  function isStartingIdle(agent: PaseoAgent): boolean {
+    if (agent.status !== "idle" || entries.get(agent.id)?.agent.status !== "initializing") return false;
+    if (agent.lastUserMessageAt || agent.activeTurn || agent.requiresAttention || agent.lastError) return false;
+    return (agent.pendingPermissions ?? []).length === 0;
+  }
+
+  function applyAgentUpdate(sourceKey: string, update: AgentUpdateEnvelope, released = false) {
     if (update.type !== "agent_update" || !update.payload) return;
     // A subagent's start or end usually moves its parent too.
     scheduleSubagents(SUBAGENT_SETTLE_MS);
@@ -1206,6 +1228,26 @@ function createStore(api: PaseoApi): TaskStore {
       const agent = payload.agent;
       if (epoch(agent.updatedAt) < (latestUpdates.get(agent.id) ?? Number.NEGATIVE_INFINITY)) {
         confirmAgent(agent.id);
+        return;
+      }
+      const held = startIdles.get(agent.id);
+      if (held && (!released || epoch(agent.updatedAt) > held.updatedAt)) {
+        // A newer update (its first turn) replaces the held idle.
+        clearTimeout(held.timer);
+        startIdles.delete(agent.id);
+      }
+      if (!released && isStartingIdle(agent)) {
+        const run = generation;
+        startIdles.set(agent.id, {
+          sourceKey,
+          update,
+          updatedAt: epoch(agent.updatedAt),
+          timer: setTimeout(() => {
+            if (run !== generation || startIdles.get(agent.id)?.update !== update) return;
+            startIdles.delete(agent.id);
+            batchUpdates(() => applyAgentUpdate(sourceKey, update, true));
+          }, START_IDLE_HOLD_MS),
+        });
         return;
       }
       if (sourceKey === DONE_SUBSCRIPTION) {
@@ -1244,6 +1286,8 @@ function createStore(api: PaseoApi): TaskStore {
     const run = generation;
     void api.agents.ref(id).refresh().then((result) => {
       if (run !== generation || memberSetsContaining(id).length > 0) return;
+      // Still starting: the held idle decides, after its wait.
+      if (result && startIdles.has(id) && isStartingIdle(result.agent)) return;
       if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) {
         dropIfUnreferenced(id);
         return;
@@ -2236,6 +2280,8 @@ function createStore(api: PaseoApi): TaskStore {
     goneChecks.clear();
     latestUpdates.clear();
     confirmChecks.clear();
+    for (const held of startIdles.values()) clearTimeout(held.timer);
+    startIdles.clear();
     if (subagentTimer !== null) clearTimeout(subagentTimer);
     subagentTimer = null;
     subagentDueAt = Number.POSITIVE_INFINITY;
