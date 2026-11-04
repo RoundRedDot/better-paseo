@@ -15,8 +15,9 @@ export function taskOperationIssue(card: TaskCard, operation: TaskOperation): Ta
 }
 
 /** Unchanged cards retain their identity when a periodic check returns the same facts. */
-export function withTaskAvailability(tasks: TasksHandle, states: ReadonlyMap<string, TaskAvailability>, cache: WeakMap<TaskCard, TaskCard>): TasksHandle {
+export function withTaskAvailability(tasks: TasksHandle, states: ReadonlyMap<string, TaskAvailability>, cache: WeakMap<TaskCard, TaskCard>, hostId?: string): TasksHandle {
   const decorate = (card: TaskCard) => {
+    if (hostId && card.hostId && card.hostId !== hostId) return card;
     const availability = states.get(card.id) ?? CHECKING;
     const previous = cache.get(card);
     const next = availability.issue === null && Object.keys(availability.blocked).length === 0 ? card : previous?.availability === availability ? previous : { ...card, availability };
@@ -82,7 +83,8 @@ export function useTaskAvailability(tasks: TasksHandle, visible: boolean, hostId
   const cache = useMemo(() => new WeakMap<TaskCard, TaskCard>(), []);
   const cards = new Map(tasks.byId);
   for (const lane of LANE_ORDER) for (const card of tasks.lanes[lane].cards) cards.set(card.id, card);
-  const key = JSON.stringify([...cards.values()].map((card) => [card.id, card.location.cwd, card.location.workspaceId, card.provider, card.model, card.archived]));
+  const localCards = [...cards.values()].filter((card) => !card.hostId || card.hostId === hostId);
+  const key = JSON.stringify(localCards.map((card) => [card.id, card.location.cwd, card.location.workspaceId, card.provider, card.model, card.archived]));
   const apply = useCallback((entries: Array<{ agentId: string; availability: TaskAvailability }>) => store.apply(hostId, entries), [store, hostId]);
   useEffect(() => {
     if (!visible) return;
@@ -106,6 +108,10 @@ export function useTaskAvailability(tasks: TasksHandle, visible: boolean, hostId
     return () => { cancelled = true; clearTimeout(timer); };
   }, [key, visible, apply]);
   const check = useCallback(async (agentId: string, operation: TaskOperation) => {
+    const card = tasks.byId.get(agentId);
+    if (card?.hostId && card.hostId !== hostId) {
+      return undefined;
+    }
     try {
       const result = await latest.current({ agentIds: [agentId] });
       apply(result.entries);
@@ -116,5 +122,5 @@ export function useTaskAvailability(tasks: TasksHandle, visible: boolean, hostId
       return UNREACHABLE.issue!;
     }
   }, [apply, hostId]);
-  return { tasks: useMemo(() => withTaskAvailability(tasks, states, cache), [tasks, tasks.lanes, tasks.byId, states, cache]), check };
+  return { tasks: useMemo(() => withTaskAvailability(tasks, states, cache, hostId), [tasks, tasks.lanes, tasks.byId, states, cache, hostId]), check };
 }

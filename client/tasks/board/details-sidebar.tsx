@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { useHosts, type PluginHostSummary } from "@getpaseo/plugin/client";
+import { getPaseoClient, useHosts, type PluginHostSummary } from "@getpaseo/plugin/client";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import { tipProps } from "../cards/card-hints";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
@@ -308,10 +308,18 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
   const subagent = card?.subagent ? card : undefined;
   const agent = card && !card.subagent ? card : undefined;
   const shown = agent !== undefined;
-  const firstPrompt = useFirstPrompt(board.paseo, agent?.id ?? "", shown);
-  const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? lastHumanMessageVersion(agent) : "", shown);
+  const client = useMemo(() => {
+    if (!card?.hostId || card.hostId === board.hostId) return board.paseo;
+    try {
+      return getPaseoClient(card.hostId);
+    } catch {
+      return board.paseo;
+    }
+  }, [board.paseo, board.hostId, card?.hostId]);
+  const firstPrompt = useFirstPrompt(client, agent?.id ?? "", shown);
+  const humanMessage = useLastHumanMessage(client, agent?.id ?? "", agent ? lastHumanMessageVersion(agent) : "", shown);
   const live = board.visible && agent !== undefined && turnRunning(agent) && agent.closed !== true;
-  const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", shown, live);
+  const lastMessage = useLastMessage(client, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", shown, live);
   const sessionTokens = useSessionTokens(agent?.id ?? "", agent !== undefined && turnRunning(agent) && agent.closed !== true);
   const subagentReads = useSubagentTimeline(
     {
