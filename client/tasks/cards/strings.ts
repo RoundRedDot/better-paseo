@@ -134,6 +134,7 @@ const en = {
     directory: "directory",
   } as Record<WorkspaceKind, string>,
   details: {
+    host: "Host",
     project: "Project",
     workspace: "Workspace",
     branch: "Branch",
@@ -395,6 +396,7 @@ const zh: CardStrings = {
     directory: "普通目录",
   },
   details: {
+    host: "主机",
     project: "项目",
     workspace: "工作区",
     branch: "分支",
