@@ -671,6 +671,7 @@ function buildBaseCard(
 
   return {
     id: agent.id,
+    scheduled: !!agent.labels?.["paseo.schedule-id"],
     title: agent.title?.trim() || (resolveTasksLanguage() === "zh" ? "未命名" : "Untitled"),
     lane: classification.lane,
     status: classification.status,

@@ -252,6 +252,24 @@ describe("phone card action bar under native (Yoga) layout", () => {
     });
   }
 
+  // A scheduled task's card holds its rows below the title in a group of their own (the ticket's tail).
+  it.each(WIDTHS.flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).map((language) => [width, scale, language] as const))))(
+    "fits Allow, Deny and Stop on a scheduled card laid out whole at %ipt, text scale %f, %s",
+    async (width, textScale, language) => {
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: phoneCard({ ...sample("sample-input"), scheduled: true }, language) }));
+      });
+      const card = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-sample-input");
+      const frames = await settleHostLayout(card, { width, textScale });
+      expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-ticket-band")).toHaveLength(1);
+      expect(overflows(frames, textScale)).toEqual([]);
+      const box = frames.get(card())!;
+      const bar = frames.get(row())!;
+      expect(bar.left).toBeGreaterThanOrEqual(box.left);
+      expect(bar.left + bar.width).toBeLessThanOrEqual(box.left + box.width);
+    },
+  );
+
   it("shares the reported phone's row between Allow, Deny and Stop instead of giving Stop all of it", async () => {
     const frames = await settle(CASES[0]!, "zh", 340, 1);
     const [allow, deny, stop] = hostChildren(row()).map((node) => frames.get(node)!);

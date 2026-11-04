@@ -205,6 +205,8 @@ export interface TaskChild {
 export interface TaskCard {
   availability?: TaskAvailability;
   id: string;
+  /** A new agent created by a Paseo schedule. */
+  scheduled?: boolean;
   /** The agent's title, else a fallback such as the first prompt line or "Untitled". */
   title: string;
   lane: LaneId;

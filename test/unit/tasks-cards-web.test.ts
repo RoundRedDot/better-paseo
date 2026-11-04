@@ -681,6 +681,42 @@ describe("TaskCardView on web", () => {
   });
 });
 
+describe("A scheduled task's ticket card on web", () => {
+  const flat = (style: unknown) => Object.assign({}, ...[style].flat(Infinity).filter(Boolean)) as Record<string, unknown>;
+  const host = (root: ReactTestInstance, testID: string) => root.find((node) => typeof node.type === "string" && node.props.testID === testID);
+
+  it("draws its rule with CSS backgrounds, its focus as the card's outline and its hover on every section", async () => {
+    const tokens = taskTokens(THEME);
+    const card = { ...sampleCards(NOW).find((item) => item.id === "sample-running")!, scheduled: true };
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running", { card, focused: true })));
+    const root = renderer.root;
+    const style = flat(host(root, "task-card-sample-running").props.style);
+    expect(style).toMatchObject({ backgroundColor: "transparent", borderColor: "transparent", boxShadow: "none", outlineStyle: "solid", outlineOffset: 2 });
+    const rule = flat(host(root, "task-card-ticket-rule").props.style);
+    // Chrome rounds a box under 1 px up to a whole pixel, so the half-pixel line is a 1 px box scaled down from its top.
+    expect(rule).toMatchObject({ backgroundSize: "5px 100%", backgroundRepeat: "repeat-x", height: 1, transform: [{ scaleY: 0.5 }], transformOrigin: "top" });
+    expect(String(rule.backgroundImage)).toBe(`linear-gradient(to right, ${tokens.card.buttonBorder} 0px, ${tokens.card.buttonBorder} 3px, transparent 3px, transparent 5px)`);
+    expect(rule.experimental_backgroundImage).toBeUndefined();
+    // The outline goes round the card, so the sections keep only the card's own shadow.
+    for (const part of ["task-card-ticket-head-surface", "task-card-ticket-tail-surface"]) expect(flat(host(root, part).props.style).boxShadow).toBe(tokens.card.shadow);
+    expect(flat(host(root, "task-card-ticket-arc-left").props.style).boxShadow).toBe(`inset ${tokens.card.shadow}`);
+    for (const part of ["task-card-ticket-head-surface", "task-card-ticket-tail-surface", "task-card-ticket-band-fill", "task-card-ticket-fill-left", "task-card-ticket-arc-right"]) {
+      expect(flat(host(root, part).props.style).transitionProperty).toContain("box-shadow");
+    }
+    expect(host(root, "task-card-ticket-band").props["aria-hidden"]).toBe(true);
+    await act(async () => hovers.get("task-card-sample-running")!.enter());
+    for (const part of ["task-card-ticket-head-surface", "task-card-ticket-tail-surface"]) expect(flat(host(root, part).props.style).boxShadow).toBe(tokens.card.shadowHover);
+    expect(flat(host(root, "task-card-ticket-arc-right").props.style).boxShadow).toBe(`inset ${tokens.card.shadowHover}`);
+    // The footer's stop menu still rises over the rows after it, inside the tail.
+    const footer = host(root, "task-card-footer");
+    expect(flat(footer.props.style).zIndex).toBe(OVERLAY_ROW_Z);
+    expect(host(root, "task-card-ticket-lower").findAll((node) => node === footer)).toHaveLength(1);
+    expect(flat(host(root, "task-card-ticket-upper").props.style).zIndex).toBeUndefined();
+    expect(nestedButtons(root)).toEqual([]);
+    await act(async () => renderer.unmount());
+  });
+});
+
 describe("TaskCardView right-click menu", () => {
   it.each(["running", "done", "archived", "child"])("gives every available %s menu row a unique working shortcut in its panel", (state) => {
     const actions: CardMenuActions = {

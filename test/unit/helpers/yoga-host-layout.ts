@@ -29,6 +29,11 @@ export interface YogaLayoutOptions {
   width: number;
   /** Multiplies every text width, as a larger system font does. */
   textScale?: number;
+  /**
+   * Wrap a text narrower than its estimate onto more lines, up to its
+   * `numberOfLines`, as a title does. Off: every text is one line tall.
+   */
+  wrapText?: boolean;
 }
 
 /** Host element types that sit in a separate native layer, outside the row. */
@@ -170,10 +175,12 @@ export function measureHostTree(root: ReactTestInstance, options: YogaLayoutOpti
       const fontSize = typeof style.fontSize === "number" ? style.fontSize : 14;
       const lineHeight = typeof style.lineHeight === "number" ? style.lineHeight : Math.ceil(fontSize * 1.25);
       const intrinsic = estimateTextWidth(textOf(instance), fontSize) * scale;
-      node.setMeasureFunc((width, widthMode) => ({
-        width: widthMode === MeasureMode.Exactly ? width : widthMode === MeasureMode.AtMost ? Math.min(width, intrinsic) : intrinsic,
-        height: lineHeight,
-      }));
+      const maxLines = typeof instance.props.numberOfLines === "number" && instance.props.numberOfLines > 0 ? instance.props.numberOfLines : Infinity;
+      node.setMeasureFunc((width, widthMode) => {
+        const shown = widthMode === MeasureMode.Exactly ? width : widthMode === MeasureMode.AtMost ? Math.min(width, intrinsic) : intrinsic;
+        const lines = options.wrapText && widthMode !== MeasureMode.Undefined && width > 0 ? Math.min(maxLines, Math.max(1, Math.ceil(intrinsic / width))) : 1;
+        return { width: shown, height: lineHeight * lines };
+      });
     } else {
       hostChildren(instance)
         .filter((child) => !DETACHED.has(String(child.type)))

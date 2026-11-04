@@ -99,6 +99,30 @@ async function mountTasks(fake: Fake, doneWindow: "24h" | "7d" | "all" = "24h", 
   return { get current() { return current; }, renderer, unmount: () => act(() => renderer.unmount()) };
 }
 
+it("identifies scheduled agents from their own schedule label", async () => {
+  const fake = createFakePaseo({
+    agents: [
+      activeAgent("scheduled", { status: "running", labels: { "paseo.schedule-id": "schedule-1", "paseo.schedule-run": "run-1" } }),
+      activeAgent("ordinary", { status: "running", labels: {} }),
+      activeAgent("run-only", { status: "running", labels: { "paseo.schedule-run": "run-2" } }),
+    ],
+    workspaces: [workspace()],
+  });
+  const mounted = await mountTasks(fake);
+  try {
+    expect(mounted.current.byId.get("scheduled")?.scheduled).toBe(true);
+    expect(mounted.current.byId.get("ordinary")?.scheduled).toBe(false);
+    expect(mounted.current.byId.get("run-only")?.scheduled).toBe(false);
+    await act(async () => {
+      fake.upsertAgent(activeAgent("ordinary", { status: "running", labels: { "paseo.schedule-id": "schedule-2" }, updatedAt: recentIso(0) }));
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    });
+    expect(mounted.current.byId.get("ordinary")?.scheduled).toBe(true);
+  } finally {
+    mounted.unmount();
+  }
+});
+
 it("refreshes subscriptions to recover an agent missed by live updates", async () => {
   const fake = createFakePaseo({ agents: [], workspaces: [workspace()] });
   const mounted = await mountTasks(fake);
