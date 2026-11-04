@@ -1370,6 +1370,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // The reset time and the next step read the same instant; `now` only tells today from another day.
   const errorNow = props.now ?? Date.now();
   const failureAction = card.error && !card.stoppedManually ? errorAction(card.error, language, cardErrorReset(card.error, errorNow) !== null) : null;
+  const failureColor = failed || (!card.stoppedManually && /^\s*api error\b/i.test(card.error ?? "")) ? tokens.danger : muted;
   const failure = layout.failure ? (
     <View
       style={[
@@ -1384,13 +1385,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           // Stopped: the stop pill's solid square, not Lucide's hollow one.
           <View style={{ width: m.icon - 4, height: m.icon - 4, borderRadius: 2, backgroundColor: muted }} testID="task-card-reason-stopped" />
         ) : (
-          // A failure, in red; one marked read is done, in grey.
-          <Icon name="CircleX" size={m.icon} color={failed ? tokens.danger : muted} />
+          <Icon name="CircleX" size={m.icon} color={failureColor} />
         )}
       </View>
       <View style={{ flex: 1 }}>
         {/* Three lines at most: the details keep the whole error. */}
-        <Text numberOfLines={3} style={text(m.blockSize, m.blockLine, failed ? tokens.danger : muted)}>{formatCardError(card.error!, card.provider, language, errorNow)}</Text>
+        <Text numberOfLines={3} style={text(m.blockSize, m.blockLine, failureColor)}>{formatCardError(card.error!, card.provider, language, errorNow)}</Text>
         {failureAction ? <Text testID="task-card-error-action" style={[text(m.blockSize, m.blockLine, muted), { marginTop: 4 }]}>{failureAction}</Text> : null}
       </View>
     </View>

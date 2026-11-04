@@ -1168,6 +1168,17 @@ describe("TaskCardView rows", () => {
     expect(icons(tree.root)).not.toContain("Square");
   });
 
+  it.each([LIGHT, DARK])("draws API errors in danger red on a done card", async (theme) => {
+    const error = 'API error (attempt 1): request failed: Post "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerate..."';
+    const card = { ...sample("sample-done"), provider: "gemini", error };
+    const tree = await render(cardElement(card, { theme }));
+    const block = hostByTestId(tree.root, "task-card-reason");
+    const reason = block.find((node) => (node.type as unknown) === "Text" && node.props.children === error);
+    const mark = block.find((node) => (node.type as unknown) === "Icon" && node.props.name === "CircleX");
+    expect(flat(reason.props.style).color).toBe(buildTaskTokens(theme.colors).danger);
+    expect(mark.props.color).toBe(buildTaskTokens(theme.colors).danger);
+  });
+
   it("draws a manual stop's reason muted, in the review and the done lane", async () => {
     for (const lane of ["review", "done"] as const) {
       const card = { ...sample("sample-done"), lane, status: lane === "review" ? ("unread" as const) : ("done" as const), error: "已手动停止", stoppedManually: true };
