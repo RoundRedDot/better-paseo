@@ -777,6 +777,61 @@ describe("StatusIcon", () => {
     motion.reduced = false;
   });
 
+  it("turns the platform spinner on Android instead of the shared clock, and keeps the still quarter when not animating", async () => {
+    const platform = globalThis as { __rnMockOS?: string };
+    platform.__rnMockOS = "android";
+    try {
+      const tree = await render(
+        React.createElement(
+          React.Fragment,
+          null,
+          React.createElement(StatusIcon, { key: "running", kind: "running", theme: LIGHT }),
+          React.createElement(SpinnerRing, { key: "spinner", size: 13, color: "#d93636", testID: "button-spinner" }),
+          React.createElement(StatusIcon, { key: "still", kind: "running", size: 20, theme: LIGHT, animated: false, accessibilityLabel: "still" }),
+        ),
+      );
+      expect(motion.loops).toHaveLength(0);
+      expect(statusRingHolders()).toBe(0);
+      // Nothing turns on the shared value: the one quarter left is the still ring's, with no rotation.
+      const quarters = tree.root.findAll((node) => (node.type as unknown) === "Animated.View");
+      expect(quarters).toHaveLength(1);
+      expect(flat(quarters[0]!.props.style).transform).toBeUndefined();
+      const [running, still] = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "status-running");
+      // Track, platform spinner over it, centre dot.
+      const isSpinner = (node: ReactTestInstance) => (node.type as unknown) === "ActivityIndicator";
+      const [track, , dot] = running!.children as ReactTestInstance[];
+      expect(running!.children).toHaveLength(3);
+      expect(flat(track!.props.style)).toMatchObject({ width: 12, opacity: 0.3 });
+      const [spinner] = running!.findAll(isSpinner);
+      expect(running!.findAll(isSpinner)).toHaveLength(1);
+      expect(spinner!.props).toMatchObject({ size: 15, color: "#268ae0" });
+      expect(flat(spinner!.props.style)).toMatchObject({ position: "absolute" });
+      expect(flat(dot!.props.style)).toMatchObject({ width: 6, borderRadius: 3 });
+      // The working button's spinner turns the same way, without the centre dot.
+      const button = hostByTestId(tree.root, "button-spinner");
+      expect(button.children).toHaveLength(2);
+      expect(button.findAll(isSpinner)).toHaveLength(1);
+      // Not animating: the host's quarter, still, and no spinner.
+      expect(still!.props.accessibilityLabel).toBe("still");
+      expect(still!.findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(0);
+      const arc = (still!.children as ReactTestInstance[])[1]!;
+      expect(flat(arc.props.style)).toMatchObject({ borderColor: "transparent", borderTopColor: "#268ae0" });
+      await act(async () => tree.unmount());
+      renderer = null;
+
+      motion.reduced = true;
+      const reduced = await render(React.createElement(StatusIcon, { kind: "running", theme: LIGHT }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(reduced.root.findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(0);
+      expect(statusRingHolders()).toBe(0);
+    } finally {
+      motion.reduced = false;
+      delete platform.__rnMockOS;
+    }
+  });
+
   it("draws a working button's spinner as the running ring without its dot, on the same clock", async () => {
     const tree = await render(
       React.createElement(

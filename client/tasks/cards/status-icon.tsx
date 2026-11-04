@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useLayoutEffect, useRef } from "react";
-import { Animated, Platform, View, type ViewStyle } from "react-native";
+import { ActivityIndicator, Animated, Platform, View, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { probeAnimationLoop } from "../../debug/perf";
@@ -64,6 +64,16 @@ const WEB = Platform.OS === "web";
 // Android devices redraw the whole window for that. Web: each ring runs a Web Animation
 // pinned to the document timeline's origin (`startTime = 0`), the host's own
 // approach in `clock.web.ts`, so rings mounted at different times still agree.
+//
+// Android: the platform's ActivityIndicator turns in place of the quarter.
+// Even stepped, each change of the shared value redrew the whole window there
+// (about 17 ms a step on a Realme RMX1901), so a board with a running card
+// never went idle: scrolling a long lane dropped 36-68% of frames, against
+// 2-9.5% with the platform spinner, and a still board drew 50-60 frames in
+// five seconds against none. Its sweeping Material arc is not the host's
+// quarter; the user accepted that for the gain. iOS and web keep the quarter:
+// there it is a layer transform the compositor turns, and UIActivityIndicator
+// saved 1.4% of a core on an iPhone simulator and cost more on an iPad one.
 
 let spin: Animated.Value | null = null;
 let rotation: Animated.AnimatedInterpolation<string> | null = null;
@@ -158,8 +168,9 @@ const RunningRing = memo(function RunningRing(props: {
   const { box, mark, color } = props;
   const reduced = useReducedMotion();
   const active = props.animated && !reduced;
+  const platformSpinner = active && Platform.OS === "android";
   const setWebNode = useWebSpin(WEB && active);
-  useNativeSpin(!WEB && active);
+  useNativeSpin(!WEB && active && !platformSpinner);
   const scale = mark / 12;
   const stroke = 1.5 * scale;
   const dot = 6 * scale;
@@ -180,6 +191,8 @@ const RunningRing = memo(function RunningRing(props: {
       <View style={[circle, { borderColor: color, opacity: TRACK_OPACITY }]} />
       {WEB ? (
         <View ref={setWebNode as never} style={arc} />
+      ) : platformSpinner ? (
+        <ActivityIndicator size={mark + stroke * 2} color={color} style={{ position: "absolute" }} />
       ) : (
         <Animated.View style={[arc, active ? { transform: [{ rotate: sharedRotation() }] } : null]} />
       )}
@@ -191,14 +204,15 @@ const RunningRing = memo(function RunningRing(props: {
 /**
  * A working button's spinner: the running ring without its centre dot, a
  * hollow track with the turning quarter, in the icon's `size` box and colour.
- * It turns on the running rings' clock, so it is in phase with them.
+ * It turns on the running rings' clock, so it is in phase with them; on
+ * Android it is the platform spinner, as they are.
  */
 export const SpinnerRing = memo(function SpinnerRing(props: { size: number; color: string; testID?: string }) {
   const box: ViewStyle = { width: props.size, height: props.size, flexShrink: 0, alignItems: "center", justifyContent: "center" };
   return <RunningRing box={box} mark={statusMarkSize(props.size)} color={props.color} animated dot={false} testID={props.testID ?? "spinner-ring"} />;
 });
 
-/** Paseo's sidebar status indicator. All running rings turn in phase (900 ms per turn, in 12 steps on native). */
+/** Paseo's sidebar status indicator. All running rings turn in phase (900 ms per turn, in 12 steps on iOS; the platform spinner on Android). */
 export const StatusIcon = memo(function StatusIcon(props: StatusIconProps) {
   const size = props.size ?? 16;
   const height = props.height ?? size;
