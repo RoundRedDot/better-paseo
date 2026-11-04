@@ -826,12 +826,18 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     ? [{ borderTopWidth: 0 }, buttonOutline(look.failedBorder, { right: null, bottom: null, left: null })]
     : null;
 
+  // A card from another host says which one, while the Host switch is on and the
+  // board knows its own host; this board's own cards need no tag.
+  const hostLabel =
+    fields.host && props.hostId !== undefined && card.hostLabel && card.hostId !== undefined && card.hostId !== null && card.hostId !== props.hostId
+      ? card.hostLabel
+      : null;
   const location = card.location;
   const metaParts: string[] = [];
   if (layout.project && location.projectName) metaParts.push(location.projectName);
   if (layout.workspace && location.workspaceName) metaParts.push(location.workspaceName);
   const metaText = query ? searchBreadcrumb(layout.project ? location.projectName ?? "" : "", layout.workspace ? location.workspaceName ?? "" : "", query, metaWidth ? Math.floor(metaWidth / (m.metaSize * scale * 0.65)) : 35) : metaParts.join(SEPARATOR);
-  const hasMeta = metaText !== "" || card.parent !== null;
+  const hasMeta = metaText !== "" || card.parent !== null || hostLabel !== null;
   const corner = cornerLayout(m, scale, borderWidth);
   const hit = issue ? warningHit(m, hasMeta ? m.metaLine : m.titleLine, scale) : null;
 
@@ -866,12 +872,6 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   if (card.parent?.archivedAs === "workspace") parentArchive = strings.workspaceArchived;
   else if (card.parent?.archivedAs === "agent" || (card.parent?.missing && card.parent.archived === true)) parentArchive = strings.archived;
   const shownParentTag = parentTag(parentArchive, card.parent?.detached ? { label: strings.parentHistory, tip: strings.parentHistoryHint(parentArchive, card.parent.archived) } : null);
-  // A card from another host says which one, while the Host switch is on and the
-  // board knows its own host; this board's own cards need no tag.
-  const hostLabel =
-    fields.host && props.hostId !== undefined && card.hostLabel && card.hostId !== undefined && card.hostId !== null && card.hostId !== props.hostId
-      ? card.hostLabel
-      : null;
   // Beside a context ring the text fades out before it instead of ending in
   // an ellipsis: clipped, with the fade only once the text no longer fits.
   const metaRing = hasMeta ? ringFor(m.metaLine) : null;
@@ -951,7 +951,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           {metaCut ? <EdgeFade color={background} /> : null}
         </View>
         {hostLabel !== null ? (
-          <View style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("host")}>
+          <View style={{ marginLeft: metaText || parentLabel !== null ? ARCHIVED_TAG_GAP : 0, flexShrink: 0 }} onLayout={fit("host")}>
             <HostTag tokens={tokens} label={hostLabel} testID="task-card-host" />
           </View>
         ) : null}

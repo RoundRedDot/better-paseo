@@ -1105,6 +1105,12 @@ describe("TaskCardView rows", () => {
     expect(minimal.root.findAll((node) => node.props.testID === "task-card-host")).toHaveLength(0);
   });
 
+  it("renders the host tag on compact cards even without project or workspace metadata", async () => {
+    const remote = { ...sample("sample-running"), hostId: "host-2", hostLabel: "Studio", location: { ...sample("sample-running").location, projectName: null, workspaceName: null } };
+    const tree = await render(cardElement(remote, { hostId: "host-1", compact: true, fields: fields("standard", { host: true }) }));
+    expect(texts(hostByTestId(tree.root, "task-card-host"))).toEqual(["Studio"]);
+  });
+
   it("switches from relative time to a full timestamp when the board clock crosses midnight", async () => {
     let time = new Date(2026, 9, 21, 23, 59, 59).getTime();
     const clock = createTaskClock(() => time);

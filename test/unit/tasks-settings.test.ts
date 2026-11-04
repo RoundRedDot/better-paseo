@@ -128,6 +128,8 @@ describe("tasks settings", () => {
     const phone = { ...DEFAULT_TASKS_SETTINGS, mobile: { compactCards: true } };
     expect(effectiveCard(phone, false)).toBe(phone.card);
     expect(effectiveCard(phone, true).provider).toBe(false);
+    expect(effectiveCard(phone, true).host).toBe(true);
+    expect(effectiveCard(setCardSetting(phone, "host", false), true).host).toBe(false);
   });
 
   it("converts limits and windows", () => {
