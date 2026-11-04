@@ -661,7 +661,9 @@ function buildBaseCard(
     : { modelName: null, thinkingLabel: null };
   const modeLabel = agent.availableModes?.find((mode) => mode.id === agent.currentModeId)?.label ?? null;
   const projectId = workspace?.projectId ?? project?.projectId ?? null;
-  const projectKey = placement?.projectKey || project?.projectKey || null;
+  // Paseo's sidebar hashes the project descriptor's projectKey; the placement's projectKey can hold the
+  // project id (Paseo 0.14), so it is only the fallback when the project isn't listed.
+  const projectKey = project?.projectKey || placement?.projectKey || null;
   const revision = project?.projectIconRevision ?? null;
   const projectIcon = icon?.revision === revision ? icon.uri : null;
   const projectIconColor = projectIcon ? icon?.color ?? null : null;
