@@ -562,7 +562,6 @@ function Segment(props: {
   }, [id, onFit, labelKey, width, fullWidth]);
   const labelStyle = { fontSize: F.base, fontWeight: "500" as const, color: props.on ? tokens.foreground : tokens.foregroundMuted };
   const { hovered, hoverProps } = useHover();
-  const reduced = useReducedMotion();
   return (
     <Pressable
       accessibilityRole="tab"
@@ -573,7 +572,6 @@ function Segment(props: {
       {...hoverProps}
       testID={`sidebar-group-tab-${props.icon}`}
       style={({ pressed }) => {
-        const lift = surfaceLift(hovered, pressed, reduced);
         return {
           // Share the row equally, regardless of label length or selection.
           flexBasis: 0,
@@ -584,14 +582,12 @@ function Segment(props: {
           borderRadius: 999,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: props.on ? tokens.surface2 : tokens.card.pillBorder,
-          backgroundColor: props.on ? tokens.surface2 : "transparent",
-          boxShadow: lift.shadow ? tokens.card.buttonShadowHover : undefined,
+          backgroundColor: props.on ? tokens.surface2 : hovered || pressed ? tokens.card.controlHover : "transparent",
           flexDirection: "row" as const,
           alignItems: "center" as const,
           justifyContent: "center" as const,
           gap: 4,
           paddingHorizontal: 6,
-          ...scaleStyle(lift.scale),
         };
       }}
     >
@@ -624,9 +620,8 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
   const { row, tokens } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
-  const reduced = useReducedMotion();
-  // The rows sit on the group card. A row fills only while it is on.
-  const fill = row.on ? tokens.surface2 : tokens.card.background;
+  // The tag hole follows the row background on hover.
+  const fill = row.on ? tokens.surface2 : hovered ? tokens.card.controlHover : tokens.card.background;
   return (
     <Pressable
       accessibilityRole="checkbox"
@@ -636,7 +631,6 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
       onPress={row.toggle}
       {...hoverProps}
       style={({ pressed }) => {
-        const lift = surfaceLift(hovered, pressed, reduced);
         return {
           height: taskControlHeight(row.detail ? (props.touch ? 56 : 48) : (props.touch ? 44 : 36), scale),
           marginVertical: 2,
@@ -648,9 +642,7 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
           flexDirection: "row",
           alignItems: "center",
           gap: 10,
-          backgroundColor: row.on ? tokens.surface2 : "transparent",
-          boxShadow: lift.shadow ? tokens.card.buttonShadowHover : undefined,
-          ...scaleStyle(lift.scale),
+          backgroundColor: row.on ? tokens.surface2 : hovered || pressed ? tokens.card.controlHover : "transparent",
         };
       }}
     >
