@@ -213,7 +213,9 @@ export function ToolCallout({
   const summary = useMemo(() => groupCalls ? summarizeToolGroup(groupCalls) : summarizeTool(data), [data, groupCalls]);
   const { language } = useEnhancerPreferences();
   useHostLanguageVersion();
-  const verb = summary.agent ? toolbarLabel(summary.verb, language) : summary.verb;
+  const compaction = data.name === "compaction" && data.tool === "activity";
+  const verb = summary.agent || data.tool === "activity" ? toolbarLabel(summary.verb, language) : summary.verb;
+  const summaryMeta = compaction ? summary.meta.map((entry) => toolbarLabel(entry, language)) : summary.meta;
   const iconName = useMemo(() => toolCallIconName(data), [data]);
   const agentTarget = useAgentRowTarget(summary);
   const pathContext = useContext(PathContext);
@@ -268,7 +270,7 @@ export function ToolCallout({
     ) : (
       summary.target
     );
-  const meta = (provider ? [] : summary.meta).map((entry) => {
+  const meta = (provider ? [] : summaryMeta).map((entry) => {
     const exitCode = parseExitMeta(entry);
     const shown = exitCode === undefined ? diffCountSpans(entry) : exitMark(exitCode);
     if (agentStateColor) return <Text style={{ color: agentStateColor }}>{entry}</Text>;
@@ -354,16 +356,16 @@ export function ToolCallout({
       metaLead={metaLead}
       actions={actions}
       onLongPress={viewsImage ? openViewer : capabilities.touch ? onLongPress : undefined}
-      accessibilityLabel={[verb, summary.target, ...summary.meta].filter(Boolean).join(" ")}
+      accessibilityLabel={[verb, summary.target, ...summaryMeta].filter(Boolean).join(" ")}
       onPreviewOpen={requestImage}
       previewWraps={!drawsImage}
       pressPreview={!viewsImage}
       previewKey={previewKey}
       detailsTitle={{ text: summary.agent ? [verb, agentTarget.text].filter(Boolean).join(" · ")
         : groupCalls ? [summary.verb, summary.target].filter(Boolean).join(" ")
-        : data.shell?.command || data.command || (summary.targetIsPath ? data.filePath : undefined) || summary.target || summary.verb,
+        : data.shell?.command || data.command || (summary.targetIsPath ? data.filePath : undefined) || summary.target || verb,
         mono: !summary.agent && Boolean(summary.targetIsPath || data.command || data.shell?.command) }}
-      detailsSubtitle={drawsImage ? imageMenuSubtitle(imageFile, filePath) : [data.status, ...summary.meta]}
+      detailsSubtitle={drawsImage ? imageMenuSubtitle(imageFile, filePath) : [data.status, ...summaryMeta]}
       detailsTone={running ? "accent" : failed ? "danger" : summary.tone === "warning" ? "warning" : "muted"}
       detailsIcon={summary.agent?.icon ?? iconName}
       copyItems={() => toolRowCopyItems(data, resolvePath)}
@@ -687,7 +689,7 @@ function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, str
   return (
     <HoverPreviewHeader tokens={tokens} streaming={streaming} icon={meta ? "Image" : <RowIcon
       name={agent?.icon ?? toolCallIconName(call)} color={agentColor ?? tokens.foregroundMuted} />}
-      iconLabel={title ?? agentLabel ?? summary.verb}
+      iconLabel={title ?? agentLabel ?? (call.tool === "activity" ? toolbarLabel(summary.verb, language) : summary.verb)}
       left={pager} center={meta} fitControls={fitControls}>
       <View style={styles.previewActions}>
         {call.paseo?.sendAgentPrompt ? <>

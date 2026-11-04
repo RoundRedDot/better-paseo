@@ -6,6 +6,18 @@
 import { resolveLanguage, type SettingsLanguagePreference } from "./settings-strings";
 
 const ZH: Readonly<Record<string, string>> = {
+  "Compacting context": "正在压缩上下文",
+  "Compacted context": "已压缩上下文",
+  manual: "手动",
+  "Task finished": "任务已完成", "Task failed": "任务失败", "Task stopped": "任务已停止",
+  "Command finished": "命令已完成", "Command failed": "命令失败", "Command stopped": "命令已停止",
+  "Subtask finished": "子任务已完成", "Subtask stopped": "子任务已停止",
+  "Load tools": "加载工具", "Search tools": "搜索工具", Skill: "技能",
+  "Sending message": "正在发送消息", "Sent message": "已发送消息", "Wake up": "唤醒",
+  Schedule: "计划", "List sessions": "列出会话", "Stop task": "停止任务",
+  "Terminal input": "终端输入", Terminal: "终端", "Computer use": "操作电脑",
+  Plan: "计划", "Wait for tasks": "等待任务", "Subtask output": "子任务输出", "Task output": "任务输出",
+  Monitor: "监控", List: "列出", "Started subtask": "已启动子任务", "Run code": "运行代码", File: "文件",
   "Needs answer": "需要回答", "Needs permission": "需要授权", Respond: "回复", Responding: "回复中", Responded: "已回复",
   Allowed: "已允许", Denied: "已拒绝", Message: "消息", Finished: "已完成", Errored: "出错", Closed: "已关闭", Canceled: "已取消",
   "Checking status": "正在检查状态", Status: "状态", "Reading activity": "正在读取活动", Activity: "活动",
@@ -143,6 +155,10 @@ export function toolbarLabel(label: string, preference: SettingsLanguagePreferen
   // A thought's sections: "1 step", "4 steps".
   const steps = /^(\d+) steps?$/.exec(label);
   if (steps) return `${steps[1]} 步`;
+  const tokens = /^from (\d+(?:\.\d+)?[KM]?) tokens$/.exec(label);
+  if (tokens) return `压缩前 ${tokens[1]} tokens`;
+  const wakeup = /^Wake up in (\d+(?:s|m|h)(?: \d+m)?)$/.exec(label);
+  if (wakeup) return `${wakeup[1]} 后唤醒`;
   return ZH[label] ?? label;
 }
 
