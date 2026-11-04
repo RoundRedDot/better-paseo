@@ -6,7 +6,7 @@ import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, 
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, TextInput } from "@getpaseo/plugin/client/ui";
-import { useHosts, type PluginHostSummary } from "@getpaseo/plugin/client";
+import { getPaseoClient, useHosts, type PluginHostSummary } from "@getpaseo/plugin/client";
 import { tipProps } from "../cards/card-hints";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
@@ -329,11 +329,20 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
   const agent = card && !card.subagent ? card : undefined;
   const shown = agent !== undefined;
   const todo = useTodoSummary(board.paseo, agent?.id ?? "", shown && board.visible);
-  const firstPrompt = useFirstPrompt(board.paseo, agent?.id ?? "", shown);
+  const client = useMemo(() => {
+    if (!card?.hostId || card.hostId === board.hostId) return board.paseo;
+    try {
+      return getPaseoClient(card.hostId);
+    } catch {
+      return board.paseo;
+    }
+  }, [board.paseo, board.hostId, card?.hostId]);
+  const firstPrompt = useFirstPrompt(client, agent?.id ?? "", shown);
   const live = board.visible && agent !== undefined && turnRunning(agent) && agent.closed !== true;
-  const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", shown, live);
+  const lastMessage = useLastMessage(client, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", shown, live);
   const replyEpoch = lastMessage.prompt.state === "ready" ? lastMessage.prompt.position?.epoch : undefined;
-  const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? `${lastHumanMessageVersion(agent)}|${replyEpoch ?? ""}` : "", shown);
+  const humanMessage = useLastHumanMessage(client, agent?.id ?? "", agent ? `${lastHumanMessageVersion(agent)}|${replyEpoch ?? ""}` : "", shown);
+
   const sessionTokens = useSessionTokens(agent?.id ?? "", agent !== undefined && turnRunning(agent) && agent.closed !== true);
   const subagentReads = useSubagentTimeline(
     {
@@ -345,7 +354,7 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
     subagent !== undefined,
   );
   const asking = agent?.lane === "needs_input" && agent.permission?.kind === "question" ? agent.permission : null;
-  const questionRead = useQuestionContext(board.paseo, agent?.id ?? "", asking);
+  const questionRead = useQuestionContext(client, agent?.id ?? "", asking);
   const questionContext = asking && detailsShowNote(questionRead.context, lastMessage.prompt) ? questionRead : null;
   return subagent ? { ...subagentReads, humanMessage: null, sessionTokens: null, questionContext: null, todo: null } : { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext, todo };
 }
@@ -359,7 +368,7 @@ export function useParentTitle(board: BoardController, card: TaskCard | undefine
   const parent = card?.parent;
   const parentId = parent && (parent.title === null || (parent.missing && parent.archived === null)) ? parent.id : null;
   useEffect(() => {
-    if (parentId) board.tasks.resolveParent(parentId);
+    if (parentId) board.tasks.resolveParent(parentId, card?.hostId);
   }, [board.tasks, parentId]);
 }
 
