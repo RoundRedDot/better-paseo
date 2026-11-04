@@ -1857,6 +1857,7 @@ describe("Tasks data store", () => {
         workspaceIds: [],
         providers: [],
         labels: [],
+        hostIds: [],
         hideSubtasks: false,
       }).running.cards.map((card) => card.id)).toEqual(["running-early", "running-late"]);
     } finally {
@@ -2181,6 +2182,7 @@ describe("Tasks data store", () => {
       workspaceIds: [],
       providers: [],
       labels: [],
+      hostIds: [],
       hideSubtasks: true,
     };
 
@@ -5164,7 +5166,7 @@ describe("Tasks data store", () => {
       const noSubagents = { ...lanes, running: { ...lanes.running, cards: [early, late] } };
       expect(withSubagentCards(noSubagents)).toBe(noSubagents);
 
-      const filters = { query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: true };
+      const filters = { query: "", workspaceIds: [], providers: [], labels: [], hostIds: [], hideSubtasks: true };
       const hidden = filterLanes(withCards, filters);
       expect(hidden.running.cards.map((card) => card.id)).toEqual(["early", "parent", "late"]);
       expect(hidden.review.cards.map((card) => card.id)).toEqual(["a"]);
