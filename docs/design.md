@@ -890,6 +890,8 @@ apply to all three.
   communicate the state. Keep its accessibility selected state and the normal press lift.
 - Round buttons (`RoundButton`) are a 36 circle in a 44 target with a hairline, an accent border
   when active, and a badge at least 20 high on the accent with a 2 pt `surface0` ring.
+- Desktop toolbar icon buttons with `quietOutline` use radius 7 and a transparent hairline at
+  rest; hovering reveals the theme border and the shared button shadow without a fill.
 - An on/off switch in a toolbar is a round button whose icon tells the state; Archived is struck
   through while the lane is hidden. Segmented controls (`Segments`) are 28 high on the desktop
   (radius 6, inner 4), 32 and fully round on a phone, the chosen cell on `surface2`.
@@ -977,9 +979,11 @@ apply to all three.
 | Round icon | 28 | 36 |
 
 - A detail card is the card fill with a hairline border, radius 12, the rest shadow, 8 between
-  cards and 12 × 6 inside. The header is padded 12: the status row (icon 14, the status, close),
+  cards and 12 × 6 inside. The header is padded 12: the status row (icon 14, the status, card menu, close),
   the title at base weight 600, chips and labels, and the actions 12 below. Open tab leads on the
   desktop and comes last on touch.
+- On web, the card menu and close icons use the toolbar's radius-7 quiet outline and hover
+  shadow. Native keeps round icon buttons and follows the touch press treatment.
 - Hero blocks (the running turn, a permission request, an error, the last turn's summary) are
   `sunk` boxes of radius 10 with a 1 pt border; an error box is the danger at 6% with a border at
   28%. Values are 2xl in the turn hero and lg in summary tiles.

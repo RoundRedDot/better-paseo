@@ -1816,7 +1816,7 @@ function KeyCap(props: { label: string; tokens: TaskTokens }) {
   );
 }
 
-/** A round icon button: transparent at rest, filled on hover, grey when on (Linear's header buttons). */
+/** A header icon button, matching the toolbar's quiet outline on web. */
 export function RoundIcon(props: { icon: string; label: string; size: number; tokens: TaskTokens; active?: boolean; onPress(): void; testID?: string }) {
   const { hovered, hoverProps } = useHover();
   return (
@@ -1834,7 +1834,9 @@ export function RoundIcon(props: { icon: string; label: string; size: number; to
           width: props.size,
           height: props.size,
           marginVertical: -(props.size - 18) / 2,
-          borderRadius: props.size / 2,
+          borderRadius: Platform.OS === "web" ? 7 : props.size / 2,
+          borderWidth: Platform.OS === "web" ? StyleSheet.hairlineWidth : 0,
+          borderColor: hovered ? props.tokens.border : "transparent",
           alignItems: "center" as const,
           justifyContent: "center" as const,
           backgroundColor: props.active ? props.tokens.surface2 : "transparent",

@@ -118,6 +118,16 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it("uses the toolbar's quiet rounded outline for both header buttons", async () => {
+    const root = await render(<TaskDetailCards {...details("en", "sample-running", { onMenu() {} })} />);
+    for (const id of ["detail-menu", "detail-close"]) {
+      const button = () => host(root, id);
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderColor: "transparent" });
+      await act(async () => button().props.onHoverIn());
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: taskTokens(THEME).border, boxShadow: taskTokens(THEME).card.buttonShadowHover });
+      await act(async () => button().props.onHoverOut());
+    }
+  });
   it("opens the selected card menu at the header button", async () => {
     const onMenu = vi.fn();
     const root = await render(<TaskDetailCards {...details("zh", "sample-running", { onMenu })} />);
