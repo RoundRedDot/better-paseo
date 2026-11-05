@@ -4,6 +4,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { Modal } from "@getpaseo/plugin/client/react-native";
 import type { TaskCard } from "../model";
 import { HOST_FONT, TaskText as Text } from "../typography";
+import { statusMarkSize } from "../cards/status-icon";
 import { taskTokens } from "../cards/tokens";
 
 export type HiddenTask = Pick<TaskCard, "id" | "title" | "lane"> & { location: Pick<TaskCard["location"], "workspaceTitle" | "projectName"> };
@@ -18,6 +19,7 @@ export function HiddenCount({ tasks, theme, language }: { tasks: readonly Hidden
   })).filter((group) => group.tasks.length > 0);
   const names = groups.map((group) => `${group.label} (${group.tasks.length})\n${group.tasks.map((task) => task.title).join("\n")}`).join("\n\n");
   const label = language === "zh" ? `${tasks.length} 个被隐藏的任务` : `${tasks.length} hidden ${tasks.length === 1 ? "task" : "tasks"}`;
+  const dot = statusMarkSize(14) / 2;
   const anchor = useRef<View>(null);
   useLayoutEffect(() => {
     if (Platform.OS !== "web") return;
@@ -25,8 +27,11 @@ export function HiddenCount({ tasks, theme, language }: { tasks: readonly Hidden
     node?.setAttribute("title", `${label}\n${names}`);
   }, [label, names]);
   return <>
-    <Pressable ref={anchor} testID="hidden-tasks-count" accessibilityRole="button" accessibilityLabel={label} onPress={() => setOpen(true)} hitSlop={8} style={{ minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: taskTokens(theme).card.archiveBorder }}>
-      <Text style={{ fontSize: HOST_FONT.sm, color: "#1a1a1a", fontVariant: ["tabular-nums"] }}>{tasks.length}</Text>
+    <Pressable ref={anchor} testID="hidden-tasks-count" accessibilityRole="button" accessibilityLabel={label} onPress={() => setOpen(true)} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+      <View style={{ width: 14, height: 14, alignItems: "center", justifyContent: "center" }}>
+        <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: taskTokens(theme).card.archiveBorder }} />
+      </View>
+      <Text style={{ fontSize: HOST_FONT.sm, color: theme.colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{tasks.length}</Text>
     </Pressable>
     {open ? <Modal title={title} open onOpenChange={setOpen}>
       <Modal.Content>
