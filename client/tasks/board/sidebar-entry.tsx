@@ -20,6 +20,7 @@ import { encodeBoardParams, lastBoardParams, resolveBoardParams, subscribeBoardP
 import { useBoardIntent } from "./prefetch";
 import { BOARD_STRINGS } from "./strings";
 import { loadMark } from "../../debug/load-marks";
+import { HiddenCount } from "./hidden-count";
 
 /** The board's screen id; mirrors `TASKS_SCREEN_ID` in `contribute.tsx`, which imports this file. */
 const SCREEN_ID = "tasks";
@@ -110,13 +111,16 @@ function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: 
   if (counts.ready) loadMark("counts.ready");
   const language = useTasksLanguage();
   const parts = sidebarCountParts(counts, counts.ready ? props.mode : "none");
+  const hidden = counts.ready ? (counts.hidden ?? []).filter((card) => props.mode === "all" || card.lane === "needs_input") : [];
   const colors = props.theme.colors;
   const warning = useTaskTokens(props.theme).status.warning;
   const trailing =
-    parts.length > 0 ? (
+    parts.length > 0 || hidden.length > 0 ? (
       // The host's row scales its own label with the interface size; the counts follow the same ramp.
       <TasksTypography theme={props.theme}>
-        <View accessible accessibilityLabel={sidebarCountText(parts, language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {hidden.length > 0 ? <HiddenCount tasks={hidden} theme={props.theme} language={language} /> : null}
+          <View accessible accessibilityLabel={sidebarCountText(parts, language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           {parts.map((part) => {
             const input = part.lane === "needs_input";
             return (
@@ -135,6 +139,7 @@ function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: 
               </View>
             );
           })}
+          </View>
         </View>
       </TasksTypography>
     ) : undefined;

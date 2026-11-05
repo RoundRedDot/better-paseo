@@ -50,7 +50,7 @@ const host = vi.hoisted(() => ({
   settings: null as Record<string, unknown> | null,
   /** The automatic title settings; loading while null. */
   titleSettings: null as Record<string, unknown> | null,
-  counts: null as { running: number; needsInput: number; review: number; done: number } | null,
+  counts: null as { running: number; needsInput: number; review: number; done: number; hidden?: import("../../client/tasks/model").TaskCard[] } | null,
   /** The filters the sidebar row last counted with. */
   countScope: null as unknown,
   canStop: false,
@@ -5818,6 +5818,14 @@ describe("Tasks sidebar entry", () => {
     host.counts = { running: 0, needsInput: 0, review: 0, done: 1 };
     act(() => renderer!.unmount());
     expect(textOf(entry(null))).toBe("");
+  });
+
+  it.each([["all", true], ["input-only", false], ["none", false]] as const)("shows hidden running tasks only for the all indicator (%s)", (count, visible) => {
+    const card = (data as unknown as { __handle: { lanes: { running: { cards: TaskCard[] } } } }).__handle.lanes.running.cards[0]!;
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, sidebar: { count } };
+    host.counts = { needsInput: 0, running: 0, review: 0, done: 0, hidden: [card] };
+    const row = entry(null);
+    expect(row.findAll((node) => node.props.testID === "hidden-tasks-count" && (node.type as unknown) === "Pressable")).toHaveLength(visible ? 1 : 0);
   });
 
   it("counts with the board's filters and follows them as the board changes them", () => {

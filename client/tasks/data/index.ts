@@ -71,6 +71,7 @@ export interface SidebarCounts {
   review: number;
   /** False until the first active snapshot arrives. */
   ready: boolean;
+  hidden?: TaskCard[];
 }
 
 export interface TasksSnapshot {
@@ -2533,15 +2534,26 @@ function createStore(api: PaseoApi): TaskStore {
       const needsInput = shown.needs_input.cards.length;
       const running = shown.running.cards.length;
       const review = shown.review.cards.length;
+      const baseline = scope ? filterLanes(lanes, { ...scope.filters, query: "", workspaceIds: [], providers: [], labels: [] }) : lanes;
+      const hidden = scope ? (["needs_input", "running", "review"] as const).flatMap((id) => {
+        const visible = new Set(shown[id].cards.map((card) => card.id));
+        return baseline[id].cards.filter((card) => !visible.has(card.id));
+      }) : undefined;
       // The same object while the numbers hold, so a streaming agent does not re-render the row.
       if (
         !countsCache ||
         countsCache.needsInput !== needsInput ||
         countsCache.running !== running ||
         countsCache.review !== review ||
-        countsCache.ready !== (statusReady && workspacesReady)
+        countsCache.ready !== (statusReady && workspacesReady) ||
+        countsCache.hidden?.length !== hidden?.length ||
+        hidden?.some((card, index) => {
+          const previous = countsCache!.hidden?.[index];
+          return previous?.id !== card.id || previous.title !== card.title || previous.lane !== card.lane ||
+            previous.location.workspaceTitle !== card.location.workspaceTitle || previous.location.projectName !== card.location.projectName;
+        })
       ) {
-        countsCache = { needsInput, running, review, ready: statusReady && workspacesReady };
+        countsCache = { needsInput, running, review, ready: statusReady && workspacesReady, ...(hidden ? { hidden } : {}) };
       }
     }
     return countsCache;

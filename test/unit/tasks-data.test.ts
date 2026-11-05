@@ -1781,9 +1781,15 @@ describe("Tasks data store", () => {
         act(() => renderer.update(React.createElement(Counts)));
         // The running child shows on its running parent's card, not as a card of its own.
         expect(current.running).toBe(2);
+        expect(current.hidden?.map((card) => card.id)).toEqual([]);
         scope = claude;
         act(() => renderer.update(React.createElement(Counts)));
         expect(current.running).toBe(1);
+        expect(current.hidden?.map((card) => card.id)).toEqual(["other"]);
+        scope = { filters: { ...EMPTY_FILTERS, query: "no matching task" } };
+        act(() => renderer.update(React.createElement(Counts)));
+        expect(current.running).toBe(0);
+        expect(current.hidden?.map((card) => card.id).sort()).toEqual(["child", "other", "parent"]);
       } finally {
         act(() => renderer.unmount());
       }
