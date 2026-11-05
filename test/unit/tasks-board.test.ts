@@ -10,6 +10,8 @@ import {
   isEmptyParams,
   lastBoardParams,
   rememberBoardParams,
+  rememberBoardRoute,
+  restoreBoardRoute,
   rememberLane,
   rememberedLane,
   resetBoardSessions,
@@ -93,6 +95,23 @@ describe("title refresh", () => {
 afterEach(() => resetBoardSessions());
 
 describe("board params", () => {
+  it("restores edits after a reload of the same route, but applies a different deep link", () => {
+    const values = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => values.set(key, value) });
+    try {
+      for (const [from, to] of [["24h", "7d"], ["7d", "24h"]] as const) {
+        const route = { win: from, q: "old" };
+        const edited = { ...EMPTY_PARAMS, doneWindow: to, query: "new", labels: ["docs"] };
+        rememberBoardRoute("h1", route, edited);
+        expect(restoreBoardRoute("h1", route)).toEqual(edited);
+        expect(restoreBoardRoute("h1", { win: "all" })).toEqual({ ...EMPTY_PARAMS, doneWindow: "all" });
+        expect(restoreBoardRoute("h2", route)).toEqual({ ...EMPTY_PARAMS, doneWindow: from, query: "old" });
+      }
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("round-trips every field, including commas and non-ASCII in list items", () => {
     const params: BoardParams = {
       query: "迁移 脚本",

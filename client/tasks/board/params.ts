@@ -101,6 +101,32 @@ export function isEmptyParams(params: PluginScreenParams | null | undefined): bo
   return Object.keys(encodeBoardParams(decodeBoardParams(params))).length === 0;
 }
 
+/** Restore edits made to this route before the web page was reloaded. */
+export function restoreBoardRoute(hostId: string, route: PluginScreenParams | null | undefined): BoardParams {
+  const key = JSON.stringify(encodeBoardParams(decodeBoardParams(route)));
+  try {
+    const raw = typeof sessionStorage === "undefined" ? null : sessionStorage.getItem(`better-paseo/tasks/route/${hostId}`);
+    if (raw) {
+      const saved = JSON.parse(raw) as { route: string; params: PluginScreenParams };
+      if (saved.route === key) return decodeBoardParams(saved.params);
+    }
+  } catch {
+    // The route remains usable when session storage is unavailable.
+  }
+  return key === "{}" ? lastBoardParams(hostId) : decodeBoardParams(route);
+}
+
+export function rememberBoardRoute(hostId: string, route: PluginScreenParams | null | undefined, params: BoardParams): void {
+  try {
+    if (typeof sessionStorage !== "undefined") sessionStorage.setItem(`better-paseo/tasks/route/${hostId}`, JSON.stringify({
+      route: JSON.stringify(encodeBoardParams(decodeBoardParams(route))),
+      params: encodeBoardParams({ ...params, hideSubtasks: null }),
+    }));
+  } catch {
+    // A blocked or full session storage leaves the current board usable.
+  }
+}
+
 /** The filters `filterLanes` takes and the done window `useTasks` takes. */
 export function resolveBoardParams(params: BoardParams, defaults: BoardDefaults): { filters: BoardFilters; doneWindow: DoneWindow } {
   return {

@@ -23,9 +23,9 @@ import { encodeSort, nameCompare, sortLaneCards } from "./sort";
 import {
   decodeBoardParams,
   encodeBoardParams,
-  isEmptyParams,
-  lastBoardParams,
   rememberBoardParams,
+  rememberBoardRoute,
+  restoreBoardRoute,
   resolveBoardParams,
   type BoardDefaults,
   type BoardParams,
@@ -244,16 +244,18 @@ export function useBoard(
   // Opened with params (a deep link, the sidebar, the Command Center): those;
   // else what this board showed last in this session.
   const [storedParams, setParamsState] = useState<BoardParams>(() =>
-    isEmptyParams(props.params) ? lastBoardParams(hostId) : decodeBoardParams(props.params),
+    restoreBoardRoute(hostId, props.params),
   );
   const routeKey = JSON.stringify(encodeBoardParams(decodeBoardParams(props.params)));
   useEffect(() => {
     if (routeKey === "{}") return;
-    const next = decodeBoardParams(JSON.parse(routeKey) as Record<string, string>);
+    const route = JSON.parse(routeKey) as Record<string, string>;
+    const next = restoreBoardRoute(hostId, route);
     // An explicit legacy deep link is a local choice, never a daemon settings write.
-    if (next.hideSubtasks !== null && device.ready) void updateDevice({ hideSubtasks: next.hideSubtasks }).catch((error: unknown) => latest.current.toast.error(errorText(error)));
+    const hideSubtasks = decodeBoardParams(route).hideSubtasks;
+    if (hideSubtasks !== null && device.ready) void updateDevice({ hideSubtasks }).catch((error: unknown) => latest.current.toast.error(errorText(error)));
     setParamsState((current) => (JSON.stringify(encodeBoardParams(current)) === routeKey ? current : next));
-  }, [routeKey, device.ready, updateDevice]);
+  }, [hostId, routeKey, device.ready, updateDevice]);
   useEffect(() => rememberBoardParams(hostId, { ...storedParams, hideSubtasks: null }), [hostId, storedParams]);
   const params = useMemo(() => ({ ...storedParams, hideSubtasks: settings.board.hideSubtasks }), [storedParams, settings.board.hideSubtasks]);
   const paramsRef = useRef(params);
@@ -264,8 +266,9 @@ export function useBoard(
       void updateDevice({ hideSubtasks: next.hideSubtasks }).catch((error: unknown) => latest.current.toast.error(errorText(error)));
     }
     paramsRef.current = { ...next, hideSubtasks: next.hideSubtasks ?? paramsRef.current.hideSubtasks };
+    rememberBoardRoute(hostId, JSON.parse(routeKey) as Record<string, string>, next);
     setParamsState({ ...next, hideSubtasks: null });
-  }, [updateDevice]);
+  }, [hostId, routeKey, updateDevice]);
 
   const defaults = useMemo<BoardDefaults>(
     () => ({ hideSubtasks: settings.board.hideSubtasks, doneWindow: settings.board.doneWindow }),

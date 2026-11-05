@@ -777,6 +777,26 @@ describe("Tasks board, desktop", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   });
 
+  it("restores the selected window after a page reload and honors a different route", async () => {
+    const storage = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
+    try {
+      await act(async () => { renderer = TestRenderer.create(screen(false, { win: "24h" })); });
+      layOut(1600);
+      act(() => renderer!.root.findAllByType(WindowSegments)[0]!.props.onChange("7d"));
+      expect(renderer!.root.findAllByType(WindowSegments)[0]!.props.value).toBe("7d");
+      act(() => renderer!.unmount());
+      resetBoardSessions();
+      await act(async () => { renderer = TestRenderer.create(screen(false, { win: "24h" })); });
+      layOut(1600);
+      expect(renderer!.root.findAllByType(WindowSegments)[0]!.props.value).toBe("7d");
+      await act(async () => renderer!.update(screen(false, { win: "all" })));
+      expect(renderer!.root.findAllByType(WindowSegments)[0]!.props.value).toBe("all");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it.each([
     ["web", 1600, "en"],
     ["web", 600, "zh"],
