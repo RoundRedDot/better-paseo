@@ -25,9 +25,8 @@ export function HiddenCount({ tasks, theme, language }: { tasks: readonly Hidden
     node?.setAttribute("title", `${label}\n${names}`);
   }, [label, names]);
   return <>
-    <Pressable ref={anchor} testID="hidden-tasks-count" accessibilityRole="button" accessibilityLabel={label} onPress={() => setOpen(true)} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-      <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: taskTokens(theme).status.warning }} />
-      <Text style={{ fontSize: HOST_FONT.sm, color: theme.colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{tasks.length}</Text>
+    <Pressable ref={anchor} testID="hidden-tasks-count" accessibilityRole="button" accessibilityLabel={label} onPress={() => setOpen(true)} hitSlop={8} style={{ minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: taskTokens(theme).card.archiveBorder }}>
+      <Text style={{ fontSize: HOST_FONT.sm, color: "#1a1a1a", fontVariant: ["tabular-nums"] }}>{tasks.length}</Text>
     </Pressable>
     {open ? <Modal title={title} open onOpenChange={setOpen}>
       <Modal.Content>
