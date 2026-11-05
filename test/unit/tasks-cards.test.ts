@@ -2926,6 +2926,18 @@ describe("TaskDetailCards", () => {
     await act(async () => byLabel(asking.root, "展开用量").props.onPress());
   });
 
+  it.each([["属性", "detail-location"], ["子任务", "detail-subtasks"], ["用量", "detail-usage"], ["活动", "detail-activity"]])("toggles the %s panel and disables it while closed", async (title, id) => {
+    const tree = await render(details(sample("sample-running")));
+    const panel = () => hostByTestId(tree.root, `${id}-panel`);
+    const heading = () => byLabel(tree.root, `收起${title}`);
+    if (panel().props.pointerEvents === "none") await act(async () => byLabel(tree.root, `展开${title}`).props.onPress());
+    await act(async () => heading().props.onPress());
+    expect(panel().props.pointerEvents).toBe("none");
+    expect(byLabel(tree.root, `展开${title}`).props.accessibilityState).toEqual({ expanded: false });
+    await act(async () => byLabel(tree.root, `展开${title}`).props.onPress());
+    expect(panel().props.pointerEvents).toBe("auto");
+  });
+
   it("lists the place, then copyable branch and directory, an openable PR, each state in a note line", async () => {
     opened.openLink.mockClear();
     const tree = await render(details(sample("sample-running")));
@@ -3424,8 +3436,9 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-subtasks-more"))).toEqual(["显示全部 14 个", "其余 4 个已完成"]);
     await act(async () => byLabel(tree.root, "显示全部 14 个 其余 4 个已完成").props.onPress());
     expect(titles(tree)).toHaveLength(14);
+    expect(hostByTestId(tree.root, "detail-subtasks-extra-panel").props.pointerEvents).toBe("auto");
     await act(async () => byLabel(tree.root, "收起").props.onPress());
-    expect(titles(tree)).toHaveLength(10);
+    expect(hostByTestId(tree.root, "detail-subtasks-extra-panel").props.pointerEvents).toBe("none");
     await act(async () => byLabel(tree.root, "显示全部 14 个 其余 4 个已完成").props.onPress());
     await act(async () => tree.update(details(many("many-b"))));
     expect(titles(tree)).toHaveLength(10);
@@ -3536,9 +3549,10 @@ describe("TaskDetailCards", () => {
         expect(heading().props.accessibilityState.expanded).toBe(true);
         await act(async () => heading().props.onPress());
         expect(heading().props.accessibilityState.expanded).toBe(false);
-        expect(tree.root.findAll((node) => node.props.testID === `${id}-text`)).toHaveLength(0);
+        expect(hostByTestId(tree.root, `${id}-panel`).props.pointerEvents).toBe("none");
         await act(async () => heading().props.onPress());
         expect(heading().props.accessibilityState.expanded).toBe(true);
+        expect(hostByTestId(tree.root, `${id}-panel`).props.pointerEvents).toBe("auto");
         expect(hostByTestId(tree.root, `${id}-text`)).toBeDefined();
       }
     } finally {

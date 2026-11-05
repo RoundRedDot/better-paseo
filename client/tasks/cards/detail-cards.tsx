@@ -75,6 +75,7 @@ import {
 import { Chip, ContextBar, SummaryTiles, TimelineChart, TokenBar, TurnHero, detailColors, statusColor } from "./detail-charts";
 import { detailGutter, detailScrollProps } from "./detail-scrollbar";
 import { sectionClosed, useSectionChoices, useSearchSectionChoices } from "./detail-collapse";
+import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
 import { tipProps } from "./card-hints";
 import { AvailabilityTag } from "./availability-tag";
 import { highlightText } from "./search-highlight";
@@ -948,6 +949,7 @@ function ErrorBlock(props: Inner) {
 function Section(props: Inner & { section: DetailSection; closed: boolean; divider: boolean; onToggleSection(closed: boolean): void }) {
   const { card, m, tokens, section, gutter = 0 } = props;
   const words = cardStrings(props.language).details;
+  const reducedMotion = useReducedMotion();
   const { copied, copy } = useCopy();
   const title = { prompt: words.prompt, human: words.human, message: words.message, properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
   // A narrow card abbreviates the subtasks heading; its rows keep their shared metadata.
@@ -980,12 +982,13 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
   const testID = { prompt: "detail-prompt", human: "detail-human", message: "detail-message", properties: "detail-location", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
   // The last subtask row keeps 8 (touch 10) above the next hairline.
   const bottom = section === "subtasks" && m === TOUCH_CARD ? 10 : 8;
+  const toggle = () => { if (!reducedMotion) prepareSubtaskToggle(props.closed); props.onToggleSection(!props.closed); };
   return (
     <View testID={testID} onLayout={onLayout}>
       {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginLeft: m.padH, marginRight: m.padH - gutter, backgroundColor: tokens.card.border }} /> : null}
       <View style={{ paddingTop: 4, paddingBottom: bottom, paddingLeft: m.padH - 6, paddingRight: m.padH - 6 - gutter }}>
         {messageSection ? (
-          <Pressable {...ROW_ROLE} accessibilityLabel={props.closed ? words.expand(title) : words.collapse(title)} {...tipProps(props.closed ? words.expand(title) : words.collapse(title))} accessibilityState={{ expanded: !props.closed }} onPress={() => props.onToggleSection(!props.closed)} testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
+          <Pressable {...ROW_ROLE} accessibilityLabel={props.closed ? words.expand(title) : words.collapse(title)} {...tipProps(props.closed ? words.expand(title) : words.collapse(title))} accessibilityState={{ expanded: !props.closed }} onPress={toggle} testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
             <View style={{ width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: detailColors(tokens).sunk }}>
               <Icon name={section === "message" ? "MessageSquareText" : "MessageCircle"} size={14} color={section === "message" ? tokens.success : tokens.foregroundMuted} />
             </View>
@@ -997,27 +1000,29 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
               </Pressable>
             ) : null}
             <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
-              <View style={{ transform: [{ rotate: props.closed ? "-90deg" : "0deg" }] }}><Icon name="ChevronDown" size={14} color={tokens.foregroundMuted} /></View>
+              <SectionChevron closed={props.closed} color={tokens.foregroundMuted} />
             </View>
           </Pressable>
         ) : (
-          <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryTip={messageTime ? formatFullStamp(new Date(at)) : undefined} trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined} closed={props.closed} language={props.language} onPress={() => props.onToggleSection(!props.closed)} />
+          <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryTip={messageTime ? formatFullStamp(new Date(at)) : undefined} trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined} closed={props.closed} language={props.language} onPress={toggle} />
         )}
-        {props.closed ? null : section === "prompt" ? (
+        <SubtaskPanel expanded={!props.closed} testID={`${testID}-panel`}>
+          {section === "prompt" ? (
           <TimelineTextBody {...props} read={props.firstPrompt} id="detail-prompt" none={words.promptNone} error={words.promptError} copyLabel={words.copyPrompt} copyToast="Copy prompt" />
         ) : section === "human" ? (
           <TimelineTextBody {...props} read={props.humanMessage} id="detail-human" none={words.humanNone} error={words.humanError} copyLabel={words.copyHuman} copyToast="Copy sent message" />
         ) : section === "message" ? (
           <TimelineTextBody {...props} read={props.lastMessage} id="detail-message" none={words.messageNone} error={words.messageError} copyLabel={words.copyMessage} copyToast="Copy message" flash />
-        ) : section === "properties" ? (
-          <Properties {...props} />
-        ) : section === "subtasks" ? (
-          <Subtasks {...props} />
-        ) : section === "usage" ? (
-          <Usage {...props} />
-        ) : (
-          <Activity {...props} />
-        )}
+          ) : section === "properties" ? (
+            <Properties {...props} />
+          ) : section === "subtasks" ? (
+            <Subtasks {...props} />
+          ) : section === "usage" ? (
+            <Usage {...props} />
+          ) : (
+            <Activity {...props} />
+          )}
+        </SubtaskPanel>
       </View>
     </View>
   );
@@ -1060,9 +1065,7 @@ function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; 
       style={{ height: taskControlHeight(m.heading, scale), paddingHorizontal: 6, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 4 }}
     >
       <Text style={{ fontSize: font, fontWeight: "500", color }}>{props.title}</Text>
-      <View style={{ transform: [{ rotate: props.closed ? "-90deg" : "0deg" }] }}>
-        <Icon name="ChevronDown" size={14} color={color} />
-      </View>
+      <SectionChevron closed={props.closed} color={color} />
       <View style={{ flex: 1 }} />
       {props.summary ? (
         <Text {...tipProps(props.summaryTip)} numberOfLines={1} style={[{ flexShrink: 1, fontSize: font, color, fontVariant: ["tabular-nums"] }]}>
@@ -1072,6 +1075,18 @@ function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; 
       {props.trailing ? <View style={{ marginLeft: 2 }}>{props.trailing}</View> : null}
     </Pressable>
   );
+}
+
+function SectionChevron(props: { closed: boolean; color: string }) {
+  const reduced = useReducedMotion();
+  const progress = useRef(new Animated.Value(props.closed ? 0 : 1)).current;
+  useEffect(() => {
+    if (reduced) { progress.setValue(props.closed ? 0 : 1); return; }
+    const animation = Animated.timing(progress, { toValue: props.closed ? 0 : 1, duration: props.closed ? 140 : 180, easing: MOTION.ease, useNativeDriver: true, isInteraction: false });
+    animation.start();
+    return () => animation.stop();
+  }, [props.closed, reduced, progress]);
+  return <Animated.View style={{ transform: [{ rotate: progress.interpolate({ inputRange: [0, 1], outputRange: ["-90deg", "0deg"] }) }] }}><Icon name="ChevronDown" size={14} color={props.color} /></Animated.View>;
 }
 
 /**
@@ -1467,20 +1482,18 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
 function Subtasks(props: Inner) {
   const { card, m, tokens } = props;
   const scale = useTasksFontScale();
+  const reducedMotion = useReducedMotion();
   const cardText = cardStrings(props.language);
   const words = cardText.details;
   const [openFor, setOpenFor] = useState<string | null>(null);
   const open = openFor === card.id;
   const sorted = sortSubtasks(card.children);
   const hidden = sorted.slice(SUBTASK_ROWS);
-  const shown = open ? sorted : sorted.slice(0, SUBTASK_ROWS);
   // Finished rows step back while others still need a look; all finished, none does.
   const mixed = card.children.some((child) => !subtaskFinished(child));
   const time = props.time;
   const touch = m === TOUCH_CARD;
-  return (
-    <View style={{ marginRight: props.gutter }}>
-      {shown.map((child) => (
+  const row = (child: TaskChild) => (
         <SubtaskRow
           key={child.id}
           tokens={tokens}
@@ -1502,14 +1515,18 @@ function Subtasks(props: Inner) {
           onLongPress={touch && props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
           onOpen={props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
         />
-      ))}
+  );
+  return (
+    <View style={{ marginRight: props.gutter }}>
+      {sorted.slice(0, SUBTASK_ROWS).map(row)}
+      {hidden.length > 0 ? <SubtaskPanel expanded={open} testID="detail-subtasks-extra-panel">{hidden.map(row)}</SubtaskPanel> : null}
       {hidden.length > 0 ? (
         <MoreRow
           tokens={tokens}
           label={open ? cardText.showFewer : words.subtasksShowAll(sorted.length)}
           note={open ? null : hidden.every(subtaskFinished) ? words.subtasksHiddenDone(hidden.length) : words.subtasksHidden(hidden.length)}
           open={open}
-          onPress={() => setOpenFor(open ? null : card.id)}
+          onPress={() => { if (!reducedMotion) prepareSubtaskToggle(!open); setOpenFor(open ? null : card.id); }}
           height={taskControlHeight(touch ? 44 : 32, scale)}
         />
       ) : null}
