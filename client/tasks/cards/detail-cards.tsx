@@ -167,6 +167,7 @@ export interface TaskDetailCardsProps extends TimeSource {
   /** Match the phone board's pills; tablet and desktop cards use the regular size. */
   compact?: boolean;
   onClose?(): void;
+  onMenu?(point: { x: number; y: number }): void;
   /** The card to go back to after a parent or subtask jump. */
   back?: { title: string; onPress(): void } | null;
   notice?: DetailNotice | null;
@@ -511,6 +512,7 @@ function stopLabel(props: TaskDetailCardsProps): string | null {
 /** The header: status, title, the agent's chips and labels, the actions, then the block the card needs first. */
 function DetailHeader(props: Inner) {
   const { card, m, tokens, touch = false } = props;
+  const menuRef = useRef<View>(null);
   const titleUpdate = useTitleUpdateState(props.titleUpdates, card.id);
   useEffect(() => {
     if (titleUpdate.state === "done" && card.title === titleUpdate.title) props.titleUpdates?.showUndo(card.id);
@@ -639,6 +641,7 @@ function DetailHeader(props: Inner) {
         </Text>
         <StatusSub {...props} small={small} />
         <View style={{ flex: 1 }} />
+        {props.onMenu ? <View ref={menuRef} collapsable={false}><RoundIcon icon="MoreVertical" label={props.language === "zh" ? "卡片菜单" : "Card menu"} size={m.round} tokens={tokens} testID="detail-menu" onPress={() => menuRef.current?.measureInWindow((x, y, width, height) => props.onMenu?.({ x: x + width, y: y + height }))} /></View> : null}
         {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={m.round} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
       </View>
       <View style={{ marginTop: 2, flexDirection: "row", alignItems: "center", gap: 6 }}>

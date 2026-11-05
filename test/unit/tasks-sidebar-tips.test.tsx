@@ -83,7 +83,7 @@ afterEach(async () => {
 
 async function render(element: React.ReactElement) {
   await act(async () => {
-    renderer = TestRenderer.create(element, { createNodeMock: (node) => ({ props: node.props }) });
+    renderer = TestRenderer.create(element, { createNodeMock: (node) => ({ props: node.props, measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(10, 20, 30, 40) }) });
   });
   return renderer!.root;
 }
@@ -118,6 +118,12 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it("opens the selected card menu at the header button", async () => {
+    const onMenu = vi.fn();
+    const root = await render(<TaskDetailCards {...details("zh", "sample-running", { onMenu })} />);
+    await act(async () => host(root, "detail-menu").props.onPress());
+    expect(onMenu).toHaveBeenCalledWith({ x: 40, y: 60 });
+  });
   it("clears filters and shows subtasks when clearing a hidden card notice", async () => {
     const card = previewSampleCards(NOW).find((item) => item.id === "sample-child-1")!;
     const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: [] }]));

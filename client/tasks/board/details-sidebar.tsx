@@ -91,6 +91,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
         touch: props.touch,
         clock: board.clock,
         onClose: () => dispatch({ type: "clear" }),
+        onMenu: (point: { x: number; y: number }) => setMenu({ id: card.id, point }),
         back: backId ? { title: backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null,
         notice,
         onOpen: board.callbacks.onOpen,
