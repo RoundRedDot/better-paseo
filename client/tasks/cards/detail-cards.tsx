@@ -35,7 +35,7 @@ import { SubagentLabel } from "./subagent-label";
 import { TitleUndo } from "./title-undo";
 import { TitleLoading } from "./title-loading";
 import { useRevealedTitle } from "./title-reveal";
-import { ArchivedTag } from "./archived-tag";
+import { ArchivedTag, parentTag, type ParentTag } from "./archived-tag";
 import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
@@ -1213,13 +1213,15 @@ function Properties(props: Inner) {
     const unarchive = archived ? props.unarchive : null;
     const unarchiving = unarchive?.pending(parent.id) === true;
     let notes: Note[] = [];
-    let tag: string | undefined;
+    let archive: string | null = null;
     // An archived parent can be brought back; once it is, the row turns into a jump.
     // An archived parent is tagged, itself or with its workspace, off the board or in the archived lane.
-    if (parent.archivedAs === "workspace") tag = cardText.workspaceArchived;
-    else if (archived || parent.archivedAs === "agent") tag = cardText.archived;
+    if (parent.archivedAs === "workspace") archive = cardText.workspaceArchived;
+    else if (archived || parent.archivedAs === "agent") archive = cardText.archived;
     if (archived && !unarchive) notes = [{ text: details.cannotJump }];
-    else if (offBoard && !tag) notes = [{ text: details.offBoard }];
+    else if (offBoard && !archive) notes = [{ text: details.offBoard }];
+    // A link the plugin inferred says so, whatever the parent's state.
+    const tag = parentTag(archive, parent.detached ? cardText.inferred : null);
     rows.push(
       <PropertyRow
         {...common}
@@ -1230,7 +1232,7 @@ function Properties(props: Inner) {
         lines={3}
         muted={parent.missing}
         notes={notes}
-        tag={tag}
+        tag={tag ?? undefined}
         button={
           unarchive ? (
             <CardButton
@@ -1248,7 +1250,7 @@ function Properties(props: Inner) {
         onPress={jump}
         tip={offBoard ? cardText.openParent : cardText.revealParent}
         buttonTip={details.unarchive}
-        accessibilityLabel={`${words.parent}: ${title}`}
+        accessibilityLabel={parent.detached && tag ? `${words.parent}: ${title}, ${tag.label}` : `${words.parent}: ${title}`}
         testID="detail-parent"
       />,
     );
@@ -1295,8 +1297,8 @@ function PropertyRow(props: {
   hyphens?: boolean;
   lines: number;
   notes?: Note[];
-  /** An archived parent's tag, ahead of the notes. */
-  tag?: string;
+  /** An archived or inferred parent's tag, ahead of the notes. */
+  tag?: ParentTag;
   /** A button at the row's end, in the card's style: an archived parent's Unarchive. */
   button?: React.ReactNode;
   buttonTip?: string;
@@ -1375,7 +1377,7 @@ function PropertyRow(props: {
     ) : null;
   const noteLine = props.tag ? (
     <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 6, marginTop: 3 }}>
-      <ArchivedTag tokens={tokens} label={props.tag} testID={props.testID ? `${props.testID}-tag` : undefined} />
+      <ArchivedTag tokens={tokens} label={props.tag.label} icon={props.tag.icon} testID={props.testID ? `${props.testID}-tag` : undefined} />
       {noteRun}
     </View>
   ) : noteRun;

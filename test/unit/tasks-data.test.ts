@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -1406,6 +1406,99 @@ describe("Tasks data store", () => {
       expect(mounted.current.byId.get("child")?.parent).toMatchObject({ missing: true, archived: true });
     } finally {
       mounted.unmount();
+    }
+  });
+
+  it("names the parent the server saw archive a task's link as history, never as a live subtask", async () => {
+    let origins = [{ agentId: "both", parentAgentId: "gone" }, { agentId: "lost", parentAgentId: "gone" }];
+    let version = 1;
+    setSubagentLoader(async () => ({ version: "s", subagents: [] }));
+    setParentOriginsLoader(async (since) => (since === String(version) ? { version: String(version), origins: null } : { version: String(version), origins }));
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("parent", { status: "running", title: "Parent", updatedAt: at(10) }),
+        activeAgent("child", { status: "running", title: "Child", labels: { "paseo.parent-agent-id": "parent" } }),
+        activeAgent("by-hand", { status: "running", title: "Detached by hand", labels: { "paseo.parent-agent-id": "parent" } }),
+        activeAgent("both", { status: "idle", updatedAt: at(9), title: "Live parent too", labels: { "paseo.parent-agent-id": "parent" } }),
+        activeAgent("lost", { status: "running", title: "Parent unreadable" }),
+      ],
+    });
+    const mounted = await mountTasks(fake, "all");
+    // An agent update brings the next read of the server's origins forward.
+    const settle = () => act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1_600));
+    });
+    try {
+      await act(async () => {
+        await vi.waitFor(() => expect(mounted.current.byId.get("lost")?.parent).not.toBeNull());
+      });
+      // A former parent that cannot be read stays named by id, unknown rather than guessed.
+      expect(mounted.current.byId.get("lost")?.parent).toEqual({ id: "gone", title: null, missing: true, archived: null, detached: true });
+      // A live parent label wins over a recorded origin.
+      expect(mounted.current.byId.get("both")?.parent).toEqual({ id: "parent", title: "Parent", missing: false, archived: false });
+      expect(mounted.current.byId.get("parent")?.children.map((child) => child.id)).toEqual(["child", "by-hand", "both"]);
+
+      // Detached by hand: the label goes and the server records nothing, so the card names no parent.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("by-hand", { status: "running", title: "Detached by hand", updatedAt: at(11) }));
+      });
+      await settle();
+      expect(mounted.current.byId.get("by-hand")?.parent).toBeNull();
+
+      // The daemon archives the parent and detaches the surviving child; the server confirms it.
+      origins = [...origins, { agentId: "child", parentAgentId: "parent" }];
+      version = 2;
+      await act(async () => {
+        fake.upsertAgent(activeAgent("parent", { status: "closed", title: "Parent", updatedAt: at(12), archivedAt: at(12) }));
+        fake.upsertAgent(activeAgent("child", { status: "running", title: "Child", updatedAt: at(13) }));
+      });
+      await settle();
+      const detached = mounted.current.byId.get("child");
+      expect(detached?.parent).toEqual({ id: "parent", title: "Parent", missing: true, archived: true, archivedAs: "agent", detached: true });
+      expect(mounted.current.byId.get("by-hand")?.parent).toBeNull();
+      // Still its own running task: not folded, not waiting on, not stopped with the parent.
+      expect(detached?.lane).toBe("running");
+      expect(filterLanes(mounted.current.lanes, { ...EMPTY_FILTERS, hideSubtasks: true }).running.cards.map((card) => card.id)).toContain("child");
+
+      // Restoring the parent does not reattach the child: the link stays history.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("parent", { status: "idle", title: "Parent", updatedAt: at(14), archivedAt: null }));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      const restored = mounted.current.byId.get("parent");
+      expect(restored?.children.map((child) => child.id)).toEqual(["both"]);
+      // Its only live child is idle; the running detached task does not keep it waiting.
+      expect(restored?.waitingOnSubtasks).toBeUndefined();
+      expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "parent", title: "Parent", missing: false, archived: false, detached: true });
+
+      // The former parent's rename reaches the child's link.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("parent", { status: "idle", title: "Renamed parent", updatedAt: at(15), archivedAt: null }));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("child")?.parent).toMatchObject({ title: "Renamed parent", detached: true });
+
+      // Done, it stays a card when subtasks are hidden: hiding folds only live subtasks.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("child", { status: "idle", title: "Child", updatedAt: at(16) }));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("child")?.lane).not.toBe("running");
+      const hidden = filterLanes(mounted.current.lanes, { ...EMPTY_FILTERS, hideSubtasks: true });
+      expect(LANE_ORDER.flatMap((lane) => hidden[lane].cards.map((card) => card.id))).toContain("child");
+
+      // The server forgets it (a live parent again elsewhere): the card follows.
+      origins = origins.filter((origin) => origin.agentId !== "child");
+      version = 3;
+      await act(async () => {
+        fake.upsertAgent(activeAgent("other", { status: "running" }));
+      });
+      await settle();
+      expect(mounted.current.byId.get("child")?.parent).toBeNull();
+    } finally {
+      mounted.unmount();
+      setSubagentLoader(null);
+      setParentOriginsLoader(null);
     }
   });
 

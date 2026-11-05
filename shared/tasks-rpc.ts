@@ -116,6 +116,25 @@ export const tasksSubagentsRpc = defineRpc({
   output: z.object({ version: z.string(), subagents: z.array(providerSubagentSchema).nullable() }),
 });
 
+/** An agent detached when its parent was archived, and that parent. */
+export const parentOriginSchema = z.object({ agentId: z.string(), parentAgentId: z.string() });
+export type ParentOrigin = z.output<typeof parentOriginSchema>;
+
+/**
+ * The parents whose archive is inferred to have detached a surviving child.
+ * Paseo clears the child's `paseo.parent-agent-id` then, exactly as a detach
+ * by hand does, so the server infers the cause from what it saw happen and
+ * when (`server/tasks/parent-origins.ts`, which lists the cases it gets
+ * wrong). History only: the child is a task of its own. Kept in a file, so a
+ * restart keeps them; a file it cannot read fails the call. `version` works
+ * as `tasks.subagents`'s; an older server lacks the RPC.
+ */
+export const tasksParentOriginsRpc = defineRpc({
+  name: "tasks.parent-origins",
+  input: z.object({ since: z.string().optional() }),
+  output: z.object({ version: z.string(), origins: z.array(parentOriginSchema).nullable() }),
+});
+
 /** One row of a provider subagent's timeline, as far as the details read it: its kind, text and time. */
 export const subagentTimelineRowSchema = z.object({ type: z.string(), text: z.string().optional(), timestamp: z.string().optional() });
 

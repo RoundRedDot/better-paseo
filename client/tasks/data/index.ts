@@ -14,7 +14,7 @@ import type {
 } from "@getpaseo/client";
 import { doneWindowMs, type DoneWindow } from "../../../shared/tasks-settings";
 import type { LastTurn } from "../../../shared/turn-usage-rpc";
-import type { ProviderSubagent } from "../../../shared/tasks-rpc";
+import type { ParentOrigin, ProviderSubagent } from "../../../shared/tasks-rpc";
 import { footerModel } from "../../state/footer-model";
 import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
@@ -422,6 +422,16 @@ let readMarksLoader: ReadMarksLoader | null = null;
 /** `contribute` sets the loader; the marks are read with the subagents and after a Mark read. */
 export function setReadMarksLoader(next: ReadMarksLoader | null): void {
   readMarksLoader = next;
+}
+
+/** `tasks.parent-origins`: the parents whose archive detached a child, or null while `since` is still the server's version. */
+export type ParentOriginsLoader = (since?: string) => Promise<{ version: string; origins: ParentOrigin[] | null }>;
+
+let parentOriginsLoader: ParentOriginsLoader | null = null;
+
+/** `contribute` sets the loader; the origins are read with the subagents. */
+export function setParentOriginsLoader(next: ParentOriginsLoader | null): void {
+  parentOriginsLoader = next;
 }
 
 /** `tasks.labels`: the daemon's label definitions, for a host whose API lists none; null when the server cannot read them. */
@@ -916,6 +926,17 @@ function createStore(api: PaseoApi): TaskStore {
   /** Cards whose parent is being refreshed for them, so a parent loop cannot recurse. */
   const refreshingParents = new Set<string>();
   const parentByChild = new Map<string, string>();
+  /**
+   * The parent whose archive detached each agent, as the server inferred it
+   * (`tasks.parent-origins`). History only, and only for an agent without a
+   * live parent: kept apart from the live links above, so it names the parent
+   * on the child's card and nothing else. No children rows, stop targets,
+   * subtask waiting, folding or background retention.
+   */
+  const serverOrigins = new Map<string, string>();
+  let originsVersion: string | undefined;
+  const originByChild = new Map<string, string>();
+  const originChildrenByParent = new Map<string, Set<string>>();
   /** Parents read by id because they are not on the board: their title and whether they are archived. */
   const resolvedParents = new Map<string, { title: string | null; archived: boolean | null }>();
   const parentReads = new Set<string>();
@@ -1037,6 +1058,11 @@ function createStore(api: PaseoApi): TaskStore {
     });
   }
 
+  /** Cards that name `id` as their parent: its live children and those its archive detached. */
+  function linkedChildrenOf(id: string): string[] {
+    return [...childrenByParent.get(id) ?? [], ...originChildrenByParent.get(id) ?? []];
+  }
+
   function dropIfUnreferenced(id: string) {
     if (memberSetsContaining(id).length > 0 || hasActiveBackgroundChildren(id)) return;
     removeRecord(id);
@@ -1078,7 +1104,7 @@ function createStore(api: PaseoApi): TaskStore {
     let changed = refreshFinalCard(id);
     const parentId = parentByChild.get(id);
     if (parentId && refreshFinalCard(parentId)) changed = true;
-    for (const childId of childrenByParent.get(id) ?? []) if (refreshFinalCard(childId)) changed = true;
+    for (const childId of linkedChildrenOf(id)) if (refreshFinalCard(childId)) changed = true;
     return changed;
   }
 
@@ -1093,7 +1119,9 @@ function createStore(api: PaseoApi): TaskStore {
     const workspaceId = entryForArchive?.agent.workspaceId;
     const archivedAt = entryForArchive?.agent.archivedAt
       ?? (archivedKind === "workspace" && workspaceId ? workspaces.get(workspaceId)?.archivingAt ?? workspaceArchiveTimes.get(workspaceId) ?? null : null);
-    const parentAgentId = parentByChild.get(id);
+    const liveParentId = parentByChild.get(id);
+    const originId = liveParentId ? undefined : originByChild.get(id);
+    const parentAgentId = liveParentId ?? originId;
     const parentEntry = parentAgentId ? entries.get(parentAgentId) : undefined;
     const parentTitle = parentAgentId
       ? parentEntry?.agent.title?.trim() || resolvedParents.get(parentAgentId)?.title || null
@@ -1117,6 +1145,7 @@ function createStore(api: PaseoApi): TaskStore {
             missing: parentMissing,
             archived: !parentMissing ? false : parentEntry ? isArchived(parentEntry.agent) : (resolvedParents.get(parentAgentId)?.archived ?? null),
             ...(parentArchivedAs ? { archivedAs: parentArchivedAs } : null),
+            ...(originId ? { detached: true as const } : null),
           }
         : null,
       children: childIds
@@ -1149,10 +1178,10 @@ function createStore(api: PaseoApi): TaskStore {
     cards.set(id, next);
     // A parent's row and lane follow its children's status: a child that
     // starts or stops waiting on its own subtasks reaches up the chain.
-    if (parentAgentId && (previous?.status !== next.status || previous?.lane !== next.lane) && !refreshingParents.has(parentAgentId)) {
+    if (liveParentId && (previous?.status !== next.status || previous?.lane !== next.lane) && !refreshingParents.has(liveParentId)) {
       refreshingParents.add(id);
       try {
-        refreshFinalCard(parentAgentId);
+        refreshFinalCard(liveParentId);
       } finally {
         refreshingParents.delete(id);
       }
@@ -1176,6 +1205,23 @@ function createStore(api: PaseoApi): TaskStore {
       parentByChild.set(id, nextParent);
     }
     return previousParent;
+  }
+
+  function replaceOriginLink(id: string, nextOrigin: string | null) {
+    const previousOrigin = originByChild.get(id) ?? null;
+    if (previousOrigin === nextOrigin) return;
+    if (previousOrigin) {
+      const children = originChildrenByParent.get(previousOrigin);
+      children?.delete(id);
+      if (children?.size === 0) originChildrenByParent.delete(previousOrigin);
+      originByChild.delete(id);
+    }
+    if (nextOrigin) {
+      let children = originChildrenByParent.get(nextOrigin);
+      if (!children) originChildrenByParent.set(nextOrigin, children = new Set());
+      children.add(id);
+      originByChild.set(id, nextOrigin);
+    }
   }
 
   function isStaleAgent(agent: PaseoAgent): boolean {
@@ -1211,6 +1257,7 @@ function createStore(api: PaseoApi): TaskStore {
     entries.set(agent.id, { agent, placement });
     const newParent = parentIdOf(agent);
     replaceParentLink(agent.id, newParent);
+    replaceOriginLink(agent.id, newParent ? null : serverOrigins.get(agent.id) ?? null);
     const workspace = agent.workspaceId ? workspaces.get(agent.workspaceId) : undefined;
     const project = projectFor({ agent, placement }, workspace, projects);
     const projectId = workspace?.projectId ?? project?.projectId ?? null;
@@ -1225,7 +1272,7 @@ function createStore(api: PaseoApi): TaskStore {
     const affected = new Set<string>([agent.id]);
     if (oldParent) affected.add(oldParent);
     if (newParent) affected.add(newParent);
-    for (const childId of childrenByParent.get(agent.id) ?? []) affected.add(childId);
+    for (const childId of linkedChildrenOf(agent.id)) affected.add(childId);
     for (const affectedId of affected) refreshFinalCard(affectedId);
     if (wasActive && oldParent) dropIfUnreferenced(oldParent);
     // A prompt after the failure is the person acting on it: the parent may go.
@@ -1242,9 +1289,10 @@ function createStore(api: PaseoApi): TaskStore {
     if (!existed) return;
     entries.delete(id);
     const oldParent = replaceParentLink(id, null);
+    replaceOriginLink(id, null);
     const affected = new Set<string>([id]);
     if (oldParent) affected.add(oldParent);
-    for (const childId of childrenByParent.get(id) ?? []) affected.add(childId);
+    for (const childId of linkedChildrenOf(id)) affected.add(childId);
     baseCards.delete(id);
     cards.delete(id);
     for (const affectedId of affected) refreshFinalCard(affectedId);
@@ -1721,6 +1769,7 @@ function createStore(api: PaseoApi): TaskStore {
     subagentReading = true;
     try {
       await readReads(run);
+      await readOrigins(run);
       const result = await loader(subagentVersion);
       if (run !== generation) return;
       if (result.subagents) applySubagents(result.version, result.subagents);
@@ -1769,6 +1818,36 @@ function createStore(api: PaseoApi): TaskStore {
       if (subagent.status === "failed") at = Math.max(at, epoch(subagent.updatedAt));
     }
     return at;
+  }
+
+  /** The server's inferred origins; a changed one relinks its card to the parent it names. */
+  async function readOrigins(run: number) {
+    const loader = parentOriginsLoader;
+    if (!loader) return;
+    try {
+      const result = await loader(originsVersion);
+      if (run !== generation) return;
+      originsVersion = result.version;
+      if (!result.origins) return;
+      const next = new Map(result.origins.map((origin) => [origin.agentId, origin.parentAgentId] as const));
+      const changed = new Set<string>();
+      for (const [id, parentId] of next) if (serverOrigins.get(id) !== parentId) changed.add(id);
+      for (const id of serverOrigins.keys()) if (!next.has(id)) changed.add(id);
+      serverOrigins.clear();
+      for (const [id, parentId] of next) serverOrigins.set(id, parentId);
+      if (changed.size === 0) return;
+      batchUpdates(() => {
+        for (const id of changed) {
+          const entry = entries.get(id);
+          if (!entry) continue;
+          replaceOriginLink(id, parentIdOf(entry.agent) ? null : serverOrigins.get(id) ?? null);
+          refreshFinalCard(id);
+        }
+        notify();
+      });
+    } catch {
+      // An older server without `tasks.parent-origins`, or a failed read: the cards name no former parent.
+    }
   }
 
   /** The server's read marks; a changed one moves its card (and lets a failed parent go). */
@@ -2164,7 +2243,7 @@ function createStore(api: PaseoApi): TaskStore {
       const project = workspace ? projects.get(workspace.projectId) : undefined;
       baseCards.set(id, buildBaseCard(entry, workspace, project, colorNames, modelCatalogs.get(entry.agent.provider), project ? projectIcons.get(project.projectId) : undefined));
       refreshFinalCard(id);
-      for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
+      for (const childId of linkedChildrenOf(id)) refreshFinalCard(childId);
     }
   }
 
@@ -2339,6 +2418,8 @@ function createStore(api: PaseoApi): TaskStore {
     cards.clear();
     childrenByParent.clear();
     parentByChild.clear();
+    originChildrenByParent.clear();
+    originByChild.clear();
     resolvedParents.clear();
     parentReads.clear();
     workspaces.clear();
@@ -2366,6 +2447,8 @@ function createStore(api: PaseoApi): TaskStore {
     subagentsByParent.clear();
     subagentParentsAsked.clear();
     subagentVersion = undefined;
+    serverOrigins.clear();
+    originsVersion = undefined;
     readMarks.clear();
     statusReady = false;
     attentionReady = false;
@@ -2633,7 +2716,7 @@ function createStore(api: PaseoApi): TaskStore {
       if (run !== generation || !result) return archived;
       resolvedParents.set(id, { title: result.agent.title?.trim() || null, archived });
       if (!archived && hasActiveBackgroundChildren(id)) updateRecord(result.agent, result.project ?? null);
-      for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
+      for (const childId of linkedChildrenOf(id)) refreshFinalCard(childId);
       notify();
       return archived;
     });
@@ -2984,7 +3067,8 @@ export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilt
   if (filters.hideSubtasks) for (const id of LANE_ORDER) for (const card of lanes[id].cards) byId.set(card.id, card);
   const keep = (card: TaskCard) => {
     if (!matches(card)) return false;
-    if (!filters.hideSubtasks || card.parent === null) return true;
+    // A detached card's former parent is history: it is a task of its own.
+    if (!filters.hideSubtasks || card.parent === null || card.parent.detached) return true;
     if (card.status !== "running" && card.status !== "needs_input" && card.status !== "failed") return false;
     // A parent left on the board shows it as a row, or its own parent does.
     const parent = byId.get(card.parent.id);

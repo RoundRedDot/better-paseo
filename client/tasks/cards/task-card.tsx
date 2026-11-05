@@ -39,7 +39,7 @@ import { ActionPressable, useActionPressMotion } from "./action-pressable";
 import { buttonHue, CARD_BUTTON_HEIGHT, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_ICON, requestLook, webTransition } from "./action-style";
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu, openToolbarDetailsLayer } from "../../web";
-import { ArchivedTag } from "./archived-tag";
+import { ArchivedTag, parentTag } from "./archived-tag";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import type { CardFilterKind, CardFilterState } from "../board/filter-options";
 import { layoutMenu } from "../board/menu-model";
@@ -744,7 +744,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const issue = shownIssue(card.availability?.issue);
   const fold = issue ? mix(background, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light) : null;
   const markActive = lit || props.current || props.focused;
-  const cornerMark = card.parent !== null
+  const cornerMark = card.parent !== null && !card.parent.detached
     ? markActive ? markHue(card.location, props.hostId, tokens, fold ? [fold] : undefined) : markRest(tokens, fold ?? background)
     : null;
   // Desktop hover and iPad press deepen the shadow.
@@ -838,9 +838,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const metaStyle = text(m.metaSize, m.metaLine, muted);
   const parentLabel = card.parent ? card.parent.title ?? strings.parentUnknown : null;
   // An archived parent, itself or with its workspace, is tagged so beside its link.
-  let parentTag: string | null = null;
-  if (card.parent?.archivedAs === "workspace") parentTag = strings.workspaceArchived;
-  else if (card.parent?.archivedAs === "agent" || (card.parent?.missing && card.parent.archived === true)) parentTag = strings.archived;
+  // A link the plugin inferred says so, whatever the parent's state.
+  let parentArchive: string | null = null;
+  if (card.parent?.archivedAs === "workspace") parentArchive = strings.workspaceArchived;
+  else if (card.parent?.archivedAs === "agent" || (card.parent?.missing && card.parent.archived === true)) parentArchive = strings.archived;
+  const shownParentTag = parentTag(parentArchive, card.parent?.detached ? strings.inferred : null);
   // Beside a context ring the text fades out before it instead of ending in
   // an ellipsis: clipped, with the fade only once the text no longer fits.
   const metaRing = hasMeta ? ringFor(m.metaLine) : null;
@@ -852,7 +854,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           setMetaFit((was) => (was[key] === width ? was : { ...was, [key]: width }));
         }
       : undefined;
-  const tagSpace = parentTag !== null ? metaFit.tag + ARCHIVED_TAG_GAP : 0;
+  const tagSpace = shownParentTag !== null ? metaFit.tag + ARCHIVED_TAG_GAP : 0;
   const metaCut = clip && metaFit.row > 0 && metaFit.text + tagSpace >= metaFit.row - 0.5;
   const clipText = clip ? CLIP_TEXT : null;
   const metaRow = hasMeta ? (
@@ -902,7 +904,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               {...parentHover.hoverProps}
               style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: PARENT_SHRINK, minWidth: 0, overflow: "hidden" }}
               testID="task-card-meta-parent"
-              {...hintProps(hint("parent", () => pair(strings.details.parent, parentLabel)))}
+              {...hintProps(hint("parent", () => pair(strings.details.parent, card.parent?.detached && shownParentTag ? `${parentLabel} \u00b7 ${shownParentTag.label}` : parentLabel)))}
             >
               <View style={{ flexShrink: 0 }}>
                 <Icon name="CornerLeftUp" size={Math.round(m.metaSize * scale)} color={parentHover.hovered ? tokens.foreground : muted} />
@@ -918,9 +920,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           ) : null}
           {metaCut ? <EdgeFade color={background} /> : null}
         </View>
-        {parentTag !== null ? (
+        {shownParentTag !== null ? (
           <View style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("tag")}>
-            <ArchivedTag tokens={tokens} label={parentTag} testID="task-card-meta-archived" />
+            <ArchivedTag tokens={tokens} label={shownParentTag.label} icon={shownParentTag.icon} testID="task-card-meta-archived" />
           </View>
         ) : null}
       </View>

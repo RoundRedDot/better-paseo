@@ -1177,6 +1177,29 @@ describe("TaskCardView rows", () => {
     const old = { ...orphan, parent: { id: "old", title: "多设备连接", missing: true, archived: false } };
     await act(async () => tree.update(cardElement(old, { onReveal, fields: fields("minimal") })));
     expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["多设备连接"]);
+    // A parent link the plugin inferred says "Inferred" in every state of its parent, the archive
+    // icon only while the parent is archived; the card is no subtask, so its corner stays unmarked.
+    const subtaskMarks = () => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
+    const tagIcons = () => icons(hostByTestId(tree.root, "task-card-meta-archived"));
+    const inferred = (parent: Partial<NonNullable<TaskCard["parent"]>>) => ({ ...orphan, parent: { id: "former", title: "多设备连接", missing: true, archived: true, ...parent, detached: true as const } });
+    const cases = [
+      { parent: { archivedAs: "agent" as const }, zh: ["多设备连接", "推断 · 已归档"], en: ["多设备连接", "Inferred · Archived"], icon: "Archive" },
+      { parent: { archived: false, archivedAs: "workspace" as const }, zh: ["多设备连接", "推断 · 工作区已归档"], en: ["多设备连接", "Inferred · Workspace archived"], icon: "Archive" },
+      // Restored: on the board, not archived.
+      { parent: { missing: false, archived: false }, zh: ["多设备连接", "推断"], en: ["多设备连接", "Inferred"], icon: "Info" },
+      // Unreadable: no title, archive unknown.
+      { parent: { title: null, archived: null }, zh: ["父任务", "推断"], en: ["Parent task", "Inferred"], icon: "Info" },
+    ];
+    for (const { parent, zh, en, icon } of cases) {
+      await act(async () => tree.update(cardElement(inferred(parent), { onReveal, fields: fields("minimal") })));
+      expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(zh);
+      expect(tagIcons()).toEqual([icon]);
+      expect(subtaskMarks()).toHaveLength(0);
+      await act(async () => tree.update(cardElement(inferred(parent), { onReveal, fields: fields("minimal"), language: "en" })));
+      expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(en);
+    }
+    await act(async () => hostByTestId(tree.root, "task-card-meta-parent").props.onPress());
+    expect(onReveal).toHaveBeenLastCalledWith("former");
   });
 
   it.each([
@@ -3025,6 +3048,24 @@ describe("TaskDetailCards", () => {
     expect(tree.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
     await act(async () => hostByTestId(tree.root, "detail-parent").props.onPress());
     expect(onJump).toHaveBeenCalledWith("gone");
+
+    // A parent link the plugin inferred says "Inferred" in every state of its parent, and says so to a
+    // screen reader. Restored, it still jumps; off the board it keeps its "Not on the board" note.
+    const inferred = (parent: Partial<NonNullable<TaskCard["parent"]>>) => ({ ...orphan, parent: { id: "gone", title: "多设备连接", missing: true, archived: true, ...parent, detached: true as const } });
+    await act(async () => tree.update(details(inferred({}), { onJump, unarchive })));
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "推断 · 已归档", "取消归档"]);
+    expect(icons(hostByTestId(tree.root, "detail-parent-tag"))).toEqual(["Archive"]);
+    expect(hostByTestId(tree.root, "detail-parent").props.accessibilityLabel).toBe("父任务: 多设备连接, 推断 · 已归档");
+    await act(async () => tree.update(details(inferred({ missing: false, archived: false }), { onJump, unarchive })));
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "推断"]);
+    expect(icons(hostByTestId(tree.root, "detail-parent-tag"))).toEqual(["Info"]);
+    await act(async () => hostByTestId(tree.root, "detail-parent").props.onPress());
+    expect(onJump).toHaveBeenLastCalledWith("gone");
+    await act(async () => tree.update(details(inferred({ archived: false }), { onJump, onOpen: vi.fn(), unarchive })));
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "推断", "不在看板上"]);
+    await act(async () => tree.update(details(inferred({ title: null, archived: null }), { onJump, unarchive }, "en")));
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["Parent task", "Inferred"]);
+    expect(hostByTestId(tree.root, "detail-parent").props.accessibilityLabel).toBe("Parent: Parent task, Inferred");
   });
 
   it("offers Archive beside Open in a done task's header", async () => {
