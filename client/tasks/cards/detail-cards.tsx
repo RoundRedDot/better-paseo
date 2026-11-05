@@ -1777,7 +1777,7 @@ function Usage(props: Inner) {
       <Icon name={icon} size={14} color={tokens.foregroundMuted} />
       <Text style={{ fontSize: font, color: tokens.foregroundMuted }}>{label}</Text>
       <View style={{ flex: 1 }} />
-      <Text style={{ fontSize: font, fontWeight: strong ? "600" : "400", color: value === "—" ? tokens.foregroundMuted : tokens.foreground, fontVariant: ["tabular-nums"] }}>{value}</Text>
+      <Text style={{ fontSize: font, fontWeight: strong ? "600" : "400", color: value === "—" ? tokens.foregroundMuted : tokens.foreground, fontFamily: value === "—" ? undefined : MONO }}>{value}</Text>
     </View>
   );
   return (

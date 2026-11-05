@@ -167,6 +167,10 @@ function ChartHead(props: { icon: string; label: string; font: number; tokens: T
 
 const dashed = (tokens: TaskTokens, height: number): ViewStyle => ({ height, borderRadius: height / 2, borderWidth: 1, borderStyle: "dashed", borderColor: tokens.border });
 
+function monoFigures(text: string) {
+  return text.split(/(\d+(?:\.\d+)?[a-z%]*)/gi).map((part, index) => index % 2 ? <Text key={index} style={{ fontFamily: TASK_MONO }}>{part}</Text> : part);
+}
+
 // ---- The running turn ------------------------------------------------------
 
 /**
@@ -220,7 +224,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
         </Text>
         {props.timerOnly ? null : (
           <Text numberOfLines={1} style={sub}>
-            {words.lastTurn(props.lastTurn ?? "—").split(/(\d+(?:\.\d+)?[a-z%]*)/gi).map((part, index) => index % 2 ? <Text key={index} style={{ fontFamily: TASK_MONO }}>{part}</Text> : part)}
+            {monoFigures(words.lastTurn(props.lastTurn ?? "—"))}
           </Text>
         )}
       </View>
@@ -233,7 +237,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
                 {props.total?.value}
               </Text>
               <Text numberOfLines={1} style={sub}>
-                {props.total?.sub.split(/(\d+(?:\.\d+)?[a-z%]*)/gi).map((part, index) => index % 2 ? <Text key={index} style={{ fontFamily: TASK_MONO }}>{part}</Text> : part)}
+                {props.total ? monoFigures(props.total.sub) : null}
               </Text>
             </View>
           ) : null}
@@ -292,8 +296,8 @@ export function ContextBar(props: { context: ContextView | null; tokens: TaskTok
   return (
     <Pressable {...bind("context")} accessibilityLabel={`${words.context} ${context.percent}`} testID="detail-context-bar" style={{ position: "relative" }}>
       <ChartHead icon="Gauge" label={words.context} font={props.font} tokens={tokens}>
-        <Text style={{ fontSize: props.font, fontWeight: "600", color: context.level === "normal" ? tokens.foreground : tone, fontVariant: ["tabular-nums"] }}>{context.percent}</Text>
-        <Text style={{ fontSize: props.font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{context.text}</Text>
+        <Text style={{ fontSize: props.font, fontWeight: "600", color: context.level === "normal" ? tokens.foreground : tone, fontFamily: TASK_MONO }}>{context.percent}</Text>
+        <Text style={{ fontSize: props.font, color: tokens.foregroundMuted, fontFamily: TASK_MONO }}>{context.text}</Text>
       </ChartHead>
       <View style={{ height: 6, marginTop: 8, borderRadius: 3, backgroundColor: colors.track, overflow: "hidden" }}>
         <View style={{ width: `${Math.min(context.ratio, 1) * 100}%`, height: 6, borderRadius: 3, backgroundColor: tone }} />
@@ -324,7 +328,7 @@ export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touc
   return (
     <View testID="detail-tokens">
       <ChartHead icon="Layers" label={words.tokenMix} font={props.font} tokens={tokens}>
-        <Text style={{ fontSize: props.font, fontWeight: "600", color: tokenMix ? tokens.foreground : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+        <Text style={{ fontSize: props.font, fontWeight: "600", color: tokenMix ? tokens.foreground : tokens.foregroundMuted, fontFamily: tokenMix ? TASK_MONO : undefined }}>
           {tokenMix ? formatTokens(tokenMix.total) : "—"}
         </Text>
       </ChartHead>
@@ -359,7 +363,7 @@ export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touc
               <View key={segment.part} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                 <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: colors.tokens[segment.part] }} />
                 <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{words.tokenParts[segment.part]}</Text>
-                <Text style={{ fontSize: F.sm, color: tokens.foreground, fontVariant: ["tabular-nums"] }}>{formatTokens(segment.tokens)}</Text>
+                <Text style={{ fontSize: F.sm, color: tokens.foreground, fontFamily: TASK_MONO }}>{formatTokens(segment.tokens)}</Text>
               </View>
             ))}
           </View>
@@ -525,13 +529,13 @@ export function SummaryTiles(props: { tiles: SummaryReadout[]; tokens: TaskToken
               lineHeight: HOST_LINE.lg,
               fontWeight: tile.value !== null ? "600" : "500",
               color: tile.value !== null ? tokens.foreground : tokens.foregroundMuted,
-              fontVariant: ["tabular-nums"],
+              fontFamily: tile.value !== null ? TASK_MONO : undefined,
             }}
           >
             {tile.value ?? "—"}
           </Text>
           <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }}>
-            {wide ? tile.wide : tile.short}
+            {monoFigures(wide ? tile.wide : tile.short)}
           </Text>
           {/* The rule belongs to the cluster it follows, so space-between divides clusters, not rules. */}
           {wide && index < props.tiles.length - 1 ? (

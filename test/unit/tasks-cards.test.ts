@@ -3115,8 +3115,22 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(usage, "detail-tokens"))).toEqual(["Token 构成", "196k", "缓存输入", "120k", "新输入", "62k", "输出", "14k"]);
     expect(texts(hostByTestId(usage, "detail-usage-cost"))).toEqual(["累计费用", "$1.84"]);
     expect(texts(hostByTestId(usage, "detail-usage-turn"))).toEqual(["上一轮耗时", "18m"]);
+    for (const value of ["196k", "120k", "62k", "14k", "$1.84", "18m"]) {
+      const node = usage.findAll((node) => String(node.type) === "Text" && node.props.children === value)[0]!;
+      expect(flat(node.props.style).fontFamily).toBe(TASK_MONO);
+    }
     // A segment grows with its count.
     expect(flat(hostByTestId(usage, "detail-tokens-cached").props.style).flexGrow).toBe(120_000);
+  });
+
+  it("uses monospace for the context figures outside a running turn", async () => {
+    const tree = await render(details({ ...sample("sample-done"), context: { usedTokens: 41_000, maxTokens: 128_000 } }));
+    const context = hostByTestId(tree.root, "detail-context-bar");
+    const figures = context.findAll((node) => String(node.type) === "Text" && typeof node.props.children === "string" && /\d/.test(node.props.children));
+    expect(figures).toHaveLength(2);
+    for (const node of figures) {
+      expect(flat(node.props.style).fontFamily).toBe(TASK_MONO);
+    }
   });
 
   it("draws the activity as a timeline, the live span in the status colour", async () => {
@@ -3196,7 +3210,7 @@ describe("TaskDetailCards", () => {
       expect(node.props.onPress).toBeUndefined();
       expect(node.props.accessibilityRole).toBeUndefined();
       expect(flat(node.props.style)).toMatchObject({ flexDirection: "row", alignItems: "baseline", gap: 6, flexShrink: 0 });
-      expect(flat(number!.props.style)).toMatchObject({ fontSize: 16, lineHeight: 22, fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] });
+      expect(flat(number!.props.style)).toMatchObject({ fontSize: 16, lineHeight: 22, fontWeight: "600", color: tokens.foreground, fontFamily: TASK_MONO });
       expect(number!.props.children).toBe(expected.value);
       expect(number!.props.numberOfLines).toBeUndefined();
       expect(flat(caption!.props.style)).toMatchObject({ fontSize: 12, lineHeight: 16, color: tokens.foregroundMuted });
@@ -3209,6 +3223,10 @@ describe("TaskDetailCards", () => {
     await measure(536);
     const wide = hostByTestId(tree.root, "detail-summary");
     expect(texts(wide)).toEqual(["18m", "Last turn · Ended 2m ago", "$1.84", "Cost · Total", "316k", "Token · 38% cached"]);
+    for (const value of ["2m", "38%"]) {
+      const node = wide.findAll((node) => String(node.type) === "Text" && node.props.children === value)[0]!;
+      expect(flat(node.props.style).fontFamily).toBe(TASK_MONO);
+    }
     expect(flat(wide.props.style).justifyContent).toBe("space-between");
     // The strip's flex children are the three clusters and nothing else.
     expect(wide.children.filter((child): child is ReactTestInstance => typeof child !== "string").map((child) => child.props.testID)).toEqual([
