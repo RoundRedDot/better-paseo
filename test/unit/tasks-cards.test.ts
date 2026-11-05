@@ -128,7 +128,7 @@ import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
-import { TasksTypography, TasksTypographyScale } from "../../client/tasks/typography";
+import { TASK_MONO, TasksTypography, TasksTypographyScale } from "../../client/tasks/typography";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { getEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { variantMetrics } from "../../client/components/markdown/render/styles";
@@ -2874,6 +2874,16 @@ describe("TaskDetailCards", () => {
     // The timer beside the context, its ring at full size.
     expect(flat(hostByTestId(tree.root, "detail-context").props.style)).toMatchObject({ flex: 1, flexDirection: "row", borderLeftWidth: 1 });
     expect(tree.root.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")[0]!.props).toMatchObject({ size: 44 });
+  });
+
+  it("uses monospace for turn figures without changing their labels", async () => {
+    const tree = await render(details(sample("sample-running"), { sessionTokens: { total: 15_322_587, cached: 14_943_278 } }));
+    const turn = hostByTestId(tree.root, "detail-turn");
+    const text = (value: string) => turn.findAll((node) => String(node.type) === "Text" && node.children.join("") === value)[0]!;
+    for (const value of ["12:30", "18m", "15.3M", "98%", "86%", "172k / 200k"]) {
+      expect(flat(text(value).props.style).fontFamily).toBe(TASK_MONO);
+    }
+    expect(flat(text("本轮计时").props.style).fontFamily).toBeUndefined();
   });
 
   it("heads with the status, the title, the agent's chips and the actions, then the running turn", async () => {

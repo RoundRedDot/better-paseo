@@ -5,7 +5,7 @@ import { mix } from "../../components/theme-tokens";
 import { ProgressRing } from "../../ui/progress-ring";
 import type { TasksLanguage } from "../i18n";
 import type { StatusKind } from "../model";
-import { TaskText as Text, HOST_FONT as F, HOST_LINE, taskControlHeight, useTasksFontScale } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, taskControlHeight, useTasksFontScale } from "../typography";
 import {
   formatExact,
   formatShare,
@@ -185,7 +185,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
   const tone = context ? contextColor(context, tokens) : tokens.foregroundMuted;
   const cell: ViewStyle = { flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 10, gap: 2 };
   const divided: ViewStyle = { borderLeftWidth: 1, borderLeftColor: tokens.border };
-  const big: TextStyle = { fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] };
+  const big: TextStyle = { fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: tokens.foreground, fontFamily: TASK_MONO };
   const sub: TextStyle = { fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] };
   const head = (lead: React.ReactNode, label: string) => (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
@@ -204,7 +204,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
   const figures = context ? (
     <>
       <Text numberOfLines={1} style={[big, context.level === "normal" ? null : { color: tone }]}>{context.percent}</Text>
-      <Text numberOfLines={1} style={sub}>
+      <Text numberOfLines={1} style={[sub, { fontFamily: TASK_MONO }]}>
         {context.text}
       </Text>
     </>
@@ -220,7 +220,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
         </Text>
         {props.timerOnly ? null : (
           <Text numberOfLines={1} style={sub}>
-            {words.lastTurn(props.lastTurn ?? "—")}
+            {words.lastTurn(props.lastTurn ?? "—").split(/(\d+(?:\.\d+)?[a-z%]*)/gi).map((part, index) => index % 2 ? <Text key={index} style={{ fontFamily: TASK_MONO }}>{part}</Text> : part)}
           </Text>
         )}
       </View>
@@ -233,7 +233,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
                 {props.total?.value}
               </Text>
               <Text numberOfLines={1} style={sub}>
-                {props.total?.sub}
+                {props.total?.sub.split(/(\d+(?:\.\d+)?[a-z%]*)/gi).map((part, index) => index % 2 ? <Text key={index} style={{ fontFamily: TASK_MONO }}>{part}</Text> : part)}
               </Text>
             </View>
           ) : null}
