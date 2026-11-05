@@ -982,6 +982,20 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           look={look}
         />
         <SettingRow
+          title={t.fileOpeningTitle}
+          description={<SettingsTips items={t.fileOpeningTips} look={look} />}
+          control={
+            <Toggle
+              value={preferences.fileOpeningMode === "paseo"}
+              onChange={(enabled) => updateEnhancerPreferences({ fileOpeningMode: enabled ? "paseo" : "better-paseo" })}
+              label={t.fileOpeningTitle}
+              look={look}
+            />
+          }
+          look={look}
+          disabled={!preferences.assistantMarkdown}
+        />
+        <SettingRow
           title={t.markdownStyleTitle}
           description={t.markdownStyleDescription}
           control={

@@ -140,6 +140,8 @@ export interface EnhancerPreferences {
    * subset rather than a superset.
    */
   assistantMarkdown: boolean;
+  /** Which renderer handles replies containing local files. */
+  fileOpeningMode: StoredPreferences["fileOpeningMode"];
   /** Which look the markdown renderer uses. */
   markdownVariant: MarkdownVariantPreference;
   /**
@@ -223,6 +225,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   enhancedUserBubble: false,
   selectionActions: true,
   assistantMarkdown: true,
+  fileOpeningMode: "better-paseo",
   markdownVariant: "document",
   rowLabelStyle: "icon",
   compactRowSpacing: true,
