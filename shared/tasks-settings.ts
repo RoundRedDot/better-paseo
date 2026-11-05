@@ -158,7 +158,7 @@ export const tasksSettingsSchema = z.object({
   mobile: z.object({ compactCards: flag(false) }).catch({ compactCards: false }),
   board: z
     .object({
-      doneWindow: z.enum(DONE_WINDOWS).catch("24h"),
+      doneWindow: z.enum(DONE_WINDOWS).catch("7d"),
       hideSubtasks: flag(false),
       laneWidth: z.enum(LANE_WIDTHS).catch("default"),
       /**
@@ -175,7 +175,7 @@ export const tasksSettingsSchema = z.object({
        */
       showEmptyGroups: flag(true),
     })
-    .catch({ doneWindow: "24h", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true }),
+    .catch({ doneWindow: "7d", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true }),
   sidebar: z.object({ count: z.enum(SIDEBAR_COUNTS).catch("all") }).catch({ count: "all" }),
 });
 
