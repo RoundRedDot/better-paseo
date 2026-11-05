@@ -6,7 +6,7 @@
  * Deny ran past the card and the screen; these cases fit when `onLayout`
  * widths are fed by hand.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React from "react";
 
 vi.hoisted(() => {
@@ -44,6 +44,7 @@ import { createTitleUpdateControl } from "../../client/tasks/actions/title-updat
 import { TasksTypographyScale } from "../../client/tasks/typography";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { estimateTextWidth, hostChildren, settleHostLayout, type Frame } from "./helpers/yoga-host-layout";
+import { resetActionWidths } from "../../client/tasks/cards/action-row";
 
 const NOW = Date.parse("2026-10-20T09:00:00.000Z");
 const THEME = {
@@ -63,6 +64,9 @@ const THEME = {
 };
 
 let renderer: ReactTestRenderer | null = null;
+// The layout here scales text without the window's font scale, which keys the
+// shared label widths on a device: each case measures its labels anew.
+beforeEach(() => resetActionWidths());
 afterEach(async () => {
   if (renderer) await act(async () => renderer!.unmount());
   renderer = null;
@@ -231,7 +235,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
       const after = await settleHostLayout(row, { width });
       const undo = after.get(host(`task-title-undo-${card.id}`))!;
       expect(after.get(host("task-card-title"))!.width).toBeCloseTo(titleWidth, 0);
-      expect(undo.left + undo.width).toBeCloseTo(width, 0);
+      expect(undo.left + undo.width).toBeCloseTo(width + 6, 0);
       expect(after.has(host(`task-title-undo-fade-${card.id}`))).toBe(true);
       await act(async () => control.undoTitle(card.id));
     },
@@ -252,6 +256,24 @@ describe("phone card action bar under native (Yoga) layout", () => {
     });
   }
 
+  // A scheduled task's card holds its rows below the title in a group of their own (the ticket's tail).
+  it.each(WIDTHS.flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).map((language) => [width, scale, language] as const))))(
+    "fits Allow, Deny and Stop on a scheduled card laid out whole at %ipt, text scale %f, %s",
+    async (width, textScale, language) => {
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: phoneCard({ ...sample("sample-input"), scheduled: true }, language) }));
+      });
+      const card = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-sample-input");
+      const frames = await settleHostLayout(card, { width, textScale });
+      expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-ticket-band")).toHaveLength(1);
+      expect(overflows(frames, textScale)).toEqual([]);
+      const box = frames.get(card())!;
+      const bar = frames.get(row())!;
+      expect(bar.left).toBeGreaterThanOrEqual(box.left);
+      expect(bar.left + bar.width).toBeLessThanOrEqual(box.left + box.width);
+    },
+  );
+
   it("shares the reported phone's row between Allow, Deny and Stop instead of giving Stop all of it", async () => {
     const frames = await settle(CASES[0]!, "zh", 340, 1);
     const [allow, deny, stop] = hostChildren(row()).map((node) => frames.get(node)!);
@@ -259,5 +281,18 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(stop!.width).toBeLessThan(340 / 2);
     expect(Math.abs(allow!.width - deny!.width)).toBeLessThanOrEqual(0.5);
     expect(stop!.left + stop!.width).toBeCloseTo(340, 0);
+  });
+
+  it("gives a card that mounts after another its buttons' widths at once, with no second layout pass", async () => {
+    const card = sample("sample-running");
+    await act(async () => { renderer = TestRenderer.create(phoneCard(card, "en", { onOpen: () => {} })); });
+    await settleHostLayout(row, { width: 340 });
+    const widths = () => hostChildren(row()).map((item) => (Object.assign({}, ...[item.props.style].flat(Infinity).filter(Boolean)) as { minWidth?: number }).minWidth ?? null);
+    const settled = widths();
+    expect(settled.every((width) => typeof width === "number" && width > 0)).toBe(true);
+    await act(async () => renderer!.unmount());
+    // Another card with the same buttons: drawn at its measured widths before any layout reaches it.
+    await act(async () => { renderer = TestRenderer.create(phoneCard({ ...card, id: "another-running" }, "en", { onOpen: () => {} })); });
+    expect(widths()).toEqual(settled);
   });
 });

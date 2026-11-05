@@ -8,7 +8,8 @@ import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
 import { iconThemeColor } from "./icon-color";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
-import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { createParentOriginWatch, type ParentOriginWatch } from "./parent-origins";
+import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksParentOriginsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
 import { registerTitleGeneration } from "./title-generation";
 import { tasksAvailabilityRpc } from "../../shared/task-availability";
@@ -329,6 +330,8 @@ async function markRead(host: HostDaemonAccess, agentIds: string[]): Promise<{ o
  * daemon restart; a mark goes when the agent starts a new turn or is
  * archived, and when it is 30 days old. The provider
  * subagents `tasks.subagents` answers with live in memory, as the daemon's do.
+ * The parents whose archive detached a child (`tasks.parent-origins`) are
+ * inferred from the agents the server follows, and kept in a file.
  */
 export function registerTasksServer(
   server: PluginServerContext,
@@ -337,6 +340,7 @@ export function registerTasksServer(
   host: HostDaemonAccess = hostDaemon,
   reads = createStopMarks(readMarksPath()),
   tokens: SessionTokenReader = createSessionTokenReader(),
+  parentOrigins: ParentOriginWatch = createParentOriginWatch(),
 ): void {
   server.registerSettings(TASKS_SETTINGS);
   const titleSettings = registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available, async (agentId) => {
@@ -355,16 +359,26 @@ export function registerTasksServer(
   // A new turn means a new prompt: the agent is no longer "stopped manually", nor read.
   server.on("agent.turn_started", async ({ agent }, context) => {
     void subagents.ensure(context?.paseo);
+    void parentOrigins.ensure(context?.paseo);
     await Promise.all([stops.clear(agent.id), reads.clear(agent.id)]);
   });
   // A session opened from storage replays its subagents without an update; read its list after.
   server.before("agent.session_open", ({ request }, context) => {
     if (request.purpose === "interactive" && request.reason !== "create") subagents.loaded(context?.paseo, request.agentId);
   });
-  server.on("agent.archived", async ({ agent }) => {
+  // A child created now is followed from its first snapshot, before its parent can be archived.
+  server.on("agent.created", (_event, context) => {
+    void parentOrigins.ensure(context?.paseo);
+  });
+  server.on("agent.archived", async ({ agent, archivedAt }, context) => {
     subagents.dropParent(agent.id);
+    // Its survivors are detached after this hook, and read again for a while: not awaited.
+    void parentOrigins.archived(context?.paseo, agent.id, archivedAt).catch((error: unknown) => {
+      console.error(`[better-paseo] parent origins after archiving ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
+    });
     await Promise.all([stops.clear(agent.id), reads.clear(agent.id)]);
   });
+  server.handle(tasksParentOriginsRpc, ({ since }, context) => parentOrigins.read(context?.paseo, since));
   server.handle(tasksStoppedRpc, async () => ({ stops: await stops.list() }));
   server.handle(tasksSessionTokensRpc, async ({ agentId }, context) => {
     const agent = context?.paseo ? (await context.paseo.agents.ref(agentId).refresh().catch(() => null))?.agent : null;

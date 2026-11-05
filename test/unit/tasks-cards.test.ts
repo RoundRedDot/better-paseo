@@ -128,7 +128,7 @@ import { ChildMark } from "../../client/tasks/cards/child-mark";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "../../client/tasks/cards/context-ring";
 import { pillTint } from "../../client/tasks/cards/tokens";
-import { TasksTypography, TasksTypographyScale } from "../../client/tasks/typography";
+import { TASK_MONO, TasksTypography, TasksTypographyScale } from "../../client/tasks/typography";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { getEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { variantMetrics } from "../../client/components/markdown/render/styles";
@@ -777,6 +777,61 @@ describe("StatusIcon", () => {
     motion.reduced = false;
   });
 
+  it("turns the platform spinner on Android instead of the shared clock, and keeps the still quarter when not animating", async () => {
+    const platform = globalThis as { __rnMockOS?: string };
+    platform.__rnMockOS = "android";
+    try {
+      const tree = await render(
+        React.createElement(
+          React.Fragment,
+          null,
+          React.createElement(StatusIcon, { key: "running", kind: "running", theme: LIGHT }),
+          React.createElement(SpinnerRing, { key: "spinner", size: 13, color: "#d93636", testID: "button-spinner" }),
+          React.createElement(StatusIcon, { key: "still", kind: "running", size: 20, theme: LIGHT, animated: false, accessibilityLabel: "still" }),
+        ),
+      );
+      expect(motion.loops).toHaveLength(0);
+      expect(statusRingHolders()).toBe(0);
+      // Nothing turns on the shared value: the one quarter left is the still ring's, with no rotation.
+      const quarters = tree.root.findAll((node) => (node.type as unknown) === "Animated.View");
+      expect(quarters).toHaveLength(1);
+      expect(flat(quarters[0]!.props.style).transform).toBeUndefined();
+      const [running, still] = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "status-running");
+      // Track, platform spinner over it, centre dot.
+      const isSpinner = (node: ReactTestInstance) => (node.type as unknown) === "ActivityIndicator";
+      const [track, , dot] = running!.children as ReactTestInstance[];
+      expect(running!.children).toHaveLength(3);
+      expect(flat(track!.props.style)).toMatchObject({ width: 12, opacity: 0.3 });
+      const [spinner] = running!.findAll(isSpinner);
+      expect(running!.findAll(isSpinner)).toHaveLength(1);
+      expect(spinner!.props).toMatchObject({ size: 15, color: "#268ae0" });
+      expect(flat(spinner!.props.style)).toMatchObject({ position: "absolute" });
+      expect(flat(dot!.props.style)).toMatchObject({ width: 6, borderRadius: 3 });
+      // The working button's spinner turns the same way, without the centre dot.
+      const button = hostByTestId(tree.root, "button-spinner");
+      expect(button.children).toHaveLength(2);
+      expect(button.findAll(isSpinner)).toHaveLength(1);
+      // Not animating: the host's quarter, still, and no spinner.
+      expect(still!.props.accessibilityLabel).toBe("still");
+      expect(still!.findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(0);
+      const arc = (still!.children as ReactTestInstance[])[1]!;
+      expect(flat(arc.props.style)).toMatchObject({ borderColor: "transparent", borderTopColor: "#268ae0" });
+      await act(async () => tree.unmount());
+      renderer = null;
+
+      motion.reduced = true;
+      const reduced = await render(React.createElement(StatusIcon, { kind: "running", theme: LIGHT }));
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(reduced.root.findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(0);
+      expect(statusRingHolders()).toBe(0);
+    } finally {
+      motion.reduced = false;
+      delete platform.__rnMockOS;
+    }
+  });
+
   it("draws a working button's spinner as the running ring without its dot, on the same clock", async () => {
     const tree = await render(
       React.createElement(
@@ -1151,6 +1206,29 @@ describe("TaskCardView rows", () => {
     const old = { ...orphan, parent: { id: "old", title: "多设备连接", missing: true, archived: false } };
     await act(async () => tree.update(cardElement(old, { onReveal, fields: fields("minimal") })));
     expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["多设备连接"]);
+    // A parent link the plugin inferred says "Inferred" in every state of its parent, the archive
+    // icon only while the parent is archived; the card is no subtask, so its corner stays unmarked.
+    const subtaskMarks = () => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
+    const tagIcons = () => icons(hostByTestId(tree.root, "task-card-meta-archived"));
+    const inferred = (parent: Partial<NonNullable<TaskCard["parent"]>>) => ({ ...orphan, parent: { id: "former", title: "多设备连接", missing: true, archived: true, ...parent, detached: true as const } });
+    const cases = [
+      { parent: { archivedAs: "agent" as const }, zh: ["多设备连接", "推断 · 已归档"], en: ["多设备连接", "Inferred · Archived"], icon: "Archive" },
+      { parent: { archived: false, archivedAs: "workspace" as const }, zh: ["多设备连接", "推断 · 工作区已归档"], en: ["多设备连接", "Inferred · Workspace archived"], icon: "Archive" },
+      // Restored: on the board, not archived.
+      { parent: { missing: false, archived: false }, zh: ["多设备连接", "推断"], en: ["多设备连接", "Inferred"], icon: "Info" },
+      // Unreadable: no title, archive unknown.
+      { parent: { title: null, archived: null }, zh: ["父任务", "推断"], en: ["Parent task", "Inferred"], icon: "Info" },
+    ];
+    for (const { parent, zh, en, icon } of cases) {
+      await act(async () => tree.update(cardElement(inferred(parent), { onReveal, fields: fields("minimal") })));
+      expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(zh);
+      expect(tagIcons()).toEqual([icon]);
+      expect(subtaskMarks()).toHaveLength(0);
+      await act(async () => tree.update(cardElement(inferred(parent), { onReveal, fields: fields("minimal"), language: "en" })));
+      expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(en);
+    }
+    await act(async () => hostByTestId(tree.root, "task-card-meta-parent").props.onPress());
+    expect(onReveal).toHaveBeenLastCalledWith("former");
   });
 
   it.each([
@@ -2073,7 +2151,7 @@ describe("TaskCardView actions", () => {
       tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
     );
     byLabel(tree.root, "Measure the sidebar ring 运行中").props.onPress();
-    expect(onReveal).toHaveBeenCalledWith("sample-child-1");
+    expect(onReveal).toHaveBeenCalledWith("sample-child-1", "sample-running");
     const list = hostByTestId(tree.root, "task-card-subtasks");
     // Each row: the agent's mark on the left, aligned with the title's first line, its status on the
     // corner in every state; no state words.
@@ -2122,7 +2200,7 @@ describe("TaskCardView actions", () => {
       expect(flat(hostByTestId(content, `subtask-meta-${child.id}`).props.style).marginRight).toBeUndefined();
       expect(content.findAll((node) => node === open)).toHaveLength(1);
       row.props.onPress();
-      expect(onReveal).toHaveBeenLastCalledWith(child.id);
+      expect(onReveal).toHaveBeenLastCalledWith(child.id, base.id);
     }
     if (compact) {
       byLabel(byLabel(list, `${base.children[0]!.title} ${cardStrings("zh").status[base.children[0]!.status]}`), cardStrings("zh").openInWorkspace).props.onPress();
@@ -2850,6 +2928,16 @@ describe("TaskDetailCards", () => {
     expect(tree.root.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")[0]!.props).toMatchObject({ size: 44 });
   });
 
+  it("uses monospace for turn figures without changing their labels", async () => {
+    const tree = await render(details(sample("sample-running"), { sessionTokens: { total: 15_322_587, cached: 14_943_278 } }));
+    const turn = hostByTestId(tree.root, "detail-turn");
+    const text = (value: string) => turn.findAll((node) => String(node.type) === "Text" && node.children.join("") === value)[0]!;
+    for (const value of ["12:30", "18m", "15.3M", "98%", "86%", "172k / 200k"]) {
+      expect(flat(text(value).props.style).fontFamily).toBe(TASK_MONO);
+    }
+    expect(flat(text("本轮计时").props.style).fontFamily).toBeUndefined();
+  });
+
   it("heads with the status, the title, the agent's chips and the actions, then the running turn", async () => {
     const onOpen = vi.fn();
     const tree = await render(details(sample("sample-running"), { onOpen, sessionTokens: { total: 15_322_587, cached: 14_943_278 } }));
@@ -2888,6 +2976,18 @@ describe("TaskDetailCards", () => {
     await act(async () => byLabel(asking.root, "收起用量").props.onPress());
     expect(byLabel(asking.root, "展开用量").props.accessibilityState).toEqual({ expanded: false });
     await act(async () => byLabel(asking.root, "展开用量").props.onPress());
+  });
+
+  it.each([["属性", "detail-location"], ["子任务", "detail-subtasks"], ["用量", "detail-usage"], ["活动", "detail-activity"]])("toggles the %s panel and disables it while closed", async (title, id) => {
+    const tree = await render(details(sample("sample-running")));
+    const panel = () => hostByTestId(tree.root, `${id}-panel`);
+    const heading = () => byLabel(tree.root, `收起${title}`);
+    if (panel().props.pointerEvents === "none") await act(async () => byLabel(tree.root, `展开${title}`).props.onPress());
+    await act(async () => heading().props.onPress());
+    expect(panel().props.pointerEvents).toBe("none");
+    expect(byLabel(tree.root, `展开${title}`).props.accessibilityState).toEqual({ expanded: false });
+    await act(async () => byLabel(tree.root, `展开${title}`).props.onPress());
+    expect(panel().props.pointerEvents).toBe("auto");
   });
 
   it("lists the place, then copyable branch and directory, an openable PR, each state in a note line", async () => {
@@ -2977,6 +3077,24 @@ describe("TaskDetailCards", () => {
     expect(tree.root.findAll((node) => node.props.testID === "detail-parent-unarchive")).toHaveLength(0);
     await act(async () => hostByTestId(tree.root, "detail-parent").props.onPress());
     expect(onJump).toHaveBeenCalledWith("gone");
+
+    // A parent link the plugin inferred says "Inferred" in every state of its parent, and says so to a
+    // screen reader. Restored, it still jumps; off the board it keeps its "Not on the board" note.
+    const inferred = (parent: Partial<NonNullable<TaskCard["parent"]>>) => ({ ...orphan, parent: { id: "gone", title: "多设备连接", missing: true, archived: true, ...parent, detached: true as const } });
+    await act(async () => tree.update(details(inferred({}), { onJump, unarchive })));
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "推断 · 已归档", "取消归档"]);
+    expect(icons(hostByTestId(tree.root, "detail-parent-tag"))).toEqual(["Archive"]);
+    expect(hostByTestId(tree.root, "detail-parent").props.accessibilityLabel).toBe("父任务: 多设备连接, 推断 · 已归档");
+    await act(async () => tree.update(details(inferred({ missing: false, archived: false }), { onJump, unarchive })));
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "推断"]);
+    expect(icons(hostByTestId(tree.root, "detail-parent-tag"))).toEqual(["Info"]);
+    await act(async () => hostByTestId(tree.root, "detail-parent").props.onPress());
+    expect(onJump).toHaveBeenLastCalledWith("gone");
+    await act(async () => tree.update(details(inferred({ archived: false }), { onJump, onOpen: vi.fn(), unarchive })));
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "推断", "不在看板上"]);
+    await act(async () => tree.update(details(inferred({ title: null, archived: null }), { onJump, unarchive }, "en")));
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["Parent task", "Inferred"]);
+    expect(hostByTestId(tree.root, "detail-parent").props.accessibilityLabel).toBe("Parent: Parent task, Inferred");
   });
 
   it("offers Archive beside Open in a done task's header", async () => {
@@ -3079,8 +3197,22 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(usage, "detail-tokens"))).toEqual(["Token 构成", "196k", "缓存输入", "120k", "新输入", "62k", "输出", "14k"]);
     expect(texts(hostByTestId(usage, "detail-usage-cost"))).toEqual(["累计费用", "$1.84"]);
     expect(texts(hostByTestId(usage, "detail-usage-turn"))).toEqual(["上一轮耗时", "18m"]);
+    for (const value of ["196k", "120k", "62k", "14k", "$1.84", "18m"]) {
+      const node = usage.findAll((node) => String(node.type) === "Text" && node.props.children === value)[0]!;
+      expect(flat(node.props.style).fontFamily).toBe(TASK_MONO);
+    }
     // A segment grows with its count.
     expect(flat(hostByTestId(usage, "detail-tokens-cached").props.style).flexGrow).toBe(120_000);
+  });
+
+  it("uses monospace for the context figures outside a running turn", async () => {
+    const tree = await render(details({ ...sample("sample-done"), context: { usedTokens: 41_000, maxTokens: 128_000 } }));
+    const context = hostByTestId(tree.root, "detail-context-bar");
+    const figures = context.findAll((node) => String(node.type) === "Text" && typeof node.props.children === "string" && /\d/.test(node.props.children));
+    expect(figures).toHaveLength(2);
+    for (const node of figures) {
+      expect(flat(node.props.style).fontFamily).toBe(TASK_MONO);
+    }
   });
 
   it("draws the activity as a timeline, the live span in the status colour", async () => {
@@ -3160,7 +3292,7 @@ describe("TaskDetailCards", () => {
       expect(node.props.onPress).toBeUndefined();
       expect(node.props.accessibilityRole).toBeUndefined();
       expect(flat(node.props.style)).toMatchObject({ flexDirection: "row", alignItems: "baseline", gap: 6, flexShrink: 0 });
-      expect(flat(number!.props.style)).toMatchObject({ fontSize: 16, lineHeight: 22, fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] });
+      expect(flat(number!.props.style)).toMatchObject({ fontSize: 16, lineHeight: 22, fontWeight: "600", color: tokens.foreground, fontFamily: TASK_MONO });
       expect(number!.props.children).toBe(expected.value);
       expect(number!.props.numberOfLines).toBeUndefined();
       expect(flat(caption!.props.style)).toMatchObject({ fontSize: 12, lineHeight: 16, color: tokens.foregroundMuted });
@@ -3173,6 +3305,10 @@ describe("TaskDetailCards", () => {
     await measure(536);
     const wide = hostByTestId(tree.root, "detail-summary");
     expect(texts(wide)).toEqual(["18m", "Last turn · Ended 2m ago", "$1.84", "Cost · Total", "316k", "Token · 38% cached"]);
+    for (const value of ["2m", "38%"]) {
+      const node = wide.findAll((node) => String(node.type) === "Text" && node.props.children === value)[0]!;
+      expect(flat(node.props.style).fontFamily).toBe(TASK_MONO);
+    }
     expect(flat(wide.props.style).justifyContent).toBe("space-between");
     // The strip's flex children are the three clusters and nothing else.
     expect(wide.children.filter((child): child is ReactTestInstance => typeof child !== "string").map((child) => child.props.testID)).toEqual([
@@ -3370,8 +3506,9 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-subtasks-more"))).toEqual(["显示全部 14 个", "其余 4 个已完成"]);
     await act(async () => byLabel(tree.root, "显示全部 14 个 其余 4 个已完成").props.onPress());
     expect(titles(tree)).toHaveLength(14);
+    expect(hostByTestId(tree.root, "detail-subtasks-extra-panel").props.pointerEvents).toBe("auto");
     await act(async () => byLabel(tree.root, "收起").props.onPress());
-    expect(titles(tree)).toHaveLength(10);
+    expect(hostByTestId(tree.root, "detail-subtasks-extra-panel").props.pointerEvents).toBe("none");
     await act(async () => byLabel(tree.root, "显示全部 14 个 其余 4 个已完成").props.onPress());
     await act(async () => tree.update(details(many("many-b"))));
     expect(titles(tree)).toHaveLength(10);
@@ -3482,9 +3619,10 @@ describe("TaskDetailCards", () => {
         expect(heading().props.accessibilityState.expanded).toBe(true);
         await act(async () => heading().props.onPress());
         expect(heading().props.accessibilityState.expanded).toBe(false);
-        expect(tree.root.findAll((node) => node.props.testID === `${id}-text`)).toHaveLength(0);
+        expect(hostByTestId(tree.root, `${id}-panel`).props.pointerEvents).toBe("none");
         await act(async () => heading().props.onPress());
         expect(heading().props.accessibilityState.expanded).toBe(true);
+        expect(hostByTestId(tree.root, `${id}-panel`).props.pointerEvents).toBe("auto");
         expect(hostByTestId(tree.root, `${id}-text`)).toBeDefined();
       }
     } finally {

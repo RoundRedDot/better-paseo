@@ -16,7 +16,11 @@ vi.mock("@getpaseo/plugin/client/ui", () => ({
   SettingsSelect: "SettingsSelect", TextInput: "TextInput",
   SidebarRow: () => { throw new Error("SidebarRow must render inside a sidebar item"); },
 }));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ TextInput: "TextInput", Icon: "Icon", copyText: state.copyText, useToast: () => ({ show() {}, error() {} }) }));
+vi.mock("@getpaseo/plugin/client/react-native", async () => {
+  const React = await import("react");
+  const Modal = Object.assign((props: { children?: React.ReactNode }) => React.createElement("Modal", null, props.children), { Content: (props: { children?: React.ReactNode }) => React.createElement("ModalContent", null, props.children) });
+  return { TextInput: "TextInput", Icon: "Icon", Modal, copyText: state.copyText, useToast: () => ({ show() {}, error() {} }) };
+});
 vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => state.language, resolveTasksLanguage: () => state.language }));
 vi.mock("../../client/tasks/chunk/load", async () => import("../../client/tasks/settings/tasks-panel"));
 vi.mock("../../client/state/preference-sync-slot", () => ({ usePreferenceSettings: () => ({ status: "ready", failed: false }) }));
@@ -225,6 +229,34 @@ describe("Tasks half of the settings page", () => {
     const preview = byTestID(r, "tasks-sidebar-preview")[0]!;
     expect(textOf(preview)).toContain("Tasks");
     expect(preview.findAll((node) => typeof node.type === "string" && node.props.testID?.startsWith("tasks-sidebar-preview-"))).toHaveLength(expected);
+    expect(preview.findAll((node) => typeof node.type === "string" && node.props.testID === "hidden-tasks-count")).toHaveLength(count === "none" ? 0 : 1);
+  });
+
+  it("opens the hidden-task example from the sidebar preview", () => {
+    makeSettings({ values: { ...DEFAULT_TASKS_SETTINGS, sidebar: { count: "all" } } });
+    const r = panel(true);
+    const button = byTestID(r, "hidden-tasks-count")[0]!;
+    expect(button.props.accessibilityLabel).toBe("1 hidden task");
+    act(() => button.props.onPress());
+    expect(textOf(r.root)).toContain("Example workspace");
+  });
+
+  it("sets the web hover hint on the rendered button", () => {
+    makeSettings({ values: { ...DEFAULT_TASKS_SETTINGS, sidebar: { count: "all" } } });
+    const setAttribute = vi.fn();
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    let r!: Renderer;
+    try {
+      act(() => {
+        r = TestRenderer.create(React.createElement(TasksSettingsPanel, { look: look(), theme: theme as never, side: false }), {
+          createNodeMock: (element) => (element.props as { testID?: string }).testID === "hidden-tasks-count" ? { setAttribute } : null,
+        });
+      });
+      expect(setAttribute).toHaveBeenCalledWith("title", expect.stringContaining("Example task"));
+    } finally {
+      act(() => r?.unmount());
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    }
   });
 
   it("keeps phone tabs scrollable and switches the preview lane", () => {

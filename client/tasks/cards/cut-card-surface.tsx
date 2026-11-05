@@ -11,6 +11,8 @@ const GUTTER = 12;
  * is the edge of a rotated square, so it casts the same shadow as the card.
  * Inside the cut lies the corner folded over it: a flat flap in `fold`, the
  * cut-off square's lower-left half, its tip keeping the card's own radius.
+ * `open` ends the body flat at the frame's bottom border edge, without its
+ * bottom border, corners or shadow: the head of a scheduled task's ticket.
  */
 export function CutCardSurface(props: {
   size: number;
@@ -22,6 +24,7 @@ export function CutCardSurface(props: {
   shadow: string;
   /** The folded flap's fill. */
   fold: string;
+  open?: boolean;
 }) {
   const { size, radius, borderWidth } = props;
   // Extend the diagonal past both joins so its rounded ends cannot leave a gap.
@@ -41,8 +44,8 @@ export function CutCardSurface(props: {
     <View pointerEvents="none" testID="task-card-cut-surface"
       {...(Platform.OS === "web" ? { "aria-hidden": true } : { accessibilityElementsHidden: true, importantForAccessibility: "no-hide-descendants" as const })}
       style={{ position: "absolute", top: -borderWidth, right: -borderWidth, bottom: -borderWidth, left: -borderWidth }}>
-      <View style={{ position: "absolute", top: size, left: -GUTTER, right: -GUTTER, bottom: -GUTTER, overflow: "hidden" }}>
-        <View testID="task-card-cut-body" style={[surface, { top: -size, left: GUTTER, right: GUTTER, bottom: GUTTER }]} />
+      <View style={{ position: "absolute", top: size, left: -GUTTER, right: -GUTTER, bottom: props.open ? 0 : -GUTTER, overflow: "hidden" }}>
+        <View testID="task-card-cut-body" style={[surface, { top: -size, left: GUTTER, right: GUTTER, bottom: props.open ? -(radius + 2) : GUTTER }]} />
       </View>
       <View style={{ position: "absolute", top: -GUTTER, left: -GUTTER, right: size, height: size + GUTTER, overflow: "hidden" }}>
         <View testID="task-card-cut-top" style={[surface, { top: GUTTER, left: GUTTER, right: -size, bottom: -radius, borderTopRightRadius: 0 }]} />

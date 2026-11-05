@@ -5,12 +5,28 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale } from "
 import { withAlpha } from "../../components/theme-tokens";
 import type { TaskTokens } from "./tokens";
 
+export interface ParentTag {
+  label: string;
+  icon: "Archive" | "Info";
+}
+
+/**
+ * The tag beside a parent link: the parent's archive, if any, and "Inferred"
+ * ahead of it for a link the plugin inferred (`TaskParentRef.detached`), whatever
+ * the parent's state. The archive icon only where the parent is archived.
+ */
+export function parentTag(archive: string | null, inferred: string | null): ParentTag | null {
+  if (inferred) return { label: archive ? `${inferred} \u00b7 ${archive}` : inferred, icon: archive ? "Archive" : "Info" };
+  return archive ? { label: archive, icon: "Archive" } : null;
+}
+
 /**
  * "Archived" or "Workspace archived" beside a parent task: the Archive icon
  * and the word on a faint fill, one small line tall, so it sits in a text
- * line and reads the same on a card and in the details.
+ * line and reads the same on a card and in the details. A link the plugin
+ * inferred says "Inferred" ahead of it (`parentTag`).
  */
-export function ArchivedTag(props: { tokens: TaskTokens; label: string; testID?: string }) {
+export function ArchivedTag(props: { tokens: TaskTokens; label: string; icon?: ParentTag["icon"]; testID?: string }) {
   const scale = useTasksFontScale();
   const { tokens } = props;
   return (
@@ -28,7 +44,7 @@ export function ArchivedTag(props: { tokens: TaskTokens; label: string; testID?:
       }}
       testID={props.testID}
     >
-      <Icon name="Archive" size={11} color={tokens.foregroundMuted} />
+      <Icon name={props.icon ?? "Archive"} size={11} color={tokens.foregroundMuted} />
       <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }}>
         {props.label}
       </Text>

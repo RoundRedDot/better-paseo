@@ -14,7 +14,7 @@ import type {
 } from "@getpaseo/client";
 import { doneWindowMs, type DoneWindow } from "../../../shared/tasks-settings";
 import type { LastTurn } from "../../../shared/turn-usage-rpc";
-import type { ProviderSubagent } from "../../../shared/tasks-rpc";
+import type { ParentOrigin, ProviderSubagent } from "../../../shared/tasks-rpc";
 import { footerModel } from "../../state/footer-model";
 import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
@@ -73,6 +73,7 @@ export interface SidebarCounts {
   review: number;
   /** False until the first active snapshot arrives. */
   ready: boolean;
+  hidden?: TaskCard[];
 }
 
 export interface TasksSnapshot {
@@ -278,9 +279,59 @@ function parentIdOf(agent: PaseoAgent): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
+/** What the board reads of a workspace besides its cards: the filter's option, labels, and whether its cards show. */
+function boardShapeOf(workspace: PaseoWorkspace): string {
+  return JSON.stringify([
+    workspace.title ?? null,
+    workspace.name,
+    workspace.projectId,
+    workspace.projectCustomName ?? null,
+    workspace.projectDisplayName ?? null,
+    workspace.workspaceDirectory ?? null,
+    workspace.projectRootPath ?? null,
+    workspace.labels ?? null,
+    Boolean(workspace.background),
+    workspace.archivingAt ?? null,
+  ]);
+}
+
+function sameWorkspaceOptions(sorted: readonly WorkspaceOption[], next: readonly WorkspaceOption[]): boolean {
+  if (sorted.length !== next.length) return false;
+  const byId = new Map(sorted.map((option) => [option.id, option]));
+  return next.every((option) => {
+    const known = byId.get(option.id);
+    return known !== undefined &&
+      known.name === option.name &&
+      known.projectId === option.projectId &&
+      known.projectName === option.projectName &&
+      known.projectKey === option.projectKey &&
+      known.projectIcon === option.projectIcon &&
+      known.folder === option.folder &&
+      known.projectPath === option.projectPath;
+  });
+}
+
+/**
+ * Text order for the store's lists: one `Intl.Collator` for every comparison.
+ * On Android, Hermes answers each `localeCompare` from the platform's collator
+ * anew: sorting some 160 workspaces that way took 50-86 ms of a low-end
+ * phone's JS thread on every board update. Same order as `localeCompare`.
+ */
+const compareText: (left: string, right: string) => number = (() => {
+  const Collator = (globalThis as { Intl?: { Collator?: new () => { compare(left: string, right: string): number } } }).Intl?.Collator;
+  if (typeof Collator === "function") {
+    try {
+      return new Collator().compare;
+    } catch {
+      // No usable collator: fall through.
+    }
+  }
+  return (left, right) => left.localeCompare(right);
+})();
+
 function taskLabels(workspace: PaseoWorkspace | undefined, colorNames: ReadonlyMap<string, string>): TaskLabel[] {
   return [...new Set(workspace?.labels ?? [])]
-    .sort((a, b) => a.localeCompare(b))
+    .sort(compareText)
     .map((name) => ({ name, color: colorNames.get(name) ?? fallbackLabelColor(name) }));
 }
 
@@ -338,6 +389,24 @@ const SUBAGENT_POLL_BOARD_MS = 15_000;
 const SUBAGENT_POLL_MS = 60_000;
 /** Agent updates often travel together; one read follows a burst. */
 const SUBAGENT_SETTLE_MS = 1_500;
+/**
+ * A new agent given a prompt reports itself idle for a moment between
+ * starting up and its first turn: Paseo 0.15 sends `initializing`, then
+ * `idle` (newer, never prompted), then `running` some 10 ms later. Applied,
+ * that idle took the card out of the running lane and back within a frame or
+ * two, the board flew it there and back as it came in, and its entrance and
+ * the lane's cover ran twice. Such an idle waits this long for the turn; an
+ * agent made without a prompt shows idle after it.
+ */
+export const START_IDLE_HOLD_MS = 1_000;
+/**
+ * A new agent's first snapshot, `initializing`, waits this long for the next:
+ * its turn starts some 10 ms later, and the card drawn as starting up was
+ * drawn again whole as running as it came in (a second commit and text layout
+ * of the card, ~80 ms on a low-end phone, mid-entrance). A provider slow to
+ * start shows its card as starting up after the wait.
+ */
+export const START_INIT_HOLD_MS = 300;
 /** A parent off the board that this many failures bring in, at most; the rest wait for the board. */
 const SUBAGENT_PARENTS_FETCHED = 20;
 const SUBAGENT_KEY = "provider-subagents";
@@ -355,6 +424,16 @@ let readMarksLoader: ReadMarksLoader | null = null;
 /** `contribute` sets the loader; the marks are read with the subagents and after a Mark read. */
 export function setReadMarksLoader(next: ReadMarksLoader | null): void {
   readMarksLoader = next;
+}
+
+/** `tasks.parent-origins`: the parents whose archive detached a child, or null while `since` is still the server's version. */
+export type ParentOriginsLoader = (since?: string) => Promise<{ version: string; origins: ParentOrigin[] | null }>;
+
+let parentOriginsLoader: ParentOriginsLoader | null = null;
+
+/** `contribute` sets the loader; the origins are read with the subagents. */
+export function setParentOriginsLoader(next: ParentOriginsLoader | null): void {
+  parentOriginsLoader = next;
 }
 
 /** `tasks.labels`: the daemon's label definitions, for a host whose API lists none; null when the server cannot read them. */
@@ -673,6 +752,7 @@ function buildBaseCard(
 
   return {
     id: agent.id,
+    scheduled: !!agent.labels?.["paseo.schedule-id"],
     title: agent.title?.trim() || (resolveTasksLanguage() === "zh" ? "未命名" : "Untitled"),
     lane: classification.lane,
     status: classification.status,
@@ -848,6 +928,17 @@ function createStore(api: PaseoApi): TaskStore {
   /** Cards whose parent is being refreshed for them, so a parent loop cannot recurse. */
   const refreshingParents = new Set<string>();
   const parentByChild = new Map<string, string>();
+  /**
+   * The parent whose archive detached each agent, as the server inferred it
+   * (`tasks.parent-origins`). History only, and only for an agent without a
+   * live parent: kept apart from the live links above, so it names the parent
+   * on the child's card and nothing else. No children rows, stop targets,
+   * subtask waiting, folding or background retention.
+   */
+  const serverOrigins = new Map<string, string>();
+  let originsVersion: string | undefined;
+  const originByChild = new Map<string, string>();
+  const originChildrenByParent = new Map<string, Set<string>>();
   /** Parents read by id because they are not on the board: their title and whether they are archived. */
   const resolvedParents = new Map<string, { title: string | null; archived: boolean | null }>();
   const parentReads = new Set<string>();
@@ -871,6 +962,8 @@ function createStore(api: PaseoApi): TaskStore {
   const latestUpdates = new Map<string, number>();
   /** Agents being read again by id after a stale update (`confirmAgent`). */
   const confirmChecks = new Set<string>();
+  /** A starting agent's snapshot held for its first turn (`START_INIT_HOLD_MS`, `START_IDLE_HOLD_MS`). */
+  const startIdles = new Map<string, { sourceKey: string; update: AgentUpdateEnvelope; status: string; updatedAt: number; timer: ReturnType<typeof setTimeout> }>();
   /** Provider subagents by parent, as `tasks.subagents` last answered. */
   const subagentsByParent = new Map<string, ProviderSubagent[]>();
   let subagentVersion: string | undefined;
@@ -967,6 +1060,11 @@ function createStore(api: PaseoApi): TaskStore {
     });
   }
 
+  /** Cards that name `id` as their parent: its live children and those its archive detached. */
+  function linkedChildrenOf(id: string): string[] {
+    return [...childrenByParent.get(id) ?? [], ...originChildrenByParent.get(id) ?? []];
+  }
+
   function dropIfUnreferenced(id: string) {
     if (memberSetsContaining(id).length > 0 || hasActiveBackgroundChildren(id)) return;
     removeRecord(id);
@@ -1003,11 +1101,13 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   /** A card, its parent's list of children, and its children's parent row. */
-  function refreshWithKin(id: string) {
-    refreshFinalCard(id);
+  /** Whether any of the cards changed. */
+  function refreshWithKin(id: string): boolean {
+    let changed = refreshFinalCard(id);
     const parentId = parentByChild.get(id);
-    if (parentId) refreshFinalCard(parentId);
-    for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
+    if (parentId && refreshFinalCard(parentId)) changed = true;
+    for (const childId of linkedChildrenOf(id)) if (refreshFinalCard(childId)) changed = true;
+    return changed;
   }
 
   function refreshFinalCard(id: string): boolean {
@@ -1021,7 +1121,9 @@ function createStore(api: PaseoApi): TaskStore {
     const workspaceId = entryForArchive?.agent.workspaceId;
     const archivedAt = entryForArchive?.agent.archivedAt
       ?? (archivedKind === "workspace" && workspaceId ? workspaces.get(workspaceId)?.archivingAt ?? workspaceArchiveTimes.get(workspaceId) ?? null : null);
-    const parentAgentId = parentByChild.get(id);
+    const liveParentId = parentByChild.get(id);
+    const originId = liveParentId ? undefined : originByChild.get(id);
+    const parentAgentId = liveParentId ?? originId;
     const parentEntry = parentAgentId ? entries.get(parentAgentId) : undefined;
     const parentTitle = parentAgentId
       ? parentEntry?.agent.title?.trim() || resolvedParents.get(parentAgentId)?.title || null
@@ -1045,6 +1147,7 @@ function createStore(api: PaseoApi): TaskStore {
             missing: parentMissing,
             archived: !parentMissing ? false : parentEntry ? isArchived(parentEntry.agent) : (resolvedParents.get(parentAgentId)?.archived ?? null),
             ...(parentArchivedAs ? { archivedAs: parentArchivedAs } : null),
+            ...(originId ? { detached: true as const } : null),
           }
         : null,
       children: childIds
@@ -1069,7 +1172,7 @@ function createStore(api: PaseoApi): TaskStore {
                 : null;
             })
             .filter((child): child is TaskChild => child !== null)
-            .sort((left, right) => left.title.localeCompare(right.title))
+            .sort((left, right) => compareText(left.title, right.title))
         : [],
     }, subagentsByParent.get(id)), readMarks.get(id), latestFailure(id))), archivedKind);
     const previous = cards.get(id);
@@ -1077,10 +1180,10 @@ function createStore(api: PaseoApi): TaskStore {
     cards.set(id, next);
     // A parent's row and lane follow its children's status: a child that
     // starts or stops waiting on its own subtasks reaches up the chain.
-    if (parentAgentId && (previous?.status !== next.status || previous?.lane !== next.lane) && !refreshingParents.has(parentAgentId)) {
+    if (liveParentId && (previous?.status !== next.status || previous?.lane !== next.lane) && !refreshingParents.has(liveParentId)) {
       refreshingParents.add(id);
       try {
-        refreshFinalCard(parentAgentId);
+        refreshFinalCard(liveParentId);
       } finally {
         refreshingParents.delete(id);
       }
@@ -1104,6 +1207,23 @@ function createStore(api: PaseoApi): TaskStore {
       parentByChild.set(id, nextParent);
     }
     return previousParent;
+  }
+
+  function replaceOriginLink(id: string, nextOrigin: string | null) {
+    const previousOrigin = originByChild.get(id) ?? null;
+    if (previousOrigin === nextOrigin) return;
+    if (previousOrigin) {
+      const children = originChildrenByParent.get(previousOrigin);
+      children?.delete(id);
+      if (children?.size === 0) originChildrenByParent.delete(previousOrigin);
+      originByChild.delete(id);
+    }
+    if (nextOrigin) {
+      let children = originChildrenByParent.get(nextOrigin);
+      if (!children) originChildrenByParent.set(nextOrigin, children = new Set());
+      children.add(id);
+      originByChild.set(id, nextOrigin);
+    }
   }
 
   function isStaleAgent(agent: PaseoAgent): boolean {
@@ -1139,6 +1259,7 @@ function createStore(api: PaseoApi): TaskStore {
     entries.set(agent.id, { agent, placement });
     const newParent = parentIdOf(agent);
     replaceParentLink(agent.id, newParent);
+    replaceOriginLink(agent.id, newParent ? null : serverOrigins.get(agent.id) ?? null);
     const workspace = agent.workspaceId ? workspaces.get(agent.workspaceId) : undefined;
     const project = projectFor({ agent, placement }, workspace, projects);
     const projectId = workspace?.projectId ?? project?.projectId ?? null;
@@ -1153,7 +1274,7 @@ function createStore(api: PaseoApi): TaskStore {
     const affected = new Set<string>([agent.id]);
     if (oldParent) affected.add(oldParent);
     if (newParent) affected.add(newParent);
-    for (const childId of childrenByParent.get(agent.id) ?? []) affected.add(childId);
+    for (const childId of linkedChildrenOf(agent.id)) affected.add(childId);
     for (const affectedId of affected) refreshFinalCard(affectedId);
     if (wasActive && oldParent) dropIfUnreferenced(oldParent);
     // A prompt after the failure is the person acting on it: the parent may go.
@@ -1170,9 +1291,10 @@ function createStore(api: PaseoApi): TaskStore {
     if (!existed) return;
     entries.delete(id);
     const oldParent = replaceParentLink(id, null);
+    replaceOriginLink(id, null);
     const affected = new Set<string>([id]);
     if (oldParent) affected.add(oldParent);
-    for (const childId of childrenByParent.get(id) ?? []) affected.add(childId);
+    for (const childId of linkedChildrenOf(id)) affected.add(childId);
     baseCards.delete(id);
     cards.delete(id);
     for (const affectedId of affected) refreshFinalCard(affectedId);
@@ -1198,7 +1320,22 @@ function createStore(api: PaseoApi): TaskStore {
     else sourceMembers.get(ATTENTION_KEY)?.delete(agent.id);
   }
 
-  function applyAgentUpdate(sourceKey: string, update: AgentUpdateEnvelope) {
+  /**
+   * A snapshot that only says the agent has not started its first turn yet:
+   * a new agent's `initializing`, or the idle after it, with nothing that asks
+   * for the user. How long it waits for the turn, or null when it does not.
+   */
+  function startingHold(agent: PaseoAgent): number | null {
+    if (agent.lastUserMessageAt || agent.activeTurn || agent.requiresAttention || agent.lastError) return null;
+    if ((agent.pendingPermissions ?? []).length > 0) return null;
+    const shown = entries.get(agent.id)?.agent.status;
+    const held = startIdles.get(agent.id)?.status;
+    if (agent.status === "initializing") return shown === undefined ? START_INIT_HOLD_MS : null;
+    if (agent.status === "idle" && (shown ?? held) === "initializing") return START_IDLE_HOLD_MS;
+    return null;
+  }
+
+  function applyAgentUpdate(sourceKey: string, update: AgentUpdateEnvelope, released = false) {
     if (update.type !== "agent_update" || !update.payload) return;
     // A subagent's start or end usually moves its parent too.
     scheduleSubagents(SUBAGENT_SETTLE_MS);
@@ -1207,6 +1344,28 @@ function createStore(api: PaseoApi): TaskStore {
       const agent = payload.agent;
       if (epoch(agent.updatedAt) < (latestUpdates.get(agent.id) ?? Number.NEGATIVE_INFINITY)) {
         confirmAgent(agent.id);
+        return;
+      }
+      const hold = released ? null : startingHold(agent);
+      const held = startIdles.get(agent.id);
+      if (held && (!released || epoch(agent.updatedAt) > held.updatedAt)) {
+        // A newer update (its first turn, or the idle after its start) replaces the held one.
+        clearTimeout(held.timer);
+        startIdles.delete(agent.id);
+      }
+      if (hold !== null) {
+        const run = generation;
+        startIdles.set(agent.id, {
+          sourceKey,
+          update,
+          status: agent.status,
+          updatedAt: epoch(agent.updatedAt),
+          timer: setTimeout(() => {
+            if (run !== generation || startIdles.get(agent.id)?.update !== update) return;
+            startIdles.delete(agent.id);
+            batchUpdates(() => applyAgentUpdate(sourceKey, update, true));
+          }, hold),
+        });
         return;
       }
       if (sourceKey === DONE_SUBSCRIPTION) {
@@ -1245,6 +1404,8 @@ function createStore(api: PaseoApi): TaskStore {
     const run = generation;
     void api.agents.ref(id).refresh().then((result) => {
       if (run !== generation || memberSetsContaining(id).length > 0) return;
+      // Still starting: the held idle decides, after its wait.
+      if (result && startIdles.has(id) && startingHold(result.agent) !== null) return;
       if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) {
         dropIfUnreferenced(id);
         return;
@@ -1555,6 +1716,7 @@ function createStore(api: PaseoApi): TaskStore {
       void loader(ids.slice(start, start + LAST_TURN_BATCH)).then((turns) => {
         if (run !== generation) return;
         batchUpdates(() => {
+          let changed = false;
           for (const turn of turns) {
             const knownError = turnErrors.get(turn.agentId);
             const errorChanged = turn.error
@@ -1570,11 +1732,12 @@ function createStore(api: PaseoApi): TaskStore {
             const newer = !known || known.endedAt < turn.endedAt;
             if (newer) lastTurns.set(turn.agentId, { startedAt: turn.startedAt ?? null, endedAt: turn.endedAt });
             if (!newer && !errorChanged && !costChanged) continue;
-            refreshFinalCard(turn.agentId);
+            if (refreshFinalCard(turn.agentId)) changed = true;
             const parent = parentByChild.get(turn.agentId);
-            if (parent) refreshFinalCard(parent);
+            if (parent && refreshFinalCard(parent)) changed = true;
           }
-          notify();
+          // A reply that changes no card (the turns the board already drew) redraws nothing.
+          if (changed) notify();
         });
       }).catch(() => {
         // An older server without `turns.last`, or a failed read: the cards say "—".
@@ -1608,6 +1771,7 @@ function createStore(api: PaseoApi): TaskStore {
     subagentReading = true;
     try {
       await readReads(run);
+      await readOrigins(run);
       const result = await loader(subagentVersion);
       if (run !== generation) return;
       if (result.subagents) applySubagents(result.version, result.subagents);
@@ -1656,6 +1820,36 @@ function createStore(api: PaseoApi): TaskStore {
       if (subagent.status === "failed") at = Math.max(at, epoch(subagent.updatedAt));
     }
     return at;
+  }
+
+  /** The server's inferred origins; a changed one relinks its card to the parent it names. */
+  async function readOrigins(run: number) {
+    const loader = parentOriginsLoader;
+    if (!loader) return;
+    try {
+      const result = await loader(originsVersion);
+      if (run !== generation) return;
+      originsVersion = result.version;
+      if (!result.origins) return;
+      const next = new Map(result.origins.map((origin) => [origin.agentId, origin.parentAgentId] as const));
+      const changed = new Set<string>();
+      for (const [id, parentId] of next) if (serverOrigins.get(id) !== parentId) changed.add(id);
+      for (const id of serverOrigins.keys()) if (!next.has(id)) changed.add(id);
+      serverOrigins.clear();
+      for (const [id, parentId] of next) serverOrigins.set(id, parentId);
+      if (changed.size === 0) return;
+      batchUpdates(() => {
+        for (const id of changed) {
+          const entry = entries.get(id);
+          if (!entry) continue;
+          replaceOriginLink(id, parentIdOf(entry.agent) ? null : serverOrigins.get(id) ?? null);
+          refreshFinalCard(id);
+        }
+        notify();
+      });
+    } catch {
+      // An older server without `tasks.parent-origins`, or a failed read: the cards name no former parent.
+    }
   }
 
   /** The server's read marks; a changed one moves its card (and lets a failed parent go). */
@@ -1793,18 +1987,26 @@ function createStore(api: PaseoApi): TaskStore {
     }
   }
 
+  /**
+   * A workspace's new state. The daemon sends one whenever a workspace's
+   * activity changes (an agent in it starts or stops), mostly with nothing a
+   * card or the board's lists show: the board hears of it only when a card or
+   * what the board reads of a workspace changed.
+   */
   function updateWorkspace(workspace: PaseoWorkspace) {
+    const previous = workspaces.get(workspace.id);
     workspaces.set(workspace.id, workspace);
     if (workspace.archivingAt) workspaceArchiveTimes.set(workspace.id, workspace.archivingAt);
     else workspaceArchiveTimes.delete(workspace.id);
+    let changed = !previous || boardShapeOf(previous) !== boardShapeOf(workspace);
     for (const [id, entry] of entries) {
       if (entry.agent.workspaceId !== workspace.id) continue;
       const project = projects.get(workspace.projectId);
       const base = buildBaseCard(entry, workspace, project, colorNames, modelCatalogs.get(entry.agent.provider), projectIcons.get(workspace.projectId));
       baseCards.set(id, base);
-      refreshWithKin(id);
+      if (refreshWithKin(id)) changed = true;
     }
-    notify();
+    if (changed) notify();
   }
 
   /**
@@ -2043,7 +2245,7 @@ function createStore(api: PaseoApi): TaskStore {
       const project = workspace ? projects.get(workspace.projectId) : undefined;
       baseCards.set(id, buildBaseCard(entry, workspace, project, colorNames, modelCatalogs.get(entry.agent.provider), project ? projectIcons.get(project.projectId) : undefined));
       refreshFinalCard(id);
-      for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
+      for (const childId of linkedChildrenOf(id)) refreshFinalCard(childId);
     }
   }
 
@@ -2218,6 +2420,8 @@ function createStore(api: PaseoApi): TaskStore {
     cards.clear();
     childrenByParent.clear();
     parentByChild.clear();
+    originChildrenByParent.clear();
+    originByChild.clear();
     resolvedParents.clear();
     parentReads.clear();
     workspaces.clear();
@@ -2237,12 +2441,16 @@ function createStore(api: PaseoApi): TaskStore {
     goneChecks.clear();
     latestUpdates.clear();
     confirmChecks.clear();
+    for (const held of startIdles.values()) clearTimeout(held.timer);
+    startIdles.clear();
     if (subagentTimer !== null) clearTimeout(subagentTimer);
     subagentTimer = null;
     subagentDueAt = Number.POSITIVE_INFINITY;
     subagentsByParent.clear();
     subagentParentsAsked.clear();
     subagentVersion = undefined;
+    serverOrigins.clear();
+    originsVersion = undefined;
     readMarks.clear();
     statusReady = false;
     attentionReady = false;
@@ -2258,7 +2466,20 @@ function createStore(api: PaseoApi): TaskStore {
     notify();
   }
 
+  /**
+   * The workspace filter's options, the same array while none of them
+   * changed: an agent update leaves the workspaces as they were, and sorting
+   * them again on every snapshot was most of a snapshot's cost on a phone.
+   */
+  let workspaceOptions: WorkspaceOption[] = [];
   function upsertWorkspacesOptions(): WorkspaceOption[] {
+    const next = buildWorkspaceOptions();
+    if (sameWorkspaceOptions(workspaceOptions, next)) return workspaceOptions;
+    workspaceOptions = next.sort((a, b) => compareText(a.projectName, b.projectName) || compareText(a.name, b.name));
+    return workspaceOptions;
+  }
+
+  function buildWorkspaceOptions(): WorkspaceOption[] {
     return [...workspaces.values()]
       .filter((workspace) => !workspace.background && !workspace.archivingAt)
       .map((workspace) => {
@@ -2274,8 +2495,7 @@ function createStore(api: PaseoApi): TaskStore {
           folder: typeof workspace.workspaceDirectory === "string" ? pathTail(workspace.workspaceDirectory) : null,
           projectPath: project?.projectRootPath || workspace.projectRootPath || null,
         };
-      })
-      .sort((a, b) => a.projectName.localeCompare(b.projectName) || a.name.localeCompare(b.name));
+      });
   }
 
   /**
@@ -2360,8 +2580,8 @@ function createStore(api: PaseoApi): TaskStore {
       counts,
       byId,
       workspaces: upsertWorkspacesOptions(),
-      providers: [...providersById].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label)),
-      labels: [...labelsByName.values()].sort((a, b) => a.name.localeCompare(b.name)),
+      providers: [...providersById].map(([id, label]) => ({ id, label })).sort((a, b) => compareText(a.label, b.label)),
+      labels: [...labelsByName.values()].sort((a, b) => compareText(a.name, b.name)),
       ready: statusReady && attentionReady && workspacesReady,
       error,
       refresh,
@@ -2399,15 +2619,26 @@ function createStore(api: PaseoApi): TaskStore {
       const needsInput = shown.needs_input.cards.length;
       const running = shown.running.cards.length;
       const review = shown.review.cards.length;
+      const baseline = scope ? filterLanes(lanes, { ...scope.filters, query: "", workspaceIds: [], providers: [], labels: [] }) : lanes;
+      const hidden = scope ? (["needs_input", "running", "review"] as const).flatMap((id) => {
+        const visible = new Set(shown[id].cards.map((card) => card.id));
+        return baseline[id].cards.filter((card) => !visible.has(card.id));
+      }) : undefined;
       // The same object while the numbers hold, so a streaming agent does not re-render the row.
       if (
         !countsCache ||
         countsCache.needsInput !== needsInput ||
         countsCache.running !== running ||
         countsCache.review !== review ||
-        countsCache.ready !== (statusReady && workspacesReady)
+        countsCache.ready !== (statusReady && workspacesReady) ||
+        countsCache.hidden?.length !== hidden?.length ||
+        hidden?.some((card, index) => {
+          const previous = countsCache!.hidden?.[index];
+          return previous?.id !== card.id || previous.title !== card.title || previous.lane !== card.lane ||
+            previous.location.workspaceTitle !== card.location.workspaceTitle || previous.location.projectName !== card.location.projectName;
+        })
       ) {
-        countsCache = { needsInput, running, review, ready: statusReady && workspacesReady };
+        countsCache = { needsInput, running, review, ready: statusReady && workspacesReady, ...(hidden ? { hidden } : {}) };
       }
     }
     return countsCache;
@@ -2487,7 +2718,7 @@ function createStore(api: PaseoApi): TaskStore {
       if (run !== generation || !result) return archived;
       resolvedParents.set(id, { title: result.agent.title?.trim() || null, archived });
       if (!archived && hasActiveBackgroundChildren(id)) updateRecord(result.agent, result.project ?? null);
-      for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
+      for (const childId of linkedChildrenOf(id)) refreshFinalCard(childId);
       notify();
       return archived;
     });
@@ -2840,7 +3071,8 @@ export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilt
   if (filters.hideSubtasks) for (const id of LANE_ORDER) for (const card of lanes[id].cards) byId.set(card.id, card);
   const keep = (card: TaskCard) => {
     if (!matches(card)) return false;
-    if (!filters.hideSubtasks || card.parent === null) return true;
+    // A detached card's former parent is history: it is a task of its own.
+    if (!filters.hideSubtasks || card.parent === null || card.parent.detached) return true;
     if (card.status !== "running" && card.status !== "needs_input" && card.status !== "failed") return false;
     // A parent left on the board shows it as a row, or its own parent does.
     const parent = byId.get(card.parent.id);

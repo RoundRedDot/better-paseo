@@ -15,7 +15,7 @@ import { SafeInset } from "./safe-inset";
 import { phoneChrome, PREVIEW_LIMIT, pressPreviewFrame, pressPreviewOrigin } from "./press-preview-placement";
 import { PREVIEW_EDGES, PREVIEW_MIN, type PreviewBox } from "./preview-frame";
 import { previewEdgeResponders, previewEdgeStyle, toolbarResponder, type FrameDrag } from "./preview-drag";
-import { ProseSelectionContext } from "./prose-text";
+import { ProseRedrawContext, ProseSelectionContext } from "./prose-text";
 import { HScroll } from "./h-scroll";
 import { createPreviewViewport, PreviewScrollerContext, PreviewViewportContext, type PreviewScroller } from "./preview-scroller";
 import { ToolbarButton, ToolbarIcon, TooltipAlignContext } from "./toolbar-button";
@@ -845,13 +845,10 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
   const pinch = usePinchZoom(zoom, report ? scroller.value : null);
   const [bodyTop, setBodyTop] = useState(true);
   const bodyTopRef = useRef(true);
-  // The drawer at rest after sliding in: the content mounts again in place.
-  const [drawn, setDrawn] = useState(0);
-  useEffect(() => report?.onRedraw(() => setDrawn((count) => count + 1)), [report]);
   // iOS text sets its size only as it draws, so a new zoom mounts the content
   // again: text kept the old size's frame, and a command band cut its last line.
   const textZoom = useContext(TextZoomContext);
-  const redrawKey = Platform.OS === "ios" ? `${drawn}:${textZoom}` : String(drawn);
+  const redrawKey = Platform.OS === "ios" ? textZoom : undefined;
   const detailsScroll = useMemo(() => (report ? {
     ...scroller.props,
     onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
@@ -905,7 +902,10 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
             bounces={!(pulls && bodyTop)} disableScrollViewPanResponder={pulls && bodyTop}>
             <PreviewScrollerContext.Provider value={scroller.value}>
               <PreviewViewportContext.Provider value={scroller.viewport}>
-                <ProseSelectionContext.Provider key={redrawKey} value>{content}</ProseSelectionContext.Provider>
+                {/* At rest after the slide-in, only the text that came or changed while sliding mounts again. */}
+                <ProseRedrawContext.Provider value={report ?? null}>
+                  <ProseSelectionContext.Provider key={redrawKey} value>{content}</ProseSelectionContext.Provider>
+                </ProseRedrawContext.Provider>
               </PreviewViewportContext.Provider>
             </PreviewScrollerContext.Provider>
           </ScrollView>

@@ -152,6 +152,7 @@ import { useDetailsBodyScroll, type DetailsBodyReport } from "../../client/detai
 import { claimContentTouch, contentOwnsTouch, resetContentTouches } from "../../client/details/touch-claim";
 import { CONTENT_HOLD_MS } from "../../client/details/shell/gestures";
 import { HoverPreviewBody } from "../../client/ui/hover-preview";
+import { ProseRedrawContext } from "../../client/ui/prose-text";
 import { useLineSelection } from "../../client/ui/line-selection";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { PreviewLines } from "../../client/ui/preview-lines";
@@ -1685,20 +1686,30 @@ describe("the pull under the Modal's own responder", () => {
 
 describe("iOS text after the slide in", () => {
   const mounts = { count: 0 };
+  // What the body's text sees of the slide: whether it was sliding as it
+  // mounted (measured in place, before the slide), and each rest after one.
+  const seen = { slidingAtMount: [] as boolean[], rests: 0 };
   function Counted() {
-    React.useEffect(() => { mounts.count += 1; }, []);
+    const redraw = useContext(ProseRedrawContext);
+    React.useEffect(() => {
+      mounts.count += 1;
+      seen.slidingAtMount.push(redraw?.sliding() ?? false);
+    }, []);
+    React.useEffect(() => redraw?.onRedraw(() => { seen.rests += 1; }), [redraw]);
     return createElement("Text", null, "code");
   }
   const counted = () => createElement(HoverPreviewBody, null, createElement(Counted));
 
   it.each([
-    { os: "ios", reduced: false, again: 1 },
-    { os: "ios", reduced: true, again: 0 },
-    { os: "android", reduced: false, again: 0 },
-  ])("on $os (reduced motion $reduced) draws the content again $again time(s) once the drawer is at rest", ({ os, reduced, again }) => {
+    { os: "ios", reduced: false, rests: 1 },
+    { os: "ios", reduced: true, rests: 0 },
+    { os: "android", reduced: false, rests: 0 },
+  ])("on $os (reduced motion $reduced) keeps the content mounted and tells its text of $rests rest(s)", ({ os, reduced, rests }) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     motion.reduced = reduced;
     mounts.count = 0;
+    seen.slidingAtMount = [];
+    seen.rests = 0;
     // Ids no earlier test left open, which a handover would take over without a slide.
     const id = `slid-${os}-${reduced}`;
     fake.box.blocks = [block(id, 1, { render: counted }), block(`${id}-next`, 2, { render: counted })];
@@ -1707,12 +1718,18 @@ describe("iOS text after the slide in", () => {
     expect(mounts.count).toBe(1);
     // The measure lands the slide, which the fake timing finishes at once.
     layOut(renderer, "details-drawer", 266);
-    expect(mounts.count).toBe(1 + again);
+    // Mounting the whole body again at rest showed every iOS text view blank
+    // for a frame: the drawer flashed as it settled. Only text that came or
+    // changed during the slide draws again (prose-text.test.ts).
+    expect(mounts.count).toBe(1);
+    expect(seen.slidingAtMount).toEqual([false]);
+    expect(seen.rests).toBe(rests);
     // A step to another block is no entrance.
     act(() => fake.api.step(AGENT, 1));
-    const after = mounts.count;
+    const after = { mounts: mounts.count, rests: seen.rests };
     layOut(renderer, "details-drawer", 266);
-    expect(mounts.count).toBe(after);
+    expect(mounts.count).toBe(after.mounts);
+    expect(seen.rests).toBe(after.rests);
   });
 });
 

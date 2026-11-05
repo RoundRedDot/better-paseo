@@ -31,7 +31,8 @@ import { ToolbarButton, ToolbarItem, TOOLBAR_TOOLTIP_MS } from "../../client/ui/
 import { FooterDetails } from "../../client/components/footer-details";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { classifyTool } from "../../client/tools/classify";
-import { resetEnhancerPreferences } from "../../client/preferences";
+import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { DisclosureHeader } from "../../client/ui/disclosure-header";
 import { PreviewLines } from "../../client/ui/preview-lines";
 import { ToolCallout } from "../../client/components/tool-callouts";
 import { defaultToolExpanded } from "../../client/tools/disclosure";
@@ -480,6 +481,18 @@ describe("needs-permission card", () => {
     return classifyTool({ name: "agent_message", callId: "question", status: "completed", detail: { type: "plain_text", text },
       agentMessage: { event: "permission-required", sender: { id: agentId, title: "Builder" }, text } });
   }
+
+  it("updates agent labels when the language changes while preserving the title", () => {
+    act(() => updateEnhancerPreferences({ language: "en" }));
+    act(() => { renderer = TestRenderer.create(React.createElement(ToolCallout, { data: questionView(), tokens })); });
+    expect(renderer!.root.findByType(DisclosureHeader).props.verb).toBe("Needs answer");
+    act(() => updateEnhancerPreferences({ language: "zh" }));
+    const header = renderer!.root.findByType(DisclosureHeader);
+    expect(header.props.verb).toBe("需要回答");
+    expect(header.props.detailsTitle.text).toContain("Builder");
+    act(() => updateEnhancerPreferences({ language: "en" }));
+    expect(renderer!.root.findByType(DisclosureHeader).props.verb).toBe("Needs answer");
+  });
 
   it("draws a question's options read-only, even while the agent waits", () => {
     host.agent = { status: "running", attentionReason: "permission" };

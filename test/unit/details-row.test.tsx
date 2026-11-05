@@ -248,6 +248,46 @@ describe("tool menu copy order", () => {
 
 const todo = { id: "todo", phaseName: "Checklist Progress", tasks: [{ id: "t", title: "Fix the bug", status: "pending" as const, phase: "" }] };
 describe("other detail callers", () => {
+  it.each([
+    ["completed", "Background command \"Build project\" completed (exit code 0)", "命令已完成"],
+    ["failed", "Agent \"Review project\" failed: error", "子任务失败"],
+    ["canceled", "Background task \"Run checks\" stopped", "任务已停止"],
+  ])("localizes task notification %s while keeping its subject", (status, label, translated) => {
+    const data = classifyTool({ name: "task_notification", status, detail: { type: "plain_text", label, text: label } });
+    const original = data.activity!.target;
+    render(<ToolCallout data={data} tokens={tokens} />);
+    const header = () => renderer!.root.findByType(DisclosureHeader).props;
+    expect(header().verb).toBe(data.activity!.verb);
+    act(() => updateEnhancerPreferences({ language: "zh" }));
+    expect(header().verb).toBe(translated);
+    expect(header().target).toBe(original);
+    act(() => updateEnhancerPreferences({ language: "en" }));
+    expect(header().verb).toBe(data.activity!.verb);
+  });
+  it("localizes a plugin-generated tool activity without translating its target", () => {
+    const data = classifyTool({ name: "ToolSearch", status: "running", detail: { type: "unknown", input: { query: "Search tools" } } });
+    updateEnhancerPreferences({ language: "zh" });
+    render(<ToolCallout data={data} tokens={tokens} />);
+    const header = renderer!.root.findByType(DisclosureHeader).props;
+    expect(header.verb).toBe("搜索工具");
+    expect(header.target).toBe("Search tools");
+  });
+  it.each([false, true])("localizes compaction on the row and reacts to language changes (compact=%s)", (compact) => {
+    const data = classifyTool({ name: "compaction", status: "completed", detail: { type: "compaction", trigger: "manual", preTokens: 972610 } });
+    render(<ToolCallout data={data} tokens={tokens} compact={compact} />);
+    const header = () => renderer!.root.findByType(DisclosureHeader).props;
+    expect(header().verb).toBe("Compacted context");
+    expect(header().meta).toEqual(["manual", "from 973K tokens"]);
+    act(() => updateEnhancerPreferences({ language: "zh" }));
+    expect(header().verb).toBe("已压缩上下文");
+    expect(header().meta).toEqual(["手动", "压缩前 973K tokens"]);
+    expect(header().accessibilityLabel).toBe("已压缩上下文 手动 压缩前 973K tokens");
+    expect(header().detailsTitle.text).toBe("已压缩上下文");
+    act(() => renderer!.update(wrap(<ToolCallout data={classifyTool({ name: "compaction", status: "running", detail: { type: "compaction" } })} tokens={tokens} compact={compact} />)));
+    expect(header().verb).toBe("正在压缩上下文");
+    act(() => updateEnhancerPreferences({ language: "en" }));
+    expect(header().verb).toBe("Compacting context");
+  });
   it("registers a thought and its Copy item", () => {
     render(<ReasoningCard segmentation={{ kind: "prose", body: "Long thought ".repeat(20) }} streaming={false} durationMs={2000}
       expanded={false} onToggle={() => {}} tokens={tokens} storeKey="thought" copyText="Full thought" />);

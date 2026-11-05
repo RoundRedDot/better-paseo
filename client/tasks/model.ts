@@ -177,6 +177,12 @@ export interface TaskParentRef {
    * Absent while it is not, or not known yet.
    */
   archivedAs?: "agent" | "workspace";
+  /**
+   * History only: the parent's archive detached this task, as the plugin
+   * server inferred it (`tasks.parent-origins`), so it is a task of its own
+   * and not among the parent's children. Absent for a live parent link.
+   */
+  detached?: true;
 }
 
 export interface TaskChild {
@@ -213,6 +219,8 @@ export interface TaskCard {
   /** The host's display name, for a board listing several hosts. */
   hostLabel?: string;
   id: string;
+  /** A new agent created by a Paseo schedule. */
+  scheduled?: boolean;
   /** The agent's title, else a fallback such as the first prompt line or "Untitled". */
   title: string;
   lane: LaneId;

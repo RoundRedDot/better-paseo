@@ -54,6 +54,7 @@ import { TASK_MONO } from "../../client/tasks/typography";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { TaskDetailCards, type TaskDetailCardsProps } from "../../client/tasks/cards/detail-cards";
 import { cardStrings } from "../../client/tasks/cards/strings";
+import { taskTokens } from "../../client/tasks/cards/tokens";
 import { LANE_ORDER } from "../../client/tasks/model";
 import { previewSampleCards } from "../../client/tasks/sample-cards";
 import { createTitleUpdateControl } from "../../client/tasks/actions/title-update";
@@ -82,7 +83,7 @@ afterEach(async () => {
 
 async function render(element: React.ReactElement) {
   await act(async () => {
-    renderer = TestRenderer.create(element, { createNodeMock: (node) => ({ props: node.props }) });
+    renderer = TestRenderer.create(element, { createNodeMock: (node) => ({ props: node.props, measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(10, 20, 30, 40) }) });
   });
   return renderer!.root;
 }
@@ -117,6 +118,37 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it("uses the toolbar's quiet rounded outline for both header buttons", async () => {
+    const root = await render(<TaskDetailCards {...details("en", "sample-running", { onMenu() {} })} />);
+    for (const id of ["detail-menu", "detail-close"]) {
+      const button = () => host(root, id);
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderColor: "transparent" });
+      await act(async () => button().props.onHoverIn());
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: taskTokens(THEME).border, boxShadow: taskTokens(THEME).card.buttonShadowHover });
+      await act(async () => button().props.onHoverOut());
+    }
+  });
+  it("opens the selected card menu at the header button", async () => {
+    const onMenu = vi.fn();
+    const root = await render(<TaskDetailCards {...details("zh", "sample-running", { onMenu })} />);
+    await act(async () => host(root, "detail-menu").props.onPress());
+    expect(onMenu).toHaveBeenCalledWith({ x: 40, y: 60 });
+  });
+  it("clears filters and shows subtasks when clearing a hidden card notice", async () => {
+    const card = previewSampleCards(NOW).find((item) => item.id === "sample-child-1")!;
+    const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: [] }]));
+    const setParams = vi.fn();
+    const board = {
+      language: "en", strings: BOARD_STRINGS.en, params: EMPTY_PARAMS, lanes,
+      tasks: { ready: true }, cardById: () => card, setParams, callbacks: {},
+      stop: { phase: () => "idle" }, read: { available: false }, unarchive: { available: false }, archive: { pending: () => false }, buttonsFor: () => [],
+    } as unknown as BoardController;
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: card.id, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={false} stats={false} />);
+    const button = host(root, "detail-notice").find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    await act(async () => button.props.onPress());
+    expect(setParams).toHaveBeenCalledOnce();
+    expect(setParams.mock.calls[0]![0]({ ...EMPTY_PARAMS, query: "test", hideSubtasks: true })).toEqual({ ...EMPTY_PARAMS, hideSubtasks: false });
+  });
   it("restarts the countdown if a hovered undo button is unmounted", async () => {
     vi.useFakeTimers();
     const child = details("en").card.children[0]!;
@@ -174,6 +206,26 @@ describe("sidebar action tips", () => {
     for (let i = 0; i < 40; i++) await act(async () => { await vi.advanceTimersByTimeAsync(30); });
     expect(row().findAll((node) => node.props.testID === "task-title-update-shimmer")).toHaveLength(0);
     expect(host(row(), `detail-subtask-title-${child.id}`).findAll((node) => typeof node.type === "string" && node.children.includes("A newly generated title"))).toHaveLength(1);
+  });
+  it("streams the selected title under the shimmer until the final title is revealed", async () => {
+    vi.useFakeTimers();
+    let finish!: (value: { state: "done"; title: string }) => void;
+    const titleUpdates = createTitleUpdateControl(({ action }) => action === "start"
+      ? Promise.resolve({ state: "running", text: "Generated title" })
+      : new Promise((resolve) => { finish = resolve; }));
+    const props = details("en", "sample-running", { titleUpdates });
+    const root = await render(<TaskDetailCards {...props} />);
+    await act(async () => { titleUpdates.start(props.card.id); await vi.advanceTimersByTimeAsync(0); });
+    expect(host(root, "task-title-update-shimmer").props.accessibilityState.busy).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+    const partial = host(host(root, "task-title-update-shimmer"), "task-card-title").children.join("");
+    expect(partial.length).toBeGreaterThan(0);
+    expect(partial.length).toBeLessThan("Generated title".length);
+    await act(async () => { await vi.advanceTimersByTimeAsync(970); finish({ state: "done", title: "Generated title extended" }); });
+    expect(host(root, "task-title-update-shimmer")).toBeTruthy();
+    for (let i = 0; i < 40; i++) await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+    expect(root.findAll((node) => node.props.testID === "task-title-update-shimmer")).toHaveLength(0);
+    expect(host(root, "detail-title").children.join("")).toBe("Generated title extended");
   });
   it("opens the selected subtask's card menu without navigating", async () => {
     const cards = previewSampleCards(NOW);
@@ -392,6 +444,16 @@ describe("sidebar action tips", () => {
     expect(iconSizes()).toEqual([18, 18, 18, 18, 18]);
     const filter = root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
     expect(tip(filter)).toBe("Claude");
+    const controlHover = taskTokens(THEME).card.controlHover;
+    const tab = host(root, "sidebar-group-tab-FolderKanban");
+    await act(async () => tab.props.onHoverIn());
+    expect(tab.props.style).toMatchObject({ backgroundColor: controlHover });
+    expect(tab.props.style.boxShadow).toBeUndefined();
+    await act(async () => filter.props.onHoverIn());
+    expect(filter.props.style).toMatchObject({ backgroundColor: controlHover });
+    expect(filter.props.style.boxShadow).toBeUndefined();
+    await act(async () => filter.props.onHoverOut());
+    expect(filter.props.style.backgroundColor).toBe("transparent");
     await act(async () => filter.props.onPress());
     expect(board.setParams).toHaveBeenCalledOnce();
   });

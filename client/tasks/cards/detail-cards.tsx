@@ -7,7 +7,7 @@ import { revealPathRpc } from "../../../shared/file-rpc";
 import { openLink } from "../../components/open-link";
 import { MarkdownView } from "../../components/markdown/markdown-view";
 import { variantMetrics } from "../../components/markdown/render/styles";
-import { useThemeTokens, withAlpha } from "../../components/theme-tokens";
+import { mix, useThemeTokens, withAlpha } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
 import { HoverPreviewContext } from "../../ui/hover-preview";
@@ -33,7 +33,9 @@ import { BrandMark } from "./brand-mark";
 import { SubtaskRow } from "./subtask-row";
 import { SubagentLabel } from "./subagent-label";
 import { TitleUndo } from "./title-undo";
-import { ArchivedTag } from "./archived-tag";
+import { TitleLoading } from "./title-loading";
+import { useRevealedTitle } from "./title-reveal";
+import { ArchivedTag, parentTag, type ParentTag } from "./archived-tag";
 import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
@@ -73,6 +75,7 @@ import {
 import { Chip, ContextBar, SummaryTiles, TimelineChart, TokenBar, TurnHero, detailColors, statusColor } from "./detail-charts";
 import { detailGutter, detailScrollProps } from "./detail-scrollbar";
 import { sectionClosed, useSectionChoices, useSearchSectionChoices } from "./detail-collapse";
+import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
 import { tipProps } from "./card-hints";
 import { AvailabilityTag } from "./availability-tag";
 import { highlightText } from "./search-highlight";
@@ -167,6 +170,7 @@ export interface TaskDetailCardsProps extends TimeSource {
   /** Match the phone board's pills; tablet and desktop cards use the regular size. */
   compact?: boolean;
   onClose?(): void;
+  onMenu?(point: { x: number; y: number }): void;
   /** The card to go back to after a parent or subtask jump. */
   back?: { title: string; onPress(): void } | null;
   notice?: DetailNotice | null;
@@ -511,10 +515,14 @@ function stopLabel(props: TaskDetailCardsProps): string | null {
 /** The header: status, title, the agent's chips and labels, the actions, then the block the card needs first. */
 function DetailHeader(props: Inner) {
   const { card, m, tokens, touch = false } = props;
+  const menuRef = useRef<View>(null);
   const titleUpdate = useTitleUpdateState(props.titleUpdates, card.id);
+  const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
+  const shownTitle = useRevealedTitle(streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : card.title), Boolean(streamedTitle) || titleUpdate.state === "done");
+  const updatingTitle = titleUpdate.state === "running" || titleUpdate.state === "done" && shownTitle !== titleUpdate.title || titleUpdate.state === "idle" && shownTitle !== card.title;
   useEffect(() => {
-    if (titleUpdate.state === "done" && card.title === titleUpdate.title) props.titleUpdates?.showUndo(card.id);
-  }, [titleUpdate, card.id, card.title, props.titleUpdates]);
+    if (titleUpdate.state === "done" && shownTitle === titleUpdate.title) props.titleUpdates?.showUndo(card.id);
+  }, [titleUpdate, shownTitle, card.id, props.titleUpdates]);
   const cardText = cardStrings(props.language);
   const { pair } = cardText.hint;
   const small = F.sm;
@@ -639,13 +647,14 @@ function DetailHeader(props: Inner) {
         </Text>
         <StatusSub {...props} small={small} />
         <View style={{ flex: 1 }} />
+        {props.onMenu ? <View ref={menuRef} collapsable={false}><RoundIcon icon="MoreVertical" label={props.language === "zh" ? "卡片菜单" : "Card menu"} size={m.round} tokens={tokens} testID="detail-menu" onPress={() => menuRef.current?.measureInWindow((x, y, width, height) => props.onMenu?.({ x: x + width, y: y + height }))} /></View> : null}
         {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={m.round} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
       </View>
       <View style={{ marginTop: 2, flexDirection: "row", alignItems: "center", gap: 6 }}>
       {card.subagent ? <SubagentLabel language={props.language} tokens={tokens} testID="detail-session-label" /> : null}
-      <Text style={{ flex: 1, minWidth: 0, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
-        {highlightText(card.title, props.searchQuery ?? "", tokens.isDark)}
-      </Text>
+      {updatingTitle ? <TitleLoading title={shownTitle} mutedColor={tokens.foregroundMuted} highlightColor={tokens.isDark ? tokens.foreground : mix(tokens.card.background, tokens.foregroundMuted, 0.45)} accessibilityLabel={cardText.autoTitlePending} style={{ fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600" }} /> : <Text style={{ flex: 1, minWidth: 0, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
+        {highlightText(shownTitle, props.searchQuery ?? "", tokens.isDark)}
+      </Text>}
       <View pointerEvents="box-none" style={{ position: "absolute", right: 0, top: 0 }}>
         <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} fadeColor={tokens.card.background} />
       </View>
@@ -818,7 +827,7 @@ function PermissionBlock(props: Inner) {
       </View>
       {permission.summary ? (
         <View style={{ marginHorizontal: 12, marginTop: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, borderWidth: 1, borderColor: tokens.border, backgroundColor: tokens.card.background }}>
-          <Text style={{ fontSize: F.sm, lineHeight: CODE_LINE, fontFamily: MONO, color: tokens.foreground }}>{permission.summary}</Text>
+          <Text style={{ fontSize: permission.kind === "question" ? F.base : F.sm, lineHeight: permission.kind === "question" ? HOST_LINE.base : CODE_LINE, fontFamily: MONO, color: tokens.foreground }}>{permission.summary}</Text>
         </View>
       ) : null}
       {buttons.length > 0 ? (
@@ -940,6 +949,7 @@ function ErrorBlock(props: Inner) {
 function Section(props: Inner & { section: DetailSection; closed: boolean; divider: boolean; onToggleSection(closed: boolean): void }) {
   const { card, m, tokens, section, gutter = 0 } = props;
   const words = cardStrings(props.language).details;
+  const reducedMotion = useReducedMotion();
   const { copied, copy } = useCopy();
   const title = { prompt: words.prompt, human: words.human, message: words.message, properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
   // A narrow card abbreviates the subtasks heading; its rows keep their shared metadata.
@@ -972,12 +982,13 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
   const testID = { prompt: "detail-prompt", human: "detail-human", message: "detail-message", properties: "detail-location", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
   // The last subtask row keeps 8 (touch 10) above the next hairline.
   const bottom = section === "subtasks" && m === TOUCH_CARD ? 10 : 8;
+  const toggle = () => { if (!reducedMotion) prepareSubtaskToggle(props.closed); props.onToggleSection(!props.closed); };
   return (
     <View testID={testID} onLayout={onLayout}>
       {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginLeft: m.padH, marginRight: m.padH - gutter, backgroundColor: tokens.card.border }} /> : null}
       <View style={{ paddingTop: 4, paddingBottom: bottom, paddingLeft: m.padH - 6, paddingRight: m.padH - 6 - gutter }}>
         {messageSection ? (
-          <Pressable {...ROW_ROLE} accessibilityLabel={props.closed ? words.expand(title) : words.collapse(title)} {...tipProps(props.closed ? words.expand(title) : words.collapse(title))} accessibilityState={{ expanded: !props.closed }} onPress={() => props.onToggleSection(!props.closed)} testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
+          <Pressable {...ROW_ROLE} accessibilityLabel={props.closed ? words.expand(title) : words.collapse(title)} {...tipProps(props.closed ? words.expand(title) : words.collapse(title))} accessibilityState={{ expanded: !props.closed }} onPress={toggle} testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
             <View style={{ width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: detailColors(tokens).sunk }}>
               <Icon name={section === "message" ? "MessageSquareText" : "MessageCircle"} size={14} color={section === "message" ? tokens.success : tokens.foregroundMuted} />
             </View>
@@ -989,27 +1000,29 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
               </Pressable>
             ) : null}
             <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
-              <View style={{ transform: [{ rotate: props.closed ? "-90deg" : "0deg" }] }}><Icon name="ChevronDown" size={14} color={tokens.foregroundMuted} /></View>
+              <SectionChevron closed={props.closed} color={tokens.foregroundMuted} />
             </View>
           </Pressable>
         ) : (
-          <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryTip={messageTime ? formatFullStamp(new Date(at)) : undefined} trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined} closed={props.closed} language={props.language} onPress={() => props.onToggleSection(!props.closed)} />
+          <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryTip={messageTime ? formatFullStamp(new Date(at)) : undefined} trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined} closed={props.closed} language={props.language} onPress={toggle} />
         )}
-        {props.closed ? null : section === "prompt" ? (
+        <SubtaskPanel expanded={!props.closed} testID={`${testID}-panel`}>
+          {section === "prompt" ? (
           <TimelineTextBody {...props} read={props.firstPrompt} id="detail-prompt" none={words.promptNone} error={words.promptError} copyLabel={words.copyPrompt} copyToast="Copy prompt" />
         ) : section === "human" ? (
           <TimelineTextBody {...props} read={props.humanMessage} id="detail-human" none={words.humanNone} error={words.humanError} copyLabel={words.copyHuman} copyToast="Copy sent message" />
         ) : section === "message" ? (
           <TimelineTextBody {...props} read={props.lastMessage} id="detail-message" none={words.messageNone} error={words.messageError} copyLabel={words.copyMessage} copyToast="Copy message" flash />
-        ) : section === "properties" ? (
-          <Properties {...props} />
-        ) : section === "subtasks" ? (
-          <Subtasks {...props} />
-        ) : section === "usage" ? (
-          <Usage {...props} />
-        ) : (
-          <Activity {...props} />
-        )}
+          ) : section === "properties" ? (
+            <Properties {...props} />
+          ) : section === "subtasks" ? (
+            <Subtasks {...props} />
+          ) : section === "usage" ? (
+            <Usage {...props} />
+          ) : (
+            <Activity {...props} />
+          )}
+        </SubtaskPanel>
       </View>
     </View>
   );
@@ -1052,9 +1065,7 @@ function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; 
       style={{ height: taskControlHeight(m.heading, scale), paddingHorizontal: 6, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 4 }}
     >
       <Text style={{ fontSize: font, fontWeight: "500", color }}>{props.title}</Text>
-      <View style={{ transform: [{ rotate: props.closed ? "-90deg" : "0deg" }] }}>
-        <Icon name="ChevronDown" size={14} color={color} />
-      </View>
+      <SectionChevron closed={props.closed} color={color} />
       <View style={{ flex: 1 }} />
       {props.summary ? (
         <Text {...tipProps(props.summaryTip)} numberOfLines={1} style={[{ flexShrink: 1, fontSize: font, color, fontVariant: ["tabular-nums"] }]}>
@@ -1064,6 +1075,18 @@ function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; 
       {props.trailing ? <View style={{ marginLeft: 2 }}>{props.trailing}</View> : null}
     </Pressable>
   );
+}
+
+function SectionChevron(props: { closed: boolean; color: string }) {
+  const reduced = useReducedMotion();
+  const progress = useRef(new Animated.Value(props.closed ? 0 : 1)).current;
+  useEffect(() => {
+    if (reduced) { progress.setValue(props.closed ? 0 : 1); return; }
+    const animation = Animated.timing(progress, { toValue: props.closed ? 0 : 1, duration: props.closed ? 140 : 180, easing: MOTION.ease, useNativeDriver: true, isInteraction: false });
+    animation.start();
+    return () => animation.stop();
+  }, [props.closed, reduced, progress]);
+  return <Animated.View style={{ transform: [{ rotate: progress.interpolate({ inputRange: [0, 1], outputRange: ["-90deg", "0deg"] }) }] }}><Icon name="ChevronDown" size={14} color={props.color} /></Animated.View>;
 }
 
 /**
@@ -1203,13 +1226,15 @@ function Properties(props: Inner) {
     const unarchive = archived ? props.unarchive : null;
     const unarchiving = unarchive?.pending(parent.id) === true;
     let notes: Note[] = [];
-    let tag: string | undefined;
+    let archive: string | null = null;
     // An archived parent can be brought back; once it is, the row turns into a jump.
     // An archived parent is tagged, itself or with its workspace, off the board or in the archived lane.
-    if (parent.archivedAs === "workspace") tag = cardText.workspaceArchived;
-    else if (archived || parent.archivedAs === "agent") tag = cardText.archived;
+    if (parent.archivedAs === "workspace") archive = cardText.workspaceArchived;
+    else if (archived || parent.archivedAs === "agent") archive = cardText.archived;
     if (archived && !unarchive) notes = [{ text: details.cannotJump }];
-    else if (offBoard && !tag) notes = [{ text: details.offBoard }];
+    else if (offBoard && !archive) notes = [{ text: details.offBoard }];
+    // A link the plugin inferred says so, whatever the parent's state.
+    const tag = parentTag(archive, parent.detached ? cardText.inferred : null);
     rows.push(
       <PropertyRow
         {...common}
@@ -1220,7 +1245,7 @@ function Properties(props: Inner) {
         lines={3}
         muted={parent.missing}
         notes={notes}
-        tag={tag}
+        tag={tag ?? undefined}
         button={
           unarchive ? (
             <CardButton
@@ -1238,7 +1263,7 @@ function Properties(props: Inner) {
         onPress={jump}
         tip={offBoard ? cardText.openParent : cardText.revealParent}
         buttonTip={details.unarchive}
-        accessibilityLabel={`${words.parent}: ${title}`}
+        accessibilityLabel={parent.detached && tag ? `${words.parent}: ${title}, ${tag.label}` : `${words.parent}: ${title}`}
         testID="detail-parent"
       />,
     );
@@ -1285,8 +1310,8 @@ function PropertyRow(props: {
   hyphens?: boolean;
   lines: number;
   notes?: Note[];
-  /** An archived parent's tag, ahead of the notes. */
-  tag?: string;
+  /** An archived or inferred parent's tag, ahead of the notes. */
+  tag?: ParentTag;
   /** A button at the row's end, in the card's style: an archived parent's Unarchive. */
   button?: React.ReactNode;
   buttonTip?: string;
@@ -1365,7 +1390,7 @@ function PropertyRow(props: {
     ) : null;
   const noteLine = props.tag ? (
     <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 6, marginTop: 3 }}>
-      <ArchivedTag tokens={tokens} label={props.tag} testID={props.testID ? `${props.testID}-tag` : undefined} />
+      <ArchivedTag tokens={tokens} label={props.tag.label} icon={props.tag.icon} testID={props.testID ? `${props.testID}-tag` : undefined} />
       {noteRun}
     </View>
   ) : noteRun;
@@ -1472,20 +1497,18 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
 function Subtasks(props: Inner) {
   const { card, m, tokens } = props;
   const scale = useTasksFontScale();
+  const reducedMotion = useReducedMotion();
   const cardText = cardStrings(props.language);
   const words = cardText.details;
   const [openFor, setOpenFor] = useState<string | null>(null);
   const open = openFor === card.id;
   const sorted = sortSubtasks(card.children);
   const hidden = sorted.slice(SUBTASK_ROWS);
-  const shown = open ? sorted : sorted.slice(0, SUBTASK_ROWS);
   // Finished rows step back while others still need a look; all finished, none does.
   const mixed = card.children.some((child) => !subtaskFinished(child));
   const time = props.time;
   const touch = m === TOUCH_CARD;
-  return (
-    <View style={{ marginRight: props.gutter }}>
-      {shown.map((child) => (
+  const row = (child: TaskChild) => (
         <SubtaskRow
           key={child.id}
           tokens={tokens}
@@ -1507,14 +1530,18 @@ function Subtasks(props: Inner) {
           onLongPress={touch && props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
           onOpen={props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
         />
-      ))}
+  );
+  return (
+    <View style={{ marginRight: props.gutter }}>
+      {sorted.slice(0, SUBTASK_ROWS).map(row)}
+      {hidden.length > 0 ? <SubtaskPanel expanded={open} testID="detail-subtasks-extra-panel">{hidden.map(row)}</SubtaskPanel> : null}
       {hidden.length > 0 ? (
         <MoreRow
           tokens={tokens}
           label={open ? cardText.showFewer : words.subtasksShowAll(sorted.length)}
           note={open ? null : hidden.every(subtaskFinished) ? words.subtasksHiddenDone(hidden.length) : words.subtasksHidden(hidden.length)}
           open={open}
-          onPress={() => setOpenFor(open ? null : card.id)}
+          onPress={() => { if (!reducedMotion) prepareSubtaskToggle(!open); setOpenFor(open ? null : card.id); }}
           height={taskControlHeight(touch ? 44 : 32, scale)}
         />
       ) : null}
@@ -1782,7 +1809,7 @@ function Usage(props: Inner) {
       <Icon name={icon} size={14} color={tokens.foregroundMuted} />
       <Text style={{ fontSize: font, color: tokens.foregroundMuted }}>{label}</Text>
       <View style={{ flex: 1 }} />
-      <Text style={{ fontSize: font, fontWeight: strong ? "600" : "400", color: value === "—" ? tokens.foregroundMuted : tokens.foreground, fontVariant: ["tabular-nums"] }}>{value}</Text>
+      <Text style={{ fontSize: font, fontWeight: strong ? "600" : "400", color: value === "—" ? tokens.foregroundMuted : tokens.foreground, fontFamily: value === "—" ? undefined : MONO }}>{value}</Text>
     </View>
   );
   return (
@@ -1821,7 +1848,7 @@ function KeyCap(props: { label: string; tokens: TaskTokens }) {
   );
 }
 
-/** A round icon button: transparent at rest, filled on hover, grey when on (Linear's header buttons). */
+/** A header icon button, matching the toolbar's quiet outline on web. */
 export function RoundIcon(props: { icon: string; label: string; size: number; tokens: TaskTokens; active?: boolean; onPress(): void; testID?: string }) {
   const { hovered, hoverProps } = useHover();
   return (
@@ -1839,7 +1866,9 @@ export function RoundIcon(props: { icon: string; label: string; size: number; to
           width: props.size,
           height: props.size,
           marginVertical: -(props.size - 18) / 2,
-          borderRadius: props.size / 2,
+          borderRadius: Platform.OS === "web" ? 7 : props.size / 2,
+          borderWidth: Platform.OS === "web" ? StyleSheet.hairlineWidth : 0,
+          borderColor: hovered ? props.tokens.border : "transparent",
           alignItems: "center" as const,
           justifyContent: "center" as const,
           backgroundColor: props.active ? props.tokens.surface2 : "transparent",

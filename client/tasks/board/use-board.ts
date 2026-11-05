@@ -129,7 +129,7 @@ export const NOTICE_MS = 4000;
 /** The layout's own answers to a parent link and a details request. */
 export interface BoardLayoutHandlers {
   reveal(agentId: string): void;
-  details(card: TaskCard): void;
+  details(card: TaskCard, preview?: boolean): void;
 }
 
 const NO_BUTTONS: PermissionButton[] = [];
@@ -474,9 +474,13 @@ export function useBoard(
       },
       onOpen: hasNavigation ? open : undefined,
       onReveal: (agentId, parentId) => {
-        // A provider subagent's row, while hidden subtasks or the filters leave its card off the board: its parent's tab.
-        if (parentId && !findCard(latest.current.lanes, agentId)) open(parentId);
-        else handlers.current?.reveal(agentId);
+        if (parentId && !findCard(latest.current.lanes, agentId)) {
+          const card = cardById(agentId);
+          if (card) handlers.current?.details(card, true);
+          else open(parentId);
+          return;
+        }
+        handlers.current?.reveal(agentId);
       },
       // No CLI on the daemon's machine (`tasks.capabilities`): no Stop on any card.
       onStop: stopAvailable

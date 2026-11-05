@@ -34,6 +34,7 @@ import { PREVIEW_LANES_MAX_HEIGHT, TasksBoardPreview } from "./board-preview";
 import { TASKS_SETTINGS_STRINGS, type TasksSettingsStrings } from "./strings";
 import { dismissEnabledNotice, useTasksForm, type TasksForm } from "./use-tasks-form";
 import { TitleGenerationSettings } from "./title-generation";
+import { HiddenCount } from "../board/hidden-count";
 
 /**
  * The Tasks half of Better Paseo's settings page: the switch, the preview
@@ -493,10 +494,11 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         stacked
         below={
           <TasksTypography theme={theme}>
-            <View testID="tasks-sidebar-preview" pointerEvents="none" style={{ borderWidth: 1, borderColor: look.tokens.v2.border, borderRadius: radiusV2.block, backgroundColor: theme.colors.surface0, overflow: "hidden" }}>
+            <View testID="tasks-sidebar-preview" style={{ borderWidth: 1, borderColor: look.tokens.v2.border, borderRadius: radiusV2.block, backgroundColor: theme.colors.surface0 }}>
               <View style={{ minHeight: 40, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Icon name="SquareKanban" size={16} color={theme.colors.foregroundMuted} />
                 <TaskText style={{ flex: 1, fontSize: HOST_FONT.base, color: theme.colors.foregroundMuted }}>{BOARD_STRINGS[language].name}</TaskText>
+                {values.sidebar.count !== "none" ? <HiddenCount theme={theme} language={language} tasks={[{ id: "example", lane: "needs_input", title: language === "zh" ? "示例任务" : "Example task", location: { workspaceTitle: language === "zh" ? "示例工作区" : "Example workspace", projectName: null } }]} /> : null}
                 <View accessible accessibilityLabel={sidebarCountText(sidebarCountParts({ needsInput: 2, running: 1, review: 1 }, values.sidebar.count), language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   {sidebarCountParts({ needsInput: 2, running: 1, review: 1 }, values.sidebar.count).map((part) => (
                     <View key={part.lane} testID={`tasks-sidebar-preview-${part.lane}`} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>

@@ -199,9 +199,12 @@ export function BottomPanel(props: BottomPanelProps) {
       now.current.translate = 0;
       // iOS draws a selectable text's string when it is next displayed; one
       // that changed while the panel was below the screen (highlighting that
-      // landed late) stayed blank until a relayout. At rest, the body draws
-      // its content again.
-      animate(translate, 0, DETAILS_MOTION.openMs, Platform.OS === "ios" ? () => latest.current.body.redraw() : undefined);
+      // landed late) stayed blank until a relayout. At rest, the text that
+      // came or changed during the slide draws again (`ProseRedraw`); the
+      // rest stays mounted, since mounting it all again flashed the body.
+      const ios = Platform.OS === "ios";
+      if (ios) now0.body.slideIn();
+      animate(translate, 0, DETAILS_MOTION.openMs, ios ? () => latest.current.body.redraw() : undefined);
       animate(backdrop, 1, DETAILS_MOTION.scrimMs, undefined, "linear");
     } else if (now0.entrance !== "none") {
       const ms = now0.reduced ? DETAILS_MOTION.reducedMs : DETAILS_MOTION.formInMs;

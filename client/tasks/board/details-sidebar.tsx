@@ -72,7 +72,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
 
   let notice: DetailNotice | null = null;
   if (card && !shown) {
-    notice = { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams(clearedParams) } };
+    notice = { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams((params) => ({ ...clearedParams(params), hideSubtasks: false })) } };
   }
   const backId = selection.back[selection.back.length - 1];
   const backCard = backId ? board.cardById(backId) : undefined;
@@ -93,6 +93,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
         touch: props.touch,
         clock: board.clock,
         onClose: () => dispatch({ type: "clear" }),
+        onMenu: (point: { x: number; y: number }) => setMenu({ id: card.id, point }),
         back: backId ? { title: backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null,
         notice,
         onOpen: board.callbacks.onOpen,
@@ -603,7 +604,6 @@ function Segment(props: {
   }, [id, onFit, labelKey, width, fullWidth]);
   const labelStyle = { fontSize: F.base, fontWeight: "500" as const, color: props.on ? tokens.foreground : tokens.foregroundMuted };
   const { hovered, hoverProps } = useHover();
-  const reduced = useReducedMotion();
   return (
     <Pressable
       accessibilityRole="tab"
@@ -614,7 +614,6 @@ function Segment(props: {
       {...hoverProps}
       testID={`sidebar-group-tab-${props.icon}`}
       style={({ pressed }) => {
-        const lift = surfaceLift(hovered, pressed, reduced);
         return {
           // Share the row equally, regardless of label length or selection.
           flexBasis: 0,
@@ -625,14 +624,12 @@ function Segment(props: {
           borderRadius: 999,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: props.on ? tokens.surface2 : tokens.card.pillBorder,
-          backgroundColor: props.on ? tokens.surface2 : "transparent",
-          boxShadow: lift.shadow ? tokens.card.buttonShadowHover : undefined,
+          backgroundColor: props.on ? tokens.surface2 : hovered || pressed ? tokens.card.controlHover : "transparent",
           flexDirection: "row" as const,
           alignItems: "center" as const,
           justifyContent: "center" as const,
           gap: 4,
           paddingHorizontal: 6,
-          ...scaleStyle(lift.scale),
         };
       }}
     >
@@ -665,9 +662,8 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
   const { row, tokens } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
-  const reduced = useReducedMotion();
-  // The rows sit on the group card. A row fills only while it is on.
-  const fill = row.on ? tokens.surface2 : tokens.card.background;
+  // The tag hole follows the row background on hover.
+  const fill = row.on ? tokens.surface2 : hovered ? tokens.card.controlHover : tokens.card.background;
   return (
     <Pressable
       accessibilityRole="checkbox"
@@ -677,7 +673,6 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
       onPress={row.toggle}
       {...hoverProps}
       style={({ pressed }) => {
-        const lift = surfaceLift(hovered, pressed, reduced);
         return {
           height: taskControlHeight(row.detail ? (props.touch ? 56 : 48) : (props.touch ? 44 : 36), scale),
           marginVertical: 2,
@@ -689,9 +684,7 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
           flexDirection: "row",
           alignItems: "center",
           gap: 10,
-          backgroundColor: row.on ? tokens.surface2 : "transparent",
-          boxShadow: lift.shadow ? tokens.card.buttonShadowHover : undefined,
-          ...scaleStyle(lift.scale),
+          backgroundColor: row.on ? tokens.surface2 : hovered || pressed ? tokens.card.controlHover : "transparent",
         };
       }}
     >

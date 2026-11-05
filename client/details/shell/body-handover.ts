@@ -12,9 +12,10 @@
  * chrome. Until a body reports, the drawer does not take the pull from it: a
  * pull on a body scrolled down must scroll it.
  *
- * The other way, the drawer tells the body when it came to rest after sliding
- * in (`onRedraw`), so iOS text drawn while it was below the screen is drawn
- * again in place, and scrolls a phone body that sits at its top: there the
+ * The other way, the drawer tells the body while it slides in (`sliding`) and
+ * when it comes to rest (`onRedraw`), so iOS text that came or changed while
+ * it was below the screen is drawn again in place (`ProseRedraw`), and
+ * scrolls a phone body that sits at its top: there the
  * body does not scroll itself (`HoverPreviewBody`), so the drawer takes the
  * finger whichever way it goes.
  */
@@ -27,6 +28,8 @@ export interface DetailsBodyReport {
   contentSized(height: number): void;
   /** The scroller's own height (`onLayout`). */
   laidOut(height: number): void;
+  /** Whether the panel is sliding in. */
+  sliding(): boolean;
   /** Calls `listener` each time the panel comes to rest after sliding in; returns its removal. */
   onRedraw(listener: () => void): () => void;
   /** The drawer's or floating panel's drag, for the body to spread on itself. */
@@ -58,6 +61,8 @@ export interface BodyWatch extends DetailsBodyScroll {
   atTop(): boolean | null;
   /** Calls `listener` on the next size report; returns its removal. */
   onNextSize(listener: (size: BodySize) => void): () => void;
+  /** The panel starts sliding in. */
+  slideIn(): void;
   /** The panel came to rest after sliding in. */
   redraw(): void;
   /** The phone body's scroller, while one is attached. */
@@ -75,6 +80,7 @@ export function createBodyScroll(): BodyWatch {
   const size: BodySize = { content: 0, viewport: 0 };
   const waiting = new Set<(size: BodySize) => void>();
   const redraws = new Set<() => void>();
+  let moving = false;
   const sized = () => {
     if (size.content <= 0 || size.viewport <= 0 || waiting.size === 0) return;
     const listeners = Array.from(waiting);
@@ -117,7 +123,14 @@ export function createBodyScroll(): BodyWatch {
         redraws.delete(listener);
       };
     },
+    sliding() {
+      return moving;
+    },
+    slideIn() {
+      moving = true;
+    },
     redraw() {
+      moving = false;
       Array.from(redraws).forEach((listener) => listener());
     },
     scroller() {

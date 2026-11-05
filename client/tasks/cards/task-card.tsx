@@ -39,7 +39,7 @@ import { ActionPressable, useActionPressMotion } from "./action-pressable";
 import { buttonHue, CARD_BUTTON_HEIGHT, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_ICON, requestLook, webTransition } from "./action-style";
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu, openToolbarDetailsLayer } from "../../web";
-import { ArchivedTag } from "./archived-tag";
+import { ArchivedTag, parentTag } from "./archived-tag";
 import { HostTag } from "./host-tag";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import type { CardFilterKind, CardFilterState } from "../board/filter-options";
@@ -54,6 +54,7 @@ import { useTitleUpdateState, type TitleUpdateControl } from "../actions/title-u
 import { AvailabilityCorner, shownIssue } from "./availability-tag";
 import { taskOperationIssue } from "../availability";
 import { CutCardSurface } from "./cut-card-surface";
+import { TicketHead, TicketTail, type TicketLook } from "./ticket-card-surface";
 
 import type { SearchPrompt } from "../data/search-first-prompts";
 import { searchBreadcrumb, searchBranch, searchLabels, searchSnippet, taskSearchHits } from "../data/search-hits";
@@ -439,6 +440,9 @@ function statusTint(kind: StatusKind, tokens: TaskTokens): string | null {
  */
 export const OVERLAY_ROW_Z = 2;
 
+/** The search summary's own top margin, above its rule (`SearchHitSummary`). */
+const SEARCH_SUMMARY_GAP = 6;
+
 /** The card's corner radius (Linear's card). */
 const CARD_RADIUS = 8;
 /**
@@ -741,7 +745,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const issue = shownIssue(card.availability?.issue);
   const fold = issue ? mix(background, tokens.foreground, tokens.isDark ? FOLD_TINT.dark : FOLD_TINT.light) : null;
   const markActive = lit || props.current || props.focused;
-  const cornerMark = card.parent !== null
+  const cornerMark = card.parent !== null && !card.parent.detached
     ? markActive ? markHue(card.location, props.hostId, tokens, fold ? [fold] : undefined) : markRest(tokens, fold ?? background)
     : null;
   // Desktop hover and iPad press deepen the shadow.
@@ -750,10 +754,16 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const raised = menuAt !== null || cardLift.shadow;
   const shadows = raised ? [look.shadowHover] : [look.shadow];
   // Focus is neutral and outside the card; selection owns the accent fill and hairline.
-  if (props.focused && (!WEB || issue)) shadows.push(`0px 0px 0px 1px ${tokens.foregroundMuted}`);
+  const focusRing = props.focused && (!WEB || issue) ? `0px 0px 0px 1px ${tokens.foregroundMuted}` : undefined;
+  if (focusRing) shadows.push(focusRing);
   const borderColor = props.highlighted ? tokens.accent : props.current ? look.currentBorder : failed ? look.failedBorder : look.border;
   const borderWidth = dashed ? 1 : StyleSheet.hairlineWidth;
   const shadow = shadows.join(", ");
+  // A scheduled task's card is a ticket: notched at both sides between its
+  // title and the rows below, the notches joined by a dashed rule. Its
+  // sections draw the surface (`TicketHead`, `TicketTail`), as a cut card's do.
+  // With no row below the title it keeps an empty stub there to cut above.
+  const scheduled = card.scheduled === true;
   const cardStyle = {
     paddingHorizontal: m.padH,
     paddingTop: m.padTop,
@@ -835,9 +845,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const metaStyle = text(m.metaSize, m.metaLine, muted);
   const parentLabel = card.parent ? card.parent.title ?? strings.parentUnknown : null;
   // An archived parent, itself or with its workspace, is tagged so beside its link.
-  let parentTag: string | null = null;
-  if (card.parent?.archivedAs === "workspace") parentTag = strings.workspaceArchived;
-  else if (card.parent?.archivedAs === "agent" || (card.parent?.missing && card.parent.archived === true)) parentTag = strings.archived;
+  // A link the plugin inferred says so, whatever the parent's state.
+  let parentArchive: string | null = null;
+  if (card.parent?.archivedAs === "workspace") parentArchive = strings.workspaceArchived;
+  else if (card.parent?.archivedAs === "agent" || (card.parent?.missing && card.parent.archived === true)) parentArchive = strings.archived;
+  const shownParentTag = parentTag(parentArchive, card.parent?.detached ? strings.inferred : null);
   // Beside a context ring the text fades out before it instead of ending in
   // an ellipsis: clipped, with the fade only once the text no longer fits.
   const metaRing = hasMeta ? ringFor(m.metaLine) : null;
@@ -849,7 +861,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           setMetaFit((was) => (was[key] === width ? was : { ...was, [key]: width }));
         }
       : undefined;
-  const tagSpace = (parentTag !== null ? metaFit.tag + ARCHIVED_TAG_GAP : 0) + (hostLabel !== null ? metaFit.host + (metaText ? ARCHIVED_TAG_GAP : 0) : 0);
+  const tagSpace = (shownParentTag !== null ? metaFit.tag + ARCHIVED_TAG_GAP : 0) + (hostLabel !== null ? metaFit.host + (metaText ? ARCHIVED_TAG_GAP : 0) : 0);
   const metaCut = clip && metaFit.row > 0 && metaFit.text + tagSpace >= metaFit.row - 0.5;
   const clipText = clip ? CLIP_TEXT : null;
   const metaRow = hasMeta ? (
@@ -899,7 +911,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               {...parentHover.hoverProps}
               style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: PARENT_SHRINK, minWidth: 0, overflow: "hidden" }}
               testID="task-card-meta-parent"
-              {...hintProps(hint("parent", () => pair(strings.details.parent, parentLabel)))}
+              {...hintProps(hint("parent", () => pair(strings.details.parent, card.parent?.detached && shownParentTag ? `${parentLabel} \u00b7 ${shownParentTag.label}` : parentLabel)))}
             >
               <View style={{ flexShrink: 0 }}>
                 <Icon name="CornerLeftUp" size={Math.round(m.metaSize * scale)} color={parentHover.hovered ? tokens.foreground : muted} />
@@ -920,9 +932,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             <HostTag tokens={tokens} label={hostLabel} testID="task-card-host" />
           </View>
         ) : null}
-        {parentTag !== null ? (
+        {shownParentTag !== null ? (
           <View style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("tag")}>
-            <ArchivedTag tokens={tokens} label={parentTag} testID="task-card-meta-archived" />
+            <ArchivedTag tokens={tokens} label={shownParentTag.label} icon={shownParentTag.icon} testID="task-card-meta-archived" />
           </View>
         ) : null}
       </View>
@@ -978,7 +990,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {mark(shownTitle)}
       </Text>}
       {hasMeta ? null : ringFor(m.titleLine)}
-      <View pointerEvents="box-none" style={{ position: "absolute", right: 0, top: 0 }}>
+      <View pointerEvents="box-none" style={{ position: "absolute", right: -6, top: 0 }}>
         <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={language} touch={compact || TOUCH} fadeColor={background} />
       </View>
     </View>
@@ -1478,7 +1490,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               language={language}
               now={props.now}
               clock={props.clock}
-              onPress={() => child.kind === "provider" ? props.onReveal(child.id, card.id) : props.onReveal(child.id)}
+              onPress={() => props.onReveal(child.id, card.id)}
               onOpen={props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
             />
           ))}
@@ -1547,6 +1559,70 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       ? () => props.onOpen?.(card.id)
       : undefined;
 
+  const hiddenHitsRow = hasHiddenHits && !minimalSummary ? <SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal={false} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPrompt.unavailable && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} /> : null;
+  const cornerLayer = (issue && hit !== null) || cornerMark ? (
+    <>
+      {issue && hit !== null ? (
+        <AvailabilityCorner
+          issue={issue}
+          language={language}
+          theme={theme}
+          tokens={tokens}
+          hit={hit}
+          onOpenChange={setCornerOpen}
+        />
+      ) : null}
+      {cornerMark ? <CornerMark color={cornerMark} inset={corner.dot} /> : null}
+    </>
+  ) : null;
+  const headRows = (
+    <>
+      {metaRow}
+      {titleRow}
+      {titleUpdate.state === "error" ? <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 8 }}>
+        <Text accessibilityRole="alert" numberOfLines={3} testID="task-title-update-error" style={[text(F.sm, HOST_LINE.sm, tokens.danger), { flex: 1 }]}>{strings.autoTitleFailed(titleUpdate.error)}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={strings.dismissTitleError} hitSlop={8} style={{ minWidth: taskControlHeight(compact ? 44 : 28, scale), minHeight: taskControlHeight(compact ? 44 : 28, scale), alignItems: "center", justifyContent: "center" }} onPress={() => props.titleUpdates?.dismiss(card.id)}><Icon name="X" size={16} color={tokens.foregroundMuted} /></Pressable>
+      </View> : null}
+    </>
+  );
+  const footRow = minimalSummary ? <View style={{ marginTop: m.rowGap, minHeight: footHeight, zIndex: footerZ, flexDirection: "row", alignItems: "center" }}><SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal rowHeight={footHeight} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPrompt.unavailable && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} />{footerContent}</View> : footer;
+  // Below the title, in order. Each starts `m.rowGap` under the row above it,
+  // except the search summary's 6 pt rule (`SearchHitSummary`).
+  const tailList = [pillRow, footRow, answerRow ? null : controlRow, permissionBlock, failure, subtaskList, actionBar, hiddenHitsRow];
+  const firstTail = tailList.find((row) => row !== null);
+  // A ticket with nothing below its title: an empty stub, one row gap tall,
+  // takes the first row's place, so the notches, the rule and the tail's
+  // rounded corners sit as on any other ticket.
+  const stub = scheduled && firstTail === undefined ? <View style={{ height: m.rowGap }} testID="task-card-ticket-stub" /> : null;
+  const tailRows = (
+    <>
+      {pillRow}
+      {footRow}
+      {answerRow ? null : controlRow}
+      {permissionBlock}
+      {failure}
+      {subtaskList}
+      {actionBar}
+      {hiddenHitsRow}
+      {stub}
+    </>
+  );
+  // The notches sit halfway down the gap between the title and the first row below.
+  const ticketFrame = { padH: m.padH, padTop: m.padTop, padBottom: m.padBottom, offset: Math.round((firstTail === hiddenHitsRow ? SEARCH_SUMMARY_GAP : m.rowGap) / 2) };
+  const ticketLook: TicketLook = {
+    radius: CARD_RADIUS,
+    background,
+    borderColor,
+    borderWidth,
+    dashed,
+    shadow,
+    notchFocus: focusRing ? `inset ${focusRing}` : undefined,
+    // The theme border all but vanishes on a dark card; a chosen, highlighted or failed card's rule takes its tinted border.
+    rule: props.highlighted || props.current || failed ? borderColor : look.buttonBorder,
+  };
+  // A ticket's sections paint its surface; the card itself only lays the rows out.
+  const rootStyle = scheduled ? [cardStyle, { backgroundColor: "transparent", borderColor: "transparent", boxShadow: "none" } as ViewStyle] : cardStyle;
+
   return (
     <>
       <Pressable
@@ -1562,35 +1638,35 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         delayLongPress={LONG_PRESS_MS}
         ref={rootRef}
         {...(WEB ? null : hoverProps)}
-        style={cardStyle}
+        style={rootStyle}
         testID={`task-card-${card.id}`}
       >
-        {fold ? <CutCardSurface size={corner.fold} radius={CARD_RADIUS} background={background} borderColor={borderColor} borderWidth={borderWidth} dashed={dashed} shadow={shadow} fold={fold} /> : null}
-        {issue && hit !== null ? (
-          <AvailabilityCorner
-            issue={issue}
-            language={language}
-            theme={theme}
-            tokens={tokens}
-            hit={hit}
-            onOpenChange={setCornerOpen}
-          />
-        ) : null}
-        {cornerMark ? <CornerMark color={cornerMark} inset={corner.dot} /> : null}
-        {metaRow}
-        {titleRow}
-        {titleUpdate.state === "error" ? <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4, gap: 8 }}>
-          <Text accessibilityRole="alert" numberOfLines={3} testID="task-title-update-error" style={[text(F.sm, HOST_LINE.sm, tokens.danger), { flex: 1 }]}>{strings.autoTitleFailed(titleUpdate.error)}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel={strings.dismissTitleError} hitSlop={8} style={{ minWidth: taskControlHeight(compact ? 44 : 28, scale), minHeight: taskControlHeight(compact ? 44 : 28, scale), alignItems: "center", justifyContent: "center" }} onPress={() => props.titleUpdates?.dismiss(card.id)}><Icon name="X" size={16} color={tokens.foregroundMuted} /></Pressable>
-        </View> : null}
-        {pillRow}
-        {minimalSummary ? <View style={{ marginTop: m.rowGap, minHeight: footHeight, zIndex: footerZ, flexDirection: "row", alignItems: "center" }}><SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal rowHeight={footHeight} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPrompt.unavailable && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} />{footerContent}</View> : footer}
-        {answerRow ? null : controlRow}
-        {permissionBlock}
-        {failure}
-        {subtaskList}
-        {actionBar}
-        {hasHiddenHits && !minimalSummary ? <SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal={false} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPrompt.unavailable && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} /> : null}
+        {scheduled ? (
+          <>
+            {/* Raised over the tail while a hint or the ring's card opens over it. */}
+            <View style={{ zIndex: ringOpen || cornerOpen ? OVERLAY_ROW_Z + 3 : undefined }} testID="task-card-ticket-upper">
+              <TicketHead look={ticketLook} frame={ticketFrame} fold={fold ? { size: corner.fold, color: fold } : null} />
+              {cornerLayer ? (
+                // On the card's padding box, as the corner sits on a whole card.
+                <View pointerEvents="box-none" style={{ position: "absolute", top: -m.padTop, left: -m.padH, right: -m.padH, bottom: 0, zIndex: OVERLAY_ROW_Z + 2 }}>
+                  {cornerLayer}
+                </View>
+              ) : null}
+              {headRows}
+            </View>
+            <View testID="task-card-ticket-lower">
+              <TicketTail look={ticketLook} frame={ticketFrame} />
+              {tailRows}
+            </View>
+          </>
+        ) : (
+          <>
+            {fold ? <CutCardSurface size={corner.fold} radius={CARD_RADIUS} background={background} borderColor={borderColor} borderWidth={borderWidth} dashed={dashed} shadow={shadow} fold={fold} /> : null}
+            {cornerLayer}
+            {headRows}
+            {tailRows}
+          </>
+        )}
         {WEB ? <CardHints root={rootRef} texts={hintTexts} theme={theme} color={tokens.foreground} /> : null}
       </Pressable>
       {menuAt ? (

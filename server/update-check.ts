@@ -5,7 +5,8 @@ import { connectHostDaemon } from "./tasks/provider-subagents";
 import { isNewerVersion, updateCheckRpc } from "../shared/update-check";
 
 const REGISTRY_URL = "https://plugins.paseo.sh/plugins/roundreddot/better-paseo.json";
-const RELEASES_URL = "https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/releases.json";
+const RELEASES_URL = "https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main/versions.json";
+const NOTES_URL = "https://raw.githubusercontent.com/RoundRedDot/better-paseo-assets/main";
 const MAX_RESPONSE_BYTES = 64 * 1024;
 export const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
 async function readJson(response: Response): Promise<unknown> {
@@ -49,9 +50,11 @@ const installationSchema = z.object({
 
 const version = z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
 const releasesSchema = z.object({
-  releases: z.array(z.object({ hash: sha, version, build: z.number().int().min(100_000_000_000).max(999_999_999_999), notes: z.object({ zh: z.string().min(1), en: z.string().min(1) }) })),
+  releases: z.array(z.object({ hash: sha, version, build: z.number().int().min(100_000_000_000).max(999_999_999_999) })),
+});
+const notesSchema = z.object({
   versionNotes: z.array(z.object({ version, build: z.number().int().min(100_000_000_000).max(999_999_999_999), zh: z.array(z.string().min(1)).min(1), en: z.array(z.string().min(1)).min(1) }))
-    .refine((entries) => new Set(entries.map((entry) => entry.version)).size === entries.length),
+    .refine((entries) => new Set(entries.map((entry) => `${entry.version}:${entry.build}`)).size === entries.length),
 });
 type Notes = { status: "available"; releases: Array<{ version: string; zh: string[]; en: string[] }> } | { status: "missing" | "unavailable" };
 
@@ -123,23 +126,29 @@ export function createUpdateCheck(deps = { fetchVersion: fetch, connect: connect
         return;
       }
       const revision = sha.parse(current.currentRevision);
-      let notes: Notes;
-      let versions: Versions;
+      let notes: Notes = { status: "unavailable" };
+      let versions: Versions = { status: "unavailable" };
       try {
         const response = await deps.fetchVersion(RELEASES_URL, { signal: AbortSignal.timeout(10_000), cache: "no-store" });
         if (!response.ok) throw new Error("Could not read release information.");
-        const { releases, versionNotes } = releasesSchema.parse(await readJson(response));
+        const { releases } = releasesSchema.parse(await readJson(response));
         const published = releases.find((entry) => entry.hash === latest);
         const installed = releases.find((entry) => entry.hash === revision);
         versions = { status: "available", current: installed?.version ?? null, latest: published?.version ?? null, currentBuild: installed?.build ?? null, latestBuild: published?.build ?? null };
-        const recent = published && versionNotes.some((entry) => entry.version === published.version && entry.build <= published.build) ? versionNotes
-          .filter((entry) => entry.build <= published.build && !isNewerVersion(published.version, entry.version, 0, 0))
+        const recentVersions = published ? [...new Set(releases.filter((entry) => entry.build <= published.build && !isNewerVersion(published.version, entry.version, 0, 0)).map((entry) => entry.version))]
+          .sort((a, b) => isNewerVersion(a, b, 0, 0) ? 1 : isNewerVersion(b, a, 0, 0) ? -1 : 0).slice(0, 3) : [];
+        const versionNotes = (await Promise.all(recentVersions.map(async (version) => {
+          const response = await deps.fetchVersion(`${NOTES_URL}/changelogs/v${version}.json`, { signal: AbortSignal.timeout(10_000), cache: "no-store" });
+          if (!response.ok) throw new Error("Could not read release notes.");
+          return notesSchema.parse(await readJson(response)).versionNotes.filter((entry) => entry.version === version);
+        }))).flat();
+        const eligible = published ? versionNotes.filter((entry) => entry.build <= published.build) : [];
+        const recent = published && eligible.some((entry) => entry.version === published.version) ? eligible
+          .filter((entry) => !eligible.some((other) => other.version === entry.version && other.build > entry.build))
           .sort((a, b) => isNewerVersion(a.version, b.version, 0, 0) ? 1 : isNewerVersion(b.version, a.version, 0, 0) ? -1 : 0)
           .slice(0, 3).map(({ version, zh, en }) => ({ version, zh, en })) : [];
         notes = recent.length > 0 ? { status: "available", releases: recent } : { status: "missing" };
       } catch {
-        versions = { status: "unavailable" };
-        notes = { status: "unavailable" };
       }
       state = { state: "done", source: current.identity.registry ? "registry" : "git", current: revision, latest, matches: revision === latest, checkedAt: Date.now(), notes, versions };
     } finally {

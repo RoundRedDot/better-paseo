@@ -535,3 +535,41 @@ describe("Tasks server subagent timeline RPC", () => {
     });
   });
 });
+
+describe("Tasks server parent origins", () => {
+  it("hands the parent's archive to the watch without holding the hook, wakes it on a new agent, and answers its origins", async () => {
+    vi.resetModules();
+    const { registerTasksServer } = await import("../../server/tasks/register");
+    const { createStopMarks } = await import("../../server/tasks/stop-marks");
+    type Hook = (event: unknown, context: { paseo: PaseoApi }) => unknown;
+    const hooks = new Map<string, Hook>();
+    const handlers = new Map<string, Handler>();
+    const server = {
+      registerSettings() {},
+      on(name: string, hook: Hook) {
+        hooks.set(name, hook);
+        return () => {};
+      },
+      before() {
+        return () => {};
+      },
+      handle(contract: { name: string }, handler: Handler) {
+        handlers.set(contract.name, handler);
+      },
+    } as unknown as PluginServerContext;
+    // The re-reads after an archive run for seconds: the hook must not wait for them.
+    const watch = {
+      ensure: vi.fn(async () => {}),
+      archived: vi.fn(() => new Promise<void>(() => {})),
+      read: vi.fn(async () => ({ version: "v2", origins: [{ agentId: "child", parentAgentId: "parent" }] })),
+    };
+    registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")), undefined, noHost, createStopMarks(join(tempRoot, "tasks-reads.json")), undefined, watch);
+    const paseo = {} as PaseoApi;
+    await hooks.get("agent.archived")!({ agent: { id: "parent" }, archivedAt: "2026-11-05T06:27:39.958Z" }, { paseo });
+    expect(watch.archived).toHaveBeenCalledWith(paseo, "parent", "2026-11-05T06:27:39.958Z");
+    await hooks.get("agent.created")!({ agent: { id: "child", parentAgentId: "parent" } }, { paseo });
+    expect(watch.ensure).toHaveBeenCalledWith(paseo);
+    await expect(handlers.get("tasks.parent-origins")!({ since: "v1" }, { paseo })).resolves.toEqual({ version: "v2", origins: [{ agentId: "child", parentAgentId: "parent" }] });
+    expect(watch.read).toHaveBeenCalledWith(paseo, "v1");
+  });
+});

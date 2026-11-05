@@ -50,6 +50,11 @@ const en = {
   filterProject: "Only this project",
   archived: "Archived",
   workspaceArchived: "Workspace archived",
+  /**
+   * Beside a parent link the plugin inferred: Paseo leaves no record of why a
+   * task was detached, so the server infers its parent's archive from timing.
+   */
+  inferred: "Inferred",
   parentUnknown: "Parent task",
   revealParent: "Show parent task",
   /** A subtask's card menu: brings the parent's card into view on the board. */
@@ -294,6 +299,7 @@ const zh: CardStrings = {
   filterProject: "只看此项目",
   archived: "已归档",
   workspaceArchived: "工作区已归档",
+  inferred: "推断",
   parentUnknown: "父任务",
   revealParent: "定位到父任务",
   revealParentCard: "显示父任务卡片",

@@ -23,7 +23,8 @@ import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { BoardEmptyState } from "./empty-state";
-import { CardCell, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, SkeletonCard, WindowSegments, useBreathing, useFreshIds } from "./board-parts";
+import { CardCell, NewCardsDot, NewCardsPill, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, SkeletonCard, WindowSegments, laneHue, useBreathing, useFreshIds } from "./board-parts";
+import { pillDirection, useSeenCards, useTrackNewCards, useUnseenCards, useUnseenLanes } from "./new-cards";
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { buildFilterOptions, clearedParams } from "./filter-options";
 import { FilterSheetBody } from "./filter-sheet";
@@ -291,6 +292,9 @@ export function PhoneBoard(props: {
   const breathing = useBreathing(!tasks.ready && board.visible);
   // One lane on screen: its cards close the gap a card leaves, and the card fades where it was.
   const motion = useLaneMotion(lanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: false });
+  useTrackNewCards(board.hostId, lanes, tasks.ready);
+  // A lane not shown with new tasks in it: its tab says so.
+  const unseenLanes = useUnseenLanes(board.hostId);
   const renderCopy = useCallback(
     (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact fresh={false} copy callbacks={callbacks} />,
     [board, theme, callbacks],
@@ -402,7 +406,7 @@ export function PhoneBoard(props: {
                 key={id}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on }}
-                accessibilityLabel={`${strings.lanes[id]} ${count}`}
+                accessibilityLabel={`${strings.lanes[id]} ${count}${!on && unseenLanes.has(id) ? `, ${strings.newTasksIn(strings.lanes[id])}` : ""}`}
                 onPress={() => id === lane ? scrollToTop.current?.() : select(id)}
                 onLayout={(event: LayoutChangeEvent) => measureTab(id, "tab", event.nativeEvent.layout)}
                 testID={`phone-stat-${id}`}
@@ -431,11 +435,17 @@ export function PhoneBoard(props: {
                       {strings.tabs[id]}
                     </Text>
                     {tasks.ready ? (
-                      <RollingCount
-                        value={count}
-                        scope={board.scope}
-                        style={{ fontSize: F.base, fontWeight: warn || on ? "600" : "400", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}
-                      />
+                      <View>
+                        <RollingCount
+                          value={count}
+                          scope={board.scope}
+                          style={{ fontSize: F.base, fontWeight: warn || on ? "600" : "400", fontVariant: ["tabular-nums"], color: warn ? warning : on ? colors.foreground : colors.foregroundMuted }}
+                        />
+                        {/* Out of the row's flow, so the labels do not move for it. */}
+                        <View pointerEvents="none" style={{ position: "absolute", top: 1, right: -8 }}>
+                          <NewCardsDot on={!on && unseenLanes.has(id)} hue={laneHue(theme, id)} testID={`phone-new-dot-${id}`} />
+                        </View>
+                      </View>
                     ) : null}
                   </View>
                 </View>
@@ -798,11 +808,14 @@ const PhoneLane = memo(function PhoneLane(props: {
   const strings = board.strings;
   const ready = board.tasks.ready;
   const count = lane.cards.length;
-  const fresh = useFreshIds(
+  const isFresh = useFreshIds(
     lane.cards.map((card) => card.id),
     ready,
     board.scope,
   );
+  // New tasks: seen once on screen in the lane shown; until then its pill says so.
+  const unseen = useUnseenCards(board.hostId, lane.id);
+  const seen = useSeenCards(board.hostId, lane.id, board.visible && props.active !== false);
   // Hidden under copies of its cards while they move (native lane motion).
   const covered = useLaneCovered(lane.id);
   // Its list is what the lane shows: a card that leaves its end lets the list scroll back.
@@ -837,10 +850,10 @@ const PhoneLane = memo(function PhoneLane(props: {
   // No clock in here: a tick reaches the timer texts, not the list and its rows.
   const { callbacks } = props;
   const { highlighted, stop, read, fields } = board;
-  const extraData = useMemo(() => ({ highlighted, stop, read, fields, fresh, callbacks }), [highlighted, stop, read, fields, fresh, callbacks]);
+  const extraData = useMemo(() => ({ highlighted, stop, read, fields, callbacks }), [highlighted, stop, read, fields, callbacks]);
   const renderItem = useCallback(
-    ({ item }: { item: TaskCard }) => <CardCell board={board} card={item} theme={theme} compact callbacks={callbacks} fresh={fresh.has(item.id)} />,
-    [board, theme, callbacks, fresh],
+    ({ item }: { item: TaskCard }) => <CardCell board={board} card={item} theme={theme} compact callbacks={callbacks} fresh={isFresh(item.id)} />,
+    [board, theme, callbacks, isFresh],
   );
   if (!ready || (lane.initialLoading && count === 0)) {
     return (
@@ -878,6 +891,7 @@ const PhoneLane = memo(function PhoneLane(props: {
       }}
       alwaysBounceVertical
       style={covered ? { opacity: 0 } : undefined}
+      viewabilityConfigCallbackPairs={seen.viewabilityConfigCallbackPairs}
       data={lane.cards}
       keyExtractor={(card) => card.id}
       extraData={extraData}
@@ -936,6 +950,25 @@ const PhoneLane = memo(function PhoneLane(props: {
           <LaneFilterHint board={board} lane={lane.id} count={board.hidden[lane.id]} theme={theme} />
         </View>
       }
+    />
+    <NewCardsPill
+      count={props.active === false ? 0 : unseen.length}
+      direction={pillDirection(lane.cards, unseen, seen.firstShown())}
+      inset={pillDirection(lane.cards, unseen, seen.firstShown()) === "up" ? 10 : 16}
+      hue={laneHue(theme, lane.id)}
+      theme={theme}
+      strings={strings}
+      onPress={() => {
+        const index = lane.cards.findIndex((card) => card.id === unseen[0]);
+        if (index < 0) return;
+        cancelScroll();
+        try {
+          listRef.current?.scrollToIndex({ index, viewPosition: 0.5, animated: !reduced });
+        } catch {
+          // Not laid out yet: `onScrollToIndexFailed` gets it there.
+        }
+      }}
+      testID={`phone-new-pill-${lane.id}`}
     />
     {scrollActions ? (
       <View testID="phone-scroll-actions" style={{ position: "absolute", right: 12, bottom: SCROLL_ACTION.bottom }}>

@@ -216,6 +216,15 @@ export function createTitleGenerator(deps: Dependencies) {
     if (current.agent.title !== original.agent.title) throw new Error("The title changed during generation. Keep the current title and retry if needed.");
     const renamed = await deps.rename(agentId, title);
     if (!renamed.ok) throw new Error(renamed.error || "Could not update the title.");
+    if (firstPrompt !== undefined && previousTitle?.trim()) {
+      const target = paseo.workspaces.ref(original.agent.workspaceId);
+      try {
+        const currentWorkspace = await target.refresh();
+        if (currentWorkspace?.name === previousTitle) await target.setTitle(title);
+      } catch (error) {
+        console.error(`Could not update workspace title for ${agentId}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
     return previousTitle?.trim() && previousTitle !== title ? { title, previousTitle } : { title };
   }
 

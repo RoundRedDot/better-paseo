@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -98,6 +98,30 @@ async function mountTasks(fake: Fake, doneWindow: "24h" | "7d" | "all" = "24h", 
   });
   return { get current() { return current; }, renderer, unmount: () => act(() => renderer.unmount()) };
 }
+
+it("identifies scheduled agents from their own schedule label", async () => {
+  const fake = createFakePaseo({
+    agents: [
+      activeAgent("scheduled", { status: "running", labels: { "paseo.schedule-id": "schedule-1", "paseo.schedule-run": "run-1" } }),
+      activeAgent("ordinary", { status: "running", labels: {} }),
+      activeAgent("run-only", { status: "running", labels: { "paseo.schedule-run": "run-2" } }),
+    ],
+    workspaces: [workspace()],
+  });
+  const mounted = await mountTasks(fake);
+  try {
+    expect(mounted.current.byId.get("scheduled")?.scheduled).toBe(true);
+    expect(mounted.current.byId.get("ordinary")?.scheduled).toBe(false);
+    expect(mounted.current.byId.get("run-only")?.scheduled).toBe(false);
+    await act(async () => {
+      fake.upsertAgent(activeAgent("ordinary", { status: "running", labels: { "paseo.schedule-id": "schedule-2" }, updatedAt: recentIso(0) }));
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    });
+    expect(mounted.current.byId.get("ordinary")?.scheduled).toBe(true);
+  } finally {
+    mounted.unmount();
+  }
+});
 
 it("refreshes subscriptions to recover an agent missed by live updates", async () => {
   const fake = createFakePaseo({ agents: [], workspaces: [workspace()] });
@@ -197,6 +221,97 @@ describe("Tasks data store refresh", () => {
     } finally {
       mounted.unmount();
     }
+  });
+
+  describe("a new agent's idle before its first turn", () => {
+    // Paseo 0.15 sends a prompted agent's start as initializing, then idle (newer, never prompted), then running.
+    const starting = (status: "initializing" | "idle", updatedAt: string) => activeAgent("fresh", { status, createdAt: recentIso(0), updatedAt, lastUserMessageAt: null, activeTurn: null });
+    async function mountWith() {
+      const fake = createFakePaseo({ agents: [activeAgent("old", { status: "running", updatedAt: recentIso(60_000) })], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "all");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const lanesOf: string[] = [];
+      const push = async (agent: ReturnType<typeof activeAgent>) => {
+        await act(async () => {
+          fake.upsertAgent(agent);
+          await flush(4);
+        });
+        lanesOf.push(mounted.current.byId.get("fresh")?.lane ?? "none");
+      };
+      return { fake, mounted, push, lanesOf };
+    }
+
+    it("shows the card once its first turn starts, already running, and never in another lane", async () => {
+      const { mounted, push, lanesOf } = await mountWith();
+      try {
+        const created = Date.now();
+        await push(starting("initializing", new Date(created).toISOString()));
+        await push(starting("idle", new Date(created + 1).toISOString()));
+        await push(activeAgent("fresh", { status: "running", createdAt: new Date(created).toISOString(), updatedAt: new Date(created + 8).toISOString(), lastUserMessageAt: new Date(created + 8).toISOString(), activeTurn: { id: "t1", startedAt: new Date(created + 8).toISOString() } as never }));
+        // Starting up and the idle after it wait for the turn: the card first shows running.
+        expect(lanesOf).toEqual(["none", "none", "running"]);
+        expect(mounted.current.byId.get("fresh")?.status).toBe("running");
+        // The held idle is dropped: nothing moves it later.
+        await act(async () => {
+          vi.advanceTimersByTime(START_IDLE_HOLD_MS + 100);
+          await flush(4);
+        });
+        expect(mounted.current.byId.get("fresh")).toMatchObject({ lane: "running", status: "running" });
+        expect(mounted.current.lanes.done.cards.map((card) => card.id)).not.toContain("fresh");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("shows an agent made without a prompt as idle once the wait is over", async () => {
+      const { mounted, push, lanesOf } = await mountWith();
+      try {
+        const created = Date.now();
+        await push(starting("initializing", new Date(created).toISOString()));
+        await push(starting("idle", new Date(created + 1).toISOString()));
+        expect(lanesOf).toEqual(["none", "none"]);
+        await act(async () => {
+          vi.advanceTimersByTime(START_IDLE_HOLD_MS);
+          await flush(4);
+        });
+        expect(mounted.current.byId.get("fresh")?.lane).toBe("done");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("shows an agent slow to start as starting up once the wait is over", async () => {
+      const { mounted, push, lanesOf } = await mountWith();
+      try {
+        await push(starting("initializing", new Date().toISOString()));
+        expect(lanesOf).toEqual(["none"]);
+        await act(async () => {
+          vi.advanceTimersByTime(START_INIT_HOLD_MS);
+          await flush(4);
+        });
+        expect(mounted.current.byId.get("fresh")).toMatchObject({ lane: "running" });
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("does not hold an idle that ends a turn, or one that asks for the user", async () => {
+      const { mounted, push } = await mountWith();
+      try {
+        await push(activeAgent("fresh", { status: "running", updatedAt: recentIso(10) }));
+        await push(activeAgent("fresh", { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(0) }));
+        expect(mounted.current.byId.get("fresh")?.lane).toBe("review");
+        await push(starting("initializing", recentIso(-10)));
+        await push(activeAgent("fresh", { status: "idle", requiresAttention: true, attentionReason: "error", lastUserMessageAt: null, updatedAt: recentIso(-20) }));
+        expect(mounted.current.byId.get("fresh")?.lane).toBe("review");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
   });
 
   it("keeps the loaded done pages while it reads them again, then swaps them in at once", async () => {
@@ -932,6 +1047,42 @@ describe("Tasks data store", () => {
     expect(filterLanes(unlisted, filters).running.cards.map((card) => card.id)).toEqual(["child-running"]);
   });
 
+  it("keeps the board quiet for a workspace update that changes nothing it shows, and keeps its workspace options", async () => {
+    const fake = createFakePaseo({ agents: [activeAgent("in-ws", { status: "running" })], workspaces: [workspace()] });
+    const mounted = await mountTasks(fake, "24h");
+    const flush = async () => { for (let index = 0; index < 8; index += 1) await Promise.resolve(); };
+    try {
+      const before = mounted.current;
+      const count = async (change: () => void) => {
+        storeNotificationProbe.count = 0;
+        storeNotificationProbe.enabled = true;
+        try {
+          await act(async () => { change(); await flush(); });
+        } finally {
+          storeNotificationProbe.enabled = false;
+        }
+        return storeNotificationProbe.count;
+      };
+      // An agent in it starts: the daemon sends the workspace's new activity, which no card or list shows.
+      expect(await count(() => fake.upsertWorkspace({ ...workspace(), status: "running", statusEnteredAt: recentIso(0), activityAt: recentIso(0) } as never))).toBe(0);
+      expect(mounted.current).toBe(before);
+      // An agent update draws a new snapshot, with the same workspace options.
+      await act(async () => { fake.upsertAgent(activeAgent("in-ws", { status: "running", title: "Renamed task", updatedAt: recentIso(0) })); await flush(); });
+      expect(mounted.current).not.toBe(before);
+      expect(mounted.current.workspaces).toBe(before.workspaces);
+      // A renamed workspace is news: its option changes, and its card's workspace with it.
+      expect(await count(() => fake.upsertWorkspace({ ...workspace(), title: "Renamed workspace" } as never))).toBeGreaterThan(0);
+      expect(mounted.current.workspaces).not.toBe(before.workspaces);
+      expect(mounted.current.workspaces.map((option) => option.name)).toEqual(["Renamed workspace"]);
+      // A branch switch reaches the card even though the workspace's options stay.
+      const options = mounted.current.workspaces;
+      expect(await count(() => fake.upsertWorkspace({ ...workspace(), title: "Renamed workspace", gitRuntime: { currentBranch: "feature", isDirty: false, aheadBehind: { ahead: 0, behind: 0 } } } as never))).toBeGreaterThan(0);
+      expect(mounted.current.workspaces).toBe(options);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("notifies store listeners once for a multi-agent subscription snapshot", async () => {
     const agents = Array.from({ length: 120 }, (_, index) => activeAgent(`snapshot-${index}`, { status: "running" }));
     const fake = createFakePaseo({ agents });
@@ -1257,6 +1408,99 @@ describe("Tasks data store", () => {
       expect(mounted.current.byId.get("child")?.parent).toMatchObject({ missing: true, archived: true });
     } finally {
       mounted.unmount();
+    }
+  });
+
+  it("names the parent the server saw archive a task's link as history, never as a live subtask", async () => {
+    let origins = [{ agentId: "both", parentAgentId: "gone" }, { agentId: "lost", parentAgentId: "gone" }];
+    let version = 1;
+    setSubagentLoader(async () => ({ version: "s", subagents: [] }));
+    setParentOriginsLoader(async (since) => (since === String(version) ? { version: String(version), origins: null } : { version: String(version), origins }));
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("parent", { status: "running", title: "Parent", updatedAt: at(10) }),
+        activeAgent("child", { status: "running", title: "Child", labels: { "paseo.parent-agent-id": "parent" } }),
+        activeAgent("by-hand", { status: "running", title: "Detached by hand", labels: { "paseo.parent-agent-id": "parent" } }),
+        activeAgent("both", { status: "idle", updatedAt: at(9), title: "Live parent too", labels: { "paseo.parent-agent-id": "parent" } }),
+        activeAgent("lost", { status: "running", title: "Parent unreadable" }),
+      ],
+    });
+    const mounted = await mountTasks(fake, "all");
+    // An agent update brings the next read of the server's origins forward.
+    const settle = () => act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1_600));
+    });
+    try {
+      await act(async () => {
+        await vi.waitFor(() => expect(mounted.current.byId.get("lost")?.parent).not.toBeNull());
+      });
+      // A former parent that cannot be read stays named by id, unknown rather than guessed.
+      expect(mounted.current.byId.get("lost")?.parent).toEqual({ id: "gone", title: null, missing: true, archived: null, detached: true });
+      // A live parent label wins over a recorded origin.
+      expect(mounted.current.byId.get("both")?.parent).toEqual({ id: "parent", title: "Parent", missing: false, archived: false });
+      expect(mounted.current.byId.get("parent")?.children.map((child) => child.id)).toEqual(["child", "by-hand", "both"]);
+
+      // Detached by hand: the label goes and the server records nothing, so the card names no parent.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("by-hand", { status: "running", title: "Detached by hand", updatedAt: at(11) }));
+      });
+      await settle();
+      expect(mounted.current.byId.get("by-hand")?.parent).toBeNull();
+
+      // The daemon archives the parent and detaches the surviving child; the server confirms it.
+      origins = [...origins, { agentId: "child", parentAgentId: "parent" }];
+      version = 2;
+      await act(async () => {
+        fake.upsertAgent(activeAgent("parent", { status: "closed", title: "Parent", updatedAt: at(12), archivedAt: at(12) }));
+        fake.upsertAgent(activeAgent("child", { status: "running", title: "Child", updatedAt: at(13) }));
+      });
+      await settle();
+      const detached = mounted.current.byId.get("child");
+      expect(detached?.parent).toEqual({ id: "parent", title: "Parent", missing: true, archived: true, archivedAs: "agent", detached: true });
+      expect(mounted.current.byId.get("by-hand")?.parent).toBeNull();
+      // Still its own running task: not folded, not waiting on, not stopped with the parent.
+      expect(detached?.lane).toBe("running");
+      expect(filterLanes(mounted.current.lanes, { ...EMPTY_FILTERS, hideSubtasks: true }).running.cards.map((card) => card.id)).toContain("child");
+
+      // Restoring the parent does not reattach the child: the link stays history.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("parent", { status: "idle", title: "Parent", updatedAt: at(14), archivedAt: null }));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      const restored = mounted.current.byId.get("parent");
+      expect(restored?.children.map((child) => child.id)).toEqual(["both"]);
+      // Its only live child is idle; the running detached task does not keep it waiting.
+      expect(restored?.waitingOnSubtasks).toBeUndefined();
+      expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "parent", title: "Parent", missing: false, archived: false, detached: true });
+
+      // The former parent's rename reaches the child's link.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("parent", { status: "idle", title: "Renamed parent", updatedAt: at(15), archivedAt: null }));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("child")?.parent).toMatchObject({ title: "Renamed parent", detached: true });
+
+      // Done, it stays a card when subtasks are hidden: hiding folds only live subtasks.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("child", { status: "idle", title: "Child", updatedAt: at(16) }));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("child")?.lane).not.toBe("running");
+      const hidden = filterLanes(mounted.current.lanes, { ...EMPTY_FILTERS, hideSubtasks: true });
+      expect(LANE_ORDER.flatMap((lane) => hidden[lane].cards.map((card) => card.id))).toContain("child");
+
+      // The server forgets it (a live parent again elsewhere): the card follows.
+      origins = origins.filter((origin) => origin.agentId !== "child");
+      version = 3;
+      await act(async () => {
+        fake.upsertAgent(activeAgent("other", { status: "running" }));
+      });
+      await settle();
+      expect(mounted.current.byId.get("child")?.parent).toBeNull();
+    } finally {
+      mounted.unmount();
+      setSubagentLoader(null);
+      setParentOriginsLoader(null);
     }
   });
 
@@ -1632,9 +1876,15 @@ describe("Tasks data store", () => {
         act(() => renderer.update(React.createElement(Counts)));
         // The running child shows on its running parent's card, not as a card of its own.
         expect(current.running).toBe(2);
+        expect(current.hidden?.map((card) => card.id)).toEqual([]);
         scope = claude;
         act(() => renderer.update(React.createElement(Counts)));
         expect(current.running).toBe(1);
+        expect(current.hidden?.map((card) => card.id)).toEqual(["other"]);
+        scope = { filters: { ...EMPTY_FILTERS, query: "no matching task" } };
+        act(() => renderer.update(React.createElement(Counts)));
+        expect(current.running).toBe(0);
+        expect(current.hidden?.map((card) => card.id).sort()).toEqual(["child", "other", "parent"]);
       } finally {
         act(() => renderer.unmount());
       }
