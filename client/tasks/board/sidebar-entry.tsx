@@ -112,13 +112,23 @@ function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: 
   const language = useTasksLanguage();
   const parts = sidebarCountParts(counts, counts.ready ? props.mode : "none");
   const hidden = counts.ready ? (counts.hidden ?? []).filter((card) => props.mode === "all" || card.lane === "needs_input") : [];
+  const countsAnchor = useRef<View>(null);
+  const hint = [
+    ...(hidden.length ? [language === "zh" ? `${hidden.length} 个被隐藏的任务` : `${hidden.length} hidden ${hidden.length === 1 ? "task" : "tasks"}`] : []),
+    sidebarCountText(parts, language),
+  ].filter(Boolean).join(language === "zh" ? "，" : ", ");
+  useLayoutEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = countsAnchor.current as unknown as HTMLElement | null;
+    node?.setAttribute("title", hint);
+  }, [hint]);
   const colors = props.theme.colors;
   const warning = useTaskTokens(props.theme).status.warning;
   const trailing =
     parts.length > 0 || hidden.length > 0 ? (
       // The host's row scales its own label with the interface size; the counts follow the same ramp.
       <TasksTypography theme={props.theme}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+        <View ref={countsAnchor} testID="sidebar-counts-area" style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, marginVertical: -6, paddingLeft: 16, marginLeft: -16, paddingRight: 8, marginRight: -8 }}>
           {hidden.length > 0 ? <HiddenCount tasks={hidden} theme={props.theme} language={language} /> : null}
           <View accessible accessibilityLabel={sidebarCountText(parts, language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             {parts.map((part) => <SidebarCountIndicator key={part.lane} part={part} theme={props.theme} language={language} color={part.lane === "needs_input" ? warning : colors.foregroundMuted} />)}
