@@ -2,7 +2,8 @@ import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import type { LiveTodoPayload } from "../../client/live-renderers";
-import { deriveTodoActivities, useLatestTodoItems, type TodoTask } from "../../client/state/todo-timeline";
+import { deriveTodoActivities, useLatestTodoItems, useMatchingTodo, type TodoTask } from "../../client/state/todo-timeline";
+import { grokTodoItems } from "../../client/tools/activity";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({
@@ -150,6 +151,53 @@ describe("deriveTodoActivities", () => {
 });
 
 describe("live todo timeline", () => {
+  it("matches a Grok plan result only to the same nearby agent snapshot, regardless of arrival order", () => {
+    const detail = { type: "plain_text", label: "Updating plan", text: JSON.stringify({ TodosUpdated: {
+      todos: created.map((task) => ({ content: task.text, status: task.status })),
+    } }) };
+    const items = grokTodoItems(detail);
+    let match = false;
+    function Result({ agent = "grok-match", at = 1000 }: { agent?: string; at?: number }) {
+      match = useMatchingTodo(agent, at, items);
+      return null;
+    }
+    let renderer: Renderer;
+    act(() => { renderer = TestRenderer.create(React.createElement(Result)); });
+    expect(match).toBe(false);
+    act(() => { renderer!.update(React.createElement(React.Fragment, null,
+      React.createElement(Result), todo("grok-match", "plan", 1100, created))); });
+    expect(match).toBe(true);
+    act(() => { renderer!.update(React.createElement(React.Fragment, null,
+      React.createElement(Result, { agent: "other" }), todo("grok-match", "plan", 1100, created))); });
+    expect(match).toBe(false);
+    act(() => { renderer!.update(React.createElement(React.Fragment, null,
+      todo("grok-match", "plan", 1100, firstDone), React.createElement(Result))); });
+    expect(match).toBe(false);
+    act(() => { renderer!.update(React.createElement(React.Fragment, null,
+      todo("grok-match", "plan", 1100, created), React.createElement(Result, { at: 5000 }))); });
+    expect(match).toBe(false);
+    act(() => { renderer!.update(React.createElement(React.Fragment, null,
+      todo("grok-match", "plan", 1100, created.map((task) => ({ text: task.text, completed: false }))),
+      React.createElement(Result))); });
+    expect(match).toBe(true);
+    act(() => renderer!.unmount());
+  });
+
+  it("keeps the Grok result when the host loses its in-progress status", () => {
+    const items = grokTodoItems({ type: "plain_text", label: "Updating plan", text: JSON.stringify({
+      TodosUpdated: { todos: [{ content: "Build", status: "in_progress" }] },
+    }) });
+    let match = true;
+    function Result() {
+      match = useMatchingTodo("grok-active", 1000, items);
+      return null;
+    }
+    let renderer: Renderer;
+    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+      todo("grok-active", "plan", 1100, [{ text: "Build", completed: false }]), React.createElement(Result))); });
+    expect(match).toBe(false);
+    act(() => renderer!.unmount());
+  });
   afterEach(() => {
     delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
   });

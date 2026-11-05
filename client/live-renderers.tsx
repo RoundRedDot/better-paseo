@@ -13,7 +13,8 @@ import { observeReasoning, observedDurationMs } from "./reasoning/observed";
 import { useDisclosure } from "./state/disclosure-store";
 import { TaskList, TaskListPanel, useTaskListPanel } from "./components/task-list";
 import { TaskActivityRow } from "./components/task-activity-row";
-import { HOST_ITEM_GAP, deriveTodoActivities, todoTaskStatus, useLatestTodoItems, useTodoTimeline, type EmptyGapTakeBack, type TodoTask } from "./state/todo-timeline";
+import { HOST_ITEM_GAP, deriveTodoActivities, todoTaskStatus, useLatestTodoItems, useMatchingTodo, useTodoTimeline, type EmptyGapTakeBack, type TodoTask } from "./state/todo-timeline";
+import { grokTodoItems } from "./tools/activity";
 import { UserMessage } from "./components/user-message";
 import { itemRootFont } from "./components/host-font-escape";
 import { pluginRoot } from "./components/focus-ring";
@@ -178,6 +179,9 @@ function LiveToolCallRendererBody({
   useSelectionActions(tokens, preferences.selectionActions);
   const data = item.data;
 
+  const grokTodos = useMemo(() => data.status === "completed" ? grokTodoItems(data.detail ?? {}) : null, [data.detail, data.status]);
+  const duplicateTodo = useMatchingTodo(agentId, timestamp.getTime(), grokTodos);
+
   const view = useMemo(() => classifyTool(data), [data]);
   // The host rewrites a call's timestamp as its result arrives, but keeps
   // its timeline slot. Ordering by that update time can move the gap from
@@ -258,7 +262,7 @@ function LiveToolCallRendererBody({
         hostStacks ? 0 : copiesBelow, copiesBelowHeight,
       )}
     >
-      {group !== null ? (
+      {group !== null && !duplicateTodo ? (
         <>
           {probe.node}
           <PreferenceSyncSlot />

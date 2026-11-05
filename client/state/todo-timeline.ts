@@ -254,6 +254,21 @@ export function useLatestTodoItems(agentId: string, enabled: boolean): readonly 
   return useSyncExternalStore(subscribe, getLatest, getLatest);
 }
 
+/** A Grok tool result and its ACP plan update describe the same snapshot. */
+export function useMatchingTodo(agentId: string, at: number, items: readonly TodoTask[] | null): boolean {
+  const getMatch = useCallback(() => {
+    if (!items?.length) return false;
+    return [...(agents.get(agentId)?.updates.values() ?? [])].some((update) =>
+      Math.abs(update.at - at) <= 3000 && update.items.length === items.length &&
+      update.items.every((task, index) => task.text === items[index]?.text &&
+        (task.status ? todoTaskStatus(task) === todoTaskStatus(items[index]!) :
+          todoTaskStatus(items[index]!) !== "in_progress" &&
+          (todoTaskStatus(task) === "completed") === (todoTaskStatus(items[index]!) === "completed"))),
+    );
+  }, [agentId, at, items]);
+  return useSyncExternalStore(subscribe, getMatch, getMatch);
+}
+
 /**
  * Records this todo item while it is mounted and says how it draws. `previous`
  * is the list of the update before it, null when none is known. `view` is the
