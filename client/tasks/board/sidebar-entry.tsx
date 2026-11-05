@@ -1,5 +1,5 @@
-import React, { useMemo, useSyncExternalStore, type ReactNode } from "react";
-import { View } from "react-native";
+import React, { useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { Platform, View } from "react-native";
 import type { PaseoApi } from "@getpaseo/client";
 import type { PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { usePaseo, useSettings } from "@getpaseo/plugin/client";
@@ -15,7 +15,7 @@ import { LANE_STATUS, type TaskCard } from "../model";
 import { HOST_FONT, TaskText as Text, TasksTypography } from "../typography";
 import { useTasksLanguage } from "../i18n";
 import { useTasksSettings } from "./enabled";
-import { sidebarCountParts, sidebarCountText } from "./navigation";
+import { sidebarCountParts, sidebarCountText, type SidebarCountPart } from "./navigation";
 import { encodeBoardParams, lastBoardParams, resolveBoardParams, subscribeBoardParams } from "./params";
 import { useBoardIntent } from "./prefetch";
 import { BOARD_STRINGS } from "./strings";
@@ -121,27 +121,24 @@ function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           {hidden.length > 0 ? <HiddenCount tasks={hidden} theme={props.theme} language={language} /> : null}
           <View accessible accessibilityLabel={sidebarCountText(parts, language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          {parts.map((part) => {
-            const input = part.lane === "needs_input";
-            return (
-              <View key={part.lane} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
-                <StatusIcon kind={LANE_STATUS[part.lane]} size={14} theme={props.theme} />
-                <Text
-                  style={{
-                    fontSize: HOST_FONT.sm,
-                    ...(input ? { fontWeight: "600" as const } : null),
-                    color: input ? warning : colors.foregroundMuted,
-                    fontVariant: ["tabular-nums"],
-                  }}
-                >
-                  {part.count}
-                </Text>
-              </View>
-            );
-          })}
+            {parts.map((part) => <SidebarCountIndicator key={part.lane} part={part} theme={props.theme} language={language} color={part.lane === "needs_input" ? warning : colors.foregroundMuted} />)}
           </View>
         </View>
       </TasksTypography>
     ) : undefined;
   return <TasksRow {...props} trailing={trailing} />;
+}
+
+function SidebarCountIndicator({ part, theme, language, color }: { part: SidebarCountPart; theme: PluginSidebarItemProps["theme"]; language: "en" | "zh"; color: string }) {
+  const anchor = useRef<View>(null);
+  const label = sidebarCountText([part], language);
+  useLayoutEffect(() => {
+    if (Platform.OS !== "web") return;
+    const node = anchor.current as unknown as HTMLElement | null;
+    node?.setAttribute("title", label);
+  }, [label]);
+  return <View ref={anchor} testID={`sidebar-count-${part.lane}`} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+    <StatusIcon kind={LANE_STATUS[part.lane]} size={14} theme={theme} />
+    <Text style={{ fontSize: HOST_FONT.sm, ...(part.lane === "needs_input" ? { fontWeight: "600" as const } : null), color, fontVariant: ["tabular-nums"] }}>{part.count}</Text>
+  </View>;
 }

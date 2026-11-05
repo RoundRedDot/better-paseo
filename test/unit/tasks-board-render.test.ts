@@ -5807,6 +5807,28 @@ describe("Tasks sidebar entry", () => {
     expect(textOf(row)).toBe("132");
   });
 
+  it("updates the hover hint for each visible sidebar count", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, sidebar: { count: "all" } };
+    host.counts = { running: 3, needsInput: 1, review: 2, done: 0 };
+    const titles = new Map<string, string>();
+    const props = { theme, host: { id: "host-1", label: "Local" }, layout: { compact: false, platform: "web" as const }, currentScreen: null, openScreen: vi.fn(), openPopover: vi.fn() };
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(TasksSidebarEntry, props), {
+        createNodeMock: (element) => {
+          const id = (element.props as { testID?: string }).testID;
+          return id?.startsWith("sidebar-count-") ? { setAttribute: (_name: string, value: string) => titles.set(id, value) } : null;
+        },
+      });
+    });
+    expect(titles.get("sidebar-count-needs_input")).toBe("1 need input");
+    expect(titles.get("sidebar-count-running")).toBe("3 running");
+    expect(titles.get("sidebar-count-review")).toBe("2 to review");
+    host.counts = { running: 4, needsInput: 1, review: 2, done: 0 };
+    act(() => renderer!.update(React.createElement(TasksSidebarEntry, props)));
+    expect(titles.get("sidebar-count-running")).toBe("4 running");
+  });
+
   it("hides a zero count and draws nothing when all are zero", () => {
     host.counts = { running: 0, needsInput: 2, review: 0, done: 0 };
     const row = entry(null);
