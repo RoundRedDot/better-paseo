@@ -118,6 +118,21 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it("clears filters and shows subtasks when clearing a hidden card notice", async () => {
+    const card = previewSampleCards(NOW).find((item) => item.id === "sample-child-1")!;
+    const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: [] }]));
+    const setParams = vi.fn();
+    const board = {
+      language: "en", strings: BOARD_STRINGS.en, params: EMPTY_PARAMS, lanes,
+      tasks: { ready: true }, cardById: () => card, setParams, callbacks: {},
+      stop: { phase: () => "idle" }, read: { available: false }, unarchive: { available: false }, archive: { pending: () => false }, buttonsFor: () => [],
+    } as unknown as BoardController;
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: card.id, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={false} stats={false} />);
+    const button = host(root, "detail-notice").find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    await act(async () => button.props.onPress());
+    expect(setParams).toHaveBeenCalledOnce();
+    expect(setParams.mock.calls[0]![0]({ ...EMPTY_PARAMS, query: "test", hideSubtasks: true })).toEqual({ ...EMPTY_PARAMS, hideSubtasks: false });
+  });
   it("restarts the countdown if a hovered undo button is unmounted", async () => {
     vi.useFakeTimers();
     const child = details("en").card.children[0]!;

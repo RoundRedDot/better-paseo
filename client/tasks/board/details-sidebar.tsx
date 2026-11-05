@@ -70,7 +70,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
 
   let notice: DetailNotice | null = null;
   if (card && !shown) {
-    notice = { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams(clearedParams) } };
+    notice = { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams((params) => ({ ...clearedParams(params), hideSubtasks: false })) } };
   }
   const backId = selection.back[selection.back.length - 1];
   const backCard = backId ? board.cardById(backId) : undefined;
