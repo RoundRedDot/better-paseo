@@ -2,9 +2,14 @@ import {
   Children,
   createContext,
   createElement,
+  Fragment,
   isValidElement,
   useContext,
+  useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
+  useState,
   type ElementType,
   type ReactNode,
 } from "react";
@@ -155,6 +160,7 @@ export function ProseText({ style, children, ...rest }: TextProps) {
     () => ({ ...(StyleSheet.flatten(style) ?? {}), backgroundColor: run.style.backgroundColor }),
     [style, run],
   );
+  const redraw = useContext(ProseRedrawContext);
   if (!native) {
     return (
       <Text selectable style={[style, contentTextStyle()]} {...rest} {...contentTextProps()}>
@@ -162,22 +168,73 @@ export function ProseText({ style, children, ...rest }: TextProps) {
       </Text>
     );
   }
+  const root = (
+    <ROOT
+      selectable
+      allowFontScaling={rest.allowFontScaling ?? true}
+      numberOfLines={rest.numberOfLines}
+      accessible={rest.accessible}
+      accessibilityLabel={rest.accessibilityLabel}
+      // The root reports each laid-out line's text (no geometry).
+      onTextLayout={rest.onTextLayout}
+      style={rootStyle}
+    >
+      {fragments(children, run)}
+    </ROOT>
+  );
   return (
     <RunContext.Provider value={run}>
-      <ROOT
-        selectable
-        allowFontScaling={rest.allowFontScaling ?? true}
-        numberOfLines={rest.numberOfLines}
-        accessible={rest.accessible}
-        accessibilityLabel={rest.accessibilityLabel}
-        // The root reports each laid-out line's text (no geometry).
-        onTextLayout={rest.onTextLayout}
-        style={rootStyle}
-      >
-        {fragments(children, run)}
-      </ROOT>
+      {redraw ? <RedrawAtRest redraw={redraw} signature={textSignature(style, children)}>{root}</RedrawAtRest> : root}
     </RunContext.Provider>
   );
+}
+
+/**
+ * The details drawer's slide-in, as the native text in its body sees it. A
+ * UITextView takes its string only as it draws (`RNUITextView` `drawRect:`),
+ * and one whose text came or changed while the drawer was below the screen
+ * stayed blank where it came to rest. That text mounts again at rest. Text
+ * drawn before the slide is left alone: mounting every text again made the
+ * whole body flash as the drawer settled.
+ */
+export interface ProseRedraw {
+  /** Whether the drawer is sliding in. */
+  sliding(): boolean;
+  /** Calls `listener` each time the drawer comes to rest after sliding in; returns its removal. */
+  onRedraw(listener: () => void): () => void;
+}
+
+export const ProseRedrawContext = createContext<ProseRedraw | null>(null);
+
+/** What a native root draws: its runs' text and styles, nested spans included. */
+export function textSignature(style: TextProps["style"], children: ReactNode): string {
+  let out = JSON.stringify(StyleSheet.flatten(style) ?? null);
+  Children.forEach(children, (child) => {
+    if (typeof child === "string" || typeof child === "number") out += `|${child}`;
+    else if (isValidElement(child)) {
+      const props = child.props as { style?: TextProps["style"]; children?: ReactNode };
+      out += `<${textSignature(props.style, props.children)}>`;
+    }
+  });
+  return out;
+}
+
+/** Mounts its text again when the drawer rests, if that text came or changed during the slide. */
+function RedrawAtRest({ redraw, signature, children }: { redraw: ProseRedraw; signature: string; children: ReactNode }) {
+  const [drawn, setDrawn] = useState(0);
+  const shown = useRef<string | null>(null);
+  const stale = useRef(false);
+  useLayoutEffect(() => {
+    if (shown.current === signature) return;
+    shown.current = signature;
+    if (redraw.sliding()) stale.current = true;
+  }, [redraw, signature]);
+  useEffect(() => redraw.onRedraw(() => {
+    if (!stale.current) return;
+    stale.current = false;
+    setDrawn((count) => count + 1);
+  }), [redraw]);
+  return <Fragment key={drawn}>{children}</Fragment>;
 }
 
 /**
