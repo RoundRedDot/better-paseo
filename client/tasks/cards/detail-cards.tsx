@@ -826,7 +826,7 @@ function PermissionBlock(props: Inner) {
       </View>
       {permission.summary ? (
         <View style={{ marginHorizontal: 12, marginTop: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, borderWidth: 1, borderColor: tokens.border, backgroundColor: tokens.card.background }}>
-          <Text style={{ fontSize: F.sm, lineHeight: CODE_LINE, fontFamily: MONO, color: tokens.foreground }}>{permission.summary}</Text>
+          <Text style={{ fontSize: permission.kind === "question" ? F.base : F.sm, lineHeight: permission.kind === "question" ? HOST_LINE.base : CODE_LINE, fontFamily: MONO, color: tokens.foreground }}>{permission.summary}</Text>
         </View>
       ) : null}
       {buttons.length > 0 ? (
