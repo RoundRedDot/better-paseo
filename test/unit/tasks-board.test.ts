@@ -153,11 +153,14 @@ describe("board params", () => {
     expect(resolveBoardParams({ ...EMPTY_PARAMS, hideSubtasks: false, doneWindow: "7d" }, { hideSubtasks: true, doneWindow: "all" }).doneWindow).toBe("7d");
   });
 
-  it("counts active filters for the phone badge", () => {
+  it("counts active filters for the phone, tablet and desktop badges", () => {
     expect(activeFilterCount(EMPTY_PARAMS, defaults)).toBe(0);
     const params: BoardParams = { ...EMPTY_PARAMS, workspaceIds: ["a", "b"], providers: ["claude"], query: "x", doneWindow: "7d" };
-    expect(activeFilterCount(params, defaults)).toBe(5);
-    expect(activeFilterCount({ ...EMPTY_PARAMS, doneWindow: "24h" }, defaults)).toBe(0);
+    expect(activeFilterCount(params, defaults)).toBe(4);
+    for (const doneWindow of ["24h", "7d", "all"] as const) {
+      expect(activeFilterCount({ ...EMPTY_PARAMS, doneWindow }, defaults)).toBe(0);
+      expect(activeFilterCount({ ...EMPTY_PARAMS, doneWindow }, { ...defaults, doneWindow: "all" })).toBe(0);
+    }
   });
 
   it.each([null, false, true])("keeps the filter badge independent of hideSubtasks=%s", (hideSubtasks) => {

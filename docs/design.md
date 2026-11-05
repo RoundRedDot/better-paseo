@@ -886,6 +886,12 @@ apply to all three.
   Running and Review excluded by hiding subtasks under the other current filters; Done and
   Archived do not contribute. This badge appears only while subtasks are hidden, including on
   the phone and desktop switches. The phone/desktop Filters badge retains its accent treatment.
+- The numbered filter circle uses one count on the phone More button, the tablet Filters button
+  (or View, when Filters is folded into it) and the desktop sheet's Filters button.
+  `activeFilterCount` adds one for each selected workspace, agent and label, and one when the
+  search is not empty. Switching the time range does not show the circle. The subtask switch,
+  archived lane, empty groups, lane width and sort already show their own state and do not add
+  to it. Zero draws nothing.
 - The tablet Subtasks switch stays transparent in both states; its icon and hidden-card badge
   communicate the state. Keep its accessibility selected state and the normal press lift.
 - Round buttons (`RoundButton`) are a 36 circle in a 44 target with a hairline, an accent border

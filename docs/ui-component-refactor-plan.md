@@ -92,7 +92,7 @@
 
 **工具栏与 sheet 契约。** 控件高度为 `taskControlHeight(web ? 28 : 36, scale)`，即 `round(h * max(1, scale))`；所有纯图标菜单同宽高、水平 padding 0、图标 `round(size/2)`、圆角 `size/2`、hairline边框。文字采用 `F.base`（14 authored）经 TaskText 缩放，不保留中间提交的原生 `F.sm`。Web compact 隐藏标签及 chevron；原生即使宽到1600也不恢复标签，且不挂载隐藏文字测量层。菜单 top 使用同一缩放后的按钮高度 `+ 6`，不能提取后固定为34。顶部搜索仍为28基准高度，顶栏48，不能误写成全工具栏36。
 
-原生 chips 仍不排除 `sub`／`win`，即使子任务开关现已直接显示，也继续保留这些 chips；Web 由自身控件表达这两项，chips 排除它们。更多 badge 用 `activeFilterCount(params, defaults)`：workspace/provider/label 项数、隐藏子任务、非空搜索及非默认 doneWindow；归档、空组、车道宽度和排序不计入 badge。归档来自 `board.showArchived/setShowArchived`，经设备偏好保存，不从过滤参数或局部 sheet state 推导。清除筛选仍保持既有排序／设备偏好语义。
+原生 chips 仍不排除 `sub`／`win`，即使子任务开关现已直接显示，也继续保留这些 chips；Web 由自身控件表达这两项，chips 排除它们。更多 badge 用 `activeFilterCount(params, defaults)`：workspace/provider/label 项数及非空搜索。时间范围、子任务开关、归档、空组、车道宽度和排序不计入 badge。归档来自 `board.showArchived/setShowArchived`，经设备偏好保存，不从过滤参数或局部 sheet state 推导。清除筛选仍保持既有排序／设备偏好语义。
 
 `sheetMode = sidebarMode(boardWidth, previousMode) === "sheet"` 时整条 DesktopFilterBar 隐藏，顶部提供归档和筛选入口；该模式按板宽及760/784滞回决定，**不等于手机 compact**。宿主 Modal 的打开条件为 `(touch || sheetMode) && filtersOpen`，`Modal.Content scrollable={false}`，滚动和底部按钮由 FilterSheetBody 自己负责，Modal 内重新提供 TasksTypography。
 
