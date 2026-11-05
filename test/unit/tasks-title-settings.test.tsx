@@ -1,7 +1,7 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema } from "../../shared/title-generation";
+import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema } from "../../shared/title-generation";
 import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { Section, SettingsTips, SettingRow, type PageLook } from "../../client/settings-controls";
 import "./helpers/quiet-renderer";
@@ -14,7 +14,7 @@ vi.mock("react-native", async () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({ useSettings: () => state.current, useRpc: () => state.catalog }));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const react = await import("react");
-  return { TextInput: "TextInput", Icon: "Icon", Modal: Object.assign(
+  return { TextInput: "TextInput", ScrollView: "ScrollView", Icon: "Icon", Modal: Object.assign(
     (props: { children: React.ReactNode }) => react.createElement("Modal", props, props.children),
     { Content: (props: { children: React.ReactNode }) => react.createElement("ModalContent", props, props.children) },
   ) };
@@ -52,6 +52,13 @@ async function mount(extra: object = {}) {
 }
 const flushSave = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(500); }); };
 const customToggle = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "switch" && node.props.accessibilityLabel === "自定义自动标题模型");
+
+const promptDisplay = () => tree.root.findByProps({ testID: "title-generation-prompt" });
+const editPrompt = async (value: string) => {
+  await act(async () => tree.root.findByProps({ accessibilityLabel: "编辑 Prompt" }).props.onPress());
+  await act(async () => tree.root.findByProps({ testID: "title-prompt-edit-input" }).props.onChangeText(value));
+};
+const savePrompt = async () => { await act(async () => tree.root.findByProps({ accessibilityLabel: "保存" }).props.onPress()); };
 
 describe("automatic title settings", () => {
   it.each([
@@ -91,7 +98,8 @@ describe("automatic title settings", () => {
   it.each([false, true])("resets only title settings and discards the title draft (compact: %s)", async (compact) => {
     const settings = await mount();
     await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
-    await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("Unsaved prompt"));
+    await editPrompt("Unsaved prompt");
+    await act(async () => tree.root.findByProps({ accessibilityLabel: "取消" }).props.onPress());
     const reset = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "恢复自动标题");
     expect(reset.props.disabled).toBe(false);
     await act(async () => reset.props.onPress());
@@ -102,19 +110,20 @@ describe("automatic title settings", () => {
     expect(settings.save).not.toHaveBeenCalled();
     expect(customToggle().props.accessibilityState.checked).toBe(false);
     expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "关闭标题生成思考模式").props.accessibilityState.checked).toBe(true);
-    expect(tree.root.findByType("TextInput" as never).props.value).toBe(titleGenerationSettingsSchema.parse({}).prompt);
-    expect(tree.root.findByType("TextInput" as never).props.value).toContain("Use the language of the first user message.");
-    expect(tree.root.findByType("TextInput" as never).props.value).toContain("Limit the title to 60 characters including spaces.");
+    expect(promptDisplay().props.value).toBe(titleGenerationSettingsSchema.parse({}).prompt);
+    expect(promptDisplay().props.value).toContain("Use the language of the first user message.");
+    expect(promptDisplay().props.value).toContain("Limit the title to 60 characters including spaces.");
     expect(tree.root.findAllByType(ProviderLogo)).toHaveLength(0);
   });
 
   it("keeps the draft and exposes a failed title reset", async () => {
     await mount({ reset: vi.fn(async () => false), saveError: "Reset failed" });
-    await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("Keep this prompt"));
+    await editPrompt("Keep this prompt");
+    await savePrompt();
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "恢复自动标题").props.onPress());
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认重置").props.onPress());
     expect(customToggle().props.accessibilityState.checked).toBe(true);
-    expect(tree.root.findByType("TextInput" as never).props.value).toBe("Keep this prompt");
+    expect(promptDisplay().props.value).toBe("Keep this prompt");
     expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert").children.join("")).toContain("Reset failed");
   });
 
@@ -181,7 +190,7 @@ describe("automatic title settings", () => {
     await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
     expect(customToggle().props.accessibilityState.checked).toBe(true);
     expect(tree.root.findByType(ProviderLogo).props.provider).toBe("claude");
-    expect(tree.root.findByType("TextInput" as never).props.value).toBe("Shared prompt");
+    expect(promptDisplay().props.value).toBe("Shared prompt");
     expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "关闭标题生成思考模式").props.accessibilityState.checked).toBe(false);
     await flushSave();
     expect(settings.save).not.toHaveBeenCalled();
@@ -196,24 +205,44 @@ describe("automatic title settings", () => {
     const settings = await mount();
     expect(state.catalog).toHaveBeenCalledExactlyOnceWith({ provider: "claude" });
     expect(tree.root.findByType(ProviderLogo).props.provider).toBe("claude");
-    await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("Summarize the actual goal"));
+    await editPrompt("Summarize the actual goal");
+    await savePrompt();
     await flushSave();
     expect(settings.save).toHaveBeenCalledExactlyOnceWith({ afterFirstReply: false, customModel: true, disableThinking: false, provider: "claude", model: "haiku", thinkingOptionId: "", prompt: "Summarize the actual goal" }, "r1");
   });
 
-  it("debounces prompt edits and does not save an empty prompt", async () => {
+  it("saves only on confirmation and discards cancelled or empty edits", async () => {
     const settings = await mount();
-    const input = () => tree.root.findByType("TextInput" as never);
-    await act(async () => input().props.onChangeText("First"));
-    await act(async () => { await vi.advanceTimersByTimeAsync(300); });
-    await act(async () => input().props.onChangeText("Final"));
-    await act(async () => { await vi.advanceTimersByTimeAsync(499); });
-    expect(settings.save).not.toHaveBeenCalled();
-    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
-    expect(settings.save).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ prompt: "Final" }), "r1");
-    await act(async () => input().props.onChangeText("   "));
+    const original = promptDisplay().props.value;
+    await editPrompt("Cancelled");
+    const input = tree.root.findByProps({ testID: "title-prompt-edit-input" });
+    if (input.props.onContentSizeChange) {
+      await act(async () => input.props.onContentSizeChange({ nativeEvent: { contentSize: { height: 360 } } }));
+      expect(tree.root.findByProps({ testID: "title-prompt-edit-input" }).props.style[1].height).toBe(360);
+    }
     await flushSave();
-    expect(settings.save).toHaveBeenCalledTimes(1);
+    expect(settings.save).not.toHaveBeenCalled();
+    await act(async () => tree.root.findByProps({ accessibilityLabel: "取消" }).props.onPress());
+    expect(promptDisplay().props.value).toBe(original);
+    await editPrompt("   ");
+    expect(tree.root.findByProps({ accessibilityLabel: "保存" }).props.disabled).toBe(true);
+    await act(async () => tree.root.findByProps({ testID: "title-prompt-edit-input" }).props.onChangeText("Final"));
+    expect(tree.root.findAllByProps({ testID: "task-rename-auto-title" })).toHaveLength(0);
+    await savePrompt();
+    await flushSave();
+    expect(settings.save).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ prompt: "Final" }), "r1");
+  });
+
+  it("restores the default prompt in the editor and saves only when confirmed", async () => {
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ prompt: "Custom prompt" }) });
+    await editPrompt("Unsaved edit");
+    await act(async () => tree.root.findByProps({ accessibilityLabel: "重置" }).props.onPress());
+    expect(tree.root.findByProps({ testID: "title-prompt-edit-input" }).props.value).toBe(DEFAULT_TITLE_PROMPT);
+    await flushSave();
+    expect(settings.save).not.toHaveBeenCalled();
+    await savePrompt();
+    await flushSave();
+    expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ prompt: DEFAULT_TITLE_PROMPT }), "r1");
   });
 
   it.each([false, true])("selects the first available model on provider change (compact: %s)", async (compact) => {
@@ -232,8 +261,7 @@ describe("automatic title settings", () => {
     expect(modelButton.findAllByType("Text" as never).some((node) => node.children.join("") === "First model")).toBe(true);
     await flushSave();
     expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ provider: "codex", model: "first", thinkingOptionId: "" }), "r1");
-    await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("   "));
-    await flushSave();
+
   });
 
   it("keeps model selection empty when the new provider has no available models", async () => {
@@ -322,7 +350,8 @@ describe("automatic title settings", () => {
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert")[0]!.children.join("")).toContain("Provider offline");
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "刷新模型").props.onPress());
     expect(state.catalog).toHaveBeenCalledTimes(2);
-    await act(async () => tree.root.findByType("TextInput" as never).props.onChangeText("Changed prompt"));
+    await editPrompt("Changed prompt");
+    await savePrompt();
     await flushSave();
     expect(settings.save).toHaveBeenCalledTimes(1);
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert")[0]!.children.join("")).toContain("Save offline");
