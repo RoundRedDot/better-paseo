@@ -197,6 +197,26 @@ describe("sidebar action tips", () => {
     expect(row().findAll((node) => node.props.testID === "task-title-update-shimmer")).toHaveLength(0);
     expect(host(row(), `detail-subtask-title-${child.id}`).findAll((node) => typeof node.type === "string" && node.children.includes("A newly generated title"))).toHaveLength(1);
   });
+  it("streams the selected title under the shimmer until the final title is revealed", async () => {
+    vi.useFakeTimers();
+    let finish!: (value: { state: "done"; title: string }) => void;
+    const titleUpdates = createTitleUpdateControl(({ action }) => action === "start"
+      ? Promise.resolve({ state: "running", text: "Generated title" })
+      : new Promise((resolve) => { finish = resolve; }));
+    const props = details("en", "sample-running", { titleUpdates });
+    const root = await render(<TaskDetailCards {...props} />);
+    await act(async () => { titleUpdates.start(props.card.id); await vi.advanceTimersByTimeAsync(0); });
+    expect(host(root, "task-title-update-shimmer").props.accessibilityState.busy).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+    const partial = host(host(root, "task-title-update-shimmer"), "task-card-title").children.join("");
+    expect(partial.length).toBeGreaterThan(0);
+    expect(partial.length).toBeLessThan("Generated title".length);
+    await act(async () => { await vi.advanceTimersByTimeAsync(970); finish({ state: "done", title: "Generated title extended" }); });
+    expect(host(root, "task-title-update-shimmer")).toBeTruthy();
+    for (let i = 0; i < 40; i++) await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+    expect(root.findAll((node) => node.props.testID === "task-title-update-shimmer")).toHaveLength(0);
+    expect(host(root, "detail-title").children.join("")).toBe("Generated title extended");
+  });
   it("opens the selected subtask's card menu without navigating", async () => {
     const cards = previewSampleCards(NOW);
     const parent = cards.find((card) => card.id === "sample-running")!;

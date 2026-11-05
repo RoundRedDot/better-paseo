@@ -7,7 +7,7 @@ import { revealPathRpc } from "../../../shared/file-rpc";
 import { openLink } from "../../components/open-link";
 import { MarkdownView } from "../../components/markdown/markdown-view";
 import { variantMetrics } from "../../components/markdown/render/styles";
-import { useThemeTokens, withAlpha } from "../../components/theme-tokens";
+import { mix, useThemeTokens, withAlpha } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
 import { HoverPreviewContext } from "../../ui/hover-preview";
@@ -33,6 +33,8 @@ import { BrandMark } from "./brand-mark";
 import { SubtaskRow } from "./subtask-row";
 import { SubagentLabel } from "./subagent-label";
 import { TitleUndo } from "./title-undo";
+import { TitleLoading } from "./title-loading";
+import { useRevealedTitle } from "./title-reveal";
 import { ArchivedTag } from "./archived-tag";
 import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
@@ -514,9 +516,12 @@ function DetailHeader(props: Inner) {
   const { card, m, tokens, touch = false } = props;
   const menuRef = useRef<View>(null);
   const titleUpdate = useTitleUpdateState(props.titleUpdates, card.id);
+  const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
+  const shownTitle = useRevealedTitle(streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : card.title), Boolean(streamedTitle) || titleUpdate.state === "done");
+  const updatingTitle = titleUpdate.state === "running" || titleUpdate.state === "done" && shownTitle !== titleUpdate.title || titleUpdate.state === "idle" && shownTitle !== card.title;
   useEffect(() => {
-    if (titleUpdate.state === "done" && card.title === titleUpdate.title) props.titleUpdates?.showUndo(card.id);
-  }, [titleUpdate, card.id, card.title, props.titleUpdates]);
+    if (titleUpdate.state === "done" && shownTitle === titleUpdate.title) props.titleUpdates?.showUndo(card.id);
+  }, [titleUpdate, shownTitle, card.id, props.titleUpdates]);
   const cardText = cardStrings(props.language);
   const { pair } = cardText.hint;
   const small = F.sm;
@@ -646,9 +651,9 @@ function DetailHeader(props: Inner) {
       </View>
       <View style={{ marginTop: 2, flexDirection: "row", alignItems: "center", gap: 6 }}>
       {card.subagent ? <SubagentLabel language={props.language} tokens={tokens} testID="detail-session-label" /> : null}
-      <Text style={{ flex: 1, minWidth: 0, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
-        {highlightText(card.title, props.searchQuery ?? "", tokens.isDark)}
-      </Text>
+      {updatingTitle ? <TitleLoading title={shownTitle} mutedColor={tokens.foregroundMuted} highlightColor={tokens.isDark ? tokens.foreground : mix(tokens.card.background, tokens.foregroundMuted, 0.45)} accessibilityLabel={cardText.autoTitlePending} style={{ fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600" }} /> : <Text style={{ flex: 1, minWidth: 0, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
+        {highlightText(shownTitle, props.searchQuery ?? "", tokens.isDark)}
+      </Text>}
       <View pointerEvents="box-none" style={{ position: "absolute", right: 0, top: 0 }}>
         <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} fadeColor={tokens.card.background} />
       </View>
