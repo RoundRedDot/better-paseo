@@ -95,7 +95,7 @@ export function PhoneSearch(props: {
               </Pressable>
             ) : null}
           </View>
-          <FullConversationSwitch theme={theme} compact />
+          <FullConversationSwitch theme={theme} compact iconSize={22} />
           </View>
         </View>
       ) : null}
