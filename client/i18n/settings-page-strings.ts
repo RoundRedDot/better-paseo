@@ -140,8 +140,8 @@ const en = {
     "Show token usage and a Copy button. Supported pasted images are displayed; other attachments stay with Paseo.",
   markdownTitle: "Plugin markdown for replies",
   markdownDescription:
-    "Headings, lists and highlighted code blocks drawn by the plugin. It has no mermaid diagrams, images or Paseo's file-path links; turn it off when a reply needs them.",
-  markdownTips: [{ label: "Supported", text: "Headings, lists and highlighted code blocks drawn by the plugin." }, { label: "Limitations", text: "It has no mermaid diagrams, images or Paseo’s file-path links; turn it off when a reply needs them." }],
+    "Headings, lists and highlighted code blocks drawn by the plugin. Completed Mermaid blocks use Paseo's diagram renderer. Turn this off for host images or Paseo's file-path links.",
+  markdownTips: [{ label: "Supported", text: "Headings, lists and highlighted code blocks drawn by the plugin; completed Mermaid blocks use Paseo’s diagram renderer." }, { label: "Limitations", text: "Turn this off for host images or Paseo’s file-path links." }],
   markdownStyleTitle: "Markdown style",
   markdownStyleDescription:
     "Document is airy, for long answers. Compact is tighter, for short ones. Terminal sets the text in the code font.",
@@ -342,8 +342,8 @@ const zh: SettingsStrings = {
   bubbleTitle: "增强提问气泡",
   bubbleDescription: "显示 token 用量和复制按钮；支持的粘贴图片一并显示，其他附件交给 Paseo。",
   markdownTitle: "回复使用插件 Markdown",
-  markdownDescription: "由插件绘制标题、列表和语法高亮代码块。不支持 mermaid 图表、图片和 Paseo 的文件路径链接，需要时请关闭。",
-  markdownTips: [{ label: "支持内容", text: "由插件绘制标题、列表和语法高亮代码块。" }, { label: "使用限制", text: "不支持 mermaid 图表、图片和 Paseo 的文件路径链接，需要时请关闭。" }],
+  markdownDescription: "由插件绘制标题、列表和语法高亮代码块；完整的 Mermaid 代码块由 Paseo 绘图。需要宿主图片或 Paseo 的文件路径链接时请关闭。",
+  markdownTips: [{ label: "支持内容", text: "由插件绘制标题、列表和语法高亮代码块；完整的 Mermaid 代码块由 Paseo 绘图。" }, { label: "使用限制", text: "需要宿主图片或 Paseo 的文件路径链接时请关闭。" }],
   markdownStyleTitle: "Markdown 样式",
   markdownStyleDescription: "“文档”排版舒展，适合长回答；“紧凑”间距更小，适合短回复；“终端”正文使用代码字体。",
   markdownDocument: "文档",

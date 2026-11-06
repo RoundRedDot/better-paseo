@@ -4,7 +4,7 @@ Tool calls start collapsed. The timeline offers syntax highlighting, streaming M
 
 ## Setup and settings
 
-Paseo 0.14.0 or later is required. No separate service account is needed. Settings control reply rendering, fonts, previews and the Tasks board, including an optional provider, model and prompt for title generation. Turning off plugin Markdown returns reply rendering to Paseo, including Mermaid and its file links.
+Paseo 0.14.0 or later is required. No separate service account is needed. Settings control reply rendering, fonts, previews and the Tasks board, including an optional provider, model and prompt for title generation. Mermaid code blocks use Paseo’s diagram renderer after the fence closes or the reply ends. Turning off plugin Markdown returns the whole reply to Paseo, including its file links.
 
 ## Data access and limits
 

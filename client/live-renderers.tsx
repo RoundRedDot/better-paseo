@@ -507,9 +507,8 @@ const ASSISTANT_REVEAL = { web: false, native: true } as const;
 /**
  * The assistant's own reply, drawn with the plugin's markdown renderer.
  *
- * The host's renderer carries a pipeline this plugin cannot import — mermaid,
- * images, its own file-path links — so `assistantMarkdown` exists to hand the
- * turn back when a reply needs any of that.
+ * Mermaid fences delegate to the host Markdown component. Host images and
+ * file-path links still need `assistantMarkdown` off to hand the turn back.
  */
 function LiveAssistantRendererBody(props: PluginTimelineItemProps<LiveAssistantPayload>) {
   return props.item.data.blockIndex !== undefined && props.item.data.messageText === undefined
