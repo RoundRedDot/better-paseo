@@ -42,7 +42,7 @@ export function TabletToolbar(props: {
   const scale = useTasksFontScale();
   const compact = props.width < 680 * Math.max(1, scale);
   const target = taskControlHeight(40, scale);
-  const height = taskControlHeight(48, scale);
+  const height = taskControlHeight(44, scale);
   const inlineSearch = Platform.OS === "web" && props.width >= 560 * Math.max(1, scale);
   const [page, setPage] = useState<ViewPage | null>(null);
   const [trail, setTrail] = useState<string[]>([]);
@@ -130,7 +130,7 @@ export function TabletToolbar(props: {
         </View>
         {expandedSearch ? null : <SearchQueryChip board={board} theme={theme} />}
         <SearchCoverageItems theme={theme} />
-        {expandedSearch ? null : <View accessible accessibilityLabel={strings.total(board.total)} testID="tablet-toolbar-total" style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        {expandedSearch ? null : <View accessible pointerEvents="none" accessibilityLabel={strings.total(board.total)} testID="tablet-toolbar-total" style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
           <View testID="tablet-total-slot" style={{ flexShrink: 0, alignItems: "center", justifyContent: "center" }}>
             {/* Reserve the complete localised phrase, so count changes never move the search. */}
             <Text testID="tablet-total-reserve" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" numberOfLines={1} style={[textStyle, { opacity: 0 }]}>{strings.total(Number("8".repeat(Math.max(3, String(board.total).length))))}</Text>

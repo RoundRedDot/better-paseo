@@ -4146,7 +4146,7 @@ describe("Tasks board, tablet filters", () => {
     layOut(width);
     expect(hostsById("filter-bar")).toHaveLength(0);
     const bar = hostsById("tablet-toolbar")[0]!;
-    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ height: Math.round(48 * Math.max(1, base / 14)), flexDirection: "row", flexShrink: 0 });
+    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ height: Math.round(44 * Math.max(1, base / 14)), flexDirection: "row", flexShrink: 0 });
     expect(StyleSheet.flatten(hostsById("tablet-toolbar-end")[0]!.props.style).gap).toBe(0);
     const buttons = bar.findAll((n) => (n.type as unknown) === "Pressable" && n.props.testID !== "search-full-conversation-toggle");
     for (const button of buttons) {
@@ -4332,6 +4332,41 @@ describe("Tasks board, tablet filters", () => {
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     act(() => renderer!.root.findAllByType(WindowSegments)[0]!.props.onChange("7d"));
     expect(lastBoardParams("host-1").doneWindow).toBe("7d");
+  });
+
+  it.each([
+    ["ios", 14, 44], ["android", 14, 44],
+    ["ios", 15, 47], ["android", 15, 47],
+    ["ios", 21, 66], ["android", 21, 66],
+  ] as const)("%s at UI%i uses a %i-point tablet toolbar", (os, base, height) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
+    layOut(1000);
+    expect(StyleSheet.flatten(hostsById("tablet-toolbar")[0]!.props.style).height).toBe(height);
+    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    expect(StyleSheet.flatten(hostsById("tablet-filter-popover")[0]!.props.style).top).toBe(height + 6);
+  });
+
+  it.each([
+    ["ios", "tablet-view", "tablet-view-menu"],
+    ["android", "tablet-view", "tablet-view-menu"],
+    ["ios", "toolbar-filters", "tablet-filter-popover"],
+    ["android", "toolbar-filters", "tablet-filter-popover"],
+  ] as const)("%s lets empty toolbar space dismiss %s", (os, trigger, panel) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1000);
+    act(() => hostsById(trigger)[0]!.props.onPress());
+    expect(hostsById(panel)).toHaveLength(1);
+    for (const id of ["tablet-toolbar", "tablet-toolbar-end"]) {
+      expect(hostsById(id)[0]!.props.pointerEvents).toBe("box-none");
+    }
+    expect(hostsById("tablet-toolbar-total")[0]!.props.pointerEvents).toBe("none");
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
+    expect(hostsById(panel)).toHaveLength(0);
+    expect(hostsById("tablet-toolbar-backdrop")).toHaveLength(0);
+    act(() => hostsById(trigger)[0]!.props.onPress());
+    expect(hostsById(panel)).toHaveLength(1);
   });
 
   it.each([320, 480, 600])("at %i pt opens search in the same toolbar row", (width) => {
