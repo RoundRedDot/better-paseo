@@ -20,7 +20,8 @@ import type { BoardController } from "./use-board";
 import { LaneWidthMark } from "./lane-width-mark";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { useSwitchSpace } from "../../ui/use-switch-space";
-import { scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { usePressCue } from "../cards/action-pressable";
 import { FullConversationSwitch, SearchInput } from "./search-loading";
 import { SearchCoverageItems } from "./search-coverage";
 import { tasksSettingsOpener } from "./enabled";
@@ -327,20 +328,25 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
   const scale = useTasksFontScale();
   const size = toolbarButtonSize(scale);
   const [hovered, setHovered] = useState(false);
-  const [pressed, setPressed] = useState(false);
+  const press = usePressCue(hovered);
   const reduced = useReducedMotion();
-  const lift = surfaceLift(hovered, pressed, reduced);
+  const lift = surfaceLift(hovered, press.pressed, reduced, "control", press.input);
+  const line = Platform.OS === "web" && !hovered ? "transparent" : colors.border;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${props.label} (])`}
       accessibilityState={{ selected: props.open }}
       {...tipProps(`${props.label} (])`)}
-      onPress={props.onToggle}
+      onPress={press.guard(props.onToggle)}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
-      onPressIn={() => setPressed(true)}
-      onPressOut={() => setPressed(false)}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      onTouchStart={press.onTouchStart}
+      onTouchMove={press.onTouchMove}
+      onTouchEnd={press.onTouchEnd}
+      onTouchCancel={press.onTouchCancel}
       hitSlop={Platform.OS === "web" ? 0 : 4}
       testID="sidebar-switch"
       style={{
@@ -348,9 +354,8 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
         height: size,
         borderRadius: Platform.OS === "web" ? 7 : size / 2,
         borderWidth: HAIRLINE,
-        borderColor: Platform.OS === "web" && !hovered ? "transparent" : colors.border,
         backgroundColor: props.open ? colors.surface2 : colors.surface0,
-        boxShadow: lift.shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+        ...liftStyle(() => taskTokens(props.theme), lift, { border: line }),
         ...scaleStyle(lift.scale),
         alignItems: "center",
         justifyContent: "center",
@@ -374,9 +379,10 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
   const size = toolbarButtonSize(scale);
   const icon = actionIconSize(scale);
   const [hovered, setHovered] = useState(false);
-  const [pressed, setPressed] = useState(false);
+  const press = usePressCue(hovered);
   const reduced = useReducedMotion();
-  const lift = surfaceLift(hovered, pressed, reduced);
+  const lift = surfaceLift(hovered, press.pressed, reduced, "control", press.input);
+  const line = Platform.OS === "web" && !hovered ? "transparent" : colors.border;
   // The slash cuts a hole in the resting fill. Hover and press do not change that fill.
   const background = colors.surface0;
   return (
@@ -387,12 +393,16 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
       aria-checked={props.on}
       accessibilityState={{ checked: props.on }}
       {...tipProps(props.tip)}
-      onPress={props.onPress}
+      onPress={press.guard(props.onPress)}
       {...spaceKeys}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
-      onPressIn={() => setPressed(true)}
-      onPressOut={() => setPressed(false)}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      onTouchStart={press.onTouchStart}
+      onTouchMove={press.onTouchMove}
+      onTouchEnd={press.onTouchEnd}
+      onTouchCancel={press.onTouchCancel}
       hitSlop={Platform.OS === "web" ? 0 : 4}
       testID={props.testID}
       style={{
@@ -401,9 +411,8 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
         flexShrink: 0,
         borderRadius: Platform.OS === "web" ? 7 : size / 2,
         borderWidth: HAIRLINE,
-        borderColor: Platform.OS === "web" && !hovered ? "transparent" : colors.border,
         backgroundColor: background,
-        boxShadow: lift.shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+        ...liftStyle(() => taskTokens(props.theme), lift, { border: line }),
         ...scaleStyle(lift.scale),
         alignItems: "center",
         justifyContent: "center",
@@ -892,7 +901,7 @@ function GroupChip(props: { group: ChipGroup; open: boolean; onPress(): void; on
             borderTopLeftRadius: 6,
             borderBottomLeftRadius: 6,
             backgroundColor: "transparent",
-            boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+            ...liftStyle(() => taskTokens(props.theme), surfaceLift(hovered, pressed)),
           })}
         >
           {props.group.counts.map(({ unit, count }) => (
@@ -918,7 +927,7 @@ function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme
       accessibilityLabel={props.label}
       {...tipProps(props.label)}
       onPress={props.onPress}
-      style={(hovered, pressed) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined })}
+      style={(hovered, pressed) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", ...liftStyle(() => taskTokens(props.theme), surfaceLift(hovered, pressed)) })}
     >
       <Icon name="X" size={12} color={colors.foregroundMuted} />
     </HoverPressable>
@@ -937,9 +946,8 @@ function ClearAllButton(props: { board: BoardController; theme: PluginTheme }) {
         justifyContent: "center",
         borderRadius: 6,
         borderWidth: HAIRLINE,
-        borderColor: props.theme.colors.border,
         backgroundColor: "transparent",
-        boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+        ...liftStyle(() => taskTokens(props.theme), surfaceLift(hovered, pressed), { border: props.theme.colors.border }),
       })}
     >
       <Text numberOfLines={1} style={{ fontSize: toolbarFontSize(), color: props.theme.colors.foregroundMuted }}>{props.board.strings.clearAll}</Text>
@@ -979,9 +987,8 @@ function MenuButton(props: { icon: string | React.ReactElement; label: string; c
           justifyContent: "center",
           borderRadius: iconOnly ? size / 2 : 6,
           borderWidth: HAIRLINE,
-          borderColor: colors.border,
           backgroundColor: props.open ? colors.surface1 : "transparent",
-          boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+          ...liftStyle(() => taskTokens(props.theme), surfaceLift(hovered, pressed), { border: colors.border }),
           flexDirection: "row",
           alignItems: "center",
           gap: LABEL_GAP,

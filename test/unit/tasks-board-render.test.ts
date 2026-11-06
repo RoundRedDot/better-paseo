@@ -538,7 +538,7 @@ describe("Tasks search coverage and centred toolbar", () => {
       };
       expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7, width: 30, height: 30 });
       act(() => button().props.onHoverIn());
-      expect(outline(), id).toMatchObject({ borderColor: "#e2e2e6", borderRadius: 7, width: 30, height: 30 });
+      expect(outline(), id).toMatchObject({ borderColor: id === "empty-lanes-toggle" ? "#e2e2e6" : taskTokens(theme).borderStrong, borderRadius: 7, width: 30, height: 30 });
       act(() => button().props.onHoverOut());
       expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7 });
       if (id !== "sidebar-switch") expect(button().find((node) => (node.type as unknown) === "Icon").props.size, id).toBe(17);
@@ -1156,12 +1156,16 @@ describe("Tasks board, desktop", () => {
     act(() => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Collapse lane")[1]!.props.onPress());
     const strip = () => pressable("Expand lane: Running");
     const idle = StyleSheet.flatten(strip().props.style);
+    vi.useFakeTimers();
     act(() => strip().props.onPressIn({ nativeEvent: { pageX: 100, pageY: 40 } }));
+    expect(StyleSheet.flatten(strip().props.style)).toEqual(idle);
+    act(() => { vi.advanceTimersByTime(100); });
     const pressed = StyleSheet.flatten(strip().props.style);
     expect(pressed.backgroundColor).not.toBe(idle.backgroundColor);
     expect({ ...pressed, backgroundColor: idle.backgroundColor }).toEqual(idle);
     act(() => strip().props.onPressOut({}));
     expect(StyleSheet.flatten(strip().props.style)).toEqual(idle);
+    vi.useRealTimers();
     act(() => strip().props.onPress());
     expect(cards().map((card) => card.props.card.id)).toContain("sample-running");
   });

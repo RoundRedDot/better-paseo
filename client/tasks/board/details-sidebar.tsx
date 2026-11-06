@@ -6,7 +6,8 @@ import { tipProps } from "../cards/card-hints";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { usePressCue } from "../cards/action-pressable";
 import { BrandMark, DETAIL_CARD, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { activeStopChildren } from "../actions/stop-targets";
@@ -301,6 +302,8 @@ function StatCell(props: {
   const hideLabel = headingWidth !== null && labelSize?.key === labelKey && labelSize.width + 13 + 5 > headingWidth + 0.5;
   const { hovered, hoverProps } = useHover();
   const reduced = useReducedMotion();
+  const press = usePressCue(hovered);
+  const lift = surfaceLift(hovered, press.pressed, reduced, "capsule", press.input);
   const alert = props.lane === "needs_input" && (props.count ?? 0) > 0;
   const countStyle = { fontSize: props.countSize, lineHeight: HOST_LINE.base, fontWeight: "600" as const, color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums" as const] };
   return (
@@ -308,11 +311,16 @@ function StatCell(props: {
       accessibilityRole="button"
       accessibilityLabel={`${props.label} ${props.count ?? ""}`}
       {...tipProps(props.label)}
-      onPress={props.onPress}
+      onPress={press.guard(props.onPress)}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      onTouchStart={press.onTouchStart}
+      onTouchMove={press.onTouchMove}
+      onTouchEnd={press.onTouchEnd}
+      onTouchCancel={press.onTouchCancel}
       {...hoverProps}
       testID={`sidebar-stat-${props.lane}`}
-      style={({ pressed }) => {
-        const lift = surfaceLift(hovered, pressed, reduced);
+      style={() => {
         return {
           flex: 1,
           minWidth: 0,
@@ -322,9 +330,9 @@ function StatCell(props: {
           paddingBottom: props.touch ? 2 : 6,
           borderRadius: 8,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: alert ? tokens.warning : "transparent",
           backgroundColor: "transparent",
-          boxShadow: lift.shadow ? tokens.card.buttonShadowHover : undefined,
+          // Transparent at rest; the needs-input alert's warning line keeps its hue.
+          ...liftStyle(tokens, lift, { border: alert ? tokens.warning : "transparent", hued: alert }),
           ...scaleStyle(lift.scale),
           gap: 2,
         };

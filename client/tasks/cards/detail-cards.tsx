@@ -55,7 +55,7 @@ import {
 import { ActionRow, layoutCeil, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
 import { ActionPressable } from "./action-pressable";
-import { liftsOnPress, scaleStyle, surfaceLift } from "./surface-lift";
+import { liftedButtonOutline, liftStyle, scaleStyle, surfaceLift } from "./surface-lift";
 import { arrowInset, buttonHue, CONFIRM_STOP_ICON, requestLook, webTransition, type CardButtonLook } from "./action-style";
 import { buttonOutline, MOTION } from "../board/board-style";
 import { useBreathing, useFlash } from "../board/breathing";
@@ -494,7 +494,7 @@ function DetailTab(props: { id: "info" | "messages"; selected: boolean; tokens: 
       onPress={props.onPress}
       style={({ pressed }) => {
         const lift = surfaceLift(hovered, pressed);
-        return { flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 30 : 32, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder, backgroundColor: props.selected ? props.tokens.surface2 : "transparent", flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 4, paddingHorizontal: 6, boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined, ...scaleStyle(lift.scale) };
+        return { flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 30 : 32, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, backgroundColor: props.selected ? props.tokens.surface2 : "transparent", flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 4, paddingHorizontal: 6, ...liftStyle(props.tokens, lift, { border: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder }), ...scaleStyle(lift.scale) };
       }}
     >
       <Icon name={props.id === "info" ? "Info" : "MessageSquare"} size={props.touch ? 12 : 14} color={color} />
@@ -878,7 +878,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
           gap: 6,
           paddingHorizontal: 14,
           borderRadius: 6,
-          ...buttonOutline(hue.border, {}, lift.shadow ? tokens.card.buttonShadowHover : undefined),
+          ...liftedButtonOutline(tokens, hue.border, requestLook(button) === "plain", lift),
           opacity: props.disabled ? 0.5 : 1,
           backgroundColor: tokens.card.background,
           alignItems: "center" as const,
@@ -1468,7 +1468,7 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
       {...hoverProps}
       style={({ pressed }) => {
         const lift = surfaceLift(hovered, pressed);
-        return { width: 24, height: 24, borderRadius: 5, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: "transparent", boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined, ...scaleStyle(lift.scale) };
+        return { width: 24, height: 24, borderRadius: 5, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: "transparent", ...liftStyle(props.tokens, lift), ...scaleStyle(lift.scale) };
       }}
     >
       <Icon name={props.icon} size={14} color={hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
@@ -1861,7 +1861,7 @@ export function RoundIcon(props: { icon: string; label: string; size: number; to
           alignItems: "center" as const,
           justifyContent: "center" as const,
           backgroundColor: props.active ? props.tokens.surface2 : "transparent",
-          boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined,
+          ...liftStyle(props.tokens, lift, Platform.OS === "web" ? { border: hovered ? props.tokens.border : "transparent" } : {}),
           ...scaleStyle(lift.scale),
         };
       }}
@@ -1914,7 +1914,7 @@ function OutlineButton(props: {
   const chrome = 2 * (props.grow ? 10 : 12) + (leading ? 15 : 0) + (props.hint ? hintWidth : 0) + (props.trailing ? 14 : 0) + (pieces - 1) * gap + 1;
   const fit = useActionFit(props.label, `${scale}|${props.font}|${useWindowDimensions().fontScale}`, props.height, chrome);
   return (
-    <ActionPressable motion={liftsOnPress()}
+    <ActionPressable lift={props.grow ? "row" : "control"}
       accessibilityRole="button"
       accessibilityLabel={props.label}
       {...tipProps(props.label)}
@@ -1930,7 +1930,7 @@ function OutlineButton(props: {
         height: taskControlHeight(props.height, scale),
         paddingHorizontal: props.grow ? 10 : 12,
         borderRadius: 8,
-        ...buttonOutline(hue.border, {}, surfaceLift(hovered, pressed && !disabled).shadow ? tokens.card.buttonShadowHover : undefined),
+        ...liftedButtonOutline(tokens, hue.border, look === "plain", surfaceLift(hovered, pressed && !disabled, undefined, props.grow ? "row" : "control")),
         backgroundColor: tokens.card.background,
         flexDirection: "row" as const,
         alignItems: "center" as const,
@@ -2128,8 +2128,10 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const square = fit.iconOnly;
   const disabled = props.busy || props.disabled;
   const hovered = hover && !disabled;
+  // A bar button spans its share of the bar, wider than a finger; a square one is covered by it.
+  const liftAs = square || props.grow === false ? "control" : "row";
   return (
-    <ActionPressable motion={liftsOnPress()}
+    <ActionPressable lift={liftAs}
       accessibilityRole="button"
       accessibilityLabel={props.label}
       accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
@@ -2144,7 +2146,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         flexShrink: square ? 0 : 1,
         paddingHorizontal: square ? 0 : padding,
         borderRadius: compact ? 8 : 10,
-        ...buttonOutline(hue.border, {}, surfaceLift(hovered, pressed && !disabled).shadow ? tokens.card.buttonShadowHover : undefined),
+        ...liftedButtonOutline(tokens, hue.border, look === "plain", surfaceLift(hovered, pressed && !disabled, undefined, liftAs)),
         backgroundColor: tokens.card.background,
         opacity: disabled ? 0.6 : 1,
         flexDirection: "row",

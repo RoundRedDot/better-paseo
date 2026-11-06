@@ -1362,7 +1362,7 @@ describe("TaskCardView rows", () => {
         expect(flat(byLabel(tree.root, set[0]!.label).props.style).backgroundColor).toBe("transparent");
         await act(async () => answer.props.onPressIn());
         expect(flat(byLabel(tree.root, set[0]!.label).props.style).backgroundColor).toBe("transparent");
-        expect(flat(byLabel(tree.root, set[0]!.label).props.style).boxShadow).toBe(tokens.card.buttonShadowHover);
+        expect(flat(byLabel(tree.root, set[0]!.label).props.style).boxShadow).toBe(tokens.isDark ? `inset 0 0 0 0.5px ${rest.borderColor}` : undefined);
         await act(async () => tree.unmount());
         renderer = null;
       }
@@ -1428,8 +1428,8 @@ describe("TaskCardView rows", () => {
     await act(async () => byLabel(tree.root, "拒绝").props.onPressIn({}));
     expect(flat(byLabel(tree.root, "允许").props.style).backgroundColor).toBe("transparent");
     expect(flat(byLabel(tree.root, "拒绝").props.style).backgroundColor).toBe("transparent");
-    expect(flat(byLabel(tree.root, "允许").props.style).boxShadow).toBe(tokens.card.buttonShadowHover);
-    expect(flat(byLabel(tree.root, "拒绝").props.style).boxShadow).toBe(tokens.card.buttonShadowHover);
+    expect(flat(byLabel(tree.root, "允许").props.style).boxShadow).toBeUndefined();
+    expect(flat(byLabel(tree.root, "拒绝").props.style).boxShadow).toBeUndefined();
     for (const theme of [LIGHT, DARK]) {
       const card = buildTaskTokens(theme.colors).card;
       expect(contrastRatio(card.primaryText, card.background)).toBeGreaterThanOrEqual(4.5);
@@ -2132,8 +2132,7 @@ describe("TaskCardView actions", () => {
     expect(flat(hostByTestId(phone.root, "task-card-stop").props.style)).toMatchObject({ alignSelf: "center" });
   });
 
-  it("keeps the pressed stop shadow until touch ends, with no fill", async () => {
-    const tokens = buildTaskTokens(LIGHT.colors);
+  it("keeps the stop control clear during a quick touch", async () => {
     const tree = await render(cardElement(sample("sample-running"), { onStop: () => {}, compact: true }));
     const stop = byLabel(tree.root, "停止");
     const options = byLabel(tree.root, "停止选项");
@@ -2144,8 +2143,9 @@ describe("TaskCardView actions", () => {
     await act(async () => { stop.props.onTouchStart(); stop.props.onPressIn(); stop.props.onPressOut(); });
     expect(flat(stop.props.style).backgroundColor).toBe("transparent");
     expect(flat(options.props.style).backgroundColor).toBe("transparent");
-    expect(outline()).toMatchObject({ borderRadius: 7, boxShadow: tokens.card.buttonShadowHover });
-    await act(async () => stop.props.onTouchEnd());
+    expect(outline().borderRadius).toBe(7);
+    expect(outline().boxShadow).toBeUndefined();
+    await act(async () => stop.props.onTouchCancel());
     expect(flat(stop.props.style).backgroundColor).toBe("transparent");
     expect(outline().boxShadow).toBeUndefined();
     await act(async () => tree.unmount());
@@ -4210,7 +4210,7 @@ describe("TaskDetailCards", () => {
       expect(flat(hostByTestId(tree.root, id).props.style).boxShadow).toBeUndefined();
       await act(async () => chip.props.onPressIn());
       expect(flat(hostByTestId(tree.root, id).props.style).backgroundColor).toBe(background);
-      expect(flat(hostByTestId(tree.root, id).props.style).boxShadow).toBe(tokens.card.buttonShadowHover);
+      expect(flat(hostByTestId(tree.root, id).props.style).boxShadow).toBeUndefined();
       await act(async () => chip.props.onPressOut());
       await act(async () => chip.props.onHoverOut());
       expect(flat(hostByTestId(tree.root, id).props.style).backgroundColor).toBe(background);
@@ -4313,7 +4313,7 @@ describe("overlays in the board's menu chrome", () => {
 });
 
 describe("TaskCardView chrome", () => {
-  it.each([false, true])("is Linear's card: radius 8 and a hairline; hover keeps the fill, press deepens the shadow (compact=%s)", async (compact) => {
+  it.each([false, true])("keeps the card fill and raises its shadow on pointer press (compact=%s)", async (compact) => {
     const tokens = buildTaskTokens(LIGHT.colors);
     const tree = await render(cardElement(sample("sample-done"), { compact }));
     const surface = () => flat(hostByTestId(tree.root, "task-card-sample-done").props.style);
@@ -4326,14 +4326,17 @@ describe("TaskCardView chrome", () => {
     expect(hovered.borderColor).toBe(rest.borderColor);
     expect(hovered.boxShadow).toBe(tokens.card.shadow);
     expect(hovered.zIndex).toBe(2);
+    vi.useFakeTimers();
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onPressIn());
+    await act(async () => { vi.advanceTimersByTime(100); });
     const pressed = surface();
-    expect(pressed.backgroundColor).toBe(compact ? tokens.card.hoverBackground : tokens.card.background);
+    expect(pressed.backgroundColor).toBe(tokens.card.background);
     expect(pressed.boxShadow).toBe(tokens.card.shadowHover);
     expect(pressed.transform).toBeUndefined();
-    expect({ ...pressed, backgroundColor: 0, boxShadow: 0, zIndex: 0, transform: 0 }).toEqual({ ...rest, backgroundColor: 0, boxShadow: 0, zIndex: 0, transform: 0 });
+    expect({ ...pressed, backgroundColor: 0, borderColor: 0, boxShadow: 0, zIndex: 0, transform: 0 }).toEqual({ ...rest, backgroundColor: 0, borderColor: 0, boxShadow: 0, zIndex: 0, transform: 0 });
     await act(async () => hostByTestId(tree.root, "task-card-sample-done").props.onPressOut());
     expect(surface().backgroundColor).toBe(tokens.card.background);
+    vi.useRealTimers();
   });
 
   it.each([
@@ -4415,10 +4418,13 @@ describe("TaskCardView chrome", () => {
     const failed = { ...sample("sample-done"), lane: "review" as const, status: "failed" as const, error: "HTTP 503" };
     const tree = await render(cardElement(failed, { compact: true }));
     const card = () => hostByTestId(tree.root, "task-card-sample-done");
+    vi.useFakeTimers();
     await act(async () => card().props.onPressIn());
+    await act(async () => { vi.advanceTimersByTime(100); });
     expect(flat(card().props.style).backgroundColor).toBe(tokens.card.failedHover);
     await act(async () => card().props.onPressOut());
     expect(flat(card().props.style).backgroundColor).toBe(tokens.card.failed);
+    vi.useRealTimers();
   });
 
   it("draws a failed card's reason and subtask rules at 0.5 pt, selected or not", async () => {

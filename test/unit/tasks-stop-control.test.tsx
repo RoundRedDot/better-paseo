@@ -102,7 +102,7 @@ describe("split Stop button", () => {
     });
   });
 
-  it("keeps the open menu's wash on its chevron and the press shadow on the outline", async () => {
+  it("keeps the open menu's wash and the dark press outline", async () => {
     const root = await render();
     await act(async () => button(root, "Stop options").props.onPress());
     expect(flat(button(root, "Stop options")).backgroundColor).toBe(taskTokens(THEME).card.dangerHover);
@@ -115,7 +115,7 @@ describe("split Stop button", () => {
     expect(flat(button(root, "Stop")).backgroundColor).toBe("transparent");
     await act(async () => button(root, "Stop").props.onPressIn());
     expect(flat(button(root, "Stop")).backgroundColor).toBe("transparent");
-    expect(flat(host(root, "task-card-stop-outline")).boxShadow).toBe(taskTokens(THEME).card.buttonShadowHover);
+    expect(flat(host(root, "task-card-stop-outline")).boxShadow).toBe(`inset 0 0 0 0.5px ${THEME.colors.statusDanger}`);
   });
 
   it.each(["ios", "android"])("shows an anchored modal above sibling cards and closes it on %s", async (os) => {

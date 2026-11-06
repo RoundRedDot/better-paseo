@@ -7,7 +7,8 @@ import { TaskText as Text, taskControlHeight, useTasksFontScale } from "../typog
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { useHover } from "../../ui/use-hover";
 import { taskTokens } from "../cards/tokens";
-import { scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { usePressCue } from "../cards/action-pressable";
 import { tipProps } from "../cards/card-hints";
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { PluginIcon } from "@getpaseo/plugin/client";
@@ -144,7 +145,7 @@ const OUTLINE_SEARCH_ICON: PluginIcon = {
 export function FullConversationSwitch({ theme, compact, iconSize: requestedIconSize }: { theme: PluginTheme; compact?: boolean; iconSize?: number }) {
   const { context } = useSearchCoverage();
   const { hovered, hoverProps } = useHover();
-  const [pressed, setPressed] = useState(false);
+  const press = usePressCue(hovered);
   const reduced = useReducedMotion();
   const scale = useTasksFontScale();
   const size = !compact && Platform.OS === "web" ? taskControlHeight(28, scale) : compact ? 36 : 32;
@@ -152,11 +153,12 @@ export function FullConversationSwitch({ theme, compact, iconSize: requestedIcon
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);
   if (!context?.onFullConversationChange) return null;
-  const lift = surfaceLift(hovered, pressed, reduced);
+  const lift = surfaceLift(hovered, press.pressed, reduced, "control", press.input);
+  const outlined = !compact && Platform.OS === "web";
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
-    accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={toggle} hitSlop={4} {...hoverProps}
-    onPressIn={() => setPressed(true)} onPressOut={() => setPressed(false)}
-    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: !compact && Platform.OS === "web" ? 1 : 0, borderColor: hovered ? theme.colors.border : "transparent", borderRadius: 7, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0, boxShadow: lift.shadow ? taskTokens(theme).card.buttonShadowHover : undefined, ...scaleStyle(lift.scale) }}>
+    accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={press.guard(toggle)} hitSlop={4} {...hoverProps}
+    onPressIn={press.onPressIn} onPressOut={press.onPressOut} onTouchStart={press.onTouchStart} onTouchMove={press.onTouchMove} onTouchEnd={press.onTouchEnd} onTouchCancel={press.onTouchCancel}
+    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: outlined ? 1 : 0, borderColor: hovered ? theme.colors.border : "transparent", borderRadius: 7, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0, ...liftStyle(() => taskTokens(theme), lift, outlined ? { border: hovered ? theme.colors.border : "transparent" } : {}), ...scaleStyle(lift.scale) }}>
     <Icon icon={on ? FULL_TEXT_SEARCH_ICON : OUTLINE_SEARCH_ICON} size={iconSize} color={theme.colors.foreground} />
   </Pressable>;
 }

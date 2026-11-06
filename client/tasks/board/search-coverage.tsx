@@ -5,7 +5,8 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text } from "../typography";
 import { panelChrome } from "../cards/panel";
 import { taskTokens } from "../cards/tokens";
-import { scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { usePressCue } from "../cards/action-pressable";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { openToolbarDetailsLayer } from "../../web";
@@ -42,7 +43,7 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
   const [position, setPosition] = useState({ left: 16, top: 100 });
   const window = useWindowDimensions();
   const { hovered, hoverProps } = useHover(anchor);
-  const [unavailablePressed, setUnavailablePressed] = useState(false);
+  const unavailablePress = usePressCue(hovered);
   const reduced = useReducedMotion();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancel = () => { if (timer.current) clearTimeout(timer.current); };
@@ -95,7 +96,7 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
     ...(counts.unavailable ? [{ key: "unavailable", title: strings.unavailable(counts.unavailable), hint: strings.unavailableHint, icon: <Icon name="MessageSquareOff" size={15} color={colors.foregroundMuted} /> }] : []),
     ...(counts.failed || retrying ? [{ key: "failed", title: failureText, hint: strings.failedHint, icon: retrying ? <SearchSpinner size={13} color={colors.foregroundMuted} /> : <Icon name="CircleAlert" size={15} color={danger} /> }] : []),
   ];
-  const unavailableLift = surfaceLift(hovered, unavailablePressed, reduced);
+  const unavailableLift = surfaceLift(hovered, unavailablePress.pressed, reduced, "control", unavailablePress.input);
   const explanation = <View testID="search-coverage-popover" role="dialog" accessibilityLabel={strings.title} style={{ ...panelChrome(props.theme), borderRadius: 10, padding: 6 }}>
     <View style={{ paddingHorizontal: 8, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
       <Text style={{ fontSize: 12, fontWeight: "600", color: colors.foregroundMuted }}>{strings.title}</Text>
@@ -110,7 +111,7 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
     </View>)}
   </View>;
   return <Animated.View testID="search-coverage-items" ref={anchor} collapsable={false} {...(Platform.OS === "web" ? {} : hoverProps)} onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: 1, height: props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 32] }) : 28, opacity, zIndex: open ? 40 : 1 }}>
-    {counts.unavailable ? <Pressable testID="search-coverage-unavailable" accessibilityRole="button" accessibilityLabel={strings.unavailable(counts.unavailable)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={toggle} onPressIn={() => setUnavailablePressed(true)} onPressOut={() => setUnavailablePressed(false)} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: "100%", borderRadius: 7, backgroundColor: open ? colors.surface1 : "transparent", boxShadow: unavailableLift.shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined, ...scaleStyle(unavailableLift.scale) }}>
+    {counts.unavailable ? <Pressable testID="search-coverage-unavailable" accessibilityRole="button" accessibilityLabel={strings.unavailable(counts.unavailable)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={unavailablePress.guard(toggle)} onPressIn={unavailablePress.onPressIn} onPressOut={unavailablePress.onPressOut} onTouchStart={unavailablePress.onTouchStart} onTouchMove={unavailablePress.onTouchMove} onTouchEnd={unavailablePress.onTouchEnd} onTouchCancel={unavailablePress.onTouchCancel} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: "100%", borderRadius: 7, backgroundColor: open ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), unavailableLift), ...scaleStyle(unavailableLift.scale) }}>
       <Icon name="MessageSquareOff" size={15} color={colors.foregroundMuted} />
       <Text numberOfLines={1} style={textStyle}>{squeeze ? counts.unavailable : strings.unavailable(counts.unavailable)}</Text>
       <Icon name="Info" size={14} color={colors.foregroundMuted} />

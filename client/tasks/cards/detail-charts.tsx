@@ -28,7 +28,8 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { tipProps } from "./card-hints";
 import { tipChrome } from "./panel";
 import { webTransition } from "./action-style";
-import { scaleStyle, surfaceLift } from "./surface-lift";
+import { liftStyle, scaleStyle, surfaceLift } from "./surface-lift";
+import { usePressCue } from "./action-pressable";
 
 /**
  * The details card's charts (`docs/prototypes/task-details-rich.md`, board 6),
@@ -558,17 +559,21 @@ export function Chip(props: { tokens: TaskTokens; lead?: React.ReactNode; text: 
   // Grows with the text size like the card's other controls, so larger text stays inside the pill.
   const height = taskControlHeight(props.height, useTasksFontScale());
   const { hovered, hoverProps } = useHover();
-  const [pressed, setPressed] = useState(false);
+  const press = usePressCue(hovered);
   const reduced = useReducedMotion();
-  const lift = surfaceLift(hovered, pressed, reduced);
+  const lift = surfaceLift(hovered, press.pressed, reduced, "control", press.input);
   return (
     <Pressable
       testID={props.testID}
       {...hoverProps}
       {...tipProps(props.tip)}
-      onPressIn={() => setPressed(true)}
-      onPressOut={() => setPressed(false)}
-      style={{ height, minWidth: height, maxWidth: "100%", paddingHorizontal: props.compact ? 9 : 8, borderRadius: height / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, backgroundColor: props.tokens.card.background, boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: props.compact ? 6 : 5, ...scaleStyle(lift.scale), ...webTransition }}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      onTouchStart={press.onTouchStart}
+      onTouchMove={press.onTouchMove}
+      onTouchEnd={press.onTouchEnd}
+      onTouchCancel={press.onTouchCancel}
+      style={{ height, minWidth: height, maxWidth: "100%", paddingHorizontal: props.compact ? 9 : 8, borderRadius: height / 2, borderWidth: StyleSheet.hairlineWidth, backgroundColor: props.tokens.card.background, ...liftStyle(props.tokens, lift, { border: props.tokens.card.pillBorder }), flexDirection: "row", alignItems: "center", justifyContent: "center", gap: props.compact ? 6 : 5, ...scaleStyle(lift.scale), ...webTransition }}
     >
       {props.lead}
       <Text numberOfLines={1} style={{ fontSize: props.font, lineHeight: Math.round(props.font * 1.25), flexShrink: 1, color: props.muted ? props.tokens.foregroundMuted : props.tokens.foreground }}>

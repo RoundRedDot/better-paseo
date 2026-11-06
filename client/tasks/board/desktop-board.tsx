@@ -14,7 +14,7 @@ import { BoardEmptyState } from "./empty-state";
 import { LANE_EMPTY_ICON } from "./strings";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
-import { surfaceLift } from "../cards/surface-lift";
+import { liftStyle, surfaceLift } from "../cards/surface-lift";
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, NewCardsDot, NewCardsPill, RollingCount, SkeletonCard, VerticalLabel, laneHue, useBreathing, useFreshIds, useTap } from "./board-parts";
 import { pillDirection, useSeenCards, useTrackNewCards, useUnseenCards } from "./new-cards";
 import { useFlash } from "./breathing";
@@ -1630,7 +1630,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: "transparent",
-            boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(theme).card.buttonShadowHover : undefined,
+            ...liftStyle(() => taskTokens(theme), surfaceLift(hovered, pressed)),
           })}
         >
           <Icon name="FoldHorizontal" size={14} color={colors.foregroundMuted} />
