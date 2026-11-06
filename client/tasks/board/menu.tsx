@@ -44,6 +44,8 @@ export interface CascadeMenuProps {
   width: number;
   /** An owner's measured available height, when smaller than the board. */
   maxHeight?: number;
+  /** The owner contains the panel's full native touch bounds (for example, a modal). */
+  nativeScroll?: boolean;
   /** On web, fit the translated content; `width` is the panel's maximum. */
   fitContent?: boolean;
   submenuWidth?: number;
@@ -238,7 +240,8 @@ export function CascadeMenu(props: CascadeMenuProps) {
         open={focus.open}
         onHover={hoverTop}
         onPress={(index) => choose(0, index)}
-        onScroll={setScrollY}
+        onScroll={topItems.some((item) => item.submenu) ? setScrollY : undefined}
+        nativeScroll={props.nativeScroll}
         maxHeight={maxHeight}
         scrolls={layout.height + headerHeight > maxHeight}
         header={
@@ -267,6 +270,7 @@ export function CascadeMenu(props: CascadeMenuProps) {
             onPress={(index) => choose(1, index)}
             maxHeight={sub.maxHeight}
             scrolls={subHeight > sub.maxHeight}
+            nativeScroll={props.nativeScroll}
             testID="menu-submenu-panel"
           />
         </View>
@@ -352,6 +356,7 @@ function MenuPanel(props: {
   /** Taller content scrolls inside this. */
   maxHeight?: number;
   scrolls?: boolean;
+  nativeScroll?: boolean;
   testID?: string;
   /** Held above the rows, out of their scroll: the search field. */
   header?: ReactNode;
@@ -418,7 +423,7 @@ function MenuPanel(props: {
       </View>
     );
   }
-  if (Platform.OS === "android") {
+  if (Platform.OS === "android" && !props.nativeScroll) {
     return (
       <DragScroll
         testID={props.testID ?? "menu-panel"}
@@ -440,7 +445,7 @@ function MenuPanel(props: {
         style={{ maxHeight: (props.maxHeight ?? MENU.maxHeight) - headerHeight }}
         contentContainerStyle={{ paddingVertical: MENU.padV }}
         scrollEventThrottle={16}
-        onScroll={(event) => props.onScroll?.(event.nativeEvent.contentOffset.y)}
+        onScroll={props.onScroll ? (event) => props.onScroll?.(event.nativeEvent.contentOffset.y) : undefined}
       >
         {body}
       </ScrollView>

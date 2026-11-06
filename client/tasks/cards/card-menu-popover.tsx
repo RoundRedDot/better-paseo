@@ -16,7 +16,7 @@ export function CardMenuPopover(props: {
   const scale = useTasksFontScale();
   const stageRef = useRef<View>(null);
   const boundsRef = useContext(MenuBoundsContext);
-  const [frame, setFrame] = useState<{ left: number; top: number; width: number; maxHeight: number } | null>(null);
+  const [frame, setFrame] = useState<{ left: number; top: number; width: number; height: number; maxHeight: number } | null>(null);
   // Inline submenu choices keep the whole menu usable in narrow tablet windows.
   const sections = props.sections.map((section) => ({ ...section, items: section.items
     .flatMap((item) => item.submenu ? item.submenu.flatMap((group) => group.items) : [item])
@@ -45,9 +45,10 @@ export function CardMenuPopover(props: {
           left: Math.max(leftEdge, Math.min(left, rightEdge - menu)),
           top: Math.max(topEdge, Math.min(top, bottomEdge - menuHeight)),
           width: menu,
+          height: menuHeight,
           maxHeight,
         };
-        setFrame((was) => was && was.left === next.left && was.top === next.top && was.width === next.width && was.maxHeight === next.maxHeight ? was : next);
+        setFrame((was) => was && was.left === next.left && was.top === next.top && was.width === next.width && was.height === next.height && was.maxHeight === next.maxHeight ? was : next);
       };
       const stage = () => place(0, 0, sw, sh);
       if (!boundsRef?.current) return stage();
@@ -59,8 +60,9 @@ export function CardMenuPopover(props: {
       <View ref={stageRef} collapsable={false} testID="task-card-menu-stage" onLayout={measure} style={{ flex: 1 }}>
         <Pressable accessibilityLabel={props.closeLabel} testID="task-card-menu-backdrop" onPress={props.onClose} style={StyleSheet.absoluteFill} />
         <View accessibilityViewIsModal onAccessibilityEscape={props.onClose} pointerEvents={frame ? "box-none" : "none"} testID="task-card-menu-popover"
-          style={{ position: "absolute", left: frame?.left ?? 0, top: frame?.top ?? 0, width: frame?.width ?? 0, opacity: frame ? 1 : 0 }}>
-          <CascadeMenu sections={sections} theme={props.theme} width={frame?.width ?? 0} maxHeight={frame?.maxHeight} top={0} align="left" onClose={props.onClose} testID="task-card-menu" />
+          // Android only routes native scroll touches through ancestors whose bounds contain them.
+          style={{ position: "absolute", left: frame?.left ?? 0, top: frame?.top ?? 0, width: frame?.width ?? 0, height: frame?.height ?? 0, opacity: frame ? 1 : 0 }}>
+          <CascadeMenu sections={sections} theme={props.theme} width={frame?.width ?? 0} maxHeight={frame?.maxHeight} nativeScroll top={0} align="left" onClose={props.onClose} testID="task-card-menu" />
         </View>
       </View>
     </Modal>
