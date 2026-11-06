@@ -4,6 +4,7 @@ import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, type TasksSettings } from "../.
 import { useDeviceTasksPreferences } from "../device-preferences";
 import { DEFAULT_CARD_TITLE_LINES, DEVICE_BOARD_FIELDS, deviceBoardPreferences, sharedTasksSettings, type CardTitleLineCount } from "../device-store";
 import { setTasksEnabled } from "../board/enabled";
+import { DEFAULT_OPEN_TASKS_SHORTCUT } from "../shortcut-model";
 
 /**
  * The switch went on from this page and the board has not been opened since:
@@ -49,6 +50,7 @@ export function resetEnabledNotice(): void {
 export function useTasksForm() {
   const shared = useSettings(TASKS_SETTINGS);
   const device = useDeviceTasksPreferences(shared.status === "ready" ? shared.values : null);
+  const openShortcut = device.values ? device.values.openShortcut : DEFAULT_OPEN_TASKS_SHORTCUT;
   const settings = shared.status === "ready" && !device.ready && !device.error ? { ...shared, status: "loading" as const } : shared.status === "ready" && device.settings ? { ...shared, values: device.settings } : shared;
   const [localError, setLocalError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
@@ -92,11 +94,11 @@ export function useTasksForm() {
   const restoreDefaults = useCallback(async () => {
     setConflict(false);
     setLocalError(null);
-    try { await device.restore(deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board)); }
+    try { await device.restore({ ...deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board), openShortcut }); }
     catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); return; }
     if (enabled === null) await reset();
     else await commit({ ...DEFAULT_TASKS_SETTINGS, enabled });
-  }, [reset, commit, enabled, device.restore]);
+  }, [reset, commit, enabled, device.restore, openShortcut]);
   const restoreCardDefaults = useCallback(async () => {
     if (settings.status !== "ready") return;
     setConflict(false);
@@ -109,10 +111,15 @@ export function useTasksForm() {
     if (settings.status !== "ready") return;
     setConflict(false);
     setLocalError(null);
-    try { await device.restore({ ...deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board), titleLines: device.titleLines }); }
+    try { await device.restore({ ...deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board), titleLines: device.titleLines, openShortcut }); }
     catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); return; }
     await commit({ ...settings.values, board: DEFAULT_TASKS_SETTINGS.board });
-  }, [commit, device.restore, device.titleLines, settings]);
+  }, [commit, device.restore, device.titleLines, openShortcut, settings]);
+  const setOpenShortcut = useCallback(async (openShortcut: string | null) => {
+    setLocalError(null);
+    try { await device.update({ openShortcut }); }
+    catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); }
+  }, [device.update]);
   const setTitleLines = useCallback(async (titleLines: CardTitleLineCount) => {
     setLocalError(null);
     try { await device.update({ titleLines }); }
@@ -124,7 +131,7 @@ export function useTasksForm() {
     if (enabled === false) setTurnedOnHere(false);
   }, [enabled]);
 
-  return { settings, titleLines: device.titleLines, setTitleLines, localError: localError ?? device.error, conflict, commit, setEnabled, restoreDefaults, restoreCardDefaults, restoreBoardDefaults, turnedOn: turnedOn && enabled === true };
+  return { settings, openShortcut, shortcutReady: device.ready, setOpenShortcut, titleLines: device.titleLines, setTitleLines, localError: localError ?? device.error, conflict, commit, setEnabled, restoreDefaults, restoreCardDefaults, restoreBoardDefaults, turnedOn: turnedOn && enabled === true };
 }
 
 export type TasksForm = ReturnType<typeof useTasksForm>;

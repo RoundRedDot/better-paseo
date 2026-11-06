@@ -24,10 +24,10 @@ it.each(["ios", "android"])("persists the device preferences through %s AsyncSto
   const store = deviceTasksStore();
   store.load(seed);
   await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
-  const saved = { hideSubtasks: true, showArchived: false, showEmptyGroups: false, laneWidth: "wide" as const, titleLines: "all" as const };
+  const saved = { ...seed, hideSubtasks: true, showArchived: false, showEmptyGroups: false, laneWidth: "wide" as const, titleLines: "all" as const };
   await store.update(saved);
   expect(NativeModules.RNCAsyncStorage.multiSet).toHaveBeenCalledTimes(2);
-  delete holder.__betterPaseoDeviceTasksV2;
+  delete holder.__betterPaseoDeviceTasksV3;
   const restarted = deviceTasksStore();
   restarted.load(seed);
   await vi.waitFor(() => expect(restarted.snapshot().ready).toBe(true));
@@ -42,20 +42,20 @@ it("persists the same device record with web localStorage", async () => {
   const store = deviceTasksStore();
   store.load(seed);
   await store.update({ hideSubtasks: true });
-  delete holder.__betterPaseoDeviceTasksV2;
+  delete holder.__betterPaseoDeviceTasksV3;
   const restarted = deviceTasksStore();
   restarted.load(seed);
   expect(restarted.snapshot().values?.hideSubtasks).toBe(true);
   expect(restarted.snapshot().values?.titleLines).toBe("2");
 });
 
-it("replaces a stale runtime store when the device preference schema adds title lines", async () => {
+it("replaces a stale runtime store when the device preference schema adds a shortcut", async () => {
   holder.__rnMockOS = "web";
   delete holder.__betterPaseoDeviceTasksStorageForTests;
-  const legacy = { hideSubtasks: true, showArchived: false, showEmptyGroups: false, laneWidth: "wide" as const };
+  const legacy = { hideSubtasks: true, showArchived: false, showEmptyGroups: false, laneWidth: "wide" as const, titleLines: "2" };
   let stored = JSON.stringify(legacy);
   holder.localStorage = { getItem: () => stored, setItem: (_key: string, value: string) => { stored = value; } };
-  holder.__betterPaseoDeviceTasksV1 = {
+  holder.__betterPaseoDeviceTasksV2 = {
     snapshot: () => ({ values: legacy, ready: true, error: null }),
     subscribe: () => () => {},
     load: vi.fn(),
@@ -65,8 +65,8 @@ it("replaces a stale runtime store when the device preference schema adds title 
 
   const store = deviceTasksStore();
   store.load(seed);
-  expect(store.snapshot().values).toEqual({ ...legacy, titleLines: "2" });
+  expect(store.snapshot().values).toEqual({ ...seed, ...legacy });
   await store.update({ titleLines: "4" });
-  expect(store.snapshot().values).toEqual({ ...legacy, titleLines: "4" });
-  expect(JSON.parse(stored)).toEqual({ ...legacy, titleLines: "4" });
+  expect(store.snapshot().values).toEqual({ ...seed, ...legacy, titleLines: "4" });
+  expect(JSON.parse(stored)).toEqual({ ...seed, ...legacy, titleLines: "4" });
 });

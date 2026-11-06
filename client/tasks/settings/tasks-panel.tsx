@@ -35,6 +35,7 @@ import { TASKS_SETTINGS_STRINGS, type TasksSettingsStrings } from "./strings";
 import { dismissEnabledNotice, useTasksForm, type TasksForm } from "./use-tasks-form";
 import { TitleGenerationSettings } from "./title-generation";
 import { HiddenCount } from "../board/hidden-count";
+import { OpenTasksShortcut } from "./open-shortcut";
 
 /**
  * The Tasks half of Better Paseo's settings page: the switch, the preview
@@ -335,6 +336,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         ]}
       >
         <EnabledRow form={form} strings={strings} look={look} />
+        <OpenTasksShortcut value={form.openShortcut} ready={form.shortcutReady} onChange={form.setOpenShortcut} strings={strings} look={look} />
         {form.turnedOn ? <EnabledNotice strings={strings} look={look} /> : null}
       </View>
       {settings.status === "ready" ? (
