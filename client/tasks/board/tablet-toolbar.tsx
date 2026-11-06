@@ -41,7 +41,7 @@ export function TabletToolbar(props: {
   const strings = board.strings;
   const scale = useTasksFontScale();
   const compact = props.width < 680 * Math.max(1, scale);
-  const target = taskControlHeight(40, scale);
+  const target = taskControlHeight(32, scale);
   const height = taskControlHeight(40, scale);
   const inlineSearch = Platform.OS === "web" && props.width >= 560 * Math.max(1, scale);
   const [page, setPage] = useState<ViewPage | null>(null);
@@ -99,7 +99,7 @@ export function TabletToolbar(props: {
   const search = (
     <View testID="tablet-toolbar-search-group" style={{ flex: 1, minWidth: 0, maxWidth: inlineSearch ? 400 : taskControlHeight(238, scale), flexDirection: "row", alignItems: "center", gap: 8 }}>
     <View testID="tablet-toolbar-search" style={{ flex: 1, minWidth: 0, height: height - 8, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
-      <SearchInput iconSize={16} iconColor={colors.foregroundMuted}
+      <SearchInput hideSearchIcon iconSize={16} iconColor={colors.foregroundMuted}
         ref={props.searchRef}
         value={board.params.query}
         onChangeText={(query) => board.setParams((p) => ({ ...p, query }))}
@@ -125,8 +125,7 @@ export function TabletToolbar(props: {
       <View pointerEvents="box-none" testID="tablet-toolbar" onLayout={(event) => setToolbarWidth(event.nativeEvent.layout.width)} style={{ height, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>
         {/* Match both side slots' minimums: native flex otherwise shifts the title towards the search. */}
         <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: inlineSearch && searching ? 160 : compact && centered && !expandedSearch ? minimumActionsWidth : 0, marginLeft: -8, marginRight: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {inlineSearch ? search : <ToolbarButton icon="Search" label={strings.searchButton} selected={searchOpen || !!board.params.query} theme={theme} testID="tablet-search-toggle" onPress={() => { props.filters?.onClose(); setPage(null); setSearchOpen(!searchOpen); }} />}
-          {expandedSearch ? search : null}
+          {inlineSearch || expandedSearch ? search : <ToolbarButton icon="Search" label={strings.searchButton} selected={!!board.params.query} theme={theme} testID="tablet-search-toggle" onPress={() => { props.filters?.onClose(); setPage(null); setSearchOpen(true); }} />}
         </View>
         {expandedSearch ? null : <SearchQueryChip board={board} theme={theme} />}
         <SearchCoverageItems theme={theme} />
@@ -170,7 +169,7 @@ export function TabletToolbar(props: {
 function ToolbarButton(props: { icon: string | React.ReactElement; label: string; theme: PluginTheme; onPress(): void; testID: string; selected?: boolean; hideSelectedBackground?: boolean; expanded?: boolean; badge?: number; badgeTestID?: string; slashed?: boolean; size?: number }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
-  const target = taskControlHeight(props.size ?? 40, scale);
+  const target = taskControlHeight(props.size ?? 32, scale);
   const iconSize = 18;
   return (
     <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered, pressed) => ({ minWidth: target, height: target, flexShrink: 0, borderRadius: 7, backgroundColor: props.expanded || (props.selected && !props.hideSelectedBackground) ? colors.surface1 : "transparent", boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>

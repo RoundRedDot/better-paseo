@@ -22,7 +22,7 @@ afterEach(() => { act(() => renderer?.unmount()); vi.useRealTimers(); });
 const hosts = (id: string) => renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === id);
 const text = (node: TestRenderer.ReactTestInstance): string => node.children.map((child) => typeof child === "string" ? child : text(child)).join("");
 
-function mount(counts: ReturnType<SearchCoverageControl["read"]>, language: "en" | "zh" = "zh", phone = false, size = 13) {
+function mount(counts: ReturnType<SearchCoverageControl["read"]>, language: "en" | "zh" = "zh", phone = false, size = 13, hideSearchIcon = false) {
   const listeners = new Set<() => void>();
   const retry = vi.fn(async () => {});
   const status: SearchCoverageControl = { read: () => counts, subscribe(listener) { listeners.add(listener); return () => { listeners.delete(listener); }; }, retry, prompt: () => ({ state: "idle" }) };
@@ -32,7 +32,7 @@ function mount(counts: ReturnType<SearchCoverageControl["read"]>, language: "en"
   const theme = { colors: { foreground: "#111111", foregroundMuted: "#777777", surface0: "#ffffff", surface1: "#eeeeee", surface2: "#eeeeee", accent: "#2563eb", accentForeground: "#ffffff", statusWarning: "#a36a00", statusDanger: "#d92d20", statusSuccess: "#198754", border: "#dddddd" } } as never;
   const render = () => <SearchCoverageProvider status={status} query={query} strings={BOARD_STRINGS[language].searchCoverage} total={6}>
     <Lanes />
-    <SearchInput iconSize={size} iconColor="#777777" value={query} />
+    <SearchInput hideSearchIcon={hideSearchIcon} iconSize={size} iconColor="#777777" value={query} />
     <SearchCoverageItems theme={theme} phone={phone} />
   </SearchCoverageProvider>;
   act(() => { renderer = TestRenderer.create(render()); });
@@ -45,6 +45,16 @@ function mount(counts: ReturnType<SearchCoverageControl["read"]>, language: "en"
 }
 
 const state = (pending = 0, unavailable = 0, failed = 0, retrying = 0) => ({ pending, unavailable, failed, retrying });
+
+it("hides the search icon without losing loading feedback", () => {
+  const mounted = mount(state(1), "en", false, 16, true);
+  expect(hosts("search-icon-slot")).toHaveLength(0);
+  act(() => { vi.advanceTimersByTime(300); });
+  expect(hosts("search-spinner")).toHaveLength(1);
+  mounted.query("");
+  expect(hosts("search-icon-slot")).toHaveLength(0);
+});
+
 const matrix = [
   ["pending", state(23), false],
   ["pending + unavailable", state(23, 56), true],

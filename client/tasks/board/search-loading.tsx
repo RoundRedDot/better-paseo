@@ -80,8 +80,8 @@ export function SearchSpinner(props: { size: number; color: string }) {
   </Animated.View>;
 }
 
-export function SearchInput(props: React.ComponentProps<typeof TextInput> & { iconSize: number; iconColor: string; ref?: React.Ref<NativeTextInput> }) {
-  const { iconSize, iconColor, ...input } = props;
+export function SearchInput(props: React.ComponentProps<typeof TextInput> & { iconSize: number; iconColor: string; hideSearchIcon?: boolean; ref?: React.Ref<NativeTextInput> }) {
+  const { iconSize, iconColor, hideSearchIcon, ...input } = props;
   const { context, counts } = useSearchCoverage();
   const loading = counts.pending > 0 || counts.retrying > 0;
   const shown = useSearchLoading(loading, input.value ?? "");
@@ -118,11 +118,12 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { ic
   useEffect(() => {
     if (announcement && Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(announcement);
   }, [announcement]);
+  const spinnerVisible = Boolean(input.value?.trim() && (shown || present === input.value));
   return <>
-    <View testID="search-icon-slot" {...tipProps(shown && context ? context.strings.tip(counts.pending || lastCount.current) : undefined)} style={{ width: iconSize, height: iconSize, flexShrink: 0 }}>
-      <Animated.View style={{ position: "absolute", opacity: opacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}><Icon name="Search" size={iconSize} color={iconColor} /></Animated.View>
-      {input.value?.trim() && (shown || present === input.value) ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
-    </View>
+    {!hideSearchIcon || spinnerVisible ? <View testID="search-icon-slot" {...tipProps(shown && context ? context.strings.tip(counts.pending || lastCount.current) : undefined)} style={{ width: iconSize, height: iconSize, flexShrink: 0 }}>
+      {!hideSearchIcon ? <Animated.View style={{ position: "absolute", opacity: opacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}><Icon name="Search" size={iconSize} color={iconColor} /></Animated.View> : null}
+      {spinnerVisible ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
+    </View> : null}
     <TextInput {...input} accessibilityState={{ ...input.accessibilityState, busy: loading }} />
     <Text testID="search-announcement" accessibilityLiveRegion="polite" role="status" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}>{announcement}</Text>
   </>;

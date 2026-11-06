@@ -3926,6 +3926,8 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostParentOf(search())?.props.testID).toBe("tablet-toolbar-search-group");
     expect(hostParentOf(hostsById("tablet-toolbar-search-group")[0]!)?.props.testID).toBe("tablet-toolbar-start");
     expect(bar().findAll((node) => node === search())).toHaveLength(1);
+    expect(hostsById("tablet-search-toggle")).toHaveLength(0);
+    expect(search().findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "Search")).toHaveLength(0);
     expect(style(search())).toMatchObject({ height: Math.round(40 * base / 14) - 8, flex: 1, minWidth: 0 });
     expect(style(search()).position).toBeUndefined();
     expect(hostsById("tablet-toolbar-total")).toHaveLength(0);
@@ -3941,7 +3943,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     act(() => hostsById("tablet-search-clear")[0]!.props.onPress());
     expect(input().props.value).toBe("");
     expect(hostsById("tablet-search-clear")).toHaveLength(0);
-    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     expect(hostsById("tablet-toolbar-search")).toHaveLength(0);
     expect(hostsById("tablet-toolbar-total")).toHaveLength(1);
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
@@ -4151,7 +4153,8 @@ describe("Tasks board, tablet filters", () => {
     const buttons = bar.findAll((n) => (n.type as unknown) === "Pressable" && n.props.testID !== "search-full-conversation-toggle");
     for (const button of buttons) {
       const style = StyleSheet.flatten(button.props.style);
-      expect(style.height).toBe(Math.round(40 * Math.max(1, base / 14)));
+      expect(style.height).toBe(Math.round(32 * Math.max(1, base / 14)));
+      expect(style.minWidth).toBe(Math.round(32 * Math.max(1, base / 14)));
       expect(style.borderRadius).toBe(7);
       const icon = button.find((node) => button.props.testID === "sidebar-switch" ? typeof node.type === "string" && node.props.testID === "panel-mark" : (node.type as unknown) === "Icon");
       expect(StyleSheet.flatten(hostParentOf(icon)!.props.style)).toMatchObject({ width: 18, height: 18 });
@@ -4196,7 +4199,7 @@ describe("Tasks board, tablet filters", () => {
     const field = hostsById("tablet-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput" && [BOARD_STRINGS.en.search, BOARD_STRINGS.zh.search].includes(node.props.accessibilityLabel));
     act(() => field.props.onChangeText("needle"));
     expect(order()).toEqual(expected);
-    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    expect(hostsById("tablet-search-toggle")).toHaveLength(0);
     expect(order()).toEqual(expected);
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     expect(hostsById("filter-sheet-scroll")).toHaveLength(1);
