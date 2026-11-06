@@ -2,6 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StyleSheet } from "react-native";
+import { Icon } from "@getpaseo/plugin/client/react-native";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
@@ -35,6 +36,33 @@ afterEach(async () => {
 });
 
 describe("detail pill sizes", () => {
+  it.each([
+    ["web", false, 14, 28, 16],
+    ["web", false, 21, 42, 24],
+    ["web", true, 14, 32, 18],
+    ["ios", true, 14, 32, 18],
+    ["ios", true, 21, 48, 18],
+    ["android", true, 14, 32, 18],
+    ["android", true, 21, 48, 18],
+  ] as const)("matches toolbar controls on %s (touch=%s, UI=%s)", async (os, touch, ui, target, iconSize) => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.stubGlobal("__rnMockOS", os);
+    const close = vi.fn();
+    const theme = { ...THEME, typography: { fontSize: { ui, content: 16 } } };
+    await act(async () => {
+      renderer = TestRenderer.create(<TasksTypography theme={theme}><TaskDetailCards card={previewSampleCards(NOW)[0]!} theme={theme} now={NOW} language="en" strings={BOARD_STRINGS.en.sidebar} touch={touch} onMenu={vi.fn()} onClose={close} /></TasksTypography>);
+    });
+    const controls = renderer!.root.findByProps({ testID: "detail-header-controls" });
+    expect(StyleSheet.flatten(controls.props.style).gap).toBe(0);
+    for (const testID of ["detail-menu", "detail-close"]) {
+      const button = controls.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === testID);
+      expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: target, height: target });
+      expect(button.findByType(Icon).props.size).toBe(iconSize);
+    }
+    await act(async () => controls.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "detail-close").props.onPress());
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it.each(["web", "ios", "android"])("follows the board's lift on %s", async (os) => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("__rnMockOS", os);

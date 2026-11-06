@@ -81,6 +81,7 @@ import { AvailabilityTag } from "./availability-tag";
 import { highlightText } from "./search-highlight";
 import { detailSearchHits, searchRanges, taskSearchHits } from "../data/search-hits";
 import { taskOperationIssue } from "../availability";
+import { TASK_TOOLBAR_METRICS } from "../toolbar-metrics";
 
 /**
  * The details as one raised card, after Linear's issue panel
@@ -515,6 +516,8 @@ function stopLabel(props: TaskDetailCardsProps): string | null {
 /** The header: status, title, the agent's chips and labels, the actions, then the block the card needs first. */
 function DetailHeader(props: Inner) {
   const { card, m, tokens, touch = false } = props;
+  const scale = useTasksFontScale();
+  const controls = touch ? TASK_TOOLBAR_METRICS.touch : TASK_TOOLBAR_METRICS.desktop;
   const menuRef = useRef<View>(null);
   const titleUpdate = useTitleUpdateState(props.titleUpdates, card.id);
   const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
@@ -647,8 +650,10 @@ function DetailHeader(props: Inner) {
         </Text>
         <StatusSub {...props} small={small} />
         <View style={{ flex: 1 }} />
-        {props.onMenu ? <View ref={menuRef} collapsable={false}><RoundIcon icon="MoreVertical" label={props.language === "zh" ? "卡片菜单" : "Card menu"} size={m.round} tokens={tokens} testID="detail-menu" onPress={() => menuRef.current?.measureInWindow((x, y, width, height) => props.onMenu?.({ x: x + width, y: y + height }))} /></View> : null}
-        {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={m.round} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
+        <View testID="detail-header-controls" style={{ flexDirection: "row", alignItems: "center", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
+          {props.onMenu ? <View ref={menuRef} collapsable={false}><RoundIcon icon="MoreVertical" label={props.language === "zh" ? "卡片菜单" : "Card menu"} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-menu" onPress={() => menuRef.current?.measureInWindow((x, y, width, height) => props.onMenu?.({ x: x + width, y: y + height }))} /></View> : null}
+          {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
+        </View>
       </View>
       <View style={{ marginTop: 2, flexDirection: "row", alignItems: "center", gap: 6 }}>
       {card.subagent ? <SubagentLabel language={props.language} tokens={tokens} testID="detail-session-label" /> : null}
@@ -1838,7 +1843,7 @@ function KeyCap(props: { label: string; tokens: TaskTokens }) {
 }
 
 /** A header icon button, matching the toolbar's quiet outline on web. */
-export function RoundIcon(props: { icon: string; label: string; size: number; tokens: TaskTokens; active?: boolean; onPress(): void; testID?: string }) {
+export function RoundIcon(props: { icon: string; label: string; size: number; iconSize: number; tokens: TaskTokens; active?: boolean; onPress(): void; testID?: string }) {
   const { hovered, hoverProps } = useHover();
   return (
     <Pressable
@@ -1866,7 +1871,7 @@ export function RoundIcon(props: { icon: string; label: string; size: number; to
         };
       }}
     >
-      <Icon name={props.icon} size={15} color={props.active ? props.tokens.accent : hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
+      <Icon name={props.icon} size={props.iconSize} color={props.active ? props.tokens.accent : hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
     </Pressable>
   );
 }

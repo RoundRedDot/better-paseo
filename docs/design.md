@@ -150,8 +150,10 @@ rule: put its movement behind `motionDuration` and keep at most a short fade.
 - The board picks its touch sizes by platform: any native client is touch (`TOUCH`,
   `Platform.OS !== "web"`), so an iPad draws desktop lanes with touch targets. The phone layout
   (`compact`) is a separate switch.
-- Targets: chat rows reach 44 through hit slop; board toolbar buttons are 28 on the web and 36 on
-  native; detail rows, headings and buttons 32, 44 on touch; round icons 28, 36; chips 22, 28;
+- Targets: chat rows reach 44 through hit slop; desktop board toolbar buttons are 28 on the web
+  and 36 on native; tablet toolbar buttons and detail header menu/close buttons are 32 on touch,
+  with 28 targets for the detail header on desktop. Detail rows, headings and buttons are 32,
+  44 on touch; chips 22, 28;
   sidebar group rows 36, 44; card buttons 28, at least 32 on a phone; copy buttons 24 with a 32
   hit area. A long press is 450 ms on a card and 500 ms on a chat row.
 
@@ -878,9 +880,15 @@ apply to all three.
 | Toolbar | Height | Targets | Contents |
 | --- | --- | --- | --- |
 | Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 320 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
-| Tablet (`TabletToolbar`) | 48 | 40 | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when selected or expanded, except the Subtasks switch |
+| Tablet (`TabletToolbar`) | 40 | 32 | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when selected or expanded, except the Subtasks switch |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
+- Board toolbar actions and detail header menu/close buttons share `TASK_TOOLBAR_METRICS`
+  (`client/tasks/toolbar-metrics.ts`). Desktop actions use 16 pt icons in 28 pt targets;
+  both grow through `taskControlHeight` with the host interface size. Touch uses fixed 18 pt
+  icons in 32 pt targets, with only targets growing through `taskControlHeight`. Keep adjacent
+  detail header controls in one group with the tablet toolbar's 0 pt extra gap; target padding
+  separates the glyphs. Do not assign larger, independent sizes to the detail header icons.
 - Search width is fixed at 320, independent of filter-label measurements, task counts and
   active filters. At board widths below `960 * max(1, scale)`, desktop and tablet show only
   the Search button; pressing it opens a separate row below the toolbar with autofocus,
@@ -1016,7 +1024,7 @@ apply to all three.
 | List row | 30 | 44 |
 | Icon | 16 | 18 |
 | Chip | 22 | 28 |
-| Round icon | 28 | 36 |
+| Header menu/close target (`TASK_TOOLBAR_METRICS`) | 28 | 32 |
 
 - A detail card is the card fill with a hairline border, radius 12, the rest shadow, 8 between
   cards and 12 × 6 inside. The header is padded 12: the status row (icon 14, the status, card menu, close),

@@ -29,6 +29,7 @@ import { bindBoardRefreshShortcut } from "../../web";
 import { useUpdateIndicator } from "./update-indicator";
 import { SETTINGS_STRINGS } from "../../i18n/settings-page-strings";
 import { useTasksLanguage } from "../i18n";
+import { TASK_TOOLBAR_METRICS } from "../toolbar-metrics";
 
 export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
@@ -41,10 +42,10 @@ const TOOLBAR_GAP = 10;
 const DIVIDER_MARGIN = 4;
 
 /** Round and menu buttons share the same height on each platform. */
-const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 28 : 36, scale);
+const toolbarButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? TASK_TOOLBAR_METRICS.desktop.button : 36, scale);
 const roundButtonSize = (scale: number) => taskControlHeight(Platform.OS === "web" ? 24 : 36, scale);
 const roundIconSize = (scale: number) => Platform.OS === "web" ? taskControlHeight(14, scale) : Math.round(roundButtonSize(scale) / 2);
-const actionIconSize = (scale: number) => Platform.OS === "web" ? taskControlHeight(16, scale) : roundIconSize(scale);
+const actionIconSize = (scale: number) => Platform.OS === "web" ? taskControlHeight(TASK_TOOLBAR_METRICS.desktop.icon, scale) : roundIconSize(scale);
 const laneWidthIconSize = (scale: number) => Math.round(16 * Math.max(1, scale));
 
 export type EmptyLanes = { collapsed: boolean; disabled: boolean; onToggle(): void };

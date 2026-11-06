@@ -17,6 +17,7 @@ import { FullConversationSwitch, SearchInput } from "./search-loading";
 import { SearchCoverageItems } from "./search-coverage";
 import { PanelMark, SearchQueryChip } from "./filter-bar";
 import { emptyGroupsIcon } from "./filter-options";
+import { TASK_TOOLBAR_METRICS } from "../toolbar-metrics";
 
 type ViewPage = "view" | "sort";
 
@@ -42,7 +43,7 @@ export function TabletToolbar(props: {
   const strings = board.strings;
   const scale = useTasksFontScale();
   const compact = props.width < 680 * Math.max(1, scale);
-  const target = taskControlHeight(32, scale);
+  const target = taskControlHeight(TASK_TOOLBAR_METRICS.touch.button, scale);
   const height = taskControlHeight(40, scale);
   const inlineSearch = props.width >= 960 * Math.max(1, scale);
   const [page, setPage] = useState<ViewPage | null>(null);
@@ -139,7 +140,7 @@ export function TabletToolbar(props: {
             </View>
           </View>
         </View>
-        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: searching || !centered ? 0 : 1, flexBasis: searching || !centered ? "auto" : 0, minWidth: compact && centered ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 0 }}>
+        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: searching || !centered ? 0 : 1, flexBasis: searching || !centered ? "auto" : 0, minWidth: compact && centered ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
         <ToolbarButton icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} hideSelectedBackground badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => { closeEmptySearch(); board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })); }} />
         {separateFilters ? <View testID="tablet-filter-anchor" onLayout={(event) => setFilterLayout(event.nativeEvent.layout)}><ToolbarButton icon="Filter" label={strings.filters} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /></View> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
@@ -174,8 +175,8 @@ export function TabletToolbar(props: {
 function ToolbarButton(props: { icon: string | React.ReactElement; label: string; theme: PluginTheme; onPress(): void; testID: string; selected?: boolean; hideSelectedBackground?: boolean; expanded?: boolean; badge?: number; badgeTestID?: string; slashed?: boolean; size?: number }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
-  const target = taskControlHeight(props.size ?? 32, scale);
-  const iconSize = 18;
+  const target = taskControlHeight(props.size ?? TASK_TOOLBAR_METRICS.touch.button, scale);
+  const iconSize = TASK_TOOLBAR_METRICS.touch.icon;
   return (
     <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered, pressed) => ({ minWidth: target, height: target, flexShrink: 0, borderRadius: 7, backgroundColor: props.expanded || (props.selected && !props.hideSelectedBackground) ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), surfaceLift(hovered, pressed)), flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
       <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
