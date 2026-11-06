@@ -42,7 +42,7 @@ export function TabletToolbar(props: {
   const scale = useTasksFontScale();
   const compact = props.width < 680 * Math.max(1, scale);
   const target = taskControlHeight(40, scale);
-  const height = taskControlHeight(44, scale);
+  const height = taskControlHeight(40, scale);
   const inlineSearch = Platform.OS === "web" && props.width >= 560 * Math.max(1, scale);
   const [page, setPage] = useState<ViewPage | null>(null);
   const [trail, setTrail] = useState<string[]>([]);
@@ -98,7 +98,7 @@ export function TabletToolbar(props: {
   ];
   const search = (
     <View testID="tablet-toolbar-search-group" style={{ flex: 1, minWidth: 0, maxWidth: inlineSearch ? 400 : taskControlHeight(238, scale), flexDirection: "row", alignItems: "center", gap: 8 }}>
-    <View testID="tablet-toolbar-search" style={{ flex: 1, minWidth: 0, height: target, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
+    <View testID="tablet-toolbar-search" style={{ flex: 1, minWidth: 0, height: height - 4, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
       <SearchInput iconSize={16} iconColor={colors.foregroundMuted}
         ref={props.searchRef}
         value={board.params.query}
