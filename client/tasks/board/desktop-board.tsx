@@ -208,6 +208,7 @@ export function DesktopBoard(props: {
     return out;
   }, [setCollapsed]);
   const searchRef = useRef<NativeTextInput>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const rowRef = useRef<ScrollView | null>(null);
 
   // The sidebar: open and width as the user left them, inline on a wide
@@ -232,7 +233,7 @@ export function DesktopBoard(props: {
   const [shown, setShown] = useState<"card" | "switch" | null>(null);
   const [selection, dispatch] = useReducer(selectionReducer, NO_SELECTION);
   const [boardWidth, setBoardWidth] = useState(0);
-  const [filterControlsWidth, setFilterControlsWidth] = useState(0);
+  const searchExpanded = searchOpen && boardWidth < 960 * Math.max(1, scale);
   const [boardHeight, setBoardHeight] = useState(0);
   const [detent, setDetent] = useState<SheetDetent>("half");
   const modeRef = useRef<SidebarMode | null>(null);
@@ -300,8 +301,8 @@ export function DesktopBoard(props: {
   }, [selectedGone]);
 
   const floatWidth = touch ? tabletSidebarWidth(boardWidth, preference.floatingWidth) : sidebarWidth(boardWidth, preference.width, "floating");
-  const latest = useRef({ board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed });
-  latest.current = { board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed };
+  const latest = useRef({ board, live, emptyLanesSwitch, focus, shapes, menu, searchExpanded, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed });
+  latest.current = { board, live, emptyLanesSwitch, focus, shapes, menu, searchExpanded, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed };
   const sheetMode = mode === "sheet";
   const sheetModeRef = useRef(sheetMode);
   sheetModeRef.current = sheetMode;
@@ -510,6 +511,11 @@ export function DesktopBoard(props: {
         event.preventDefault();
         return;
       }
+      if (event.key === "Escape" && now.searchExpanded) {
+        setSearchOpen(false);
+        event.preventDefault();
+        return;
+      }
       if (event.key === "Escape" && now.open) {
         const step = escapeStep(now.selection, now.floating);
         if (step) {
@@ -562,7 +568,10 @@ export function DesktopBoard(props: {
       event.preventDefault();
       if (result.focus && result.effect !== "search") focusTaskBoard(root);
       setFocus(result.focus);
-      if (result.effect === "search") searchRef.current?.focus();
+      if (result.effect === "search") {
+        if (searchRef.current) searchRef.current.focus();
+        else setSearchOpen(true);
+      }
       if (result.effect === "open" && result.focus) {
         const card = now.board.lanes[result.focus.lane].cards[result.focus.index];
         if (card) now.board.callbacks.onOpen?.(card.id);
@@ -591,6 +600,10 @@ export function DesktopBoard(props: {
       const active = document.activeElement as HTMLElement | null;
       const inBoard = !!active && !!root && root.contains(active);
       const disarmed = latest.current.board.stop.cancelAll();
+      if (inBoard && latest.current.searchExpanded) {
+        setSearchOpen(false);
+        event.preventDefault();
+      }
       if (inBoard && isTyping(active)) {
         active!.blur();
         event.preventDefault();
@@ -675,7 +688,9 @@ export function DesktopBoard(props: {
         theme={theme}
         searchRef={searchRef}
         keyHints={boardWidth === 0 || boardWidth >= KEY_HINTS_MIN_WIDTH * Math.max(1, scale)}
-        filterControlsWidth={sheetMode ? undefined : filterControlsWidth}
+        width={boardWidth}
+        searchOpen={searchOpen}
+        onSearchOpenChange={setSearchOpen}
         filterOptions={options ?? undefined}
         menu={menu}
         setMenu={setMenu}
@@ -692,7 +707,6 @@ export function DesktopBoard(props: {
           setMenu={setMenu}
           emptyLanes={emptyLanesSwitch}
           onMore={openFilterPanel}
-          onControlsWidth={setFilterControlsWidth}
         />
       )}
       {/* Tablets use the toolbar popover; narrow web layouts use the host's filter panel. */}

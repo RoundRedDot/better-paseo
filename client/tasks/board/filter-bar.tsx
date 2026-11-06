@@ -110,7 +110,9 @@ function DesktopToolbarView(props: {
   theme: PluginTheme;
   searchRef: Ref<NativeTextInput>;
   keyHints: boolean;
-  filterControlsWidth?: number;
+  width: number;
+  searchOpen: boolean;
+  onSearchOpenChange(open: boolean): void;
   filterOptions?: FilterOptions;
   menu: FilterMenu | null;
   setMenu(menu: FilterMenu | null): void;
@@ -142,6 +144,7 @@ function DesktopToolbarView(props: {
     if (groupGone) props.setMenu(null);
   }, [groupGone, props.setMenu]);
   const toggle = (menuId: FilterMenu) => props.setMenu(props.menu === menuId ? null : menuId);
+  const inlineSearch = props.width >= 960 * Math.max(1, scale);
   const [searchFocused, setSearchFocused] = useState(false);
   const [actionWidth, setActionWidth] = useState(0);
   const openSettings = tasksSettingsOpener();
@@ -158,16 +161,15 @@ function DesktopToolbarView(props: {
     ...(openSettings ? [{ key: "settings", label: strings.openSettings, accessibilityLabel: updateAvailable ? `${strings.openSettings}, ${updateLabel}` : undefined, icon: "Bolt", shortcut: ",", onSelect: openSettings, trailing: updateAvailable ? <View testID="desktop-settings-update-dot" pointerEvents="none" style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: taskTokens(theme).danger }} /> : undefined }] : []),
     ...(compactActions && props.sidebar ? [{ key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, onSelect: props.sidebar.onToggle }] : []),
   ];
-  return (
-    <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 11 }}>
-      <View testID="desktop-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 }}>
-      <View testID="desktop-toolbar-search-group" style={{ width: props.filterControlsWidth || 432, maxWidth: "100%", minWidth: 0, flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
+  const search = (
+      <View testID="desktop-toolbar-search-group" style={{ maxWidth: "100%", minWidth: 0, flexShrink: inlineSearch ? 0 : 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
       <View
         testID="desktop-toolbar-search"
         {...tipProps(`${strings.search} (/)`)}
         style={{
           height: taskControlHeight(32, scale),
-          flex: 1,
+          width: 320,
+          flexShrink: 1,
           minWidth: 0,
           flexDirection: "row",
           alignItems: "center",
@@ -180,6 +182,7 @@ function DesktopToolbarView(props: {
       >
         <SearchInput iconSize={13} iconColor={colors.foregroundMuted}
           ref={props.searchRef}
+          autoFocus={!inlineSearch}
           value={board.params.query}
           onChangeText={(query) => board.setParams((params) => ({ ...params, query }))}
           onFocus={() => setSearchFocused(true)}
@@ -195,6 +198,18 @@ function DesktopToolbarView(props: {
       </View>
       <FullConversationSwitch theme={theme} />
       </View>
+  );
+  return (
+    <>
+    <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 11 }}>
+      <View testID="desktop-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 }}>
+      {inlineSearch ? search : <RoundButton
+        icon="Search" quietOutline label={strings.searchButton} theme={theme}
+        selected={props.searchOpen || !!board.params.query}
+        onPress={() => props.onSearchOpenChange(!props.searchOpen)}
+        size={toolbarButtonSize(scale)} iconSize={actionIconSize(scale)}
+        tip={`${strings.search} (/)`} testID="desktop-search-toggle"
+      />}
       {chips.length ? (
         <View testID="desktop-toolbar-search-summary" style={{ flexDirection: "row", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 1, gap: 10 }}>
           {chips.map((entry) =>
@@ -278,6 +293,11 @@ function DesktopToolbarView(props: {
       {!compactActions && props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
       </View>
     </View>
+    {!inlineSearch && props.searchOpen ? <View testID="desktop-search-row" style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 11 }}>
+      {search}
+      <RoundButton icon="X" quietOutline label={strings.closeMenu} theme={theme} onPress={() => props.onSearchOpenChange(false)} size={toolbarButtonSize(scale)} iconSize={actionIconSize(scale)} testID="desktop-search-close" />
+    </View> : null}
+    </>
   );
 }
 
@@ -458,7 +478,6 @@ function DesktopFilterBarView(props: {
   menu: FilterMenu | null;
   setMenu(menu: FilterMenu | null): void;
   onMore(): void;
-  onControlsWidth?(width: number): void;
   /** The empty lanes' fold; the desktop bar keeps it beside the board's other switches. */
   emptyLanes?: EmptyLanes;
 }) {
@@ -550,7 +569,7 @@ function DesktopFilterBarView(props: {
           right, when they do not. */}
       <View pointerEvents="box-none" onLayout={fit.box("filters")} style={{ flex: 1, minWidth: tablet ? 4 * toolbarButtonSize(scale) + 3 * TOOLBAR_GAP : FILTERS_MIN_WIDTH, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu && menu !== "sort" ? 2 : 1 }}>
         {/* The buttons hold one line: once their words would wrap them, they draw their icons alone. */}
-        <View testID="filter-bar-controls" pointerEvents="box-none" onLayout={(event) => { fit.box("controls")(event); props.onControlsWidth?.(event.nativeEvent.layout.width); }} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: 1 }}>
+        <View testID="filter-bar-controls" pointerEvents="box-none" onLayout={fit.box("controls")} style={{ flexShrink: 0, flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: 1 }}>
           <MenuButton icon={FILTER_ICONS.agent} label={words.agent} compact={compact} tip={tip(words.agent, strings.tips.agent)} open={menu === "agent"} onPress={() => toggle("agent")} theme={theme}>
             <CascadeMenu
               sections={withEmptyGroups(agentMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, providers: toggleItem(p.providers, id) }))))}

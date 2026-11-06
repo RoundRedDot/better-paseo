@@ -402,15 +402,128 @@ describe("search coverage render isolation", () => {
 });
 
 describe("Tasks search coverage and centred toolbar", () => {
-  it("matches the search group to the measured filter controls", () => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
-    act(() => { renderer = TestRenderer.create(screen(false)); });
-    layOut(1600);
-    for (const width of [385, 420]) {
-      act(() => hostsById("filter-bar-controls")[0]!.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 30 } } }));
-      expect(StyleSheet.flatten(hostsById("desktop-toolbar-search-group")[0]!.props.style).width).toBe(width);
+  it.each(["web", "ios", "android"].flatMap((os) => (["en", "zh"] as const).map((language) => ({ os, language }))))("keeps $os/$language search at 320 across wide layouts and filter measurements", ({ os, language }) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    updateEnhancerPreferences({ language });
+    act(() => { renderer = TestRenderer.create(screen(false, { q: "needle", agent: "claude" }, { ...(theme as object), typography: { fontSize: { ui: 14 } } })); });
+    const prefix = os === "web" ? "desktop" : "tablet";
+    for (const width of [960, 1200, 1600]) {
+      layOut(width);
+      if (os === "web") act(() => hostsById("filter-bar-controls")[0]!.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: width / 3, height: 30 } } }));
+      const bar = hostsById(`${prefix}-toolbar`)[0]!;
+      const field = hostsById(`${prefix}-toolbar-search`)[0]!;
+      const frames = measureHostTree(bar, { width });
+      expect(frames.get(field)!.width).toBe(320);
+      const group = frames.get(hostsById(`${prefix}-toolbar-search-group`)[0]!)!;
+      expect(group.left + group.width).toBeLessThanOrEqual(frames.get(hostsById(`${prefix}-toolbar-total`)[0]!)!.left);
+      expect(hostsById(`${prefix}-search-toggle`)).toHaveLength(0);
+      expect(hostsById(`${prefix}-search-row`)).toHaveLength(0);
     }
   });
+
+  it.each(([
+    ["web", 320, 14], ["web", 600, 21], ["web", 959, 14],
+    ["ios", 320, 14], ["ios", 600, 21], ["ios", 960, 28],
+    ["android", 320, 14], ["android", 600, 21], ["android", 960, 28],
+  ] as const).flatMap(([os, width, base]) => (["en", "zh"] as const).map((language) => ({ os, width, base, language }))))("$os/$language at $width/UI$base opens a bounded search row and preserves its query on close", ({ os, width, base, language }) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    updateEnhancerPreferences({ language });
+    act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
+    layOut(width);
+    const prefix = os === "web" ? "desktop" : "tablet";
+    expect(hostsById(`${prefix}-toolbar-search`)).toHaveLength(0);
+    const actions = hostsById(`${prefix}-toolbar-end`)[0]!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
+    act(() => hostsById(`${prefix}-search-toggle`)[0]!.props.onPress());
+    const row = hostsById(`${prefix}-search-row`)[0]!;
+    const field = hostsById(`${prefix}-toolbar-search`)[0]!;
+    expect(hostParentOf(hostsById(`${prefix}-toolbar-search-group`)[0]!)).toBe(row);
+    const input = field.find((node) => (node.type as unknown) === "TextInput");
+    expect(input.props.autoFocus).toBe(true);
+    expect(hostsById(`${prefix}-toolbar-total`)).toHaveLength(1);
+    expect(hostsById(`${prefix}-toolbar-end`)[0]!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(actions);
+    const frames = measureHostTree(row, { width });
+    expect(frames.get(field)!.width).toBeLessThanOrEqual(320);
+    expect(frames.get(field)!.width).toBeGreaterThan(100);
+    for (const node of [field, hostsById("search-full-conversation-toggle")[0]!, hostsById(`${prefix}-search-close`)[0]!]) {
+      const frame = frames.get(node)!;
+      expect(frame.left).toBeGreaterThanOrEqual(0);
+      expect(frame.left + frame.width).toBeLessThanOrEqual(width);
+    }
+    act(() => input.props.onChangeText("needle"));
+    act(() => hostsById(`${prefix}-search-close`)[0]!.props.onPress());
+    expect(hostsById(`${prefix}-toolbar-search`)).toHaveLength(0);
+    expect(lastBoardParams("host-1").query).toBe("needle");
+    act(() => hostsById(`${prefix}-search-toggle`)[0]!.props.onPress());
+    expect(hostsById(`${prefix}-toolbar-search`)[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("needle");
+  });
+
+  it.each(["web", "ios", "android"])("preserves %s search through breakpoint and font-size changes", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const boardTheme = (base: number) => ({ ...(theme as object), typography: { fontSize: { ui: base } } });
+    act(() => { renderer = TestRenderer.create(screen(false, {}, boardTheme(14))); });
+    layOut(959);
+    const prefix = os === "web" ? "desktop" : "tablet";
+    act(() => hostsById(`${prefix}-search-toggle`)[0]!.props.onPress());
+    act(() => hostsById(`${prefix}-toolbar-search`)[0]!.find((node) => (node.type as unknown) === "TextInput").props.onChangeText("needle"));
+    layOut(960);
+    expect(hostsById(`${prefix}-search-row`)).toHaveLength(0);
+    expect(hostsById(`${prefix}-search-toggle`)).toHaveLength(0);
+    expect(hostsById(`${prefix}-toolbar-search`)[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("needle");
+    act(() => renderer!.update(screen(false, {}, boardTheme(21))));
+    expect(hostsById(`${prefix}-search-row`)).toHaveLength(1);
+    expect(hostsById(`${prefix}-toolbar-search`)[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("needle");
+    act(() => hostsById(`${prefix}-search-close`)[0]!.props.onPress());
+    layOut(1600);
+    expect(hostsById(`${prefix}-search-row`)).toHaveLength(0);
+    expect(hostsById(`${prefix}-toolbar-search`)[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("needle");
+    layOut(600);
+    expect(hostsById(`${prefix}-toolbar-search`)).toHaveLength(0);
+    expect(lastBoardParams("host-1").query).toBe("needle");
+  });
+
+  it("opens compact search with / and closes it with Escape without clearing the query", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const { doc, key } = renderFocusBoard();
+    try {
+      layOut(600);
+      expect(hostsById("desktop-search-row")).toHaveLength(0);
+      expect(key("/").preventDefault).toHaveBeenCalled();
+      const input = hostsById("desktop-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput");
+      expect(input.props.autoFocus).toBe(true);
+      act(() => input.props.onChangeText("needle"));
+      const blur = vi.fn();
+      doc.activeElement = { tagName: "INPUT", inBoard: true, blur };
+      expect(key("Escape").preventDefault).toHaveBeenCalled();
+      expect(blur).toHaveBeenCalled();
+      expect(hostsById("desktop-search-row")).toHaveLength(0);
+      expect(lastBoardParams("host-1").query).toBe("needle");
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+  it("lets Escape close details after compact search moves inline", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    writeSidebarPreference({ open: false, width: 380 });
+    const { key } = renderFocusBoard();
+    try {
+      layOut(600);
+      key("/");
+      expect(hostsById("desktop-search-row")).toHaveLength(1);
+      layOut(2000);
+      const card = cards()[0]!;
+      act(() => card.props.onSelect(card.props.card));
+      expect(hostsById("sidebar-floating")).toHaveLength(1);
+      key("Escape");
+      expect(hostsById("sidebar-floating")).toHaveLength(0);
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("shows desktop toolbar outlines only on hover and enlarges their icons", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false)); });
@@ -668,7 +781,7 @@ describe("Tasks search coverage and centred toolbar", () => {
       if (os !== "web" && width >= 440 && width < 680) expect(StyleSheet.flatten(end.props.style).minWidth).toBeGreaterThan(0);
       else expect(StyleSheet.flatten(end.props.style).minWidth).toBe(0);
       expect(StyleSheet.flatten(end.props.style).justifyContent).toBe("flex-end");
-      expect(start.findAll((node) => (node.type as unknown) === "TextInput" || node.props.testID === "tablet-search-toggle").length).toBeGreaterThan(0);
+      expect(start.findAll((node) => (node.type as unknown) === "TextInput" || ["tablet-search-toggle", "desktop-search-toggle"].includes(node.props.testID)).length).toBeGreaterThan(0);
       expect(StyleSheet.flatten(total.props.style).flexShrink).toBe(0);
       expect(textOf(total.findByType(RollingTotal))).toBe(BOARD_STRINGS[language].total(6));
       const slots = bar.children.filter((node) => typeof node !== "string" && /toolbar-(start|total|end)$/.test(node.props.testID ?? ""));
@@ -807,7 +920,8 @@ describe("Tasks board, desktop", () => {
     updateEnhancerPreferences({ language });
     await act(async () => { renderer = TestRenderer.create(screen(false, { agent: "codex", ws: "wks_sample", win: "7d", sort: "title-asc" })); });
     layOut(width);
-    if (os !== "web") act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    const toggle = hostsById(os === "web" ? "desktop-search-toggle" : "tablet-search-toggle")[0];
+    if (toggle) act(() => toggle.props.onPress());
     const field = () => renderer!.root.find((node) => (node.type as unknown) === "TextInput" && node.props.accessibilityLabel === BOARD_STRINGS[language].search);
     const clear = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === BOARD_STRINGS[language].menuSearch.clear);
     const before = lastBoardParams("host-1");
@@ -3938,24 +4052,24 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostsById("tablet-view-overlay")).toHaveLength(0);
   });
 
-  it.each([["android", 480, 14], ["ios", 600, 21]] as const)("%s at %i pt/UI%i opens search inside the toolbar with autofocus, clear and dismissal", (os, width, base) => {
+  it.each([["android", 480, 14], ["ios", 600, 21]] as const)("%s at %i pt/UI%i opens search below the toolbar with autofocus, clear and dismissal", (os, width, base) => {
     mount(os, width, base);
     const height = style(bar()).height;
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     const search = () => hostsById("tablet-toolbar-search")[0]!;
     expect(hostsById("tablet-search-popover")).toHaveLength(0);
     expect(hostParentOf(search())?.props.testID).toBe("tablet-toolbar-search-group");
-    expect(hostParentOf(hostsById("tablet-toolbar-search-group")[0]!)?.props.testID).toBe("tablet-toolbar-start");
-    expect(bar().findAll((node) => node === search())).toHaveLength(1);
+    expect(hostParentOf(hostsById("tablet-toolbar-search-group")[0]!)?.props.testID).toBe("tablet-search-row");
+    expect(bar().findAll((node) => node === search())).toHaveLength(0);
     expect(hostsById("tablet-search-toggle")).toHaveLength(1);
     expect(style(hostsById("tablet-search-toggle")[0]!).backgroundColor).toBe("transparent");
-    expect(hostsById("tablet-toolbar-start")[0]!.children.map((node) => typeof node === "string" ? node : node.props.testID)).toEqual(["tablet-search-toggle", "tablet-toolbar-search-group"]);
+    expect(hostsById("tablet-toolbar-start")[0]!.children.map((node) => typeof node === "string" ? node : node.props.testID)).toEqual(["tablet-search-toggle"]);
     expect(search().findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "Search")).toHaveLength(0);
-    expect(style(search())).toMatchObject({ height: Math.round(40 * base / 14) - 8, flex: 1, minWidth: 0 });
+    expect(style(search())).toMatchObject({ height: Math.round(40 * base / 14) - 8, width: 320, flexShrink: 1, minWidth: 0 });
     expect(style(search()).position).toBeUndefined();
-    expect(hostsById("tablet-toolbar-total")).toHaveLength(0);
-    expect(style(hostsById("tablet-toolbar-start")[0]!).minWidth).toBe(0);
-    expect(style(end())).toMatchObject({ flex: 0, flexBasis: "auto" });
+    expect(hostsById("tablet-toolbar-total")).toHaveLength(1);
+    expect(style(hostsById("tablet-toolbar-start")[0]!).minWidth).toBe(style(end()).minWidth);
+    expect(style(end())).toMatchObject({ flex: 1, flexBasis: 0 });
     expect(hostsById("toolbar-filters")).toHaveLength(1);
     expect(hostsById("tablet-view")).toHaveLength(1);
     const input = () => search().find((node) => (node.type as unknown) === "TextInput");
@@ -3984,10 +4098,10 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(style(bar()).height).toBe(height);
   });
 
-  it.each([["ios", 600], ["ios", 1200], ["android", 600], ["android", 1200]] as const)("%s at %i keeps the search compact and dismisses only an empty query", (os, width) => {
+  it.each([["ios", 600], ["ios", 800], ["android", 600], ["android", 800]] as const)("%s at %i keeps the search compact and dismisses only an empty query", (os, width) => {
     mount(os, width);
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
-    expect(style(hostsById("tablet-toolbar-search-group")[0]!).maxWidth).toBe(238);
+    expect(style(hostsById("tablet-toolbar-search")[0]!).width).toBe(320);
     expect(hostsById("tablet-toolbar-backdrop")).toHaveLength(1);
     expect(style(hostsById("tablet-toolbar-backdrop")[0]!).zIndex).toBeLessThan(style(bar()).zIndex);
     act(() => hostsById("search-full-conversation-toggle")[0]!.props.onPress());
@@ -4007,10 +4121,9 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostsById("tablet-search-toggle")).toHaveLength(1);
   });
 
-  it.each(["ios", "android"])("starts %s search collapsed on a wide toolbar", (os) => {
+  it.each(["ios", "android"])("shows %s fixed-width search inline on a wide toolbar", (os) => {
     mount(os, 1200);
-    expect(hostsById("tablet-toolbar-search")).toHaveLength(0);
-    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    expect(hostsById("tablet-search-toggle")).toHaveLength(0);
     expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
     expect(hostParentOf(hostsById("tablet-toolbar-search-group")[0]!)?.props.testID).toBe("tablet-toolbar-start");
     expect(StyleSheet.flatten(hostsById("search-full-conversation-toggle")[0]!.props.style)).toMatchObject({ borderWidth: 0, borderRadius: 7 });
@@ -4097,6 +4210,7 @@ describe("Tasks board, tablet filters", () => {
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     expect(hostsById("tablet-filter-popover")).toHaveLength(0);
     open();
+    if (!hostsById("tablet-search-toggle").length) layOut(800);
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     expect(hostsById("tablet-filter-popover")).toHaveLength(0);
     open();
@@ -4245,7 +4359,7 @@ describe("Tasks board, tablet filters", () => {
       expect(StyleSheet.flatten(reserve.props.style)).toMatchObject({ fontVariant: ["tabular-nums"], opacity: 0 });
       expect(hostsById("tablet-toolbar-total")[0]!.props.accessibilityLabel).toBe(BOARD_STRINGS[language].total(total));
       const slot = StyleSheet.flatten(hostsById("tablet-total-slot")[0]!.props.style);
-      const search = StyleSheet.flatten(hostsById("tablet-search-toggle")[0]!.props.style);
+      const search = StyleSheet.flatten((hostsById("tablet-search-toggle")[0] ?? hostsById("tablet-toolbar-search")[0])!.props.style);
       slotStyle ??= slot; searchStyle ??= search;
       expect(slot).toEqual(slotStyle); expect(search).toEqual(searchStyle);
       // Only the invisible ruler participates in the slot's intrinsic width.
@@ -4374,7 +4488,7 @@ describe("Tasks board, tablet filters", () => {
     act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
     layOut(1000);
     expect(StyleSheet.flatten(hostsById("tablet-toolbar")[0]!.props.style).height).toBe(height);
-    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    if (hostsById("tablet-search-toggle").length) act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     expect(StyleSheet.flatten(hostsById("tablet-toolbar-search")[0]!.props.style).height).toBe(height - 8);
     const input = hostsById("tablet-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput");
     expect(StyleSheet.flatten(input.props.style).fontSize).toBe(Math.round(12 * base / 14));
@@ -4415,7 +4529,7 @@ describe("Tasks board, tablet filters", () => {
     expect(hostsById(panel)).toHaveLength(1);
   });
 
-  it.each([320, 480, 600])("at %i pt opens search in the same toolbar row", (width) => {
+  it.each([320, 480, 600])("at %i pt opens search below the toolbar", (width) => {
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(width);
     const height = StyleSheet.flatten(hostsById("tablet-toolbar")[0]!.props.style).height;
@@ -4601,7 +4715,7 @@ describe("Tasks board, tablet filters", () => {
     const archived = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived");
     // The folded web header keeps the filter bar's order: empty lanes, then the archived lane, then the filters.
     const header = renderer!.root.findByType(DesktopToolbar).findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID !== "sidebar-switch");
-    expect(header.map((node) => node.props.testID)).toEqual(["search-full-conversation-toggle", "empty-lanes-toggle", "toolbar-archived", "toolbar-filters", "desktop-toolbar-more"]);
+    expect(header.map((node) => node.props.testID)).toEqual(["desktop-search-toggle", "empty-lanes-toggle", "toolbar-archived", "toolbar-filters", "desktop-toolbar-more"]);
     expect(textOf(archived())).toBe("");
     expect(archived().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Archive");
     expect(hostsById("archived-lane-toggle")).toHaveLength(0);

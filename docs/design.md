@@ -861,10 +861,18 @@ apply to all three.
 
 | Toolbar | Height | Targets | Contents |
 | --- | --- | --- | --- |
-| Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 400 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
+| Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 320 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
 | Tablet (`TabletToolbar`) | 48 | 40 | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when selected or expanded, except the Subtasks switch |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
+- Search width is fixed at 320, independent of filter-label measurements, task counts and
+  active filters. At board widths below `960 * max(1, scale)`, desktop and tablet show only
+  the Search button; pressing it opens a separate row below the toolbar with autofocus,
+  the search-mode switch and a Close button. The field shrinks only when that row cannot
+  fit it, never grows beyond 320, and closing it preserves the query. The total and toolbar
+  actions remain visible. Wider boards show the field inline; resizing preserves the query.
+  Desktop `/` opens and focuses compact search; Escape closes its row without clearing it.
+  Phones keep their existing Search button and expandable pill below the header.
 - Wide desktop: the top row ends with Show groups with no tasks, then the sidebar
   switch. The filter bar's right side orders Collapse empty lanes, Subtasks, Archived, Lane
   width, Time range, then Sort. Agent, Project and Workspace menus also offer the empty-groups
@@ -877,8 +885,8 @@ apply to all three.
   Collapse empty lanes, Subtasks, Archived and Sidebar after its layout choices; empty groups
   belongs only in the filter panel. The menu starts at 220 wide and follows the menu width
   calculation below, with 44 pt rows and in-panel
-  drill-down. Below `560 * max(1, scale)`, Search expands in the header, hides the total and
-  keeps the right actions available. From `1000 * max(1, scale)`, Filters and View show labels
+  drill-down. Search follows the fixed-width and separate-row rules above.
+  From `1000 * max(1, scale)`, Filters and View show labels
   together. If the noncompact action slot cannot fit Filters beside View, View includes Filters.
 - Tablet filter counts and the Subtasks switch's hidden-card count use `CornerBadge`: bottom
   right, `foregroundMuted` fill, `surface0` text and 1 pt ring, at least 12 high, 8/10 weight-600
