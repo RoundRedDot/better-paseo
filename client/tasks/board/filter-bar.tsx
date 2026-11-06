@@ -112,6 +112,7 @@ function DesktopToolbarView(props: {
   searchRef: Ref<NativeTextInput>;
   keyHints: boolean;
   width: number;
+  laneWidth: number;
   searchOpen: boolean;
   onSearchOpenChange(open: boolean): void;
   filterOptions?: FilterOptions;
@@ -149,7 +150,7 @@ function DesktopToolbarView(props: {
   const [searchFocused, setSearchFocused] = useState(false);
   const [actionWidth, setActionWidth] = useState(0);
   // Equal side slots keep the total centred; the end slot also measures the search's room.
-  const searchWidth = Math.min(320 + toolbarButtonSize(scale) + 8, actionWidth - toolbarButtonSize(scale) - 8 - (chips.length ? 8 : 0));
+  const searchWidth = Math.min(props.laneWidth + toolbarButtonSize(scale) + 8, actionWidth - toolbarButtonSize(scale) - 8 - (chips.length ? 8 : 0));
   const searchFits = searchWidth >= 140 * Math.max(1, scale) + toolbarButtonSize(scale) + 8;
   const openSettings = tasksSettingsOpener();
   const updateAvailable = useUpdateIndicator(board.hostId, board.visible);
@@ -172,7 +173,7 @@ function DesktopToolbarView(props: {
         {...tipProps(`${strings.search} (/)`)}
         style={{
           height: taskControlHeight(32, scale),
-          width: 320,
+          width: inlineSearch || searchFits ? props.laneWidth : 320,
           flexShrink: 1,
           minWidth: 0,
           flexDirection: "row",

@@ -536,18 +536,65 @@ describe("Tasks search coverage and centred toolbar", () => {
     }
   });
 
-  it.each(["web", "ios", "android"].flatMap((os) => (["en", "zh"] as const).map((language) => ({ os, language }))))("keeps $os/$language search at 320 across wide layouts and filter measurements", ({ os, language }) => {
+  it.each(["web", "ios", "android"])("keeps %s inline search matched to the current lane across presets, folding and resizing", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: 14 } } })); });
+    layOut(1600);
+    const prefix = os === "web" ? "desktop" : "tablet";
+    const controller = () => renderer!.root.findByType(os === "web" ? DesktopToolbar : TabletToolbar).props.board;
+    const lane = () => StyleSheet.flatten(hostsById("lane-surface-running")[0]!.props.style).width;
+    const field = () => StyleSheet.flatten(hostsById(`${prefix}-toolbar-search`)[0]!.props.style).width;
+    for (const [size, expected] of [["narrow", 280], ["default", 340], ["wide", 388]] as const) {
+      await act(async () => { controller().setLaneWidth(size); });
+      expect(field()).toBe(expected);
+      expect(field()).toBe(lane());
+      const frames = measureHostTree(hostsById(`${prefix}-toolbar`)[0]!, { width: 1600 });
+      expect(frames.get(hostsById(`${prefix}-toolbar-search`)[0]!)!.width).toBe(expected);
+    }
+    await act(async () => { controller().setLaneWidth("default"); });
+    layOut(1300);
+    expect(field()).toBe(313);
+    act(() => hostsById("lane-needs_input")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Collapse lane")[0]!.props.onPress());
+    expect(field()).toBe(os === "web" ? 340 : 313);
+    expect(field()).toBe(lane());
+    layOut(1200);
+    expect(field()).toBe(os === "web" ? 340 : 300);
+    expect(field()).toBe(lane());
+  });
+
+  it.each(["web", "ios", "android"])("keeps %s separate-row search independent of lane width", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: 21 } } })); });
+    layOut(600);
+    const prefix = os === "web" ? "desktop" : "tablet";
+    const controller = () => renderer!.root.findByType(os === "web" ? DesktopToolbar : TabletToolbar).props.board;
+    act(() => hostsById(`${prefix}-search-toggle`)[0]!.props.onPress());
+    for (const [size, expected] of [["narrow", 244], ["default", 284], ["wide", 300]] as const) {
+      await act(async () => { controller().setLaneWidth(size); });
+      expect(StyleSheet.flatten(hostsById("lane-surface-running")[0]!.props.style).width).toBe(expected);
+      const row = hostsById(`${prefix}-search-row`)[0]!;
+      const field = hostsById(`${prefix}-toolbar-search`)[0]!;
+      expect(StyleSheet.flatten(field.props.style).width).toBe(320);
+      expect(measureHostTree(row, { width: 600 }).get(field)!.width).toBe(320);
+    }
+    layOut(480);
+    const field = hostsById(`${prefix}-toolbar-search`)[0]!;
+    expect(StyleSheet.flatten(field.props.style).width).toBe(320);
+    expect(measureHostTree(hostsById(`${prefix}-search-row`)[0]!, { width: 480 }).get(field)!.width).toBe(320);
+  });
+
+  it.each(["web", "ios", "android"].flatMap((os) => (["en", "zh"] as const).map((language) => ({ os, language }))))("sizes $os/$language search with the lanes across layouts and filter measurements", ({ os, language }) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     updateEnhancerPreferences({ language });
     act(() => { renderer = TestRenderer.create(screen(false, { q: "needle", agent: "claude" }, { ...(theme as object), typography: { fontSize: { ui: 14 } } })); });
     const prefix = os === "web" ? "desktop" : "tablet";
-    for (const width of [960, 1200, 1600]) {
+    for (const [width, expected] of [[960, 300], [1200, 300], [1300, 313], [1600, 340], [960, 300]] as const) {
       layOut(width);
       if (os === "web") act(() => hostsById("filter-bar-controls")[0]!.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: width / 3, height: 30 } } }));
       const bar = hostsById(`${prefix}-toolbar`)[0]!;
       const field = hostsById(`${prefix}-toolbar-search`)[0]!;
       const frames = measureHostTree(bar, { width });
-      expect(frames.get(field)!.width).toBe(320);
+      expect(frames.get(field)!.width).toBeCloseTo(expected, 0);
       const group = frames.get(hostsById(`${prefix}-toolbar-search-group`)[0]!)!;
       expect(group.left + group.width).toBeLessThanOrEqual(frames.get(hostsById(`${prefix}-toolbar-total`)[0]!)!.left);
       expect(hostsById(`${prefix}-search-toggle`)).toHaveLength(0);

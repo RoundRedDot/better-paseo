@@ -678,6 +678,7 @@ export function DesktopBoard(props: {
         board={live}
         theme={theme}
         width={boardWidth}
+        laneWidth={layout.laneWidth}
         searchRef={searchRef}
         onFilters={() => setFiltersOpen(true)}
         filters={filtersOpen ? { content: filterBody, height: boardHeight, onClose: () => setFiltersOpen(false) } : undefined}
@@ -689,6 +690,7 @@ export function DesktopBoard(props: {
         searchRef={searchRef}
         keyHints={boardWidth === 0 || boardWidth >= KEY_HINTS_MIN_WIDTH * Math.max(1, scale)}
         width={boardWidth}
+        laneWidth={layout.laneWidth}
         searchOpen={searchOpen}
         onSearchOpenChange={setSearchOpen}
         filterOptions={options ?? undefined}

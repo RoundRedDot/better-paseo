@@ -30,6 +30,7 @@ export function TabletToolbar(props: {
   board: BoardController;
   theme: PluginTheme;
   width: number;
+  laneWidth: number;
   searchRef: Ref<NativeTextInput>;
   onFilters(): void;
   filters?: { content: ReactNode; height: number; onClose(): void };
@@ -98,7 +99,7 @@ export function TabletToolbar(props: {
   ];
   const search = (
     <View testID="tablet-toolbar-search-group" style={{ minWidth: 0, maxWidth: "100%", flexShrink: inlineSearch ? 0 : 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
-    <View testID="tablet-toolbar-search" style={{ width: 320, flexShrink: 1, minWidth: 0, height: height - 8, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
+    <View testID="tablet-toolbar-search" style={{ width: inlineSearch ? props.laneWidth : 320, flexShrink: 1, minWidth: 0, height: height - 8, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
       <SearchInput hideSearchIcon iconSize={16} iconColor={colors.foregroundMuted}
         ref={props.searchRef}
         value={board.params.query}
