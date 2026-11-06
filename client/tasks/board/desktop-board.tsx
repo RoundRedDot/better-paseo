@@ -1414,13 +1414,11 @@ const HIDDEN = { opacity: 0 };
  */
 const LANE_CHURN_LIMIT = Platform.OS === "web" ? undefined : 6;
 /**
- * Native: how long a lane waits before it renders more of its cards out of
- * view. A filter that adds cards (the subtasks switch) grows every list at
- * once, and their next batches of cards no one could see yet landed while the
- * new cards faded in and the counts rolled. A list short of cards on screen
- * still fills at once (`VirtualizedList`'s high-priority update).
+ * Native: briefly defer offscreen batches on entrance and a subtask switch,
+ * while new cards fade in and counts roll. Keeping this delay after the
+ * transition starves the normal scroll buffer; a drag cancels it early.
  */
-const LANE_FILL_MS = Platform.OS === "web" ? undefined : MOTION.slideMs + MOTION.enterDelayMs;
+const LANE_FILL_MS = MOTION.slideMs + MOTION.enterDelayMs;
 
 /**
  * How many cards a lane adds to its list at a time, out of view. The lanes
@@ -1518,6 +1516,21 @@ function DesktopLaneView(props: DesktopLaneProps) {
     board.scope,
   );
   const reduced = useReducedMotion();
+  const hideSubtasks = board.params.hideSubtasks ?? board.defaults.hideSubtasks;
+  const [fill, dispatchFill] = useReducer(
+    (state: { hideSubtasks: boolean; holding: boolean }, action: { type: "switch"; hideSubtasks: boolean } | { type: "release" }) => {
+      if (action.type === "switch") return { hideSubtasks: action.hideSubtasks, holding: true };
+      return state.holding ? { ...state, holding: false } : state;
+    },
+    { hideSubtasks, holding: true },
+  );
+  if (fill.hideSubtasks !== hideSubtasks) dispatchFill({ type: "switch", hideSubtasks });
+  const delayFill = Platform.OS !== "web" && !reduced && fill.holding;
+  useEffect(() => {
+    if (!delayFill) return;
+    const timer = setTimeout(() => dispatchFill({ type: "release" }), LANE_FILL_MS);
+    return () => clearTimeout(timer);
+  }, [delayFill, fill.hideSubtasks]);
   // New tasks: seen once on screen; until then the list's pill, or the collapsed lane's dot, says so.
   const unseen = useUnseenCards(board.hostId, lane.id);
   const seen = useSeenCards(board.hostId, lane.id, board.visible && props.inView && !props.collapsed);
@@ -1683,7 +1696,8 @@ function DesktopLaneView(props: DesktopLaneProps) {
           initialNumToRender={8}
           maxToRenderPerBatch={LANE_BATCH}
           windowSize={7}
-          updateCellsBatchingPeriod={LANE_FILL_MS}
+          updateCellsBatchingPeriod={delayFill ? LANE_FILL_MS : undefined}
+          onScrollBeginDrag={delayFill ? () => dispatchFill({ type: "release" }) : undefined}
           onScrollToIndexFailed={({ index, averageItemLength }) => {
             // Variable heights: jump near it, then try again once laid out.
             listRef.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
