@@ -17,6 +17,13 @@ export interface TasksSettingsStrings {
   enabledConfirm: string;
   enabledConfirmHint: string;
   openBoard: string;
+  openShortcut: string;
+  shortcutHint: string;
+  shortcutRecord: string;
+  shortcutRecording: string;
+  shortcutClear: string;
+  shortcutDefault: string;
+  shortcutNone: string;
   previewTitle: string;
   previewOffHint: string;
   previewOnHint: string;
@@ -85,6 +92,13 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     enabledConfirm: "Tasks is now at the top of the sidebar.",
     enabledConfirmHint: "Leave Settings to see it, or open the board from here.",
     openBoard: "Open board",
+    openShortcut: "Quickly open the Tasks board",
+    shortcutHint: "Works while Paseo is focused and Tasks is enabled. Saved on this device only. Choose a combination not used by Paseo or your system.",
+    shortcutRecord: "Change shortcut",
+    shortcutRecording: "Press a key with Command, Ctrl or Option / Alt. Escape cancels.",
+    shortcutClear: "Clear shortcut",
+    shortcutDefault: "Restore default shortcut",
+    shortcutNone: "Not assigned",
     previewTitle: "Preview",
     previewOffHint: "What the board looks like once it is on: sample tasks, drawn with the options below.",
     previewOnHint: "Sample tasks, drawn with the options below as you change them.",
@@ -123,7 +137,7 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     labelLimits: { "1": "1", "2": "2", "3": "3", all: "All" },
     titleLines: "Title lines",
     titleLinesHint: "Saved on this device only.",
-    titleLineCounts: { "1": "1", "2": "2", "3": "3", "4": "4" },
+    titleLineCounts: { "1": "1", "2": "2", "3": "3", "4": "4", "all": "All" },
     compactCards: "Use minimal cards on phones",
     compactCardsHint: "Phones draw the Minimal card whatever the density above.",
     boardTitle: "Board",
@@ -165,6 +179,13 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     enabledConfirm: "「任务」已加入侧边栏顶部。",
     enabledConfirmHint: "退出设置即可看到，也可以直接从这里打开看板。",
     openBoard: "打开看板",
+    openShortcut: "快速打开任务面板",
+    shortcutHint: "Paseo 窗口有焦点且任务看板启用时生效，仅保存在当前设备。请选择未被 Paseo 或系统占用的组合键。",
+    shortcutRecord: "修改快捷键",
+    shortcutRecording: "请按下包含 Command、Ctrl 或 Option / Alt 的组合键；Esc 取消。",
+    shortcutClear: "清除快捷键",
+    shortcutDefault: "恢复默认快捷键",
+    shortcutNone: "未设置",
     previewTitle: "实时预览",
     previewOffHint: "开启后看板就是这个样子：示例任务，按下面的选项绘制。",
     previewOnHint: "示例任务，随下面的选项实时变化。",
@@ -203,7 +224,7 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     labelLimits: { "1": "1 个", "2": "2 个", "3": "3 个", all: "全部" },
     titleLines: "标题行数",
     titleLinesHint: "仅保存在当前设备。",
-    titleLineCounts: { "1": "1 行", "2": "2 行", "3": "3 行", "4": "4 行" },
+    titleLineCounts: { "1": "1 行", "2": "2 行", "3": "3 行", "4": "4 行", "all": "全部" },
     compactCards: "手机上使用精简卡片",
     compactCardsHint: "手机上无论上面选哪种密度，都按精简卡片显示。",
     boardTitle: "看板",

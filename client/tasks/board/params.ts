@@ -106,6 +106,32 @@ export function isEmptyParams(params: PluginScreenParams | null | undefined): bo
   return Object.keys(encodeBoardParams(decodeBoardParams(params))).length === 0;
 }
 
+/** Restore edits made to this route before the web page was reloaded. */
+export function restoreBoardRoute(hostId: string, route: PluginScreenParams | null | undefined): BoardParams {
+  const key = JSON.stringify(encodeBoardParams(decodeBoardParams(route)));
+  try {
+    const raw = typeof sessionStorage === "undefined" ? null : sessionStorage.getItem(`better-paseo/tasks/route/${hostId}`);
+    if (raw) {
+      const saved = JSON.parse(raw) as { route: string; params: PluginScreenParams };
+      if (saved.route === key) return decodeBoardParams(saved.params);
+    }
+  } catch {
+    // The route remains usable when session storage is unavailable.
+  }
+  return key === "{}" ? lastBoardParams(hostId) : decodeBoardParams(route);
+}
+
+export function rememberBoardRoute(hostId: string, route: PluginScreenParams | null | undefined, params: BoardParams): void {
+  try {
+    if (typeof sessionStorage !== "undefined") sessionStorage.setItem(`better-paseo/tasks/route/${hostId}`, JSON.stringify({
+      route: JSON.stringify(encodeBoardParams(decodeBoardParams(route))),
+      params: encodeBoardParams({ ...params, hideSubtasks: null }),
+    }));
+  } catch {
+    // A blocked or full session storage leaves the current board usable.
+  }
+}
+
 /** The filters `filterLanes` takes and the done window `useTasks` takes. */
 export function resolveBoardParams(params: BoardParams, defaults: BoardDefaults): { filters: BoardFilters; doneWindow: DoneWindow } {
   return {
@@ -122,19 +148,18 @@ export function resolveBoardParams(params: BoardParams, defaults: BoardDefaults)
 }
 
 /**
- * The filter badge: one per selected workspace, agent, label and host, one
- * for a search, one for a done window off its setting. Subtask visibility has
- * its own toolbar button and does not contribute to this count.
+ * The filters' badge: one per selected workspace, agent, label and host, and
+ * one for a search. The done window and subtask visibility have their own
+ * controls and do not contribute.
  */
 export function activeFilterCount(params: BoardParams, defaults: BoardDefaults): number {
-  const { filters, doneWindow } = resolveBoardParams(params, defaults);
+  const { filters } = resolveBoardParams(params, defaults);
   return (
     filters.workspaceIds.length +
     filters.providers.length +
     filters.labels.length +
     filters.hostIds.length +
-    (filters.query.trim() ? 1 : 0) +
-    (doneWindow !== defaults.doneWindow ? 1 : 0)
+    (filters.query.trim() ? 1 : 0)
   );
 }
 

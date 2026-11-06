@@ -30,6 +30,22 @@ constants. Moving a constant from one family to the other is a design change, no
 - Lane titles are base 14/20 on the web and sm 12/18 on native (`laneTitle`). Board monospace is
   `TASK_MONO`: Menlo on iOS, `monospace` on Android, a `ui-monospace` stack on the web.
 
+### Short action tooltips
+
+Simple hover labels use the command-copy hint as their visual reference
+(`client/ui/toolbar-button.tsx`, `tooltipLook`): an opaque `surface0` background,
+`foreground` UI text, the theme's `v2.border` hairline (1px on web), 4pt corners,
+6pt horizontal and 4pt vertical padding, and fixed 12/18 type (`UI_SCALE.base`).
+The shadow is black at `0 2 8`, with 12% opacity in light themes and 36% in dark
+themes. The label is unselectable; it has no arrow or pill shape.
+
+This is the design constraint for short action labels, including host-rendered
+diagram and source toolbar hints. New simple hints reuse this look rather than
+introducing another bubble style. Rich hover panels keep their own content layout.
+Hover and keyboard focus retain the localized action label, disabled-state semantics,
+and existing button visibility. Placement must keep the hint readable above code,
+outside scrolling clips and within the viewport.
+
 ### Space, radius and lines
 
 - Chat, details and settings space on `space` (4, 8, 12, 16; 24 only between settings sections)
@@ -861,10 +877,18 @@ apply to all three.
 
 | Toolbar | Height | Targets | Contents |
 | --- | --- | --- | --- |
-| Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 400 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
+| Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 320 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
 | Tablet (`TabletToolbar`) | 48 | 40 | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when selected or expanded, except the Subtasks switch |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
+- Search width is fixed at 320, independent of filter-label measurements, task counts and
+  active filters. At board widths below `960 * max(1, scale)`, desktop and tablet show only
+  the Search button; pressing it opens a separate row below the toolbar with autofocus,
+  the search-mode switch and a Close button. The field shrinks only when that row cannot
+  fit it, never grows beyond 320, and closing it preserves the query. The total and toolbar
+  actions remain visible. Wider boards show the field inline; resizing preserves the query.
+  Desktop `/` opens and focuses compact search; Escape closes its row without clearing it.
+  Phones keep their existing Search button and expandable pill below the header.
 - Wide desktop: the top row ends with Show groups with no tasks, then the sidebar
   switch. The filter bar's right side orders Collapse empty lanes, Subtasks, Archived, Lane
   width, Time range, then Sort. Agent, Project and Workspace menus also offer the empty-groups
@@ -877,8 +901,8 @@ apply to all three.
   Collapse empty lanes, Subtasks, Archived and Sidebar after its layout choices; empty groups
   belongs only in the filter panel. The menu starts at 220 wide and follows the menu width
   calculation below, with 44 pt rows and in-panel
-  drill-down. Below `560 * max(1, scale)`, Search expands in the header, hides the total and
-  keeps the right actions available. From `1000 * max(1, scale)`, Filters and View show labels
+  drill-down. Search follows the fixed-width and separate-row rules above.
+  From `1000 * max(1, scale)`, Filters and View show labels
   together. If the noncompact action slot cannot fit Filters beside View, View includes Filters.
 - Tablet filter counts and the Subtasks switch's hidden-card count use `CornerBadge`: bottom
   right, `foregroundMuted` fill, `surface0` text and 1 pt ring, at least 12 high, 8/10 weight-600
@@ -886,6 +910,12 @@ apply to all three.
   Running and Review excluded by hiding subtasks under the other current filters; Done and
   Archived do not contribute. This badge appears only while subtasks are hidden, including on
   the phone and desktop switches. The phone/desktop Filters badge retains its accent treatment.
+- The numbered filter circle uses one count on the phone More button, the tablet Filters button
+  (or View, when Filters is folded into it) and the desktop sheet's Filters button.
+  `activeFilterCount` adds one for each selected workspace, agent and label, and one when the
+  search is not empty. Switching the time range does not show the circle. The subtask switch,
+  archived lane, empty groups, lane width and sort already show their own state and do not add
+  to it. Zero draws nothing.
 - The tablet Subtasks switch stays transparent in both states; its icon and hidden-card badge
   communicate the state. Keep its accessibility selected state and the normal press lift.
 - Round buttons (`RoundButton`) are a 36 circle in a 44 target with a hairline, an accent border
@@ -933,6 +963,11 @@ apply to all three.
   after 150 ms of hover or on a click, aligned to its row's top and overlapping the parent by 4,
   toward the side with room. Arrow keys, Enter and Escape work; a press outside closes it. Danger
   rows take the danger colour; a check is the accent.
+- Menu shortcut hints share `MenuRow` in `client/tasks/board/menu.tsx`, including More actions,
+  card context menus and their submenus. On web, use `TASK_MONO`, `F.sm`, `foregroundMuted`
+  and `letterSpacing: 2` (2 pt) so modifier symbols and keys such as `⌥R` have breathing room.
+  Display letters in uppercase and Enter as `↵`; keep shortcut values and key handling unchanged.
+  Native menus omit shortcut hints.
 - On touch every row is at least 44 and submenus become a drill-down in the same panel, with a
   `›` hint and a Back row (`touchSections`).
 - The card menu opens at the pointer on the web, flipping at the edges. A tablet long press opens

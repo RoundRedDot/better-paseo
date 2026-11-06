@@ -185,11 +185,14 @@ describe("scheduled task card: surface", () => {
     const ring = `0px 0px 0px 1px ${tokens.foregroundMuted}`;
     for (const part of parts) expect(String(styleOf(tree.root, part).boxShadow)).toContain(ring);
     for (const side of ["left", "right"]) expect(styleOf(tree.root, `task-card-ticket-arc-${side}`).boxShadow).toBe(`inset ${ring}`);
-    // Hover deepens every section's shadow together.
+    // A held finger deepens every section's shadow together.
     await act(async () => tree.update(element(base, { theme: theme as never })));
+    vi.useFakeTimers();
     await act(async () => host(tree.root, `task-card-${base.id}`).props.onPressIn());
+    await act(async () => { vi.advanceTimersByTime(100); });
     for (const part of parts) expect(styleOf(tree.root, part).boxShadow).toBe(tokens.card.shadowHover);
     for (const side of ["left", "right"]) expect(styleOf(tree.root, `task-card-ticket-arc-${side}`).boxShadow).toBeUndefined();
+    vi.useRealTimers();
   });
 
   it("folds an unavailable ticket's corner over its head and keeps the dot on the flap", async () => {

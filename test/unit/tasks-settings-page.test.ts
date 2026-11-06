@@ -110,6 +110,55 @@ it("does not render an empty description as a native text node", () => {
   act(() => r.unmount());
 });
 
+it("records, cancels, clears and restores the device shortcut without saving host settings", async () => {
+  vi.stubGlobal("__rnMockOS", "web");
+  vi.stubGlobal("navigator", { platform: "MacIntel" });
+  const target = new EventTarget();
+  vi.stubGlobal("window", target);
+  const press = (code: string, modifiers = {}) => target.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, repeat: false, isComposing: false, ...modifiers }));
+  let r: Renderer | undefined;
+  try {
+    const api = makeSettings();
+    r = panel();
+    const current = () => textOf(byTestID(r!, "tasks-open-shortcut")[0]!);
+    expect(current()).toBe("Command + Shift + Y");
+    act(() => button(r!, "Change shortcut").props.onPress());
+    expect(textOf(r.root)).toContain("Escape cancels.");
+    await act(async () => { press("ShiftLeft", { shiftKey: true }); press("KeyJ"); });
+    expect(current()).toBe("Command + Shift + Y");
+    act(() => { press("Escape"); });
+    expect(button(r, "Change shortcut")).toBeTruthy();
+    expect(current()).toBe("Command + Shift + Y");
+    act(() => button(r!, "Change shortcut").props.onPress());
+    await act(async () => { press("KeyJ", { metaKey: true, altKey: true }); });
+    expect(current()).toBe("Command + Option + J");
+    expect(deviceTasksStore().snapshot().values?.openShortcut).toBe("Mod+Alt+KeyJ");
+    await act(async () => button(r!, "Clear shortcut").props.onPress());
+    expect(current()).toBe("Not assigned");
+    await act(async () => button(r!, "Restore default shortcut").props.onPress());
+    expect(current()).toBe("Command + Shift + Y");
+    expect(api.save).not.toHaveBeenCalled();
+    act(() => button(r!, "Change shortcut").props.onPress());
+    act(() => { target.dispatchEvent(new Event("blur")); });
+    expect(button(r, "Change shortcut")).toBeTruthy();
+    act(() => button(r!, "Change shortcut").props.onPress());
+    act(() => r!.unmount());
+    r = undefined;
+    press("KeyJ", { metaKey: true });
+    expect(deviceTasksStore().snapshot().values?.openShortcut).toBe("Mod+Shift+KeyY");
+  } finally {
+    act(() => r?.unmount());
+    vi.unstubAllGlobals();
+  }
+});
+
+it("hides keyboard settings on native phones", () => {
+  makeSettings();
+  const r = panel(true);
+  expect(byTestID(r, "tasks-open-shortcut")).toHaveLength(0);
+  act(() => r.unmount());
+});
+
 beforeEach(() => {
   state.previews = [];
   state.language = "en";
@@ -353,6 +402,9 @@ describe("Tasks half of the settings page", () => {
     expect(deviceTasksStore().snapshot().values?.titleLines).toBe("4");
     expect(api.save).not.toHaveBeenCalled();
     expect(state.previews.some((preview) => preview.titleLines === 4)).toBe(true);
+    await act(async () => radio(r, "Title lines", "All").props.onPress());
+    expect(deviceTasksStore().snapshot().values?.titleLines).toBe("all");
+    expect(state.previews.some((preview) => preview.titleLines === null)).toBe(true);
     act(() => r.unmount());
   });
 

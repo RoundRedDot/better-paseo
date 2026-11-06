@@ -2,7 +2,8 @@ import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import type { LiveTodoPayload } from "../../client/live-renderers";
-import { deriveTodoActivities, useLatestTodoItems, type TodoTask } from "../../client/state/todo-timeline";
+import { deriveTodoActivities, useLatestTodoItems, useMatchingTodo, type TodoTask } from "../../client/state/todo-timeline";
+import { grokTodoItems } from "../../client/tools/activity";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", () => ({
@@ -150,6 +151,53 @@ describe("deriveTodoActivities", () => {
 });
 
 describe("live todo timeline", () => {
+  it("matches a Grok plan result only to the same nearby agent snapshot, regardless of arrival order", () => {
+    const detail = { type: "plain_text", label: "Updating plan", text: JSON.stringify({ TodosUpdated: {
+      todos: created.map((task) => ({ content: task.text, status: task.status })),
+    } }) };
+    const items = grokTodoItems(detail);
+    let match = false;
+    function Result({ agent = "grok-match", at = 1000 }: { agent?: string; at?: number }) {
+      match = Boolean(useMatchingTodo(agent, at, items));
+      return null;
+    }
+    let renderer: Renderer;
+    act(() => { renderer = TestRenderer.create(React.createElement(Result)); });
+    expect(match).toBe(false);
+    act(() => { renderer!.update(React.createElement(React.Fragment, null,
+      React.createElement(Result), todo("grok-match", "plan", 1100, created))); });
+    expect(match).toBe(true);
+    act(() => { renderer!.update(React.createElement(React.Fragment, null,
+      React.createElement(Result, { agent: "other" }), todo("grok-match", "plan", 1100, created))); });
+    expect(match).toBe(false);
+    act(() => { renderer!.update(React.createElement(React.Fragment, null,
+      todo("grok-match", "plan", 1100, firstDone), React.createElement(Result))); });
+    expect(match).toBe(false);
+    act(() => { renderer!.update(React.createElement(React.Fragment, null,
+      todo("grok-match", "plan", 1100, created), React.createElement(Result, { at: 5000 }))); });
+    expect(match).toBe(false);
+    act(() => { renderer!.update(React.createElement(React.Fragment, null,
+      todo("grok-match", "plan", 1100, created.map((task) => ({ text: task.text, completed: false }))),
+      React.createElement(Result))); });
+    expect(match).toBe(true);
+    act(() => renderer!.unmount());
+  });
+
+  it("keeps the Grok result when the host loses its in-progress status", () => {
+    const items = grokTodoItems({ type: "plain_text", label: "Updating plan", text: JSON.stringify({
+      TodosUpdated: { todos: [{ content: "Build", status: "in_progress" }] },
+    }) });
+    let match = true;
+    function Result() {
+      match = Boolean(useMatchingTodo("grok-active", 1000, items));
+      return null;
+    }
+    let renderer: Renderer;
+    act(() => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+      todo("grok-active", "plan", 1100, [{ text: "Build", completed: false }]), React.createElement(Result))); });
+    expect(match).toBe(false);
+    act(() => renderer!.unmount());
+  });
   afterEach(() => {
     delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
   });
@@ -204,6 +252,27 @@ describe("live todo timeline", () => {
     expect(lists(renderer)).toHaveLength(1);
     // The last mounted, highest item draws; nothing is pulled up over the items above.
     expect(rootStyles(renderer)).toEqual([[0, 0], [0, 0], [0, -32]]);
+    act(() => renderer.unmount());
+  });
+
+  it("keeps cached cell gaps across virtual unmounts and releases them when the host rewrites the update", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    resetHostRowGap();
+    let renderer!: Renderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        todo("cached-gaps", "owner", 2000, firstDone),
+        todo("cached-gaps", "copy-a", 2000, firstDone),
+        todo("cached-gaps", "copy-b", 2000, firstDone)),
+      { createNodeMock: drawnAt({ top: 100, height: 120 }, { top: 236, height: 0 }, { top: 252, height: 0 }) });
+    });
+    expect(rootStyles(renderer)[0]).toEqual([0, -32]);
+    act(() => renderer.update(React.createElement(React.Fragment, null,
+      todo("cached-gaps", "owner", 2000, firstDone))));
+    expect(rootStyles(renderer)).toEqual([[0, -32]]);
+    act(() => renderer.update(React.createElement(React.Fragment, null,
+      todo("cached-gaps", "owner", 3000, secondDone))));
+    expect(rootStyles(renderer)).toEqual([[0, 0]]);
     act(() => renderer.unmount());
   });
 

@@ -84,7 +84,7 @@ export function TasksBoardPreview(props: {
       key={item.id}
       card={item}
       fields={fields}
-      titleLines={Number(titleLines)}
+      titleLines={titleLines === "all" ? null : Number(titleLines)}
       theme={theme}
       compact={phone}
       permissionButtons={item.permission ? permissionButtons(item.permission, language) : []}

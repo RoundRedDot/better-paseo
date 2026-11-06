@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
 import type { output as ZodOutput } from "zod";
-import { Icon, Modal, TextInput } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import { space } from "../../components/theme-tokens";
 import { ProviderLogo, providerBrand } from "../../components/provider-logo";
-import { TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema, titleModelsRpc } from "../../../shared/title-generation";
+import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema, titleModelsRpc } from "../../../shared/title-generation";
 import { PlainButton, Section, SectionNote, SettingsTips, SettingRow, Toggle, settingsTextStyle, type PageLook } from "../../settings-controls";
 import { useTasksLanguage } from "../i18n";
 
@@ -18,7 +18,7 @@ const WORDS = {
     tips: [{ label: "Generation", text: "Title generation sends conversation excerpts and the title prompt to a helper agent. It uses the card agent’s provider and model by default, or the selected model when customized. Manual generation also sends them." }, { label: "Recommended models", text: "Oh My Pi / DeepSeek Flash (deepseek/deepseek-flash), thinking low;\nClaude / Haiku 5.5 (claude-haiku-5-5), thinking off. Choose a model available on this host." }, { label: "Background tasks", text: "Title tasks stay off the board and are cleaned up after use when possible; they may trigger host notifications." }],
     resetTitle: "Reset automatic title settings", resetHint: "Only settings in this section will be restored.", reset: "Reset titles", resetNow: "Reset now", resetCancel: "Cancel", resetConfirmHint: "This restores only automatic title settings to their defaults.", loading: "Loading…", retry: "Retry", refresh: "Refresh models", loadError: "Could not load title settings.",
     saveError: "Settings changed elsewhere or could not be saved. Reloaded the latest.",
-    notRecommended: "Not recommended",
+    notRecommended: "Not recommended", editPrompt: "Edit prompt", save: "Save", cancel: "Cancel", resetPrompt: "Reset",
   },
   zh: {
     afterFirstReply: "自动优化新任务标题", afterFirstReplyHint: "自动根据发送的内容优化标题。",
@@ -28,7 +28,7 @@ const WORDS = {
     tips: [{ label: "生成方式", text: "生成标题时，对话摘录和标题提示词会发送给辅助 Agent。默认使用卡片的 Provider 和模型；开启自定义后使用所选模型。手动生成标题时同样会发送。" }, { label: "推荐模型", text: "Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low；\nClaude / Haiku 5.5（claude-haiku-5-5），思考等级 off。请选择主机可用的模型。" }, { label: "后台任务", text: "后台任务不进入看板，使用后会尝试删除，可能触发宿主通知。" }],
     resetTitle: "恢复「自动标题」默认设置", resetHint: "只恢复本组设置，不影响其他组。", reset: "恢复自动标题", resetNow: "确认重置", resetCancel: "取消", resetConfirmHint: "这只会把自动标题设置恢复为默认值。", loading: "正在加载…", retry: "重试", refresh: "刷新模型", loadError: "标题设置加载失败。",
     saveError: "设置已在别处更改或保存失败，已重新加载最新内容。",
-    notRecommended: "不推荐使用",
+    notRecommended: "不推荐使用", editPrompt: "编辑 Prompt", save: "保存", cancel: "取消", resetPrompt: "重置",
   },
 };
 
@@ -90,6 +90,8 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   const [refresh, setRefresh] = useState(0);
   const [choosing, setChoosing] = useState<"provider" | "model" | "thinkingOptionId" | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [promptDraft, setPromptDraft] = useState<string | null>(null);
+  const [promptHeight, setPromptHeight] = useState(0);
   const revision = settings.status === "ready" ? settings.revision : null;
   const catalogShown = revision !== null && draft.customModel;
   const readCatalog = useCallback(() => (catalogShown ? titleCatalogs.get(draft.provider) ?? NO_CATALOG : NO_CATALOG), [catalogShown, draft.provider]);
@@ -158,6 +160,8 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   const modelDefault = `${words.modelDefault}${selectedModel?.defaultThinkingOptionId ? ` · ${selectedModel.defaultThinkingOptionId}` : ""}`;
   const thinkingChoices = [{ id: "", label: modelDefault }, ...thinkingOptions];
   const choices = choosing === "provider" ? providers : choosing === "model" ? models : thinkingChoices;
+  const mobile = Platform.OS !== "web";
+  const InputContainer = mobile ? ScrollView : View;
   return (
     <View style={{ gap: space.sm }}>
       <Section title={words.title} look={look}>
@@ -194,9 +198,9 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
             </Pressable></View>
           } />;
         })}
-        <SettingRow title={words.prompt} look={look} below={
+        <SettingRow title={words.prompt} look={look} control={<Pressable accessibilityRole="button" accessibilityLabel={words.editPrompt} disabled={settings.saving} onPress={() => { setPromptHeight(0); setPromptDraft(draft.prompt); }} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}><Icon name="Pencil" size={18} color={look.tokens.foregroundMuted} /></Pressable>} below={
           <TextInput testID="title-generation-prompt" accessibilityLabel={words.prompt} multiline value={draft.prompt}
-            editable={!settings.saving} maxLength={8000} onChangeText={(prompt) => setDraft({ ...draft, prompt })}
+            editable={false}
             style={[textStyle, { width: "100%", minHeight: 130, borderWidth: 1, borderRadius: 8, borderColor: look.tokens.v2.border, backgroundColor: look.tokens.v2.surface0, padding: space.md, textAlignVertical: "top" }]} />
         } />
         <SettingRow title={words.resetTitle} description={confirmingReset ? words.resetConfirmHint : words.resetHint} look={look} control={
@@ -216,6 +220,22 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
         {error || saveError || settings.saveError ? <Text accessibilityRole="alert" style={[textStyle, { color: look.tokens.warning, padding: space.lg }]}>{error || saveError || settings.saveError}</Text> : null}
       </Section>
       <SettingsTips items={words.tips} look={look} inset />
+      {promptDraft !== null ? <Modal title={words.editPrompt} open onOpenChange={(open) => { if (!open) setPromptDraft(null); }}>
+        <Modal.Content scrollable={Platform.OS === "web"} contentContainerStyle={Platform.OS !== "web" ? { flex: 1, minHeight: 0, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap: 0 } : undefined}>
+          <View style={Platform.OS !== "web" ? { flex: 1, minHeight: 0 } : { gap: 16 }}>
+            <InputContainer {...(mobile ? { style: { flex: 1 }, contentContainerStyle: { flexGrow: 1, padding: 16, gap: 16 }, keyboardShouldPersistTaps: "handled" as const } : { style: { gap: 16 } })}>
+              <TextInput testID="title-prompt-edit-input" accessibilityLabel={words.prompt} multiline autoFocus value={promptDraft} maxLength={8000} onChangeText={setPromptDraft}
+                scrollEnabled={Platform.OS !== "web"} onContentSizeChange={Platform.OS === "web" ? (event) => setPromptHeight(event.nativeEvent.contentSize.height) : undefined}
+                style={[textStyle, { width: "100%", minHeight: 240, height: Platform.OS === "web" ? Math.max(240, promptHeight) : undefined, flex: Platform.OS !== "web" ? 1 : undefined, borderWidth: 1, borderRadius: 8, borderColor: look.tokens.v2.border, backgroundColor: look.tokens.v2.surface0, paddingHorizontal: 12, paddingVertical: 10, includeFontPadding: false, textAlignVertical: "top" }]} />
+            </InputContainer>
+            <View style={mobile ? { paddingTop: 12, paddingHorizontal: 16, flexDirection: "row", gap: 10, borderTopWidth: 1, borderTopColor: look.tokens.v2.border } : { flexDirection: "row", gap: 8 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel={words.resetPrompt} onPress={() => setPromptDraft(DEFAULT_TITLE_PROMPT)} style={{ minHeight: mobile ? 44 : 32, paddingHorizontal: 12, flex: mobile ? undefined : 1, justifyContent: "center", alignItems: "center", borderRadius: mobile ? 22 : 12, borderWidth: mobile ? 1 : 0, borderColor: look.tokens.v2.border, backgroundColor: mobile ? undefined : look.tokens.v2.surface2 }}><Text style={textStyle}>{words.resetPrompt}</Text></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={words.cancel} onPress={() => setPromptDraft(null)} style={{ minHeight: Platform.OS !== "web" ? 44 : 32, paddingHorizontal: mobile ? 18 : 12, flex: mobile ? undefined : 1, justifyContent: "center", alignItems: "center", borderRadius: Platform.OS !== "web" ? 22 : 12, borderWidth: Platform.OS !== "web" ? 1 : 0, borderColor: look.tokens.v2.border, backgroundColor: Platform.OS === "web" ? look.tokens.v2.surface2 : undefined }}><Text style={textStyle}>{words.cancel}</Text></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={words.save} disabled={!promptDraft.trim() || promptDraft === draft.prompt} onPress={() => { setDraft({ ...draft, prompt: promptDraft }); setPromptDraft(null); }} style={{ minHeight: Platform.OS !== "web" ? 44 : 32, flex: 1, justifyContent: "center", alignItems: "center", borderRadius: Platform.OS !== "web" ? 22 : 12, backgroundColor: look.tokens.accent, opacity: !promptDraft.trim() || promptDraft === draft.prompt ? 0.5 : 1 }}><Text style={[textStyle, { color: look.tokens.accentForeground }]}>{words.save}</Text></Pressable>
+            </View>
+          </View>
+        </Modal.Content>
+      </Modal> : null}
       {draft.customModel && choosing ? <Modal title={words[choosing]} open onOpenChange={(open) => { if (!open) setChoosing(null); }}>
         <Modal.Content>
           <View accessibilityRole="radiogroup" accessibilityLabel={words[choosing]}>

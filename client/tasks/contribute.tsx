@@ -1,4 +1,5 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
+import { Platform } from "react-native";
 import { settingsRpc } from "@getpaseo/plugin";
 import { TASKS_SETTINGS, tasksSettingsSchema } from "../../shared/tasks-settings";
 import { titleLanguageRpc } from "../../shared/title-generation";
@@ -27,6 +28,9 @@ import {
   subscribeChunk,
 } from "./chunk/load";
 import { loadMark } from "../debug/load-marks";
+import { deviceTasksStore } from "./device-preferences";
+import { deviceBoardPreferences } from "./device-store";
+import { bindTasksShortcut } from "./open-shortcut";
 
 /** The board's screen id; `openScreen({ screenId: TASKS_SCREEN_ID })` opens it. */
 export const TASKS_SCREEN_ID = "tasks";
@@ -70,6 +74,10 @@ export function contributeTasks(client: PluginClientContext): () => void {
   const registerBoard = () => {
     const titles = BOARD_STRINGS[language];
     const cleanups = [
+      bindTasksShortcut(deviceTasksStore(), () => {
+        requestChunk();
+        client.openScreen(boardRoute());
+      }),
       client.addSidebarHeaderItem({ id: "tasks", title: titles.name, Component: TasksSidebarEntry }),
       client.addCommandCenterItem({
         id: "open-tasks",
@@ -154,8 +162,9 @@ export function contributeTasks(client: PluginClientContext): () => void {
     .then((result) => {
       if (!live) return;
       if (result?.status !== "ready") return setTasksStartupRead("failed");
+      const parsed = tasksSettingsSchema.safeParse(result.values);
+      if (parsed.success && Platform.OS === "web") deviceTasksStore().load(deviceBoardPreferences(parsed.data.board));
       if (tasksEnabled() === null) {
-        const parsed = tasksSettingsSchema.safeParse(result.values);
         setTasksEnabled(parsed.success && parsed.data.enabled);
       }
       setTasksStartupRead("done");

@@ -107,7 +107,7 @@ describe("filter sheet groups", () => {
     });
     const find = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
     const background = phone ? palette.colors.surface0 : palette.colors.surface1;
-    expect(find("filter-sheet-scroll").props.stickyHeaderIndices).toEqual([1, 3]);
+    expect(find("filter-sheet-scroll").props.stickyHeaderIndices).toEqual([1, 3, 5]);
     expect(find("filter-sheet-workspace-header").props.style.backgroundColor).toBe(background);
     act(() => find("filter-sheet-workspaces-toggle").props.onPress());
     expect(find("filter-sheet-workspace-header").props.style.backgroundColor).toBe(background);
@@ -124,7 +124,7 @@ describe("filter sheet groups", () => {
     expect(find("filter-sheet-lane-width").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio")).toHaveLength(3);
     expect(find("filter-sheet-range-toggle").props.accessibilityState.expanded).toBe(true);
     expect(find("filter-sheet-range-content").props.accessibilityElementsHidden).toBe(false);
-    for (const group of ["agents", "workspaces", "labels", "sort-group"]) expect(find(`filter-sheet-${group}-toggle`).props.accessibilityState.expanded).toBe(false);
+    for (const group of ["agents", "projects", "workspaces", "labels", "sort-group"]) expect(find(`filter-sheet-${group}-toggle`).props.accessibilityState.expanded).toBe(false);
     act(() => find("filter-sheet-range-toggle").props.onPress());
     expect(find("filter-sheet-range-content").props.accessibilityElementsHidden).toBe(true);
     act(() => find("filter-sheet-range-toggle").props.onPress());
@@ -211,10 +211,11 @@ describe("filter sheet group folding cost", () => {
     act(() => (find((props) => props.testID === "filter-sheet-agents-toggle").props.onPress as () => void)());
     expect(find((props) => props.testID === "filter-sheet-agents-toggle").props.accessibilityState).toEqual({ expanded: false });
     // While the group folds, the block above the workspaces reports a new height on every frame.
-    const top = find((props) => typeof props.onLayout === "function" && (props.style as { paddingHorizontal?: number } | undefined)?.paddingHorizontal === 16);
+    const top = find((props) => !props.testID && typeof props.onLayout === "function" && (props.style as { paddingHorizontal?: number } | undefined)?.paddingHorizontal === 16);
     for (const height of [520, 470, 430]) act(() => (top.props.onLayout as (event: unknown) => void)({ nativeEvent: { layout: { height } } }));
     expect(sheetRenders.count).toBe(before);
 
+    act(() => (find((props) => props.testID === "filter-sheet-workspace-header").props.onLayout as (event: unknown) => void)({ nativeEvent: { layout: { y: 430 } } }));
     // The search still scrolls to where the workspaces start now.
     act(() => (find((props) => props.testID === "filter-sheet-workspaces-toggle").props.onPress as () => void)());
     const field = find((props) => props.accessibilityLabel === BOARD_STRINGS.en.sheetSearch);
@@ -223,6 +224,29 @@ describe("filter sheet group folding cost", () => {
       vi.runAllTimers();
     });
     expect(scrollTo).toHaveBeenLastCalledWith({ y: 430, animated: true });
+  });
+});
+
+describe("project filter", () => {
+  it("follows desktop order, searches names and paths, and selects all project workspaces", () => {
+    const setParams = vi.fn();
+    render({ ...board, strings: BOARD_STRINGS.zh, setParams }, {
+      agents: [], labels: [], workspaceGroups: [
+        { projectId: "p", projectName: "Alpha", projectKey: null, projectIcon: null, projectPath: "/code/payments", items: [{ id: "a", label: "main", count: 1, on: false }, { id: "b", label: "other", count: 0, on: false }] },
+        { projectId: "q", projectName: "Beta", projectKey: null, projectIcon: null, projectPath: "/code/other", items: [{ id: "c", label: "main", count: 1, on: false }] },
+      ],
+    });
+    const find = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    const order = renderer!.root.findAll((node) => typeof node.type === "string" && ["filter-sheet-agents-toggle", "filter-sheet-projects-toggle", "filter-sheet-workspaces-toggle", "filter-sheet-labels-toggle"].includes(node.props.testID)).map((node) => node.props.testID);
+    expect(order).toEqual(["filter-sheet-agents-toggle", "filter-sheet-projects-toggle", "filter-sheet-workspaces-toggle", "filter-sheet-labels-toggle"]);
+    expect(find("filter-sheet-projects-toggle").props.accessibilityLabel).toBe("项目");
+    act(() => find("filter-sheet-projects-toggle").props.onPress());
+    const input = find("filter-sheet-project-header").find((node) => typeof node.type === "string" && node.props.accessibilityLabel === BOARD_STRINGS.zh.sheetSearch);
+    act(() => input.props.onChangeText("payments"));
+    const choices = find("filter-sheet-projects").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
+    expect(choices).toHaveLength(1);
+    act(() => choices[0]!.props.onPress());
+    expect(setParams.mock.calls[0]![0](EMPTY_PARAMS).workspaceIds).toEqual(["a", "b"]);
   });
 });
 

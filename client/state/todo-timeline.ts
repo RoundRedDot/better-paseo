@@ -100,6 +100,8 @@ interface Entry {
   sequence: number;
   /** Where the item is drawn, in the window; null when unknown. */
   measure?: () => ViewBox | null;
+  /** Offscreen host cells retain their sizes, including their empty gaps. */
+  emptyGaps?: EmptyGapTakeBack;
 }
 
 /** The gap Paseo up to 0.11.2 hangs under every plugin item, an empty one too. */
@@ -221,9 +223,13 @@ function measureEmptyGaps(agentId: string, self: Entry, takenAbove: number): Emp
     if (box.top < top) above++;
     else below++;
   }
-  const takeBelow = Math.min(below * HOST_ITEM_GAP, own.height);
-  const takeAbove = Math.min(above * HOST_ITEM_GAP, own.height - takeBelow);
-  return takeAbove === 0 && takeBelow === 0 ? NO_TAKE_BACK : { above: takeAbove, below: takeBelow };
+  // Unmounting a sibling does not remove its cached cell from a virtual list.
+  // Giving its gap back resized this row, which could bring the sibling into
+  // the window again and repeat forever through the host's resizeItem.
+  const takeBelow = Math.min(Math.max(below * HOST_ITEM_GAP, self.emptyGaps?.below ?? 0), own.height);
+  const takeAbove = Math.min(Math.max(above * HOST_ITEM_GAP, self.emptyGaps?.above ?? 0), own.height - takeBelow);
+  self.emptyGaps = takeAbove === 0 && takeBelow === 0 ? NO_TAKE_BACK : { above: takeAbove, below: takeBelow };
+  return self.emptyGaps;
 }
 
 /** The list of the update before `at`, or null when none is known. */
@@ -254,6 +260,25 @@ export function useLatestTodoItems(agentId: string, enabled: boolean): readonly 
   return useSyncExternalStore(subscribe, getLatest, getLatest);
 }
 
+/** A Grok result joins its ACP update using the host's canonical timestamp and list. */
+export function useMatchingTodo(agentId: string, at: number, items: readonly TodoTask[] | null): (Update & { sequence: number }) | null {
+  // Reserve the tool's place before the ACP update arrives: mounting its
+  // checklist later must not elect a lower slot as the drawing item.
+  const order = useMemo(() => sequence++, []);
+  const getMatch = useCallback(() => {
+    if (!items?.length) return null;
+    return [...(agents.get(agentId)?.updates.values() ?? [])].find((update) =>
+      Math.abs(update.at - at) <= 3000 && update.items.length === items.length &&
+      update.items.every((task, index) => task.text === items[index]?.text &&
+        (task.status ? todoTaskStatus(task) === todoTaskStatus(items[index]!) :
+          todoTaskStatus(items[index]!) !== "in_progress" &&
+          (todoTaskStatus(task) === "completed") === (todoTaskStatus(items[index]!) === "completed"))),
+    ) ?? null;
+  }, [agentId, at, items]);
+  const match = useSyncExternalStore(subscribe, getMatch, getMatch);
+  return useMemo(() => match ? { ...match, sequence: order } : null, [match, order]);
+}
+
 /**
  * Records this todo item while it is mounted and says how it draws. `previous`
  * is the list of the update before it, null when none is known. `view` is the
@@ -265,6 +290,7 @@ export function useTodoTimeline(
   at: number,
   items: readonly TodoTask[],
   view?: RefObject<unknown>,
+  order?: number,
 ): {
   role: TodoRole;
   previous: readonly TodoTask[] | null;
@@ -273,7 +299,7 @@ export function useTodoTimeline(
 } {
   const key = useMemo(() => todoListKey(items), [items]);
   const entry = useMemo<Entry>(
-    () => ({ at, key, sequence: sequence++, measure: view ? () => viewBox(view.current) : undefined }),
+    () => ({ at, key, sequence: order ?? sequence++, measure: view ? () => viewBox(view.current) : undefined }),
     [],
   );
   const last = useRef<{ agentId: string; at: number; key: string } | null>(null);
@@ -294,6 +320,7 @@ export function useTodoTimeline(
     last.current = { agentId, at, key };
     entry.at = at;
     entry.key = key;
+    if (prior && (prior.agentId !== agentId || prior.at !== at || prior.key !== key)) entry.emptyGaps = undefined;
     agent.mounted.add(entry);
     const id = updateId(at, key);
     if (!agent.updates.has(id)) agent.updates.set(id, { at, key, items: itemsRef.current });
@@ -316,9 +343,9 @@ export function useTodoTimeline(
   const takenAbove = useRef(0);
   takenAbove.current = emptyGaps.above;
   const measure = useCallback(() => {
-    const next = role === "hidden" || siblings === 0 ? NO_TAKE_BACK : measureEmptyGaps(agentId, entry, takenAbove.current);
+    const next = role === "hidden" ? NO_TAKE_BACK : measureEmptyGaps(agentId, entry, takenAbove.current);
     setEmptyGaps((prev) => (prev.above === next.above && prev.below === next.below ? prev : next));
-  }, [agentId, entry, role, siblings]);
+  }, [agentId, entry, role, siblings, at, key]);
   useLayoutEffect(measure, [measure]);
   return { role, previous, emptyGaps, measureEmptyGaps: measure };
 }

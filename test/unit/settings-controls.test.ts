@@ -4,7 +4,8 @@ import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { Toggle, type PageLook } from "../../client/settings-controls";
+import { SettingsTips, Toggle, type PageLook } from "../../client/settings-controls";
+import { measureHostTree } from "./helpers/yoga-host-layout";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const globals = globalThis as { __rnMockOS?: string };
@@ -78,5 +79,19 @@ describe("settings switch Space activation", () => {
   it.each(["ios", "android"])("adds no keyboard or blur props on %s", (os) => {
     const { toggle } = mount(os);
     for (const prop of ["onKeyDown", "onKeyUp", "onBlur"]) expect(toggle.props).not.toHaveProperty(prop);
+  });
+});
+
+describe("settings tips layout", () => {
+  it.each([320, 390])("keeps long mobile tips within %i points", (width) => {
+    const mobileLook = { compact: true, tokens: { typography: { ui: { size: 16 } }, v2: {} } } as PageLook;
+    const text = "生成标题时，对话摘录和标题提示词会发送给辅助 Agent。默认使用卡片的 Provider 和模型。";
+    act(() => { renderer = TestRenderer.create(React.createElement(SettingsTips, { items: [{ label: "生成方式", text }], look: mobileLook, inset: true })); });
+    const root = renderer.root.find((node) => node.type === ("View" as React.ElementType));
+    const frames = measureHostTree(root, { width, wrapText: true });
+    const body = renderer.root.find((node) => node.type === ("Text" as React.ElementType) && node.children.includes(text));
+    const frame = frames.get(body)!;
+    expect(frame.left + frame.width).toBeLessThanOrEqual(width);
+    expect(frame.height).toBeGreaterThan(22);
   });
 });

@@ -124,8 +124,9 @@ describe("sidebar action tips", () => {
       const button = () => host(root, id);
       expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderColor: "transparent" });
       await act(async () => button().props.onHoverIn());
-      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: taskTokens(THEME).border, boxShadow: taskTokens(THEME).card.buttonShadowHover });
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: taskTokens(THEME).borderStrong, boxShadow: taskTokens(THEME).card.buttonShadowHover });
       await act(async () => button().props.onHoverOut());
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderColor: "transparent", boxShadow: undefined });
     }
   });
   it("opens the selected card menu at the header button", async () => {

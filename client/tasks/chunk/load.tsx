@@ -4,6 +4,8 @@ import type { PluginScreenProps, PluginSidebarItemProps, PluginSurfaceProps } fr
 import { chunkNow, requestChunk, requestChunkLater, subscribeChunk } from "./source";
 import { TasksSidebarPlaceholder } from "./sidebar-placeholder";
 import type { TasksChunk } from "./types";
+import { selectTasksShortcut } from "../open-shortcut";
+import { encodeBoardParams, lastBoardParams } from "../board/params";
 
 /**
  * The Tasks chunk for the rest of the bundle: the board, its sidebar entry,
@@ -43,6 +45,12 @@ export function TasksBoardScreen(props: PluginScreenProps) {
 
 /** The sidebar's Tasks row: a plain row until the chunk's row, with its counts, can draw. */
 export function TasksSidebarEntry(props: PluginSidebarItemProps) {
+  useEffect(() => {
+    selectTasksShortcut(() => {
+      requestChunk();
+      props.openScreen({ screenId: "tasks", params: encodeBoardParams(lastBoardParams(props.host.id)) });
+    });
+  }, [props.host.id, props.openScreen]);
   const chunk = useTasksChunk("later");
   const placeholder = <TasksSidebarPlaceholder {...props} />;
   return chunk ? <chunk.TasksSidebarEntry {...props} placeholder={placeholder} /> : placeholder;

@@ -18,7 +18,7 @@ describe("tasks settings", () => {
       density: "standard",
       card: { ...CARD_PRESETS.standard.fields, labelLimit: "2" },
       mobile: { compactCards: false },
-      board: { doneWindow: "24h", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true },
+      board: { doneWindow: "7d", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true },
       sidebar: { count: "all" },
     });
   });
@@ -44,6 +44,7 @@ describe("tasks settings", () => {
       board: { doneWindow: "7d", confirmStop: "yes", laneWidth: "huge" },
     });
     expect(tasksSettingsSchema.parse({ board: { confirmStop: false } }).board).toEqual(DEFAULT_TASKS_SETTINGS.board);
+    expect(tasksSettingsSchema.parse({ board: { doneWindow: "24h" } }).board.doneWindow).toBe("24h");
     expect(parsed.density).toBe("standard");
     expect(parsed.card.provider).toBe(false);
     expect(parsed.card.labelLimit).toBe("2");

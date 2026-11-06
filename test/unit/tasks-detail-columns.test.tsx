@@ -304,7 +304,6 @@ describe("details columns", () => {
     const read = (y: number) => scroll.props.onScroll({ nativeEvent: { contentOffset: { y } } });
     await act(async () => {
       read(320);
-      host(root, "detail-prompt-more").props.onPress();
       host(root, "detail-tab-info").props.onPress();
     });
     expect(host(root, "detail-tab-messages-content")).toBe(messages);
@@ -394,8 +393,8 @@ describe("details columns", () => {
     await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...detailProps} tabs />); });
     expect(heading().props.accessibilityState.expanded).toBe(false);
   });
-  it("shows long messages in full and streams the latest reply as chunks arrive", async () => {
-    const first = "First prompt. ".repeat(40);
+  it("folds the first prompt and opens the sent message and reply while streaming chunks", async () => {
+    const first = "First prompt. ".repeat(80);
     const human = "Latest request. ".repeat(40);
     const reply = "Live reply. ".repeat(80);
     let emit: (event: unknown) => void = () => {};
@@ -410,8 +409,11 @@ describe("details columns", () => {
       return <TaskDetailCards {...props(false)} columns={false} tabs firstPrompt={{ prompt: { state: "ready", text: first }, load() {} }} humanMessage={{ prompt: { state: "ready", text: human }, load() {} }} lastMessage={lastMessage} />;
     }
     await act(async () => { renderer = TestRenderer.create(<LiveDetails />); });
-    for (const id of ["detail-prompt", "detail-human", "detail-message"]) {
+    expect(host(renderer!.root, "detail-prompt-text").props.style).toMatchObject({ overflow: "hidden" });
+    expect(host(renderer!.root, "detail-prompt-more").props.accessibilityState.expanded).toBe(false);
+    for (const id of ["detail-human", "detail-message"]) {
       expect(host(renderer!.root, `${id}-text`).props.style).toBeNull();
+      expect(host(renderer!.root, `${id}-more`).props.accessibilityState.expanded).toBe(true);
     }
     const markdown = () => host(renderer!.root, "detail-message-text").findByType(MarkdownView);
     expect(markdown().props).toMatchObject({ text: reply.trim(), streaming: true });

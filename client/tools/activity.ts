@@ -257,18 +257,27 @@ function grokTaskMeta(task: GrokTask): string[] {
   return meta;
 }
 
-function readGrokTodos(raw: string): ActivityData | undefined {
+export function grokTodoItems(detail: Record<string, unknown>): { text: string; status: string }[] | null {
+  if (detail.type !== "plain_text" || detail.label !== "Updating plan" || typeof detail.text !== "string") return null;
   let parsed: unknown;
-  try { parsed = JSON.parse(raw); } catch { return undefined; }
+  try { parsed = JSON.parse(detail.text); } catch { return null; }
   const todos = record(record(parsed)?.TodosUpdated)?.todos;
-  if (!Array.isArray(todos)) return undefined;
-  const items = todos.map(record).filter((todo): todo is Record<string, unknown> => Boolean(todo));
+  if (!Array.isArray(todos) || !todos.length) return null;
+  const items = todos.map(record);
+  if (items.some((todo) => !todo || typeof todo.content !== "string" ||
+    (todo.status !== "completed" && todo.status !== "in_progress" && todo.status !== "pending"))) return null;
+  return items.map((todo) => ({ text: todo!.content as string, status: todo!.status as string }));
+}
+
+function readGrokTodos(raw: string): ActivityData | undefined {
+  const items = grokTodoItems({ type: "plain_text", label: "Updating plan", text: raw });
+  if (!items) return undefined;
   const done = items.filter((todo) => todo.status === "completed").length;
   const current = items.find((todo) => todo.status === "in_progress");
-  const list = items.map((todo) => `- [${todo.status === "completed" ? "x" : " "}] ${text(todo.content) ?? ""}` +
+  const list = items.map((todo) => `- [${todo.status === "completed" ? "x" : " "}] ${todo.text}` +
     (todo.status === "in_progress" ? " *(in progress)*" : "")).join("\n");
   return {
-    verb: "Plan", target: text(current?.content), meta: [`${done}/${items.length} done`], icon: "ListTodo",
+    verb: "Plan", target: current?.text, meta: [`${done}/${items.length} done`], icon: "ListTodo",
     sections: section(undefined, list, "markdown"),
   };
 }

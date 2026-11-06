@@ -557,7 +557,7 @@ function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginThe
       )}
       {item.trailing}
       {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}
-      {Platform.OS === "web" && item.shortcut ? <Text style={{ fontFamily: TASK_MONO, fontSize: F.sm, color: colors.foregroundMuted }}>{item.shortcut === "Enter" ? "↵" : item.shortcut.toUpperCase()}</Text> : null}
+      {Platform.OS === "web" && item.shortcut ? <Text style={{ fontFamily: TASK_MONO, fontSize: F.sm, letterSpacing: 2, color: colors.foregroundMuted }}>{item.shortcut === "Enter" ? "↵" : item.shortcut.toUpperCase()}</Text> : null}
       {item.checked ? <Icon name="Check" size={14} color={colors.accent} /> : item.checked === false ? <View style={{ width: 14 }} /> : null}
       {item.submenu ? <Icon name="ChevronRight" size={12} color={colors.foregroundMuted} /> : null}
     </Pressable>

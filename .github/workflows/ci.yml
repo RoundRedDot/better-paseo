@@ -4,25 +4,107 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   # Every push to main is checked; only a superseded PR run is cancelled.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 jobs:
-  check:
+  changes:
+    name: changes
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      full: ${{ github.event_name != 'pull_request' || steps.filter.outputs.routing != 'false' || steps.filter.outputs.workspace != 'false' || steps.filter.outputs.ci != 'false' }}
+      typecheck: ${{ steps.filter.outputs.typecheck }}
+      test: ${{ steps.filter.outputs.test }}
+      client: ${{ steps.filter.outputs.client }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Detect affected checks
+        id: filter
+        uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        with:
+          filters: .github/ci-paths.yml
+
+      - name: Validate CI contracts
+        run: node --test scripts/ci-workflow.test.mjs
+
+  typecheck:
+    name: typecheck
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.outputs.full != 'false' || needs.changes.outputs.typecheck != 'false') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm run typecheck
+
+      - name: Install dependencies
+        run: node scripts/npm-retry.mjs ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+  test:
+    name: test
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.outputs.full != 'false' || needs.changes.outputs.test != 'false') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: node scripts/npm-retry.mjs ci
+
       # vitest.config.ts allows 30 s per case. The long-fixture sweeps override
       # that, up to 180 s. The suite is several minutes on a GitHub runner.
-      - run: npx vitest run
+      - name: Test
+        run: npm test
         timeout-minutes: 15
+
+  client:
+    name: client
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.outputs.full != 'false' || needs.changes.outputs.client != 'false') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: node scripts/npm-retry.mjs ci
+
+      - name: Build client
+        run: npm run build:client
+
+      - name: Check Hermes
+        run: npm run check:hermes

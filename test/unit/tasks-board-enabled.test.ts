@@ -344,6 +344,34 @@ describe("Tasks board across a reconnect", () => {
 });
 
 describe("Tasks registrations, opt-in", () => {
+  it("opens from the shortcut and removes the listener when disabled or unloaded", async () => {
+    vi.stubGlobal("__rnMockOS", "web");
+    vi.stubGlobal("navigator", { platform: "MacIntel" });
+    const target = new EventTarget();
+    vi.stubGlobal("window", target);
+    const press = () => target.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code: "KeyY", metaKey: true, ctrlKey: false, altKey: false, shiftKey: true, repeat: false, isComposing: false }));
+    resetTasksEnabled();
+    const plugin = client(() => Promise.resolve({ status: "ready", revision: "1", values: { enabled: true } }));
+    const cleanup = contributeTasks(plugin.value as never);
+    try {
+      await flush();
+      press();
+      expect(plugin.value.openScreen).toHaveBeenCalledWith({ screenId: "tasks", params: expect.any(Object) });
+      expect(plugin.value.openScreen).toHaveBeenCalledTimes(1);
+      setTasksEnabled(false);
+      press();
+      expect(plugin.value.openScreen).toHaveBeenCalledTimes(1);
+      setTasksEnabled(true);
+      press();
+      expect(plugin.value.openScreen).toHaveBeenCalledTimes(2);
+      cleanup();
+      press();
+      expect(plugin.value.openScreen).toHaveBeenCalledTimes(2);
+    } finally {
+      cleanup();
+      vi.unstubAllGlobals();
+    }
+  });
   type Registered = { kind: string; id: string; title: string | (() => string) };
   function client(read: () => Promise<unknown>) {
     const active: Registered[] = [];

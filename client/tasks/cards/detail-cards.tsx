@@ -55,7 +55,7 @@ import {
 import { ActionRow, layoutCeil, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
 import { ActionPressable } from "./action-pressable";
-import { liftsOnPress, scaleStyle, surfaceLift } from "./surface-lift";
+import { liftedButtonOutline, liftStyle, scaleStyle, surfaceLift } from "./surface-lift";
 import { arrowInset, buttonHue, CONFIRM_STOP_ICON, requestLook, webTransition, type CardButtonLook } from "./action-style";
 import { buttonOutline, MOTION } from "../board/board-style";
 import { useBreathing, useFlash } from "../board/breathing";
@@ -494,7 +494,7 @@ function DetailTab(props: { id: "info" | "messages"; selected: boolean; tokens: 
       onPress={props.onPress}
       style={({ pressed }) => {
         const lift = surfaceLift(hovered, pressed);
-        return { flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 30 : 32, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder, backgroundColor: props.selected ? props.tokens.surface2 : "transparent", flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 4, paddingHorizontal: 6, boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined, ...scaleStyle(lift.scale) };
+        return { flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 30 : 32, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, backgroundColor: props.selected ? props.tokens.surface2 : "transparent", flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 4, paddingHorizontal: 6, ...liftStyle(props.tokens, lift, { border: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder }), ...scaleStyle(lift.scale) };
       }}
     >
       <Icon name={props.id === "info" ? "Info" : "MessageSquare"} size={props.touch ? 12 : 14} color={color} />
@@ -704,7 +704,7 @@ function DetailHeader(props: Inner) {
           />
         ))}
       </View>
-      <AvailabilityTag issue={card.availability?.issue} language={props.language} tokens={tokens} compact={touch} />
+      <AvailabilityTag issue={card.availability?.issue} language={props.language} tokens={tokens} theme={props.theme} compact={touch} />
       {showActions ? (
         <ActionRow style={{ marginTop: 12 }} testID="detail-actions">
           {touch ? null : lead}
@@ -782,6 +782,7 @@ function RunningTurn(props: Inner) {
       total={sessionTotal(props.sessionTokens ?? null, props.language)}
       context={contextView(card)}
       tokens={props.tokens}
+      theme={props.theme}
       touch={props.touch === true}
       language={props.language}
       timerOnly={!!card.subagent}
@@ -877,7 +878,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
           gap: 6,
           paddingHorizontal: 14,
           borderRadius: 6,
-          ...buttonOutline(hue.border, {}, lift.shadow ? tokens.card.buttonShadowHover : undefined),
+          ...liftedButtonOutline(tokens, hue.border, requestLook(button) === "plain", lift),
           opacity: props.disabled ? 0.5 : 1,
           backgroundColor: tokens.card.background,
           alignItems: "center" as const,
@@ -1480,7 +1481,7 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
       {...hoverProps}
       style={({ pressed }) => {
         const lift = surfaceLift(hovered, pressed);
-        return { width: 24, height: 24, borderRadius: 5, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: "transparent", boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined, ...scaleStyle(lift.scale) };
+        return { width: 24, height: 24, borderRadius: 5, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: "transparent", ...liftStyle(props.tokens, lift), ...scaleStyle(lift.scale) };
       }}
     >
       <Icon name={props.icon} size={14} color={hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
@@ -1603,9 +1604,10 @@ const FADE_STEPS = 6;
 
 /**
  * Text read from the task's timeline: the first prompt in full (the title
- * being only its first line), or the agent's latest reply. Drawn as Markdown,
- * copyable as written; sidebar tabs start expanded. "Load" retries a read
- * that has not started or failed.
+ * being only its first line), the last message a person sent, or the agent's
+ * latest reply. Drawn as Markdown and copyable as written. The sidebar opens
+ * the sent message and the reply in full; the first prompt stays folded.
+ * "Load" retries a read that has not started or failed.
  */
 function TimelineTextBody(props: Inner & {
   read: { prompt: FirstPrompt | LastHumanMessage; load(): void } | null | undefined;
@@ -1619,7 +1621,7 @@ function TimelineTextBody(props: Inner & {
 }) {
   const { tokens, id } = props;
   const words = cardStrings(props.language).details;
-  const [open, setOpen] = useState(props.tabs === true);
+  const [open, setOpen] = useState(props.tabs === true && props.id !== "detail-prompt");
   const query = props.id === "detail-prompt" ? props.searchQuery ?? "" : "";
   const [searchFold, setSearchFold] = useState({ query: "", closed: false });
   const expanded = query ? searchFold.query === query ? !searchFold.closed : true : open;
@@ -1814,8 +1816,8 @@ function Usage(props: Inner) {
   );
   return (
     <View style={{ paddingHorizontal: 6, paddingTop: 4, paddingBottom: 4, gap: 14 }}>
-      {detailHero(card) !== "turn" ? <ContextBar context={contextView(card)} tokens={tokens} touch={touch} language={props.language} font={font} /> : null}
-      <TokenBar mix={tokenMix(card)} tokens={tokens} touch={touch} language={props.language} font={font} />
+      {detailHero(card) !== "turn" ? <ContextBar context={contextView(card)} tokens={tokens} theme={props.theme} touch={touch} language={props.language} font={font} /> : null}
+      <TokenBar mix={tokenMix(card)} tokens={tokens} theme={props.theme} touch={touch} language={props.language} font={font} />
       <View>
         {line("cost", "Coins", words.totalCost, cost !== null ? `$${cost.toFixed(2)}` : "—", true)}
         {line("turn", "Hourglass", words.lastTurnTime, card.timing.lastTurnMs !== null ? formatDuration(card.timing.lastTurnMs) : "—", false)}
@@ -1872,7 +1874,7 @@ export function RoundIcon(props: { icon: string; label: string; size: number; to
           alignItems: "center" as const,
           justifyContent: "center" as const,
           backgroundColor: props.active ? props.tokens.surface2 : "transparent",
-          boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined,
+          ...liftStyle(props.tokens, lift, Platform.OS === "web" ? { border: hovered ? props.tokens.border : "transparent" } : {}),
           ...scaleStyle(lift.scale),
         };
       }}
@@ -1925,7 +1927,7 @@ function OutlineButton(props: {
   const chrome = 2 * (props.grow ? 10 : 12) + (leading ? 15 : 0) + (props.hint ? hintWidth : 0) + (props.trailing ? 14 : 0) + (pieces - 1) * gap + 1;
   const fit = useActionFit(props.label, `${scale}|${props.font}|${useWindowDimensions().fontScale}`, props.height, chrome);
   return (
-    <ActionPressable motion={liftsOnPress()}
+    <ActionPressable lift={props.grow ? "row" : "control"}
       accessibilityRole="button"
       accessibilityLabel={props.label}
       {...tipProps(props.label)}
@@ -1941,7 +1943,7 @@ function OutlineButton(props: {
         height: taskControlHeight(props.height, scale),
         paddingHorizontal: props.grow ? 10 : 12,
         borderRadius: 8,
-        ...buttonOutline(hue.border, {}, surfaceLift(hovered, pressed && !disabled).shadow ? tokens.card.buttonShadowHover : undefined),
+        ...liftedButtonOutline(tokens, hue.border, look === "plain", surfaceLift(hovered, pressed && !disabled, undefined, props.grow ? "row" : "control")),
         backgroundColor: tokens.card.background,
         flexDirection: "row" as const,
         alignItems: "center" as const,
@@ -2139,8 +2141,10 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const square = fit.iconOnly;
   const disabled = props.busy || props.disabled;
   const hovered = hover && !disabled;
+  // A bar button spans its share of the bar, wider than a finger; a square one is covered by it.
+  const liftAs = square || props.grow === false ? "control" : "row";
   return (
-    <ActionPressable motion={liftsOnPress()}
+    <ActionPressable lift={liftAs}
       accessibilityRole="button"
       accessibilityLabel={props.label}
       accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
@@ -2155,7 +2159,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         flexShrink: square ? 0 : 1,
         paddingHorizontal: square ? 0 : padding,
         borderRadius: compact ? 8 : 10,
-        ...buttonOutline(hue.border, {}, surfaceLift(hovered, pressed && !disabled).shadow ? tokens.card.buttonShadowHover : undefined),
+        ...liftedButtonOutline(tokens, hue.border, look === "plain", surfaceLift(hovered, pressed && !disabled, undefined, liftAs)),
         backgroundColor: tokens.card.background,
         opacity: disabled ? 0.6 : 1,
         flexDirection: "row",

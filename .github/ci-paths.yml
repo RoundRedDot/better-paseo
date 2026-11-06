@@ -1,0 +1,29 @@
+# Pull-request checks follow the paths they prove. A push to main, a manual
+# run, and any change to the router, the toolchain, or this workflow run every
+# job. Package paths do not exist here: this repo is one plugin.
+routing:
+  - ".github/ci-paths.yml"
+
+workspace:
+  - "package.json"
+  - "package-lock.json"
+  - "tsconfig.json"
+  - "vitest.config.ts"
+  - "scripts/**"
+
+ci:
+  - ".github/workflows/ci.yml"
+
+typecheck:
+  - "**/*.{ts,tsx}"
+
+test:
+  - "**/*.{ts,tsx,mjs}"
+  - "test/**"
+  - "vitest.config.ts"
+
+client:
+  - "index.client.tsx"
+  - "client/**"
+  - "shared/**"
+  - "paseo-plugin.json"
