@@ -98,7 +98,7 @@ export function TabletToolbar(props: {
   ];
   const search = (
     <View testID="tablet-toolbar-search-group" style={{ flex: 1, minWidth: 0, maxWidth: inlineSearch ? 400 : taskControlHeight(238, scale), flexDirection: "row", alignItems: "center", gap: 8 }}>
-    <View testID="tablet-toolbar-search" style={{ flex: 1, minWidth: 0, height: height - 4, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
+    <View testID="tablet-toolbar-search" style={{ flex: 1, minWidth: 0, height: height - 8, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
       <SearchInput iconSize={16} iconColor={colors.foregroundMuted}
         ref={props.searchRef}
         value={board.params.query}
@@ -112,7 +112,7 @@ export function TabletToolbar(props: {
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
-        style={{ flex: 1, minWidth: 0, padding: 0, fontSize: compact ? Math.round(F.sm * scale) : Math.max(16, Math.round(F.base * scale)), color: colors.foreground }}
+        style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.sm * scale), color: colors.foreground }}
       />
       {board.params.query ? <ToolbarButton icon="X" label={strings.menuSearch.clear} theme={theme} onPress={() => board.setParams((p) => ({ ...p, query: "" }))} testID="tablet-search-clear" /> : null}
     </View>

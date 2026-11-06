@@ -3926,7 +3926,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostParentOf(search())?.props.testID).toBe("tablet-toolbar-search-group");
     expect(hostParentOf(hostsById("tablet-toolbar-search-group")[0]!)?.props.testID).toBe("tablet-toolbar-start");
     expect(bar().findAll((node) => node === search())).toHaveLength(1);
-    expect(style(search())).toMatchObject({ height: Math.round(40 * base / 14) - 4, flex: 1, minWidth: 0 });
+    expect(style(search())).toMatchObject({ height: Math.round(40 * base / 14) - 8, flex: 1, minWidth: 0 });
     expect(style(search()).position).toBeUndefined();
     expect(hostsById("tablet-toolbar-total")).toHaveLength(0);
     expect(style(hostsById("tablet-toolbar-start")[0]!).minWidth).toBe(0);
@@ -4344,7 +4344,9 @@ describe("Tasks board, tablet filters", () => {
     layOut(1000);
     expect(StyleSheet.flatten(hostsById("tablet-toolbar")[0]!.props.style).height).toBe(height);
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
-    expect(StyleSheet.flatten(hostsById("tablet-toolbar-search")[0]!.props.style).height).toBe(height - 4);
+    expect(StyleSheet.flatten(hostsById("tablet-toolbar-search")[0]!.props.style).height).toBe(height - 8);
+    const input = hostsById("tablet-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput");
+    expect(StyleSheet.flatten(input.props.style).fontSize).toBe(Math.round(12 * base / 14));
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     expect(StyleSheet.flatten(hostsById("tablet-filter-popover")[0]!.props.style).top).toBe(height + 6);
   });
