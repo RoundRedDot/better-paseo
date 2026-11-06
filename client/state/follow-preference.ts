@@ -1,5 +1,6 @@
 import {
   getEnhancerPreferences,
+  samePreferenceValue,
   subscribeEnhancerPreferences,
   type EnhancerPreferences,
 } from "../preferences";
@@ -25,7 +26,7 @@ export function followPreference(
   let last = selected();
   const unsubscribe = subscribeEnhancerPreferences(() => {
     const next = selected();
-    if (next === last) return;
+    if (samePreferenceValue(next, last)) return;
     last = next;
     // Remove first: the host refuses a second transformer with the same id.
     remove();
