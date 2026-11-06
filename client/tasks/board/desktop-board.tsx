@@ -569,8 +569,8 @@ export function DesktopBoard(props: {
       if (result.focus && result.effect !== "search") focusTaskBoard(root);
       setFocus(result.focus);
       if (result.effect === "search") {
+        if (now.boardWidth < 960 * Math.max(1, scale)) setSearchOpen(true);
         if (searchRef.current) searchRef.current.focus();
-        else setSearchOpen(true);
       }
       if (result.effect === "open" && result.focus) {
         const card = now.board.lanes[result.focus.lane].cards[result.focus.index];
@@ -619,7 +619,7 @@ export function DesktopBoard(props: {
       document.removeEventListener("keydown", onCaptureKey, true);
       document.removeEventListener("keydown", onKey);
     };
-  }, [board.visible, rootRef, showCard]);
+  }, [board.visible, rootRef, showCard, scale]);
 
   const breathing = useBreathing(!tasks.ready && board.visible);
   const reduced = useReducedMotion();

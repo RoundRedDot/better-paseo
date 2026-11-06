@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
-import { Platform, Pressable, View, useWindowDimensions, type LayoutChangeEvent, type TextInput as NativeTextInput } from "react-native";
+import { Animated, Platform, Pressable, View, useWindowDimensions, type LayoutChangeEvent, type TextInput as NativeTextInput } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS } from "../../../shared/tasks-settings";
@@ -7,7 +7,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontSca
 import { TagMark, taskTokens } from "../cards";
 import { tipProps } from "../cards/card-hints";
 import { CornerBadge, HoverPressable, RollingTotal, WindowSegments, RoundButton, Segments, SlashMark } from "./board-parts";
-import { HAIRLINE } from "./board-style";
+import { HAIRLINE, MOTION } from "./board-style";
 import { FILTER_ICONS, activeChips, clearedParams, emptyGroupsIcon, groupChips, isChipGroup, shownFilterOptions, toggleProject, type ActiveChip, type ChipGroup, type ChipGroupKind, type FilterOptions } from "./filter-options";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { activeFilterCount, resolveBoardParams, toggleItem } from "./params";
@@ -148,6 +148,9 @@ function DesktopToolbarView(props: {
   const inlineSearch = props.width >= 960 * Math.max(1, scale);
   const [searchFocused, setSearchFocused] = useState(false);
   const [actionWidth, setActionWidth] = useState(0);
+  // Equal side slots keep the total centred; the end slot also measures the search's room.
+  const searchWidth = Math.min(320 + toolbarButtonSize(scale) + 8, actionWidth - toolbarButtonSize(scale) - 8 - (chips.length ? 8 : 0));
+  const searchFits = searchWidth >= 140 * Math.max(1, scale) + toolbarButtonSize(scale) + 8;
   const openSettings = tasksSettingsOpener();
   const updateAvailable = useUpdateIndicator(board.hostId, board.visible);
   const updateLabel = SETTINGS_STRINGS[useTasksLanguage()].versionBadge;
@@ -181,7 +184,7 @@ function DesktopToolbarView(props: {
           borderRadius: 6,
         }}
       >
-        <SearchInput iconSize={13} iconColor={colors.foregroundMuted}
+        <SearchInput hideSearchIcon iconSize={13} iconColor={colors.foregroundMuted}
           ref={props.searchRef}
           autoFocus={!inlineSearch}
           value={board.params.query}
@@ -211,8 +214,11 @@ function DesktopToolbarView(props: {
         size={toolbarButtonSize(scale)} iconSize={actionIconSize(scale)}
         tip={`${strings.search} (/)`} testID="desktop-search-toggle"
       />}
+      {!inlineSearch && searchFits ? <ToolbarSearchReveal visible={props.searchOpen} width={searchWidth}>
+        {search}
+      </ToolbarSearchReveal> : null}
       {chips.length ? (
-        <View testID="desktop-toolbar-search-summary" style={{ flexDirection: "row", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 1, gap: 10 }}>
+        <View testID="desktop-toolbar-search-summary" style={{ flexDirection: "row", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 1, gap: 10, overflow: !inlineSearch && searchFits ? "hidden" : undefined }}>
           {chips.map((entry) =>
             isChipGroup(entry) ? (
               <GroupChip
@@ -294,12 +300,54 @@ function DesktopToolbarView(props: {
       {!compactActions && props.sidebar ? <SidebarSwitch open={props.sidebar.open} sheet={!!props.sidebar.sheet} onToggle={props.sidebar.onToggle} theme={theme} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} /> : null}
       </View>
     </View>
-    {!inlineSearch && props.searchOpen ? <View testID="desktop-search-row" style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 11 }}>
+    {!inlineSearch && !searchFits ? <ToolbarSearchReveal visible={props.searchOpen}>
+    <View testID="desktop-search-row" style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
       {search}
       <RoundButton icon="X" quietOutline label={strings.closeMenu} theme={theme} onPress={() => props.onSearchOpenChange(false)} size={toolbarButtonSize(scale)} iconSize={actionIconSize(scale)} testID="desktop-search-close" />
-    </View> : null}
+    </View>
+    </ToolbarSearchReveal> : null}
     </>
   );
+}
+
+/** Retain the input through exit, revealing width inline or height on its own row. */
+function ToolbarSearchReveal(props: { visible: boolean; width?: number; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const scale = useTasksFontScale();
+  const [present, setPresent] = useState(props.visible);
+  const progress = useRef(new Animated.Value(props.visible ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduced) {
+      progress.setValue(props.visible ? 1 : 0);
+      setPresent(props.visible);
+      return;
+    }
+    if (props.visible) setPresent(true);
+    let live = true;
+    const animation = Animated.timing(progress, { toValue: props.visible ? 1 : 0, duration: 180, easing: MOTION.ease, useNativeDriver: false, isInteraction: false });
+    animation.start(({ finished }) => {
+      if (live && finished && !props.visible) setPresent(false);
+    });
+    return () => { live = false; animation.stop(); };
+  }, [props.visible, reduced, progress]);
+  if (!props.visible && (!present || reduced)) return null;
+  const size = props.width ?? taskControlHeight(32, scale) + 16 + HAIRLINE;
+  return <Animated.View
+    testID="desktop-search-reveal"
+    pointerEvents={props.visible ? "auto" : "none"}
+    accessibilityElementsHidden={!props.visible}
+    importantForAccessibility={props.visible ? "auto" : "no-hide-descendants"}
+    aria-hidden={!props.visible || undefined}
+    style={{
+      flexShrink: 0,
+      overflow: "hidden",
+      zIndex: 11,
+      [props.width === undefined ? "height" : "width"]: reduced ? size : progress.interpolate({ inputRange: [0, 1], outputRange: [0, size] }),
+      opacity: reduced ? 1 : progress,
+    }}
+  >
+    <View style={{ width: props.width ?? "100%", flexDirection: "row", alignItems: "center" }}>{props.children}</View>
+  </Animated.View>;
 }
 
 /** Folds the empty lanes to slim strips, or opens them again. */

@@ -218,7 +218,9 @@ function layOut(width: number) {
     act(() => {
       for (const view of views) {
         laidOut.add(view.props.onLayout);
-        view.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 800 } } });
+        const measured = view.props.testID === "desktop-toolbar-end"
+          ? measureHostTree(hostsById("desktop-toolbar")[0]!, { width }).get(view)!.width : width;
+        view.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: measured, height: 800 } } });
       }
     });
   }
@@ -402,6 +404,138 @@ describe("search coverage render isolation", () => {
 });
 
 describe("Tasks search coverage and centred toolbar", () => {
+  beforeEach(() => {
+    const Value = Animated.Value;
+    vi.spyOn(Animated, "Value").mockImplementation(function (initial) {
+      const value = new Value(initial);
+      const interpolate = value.interpolate.bind(value);
+      value.interpolate = ((config) => {
+        if (config.inputRange.length !== 2 || !config.outputRange.every((entry) => typeof entry === "number")) return interpolate(config);
+        const progress = (Number(liveNumber(value)) - config.inputRange[0]!) / (config.inputRange[1]! - config.inputRange[0]!);
+        return Number(config.outputRange[0]) + progress * (Number(config.outputRange[1]) - Number(config.outputRange[0]));
+      }) as typeof value.interpolate;
+      return value;
+    });
+    vi.spyOn(Animated, "timing").mockImplementation((value, config) => ({
+      start: (done) => { (value as Animated.Value).setValue(config.toValue as number); done?.({ finished: true }); },
+      stop() {}, reset() {},
+    }));
+  });
+  afterEach(() => {
+    vi.mocked(Animated.timing).mockRestore();
+    vi.mocked(Animated.Value).mockRestore();
+  });
+
+  it.each([600, 800, 959].flatMap((width) => ([14, 21] as const).filter((base) => width > 600 || base === 14).flatMap((base) => (["en", "zh"] as const).map((language) => ({ width, base, language })))))
+  ("keeps $language search inline at $width/UI$base without a repeated search icon", ({ width, base, language }) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    updateEnhancerPreferences({ language });
+    act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
+    layOut(width);
+    const actions = hostsById("desktop-toolbar-end")[0]!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
+    act(() => hostsById("desktop-search-toggle")[0]!.props.onPress());
+    expect(hostsById("desktop-search-row")).toHaveLength(0);
+    const toolbar = hostsById("desktop-toolbar")[0]!;
+    const field = hostsById("desktop-toolbar-search")[0]!;
+    expect(toolbar.findAll((node) => node === field)).toHaveLength(1);
+    expect(field.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "Search")).toHaveLength(0);
+    const frames = measureHostTree(toolbar, { width });
+    const total = frames.get(hostsById("desktop-toolbar-total")[0]!)!;
+    const input = frames.get(field)!;
+    const mode = frames.get(hostsById("search-full-conversation-toggle")[0]!)!;
+    expect(input.width).toBeGreaterThanOrEqual(140 * base / 14 - 1);
+    expect(input.left + input.width).toBeLessThan(total.left);
+    expect(mode.left + mode.width).toBeLessThan(total.left);
+    expect(total.left + total.width / 2).toBeCloseTo(width / 2, 0);
+    expect(hostsById("desktop-toolbar-end")[0]!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(actions);
+    act(() => field.find((node) => (node.type as unknown) === "TextInput").props.onChangeText("needle"));
+    if (width > 600) {
+      const queried = measureHostTree(hostsById("desktop-toolbar")[0]!, { width });
+      const summary = queried.get(hostsById("desktop-toolbar-search-summary")[0]!)!;
+      expect(summary.left + summary.width).toBeLessThanOrEqual(queried.get(hostsById("desktop-toolbar-total")[0]!)!.left);
+    }
+    act(() => hostsById("desktop-search-toggle")[0]!.props.onPress());
+    expect(hostsById("desktop-toolbar-search")).toHaveLength(0);
+    expect(lastBoardParams("host-1").query).toBe("needle");
+  });
+
+  it("moves open search to its own row only when its measured slot stops fitting", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(600);
+    act(() => hostsById("desktop-search-toggle")[0]!.props.onPress());
+    act(() => hostsById("desktop-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput").props.onChangeText("needle"));
+    for (const width of [320, 600, 400, 800]) {
+      layOut(width);
+      expect(hostsById("desktop-search-row")).toHaveLength(width <= 400 ? 1 : 0);
+      expect(hostsById("desktop-toolbar-search")).toHaveLength(1);
+      expect(hostsById("desktop-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("needle");
+    }
+  });
+
+  it.each([320, 600])("respects reduced motion when search opens and closes at %s", (width) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    let onReduce = (_on: boolean) => {};
+    const addListener = AccessibilityInfo.addEventListener;
+    const subscription = vi.spyOn(AccessibilityInfo, "addEventListener").mockImplementation(((name: string, listener: (enabled: boolean) => void) => {
+      if (name === "reduceMotionChanged") onReduce = listener;
+      return addListener("reduceMotionChanged", listener);
+    }) as typeof AccessibilityInfo.addEventListener);
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(width);
+      act(() => onReduce(true));
+      vi.mocked(Animated.timing).mockClear();
+      act(() => hostsById("desktop-search-toggle")[0]!.props.onPress());
+      const reveal = hostsById("desktop-search-reveal")[0]!;
+      expect(reveal.props.style.opacity).toBe(1);
+      expect(reveal.props.style[width === 320 ? "height" : "width"]).toBeGreaterThan(0);
+      act(() => hostsById("desktop-search-toggle")[0]!.props.onPress());
+      expect(hostsById("desktop-toolbar-search")).toHaveLength(0);
+      expect(vi.mocked(Animated.timing).mock.calls.filter(([, config]) => config.duration === 180 && config.isInteraction === false)).toHaveLength(0);
+    } finally {
+      act(() => onReduce(false));
+      subscription.mockRestore();
+    }
+  });
+
+  it.each([320, 600])("animates search entry and exit at %s and reverses closing without losing the input", (width) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const { key } = renderFocusBoard();
+    try {
+      layOut(width);
+      vi.mocked(Animated.timing).mockImplementation((value, config) => {
+        let timer: ReturnType<typeof setTimeout>;
+        return {
+          start: (done) => { timer = setTimeout(() => { (value as Animated.Value).setValue(config.toValue as number); done?.({ finished: true }); }, config.duration); },
+          stop: () => clearTimeout(timer), reset() {},
+        };
+      });
+      key("/");
+      const field = hostsById("desktop-toolbar-search")[0]!;
+      const progress = hostsById("desktop-search-reveal")[0]!.props.style.opacity;
+      expect(Animated.timing).toHaveBeenCalledWith(progress, expect.objectContaining({ toValue: 1, duration: 180, useNativeDriver: false }));
+      act(() => field.find((node) => (node.type as unknown) === "TextInput").props.onChangeText("needle"));
+      act(() => { vi.advanceTimersByTime(180); });
+      act(() => hostsById("desktop-search-toggle")[0]!.props.onPress());
+      expect(hostsById("desktop-toolbar-search")[0]).toBe(field);
+      expect(hostsById("desktop-search-reveal")[0]!.props).toMatchObject({ pointerEvents: "none", accessibilityElementsHidden: true, "aria-hidden": true });
+      expect(Animated.timing).toHaveBeenCalledWith(progress, expect.objectContaining({ toValue: 0, duration: 180 }));
+      act(() => { vi.advanceTimersByTime(90); });
+      key("/");
+      act(() => { vi.advanceTimersByTime(180); });
+      expect(hostsById("desktop-toolbar-search")[0]).toBe(field);
+      expect(hostsById("desktop-search-reveal")[0]!.props.pointerEvents).toBe("auto");
+      act(() => hostsById("desktop-search-toggle")[0]!.props.onPress());
+      act(() => { vi.advanceTimersByTime(180); });
+      expect(hostsById("desktop-toolbar-search")).toHaveLength(0);
+      expect(lastBoardParams("host-1").query).toBe("needle");
+    } finally {
+      act(() => renderer?.unmount()); renderer = undefined;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it.each(["web", "ios", "android"].flatMap((os) => (["en", "zh"] as const).map((language) => ({ os, language }))))("keeps $os/$language search at 320 across wide layouts and filter measurements", ({ os, language }) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     updateEnhancerPreferences({ language });
@@ -422,7 +556,7 @@ describe("Tasks search coverage and centred toolbar", () => {
   });
 
   it.each(([
-    ["web", 320, 14], ["web", 600, 21], ["web", 959, 14],
+    ["web", 320, 14], ["web", 600, 21],
     ["ios", 320, 14], ["ios", 600, 21], ["ios", 960, 28],
     ["android", 320, 14], ["android", 600, 21], ["android", 960, 28],
   ] as const).flatMap(([os, width, base]) => (["en", "zh"] as const).map((language) => ({ os, width, base, language }))))("$os/$language at $width/UI$base opens a bounded search row and preserves its query on close", ({ os, width, base, language }) => {
@@ -470,9 +604,9 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(hostsById(`${prefix}-search-toggle`)).toHaveLength(0);
     expect(hostsById(`${prefix}-toolbar-search`)[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("needle");
     act(() => renderer!.update(screen(false, {}, boardTheme(21))));
-    expect(hostsById(`${prefix}-search-row`)).toHaveLength(1);
+    expect(hostsById(`${prefix}-search-row`)).toHaveLength(os === "web" ? 0 : 1);
     expect(hostsById(`${prefix}-toolbar-search`)[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("needle");
-    act(() => hostsById(`${prefix}-search-close`)[0]!.props.onPress());
+    act(() => hostsById(`${prefix}-search-${os === "web" ? "toggle" : "close"}`)[0]!.props.onPress());
     layOut(1600);
     expect(hostsById(`${prefix}-search-row`)).toHaveLength(0);
     expect(hostsById(`${prefix}-toolbar-search`)[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("needle");
@@ -510,7 +644,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     try {
       layOut(600);
       key("/");
-      expect(hostsById("desktop-search-row")).toHaveLength(1);
+      expect(hostsById("desktop-search-row")).toHaveLength(0);
       layOut(2000);
       const card = cards()[0]!;
       act(() => card.props.onSelect(card.props.card));
