@@ -761,12 +761,12 @@ describe("F1: Web switch Space activation", () => {
     }
   });
 
-  it.each(["ios", "android"])("adds no keyboard props to native bar or sheet switches on %s", (os) => {
+  it.each(["ios", "android"])("adds no keyboard props to native visibility menu items on %s", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(1600);
-    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
-    const switches = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "switch");
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    const switches = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem" && node.props.accessibilityState?.checked !== undefined);
     expect(switches.length).toBeGreaterThan(1);
     for (const toggle of switches) for (const prop of ["onKeyDown", "onKeyUp", "onBlur"]) expect(toggle.props).not.toHaveProperty(prop);
   });
@@ -856,7 +856,7 @@ describe("Tasks board, desktop", () => {
     const totals = renderer!.root.findAll((node) => node.type === RollingTotal);
     expect(totals.length).toBeGreaterThan(0);
     for (const total of totals) expect(total.findAll((node) => node.type === RollingCount)).toHaveLength(0);
-    act(() => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
+    act(() => hostsById("subtasks-toggle")[0]!.props.onPress());
     pick("24h");
     expect(scopes()).toEqual(tablet);
     act(() => renderer!.root.findByType(TabletToolbar).props.board.setParams((params: BoardParams) => ({ ...params, sort: { key: "title", direction: "asc" } })));
@@ -4055,8 +4055,8 @@ describe("Tasks board, tablet filters", () => {
     expect(panel.findAll((node) => (node.type as unknown) === "ScrollView")).toHaveLength(1);
     const footer = hostsById("filter-sheet-footer")[0]!;
     expect(hostParentOf(footer)).toBe(hostParentOf(hostsById("filter-sheet-scroll")[0]!));
-    act(() => hostsById("filter-sheet-empty-groups")[0]!.props.onPress());
-    expect(hostsById("tablet-filter-popover")).toHaveLength(1);
+    expect(hostsById("filter-sheet-subtasks")).toHaveLength(0);
+    expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     expect(hostsById("tablet-filter-popover")).toHaveLength(0);
     open();
@@ -4100,8 +4100,8 @@ describe("Tasks board, tablet filters", () => {
     const panel = hostsById("tablet-filter-popover")[0]!;
     expect(Number(StyleSheet.flatten(panel.props.style).width)).toBeLessThanOrEqual(width - 24);
     expect(StyleSheet.flatten(panel.props.style).elevation).toBe(8);
-    act(() => hostsById("filter-sheet-empty-groups")[0]!.props.onPress());
-    expect(hostsById("tablet-filter-popover")).toHaveLength(1);
+    expect(hostsById("filter-sheet-subtasks")).toHaveLength(0);
+    expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     expect(hostsById("tablet-filter-popover")).toHaveLength(0);
   });
@@ -4162,9 +4162,9 @@ describe("Tasks board, tablet filters", () => {
     expect(textOf(view).includes(BOARD_STRINGS[language].view)).toBe(false);
     act(() => view.props.onPress());
     expect(hostsById("tablet-view-menu")).toHaveLength(1);
-    // Tablets leave the empty-groups switch to the filter panel.
+    // Visibility switches share the View menu.
     const items = hostsById("tablet-view-menu")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem").map(textOf);
-    expect(items.some((text) => text.startsWith(BOARD_STRINGS[language].emptyGroups.row))).toBe(false);
+    expect(items.some((text) => text.startsWith(BOARD_STRINGS[language].emptyGroups.row))).toBe(true);
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     expect(hostsById("tablet-view-menu")).toHaveLength(0);
   });
@@ -4179,12 +4179,12 @@ describe("Tasks board, tablet filters", () => {
     const order = () => end().findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
     const expected = ["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"];
     expect(order()).toEqual(expected);
-    // View owns layout; subtask visibility and empty groups belong to filters.
+    // View owns layout and visibility switches.
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     const strings = BOARD_STRINGS.en;
     const items = hostsById("tablet-view-menu")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem").map(textOf);
-    expect(items.some((text) => text.startsWith(strings.showSubtasks))).toBe(false);
-    expect(items.some((text) => text.startsWith(strings.emptyGroups.row))).toBe(false);
+    expect(items.some((text) => text.startsWith(strings.showSubtasks))).toBe(true);
+    expect(items.some((text) => text.startsWith(strings.emptyGroups.row))).toBe(true);
     expect(items.some((text) => text.startsWith(strings.archivedLane.row))).toBe(true);
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
@@ -4270,11 +4270,50 @@ describe("Tasks board, tablet filters", () => {
     expect(lastBoardParams("host-1")).toMatchObject({ providers: ["codex"], labels: ["frontend"], workspaceIds: ["wks_sample"] });
     // Agent, label and workspace; the subtask switch is not a filter.
     expect(textOf(hostsById("tablet-filter-count")[0]!)).toBe("3");
-    await act(async () => hostsById("filter-sheet-subtasks")[0]!.props.onPress());
+    expect(hostsById("filter-sheet-subtasks")).toHaveLength(0);
     expect(hostsById("filter-sheet-archived")).toHaveLength(0);
     expect(host.save).not.toHaveBeenCalled();
     act(() => hostsById("filter-sheet-reset")[0]!.props.onPress());
     expect(lastBoardParams("host-1")).toMatchObject({ providers: [], labels: [], workspaceIds: [] });
+  });
+
+  it.each(["ios", "android"])("%s moves filter switches into View and retains their saved state", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const handle = (data as unknown as { __handle: { providers: object[] } }).__handle;
+    const saved = handle.providers;
+    handle.providers = [...saved, { id: "pi", label: "Pi" }];
+    try {
+      await act(async () => { renderer = TestRenderer.create(screen(false)); });
+      layOut(800);
+      act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+      expect(hostsById("filter-sheet-subtasks")).toHaveLength(0);
+      expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
+      expect(textOf(hostsById("filter-sheet-scroll")[0]!)).toContain("Pi");
+      act(() => hostsById("tablet-view")[0]!.props.onPress());
+      const rows = () => hostsById("tablet-view-menu")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
+      expect(rows().slice(-4).map(textOf)).toEqual(["Show subtasks", "Show all", "Collapse empty lanes", "Show the archived lane"]);
+      for (const label of ["Show subtasks", "Show all"]) {
+        expect(menuOption(label).props.accessibilityState.checked).toBe(true);
+        await act(async () => menuOption(label).props.onPress());
+        expect(menuOption(label).props.accessibilityState.checked).toBe(false);
+        expect(hostsById("tablet-view-menu")).toHaveLength(1);
+      }
+      expect(hostsById("subtasks-toggle")[0]!.props.accessibilityState.selected).toBe(false);
+      expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true, showEmptyGroups: false });
+      expect(host.save).not.toHaveBeenCalled();
+      act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+      expect(textOf(hostsById("filter-sheet-scroll")[0]!)).not.toContain("Pi");
+      act(() => hostsById("tablet-view")[0]!.props.onPress());
+      expect(menuOption("Show subtasks").props.accessibilityState.checked).toBe(false);
+      expect(menuOption("Show all").props.accessibilityState.checked).toBe(false);
+      for (const label of ["Show subtasks", "Show all"]) {
+        await act(async () => menuOption(label).props.onPress());
+        expect(menuOption(label).props.accessibilityState.checked).toBe(true);
+      }
+      expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: false, showEmptyGroups: true });
+    } finally {
+      handle.providers = saved;
+    }
   });
 
   it("opens sort and lane width from View and time range from filters", async () => {
@@ -4435,7 +4474,7 @@ describe("Tasks board, tablet filters", () => {
     }
   });
 
-  it.each([["ios", 480], ["ios", 600], ["android", 600], ["web", 600]] as const)("%s at %i pt keeps empty groups in the filter sheet and saves the switch", async (os, width) => {
+  it.each([["web", 600]] as const)("%s at %i pt keeps empty groups in the filter sheet and saves the switch", async (os, width) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -4462,8 +4501,6 @@ describe("Tasks board, tablet filters", () => {
       act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === "Filter by project").props.onPress());
       const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith("Show all"));
       expect(row[0]!.props.accessibilityState).toMatchObject({ checked: false });
-    } else {
-      expect(hostsById("filter-sheet-empty-groups")[0]!.props.accessibilityState).toEqual({ checked: false });
     }
   });
 
