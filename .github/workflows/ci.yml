@@ -4,25 +4,45 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   # Every push to main is checked; only a superseded PR run is cancelled.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+
 jobs:
   check:
+    name: check
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm run typecheck
+
+      - name: Install dependencies
+        run: node scripts/npm-retry.mjs ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
       # vitest.config.ts allows 30 s per case. The long-fixture sweeps override
       # that, up to 180 s. The suite is several minutes on a GitHub runner.
-      - run: npx vitest run
+      - name: Test
+        run: npm test
         timeout-minutes: 15
+
+      - name: Build client
+        run: npm run build:client
+
+      - name: Check Hermes
+        run: npm run check:hermes
