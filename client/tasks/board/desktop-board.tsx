@@ -214,9 +214,8 @@ export function DesktopBoard(props: {
   // board. A narrow board has no room to keep it beside the lanes, so it
   // floats over their right side only on demand: a card clicked or tapped,
   // or the switch. A click or tap outside, Esc or the switch puts it away;
-  // the remembered open state stays the wide board's. On a touch screen a
-  // tap on a card also shows a closed sidebar for the moment, as a floating
-  // panel.
+  // the remembered open state stays the wide board's. Selecting a card
+  // also shows a closed sidebar for the moment, as a floating panel.
   const touch = Platform.OS !== "web";
   const [preference, setPreferenceState] = useState<SidebarPreference>(readSidebarPreference);
   const setPreference = useCallback((update: (current: SidebarPreference) => SidebarPreference) => {
@@ -424,16 +423,14 @@ export function DesktopBoard(props: {
 
   // A click, tap or explicit keyboard preview puts a card in the sidebar.
   // Moving keyboard focus alone does not change the details.
-  // An explicit preview brings a put-away sidebar up for the moment. A
-  // click or tap does so on touch, or on a narrow board with the preference on.
+  // Selecting a card brings a put-away sidebar up for the moment.
   const showCard = useCallback(
     (card: TaskCard, preview = false) => {
       if (!preview) setFocus(null);
       dispatch({ type: "click", id: card.id });
       const now = latest.current;
-      const show = !now.open && (preview || touch || (now.narrow && now.preferred));
-      if (show) setShown("card");
-      if (!(now.open || show) || !(now.narrow || !now.preferred)) return;
+      if (!now.open) setShown("card");
+      if (!now.narrow && now.preferred) return;
       if (sheetModeRef.current) {
         // The sheet covers the lanes' lower part: the card's list brings it to the top, above the sheet.
         const location = findCard(now.board.lanes, card.id);

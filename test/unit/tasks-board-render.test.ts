@@ -2092,6 +2092,25 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it.each([2000, 900, 600])("opens a hidden sidebar when a card is clicked at %i pt, including the same card again", (width) => {
+    writeSidebarPreference({ open: false, width: 380 });
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(width);
+    const panel = width < 760 ? "board-sheet" : "sidebar-floating";
+    const card = () => cards().find((node) => node.props.card.id === "sample-running")!;
+    expect(hostsById(panel)).toHaveLength(0);
+    act(() => card().props.onSelect(card().props.card));
+    expect(hostsById(panel)).toHaveLength(1);
+    expect(textOf(hostsById("detail-title")[0]!)).toBe(card().props.card.title);
+    toggleSidebarControl();
+    expect(hostsById(panel)).toHaveLength(0);
+    act(() => card().props.onSelect(card().props.card));
+    expect(hostsById(panel)).toHaveLength(1);
+    expect(textOf(hostsById("detail-title")[0]!)).toBe(card().props.card.title);
+    expect(readSidebarPreference().open).toBe(false);
+    expect(openAgent).not.toHaveBeenCalled();
+  });
+
   it("floats the sidebar over a narrow board only on demand, and puts it away on a tap outside", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -2432,10 +2451,8 @@ describe("Tasks board, desktop", () => {
       // A later click takes over from an older keyboard focus.
       act(() => cards().find((card) => card.props.card.id === first.id)!.props.onSelect(first));
       expect(cards().some((card) => card.props.focused)).toBe(false);
-      if (preferred) {
-        key(" ");
-        expect(hostsById("detail-title")).toHaveLength(0);
-      }
+      key(" ");
+      expect(hostsById("detail-title")).toHaveLength(0);
       key(" ");
       expect(title()).toBe(first.title);
       expect(readSidebarPreference().open).toBe(preferred);
@@ -2564,6 +2581,8 @@ describe("Tasks board, desktop", () => {
       const selected = cards().find((card) => card.props.card.id === "sample-running")!;
       focus(selected.props.card.id);
       act(() => selected.props.onSelect(selected.props.card));
+      expect(textOf(hostsById("detail-title")[0]!)).toBe(selected.props.card.title);
+      toggleSidebarControl();
       // The host's global shortcut can preventDefault and stopPropagation before document.
       const clickedPreview = key(" ", true);
       expect(clickedPreview.preventDefault).toHaveBeenCalledTimes(1);
@@ -2620,6 +2639,8 @@ describe("Tasks board, desktop", () => {
       layOut(1600);
       const selected = cards().find((card) => card.props.card.id === "sample-running")!;
       act(() => selected.props.onSelect(selected.props.card));
+      expect(textOf(hostsById("detail-title")[0]!)).toBe(selected.props.card.title);
+      toggleSidebarControl();
       expect(hostsById("detail-title")).toHaveLength(0);
       for (const active of [{ tagName: "INPUT", inBoard: true }, { tagName: "TEXTAREA", inBoard: true }, { isContentEditable: true, inBoard: true }, { inBoard: false }]) {
         doc.activeElement = active;
