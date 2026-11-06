@@ -254,19 +254,23 @@ export function useLatestTodoItems(agentId: string, enabled: boolean): readonly 
   return useSyncExternalStore(subscribe, getLatest, getLatest);
 }
 
-/** A Grok tool result and its ACP plan update describe the same snapshot. */
-export function useMatchingTodo(agentId: string, at: number, items: readonly TodoTask[] | null): boolean {
+/** A Grok result joins its ACP update using the host's canonical timestamp and list. */
+export function useMatchingTodo(agentId: string, at: number, items: readonly TodoTask[] | null): (Update & { sequence: number }) | null {
+  // Reserve the tool's place before the ACP update arrives: mounting its
+  // checklist later must not elect a lower slot as the drawing item.
+  const order = useMemo(() => sequence++, []);
   const getMatch = useCallback(() => {
-    if (!items?.length) return false;
-    return [...(agents.get(agentId)?.updates.values() ?? [])].some((update) =>
+    if (!items?.length) return null;
+    return [...(agents.get(agentId)?.updates.values() ?? [])].find((update) =>
       Math.abs(update.at - at) <= 3000 && update.items.length === items.length &&
       update.items.every((task, index) => task.text === items[index]?.text &&
         (task.status ? todoTaskStatus(task) === todoTaskStatus(items[index]!) :
           todoTaskStatus(items[index]!) !== "in_progress" &&
           (todoTaskStatus(task) === "completed") === (todoTaskStatus(items[index]!) === "completed"))),
-    );
+    ) ?? null;
   }, [agentId, at, items]);
-  return useSyncExternalStore(subscribe, getMatch, getMatch);
+  const match = useSyncExternalStore(subscribe, getMatch, getMatch);
+  return useMemo(() => match ? { ...match, sequence: order } : null, [match, order]);
 }
 
 /**
@@ -280,6 +284,7 @@ export function useTodoTimeline(
   at: number,
   items: readonly TodoTask[],
   view?: RefObject<unknown>,
+  order?: number,
 ): {
   role: TodoRole;
   previous: readonly TodoTask[] | null;
@@ -288,7 +293,7 @@ export function useTodoTimeline(
 } {
   const key = useMemo(() => todoListKey(items), [items]);
   const entry = useMemo<Entry>(
-    () => ({ at, key, sequence: sequence++, measure: view ? () => viewBox(view.current) : undefined }),
+    () => ({ at, key, sequence: order ?? sequence++, measure: view ? () => viewBox(view.current) : undefined }),
     [],
   );
   const last = useRef<{ agentId: string; at: number; key: string } | null>(null);

@@ -161,13 +161,8 @@ function BlockPlacement({ agentId, timestamp, kind, children }: {
   return <BlockPlacementContext.Provider value={value}>{children}</BlockPlacementContext.Provider>;
 }
 
-function LiveToolCallRendererBody({
-  agentId,
-  item,
-  theme,
-  layout,
-  timestamp,
-}: PluginTimelineItemProps<LiveToolCallPayload>) {
+function LiveToolCallRendererBody(props: PluginTimelineItemProps<LiveToolCallPayload>) {
+  const { agentId, item, theme, layout, timestamp } = props;
   const probe = probeCard(
     "tool_call",
     item.data.callId ?? item.data.name,
@@ -252,6 +247,15 @@ function LiveToolCallRendererBody({
     pathContext.cwd ?? null,
   );
 
+  // A hidden tool still leaves the host's item gap. Join the canonical todo
+  // update instead, so its highest slot draws and reclaims every empty copy.
+  if (duplicateTodo) return <BlockPlacement agentId={agentId} timestamp={new Date(duplicateTodo.at)} kind="todo">
+    <LiveTodoRendererBody {...props}
+      timestamp={new Date(duplicateTodo.at)} sequence={duplicateTodo.sequence}
+      item={{ type: "plugin", kind: "omp-todo", version: 1,
+        data: { items: duplicateTodo.items as unknown as Array<Record<string, unknown>>, phase: "complete" } }} />
+  </BlockPlacement>;
+
   return (
     <View
       ref={rootRef}
@@ -262,7 +266,7 @@ function LiveToolCallRendererBody({
         hostStacks ? 0 : copiesBelow, copiesBelowHeight,
       )}
     >
-      {group !== null && !duplicateTodo ? (
+      {group !== null ? (
         <>
           {probe.node}
           <PreferenceSyncSlot />
@@ -412,7 +416,8 @@ function LiveTodoRendererBody({
   theme,
   layout,
   timestamp,
-}: PluginTimelineItemProps<LiveTodoPayload>) {
+  sequence,
+}: PluginTimelineItemProps<LiveTodoPayload> & { sequence?: number }) {
   const probe = probeCard("todo", String(timestamp.getTime()), item.data.phase === "streaming");
   useTimelineEntry(agentId, timestamp.getTime(), "tool");
   const preferences = useEnhancerPreferences();
@@ -423,7 +428,7 @@ function LiveTodoRendererBody({
   // Paseo hands over one item per change of an update, each with the whole
   // list: only one of them draws, and only the newest update draws open.
   const rootRef = useRef<View>(null);
-  const { role, previous, emptyGaps, measureEmptyGaps } = useTodoTimeline(agentId, timestamp.getTime(), items, rootRef);
+  const { role, previous, emptyGaps, measureEmptyGaps } = useTodoTimeline(agentId, timestamp.getTime(), items, rootRef, sequence);
   const hostStacks = useHostStacksRows();
   const activities = useMemo(
     () => (role === "summary" ? deriveTodoActivities(previous, items) : []),

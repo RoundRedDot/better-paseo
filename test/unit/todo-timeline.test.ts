@@ -158,7 +158,7 @@ describe("live todo timeline", () => {
     const items = grokTodoItems(detail);
     let match = false;
     function Result({ agent = "grok-match", at = 1000 }: { agent?: string; at?: number }) {
-      match = useMatchingTodo(agent, at, items);
+      match = Boolean(useMatchingTodo(agent, at, items));
       return null;
     }
     let renderer: Renderer;
@@ -189,7 +189,7 @@ describe("live todo timeline", () => {
     }) });
     let match = true;
     function Result() {
-      match = useMatchingTodo("grok-active", 1000, items);
+      match = Boolean(useMatchingTodo("grok-active", 1000, items));
       return null;
     }
     let renderer: Renderer;
