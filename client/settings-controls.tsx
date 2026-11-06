@@ -345,7 +345,7 @@ const styles = StyleSheet.create({
   sectionNote: { marginTop: -space.xs },
   tips: { gap: space.sm },
   tip: { flexDirection: "row", flexWrap: "wrap", columnGap: space.md, rowGap: 2 },
-  tipCompact: { flexDirection: "column" },
+  tipCompact: { flexDirection: "column", flexWrap: "nowrap" },
   tipLabel: { width: 92, fontWeight: "500" },
   tipText: { flexGrow: 1, flexShrink: 1, flexBasis: 180, minWidth: 0 },
   group: { borderRadius: radiusV2.card, overflow: "hidden" },
