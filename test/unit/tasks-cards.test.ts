@@ -4459,8 +4459,9 @@ describe("formatters", () => {
     expect(formatTokens(1_200_000)).toBe("1.2M");
     expect(formatTokens(1_010_000)).toBe("1.01M");
     expect(formatTokens(1_250_000)).toBe("1.25M");
-    // Three figures at most, rounding up to the next unit.
-    expect([950, 12_345, 812_000, 999_600, 15_322_587, 354_800_101, 1_234_000_000].map(formatTokenTotal)).toEqual(["950", "12.3k", "812k", "1.00M", "15.3M", "355M", "1.23B"]);
+    // Three figures at most, rounding up to the next unit. A trailing decimal zero is omitted.
+    expect([950, 12_345, 812_000, 999_600, 15_322_587, 354_800_101, 1_234_000_000].map(formatTokenTotal)).toEqual(["950", "12.3k", "812k", "1M", "15.3M", "355M", "1.23B"]);
+    expect([12_000, 32_000_000, 32_500_000, 10_000_000].map(formatTokenTotal)).toEqual(["12k", "32M", "32.5M", "10M"]);
   });
 
   it("shows the home directory as ~", () => {

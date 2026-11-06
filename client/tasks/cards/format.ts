@@ -81,19 +81,25 @@ export function since(iso: string | null, now: number): number | null {
   return Number.isNaN(at) ? null : now - at;
 }
 
+/** Drop a decimal that is only trailing zeros: "32.0" → "32", "1.20" → "1.2". */
+function trimDecimalZeros(text: string): string {
+  return text.replace(/0+$/, "").replace(/\.$/, "");
+}
+
 /** Token counts: "950", "182k", "1M", "1.2M", "1.25M". Trailing zeros after the decimal are omitted. */
 export function formatTokens(count: number): string {
-  if (count >= 1e6) return `${(count / 1e6).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}M`;
+  if (count >= 1e6) return `${trimDecimalZeros((count / 1e6).toFixed(2))}M`;
   if (count >= 1e3) return `${Math.round(count / 1e3)}k`;
   return String(Math.round(count));
 }
 
-/** A large count in three figures at most, for a narrow cell: 812k, 15.3M, 354M, 1.23B. */
+/** A large count in three figures at most, for a narrow cell: 812k, 15.3M, 32M, 1.23B. Trailing zeros after the decimal are omitted. */
 export function formatTokenTotal(count: number): string {
   for (const [unit, size] of [["B", 1e9], ["M", 1e6], ["k", 1e3]] as const) {
     if (count >= size * 0.9995) {
       const scaled = count / size;
-      return `${scaled >= 99.95 ? Math.round(scaled) : scaled >= 9.995 ? scaled.toFixed(1) : scaled.toFixed(2)}${unit}`;
+      const text = scaled >= 99.95 ? String(Math.round(scaled)) : scaled >= 9.995 ? scaled.toFixed(1) : scaled.toFixed(2);
+      return `${trimDecimalZeros(text)}${unit}`;
     }
   }
   return String(Math.round(count));
