@@ -316,6 +316,56 @@ describe("CascadeMenu", () => {
     }
   });
 
+  it.each([
+    ["left", 0, undefined, "left top"],
+    ["right", -200, 60, "right bottom"],
+  ] as const)("settles a spring menu from its %s anchor without delaying actions", (align, top, maxHeight, origin) => {
+    vi.stubGlobal("__rnMockOS", "web");
+    close.mockClear();
+    picked.mockClear();
+    try {
+      act(() => {
+        renderer = TestRenderer.create(React.createElement(CascadeMenu, {
+          sections: sections(), theme: theme(LIGHT), width: 280, top, align, maxHeight,
+          entrance: "spring", onClose: close,
+        }));
+      });
+      const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
+      const style = StyleSheet.flatten(panel.props.style);
+      expect(style.transformOrigin).toBe(origin);
+      expect(style.animationDuration).toBe("160ms");
+      expect(style.animationKeyframes[0]).toEqual({
+        "0%": { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" },
+        "60%": { opacity: 1, transform: "translateY(0px) scale(1.008)" },
+        "100%": { opacity: 1, transform: "translateY(0px) scale(1)" },
+      });
+      // No timer advance: the rebound is visual and must not hold selection or dismissal.
+      act(() => row("Plain").props.onPress());
+      expect(picked).toHaveBeenCalledOnce();
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([["web", true], ["ios", false], ["android", false]] as const)("skips spring menu entry on %s with reduced motion %s", (os, reduced) => {
+    vi.stubGlobal("__rnMockOS", os);
+    motion.reduced = reduced;
+    try {
+      act(() => {
+        renderer = TestRenderer.create(React.createElement(CascadeMenu, {
+          sections: sections(), theme: theme(LIGHT), width: 280, top: 0, align: "left",
+          entrance: "spring", onClose: close,
+        }));
+      });
+      const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
+      expect(StyleSheet.flatten(panel.props.style).animationDuration).toBeUndefined();
+    } finally {
+      motion.reduced = false;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it.each([["web", true], ["ios", false], ["android", false]] as const)("skips menu entry on %s with reduced motion %s", (os, reduced) => {
     vi.stubGlobal("__rnMockOS", os);
     motion.reduced = reduced;

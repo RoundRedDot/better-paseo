@@ -242,6 +242,7 @@ export function CardContextMenu(props: {
         theme={props.theme}
         width={width}
         fitContent
+        entrance="spring"
         submenuWidth={SUBMENU_WIDTH}
         top={up ? -height : 0}
         align={right ? "right" : "left"}
