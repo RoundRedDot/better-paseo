@@ -154,7 +154,7 @@ function DesktopToolbarView(props: {
       { key: "empty", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, disabled: props.emptyLanes.disabled, onSelect: props.emptyLanes.onToggle },
       { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
     ] : []),
-    { key: "empty-groups", label: strings.emptyGroups.row, icon: emptyGroupsIcon(board.showEmptyGroups), checked: board.showEmptyGroups, shortcut: "G", onSelect: () => board.setShowEmptyGroups(!board.showEmptyGroups) },
+    { key: "empty-groups", label: board.showEmptyGroups ? strings.emptyGroups.hide : strings.emptyGroups.show, icon: board.showEmptyGroups ? "EyeOff" : "Eye", shortcut: "G", onSelect: () => board.setShowEmptyGroups(!board.showEmptyGroups) },
     ...(openSettings ? [{ key: "settings", label: strings.openSettings, accessibilityLabel: updateAvailable ? `${strings.openSettings}, ${updateLabel}` : undefined, icon: "Bolt", shortcut: ",", onSelect: openSettings, trailing: updateAvailable ? <View testID="desktop-settings-update-dot" pointerEvents="none" style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: taskTokens(theme).danger }} /> : undefined }] : []),
     ...(compactActions && props.sidebar ? [{ key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, onSelect: props.sidebar.onToggle }] : []),
   ];

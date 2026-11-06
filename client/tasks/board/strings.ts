@@ -151,7 +151,8 @@ const en = {
   emptyGroups: {
     /** The round switch's name, in the filter bar and the phone and narrow board headers. */
     row: "Show all",
-    hide: "Don't show all",
+    show: "Show empty groups",
+    hide: "Hide empty groups",
     sheetLabel: (on: boolean): string => (on ? "Show all" : "Show groups with tasks"),
     hint: (on: boolean): string => (on ? "Includes groups with no tasks on the board" : "Hides groups with no tasks on the board"),
     saveFailed: "Couldn't save the empty groups setting",
@@ -340,7 +341,8 @@ const zh: typeof en = {
   },
   emptyGroups: {
     row: "显示全部",
-    hide: "不显示全部",
+    show: "显示空分组",
+    hide: "隐藏空分组",
     sheetLabel: (on) => (on ? "显示全部" : "仅显示有任务的分组"),
     hint: (on) => (on ? "包含看板上没有任务的分组" : "隐藏看板上没有任务的分组"),
     saveFailed: "数量为 0 的分组设置没有保存成功",

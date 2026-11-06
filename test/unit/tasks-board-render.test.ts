@@ -502,7 +502,7 @@ describe("Tasks search coverage and centred toolbar", () => {
       expect(hostsById(id)[0]!.props.dataSet.bctip.endsWith(`(${key})`)).toBe(true);
     }
     act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
-    expect(textOf(menuOption(BOARD_STRINGS[language].emptyGroups.row))).toContain("G");
+    expect(textOf(menuOption(BOARD_STRINGS[language].emptyGroups.hide))).toContain("G");
     expect(textOf(menuOption(BOARD_STRINGS[language].openSettings))).toContain(",");
     const toolbarText = textOf(hostsById("desktop-toolbar")[0]!);
     expect(toolbarText).toContain(language === "zh" ? "空格" : "Space");
@@ -3391,7 +3391,7 @@ describe("Tasks board, desktop refresh button", () => {
     act(() => refreshButton().props.onPress());
     expect(StyleSheet.flatten(hostsById("desktop-more-menu")[0]!.props.style)).toMatchObject({ width: "max-content", maxWidth: NATIVE(200) });
     expect(textOf(menuOption(BOARD_STRINGS[language].refreshTasks))).toContain("⌥R");
-    expect(menuOption(BOARD_STRINGS[language].emptyGroups.row)).toBeDefined();
+    expect(menuOption(BOARD_STRINGS[language].emptyGroups.hide)).toBeDefined();
   });
 
   it.each(["done", "failed", "rejected"] as const)("shows a loading ring only while refreshing (%s), without redrawing a row", async (outcome) => {
@@ -4528,7 +4528,9 @@ describe("Tasks board, tablet filters", () => {
     }
   });
 
-  it("flips the groups at 0 from the more menu and saves it", async () => {
+  it.each(["en", "zh"] as const)("uses %s actions and icons without checks for empty groups in More", async (language) => {
+    updateEnhancerPreferences({ language });
+    const strings = BOARD_STRINGS[language];
     const handle = (data as unknown as { __handle: { providers: object[] } }).__handle;
     const saved = handle.providers;
     handle.providers = [...saved, { id: "pi", label: "Pi" }];
@@ -4540,16 +4542,21 @@ describe("Tasks board, tablet filters", () => {
       layOut(2400);
       const rows = () => renderer!.root.findByProps({ testID: "sidebar-groups" }).findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel);
       act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
-      expect(menuOption("Show all").props.accessibilityState.checked).toBe(true);
-      expect(menuOption("Show all").findAll((node) => (node.type as unknown) === "Icon")[0]!.props.name).toBe("Layers");
+      expect(menuOption(strings.emptyGroups.hide).props.accessibilityState.checked).toBeUndefined();
+      expect(menuOption(strings.emptyGroups.hide).findAll((node) => (node.type as unknown) === "Icon").map((node) => node.props.name)).toEqual(["EyeOff"]);
+      expect(textOf(menuOption(strings.emptyGroups.hide))).toContain("G");
       expect(rows().at(-1)).toBe("Pi 0");
-      await act(async () => menuOption("Show all").props.onPress());
+      await act(async () => menuOption(strings.emptyGroups.hide).props.onPress());
       expect(host.save).not.toHaveBeenCalled();
       expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: false });
       act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
-      expect(menuOption("Show all").props.accessibilityState.checked).toBe(false);
-      expect(menuOption("Show all").findAll((node) => (node.type as unknown) === "Icon")[0]!.props.name).toBe("ListFilter");
+      expect(menuOption(strings.emptyGroups.show).props.accessibilityState.checked).toBeUndefined();
+      expect(menuOption(strings.emptyGroups.show).findAll((node) => (node.type as unknown) === "Icon").map((node) => node.props.name)).toEqual(["Eye"]);
+      expect(textOf(menuOption(strings.emptyGroups.show))).toContain("G");
       expect(rows()).not.toContain("Pi 0");
+      await act(async () => menuOption(strings.emptyGroups.show).props.onPress());
+      expect(deviceTasksStore().snapshot().values).toMatchObject({ showEmptyGroups: true });
+      expect(rows().at(-1)).toBe("Pi 0");
     } finally {
       handle.providers = saved;
     }
@@ -4577,7 +4584,7 @@ describe("Tasks board, tablet filters", () => {
     layOut(1600);
     if (os === "web") {
       act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
-      expect(menuOption("Show all").props.accessibilityState.checked).toBe(false);
+      expect(menuOption("Show empty groups").props.accessibilityState.checked).toBeUndefined();
       act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
       act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.dataSet?.bctip === "Filter by project").props.onPress());
       const row = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem" && textOf(node).startsWith("Show all"));
