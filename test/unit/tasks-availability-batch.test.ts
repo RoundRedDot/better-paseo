@@ -10,18 +10,18 @@ afterEach(async () => { for (const cleanup of cleanups.splice(0)) await cleanup(
 async function fixture(workspaces: number, cards?: number) {
   const f = await availabilityBatchFixture({ workspaces, cards });
   cleanups.push(f.cleanup);
-  return { ...f, read: createTaskAvailability(f.settings, () => true, async () => true, () => true) };
+  return { ...f, read: createTaskAvailability(f.settings, () => true, async () => true, f.connect) };
 }
 
-/** The whole answer for every card of the fixture, as the per-card read gave it. */
+/** The whole answer, with normal archived history distinguished from missing records. */
 function expectedEntries(f: Awaited<ReturnType<typeof fixture>>) {
   const workspace = unavailableTask({ code: "workspace_unavailable", detail: f.root });
-  const { unarchive: _, ...restorable } = workspace.blocked;
+  const { unarchive: _, ...restorable } = unavailableTask({ code: "workspace_archived", detail: f.root }).blocked;
   const provider = { code: "provider_unavailable" as const, detail: "gemini" };
   const special: Record<string, TaskAvailability> = {
-    "agent-1": { issue: workspace.issue, blocked: restorable },
+    "agent-1": { issue: null, blocked: restorable },
     "agent-2": workspace,
-    "agent-4": { issue: workspace.issue, blocked: restorable },
+    "agent-4": workspace,
     "agent-5": unavailableTask({ code: "directory_missing", detail: join(f.root, "removed-worktree") }),
     "agent-6": unavailableTask({ code: "workspace_unavailable", detail: null }),
     "agent-7": unavailableTask({ code: "agent_missing", detail: null }),
@@ -38,7 +38,7 @@ describe("availability batch daemon reads", () => {
     { workspaces: 40, perCard: 97, batch: 1 },
     { workspaces: 100, perCard: 97, batch: 1 },
     { workspaces: 250, perCard: 114, batch: 2 },
-  ])("lists $workspaces workspaces once per batch and answers like the per-card read", async ({ workspaces, perCard, batch }) => {
+  ])("lists $workspaces workspaces once per batch and inspects only unlisted ids", async ({ workspaces, perCard, batch }) => {
     const f = await fixture(workspaces);
     const expected = new Map<string, Awaited<ReturnType<typeof taskUpdateState>>>();
     for (const id of f.ids) expected.set(id, await taskUpdateState(await f.api.agents.ref(id).refresh(), f.api));
@@ -50,23 +50,26 @@ describe("availability batch daemon reads", () => {
     expect(entries.map((entry) => entry.agentId)).toEqual(f.ids);
     for (const { agentId, availability } of entries) {
       const state = expected.get(agentId)!;
-      if (state.issue) expect(availability.issue).toEqual(state.issue);
-      // Only a workspace the directory no longer lists can be restored.
-      if (state.issue) expect(availability.blocked.unarchive === undefined).toBe(state.archivedWorkspaceId !== null);
+      if (state.issue && agentId !== "agent-1") expect(availability.issue).toEqual(state.issue);
+      // A miss in the active list is not enough: only a confirmed archived record is restorable.
+      if (state.issue) expect(availability.blocked.unarchive === undefined).toBe(agentId === "agent-1");
       else expect(availability.issue?.code ?? "none").not.toMatch(/^(agent|directory|workspace)_/);
     }
+    expect(f.connect).toHaveBeenCalledTimes(1);
+    expect(f.daemon.inspectWorkspaceRecovery.mock.calls.map(([id]) => id)).toEqual(["ws-1", "ws-never"]);
+    expect(f.daemon.close).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps every special case the per-card read reported", async () => {
+  it("distinguishes archived, missing, archiving and background workspaces", async () => {
     const f = await fixture(250);
     const byId = new Map((await f.read(f.api, f.ids)).entries.map((entry) => [entry.agentId, entry.availability]));
     const cwd = f.sources.get("agent-1")!.agent.cwd;
     // Archived: restorable. Archiving: not yet. Background: listed and healthy.
-    expect(byId.get("agent-1")).toMatchObject({ issue: { code: "workspace_unavailable", detail: cwd } });
+    expect(byId.get("agent-1")).toMatchObject({ issue: null, blocked: { rename: { code: "workspace_archived", detail: cwd } } });
     expect(byId.get("agent-1")!.blocked.unarchive).toBeUndefined();
     expect(byId.get("agent-2")!.blocked.unarchive).toEqual({ code: "workspace_unavailable", detail: cwd });
     expect(byId.get("agent-3")).toEqual({ issue: null, blocked: {} });
-    expect(byId.get("agent-4")!.blocked.unarchive).toBeUndefined();
+    expect(byId.get("agent-4")!.blocked.unarchive?.code).toBe("workspace_unavailable");
     expect(byId.get("agent-5")!.issue?.code).toBe("directory_missing");
     expect(byId.get("agent-6")!.issue).toEqual({ code: "workspace_unavailable", detail: null });
     expect(byId.get("agent-7")!.issue?.code).toBe("agent_missing");
@@ -130,7 +133,7 @@ describe("availability batch daemon reads", () => {
     const a = await fixture(40);
     const b = await fixture(250);
     b.records[0]!.archivedAt = "2026-11-01T00:00:00Z";
-    // One handler serves every call, as register.ts wires it.
+    // Each host's server owns its recovery connection; concurrent calls share no batch state.
     const read = a.read;
     let release!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });
@@ -138,14 +141,15 @@ describe("availability batch daemon reads", () => {
     a.fetchWorkspaces.mockImplementationOnce(async (options) => { await gate; return page(options); });
     const first = read(a.api, a.ids);
     const second = read(a.api, a.ids);
-    const other = read(b.api, b.ids);
+    const other = b.read(b.api, b.ids);
     const otherResult = await other;
     release();
     const [firstResult, secondResult] = await Promise.all([first, second]);
     expect(firstResult).toEqual({ entries: expectedEntries(a) });
     expect(secondResult).toEqual({ entries: expectedEntries(a) });
-    const archived = unavailableTask({ code: "workspace_unavailable", detail: b.root });
+    const archived = unavailableTask({ code: "workspace_archived", detail: b.root });
     delete archived.blocked.unarchive;
+    archived.issue = null;
     expect(otherResult.entries[0]).toEqual({ agentId: "agent-0", availability: archived });
     expect(otherResult.entries.slice(1)).toEqual(expectedEntries(b).slice(1));
     expect(a.counts()).toMatchObject({ fetchAgent: 200, fetchWorkspaces: 2 });
@@ -181,11 +185,11 @@ describe("availability batch daemon reads", () => {
       expect(f.counts().fetchWorkspaces).toBe(2);
     });
 
-    it.each(["agent-1", "agent-4"])("scans to the last page for %s, whose workspace is listed nowhere, and keeps it restorable", async (missing) => {
+    it.each(["agent-1", "agent-4"])("scans to the last page for %s before checking recovery", async (missing) => {
       const f = await fixture(250);
       const { entries } = await f.read(f.api, [missing, "agent-50"]);
       expect(entries).toEqual(expectedEntries(f).filter((entry) => [missing, "agent-50"].includes(entry.agentId)));
-      expect(entries[0]!.availability.blocked.unarchive).toBeUndefined();
+      expect(entries[0]!.availability.blocked.unarchive === undefined).toBe(missing === "agent-1");
       expect(f.counts().fetchWorkspaces).toBe(2);
       const failing = await failingSecondPage();
       await expect(failing.read(failing.api, [missing, "agent-50"])).rejects.toThrow("fetch_workspaces_failed");

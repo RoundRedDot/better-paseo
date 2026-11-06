@@ -353,7 +353,7 @@ export function registerTasksServer(
       await daemon.close();
     }
   });
-  const availability = createTaskAvailability(titleSettings, host.available, async () => (await resolveCli()) !== null, host.available);
+  const availability = createTaskAvailability(titleSettings, host.available, async () => (await resolveCli()) !== null, host.connect);
   server.handle(tasksAvailabilityRpc, (input, { paseo }) => availability(paseo, input.agentIds));
   server.handle(conversationSearchRpc, (input, { paseo }) => searchConversationPage(paseo, host, input));
   // A new turn means a new prompt: the agent is no longer "stopped manually", nor read.
