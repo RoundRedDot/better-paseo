@@ -121,7 +121,7 @@ export function TabletToolbar(props: {
   );
   return (
     <>
-      {page || props.filters || (searchOpen && !inlineSearch && !board.params.query) ? <Pressable accessibilityLabel={strings.closeMenu} testID="tablet-toolbar-backdrop" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: 9 }} /> : null}
+      {page || props.filters || (searchOpen && !inlineSearch && !board.params.query) ? <Pressable accessibilityLabel={strings.closeMenu} testID="tablet-toolbar-backdrop" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: page || props.filters ? 20 : 9 }} /> : null}
       <View pointerEvents="box-none" testID="tablet-toolbar" onLayout={(event) => setToolbarWidth(event.nativeEvent.layout.width)} style={{ height, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>
         {/* Match both side slots' minimums: native flex otherwise shifts the title towards the search. */}
         <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: inlineSearch && searching ? 160 : compact && centered && !expandedSearch ? minimumActionsWidth : 0, marginLeft: -8, marginRight: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>

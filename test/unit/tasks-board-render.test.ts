@@ -3968,6 +3968,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     expect(style(hostsById("tablet-toolbar-search-group")[0]!).maxWidth).toBe(238);
     expect(hostsById("tablet-toolbar-backdrop")).toHaveLength(1);
+    expect(style(hostsById("tablet-toolbar-backdrop")[0]!).zIndex).toBeLessThan(style(bar()).zIndex);
     act(() => hostsById("search-full-conversation-toggle")[0]!.props.onPress());
     expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
     const input = () => hostsById("tablet-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput");
@@ -4365,12 +4366,21 @@ describe("Tasks board, tablet filters", () => {
     ["android", "tablet-view", "tablet-view-menu"],
     ["ios", "toolbar-filters", "tablet-filter-popover"],
     ["android", "toolbar-filters", "tablet-filter-popover"],
-  ] as const)("%s lets empty toolbar space dismiss %s", (os, trigger, panel) => {
+  ] as const)("%s covers the toolbar while %s is open and dismisses without activating its controls", (os, trigger, panel) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(1000);
     act(() => hostsById(trigger)[0]!.props.onPress());
     expect(hostsById(panel)).toHaveLength(1);
+    const backdrop = hostsById("tablet-toolbar-backdrop")[0]!;
+    const toolbar = hostsById("tablet-toolbar")[0]!;
+    expect(hostParentOf(backdrop)).toBe(hostParentOf(toolbar));
+    const backdropStyle = StyleSheet.flatten(backdrop.props.style);
+    expect(backdropStyle).toMatchObject({ position: "absolute", top: 0, bottom: 0, left: 0, right: 0 });
+    expect(backdropStyle.zIndex).toBeGreaterThan(StyleSheet.flatten(toolbar.props.style).zIndex);
+    expect(backdropStyle.zIndex).toBeLessThan(StyleSheet.flatten(hostsById(panel)[0]!.props.style).zIndex);
+    const sidebar = hostsById("sidebar-switch")[0]!.props.accessibilityState.selected;
+    const subtasks = hostsById("subtasks-toggle")[0]!.props.accessibilityState.selected;
     for (const id of ["tablet-toolbar", "tablet-toolbar-end"]) {
       expect(hostsById(id)[0]!.props.pointerEvents).toBe("box-none");
     }
@@ -4378,6 +4388,8 @@ describe("Tasks board, tablet filters", () => {
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     expect(hostsById(panel)).toHaveLength(0);
     expect(hostsById("tablet-toolbar-backdrop")).toHaveLength(0);
+    expect(hostsById("sidebar-switch")[0]!.props.accessibilityState.selected).toBe(sidebar);
+    expect(hostsById("subtasks-toggle")[0]!.props.accessibilityState.selected).toBe(subtasks);
     act(() => hostsById(trigger)[0]!.props.onPress());
     expect(hostsById(panel)).toHaveLength(1);
   });
