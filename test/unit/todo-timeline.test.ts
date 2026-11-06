@@ -255,6 +255,27 @@ describe("live todo timeline", () => {
     act(() => renderer.unmount());
   });
 
+  it("keeps cached cell gaps across virtual unmounts and releases them when the host rewrites the update", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    resetHostRowGap();
+    let renderer!: Renderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+        todo("cached-gaps", "owner", 2000, firstDone),
+        todo("cached-gaps", "copy-a", 2000, firstDone),
+        todo("cached-gaps", "copy-b", 2000, firstDone)),
+      { createNodeMock: drawnAt({ top: 100, height: 120 }, { top: 236, height: 0 }, { top: 252, height: 0 }) });
+    });
+    expect(rootStyles(renderer)[0]).toEqual([0, -32]);
+    act(() => renderer.update(React.createElement(React.Fragment, null,
+      todo("cached-gaps", "owner", 2000, firstDone))));
+    expect(rootStyles(renderer)).toEqual([[0, -32]]);
+    act(() => renderer.update(React.createElement(React.Fragment, null,
+      todo("cached-gaps", "owner", 3000, secondDone))));
+    expect(rootStyles(renderer)).toEqual([[0, 0]]);
+    act(() => renderer.unmount());
+  });
+
   it("takes back no more than the row's own height", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     resetHostRowGap();

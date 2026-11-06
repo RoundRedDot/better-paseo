@@ -100,6 +100,8 @@ interface Entry {
   sequence: number;
   /** Where the item is drawn, in the window; null when unknown. */
   measure?: () => ViewBox | null;
+  /** Offscreen host cells retain their sizes, including their empty gaps. */
+  emptyGaps?: EmptyGapTakeBack;
 }
 
 /** The gap Paseo up to 0.11.2 hangs under every plugin item, an empty one too. */
@@ -221,9 +223,13 @@ function measureEmptyGaps(agentId: string, self: Entry, takenAbove: number): Emp
     if (box.top < top) above++;
     else below++;
   }
-  const takeBelow = Math.min(below * HOST_ITEM_GAP, own.height);
-  const takeAbove = Math.min(above * HOST_ITEM_GAP, own.height - takeBelow);
-  return takeAbove === 0 && takeBelow === 0 ? NO_TAKE_BACK : { above: takeAbove, below: takeBelow };
+  // Unmounting a sibling does not remove its cached cell from a virtual list.
+  // Giving its gap back resized this row, which could bring the sibling into
+  // the window again and repeat forever through the host's resizeItem.
+  const takeBelow = Math.min(Math.max(below * HOST_ITEM_GAP, self.emptyGaps?.below ?? 0), own.height);
+  const takeAbove = Math.min(Math.max(above * HOST_ITEM_GAP, self.emptyGaps?.above ?? 0), own.height - takeBelow);
+  self.emptyGaps = takeAbove === 0 && takeBelow === 0 ? NO_TAKE_BACK : { above: takeAbove, below: takeBelow };
+  return self.emptyGaps;
 }
 
 /** The list of the update before `at`, or null when none is known. */
@@ -314,6 +320,7 @@ export function useTodoTimeline(
     last.current = { agentId, at, key };
     entry.at = at;
     entry.key = key;
+    if (prior && (prior.agentId !== agentId || prior.at !== at || prior.key !== key)) entry.emptyGaps = undefined;
     agent.mounted.add(entry);
     const id = updateId(at, key);
     if (!agent.updates.has(id)) agent.updates.set(id, { at, key, items: itemsRef.current });
@@ -336,9 +343,9 @@ export function useTodoTimeline(
   const takenAbove = useRef(0);
   takenAbove.current = emptyGaps.above;
   const measure = useCallback(() => {
-    const next = role === "hidden" || siblings === 0 ? NO_TAKE_BACK : measureEmptyGaps(agentId, entry, takenAbove.current);
+    const next = role === "hidden" ? NO_TAKE_BACK : measureEmptyGaps(agentId, entry, takenAbove.current);
     setEmptyGaps((prev) => (prev.above === next.above && prev.below === next.below ? prev : next));
-  }, [agentId, entry, role, siblings]);
+  }, [agentId, entry, role, siblings, at, key]);
   useLayoutEffect(measure, [measure]);
   return { role, previous, emptyGaps, measureEmptyGaps: measure };
 }
