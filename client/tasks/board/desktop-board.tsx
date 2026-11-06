@@ -1159,7 +1159,7 @@ function SidebarColumn(props: {
       aria-hidden={!props.open}
       accessibilityElementsHidden={!props.open}
       importantForAccessibility={props.open ? "auto" : "no-hide-descendants"}
-      style={{ width: reduced ? props.width + SIDEBAR.gap : progress.interpolate({ inputRange: [0, 1], outputRange: [0, props.width + SIDEBAR.gap] }), flexShrink: 0, minHeight: 0, ...(props.floating ? { position: "absolute", top: 4, bottom: 12, right: 0, zIndex: 20 } as const : null) }}
+      style={{ width: reduced ? props.width + SIDEBAR.gap : progress.interpolate({ inputRange: [0, 1], outputRange: [0, props.width + SIDEBAR.gap] }), flexShrink: 0, minHeight: 0, ...(props.floating ? { position: "absolute", top: 0, bottom: 0, right: 0, zIndex: 20 } as const : null) }}
     >
       <Animated.View
         ref={panelRef}
@@ -1177,7 +1177,6 @@ function SidebarColumn(props: {
           paddingBottom: 12,
           minHeight: 0,
           backgroundColor: props.theme.colors.surface0,
-          ...(props.floating ? { paddingTop: 8, paddingBottom: 8, paddingRight: 8, borderRadius: 16, borderWidth: HAIRLINE, borderColor: menuChrome(props.theme).border, backgroundColor: boardPalette(props.theme).panel } : null),
           boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
           zIndex: 1,
           opacity: reduced ? 1 : progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 1] }),

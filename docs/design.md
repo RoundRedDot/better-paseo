@@ -991,8 +991,9 @@ apply to all three.
   240 and close over 180 with an 8 pt slide and opacity change. Cards keep a fixed width during
   the transition; reversing continues from the current progress. Closing disables input and
   hides the subtree from assistive technology immediately, then unmounts after the animation.
-  Reduced motion snaps. Floating it is a radius-16 panel on
-  the lane fill, entering with a 24 slide over 220. The iPad floating panel
+  Reduced motion snaps. On web, floating changes only the sidebar's positioning: keep the
+  desktop surface, insets, shadow and resize handle, without a rounded outer frame or lane-fill
+  background. Its surface aligns vertically with the inline sidebar. The iPad floating panel
   is 340 (320 to 480) with a 24 grab strip.
 - The inline surface uses `surface0`, with a left shadow cast over the lanes:
   `-8px 0px 16px -8px`, black at 20% light / 50% dark. Floating uses the same shadow.

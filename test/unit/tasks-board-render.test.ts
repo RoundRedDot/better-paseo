@@ -2649,6 +2649,9 @@ describe("Tasks board, desktop", () => {
     try {
       act(() => { renderer = TestRenderer.create(screen(false)); });
       layOut(1600);
+      const inlineStyle = { ...StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style) };
+      delete inlineStyle.opacity;
+      delete inlineStyle.transform;
       toggleSidebarControl();
       layOut(viewport);
       expect(readSidebarPreference().open).toBe(false);
@@ -2663,6 +2666,11 @@ describe("Tasks board, desktop", () => {
       const laneWidths = () => LANE_ORDER.map((id) => StyleSheet.flatten(hostsById(`lane-surface-${id}`)[0]!.props.style).width);
       const originalWidths = laneWidths();
       expect(width()).toBe(380);
+      const floatingStyle = { ...StyleSheet.flatten(panel().props.style) };
+      delete floatingStyle.opacity;
+      delete floatingStyle.transform;
+      expect(floatingStyle).toEqual(inlineStyle);
+      expect(StyleSheet.flatten(hostsById("sidebar-slot")[0]!.props.style)).toMatchObject({ top: 0, bottom: 0 });
       expect(hostsById("sidebar-inline")).toHaveLength(0);
       act(() => panel().props.onPointerEnter());
       expect(grabberOpacity()).toBe(0.5);
