@@ -125,7 +125,7 @@ export function bindContextMenu(node: unknown, open: (point: { x: number; y: num
  * it is clipped by no lane and covered by no later card. It stays in the
  * React tree (and the DOM's) where it was rendered.
  */
-export function openPointLayer(node: unknown, point: { x: number; y: number }): () => void {
+export function openPointLayer(node: unknown, point: { x: number; y: number }, close: () => void): () => void {
   if (Platform.OS !== "web") return () => {};
   const element = node as HTMLElement | null;
   if (typeof element?.showPopover !== "function") return () => {};
@@ -135,7 +135,9 @@ export function openPointLayer(node: unknown, point: { x: number; y: number }): 
     margin: "0", padding: "0", border: "0", background: "transparent", overflow: "visible",
   });
   element.showPopover();
+  const dismiss = bindTouchDismiss(element, close, { allowInsideScroll: true });
   return () => {
+    dismiss();
     if (element.matches(":popover-open")) element.hidePopover();
   };
 }

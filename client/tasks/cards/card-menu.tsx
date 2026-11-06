@@ -181,7 +181,7 @@ export function CardContextMenu(props: {
   const scale = useTasksFontScale();
   const window = useWindowDimensions();
   const anchorRef = useRef<View>(null);
-  useLayoutEffect(() => Platform.OS === "web" && point && !editing ? openPointLayer(anchorRef.current, point) : undefined, [point?.x, point?.y, editing]);
+  useLayoutEffect(() => Platform.OS === "web" && point && !editing ? openPointLayer(anchorRef.current, point, props.onClose) : undefined, [point?.x, point?.y, editing, props.onClose]);
   if (editing) {
     return <TaskRenameDialog agentId={props.card.id} title={props.card.title} strings={props.strings} theme={props.theme} onClose={props.onClose}
       blockedReason={taskOperationIssue(props.card, "rename") ? taskIssueText(taskOperationIssue(props.card, "rename")!, props.strings === cardStrings("en") ? "en" : "zh") : undefined}
