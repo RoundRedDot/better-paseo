@@ -464,7 +464,7 @@ const menuEntrance = StyleSheet.create({
       "0%": { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" },
       "100%": { opacity: 1, transform: "translateY(0px) scale(1)" },
     }],
-    animationDuration: "150ms",
+    animationDuration: "120ms",
     animationTimingFunction: "cubic-bezier(0.2, 0.8, 0.2, 1)",
     animationFillMode: "both",
   } as ViewStyle,

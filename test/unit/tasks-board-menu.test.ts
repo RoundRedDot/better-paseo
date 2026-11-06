@@ -333,7 +333,7 @@ describe("CascadeMenu", () => {
       const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
       const style = StyleSheet.flatten(panel.props.style);
       expect(style.transformOrigin).toBe(origin);
-      expect(style.animationDuration).toBe("150ms");
+      expect(style.animationDuration).toBe("120ms");
       expect(style.animationKeyframes[0]).toEqual({
         "0%": { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" },
         "100%": { opacity: 1, transform: "translateY(0px) scale(1)" },
