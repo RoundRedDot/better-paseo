@@ -272,15 +272,62 @@ describe("CascadeMenu", () => {
       render(sections());
       const panel = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === id);
       expect(StyleSheet.flatten(panel("menu-panel").props.style)).toMatchObject({
-        animationDuration: "180ms",
-        animationKeyframes: [{ from: { opacity: 0, transform: "translateY(-6px)" }, to: { opacity: 1, transform: "translateY(0px)" } }],
+        animationDuration: "100ms",
+        animationKeyframes: [{ from: { opacity: 0.9, transform: "translateY(-2px)" }, to: { opacity: 1, transform: "translateY(0px)" } }],
       });
       act(() => row("Branch").props.onPress());
-      expect(StyleSheet.flatten(panel("menu-submenu-panel").props.style)).toMatchObject({ animationDuration: "180ms" });
+      expect(StyleSheet.flatten(panel("menu-submenu-panel").props.style)).toMatchObject({ animationDuration: "100ms" });
       act(() => renderer!.unmount());
       motion.reduced = true;
       render(sections());
       expect(StyleSheet.flatten(panel("menu-panel").props.style).animationDuration).toBeUndefined();
+    } finally {
+      motion.reduced = false;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([undefined, 60])("keeps menu entry visible and actionable immediately, including a panel capped at %s", (maxHeight) => {
+    vi.stubGlobal("__rnMockOS", "web");
+    close.mockClear();
+    picked.mockClear();
+    try {
+      act(() => {
+        renderer = TestRenderer.create(React.createElement(CascadeMenu, {
+          sections: sections(), theme: theme(LIGHT), width: 280, top: 0, align: "left",
+          maxHeight, onClose: close,
+        }));
+      });
+      const panel = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === id);
+      expect(StyleSheet.flatten(panel("menu-panel").props.style)).toMatchObject({
+        animationDuration: "100ms",
+        animationKeyframes: [{ from: { opacity: 0.9, transform: "translateY(-2px)" }, to: { opacity: 1, transform: "translateY(0px)" } }],
+        animationTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+        animationFillMode: "both",
+      });
+      // No clock advance: entry must not delay interaction or delay the submenu's entrance.
+      act(() => row("Branch").props.onPress());
+      expect(StyleSheet.flatten(panel("menu-submenu-panel").props.style)).toMatchObject({ animationDuration: "100ms" });
+      act(() => row("Plain").props.onPress());
+      expect(picked).toHaveBeenCalledOnce();
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([["web", true], ["ios", false], ["android", false]] as const)("skips menu entry on %s with reduced motion %s", (os, reduced) => {
+    vi.stubGlobal("__rnMockOS", os);
+    motion.reduced = reduced;
+    try {
+      act(() => {
+        renderer = TestRenderer.create(React.createElement(CascadeMenu, {
+          sections: sections(), theme: theme(LIGHT), width: 280, top: 0, align: "left",
+          onClose: close,
+        }));
+      });
+      const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
+      expect(StyleSheet.flatten(panel.props.style).animationDuration).toBeUndefined();
     } finally {
       motion.reduced = false;
       vi.unstubAllGlobals();

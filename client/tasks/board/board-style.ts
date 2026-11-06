@@ -2,6 +2,9 @@ import { PixelRatio, Platform, StyleSheet, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { mix } from "../../components/theme-tokens";
 import { themeKey } from "../../ui/tokens/theme-key";
+import { cubicBezier } from "../../ui/tokens/motion";
+
+export { cubicBezier } from "../../ui/tokens/motion";
 
 /**
  * The board's own palette, after Linear's board (page #f9f9fa, lanes
@@ -101,25 +104,6 @@ export function boardPalette(theme: PluginTheme): BoardPalette {
 /**
  * The board's motion (prototype 6.4).
  */
-
-/** `cubic-bezier(x1, y1, x2, y2)` as an easing for `Animated.timing`. */
-export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (t: number) => number {
-  const curve = (a: number, b: number, s: number) => 3 * a * s * (1 - s) * (1 - s) + 3 * b * s * s * (1 - s) + s * s * s;
-  const slope = (a: number, b: number, s: number) => 3 * a * (1 - s) * (1 - s) + 6 * (b - a) * s * (1 - s) + 3 * (1 - b) * s * s;
-  return (t) => {
-    if (t <= 0) return 0;
-    if (t >= 1) return 1;
-    let s = t;
-    for (let i = 0; i < 8; i++) {
-      const error = curve(x1, x2, s) - t;
-      if (Math.abs(error) < 1e-5) break;
-      const d = slope(x1, x2, s);
-      if (Math.abs(d) < 1e-6) break;
-      s -= error / d;
-    }
-    return curve(y1, y2, Math.min(1, Math.max(0, s)));
-  };
-}
 
 export const MOTION = {
   /** Every board transition: cubic-bezier(.2, 0, 0, 1), no overshoot. */

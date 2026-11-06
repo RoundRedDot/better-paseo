@@ -25,6 +25,7 @@ import { detailsPalette } from "./scrim";
 import type { Insets } from "./safe-area";
 import type { BodyWatch } from "./body-handover";
 import { keepOffWindowDrag } from "./web-layer";
+import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
 
 /** The handle's strip: a 36 × 5 grabber 8 below the panel's top, in a row a finger can take. */
 export const HANDLE = 28;
@@ -193,6 +194,14 @@ export function BottomPanel(props: BottomPanelProps) {
     }
     const panel = now.current.height;
     if (now0.entrance === "slide" && !now0.reduced) {
+      if (Platform.OS === "web" && now0.form === "floating") {
+        setTranslate(DESKTOP_OVERLAY.shift);
+        opacity.setValue(DESKTOP_OVERLAY.opacity);
+        now.current.translate = 0;
+        animate(translate, 0, DESKTOP_OVERLAY.ms, undefined, "overlay");
+        animate(opacity, 1, DESKTOP_OVERLAY.ms, undefined, "overlay");
+        return;
+      }
       // Laid out where it rests; now below the edge, shown, and up.
       setTranslate(panel);
       opacity.setValue(1);
@@ -307,6 +316,10 @@ export function BottomPanel(props: BottomPanelProps) {
       return;
     }
     const done = () => latest.current.onExited();
+    if (Platform.OS === "web" && latest.current.form === "floating") {
+      done();
+      return;
+    }
     if (!entered.current) {
       done();
       return;

@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { bindPreviewPointer, dropSelectionIn, linesFit, openPreviewLayer, openToolbarDetailsLayer, PREVIEW_GROW, PREVIEW_REVEAL, scrollsWithin } from "../../client/web";
+import { bindPreviewPointer, dropSelectionIn, linesFit, openPreviewLayer, openToolbarDetailsLayer, PREVIEW_GROW, scrollsWithin } from "../../client/web";
+import { DESKTOP_OVERLAY } from "../../client/ui/tokens/motion";
 
 /** The system's reduce-motion setting and the anchor row's top, for the next `layer`. */
 let reduceMotion = false;
@@ -208,18 +209,18 @@ describe("hover preview entrance", () => {
     expect(panel.animate).toHaveBeenCalledOnce();
     const [frames, timing] = panel.animate.mock.calls[0]!;
     expect(frames).toEqual([
-      { opacity: 0, transform: `translateY(-${PREVIEW_REVEAL.shift}px)` },
+      { opacity: 0.9, transform: `translateY(-${DESKTOP_OVERLAY.shift}px)` },
       { opacity: 1, transform: "none" },
     ]);
     // No fill, so nothing outlives the entrance.
-    expect(timing).toEqual({ duration: PREVIEW_REVEAL.ms, easing: expect.any(String) });
+    expect(timing).toEqual({ duration: DESKTOP_OVERLAY.ms, easing: DESKTOP_OVERLAY.cssEase });
     release();
   });
   it("slides up when it opens above its row", () => {
     anchorTop = 800;
     const { panel, release } = layer(200, 700);
     expect(Number.parseFloat(panel.style.top!)).toBeLessThan(anchorTop);
-    expect(panel.animate.mock.calls[0]![0][0]).toEqual({ opacity: 0, transform: `translateY(${PREVIEW_REVEAL.shift}px)` });
+    expect(panel.animate.mock.calls[0]![0][0]).toEqual({ opacity: 0.9, transform: `translateY(${DESKTOP_OVERLAY.shift}px)` });
     release();
   });
   it("appears at once when maximized or when the system reduces motion", () => {
@@ -255,7 +256,7 @@ describe("maximizing a hover preview", () => {
       { clipPath: "inset(52px 0px 292px 0px round 12px)" },
       { clipPath: `inset(-${PREVIEW_GROW.shadow}px round 12px)` },
     ]);
-    expect(timing).toEqual({ duration: PREVIEW_GROW.ms, easing: expect.any(String) });
+    expect(timing).toEqual({ duration: PREVIEW_GROW.ms, easing: DESKTOP_OVERLAY.cssEase });
     release();
   });
   it("grows only from a hover box this panel just had", () => {

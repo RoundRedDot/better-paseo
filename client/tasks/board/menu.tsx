@@ -6,6 +6,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontSca
 import { HAIRLINE, devicePixel } from "./board-style";
 import { taskTokens } from "../cards/tokens";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
 import {
   MENU,
   MENU_EDGE,
@@ -445,9 +446,9 @@ function MenuPanel(props: {
 // RN Web compiles keyframes only when they are created through StyleSheet.
 const menuEntrance = StyleSheet.create({
   panel: {
-    animationKeyframes: [{ from: { opacity: 0, transform: "translateY(-6px)" }, to: { opacity: 1, transform: "translateY(0px)" } }],
-    animationDuration: "180ms",
-    animationTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
+    animationKeyframes: [{ from: { opacity: DESKTOP_OVERLAY.opacity, transform: `translateY(-${DESKTOP_OVERLAY.shift}px)` }, to: { opacity: 1, transform: "translateY(0px)" } }],
+    animationDuration: `${DESKTOP_OVERLAY.ms}ms`,
+    animationTimingFunction: DESKTOP_OVERLAY.cssEase,
     animationFillMode: "both",
   } as ViewStyle,
 }).panel;

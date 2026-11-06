@@ -660,13 +660,13 @@ describe("assistant footer details motion", () => {
       expect(animated.findAllByType("View" as never)
         .filter((node) => node.props.testID === "toolbar-details-frame")).toHaveLength(1);
       const opacity = StyleSheet.flatten(animated.props.style).opacity;
-      expect(opacity).toMatchObject({ __value: reduced ? 1 : 0 });
+      expect(opacity).toMatchObject({ __value: reduced ? 1 : platform === "web" ? 0.9 : 0 });
       if (reduced) {
         expect(timing).not.toHaveBeenCalled();
         expect(StyleSheet.flatten(animated.props.style).transform).toEqual([{ translateY: 0 }]);
       } else {
         expect(timing).toHaveBeenCalledExactlyOnceWith(opacity, expect.objectContaining({
-          toValue: 1, duration: 140, useNativeDriver: platform !== "web",
+          toValue: 1, duration: platform === "web" ? 100 : 140, useNativeDriver: platform !== "web",
         }));
         const interpolate = vi.spyOn(opacity as InstanceType<typeof Animated.Value>, "interpolate");
         act(() => { renderer.update(React.createElement(AssistantFooter, {

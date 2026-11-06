@@ -8,8 +8,8 @@
  * The buttons are the content's own `ToolbarCopyButton`s; under
  * `CopyOverflowContext` each registers here and draws only while it fits.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { radiusV2, space } from "../../components/theme-tokens";
@@ -19,6 +19,8 @@ import { AnchoredToolbarDetails, ToolbarButton, type CopyOverflow, type CopyOver
 import { bindDetailsEscape, bindTouchDismiss } from "../../web";
 import { useEnhancerPreferences } from "../../preferences";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
+import { usePreviewEntrance } from "../../ui/use-preview-entrance";
+import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
 
 interface Registered {
   seq: number;
@@ -119,13 +121,19 @@ export function CopyOverflowMenu({ items, tokens }: { items: readonly CopyOverfl
     <View ref={anchorRef} collapsable={false} testID="details-copy-overflow" style={styles.anchor}>
       <ToolbarButton icon="MoreVertical" label="More" checked={open} onPress={() => setOpen((value) => !value)} tokens={tokens} align="end" />
       {open ? Platform.OS === "web" ? (
-        <View style={[styles.dropdown, menuLook(tokens)]}>{menu}</View>
+        <CopyDropdown tokens={tokens}>{menu}</CopyDropdown>
       ) : (
         // A native panel is a Modal already; only another one can rise over it and take the press outside.
         <AnchoredToolbarDetails anchor={anchorRef} close={close} width={220} tokens={tokens}>{menu}</AnchoredToolbarDetails>
       ) : null}
     </View>
   );
+}
+
+/** Mount the animation with each opening, rather than with the persistent trigger. */
+function CopyDropdown({ tokens, children }: { tokens: ExtendedThemeTokens; children: ReactNode }) {
+  const entrance = usePreviewEntrance({ ready: true, from: -DESKTOP_OVERLAY.shift });
+  return <Animated.View testID="details-copy-dropdown" style={[styles.dropdown, menuLook(tokens), entrance]}>{children}</Animated.View>;
 }
 
 function CopyMenu({ items, tokens, close }: { items: readonly CopyOverflowItem[]; tokens: ExtendedThemeTokens; close(): void }) {

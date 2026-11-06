@@ -3,7 +3,7 @@ import { Platform, StyleSheet, View, type ViewProps, type ViewStyle } from "reac
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, TASK_MONO } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { PREVIEW_REVEAL } from "../../ui/tokens/motion";
+import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
 import { tipChrome } from "./panel";
 import { openToolbarDetailsLayer } from "../../web";
 
@@ -235,14 +235,14 @@ const motion =
   Platform.OS === "web"
     ? StyleSheet.create({
         above: {
-          animationKeyframes: [{ from: { opacity: 0, transform: `translateY(${PREVIEW_REVEAL.shift}px)` } }],
-          animationDuration: `${PREVIEW_REVEAL.ms}ms`,
-          animationTimingFunction: "cubic-bezier(0.33, 1, 0.68, 1)",
+          animationKeyframes: [{ from: { opacity: DESKTOP_OVERLAY.opacity, transform: `translateY(${DESKTOP_OVERLAY.shift}px)` } }],
+          animationDuration: `${DESKTOP_OVERLAY.ms}ms`,
+          animationTimingFunction: DESKTOP_OVERLAY.cssEase,
         } as ViewStyle,
         below: {
-          animationKeyframes: [{ from: { opacity: 0, transform: `translateY(-${PREVIEW_REVEAL.shift}px)` } }],
-          animationDuration: `${PREVIEW_REVEAL.ms}ms`,
-          animationTimingFunction: "cubic-bezier(0.33, 1, 0.68, 1)",
+          animationKeyframes: [{ from: { opacity: DESKTOP_OVERLAY.opacity, transform: `translateY(-${DESKTOP_OVERLAY.shift}px)` } }],
+          animationDuration: `${DESKTOP_OVERLAY.ms}ms`,
+          animationTimingFunction: DESKTOP_OVERLAY.cssEase,
         } as ViewStyle,
       })
     : null;

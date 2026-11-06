@@ -7,6 +7,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, laneTitle, TasksTypography
 import { StatusIcon, taskTokens, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, isHistoryLane, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { useHover } from "../../ui/use-hover";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
@@ -997,13 +998,18 @@ function SidebarColumn(props: {
   const progress = useRef(new Animated.Value(reduced && props.open ? 1 : 0)).current;
   if (props.open && !mounted) setMounted(true);
   useEffect(() => {
-    if (reduced) {
+    if (reduced || Platform.OS === "web" && !props.open) {
       progress.setValue(props.open ? 1 : 0);
       if (!props.open) setMounted(false);
       return;
     }
     // Reuse the current progress when reversed; never reset a half-open panel.
-    const animation = Animated.timing(progress, { toValue: props.open ? 1 : 0, duration: props.open ? 240 : 180, easing: MOTION.ease, useNativeDriver: false });
+    const animation = Animated.timing(progress, {
+      toValue: props.open ? 1 : 0,
+      duration: Platform.OS === "web" ? DESKTOP_OVERLAY.ms : props.open ? 240 : 180,
+      easing: Platform.OS === "web" ? DESKTOP_OVERLAY.ease : MOTION.ease,
+      useNativeDriver: false,
+    });
     animation.start(({ finished }) => {
       if (finished && !props.open) setMounted(false);
     });
@@ -1149,7 +1155,7 @@ function SidebarColumn(props: {
       <View pointerEvents="none" testID="sidebar-resize-grabber" style={{ width: 4, height: 40, borderRadius: 2, backgroundColor: dragging ? props.theme.colors.accent : props.theme.colors.foregroundMuted, opacity: dragging ? 1 : 0.5 }} />
     </View>
   );
-  if (!props.open && (!mounted || reduced)) return null;
+  if (!props.open && (!mounted || reduced || Platform.OS === "web")) return null;
   return (
     // Animate only the slot and surface: fixed-width cards do not reflow on every frame.
     <Animated.View
@@ -1179,8 +1185,10 @@ function SidebarColumn(props: {
           backgroundColor: props.theme.colors.surface0,
           boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
           zIndex: 1,
-          opacity: reduced ? 1 : progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 1] }),
-          transform: [{ translateX: reduced ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+          opacity: reduced ? 1 : Platform.OS === "web"
+            ? progress.interpolate({ inputRange: [0, 1], outputRange: [DESKTOP_OVERLAY.opacity, 1] })
+            : progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 1] }),
+          transform: [{ translateX: reduced ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [Platform.OS === "web" ? DESKTOP_OVERLAY.shift : 8, 0] }) }],
         }}
       >
         {handle}

@@ -6,8 +6,7 @@ import {
   type PreviewBox, type PreviewEdge, type PreviewSize,
 } from "./ui/preview-frame";
 import { SELECTION_BAR_SELECTOR } from "./components/selection-actions";
-import { FLOAT_EASE } from "./ui/tokens/float";
-import { PREVIEW_REVEAL } from "./ui/tokens/motion";
+import { DESKTOP_OVERLAY } from "./ui/tokens/motion";
 import { radiusV2 } from "./components/theme-tokens";
 import { hasActiveDetailsKeyboard } from "./details/keyboard";
 
@@ -677,17 +676,17 @@ function editable(target: EventTarget | null): boolean {
 }
 
 /**
- * Fades the panel in while it slides `PREVIEW_REVEAL.shift` px away from its
+ * Fades the panel in while it slides `DESKTOP_OVERLAY.shift` px away from its
  * row. A translate leaves the panel's measured height alone, which placing it
  * above the row reads. No fill: once played, the panel's own style stands.
  */
 function reveal(panel: HTMLElement, below: boolean): void {
   const view = panel.ownerDocument.defaultView!;
   if (typeof panel.animate !== "function" || view.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-  const from = below ? -PREVIEW_REVEAL.shift : PREVIEW_REVEAL.shift;
+  const from = below ? -DESKTOP_OVERLAY.shift : DESKTOP_OVERLAY.shift;
   panel.animate(
-    [{ opacity: 0, transform: `translateY(${from}px)` }, { opacity: 1, transform: "none" }],
-    { duration: PREVIEW_REVEAL.ms, easing: FLOAT_EASE.out },
+    [{ opacity: DESKTOP_OVERLAY.opacity, transform: `translateY(${from}px)` }, { opacity: 1, transform: "none" }],
+    { duration: DESKTOP_OVERLAY.ms, easing: DESKTOP_OVERLAY.cssEase },
   );
 }
 
@@ -695,7 +694,7 @@ function reveal(panel: HTMLElement, below: boolean): void {
 const hoverRects = new WeakMap<HTMLElement, DOMRect>();
 
 /** Maximize: the panel's clip opens from its hover box to the whole panel. */
-export const PREVIEW_GROW = { ms: 200, shadow: 48 } as const;
+export const PREVIEW_GROW = { ms: DESKTOP_OVERLAY.ms, shadow: 48 } as const;
 
 /**
  * Lays the panel out at its maximized size at once, then opens a clip from the
@@ -712,7 +711,7 @@ function grow(panel: HTMLElement, from: DOMRect | undefined): void {
   const round = `round ${radiusV2.overlay}px`;
   panel.animate(
     [{ clipPath: `inset(${inset} ${round})` }, { clipPath: `inset(-${PREVIEW_GROW.shadow}px ${round})` }],
-    { duration: PREVIEW_GROW.ms, easing: FLOAT_EASE.out },
+    { duration: PREVIEW_GROW.ms, easing: DESKTOP_OVERLAY.cssEase },
   );
 }
 

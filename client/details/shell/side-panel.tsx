@@ -18,6 +18,7 @@ import { OutsideCatcher, detailsPalette } from "./scrim";
 import type { Entrance } from "./bottom-panel";
 import type { Insets } from "./safe-area";
 import { keepOffWindowDrag } from "./web-layer";
+import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
 
 export const SIDE = {
   /** A phone in landscape (height under 500). */
@@ -66,32 +67,41 @@ export function SidePanel(props: {
   const [, setDragged] = useState(0);
   const width = sideWidth(props.stage, props.wide);
   const moves = props.entrance === "slide" && !reduced;
-  const shift = useRef(new Animated.Value(moves ? DETAILS_MOTION.sideShift : 0)).current;
-  const opacity = useRef(new Animated.Value(props.entrance === "none" ? 1 : 0)).current;
+  const shift = useRef(new Animated.Value(moves ? Platform.OS === "web" ? DESKTOP_OVERLAY.shift : DETAILS_MOTION.sideShift : 0)).current;
+  const opacity = useRef(new Animated.Value(props.entrance === "none" || Platform.OS === "web" && reduced ? 1 : Platform.OS === "web" && moves ? DESKTOP_OVERLAY.opacity : 0)).current;
   const entered = useRef(false);
+  const wasLeaving = useRef(false);
 
   useEffect(() => {
     if (entered.current) return;
     entered.current = true;
     const now = latest.current;
-    if (now.entrance === "none") return;
+    if (now.entrance === "none" || Platform.OS === "web" && now.reduced) return;
     if (now.entrance === "slide" && !now.reduced) {
-      animate(shift, 0, DETAILS_MOTION.sideOpenMs);
-      animate(opacity, 1, DETAILS_MOTION.sideOpenMs);
+      const ms = Platform.OS === "web" ? DESKTOP_OVERLAY.ms : DETAILS_MOTION.sideOpenMs;
+      const ease = Platform.OS === "web" ? "overlay" : "ease";
+      animate(shift, 0, ms, undefined, ease);
+      animate(opacity, 1, ms, undefined, ease);
       return;
     }
     animate(opacity, 1, now.reduced ? DETAILS_MOTION.reducedMs : DETAILS_MOTION.formInMs);
   }, [shift, opacity]);
 
   useEffect(() => {
+    const restoring = wasLeaving.current;
+    wasLeaving.current = props.leaving;
     if (!props.leaving) {
-      if (entered.current) {
+      if (entered.current && (Platform.OS !== "web" || restoring)) {
         animate(shift, 0, 0);
         animate(opacity, 1, 0);
       }
       return;
     }
     const done = () => latest.current.onExited();
+    if (Platform.OS === "web") {
+      done();
+      return;
+    }
     if (latest.current.reduced) {
       animate(opacity, 0, DETAILS_MOTION.reducedMs, done);
       return;

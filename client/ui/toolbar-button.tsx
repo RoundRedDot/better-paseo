@@ -16,7 +16,7 @@ import { bindDetailsEscape, bindRowHover, bindTouchDismiss, openToolbarDetailsLa
 import { useInputCapabilities } from "./use-input-capabilities";
 import { SafeInset } from "./safe-inset";
 import { usePreviewEntrance } from "./use-preview-entrance";
-import { PREVIEW_REVEAL } from "./tokens/motion";
+import { DESKTOP_OVERLAY, PREVIEW_REVEAL } from "./tokens/motion";
 
 /** How long a pointer rests on a button before its name shows. */
 export const TOOLBAR_TOOLTIP_MS = 400;
@@ -374,7 +374,8 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
 export function ToolbarDetailsFrame({ tokens, children, side = "above", ready = true }: {
   tokens: ExtendedThemeTokens; children: ReactNode; side?: TooltipPlacement; ready?: boolean;
 }) {
-  const entrance = usePreviewEntrance({ ready, from: side === "below" ? -PREVIEW_REVEAL.shift : PREVIEW_REVEAL.shift });
+  const shift = Platform.OS === "web" ? DESKTOP_OVERLAY.shift : PREVIEW_REVEAL.shift;
+  const entrance = usePreviewEntrance({ ready, from: side === "below" ? -shift : shift });
   return <Animated.View style={entrance}>
     <View testID="toolbar-details-frame" style={{ backgroundColor: tokens.surface0, borderColor: tokens.v2.border,
       borderWidth: 1, borderRadius: FLOAT.radius, boxShadow: floatShadow(tokens) }}>

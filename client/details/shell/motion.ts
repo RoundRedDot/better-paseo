@@ -5,6 +5,7 @@
  */
 import { Animated, Platform } from "react-native";
 import { cubicBezier } from "../../tasks/board/board-style";
+import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
 
 export const DETAILS_MOTION = {
   /** Drawer and floating panel: translateY 100% to 0. */
@@ -41,7 +42,7 @@ const linear = (t: number) => t;
  * frames are when its content (selectable text, images) gets its native
  * state. The values are never read back; `now` refs keep what they hold.
  */
-export function animate(value: Animated.Value, to: number, ms: number, done?: () => void, ease: "ease" | "linear" = "ease"): Animated.CompositeAnimation {
+export function animate(value: Animated.Value, to: number, ms: number, done?: () => void, ease: "ease" | "linear" | "overlay" = "ease"): Animated.CompositeAnimation {
   return run(value, to, ms, done, ease, Platform.OS !== "web");
 }
 
@@ -50,11 +51,11 @@ export function animateLayout(value: Animated.Value, to: number, ms: number, don
   return run(value, to, ms, done, "ease", false);
 }
 
-function run(value: Animated.Value, to: number, ms: number, done: (() => void) | undefined, ease: "ease" | "linear", native: boolean) {
+function run(value: Animated.Value, to: number, ms: number, done: (() => void) | undefined, ease: "ease" | "linear" | "overlay", native: boolean) {
   const animation = Animated.timing(value, {
     toValue: to,
     duration: ms,
-    easing: ease === "linear" ? linear : DETAILS_EASE,
+    easing: ease === "linear" ? linear : ease === "overlay" ? DESKTOP_OVERLAY.ease : DETAILS_EASE,
     useNativeDriver: native,
   });
   animation.start(({ finished }) => {

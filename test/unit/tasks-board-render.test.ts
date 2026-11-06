@@ -1658,9 +1658,9 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("sidebar-groups").length).toBeGreaterThan(0);
     const mark = () => StyleSheet.flatten(hostsById("panel-mark-fill")[0]!.props.style);
     expect(mark()).toMatchObject({ width: 3.5, height: 7 });
-    // Closing disables the sidebar while its surface finishes fading out.
+    // Closing immediately releases the sidebar's slot back to the lanes.
     act(() => renderer!.root.findByProps({ testID: "sidebar-switch" }).props.onPress());
-    expect(hostsById("sidebar-slot")[0]!.props.pointerEvents).toBe("none");
+    expect(hostsById("sidebar-slot")).toHaveLength(0);
     expect(lanesScroll().props.contentContainerStyle).toMatchObject({ width: 2000 });
     expect(readSidebarPreference().open).toBe(false);
     expect(mark()).toMatchObject({ width: 1.5, height: 7 });
@@ -1678,7 +1678,7 @@ describe("Tasks board, desktop", () => {
     expect(lanesScroll().props.contentContainerStyle.width).toBe(2000 - 380 - 12);
   });
 
-  it("keeps the whole sidebar mounted through closing and reverses an interrupted transition", () => {
+  it("opens the desktop sidebar in 100ms and can close and reopen during entry", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const timing = vi.spyOn(Animated, "timing").mockImplementation((value, config) => {
       let timer: ReturnType<typeof setTimeout>;
@@ -1691,28 +1691,20 @@ describe("Tasks board, desktop", () => {
     try {
       act(() => { renderer = TestRenderer.create(screen(false)); });
       layOut(2000);
-      const panel = hostsById("sidebar-inline")[0]!;
-      const stats = hostsById("sidebar-stats")[0]!;
-      const progress = timing.mock.calls.find(([, config]) => config.toValue === 1 && config.duration === 240)![0] as Animated.Value;
-      act(() => { vi.advanceTimersByTime(240); });
-      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
-      expect(hostsById("sidebar-inline")[0]).toBe(panel);
-      expect(hostsById("sidebar-stats")[0]).toBe(stats);
-      expect(hostsById("sidebar-slot")[0]!.props).toMatchObject({ pointerEvents: "none", "aria-hidden": true });
-      expect(timing).toHaveBeenCalledWith(progress, expect.objectContaining({ toValue: 0, duration: 180 }));
-      act(() => { vi.advanceTimersByTime(90); progress.setValue(0.5); });
-      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
-      expect(hostsById("sidebar-inline")[0]).toBe(panel);
-      expect(hostsById("sidebar-stats")[0]).toBe(stats);
+      const progress = timing.mock.calls.find(([, config]) => config.toValue === 1 && config.duration === 100)![0] as Animated.Value;
       expect(hostsById("sidebar-slot")[0]!.props.pointerEvents).toBe("auto");
-      expect((progress as unknown as { __value: number }).__value).toBe(0.5);
-      expect(timing).toHaveBeenCalledWith(progress, expect.objectContaining({ toValue: 1, duration: 240 }));
-      act(() => { vi.advanceTimersByTime(240); });
-      expect(hostsById("sidebar-inline")[0]).toBe(panel);
+      act(() => { vi.advanceTimersByTime(50); progress.setValue(0.5); });
       act(() => hostsById("sidebar-switch")[0]!.props.onPress());
-      act(() => { vi.advanceTimersByTime(179); });
+      expect(hostsById("sidebar-slot")).toHaveLength(0);
+      expect(hostsById("sidebar-stats")).toHaveLength(0);
+      expect((progress as unknown as { __value: number }).__value).toBe(0);
+      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
       expect(hostsById("sidebar-inline")).toHaveLength(1);
-      act(() => { vi.advanceTimersByTime(1); });
+      expect(hostsById("sidebar-slot")[0]!.props.pointerEvents).toBe("auto");
+      expect(timing).toHaveBeenCalledWith(progress, expect.objectContaining({ toValue: 1, duration: 100 }));
+      act(() => { vi.advanceTimersByTime(100); });
+      expect((progress as unknown as { __value: number }).__value).toBe(1);
+      act(() => hostsById("sidebar-switch")[0]!.props.onPress());
       expect(hostsById("sidebar-slot")).toHaveLength(0);
       expect(hostsById("sidebar-stats")).toHaveLength(0);
       act(() => hostsById("sidebar-switch")[0]!.props.onPress());
