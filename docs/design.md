@@ -939,6 +939,11 @@ apply to all three.
   after 150 ms of hover or on a click, aligned to its row's top and overlapping the parent by 4,
   toward the side with room. Arrow keys, Enter and Escape work; a press outside closes it. Danger
   rows take the danger colour; a check is the accent.
+- Menu shortcut hints share `MenuRow` in `client/tasks/board/menu.tsx`, including More actions,
+  card context menus and their submenus. On web, use `TASK_MONO`, `F.sm`, `foregroundMuted`
+  and `letterSpacing: 2` (2 pt) so modifier symbols and keys such as `⌥R` have breathing room.
+  Display letters in uppercase and Enter as `↵`; keep shortcut values and key handling unchanged.
+  Native menus omit shortcut hints.
 - On touch every row is at least 44 and submenus become a drill-down in the same panel, with a
   `›` hint and a Back row (`touchSections`).
 - The card menu opens at the pointer on the web, flipping at the edges. A tablet long press opens
