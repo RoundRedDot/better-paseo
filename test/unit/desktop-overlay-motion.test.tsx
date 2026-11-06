@@ -31,7 +31,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => ({ Icon: (await impo
 import { StyleSheet } from "react-native";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { usePreviewEntrance } from "../../client/ui/use-preview-entrance";
-import { DESKTOP_OVERLAY } from "../../client/ui/tokens/motion";
+import { DESKTOP_OVERLAY, DROPDOWN_REVEAL } from "../../client/ui/tokens/motion";
+import { ToolbarDetailsFrame } from "../../client/ui/toolbar-button";
 import { RowMenu } from "../../client/details/row-menu";
 import { SidePanel } from "../../client/details/shell/side-panel";
 import { BottomPanel, type BottomPanelProps } from "../../client/details/shell/bottom-panel";
@@ -53,7 +54,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function Preview(props: { ready: boolean; quiet?: boolean }) {
+function Preview(props: { ready: boolean; quiet?: boolean; dropdown?: boolean }) {
   return <div style={usePreviewEntrance(props) as never} />;
 }
 const previewStyle = () => tree.root.findByType("div").props.style;
@@ -83,6 +84,41 @@ describe("desktop overlay entry", () => {
     expect(timings).toEqual([{ toValue: 1, duration: 100, easing: DESKTOP_OVERLAY.ease, useNativeDriver: false }]);
   });
 
+  it("keeps the dropdown scale within its start and final size without rebound", () => {
+    let previous = 0;
+    for (let step = 0; step <= 100; step++) {
+      const value = DROPDOWN_REVEAL.ease(step / 100);
+      expect(value).toBeGreaterThanOrEqual(previous);
+      expect(value).toBeLessThanOrEqual(1);
+      expect(DROPDOWN_REVEAL.scale + (1 - DROPDOWN_REVEAL.scale) * value).toBeGreaterThanOrEqual(0.98);
+      previous = value;
+    }
+    expect(DROPDOWN_REVEAL.ease(1)).toBe(1);
+  });
+
+  it.each(["above", "below"] as const)("waits for placement before a toolbar panel opens %s with dropdown motion", (side) => {
+    act(() => { tree = TestRenderer.create(<ToolbarDetailsFrame tokens={tokens} ready={false} side={side}><div /></ToolbarDetailsFrame>); });
+    const style = () => StyleSheet.flatten(tree.root.find((node) => (node.type as unknown) === "Animated.View").props.style);
+    expect(style().opacity).toBe(0);
+    expect(timings).toHaveLength(0);
+    act(() => tree.update(<ToolbarDetailsFrame tokens={tokens} ready side={side}><div /></ToolbarDetailsFrame>));
+    expect(style().opacity.__value).toBe(0.9);
+    expect(style().transform).toEqual([
+      { translateY: { inputRange: [0.9, 1], outputRange: [side === "below" ? -3 : 3, 0] } },
+      { scale: { inputRange: [0.9, 1], outputRange: [0.98, 1] } },
+    ]);
+    expect(style().transformOrigin).toBe(side === "below" ? "center top" : "center bottom");
+    expect(timings).toEqual([{ toValue: 1, duration: 100, easing: DROPDOWN_REVEAL.ease, useNativeDriver: false }]);
+  });
+
+  it.each(["quiet", "reduced"])("shows %s dropdowns at rest without scale or travel", (mode) => {
+    motion.reduced = mode === "reduced";
+    act(() => { tree = TestRenderer.create(<Preview ready dropdown quiet={mode === "quiet"} />); });
+    expect(previewStyle().opacity.__value).toBe(1);
+    expect(previewStyle().transform).toEqual([{ translateY: 0 }]);
+    expect(timings).toHaveLength(0);
+  });
+
   it.each(["quiet", "reduced"])("shows %s previews at rest without an entry animation", (mode) => {
     motion.reduced = mode === "reduced";
     act(() => { tree = TestRenderer.create(<Preview ready quiet={mode === "quiet"} />); });
@@ -93,20 +129,23 @@ describe("desktop overlay entry", () => {
 
   it.each(["ios", "android"])("preserves the native preview entrance on %s", (os) => {
     vi.stubGlobal("__rnMockOS", os);
-    act(() => { tree = TestRenderer.create(<Preview ready />); });
+    act(() => { tree = TestRenderer.create(<Preview ready dropdown />); });
     expect(timings[0]).toMatchObject({ duration: 140, useNativeDriver: true });
     expect(previewStyle().transform).toEqual([{ translateY: { inputRange: [0, 1], outputRange: [4, 0] } }]);
   });
 
-  it("opens a row menu without scale and lets its action close it during entry", () => {
+  it("opens a row menu with the shared dropdown motion and lets its action close it during entry", () => {
     const close = vi.fn();
     const open = vi.fn();
     act(() => { tree = TestRenderer.create(<RowMenu anchor={{ x: 10, y: 20, width: 30, height: 24 }} title="Tool"
       hasBody copyItems={[]} tokens={tokens} onOpen={open} onToggle={vi.fn()} onClose={close} />); });
     const style = host("details-row-menu").props.style;
     expect(style.opacity.__value).toBe(0.9);
-    expect(style.transform).toEqual([{ translateY: { inputRange: [0.9, 1], outputRange: [-2, 0] } }]);
-    expect(timings[0]).toMatchObject({ duration: 100, easing: DESKTOP_OVERLAY.ease, useNativeDriver: false });
+    expect(style.transform).toEqual([
+      { translateY: { inputRange: [0.9, 1], outputRange: [-3, 0] } },
+      { scale: { inputRange: [0.9, 1], outputRange: [0.98, 1] } },
+    ]);
+    expect(timings[0]).toMatchObject({ duration: 100, easing: DROPDOWN_REVEAL.ease, useNativeDriver: false });
     const item = tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Open details");
     act(() => item.props.onPress());
     expect(close).toHaveBeenCalledOnce();
@@ -135,8 +174,10 @@ describe("desktop overlay entry", () => {
       act(() => trigger().props.onPress());
       const style = StyleSheet.flatten(host("details-copy-dropdown").props.style);
       expect(style.opacity.__value).toBe(0.9);
-      expect(style.transform[0].translateY.outputRange).toEqual([-2, 0]);
+      expect(style.transform[0].translateY.outputRange).toEqual([-3, 0]);
+      expect(style.transform[1].scale.outputRange).toEqual([0.98, 1]);
       expect(timings).toHaveLength(opening);
+      expect(timings.at(-1)).toMatchObject({ duration: 100, easing: DROPDOWN_REVEAL.ease });
       const item = tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Copy output");
       act(() => item.props.onPress());
       expect(copy).toHaveBeenCalledTimes(opening);

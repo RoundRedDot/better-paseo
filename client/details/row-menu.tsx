@@ -10,7 +10,7 @@ import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useEnhancerPreferences } from "../preferences";
 import type { CopyItem } from "./contracts";
 import { detailsForm } from "./layout-model";
-import { DESKTOP_OVERLAY } from "../ui/tokens/motion";
+import { DROPDOWN_REVEAL } from "../ui/tokens/motion";
 
 /** A group divider: a hairline with 4 above and below, as Paseo's menus. */
 const SEPARATOR = 9;
@@ -47,7 +47,7 @@ export function RowMenu(props: RowMenuProps) {
   const { language } = useEnhancerPreferences();
   const label = (text: string) => toolbarLabel(text, language);
   const reduced = useReducedMotion();
-  const progress = useRef(new Animated.Value(Platform.OS === "web" ? reduced ? 1 : DESKTOP_OVERLAY.opacity : 0)).current;
+  const progress = useRef(new Animated.Value(Platform.OS === "web" ? reduced ? 1 : DROPDOWN_REVEAL.opacity : 0)).current;
   const layer = useRef<View>(null);
   const window = useWindowDimensions();
   // As wide as its longest label, between Paseo's menu minimum and a cap.
@@ -88,8 +88,8 @@ export function RowMenu(props: RowMenuProps) {
     }
     const animation = Animated.timing(progress, {
       toValue: 1,
-      duration: Platform.OS === "web" ? DESKTOP_OVERLAY.ms : reduced ? 120 : 160,
-      easing: Platform.OS === "web" ? DESKTOP_OVERLAY.ease : undefined,
+      duration: Platform.OS === "web" ? DROPDOWN_REVEAL.ms : reduced ? 120 : 160,
+      easing: Platform.OS === "web" ? DROPDOWN_REVEAL.ease : undefined,
       useNativeDriver: Platform.OS !== "web",
     });
     animation.start();
@@ -124,7 +124,8 @@ export function RowMenu(props: RowMenuProps) {
         opacity: progress,
         transformOrigin: [Math.max(0, anchor.x - left), anchor.y + anchor.height / 2 - top, 0],
         transform: reduced ? undefined : Platform.OS === "web"
-          ? [{ translateY: progress.interpolate({ inputRange: [DESKTOP_OVERLAY.opacity, 1], outputRange: [-DESKTOP_OVERLAY.shift, 0] }) }]
+          ? [{ translateY: progress.interpolate({ inputRange: [DROPDOWN_REVEAL.opacity, 1], outputRange: [-DROPDOWN_REVEAL.shift, 0] }) },
+            { scale: progress.interpolate({ inputRange: [DROPDOWN_REVEAL.opacity, 1], outputRange: [DROPDOWN_REVEAL.scale, 1] }) }]
           : [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
       }}>
         {/* Scrolls only when the menu is taller than the room; no track drawn beside it (Android drew one always). */}

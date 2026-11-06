@@ -20,7 +20,7 @@ import { bindDetailsEscape, bindTouchDismiss } from "../../web";
 import { useEnhancerPreferences } from "../../preferences";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
 import { usePreviewEntrance } from "../../ui/use-preview-entrance";
-import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
+import { DROPDOWN_REVEAL } from "../../ui/tokens/motion";
 
 interface Registered {
   seq: number;
@@ -132,7 +132,7 @@ export function CopyOverflowMenu({ items, tokens }: { items: readonly CopyOverfl
 
 /** Mount the animation with each opening, rather than with the persistent trigger. */
 function CopyDropdown({ tokens, children }: { tokens: ExtendedThemeTokens; children: ReactNode }) {
-  const entrance = usePreviewEntrance({ ready: true, from: -DESKTOP_OVERLAY.shift });
+  const entrance = usePreviewEntrance({ ready: true, from: -DROPDOWN_REVEAL.shift, dropdown: true });
   return <Animated.View testID="details-copy-dropdown" style={[styles.dropdown, menuLook(tokens), entrance]}>{children}</Animated.View>;
 }
 
@@ -178,6 +178,7 @@ const styles = StyleSheet.create({
     borderRadius: radiusV2.card,
     overflow: "hidden",
     zIndex: 10,
+    transformOrigin: "right top",
   },
   menu: { paddingVertical: space.xs },
   item: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 36, paddingHorizontal: space.md },

@@ -6,7 +6,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontSca
 import { HAIRLINE, devicePixel } from "./board-style";
 import { taskTokens } from "../cards/tokens";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
+import { DROPDOWN_REVEAL } from "../../ui/tokens/motion";
 import {
   MENU,
   MENU_EDGE,
@@ -46,8 +46,6 @@ export interface CascadeMenuProps {
   maxHeight?: number;
   /** On web, fit the translated content; `width` is the panel's maximum. */
   fitContent?: boolean;
-  /** A card context menu can open with a small desktop-only scale entrance. */
-  entrance?: "pop";
   submenuWidth?: number;
   /** The panel's top inside its anchor, and which edge it hangs from. */
   top: number;
@@ -235,7 +233,6 @@ export function CascadeMenu(props: CascadeMenuProps) {
         theme={theme}
         width={fitContent ? undefined : width}
         fitContent={fitContent}
-        entrance={props.entrance}
         transformOrigin={`${props.align === "right" ? "right" : "left"} ${props.top < 0 ? "bottom" : "top"}`}
         active={focus.level === 0 ? focus.top : focus.open ?? -1}
         open={focus.open}
@@ -263,6 +260,7 @@ export function CascadeMenu(props: CascadeMenuProps) {
             chrome={chrome}
             theme={theme}
             width={subWidth}
+            transformOrigin={side === "right" ? "left top" : "right top"}
             active={focus.level === 1 ? focus.sub : -1}
             open={null}
             onHover={hoverSub}
@@ -343,7 +341,6 @@ function MenuPanel(props: {
   theme: PluginTheme;
   width?: number;
   fitContent?: boolean;
-  entrance?: CascadeMenuProps["entrance"];
   transformOrigin?: string;
   /** The highlighted selectable row; -1 for none. */
   active: number;
@@ -409,7 +406,7 @@ function MenuPanel(props: {
     elevation: 8,
   };
   const entrance = Platform.OS === "web" && !reducedMotion
-    ? props.entrance === "pop" ? [menuEntrance.pop, { transformOrigin: props.transformOrigin }] : menuEntrance.panel
+    ? [menuEntrance, { transformOrigin: props.transformOrigin }]
     : null;
   const header = props.header ?? null;
   const headerHeight = header ? props.headerHeight ?? 0 : 0;
@@ -454,21 +451,15 @@ function MenuPanel(props: {
 // RN Web compiles keyframes only when they are created through StyleSheet.
 const menuEntrance = StyleSheet.create({
   panel: {
-    animationKeyframes: [{ from: { opacity: DESKTOP_OVERLAY.opacity, transform: `translateY(-${DESKTOP_OVERLAY.shift}px)` }, to: { opacity: 1, transform: "translateY(0px)" } }],
-    animationDuration: `${DESKTOP_OVERLAY.ms}ms`,
-    animationTimingFunction: DESKTOP_OVERLAY.cssEase,
-    animationFillMode: "both",
-  } as ViewStyle,
-  pop: {
     animationKeyframes: [{
-      "0%": { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" },
-      "100%": { opacity: 1, transform: "translateY(0px) scale(1)" },
+      from: { opacity: DROPDOWN_REVEAL.opacity, transform: `translateY(-${DROPDOWN_REVEAL.shift}px) scale(${DROPDOWN_REVEAL.scale})` },
+      to: { opacity: 1, transform: "translateY(0px) scale(1)" },
     }],
-    animationDuration: "120ms",
-    animationTimingFunction: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+    animationDuration: `${DROPDOWN_REVEAL.ms}ms`,
+    animationTimingFunction: DROPDOWN_REVEAL.cssEase,
     animationFillMode: "both",
   } as ViewStyle,
-});
+}).panel;
 
 /** Past this vertical travel a drag on the panel scrolls it instead of pressing a row. */
 const DRAG_SLOP = 6;

@@ -273,7 +273,7 @@ describe("CascadeMenu", () => {
       const panel = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === id);
       expect(StyleSheet.flatten(panel("menu-panel").props.style)).toMatchObject({
         animationDuration: "100ms",
-        animationKeyframes: [{ from: { opacity: 0.9, transform: "translateY(-2px)" }, to: { opacity: 1, transform: "translateY(0px)" } }],
+        animationKeyframes: [{ from: { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" }, to: { opacity: 1, transform: "translateY(0px) scale(1)" } }],
       });
       act(() => row("Branch").props.onPress());
       expect(StyleSheet.flatten(panel("menu-submenu-panel").props.style)).toMatchObject({ animationDuration: "100ms" });
@@ -301,8 +301,8 @@ describe("CascadeMenu", () => {
       const panel = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === id);
       expect(StyleSheet.flatten(panel("menu-panel").props.style)).toMatchObject({
         animationDuration: "100ms",
-        animationKeyframes: [{ from: { opacity: 0.9, transform: "translateY(-2px)" }, to: { opacity: 1, transform: "translateY(0px)" } }],
-        animationTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)",
+        animationKeyframes: [{ from: { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" }, to: { opacity: 1, transform: "translateY(0px) scale(1)" } }],
+        animationTimingFunction: "cubic-bezier(0.2, 0.8, 0.2, 1)",
         animationFillMode: "both",
       });
       // No clock advance: entry must not delay interaction or delay the submenu's entrance.
@@ -327,16 +327,16 @@ describe("CascadeMenu", () => {
       act(() => {
         renderer = TestRenderer.create(React.createElement(CascadeMenu, {
           sections: sections(), theme: theme(LIGHT), width: 280, top, align, maxHeight,
-          entrance: "pop", onClose: close,
+          onClose: close,
         }));
       });
       const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
       const style = StyleSheet.flatten(panel.props.style);
       expect(style.transformOrigin).toBe(origin);
-      expect(style.animationDuration).toBe("120ms");
+      expect(style.animationDuration).toBe("100ms");
       expect(style.animationKeyframes[0]).toEqual({
-        "0%": { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" },
-        "100%": { opacity: 1, transform: "translateY(0px) scale(1)" },
+        from: { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" },
+        to: { opacity: 1, transform: "translateY(0px) scale(1)" },
       });
       // No timer advance: the entrance is visual and must not hold selection or dismissal.
       act(() => row("Plain").props.onPress());
@@ -354,7 +354,7 @@ describe("CascadeMenu", () => {
       act(() => {
         renderer = TestRenderer.create(React.createElement(CascadeMenu, {
           sections: sections(), theme: theme(LIGHT), width: 280, top: 0, align: "left",
-          entrance: "pop", onClose: close,
+          onClose: close,
         }));
       });
       const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");

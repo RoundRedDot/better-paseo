@@ -6,8 +6,8 @@
  * (a table's copy menu, the selection bar), whose CSS transitions live with
  * their family in `float.ts`. The Tasks board keeps its own choreography (lane
  * motion, rolling counts, lane flashes) in `MOTION` in
- * `client/tasks/board/board-style.ts`. There is no spring and no scale on
- * purpose: the requirement rules out bounce and noticeable zoom.
+ * `client/tasks/board/board-style.ts`. Dropdowns add a small scale entrance;
+ * none of these entrances overshoot or bounce.
  *
  * Pure (no `react-native` import) so it can be unit tested; React Native's
  * `Animated.timing` accepts any `(t) => number` as its easing.
@@ -28,6 +28,16 @@ export const DESKTOP_OVERLAY = {
   opacity: 0.9,
   cssEase: "cubic-bezier(0.16, 1, 0.3, 1)",
   ease: cubicBezier(0.16, 1, 0.3, 1),
+} as const;
+
+/** Menus and anchored desktop panels share a short, readable entrance without rebound. */
+export const DROPDOWN_REVEAL = {
+  ms: 100,
+  shift: 3,
+  scale: 0.98,
+  opacity: 0.9,
+  cssEase: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+  ease: cubicBezier(0.2, 0.8, 0.2, 1),
 } as const;
 
 /** `cubic-bezier(x1, y1, x2, y2)` as an easing for `Animated.timing`. */
