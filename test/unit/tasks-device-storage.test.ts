@@ -24,7 +24,7 @@ it.each(["ios", "android"])("persists the device preferences through %s AsyncSto
   const store = deviceTasksStore();
   store.load(seed);
   await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
-  const saved = { hideSubtasks: true, showArchived: false, showEmptyGroups: false, laneWidth: "wide" as const, titleLines: "4" as const };
+  const saved = { hideSubtasks: true, showArchived: false, showEmptyGroups: false, laneWidth: "wide" as const, titleLines: "all" as const };
   await store.update(saved);
   expect(NativeModules.RNCAsyncStorage.multiSet).toHaveBeenCalledTimes(2);
   delete holder.__betterPaseoDeviceTasksV2;

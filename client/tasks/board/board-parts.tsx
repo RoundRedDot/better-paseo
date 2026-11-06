@@ -429,7 +429,7 @@ export function CardCell(props: CardCellProps) {
             searchPrompt={searchPrompt}
             searchPromptUnavailable={Boolean(card.closed || card.subagent && (!card.parent || !board.cardById(card.parent.id) || board.cardById(card.parent.id)!.closed))}
             fields={board.fields}
-            titleLines={Number(board.titleLines)}
+            titleLines={board.titleLines === "all" ? null : Number(board.titleLines)}
             theme={props.theme}
             compact={props.compact}
             subtasksExpanded={board.expandedSubtasks.has(card.id)}

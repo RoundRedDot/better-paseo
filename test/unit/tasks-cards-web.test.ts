@@ -241,6 +241,8 @@ describe("TaskCardView on web", () => {
     const renderer = await render(React.createElement(TaskCardView, props("sample-running", { titleLines: 4 })));
     const title = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-title");
     expect(title.props.numberOfLines).toBe(4);
+    await act(async () => renderer.update(React.createElement(TaskCardView, props("sample-running", { titleLines: null }))));
+    expect(title.props.numberOfLines).toBeUndefined();
     await act(async () => renderer.unmount());
   });
 

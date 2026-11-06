@@ -1,7 +1,7 @@
 import { LANE_WIDTHS, type TasksSettings } from "../../shared/tasks-settings";
 
 export const DEVICE_BOARD_FIELDS = ["hideSubtasks", "showArchived", "showEmptyGroups", "laneWidth"] as const;
-export const CARD_TITLE_LINE_COUNTS = ["1", "2", "3", "4"] as const;
+export const CARD_TITLE_LINE_COUNTS = ["1", "2", "3", "4", "all"] as const;
 const DEVICE_PREFERENCE_FIELDS = [...DEVICE_BOARD_FIELDS, "titleLines"] as const;
 export type CardTitleLineCount = (typeof CARD_TITLE_LINE_COUNTS)[number];
 export const DEFAULT_CARD_TITLE_LINES: CardTitleLineCount = "2";

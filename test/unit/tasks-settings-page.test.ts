@@ -353,6 +353,9 @@ describe("Tasks half of the settings page", () => {
     expect(deviceTasksStore().snapshot().values?.titleLines).toBe("4");
     expect(api.save).not.toHaveBeenCalled();
     expect(state.previews.some((preview) => preview.titleLines === 4)).toBe(true);
+    await act(async () => radio(r, "Title lines", "All").props.onPress());
+    expect(deviceTasksStore().snapshot().values?.titleLines).toBe("all");
+    expect(state.previews.some((preview) => preview.titleLines === null)).toBe(true);
     act(() => r.unmount());
   });
 

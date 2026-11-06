@@ -106,7 +106,7 @@ export interface TaskCardViewProps extends CardCallbacks {
   /** Field switches after `effectiveCard`. */
   fields: CardSettings;
   /** Maximum visible lines for the task title, saved on this device. */
-  titleLines?: number;
+  titleLines?: number | null;
   theme: PluginTheme;
   /** Phone layout (`layout.compact`): must/default/details-only tiers, larger type and targets. */
   compact: boolean;
@@ -956,13 +956,13 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         />
       </View>
       {card.subagent ? <SubagentLabel language={language} tokens={tokens} testID="task-card-session-label" /> : null}
-      {updatingTitle ? <TitleLoading title={shownTitle} titleLines={props.titleLines ?? 2} mutedColor={tokens.foregroundMuted}
+      {updatingTitle ? <TitleLoading title={shownTitle} titleLines={props.titleLines} mutedColor={tokens.foregroundMuted}
         // A band of light: towards the card's fill on a light theme, keeping the glyphs
         // readable under it, and the text color on a dark one.
         highlightColor={tokens.isDark ? tokens.foreground : mix(background, tokens.foregroundMuted, 0.45)}
         animated={props.animated} accessibilityLabel={strings.autoTitlePending}
         style={[text(m.titleSize, m.titleLine, tokens.foreground, "500"), WEB ? ({ overflowWrap: "anywhere" } as TextStyle) : null]} /> : <Text
-        numberOfLines={props.titleLines ?? 2}
+        numberOfLines={props.titleLines === null ? undefined : props.titleLines ?? 2}
         ellipsizeMode="tail"
         style={[
           text(m.titleSize, m.titleLine, tokens.foreground, "500"),
