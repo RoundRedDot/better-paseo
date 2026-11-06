@@ -81,9 +81,9 @@ export function since(iso: string | null, now: number): number | null {
   return Number.isNaN(at) ? null : now - at;
 }
 
-/** Token counts: "950", "182k", "1.25M". */
+/** Token counts: "950", "182k", "1M", "1.2M", "1.25M". Trailing zeros after the decimal are omitted. */
 export function formatTokens(count: number): string {
-  if (count >= 1e6) return `${(count / 1e6).toFixed(2)}M`;
+  if (count >= 1e6) return `${(count / 1e6).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}M`;
   if (count >= 1e3) return `${Math.round(count / 1e3)}k`;
   return String(Math.round(count));
 }

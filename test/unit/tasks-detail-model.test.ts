@@ -69,7 +69,7 @@ describe("details card model", () => {
 
   it("grades the context at 75% and 90%", () => {
     const at = (used: number) => contextView({ ...sample("sample-done"), context: { usedTokens: used, maxTokens: 1_000_000 } })!;
-    expect(at(225_312)).toMatchObject({ level: "normal", percent: "23%", text: "225k / 1.00M", exact: "225,312 / 1,000,000" });
+    expect(at(225_312)).toMatchObject({ level: "normal", percent: "23%", text: "225k / 1M", exact: "225,312 / 1,000,000" });
     expect(at(750_000).level).toBe("warning");
     expect(at(900_000).level).toBe("danger");
     expect(contextView(sample("sample-done"))).toBeNull();

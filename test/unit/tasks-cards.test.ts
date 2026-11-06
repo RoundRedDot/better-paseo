@@ -4453,6 +4453,11 @@ describe("formatters", () => {
     expect(formatRelative(2 * 86_400_000, "zh")).toBe("2 天前");
     expect(formatTokens(950)).toBe("950");
     expect(formatTokens(182_000)).toBe("182k");
+    expect(formatTokens(1_000_000)).toBe("1M");
+    expect(formatTokens(2_000_000)).toBe("2M");
+    expect(formatTokens(1_100_000)).toBe("1.1M");
+    expect(formatTokens(1_200_000)).toBe("1.2M");
+    expect(formatTokens(1_010_000)).toBe("1.01M");
     expect(formatTokens(1_250_000)).toBe("1.25M");
     // Three figures at most, rounding up to the next unit.
     expect([950, 12_345, 812_000, 999_600, 15_322_587, 354_800_101, 1_234_000_000].map(formatTokenTotal)).toEqual(["950", "12.3k", "812k", "1.00M", "15.3M", "355M", "1.23B"]);
