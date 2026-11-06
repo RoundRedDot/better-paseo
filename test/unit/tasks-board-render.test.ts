@@ -4242,6 +4242,7 @@ describe("Tasks board, tablet filters", () => {
     const fill = (node: ReactTestInstance) => StyleSheet.flatten(node.find((child) => typeof child.type === "string" && child.props.testID === "panel-mark-fill").props.style).width;
     for (let i = 0; i < 3; i++) {
       const open = button().props.accessibilityState.selected;
+      expect(StyleSheet.flatten(button().props.style).backgroundColor).toBe("transparent");
       expect(fill(button())).toBe(open ? 3.5 : 1.5);
       act(() => hostsById("tablet-view")[0]!.props.onPress());
       const strings = renderer!.root.findByType(TabletToolbar).props.board.strings;
@@ -4250,6 +4251,7 @@ describe("Tasks board, tablet filters", () => {
       act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
       await act(async () => button().props.onPress());
       expect(button().props.accessibilityState.selected).toBe(!open);
+      expect(StyleSheet.flatten(button().props.style).backgroundColor).toBe("transparent");
       expect(fill(button())).toBe(open ? 1.5 : 3.5);
       await act(async () => button().props.onPress());
       expect(fill(button())).toBe(open ? 3.5 : 1.5);

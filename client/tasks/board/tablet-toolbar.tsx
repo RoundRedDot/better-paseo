@@ -145,7 +145,7 @@ export function TabletToolbar(props: {
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
           <ToolbarButton icon="MoreVertical" label={strings.view} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); closeEmptySearch(); openPage(page ? null : "view"); }} />
         </View>
-        <ToolbarButton icon={<PanelMark open={props.sidebar.open} side="right" color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} theme={theme} testID="sidebar-switch" onPress={() => { closeEmptySearch(); props.sidebar.onToggle(); }} />
+        <ToolbarButton icon={<PanelMark open={props.sidebar.open} side="right" color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} hideSelectedBackground theme={theme} testID="sidebar-switch" onPress={() => { closeEmptySearch(); props.sidebar.onToggle(); }} />
         </View>
       </View>
       {props.filters ? (
