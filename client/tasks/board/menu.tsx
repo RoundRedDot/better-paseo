@@ -46,8 +46,8 @@ export interface CascadeMenuProps {
   maxHeight?: number;
   /** On web, fit the translated content; `width` is the panel's maximum. */
   fitContent?: boolean;
-  /** A card context menu can settle with a small desktop-only rebound. */
-  entrance?: "spring";
+  /** A card context menu can open with a small desktop-only scale entrance. */
+  entrance?: "pop";
   submenuWidth?: number;
   /** The panel's top inside its anchor, and which edge it hangs from. */
   top: number;
@@ -409,7 +409,7 @@ function MenuPanel(props: {
     elevation: 8,
   };
   const entrance = Platform.OS === "web" && !reducedMotion
-    ? props.entrance === "spring" ? [menuEntrance.spring, { transformOrigin: props.transformOrigin }] : menuEntrance.panel
+    ? props.entrance === "pop" ? [menuEntrance.pop, { transformOrigin: props.transformOrigin }] : menuEntrance.panel
     : null;
   const header = props.header ?? null;
   const headerHeight = header ? props.headerHeight ?? 0 : 0;
@@ -459,13 +459,12 @@ const menuEntrance = StyleSheet.create({
     animationTimingFunction: DESKTOP_OVERLAY.cssEase,
     animationFillMode: "both",
   } as ViewStyle,
-  spring: {
+  pop: {
     animationKeyframes: [{
       "0%": { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" },
-      "60%": { opacity: 1, transform: "translateY(0px) scale(1.008)" },
       "100%": { opacity: 1, transform: "translateY(0px) scale(1)" },
     }],
-    animationDuration: "160ms",
+    animationDuration: "150ms",
     animationTimingFunction: "cubic-bezier(0.2, 0.8, 0.2, 1)",
     animationFillMode: "both",
   } as ViewStyle,
