@@ -5411,7 +5411,7 @@ describe("Tasks board, phone", () => {
       const chips = () => workspaces().findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "checkbox").map(textOf);
       const header = () => sheet().find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-workspace-header");
       const field = () => header().find((node) => (node.type as unknown) === "TextInput");
-      expect(sheet().props.stickyHeaderIndices).toEqual([1, 3]);
+      expect(sheet().props.stickyHeaderIndices).toEqual([1, 3, 5]);
       act(() => hostsById("filter-sheet-workspaces-toggle")[0]!.props.onPress());
       expect(field().props.placeholder).toBe("Search projects and workspaces");
       expect(chips().map((chip) => chip.replace(/\d+$/, ""))).toEqual(["tasks-board", "idle-branch"]);

@@ -11,7 +11,8 @@ import { SwitchTrack } from "../../ui/switch-track";
 import { useSwitchSpace } from "../../ui/use-switch-space";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { easing } from "../../ui/tokens/motion";
-import { clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, type FilterOption, type FilterOptions } from "./filter-options";
+import { clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, toggleProject, type FilterOption, type FilterOptions } from "./filter-options";
+import { matchesSearch, searchWords } from "./search";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { detailScrollProps } from "../cards/detail-scrollbar";
 import { useLaneScrollbar } from "./lane-scrollbar";
@@ -66,14 +67,19 @@ export function FilterSheetBody(props: {
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [workspacesOpen, setWorkspacesOpen] = useState(false);
+  const [projectsOpen, setProjectsOpen] = useState(false);
+  const [projectQuery, setProjectQuery] = useState("");
+  const [projectSearching, setProjectSearching] = useState(false);
   const scrollRef = useRef<NativeScrollView>(null);
   // Where the workspaces start in the scroll: read only when the search field
   // takes focus. A ref, not state: it changes on every frame while a group
   // folds, and a render per frame of the whole sheet drops the fold's frames.
   const workspacesY = useRef(0);
+  const projectsY = useRef(0);
   // The scroller's height.
   const [viewport, setViewport] = useState(0);
   const groups = searchWorkspaceGroups(shown.workspaceGroups, query);
+  const projects = shown.projects.filter((project) => matchesSearch([project.label, project.group.projectPath], searchWords(projectQuery)));
   // While searching, the workspaces fill the scroller at least, so their field
   // can stay at its top above the keyboard however few rows match.
   const holdTop = searching || query.trim() !== "";
@@ -96,11 +102,11 @@ export function FilterSheetBody(props: {
         {...detailScrollProps("inset")}
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
-        stickyHeaderIndices={[1, 3]}
+        stickyHeaderIndices={[1, 3, 5]}
         onLayout={(event: LayoutChangeEvent) => setViewport(event.nativeEvent.layout.height)}
         testID="filter-sheet-scroll"
       >
-        <View onLayout={(event: LayoutChangeEvent) => (workspacesY.current = event.nativeEvent.layout.height)} style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4 }}>
+        <View onLayout={(event: LayoutChangeEvent) => (projectsY.current = event.nativeEvent.layout.height)} style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4 }}>
           {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
           {props.hideSubtasksToggle ? null : (
             <ToggleRow
@@ -169,7 +175,16 @@ export function FilterSheetBody(props: {
             </ChipWrap>
           </CollapsibleGroup>
         </View>
-        <View testID="filter-sheet-workspace-header" style={{ paddingHorizontal: 16, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
+        <View testID="filter-sheet-project-header" style={{ paddingHorizontal: 16, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
+          <CollapsibleTitle text={strings.project} icon="FolderKanban" theme={theme} open={projectsOpen} onPress={() => { setProjectSearching(false); setProjectsOpen((value) => !value); }} testID="filter-sheet-projects-toggle" />
+          {projectsOpen && shown.projects.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+          {projectsOpen && shown.projects.length > 0 ? <SheetSearch value={projectQuery} onChange={setProjectQuery} placeholder={strings.sheetSearch} clear={strings.menuSearch.clear} theme={theme} onFocus={() => { setProjectSearching(true); setTimeout(() => scrollRef.current?.scrollTo({ y: projectsY.current, animated: true }), 0); }} onBlur={() => setProjectSearching(false)} /> : null}
+        </View>
+        <View testID="filter-sheet-projects" style={{ paddingHorizontal: 16, paddingBottom: projectsOpen ? 8 : 0, ...(projectsOpen && (projectSearching || projectQuery.trim() !== "") && viewport > 0 ? { minHeight: viewport } : null) }}>
+          {projectsOpen && shown.projects.length > 0 && projects.length === 0 ? <Muted text={strings.menuSearch.empty} theme={theme} /> : null}
+          {projectsOpen ? <ChipWrap>{projects.map((project) => <Chip key={project.id} option={project} theme={theme} leading={<ProjectIcon location={project.group} size={16} hostId={board.hostId} />} onPress={() => setParams((p) => toggleProject(p, project))} />)}</ChipWrap> : null}
+        </View>
+        <View testID="filter-sheet-workspace-header" onLayout={(event: LayoutChangeEvent) => (workspacesY.current = event.nativeEvent.layout.y)} style={{ paddingHorizontal: 16, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
           <CollapsibleTitle text={strings.workspace} icon="FolderGit2" theme={theme} open={workspacesOpen} onPress={() => { setSearching(false); setWorkspacesOpen((value) => !value); }} testID="filter-sheet-workspaces-toggle" />
           {workspacesOpen && shown.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           {workspacesOpen && shown.workspaceGroups.length > 0 ? (
