@@ -930,30 +930,34 @@ describe("Tasks data store", () => {
     }
   });
 
-  it("uses the placement project key, falls back to the project descriptor, and preserves unchanged cards", async () => {
+  it("uses the project descriptor's key (the sidebar's colour key), falls back to the placement's, and preserves unchanged cards", async () => {
     const placementAgent = activeAgent("placement", { status: "running", workspaceId: "ws" });
     const fallbackAgent = activeAgent("fallback", { status: "running", workspaceId: "ws" });
     const unknownAgent = activeAgent("unknown", { status: "running", workspaceId: "ws-unknown" });
+    const orphanAgent = activeAgent("orphan", { status: "running", workspaceId: "ws-unknown" });
     const fake = createFakePaseo({
-      agents: [placementAgent, fallbackAgent, unknownAgent],
+      agents: [placementAgent, fallbackAgent, unknownAgent, orphanAgent],
       workspaces: [workspace(), makeWorkspace({ id: "ws-unknown", projectId: "missing-project" })],
       projects: [{ ...PROJECT, projectKey: "descriptor-key" }],
       placements: {
-        placement: makePlacement(placementAgent, { projectKey: "placement-key" }),
+        // Paseo 0.14 fills the placement's projectKey with the project id.
+        placement: makePlacement(placementAgent, { projectKey: "project-id-not-key" }),
         fallback: makePlacement(fallbackAgent, { projectKey: "" }),
         unknown: makePlacement(unknownAgent, { projectKey: "" }),
+        orphan: makePlacement(orphanAgent, { projectKey: "placement-key" }),
       },
     });
     const mounted = await mountTasks(fake, "24h", false);
     try {
-      expect(mounted.current.byId.get("placement")?.location.projectKey).toBe("placement-key");
+      expect(mounted.current.byId.get("placement")?.location.projectKey).toBe("descriptor-key");
       expect(mounted.current.byId.get("fallback")?.location.projectKey).toBe("descriptor-key");
       expect(mounted.current.byId.get("unknown")?.location.projectKey).toBeNull();
+      expect(mounted.current.byId.get("orphan")?.location.projectKey).toBe("placement-key");
       const unchanged = mounted.current.byId.get("fallback");
       await act(async () => {
         fake.upsertAgent(
           activeAgent("placement", { status: "running", workspaceId: "ws", title: "Updated placement" }),
-          makePlacement(placementAgent, { projectKey: "placement-key" }),
+          makePlacement(placementAgent, { projectKey: "project-id-not-key" }),
         );
         await Promise.resolve();
       });
