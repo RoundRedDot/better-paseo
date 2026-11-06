@@ -4,7 +4,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, TASK_MONO } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { PREVIEW_REVEAL } from "../../ui/tokens/motion";
-import { panelChrome } from "./panel";
+import { tipChrome } from "./panel";
 import { openToolbarDetailsLayer } from "../../web";
 
 /**
@@ -215,8 +215,7 @@ function HintLayer(props: {
           maxWidth: at.maxWidth,
           paddingHorizontal: 8,
           paddingVertical: 4,
-          ...panelChrome(props.theme),
-          borderRadius: 8,
+          ...tipChrome(props.theme),
         } as ViewStyle,
         reducedMotion ? null : at.bottom !== undefined ? motion?.above : motion?.below,
       ]}

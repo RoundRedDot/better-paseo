@@ -10,7 +10,7 @@ import { pillTint, readableOn, type TaskTokens } from "./tokens";
 import { tildePath } from "./format";
 import { breakable } from "./details-format";
 import { HINT_DELAY_MS } from "./card-hints";
-import { panelChrome } from "./panel";
+import { tipChrome } from "./panel";
 
 const labels: Record<TasksLanguage, Record<TaskIssue["code"], string>> = {
   zh: {
@@ -31,8 +31,11 @@ export function taskIssueText(issue: TaskIssue, language: TasksLanguage): string
   return `${labels[language][issue.code]}${issue.detail ? `\n${issue.detail}` : ""}`;
 }
 
-/** A persistent warning; hover, keyboard focus and touch expose the same explanation. */
-export function AvailabilityTag(props: { issue: TaskIssue | null | undefined; language: TasksLanguage; tokens: TaskTokens; compact?: boolean }) {
+/**
+ * A persistent warning; hover, keyboard focus and touch expose the same explanation.
+ * Hover and focus float it as a tip; a press opens it inline, flat, in the flow.
+ */
+export function AvailabilityTag(props: { issue: TaskIssue | null | undefined; language: TasksLanguage; tokens: TaskTokens; theme: PluginTheme; compact?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [focused, setFocused] = useState(false);
   const { hovered, hoverProps } = useHover();
@@ -50,7 +53,7 @@ export function AvailabilityTag(props: { issue: TaskIssue | null | undefined; la
         <Icon name="TriangleAlert" size={15} color={color} />
         <Text style={{ flexShrink: 1, fontSize: F.sm, lineHeight: HOST_LINE.sm, fontWeight: "600", color }}>{label}</Text>
       </Pressable>
-      {expanded || hovered || focused ? <View pointerEvents="none" testID="task-availability-hint" style={{ ...(expanded ? { marginTop: 4 } : { position: "absolute", top: "100%", left: 0, right: 0 }), padding: 8, borderRadius: 6, borderWidth: 1, borderColor: tint.border, backgroundColor: props.tokens.card.background }}><Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.tokens.foreground }}>{text}{"\n"}{props.language === "zh" ? "相关写操作已禁用；状态恢复后自动重新检查。" : "Affected write actions are disabled; availability is checked again automatically."}</Text></View> : null}
+      {expanded || hovered || focused ? <View pointerEvents="none" testID="task-availability-hint" style={expanded ? { marginTop: 4, padding: 8, borderRadius: 6, borderWidth: 1, borderColor: tint.border, backgroundColor: props.tokens.card.background } : { position: "absolute", top: "100%", left: 0, right: 0, padding: 8, ...tipChrome(props.theme) }}><Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.tokens.foreground }}>{text}{"\n"}{props.language === "zh" ? "相关写操作已禁用；状态恢复后自动重新检查。" : "Affected write actions are disabled; availability is checked again automatically."}</Text></View> : null}
     </View>
   );
 }
@@ -165,7 +168,7 @@ export function AvailabilityCorner(props: {
               event?.stopPropagation?.();
               setPinned(false);
             }}
-            style={{ maxWidth: Math.round(300 * Math.max(1, scale)), paddingHorizontal: 10, paddingTop: 8, paddingBottom: 9, gap: 4, ...panelChrome(props.theme), backgroundColor: props.tokens.isDark ? "#422f10" : "#fff4ce", borderRadius: 8 } as ViewStyle}
+            style={{ maxWidth: Math.round(300 * Math.max(1, scale)), paddingHorizontal: 10, paddingTop: 8, paddingBottom: 9, gap: 4, ...tipChrome(props.theme), backgroundColor: props.tokens.isDark ? "#422f10" : "#fff4ce" } as ViewStyle}
           >
             <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
               <Icon name="TriangleAlert" size={13} color={props.tokens.foregroundMuted} />

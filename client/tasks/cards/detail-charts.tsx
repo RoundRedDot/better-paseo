@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { mix } from "../../components/theme-tokens";
 import { ProgressRing } from "../../ui/progress-ring";
@@ -25,6 +26,7 @@ import type { TaskTokens } from "./tokens";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { tipProps } from "./card-hints";
+import { tipChrome } from "./panel";
 import { webTransition } from "./action-style";
 import { scaleStyle, surfaceLift } from "./surface-lift";
 
@@ -46,9 +48,6 @@ export interface DetailColors {
   tokens: Record<TokenPart, string>;
   errorFill: string;
   errorBorder: string;
-  tipFill: string;
-  tipText: string;
-  tipMuted: string;
 }
 
 const colorCache = new WeakMap<TaskTokens, DetailColors>();
@@ -67,9 +66,6 @@ export function detailColors(tokens: TaskTokens): DetailColors {
       tokens: { cached: mix(card, tokens.accent, 0.32), input: tokens.accent, output: mix(card, fg, 0.45) },
       errorFill: mix(card, tokens.danger, 0.06),
       errorBorder: mix(card, tokens.danger, 0.28),
-      tipFill: fg,
-      tipText: card,
-      tipMuted: mix(fg, card, 0.65),
     };
     colorCache.set(tokens, colors);
   }
@@ -110,21 +106,27 @@ function useTip<K extends string>(touch: boolean) {
   return { tip, bind };
 }
 
-/** A dark tooltip: a title and a muted line, above its anchor. */
-function Tip(props: { colors: DetailColors; title: string; sub: string; style: ViewStyle; testID?: string }) {
+/** A chart tooltip in the card tips' chrome: the menu surface, a hairline, radius 8. */
+function Tip(props: { theme: PluginTheme; tokens: TaskTokens; title: string; sub: string; style: ViewStyle; testID?: string }) {
   return (
     <View
       pointerEvents="none"
       testID={props.testID}
       style={[
-        { position: "absolute", zIndex: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 6, backgroundColor: props.colors.tipFill, boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.14)" } as ViewStyle,
+        {
+          position: "absolute",
+          zIndex: 5,
+          paddingHorizontal: 8,
+          paddingVertical: 4,
+          ...tipChrome(props.theme),
+        } as ViewStyle,
         props.style,
       ]}
     >
-      <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, fontWeight: "500", color: props.colors.tipText }}>
+      <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, fontWeight: "500", color: props.tokens.foreground }}>
         {props.title}
       </Text>
-      <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.colors.tipMuted }}>
+      <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.tokens.foregroundMuted }}>
         {props.sub}
       </Text>
     </View>
@@ -132,7 +134,7 @@ function Tip(props: { colors: DetailColors; title: string; sub: string; style: V
 }
 
 /** A tooltip at `at` px along a track `width` wide, kept inside it. */
-function TrackTip(props: { colors: DetailColors; title: string; sub: string; at: number; width: number; bottom: number; testID?: string }) {
+function TrackTip(props: { theme: PluginTheme; tokens: TaskTokens; title: string; sub: string; at: number; width: number; bottom: number; testID?: string }) {
   const [tipWidth, setTipWidth] = useState(0);
   const left = Math.max(0, Math.min(props.at - tipWidth / 2, props.width - tipWidth));
   return (
@@ -141,7 +143,7 @@ function TrackTip(props: { colors: DetailColors; title: string; sub: string; at:
       onLayout={(event: LayoutChangeEvent) => setTipWidth(event.nativeEvent.layout.width)}
       style={{ position: "absolute", zIndex: 5, bottom: props.bottom, left, opacity: tipWidth > 0 ? 1 : 0 }}
     >
-      <Tip colors={props.colors} title={props.title} sub={props.sub} style={{ position: "relative" }} testID={props.testID} />
+      <Tip theme={props.theme} tokens={props.tokens} title={props.title} sub={props.sub} style={{ position: "relative" }} testID={props.testID} />
     </View>
   );
 }
@@ -179,7 +181,7 @@ function monoFigures(text: string) {
  * and context, and the ring shrinks to the context's label icon.
  */
 /** `timerOnly`: a provider subagent's run, which has no turns or context of its own to report. */
-export function TurnHero(props: { timer: string; lastTurn: string | null; total: { value: string; sub: string } | null; context: ContextView | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage; timerOnly?: boolean }) {
+export function TurnHero(props: { timer: string; lastTurn: string | null; total: { value: string; sub: string } | null; context: ContextView | null; tokens: TaskTokens; theme: PluginTheme; touch: boolean; language: TasksLanguage; timerOnly?: boolean }) {
   const { tokens, context } = props;
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
@@ -265,7 +267,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
               </>
             )}
             {tip === "context" && context ? (
-              <Tip colors={colors} title={`${words.context} · ${context.percent}`} sub={words.tokensUnit(context.exact)} style={{ bottom: "100%", left: 12, marginBottom: 6 }} testID="detail-context-tip" />
+              <Tip theme={props.theme} tokens={tokens} title={`${words.context} · ${context.percent}`} sub={words.tokensUnit(context.exact)} style={{ bottom: "100%", left: 12, marginBottom: 6 }} testID="detail-context-tip" />
             ) : null}
           </Pressable>
         </>
@@ -277,7 +279,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
 // ---- Usage -----------------------------------------------------------------
 
 /** The context bar with notches at 75% and 90%, outside the running turn. */
-export function ContextBar(props: { context: ContextView | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage; font: number }) {
+export function ContextBar(props: { context: ContextView | null; tokens: TaskTokens; theme: PluginTheme; touch: boolean; language: TasksLanguage; font: number }) {
   const { context, tokens } = props;
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
@@ -305,14 +307,14 @@ export function ContextBar(props: { context: ContextView | null; tokens: TaskTok
         <View style={{ position: "absolute", left: "90%", top: 0, bottom: 0, width: 2, backgroundColor: tokens.card.background }} />
       </View>
       {tip === "context" ? (
-        <Tip colors={colors} title={`${words.context} · ${context.percent}`} sub={words.tokensUnit(context.exact)} style={{ bottom: "100%", right: 0, marginBottom: 4 }} testID="detail-context-tip" />
+        <Tip theme={props.theme} tokens={tokens} title={`${words.context} · ${context.percent}`} sub={words.tokensUnit(context.exact)} style={{ bottom: "100%", right: 0, marginBottom: 4 }} testID="detail-context-tip" />
       ) : null}
     </Pressable>
   );
 }
 
 /** Cached input, new input and output as one stacked bar with a legend; a segment's tooltip has its exact count. */
-export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage; font: number }) {
+export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; theme: PluginTheme; touch: boolean; language: TasksLanguage; font: number }) {
   const { mix: tokenMix, tokens } = props;
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
@@ -348,7 +350,8 @@ export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touc
             </View>
             {shown ? (
               <TrackTip
-                colors={colors}
+                theme={props.theme}
+                tokens={tokens}
                 title={`${words.tokenParts[shown.part]} · ${words.tokensUnit(formatExact(shown.tokens))}`}
                 sub={words.tokenShare(formatShare(shown.share), formatExact(tokenMix.total))}
                 at={(mids[shown.part] ?? 0.5) * width}

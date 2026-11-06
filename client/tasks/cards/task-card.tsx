@@ -44,7 +44,7 @@ import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import type { CardFilterKind, CardFilterState } from "../board/filter-options";
 import { layoutMenu } from "../board/menu-model";
 import { BUTTON_LINE, buttonOutline } from "../board/board-style";
-import { panelChrome } from "./panel";
+import { tipChrome } from "./panel";
 import { cardStrings, subtaskSummary } from "./strings";
 import { TagMark } from "./tag-mark";
 import { pillTint, readableOn, taskTokens, type TaskTokens } from "./tokens";
@@ -1986,10 +1986,10 @@ function ContextMeter(props: {
             right: -8,
             top: Math.round(props.line * scale) + 6,
             minWidth: 180,
-            paddingHorizontal: 10,
+            paddingHorizontal: 8,
             paddingVertical: 8,
             gap: 4,
-            ...panelChrome(props.theme),
+            ...tipChrome(props.theme),
           } as ViewStyle}
           testID="task-card-context-details"
         >

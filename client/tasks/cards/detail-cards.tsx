@@ -704,7 +704,7 @@ function DetailHeader(props: Inner) {
           />
         ))}
       </View>
-      <AvailabilityTag issue={card.availability?.issue} language={props.language} tokens={tokens} compact={touch} />
+      <AvailabilityTag issue={card.availability?.issue} language={props.language} tokens={tokens} theme={props.theme} compact={touch} />
       {showActions ? (
         <ActionRow style={{ marginTop: 12 }} testID="detail-actions">
           {touch ? null : lead}
@@ -782,6 +782,7 @@ function RunningTurn(props: Inner) {
       total={sessionTotal(props.sessionTokens ?? null, props.language)}
       context={contextView(card)}
       tokens={props.tokens}
+      theme={props.theme}
       touch={props.touch === true}
       language={props.language}
       timerOnly={!!card.subagent}
@@ -1802,8 +1803,8 @@ function Usage(props: Inner) {
   );
   return (
     <View style={{ paddingHorizontal: 6, paddingTop: 4, paddingBottom: 4, gap: 14 }}>
-      {detailHero(card) !== "turn" ? <ContextBar context={contextView(card)} tokens={tokens} touch={touch} language={props.language} font={font} /> : null}
-      <TokenBar mix={tokenMix(card)} tokens={tokens} touch={touch} language={props.language} font={font} />
+      {detailHero(card) !== "turn" ? <ContextBar context={contextView(card)} tokens={tokens} theme={props.theme} touch={touch} language={props.language} font={font} /> : null}
+      <TokenBar mix={tokenMix(card)} tokens={tokens} theme={props.theme} touch={touch} language={props.language} font={font} />
       <View>
         {line("cost", "Coins", words.totalCost, cost !== null ? `$${cost.toFixed(2)}` : "—", true)}
         {line("turn", "Hourglass", words.lastTurnTime, card.timing.lastTurnMs !== null ? formatDuration(card.timing.lastTurnMs) : "—", false)}

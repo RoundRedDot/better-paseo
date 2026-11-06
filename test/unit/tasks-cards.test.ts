@@ -7,6 +7,7 @@ import { nativeProseText } from "./helpers/native-prose-text";
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React from "react";
+import { StyleSheet } from "react-native";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -452,6 +453,58 @@ describe("unavailable task operations", () => {
     const props = { card, theme: LIGHT, language: "zh" as const, strings: BOARD_STRINGS.zh.sidebar, archive };
     const tree = await render(surface === "card" ? cardElement(card, { compact: true, onArchive: archive.press }) : surface === "details" ? React.createElement(TaskDetailCards, props) : React.createElement(DetailActionBar, props));
     expect(hostByTestId(tree.root, surface === "card" ? "task-card-archive" : surface === "details" ? "detail-archive" : "detail-bar-archive").props.disabled).toBe(true);
+  });
+
+  it.each([["light", LIGHT], ["dark", DARK]] as const)("floats the details' %s availability hint on hover and opens it flat, in the flow, on a press", async (_name, theme) => {
+    const card = { ...sample("sample-done"), availability: unavailableTask({ code: "directory_missing", detail: "/removed/worktree" }) };
+    const tokens = taskTokens(theme as never);
+    const chrome = menuChrome(theme);
+    const tree = await render(React.createElement(TaskDetailCards, { card, theme, now: NOW, language: "zh" as const, strings: BOARD_STRINGS.zh.sidebar }));
+    const tag = () => hostByTestId(tree.root, "task-availability-tag");
+    await act(async () => tag().props.onHoverIn());
+    expect(flat(hostByTestId(tree.root, "task-availability-hint").props.style)).toMatchObject({
+      position: "absolute",
+      top: "100%",
+      padding: 8,
+      backgroundColor: chrome.background,
+      borderColor: chrome.border,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderRadius: 8,
+      boxShadow: chrome.shadow,
+    });
+    await act(async () => tag().props.onHoverOut());
+    expect(hints(tree)).toHaveLength(0);
+    // Pressed open it sits in the flow above the actions: flat, in the warning's border, no shadow.
+    await act(async () => tag().props.onPress({ stopPropagation() {} }));
+    expect(flat(hostByTestId(tree.root, "task-availability-hint").props.style)).toEqual({
+      marginTop: 4,
+      padding: 8,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: pillTint(tokens, tokens.warning).border,
+      backgroundColor: tokens.card.background,
+    });
+  });
+
+  it.each([["light", LIGHT], ["dark", DARK]] as const)("frames the corner's %s hint in the tip chrome on the warning fill, with its own padding", async (_name, theme) => {
+    const card = { ...sample("sample-child-1"), availability: unavailableTask({ code: "workspace_unavailable", detail: "/removed/worktree" }) };
+    const tokens = taskTokens(theme as never);
+    const chrome = menuChrome(theme);
+    const tree = await render(cardElement(card, { theme }));
+    await act(async () => hostByTestId(tree.root, "task-availability-corner-hit").props.onPress({ stopPropagation() {} }));
+    const hint = hostByTestId(tree.root, "task-availability-hint");
+    const panel = hint.findAll((node) => typeof node.type === "string" && node !== hint && flat(node.props.style).maxWidth !== undefined)[0]!;
+    expect(flat(panel.props.style)).toMatchObject({
+      paddingHorizontal: 10,
+      paddingTop: 8,
+      paddingBottom: 9,
+      gap: 4,
+      borderColor: chrome.border,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderRadius: 8,
+      boxShadow: chrome.shadow,
+      backgroundColor: tokens.isDark ? "#422f10" : "#fff4ce",
+    });
   });
 });
 /** The running sample's start, 12m 30s before NOW, in the machine's time zone. */
@@ -2899,6 +2952,69 @@ describe("TaskDetailCards", () => {
     expect(tree.root.findAll((node) => (node.type as { name?: string }).name === "ProgressRing")[0]!.props).toMatchObject({ size: 44 });
   });
 
+  it("frames the sidebar chart tips in the card tip chrome", async () => {
+    for (const theme of [LIGHT, DARK]) {
+      const tokens = taskTokens(theme);
+      const chrome = menuChrome(theme);
+      const tree = await render(details(sample("sample-running"), { theme }));
+      await act(async () => hostByTestId(tree.root, "detail-context").props.onHoverIn());
+      const tip = hostByTestId(tree.root, "detail-context-tip");
+      expect(texts(tip)).toEqual(["上下文 · 86%", "172,000 / 200,000 tokens"]);
+      expect(flat(tip.props.style)).toMatchObject({
+        backgroundColor: chrome.background,
+        borderColor: chrome.border,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderRadius: 8,
+        boxShadow: chrome.shadow,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+      });
+      const lines = tip.findAll((node) => (node.type as unknown) === "Text");
+      expect(flat(lines[0]!.props.style).color).toBe(tokens.foreground);
+      expect(flat(lines[1]!.props.style).color).toBe(tokens.foregroundMuted);
+      await act(async () => hostByTestId(tree.root, "detail-tokens-cached").props.onHoverIn());
+      expect(flat(hostByTestId(tree.root, "detail-tokens-tip").props.style)).toMatchObject({
+        backgroundColor: chrome.background,
+        borderRadius: 8,
+        boxShadow: chrome.shadow,
+      });
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
+  });
+
+  it("frames the context bar's tip outside a running turn in the card tip chrome", async () => {
+    for (const theme of [LIGHT, DARK]) {
+      const tokens = taskTokens(theme);
+      const chrome = menuChrome(theme);
+      const tree = await render(details({ ...sample("sample-done"), context: { usedTokens: 41_000, maxTokens: 128_000 } }, { theme }));
+      // Outside a running turn the context is the usage's bar, not the turn's block.
+      expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-context")).toHaveLength(0);
+      await act(async () => hostByTestId(tree.root, "detail-context-bar").props.onHoverIn());
+      const tip = hostByTestId(tree.root, "detail-context-tip");
+      expect(texts(tip)).toEqual(["上下文 · 32%", "41,000 / 128,000 tokens"]);
+      expect(flat(tip.props.style)).toMatchObject({
+        position: "absolute",
+        bottom: "100%",
+        right: 0,
+        backgroundColor: chrome.background,
+        borderColor: chrome.border,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderRadius: 8,
+        boxShadow: chrome.shadow,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+      });
+      const lines = tip.findAll((node) => (node.type as unknown) === "Text");
+      expect(flat(lines[0]!.props.style).color).toBe(tokens.foreground);
+      expect(flat(lines[1]!.props.style).color).toBe(tokens.foregroundMuted);
+      await act(async () => hostByTestId(tree.root, "detail-context-bar").props.onHoverOut());
+      expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-context-tip")).toHaveLength(0);
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
+  });
+
   it("uses monospace for turn figures without changing their labels", async () => {
     const tree = await render(details(sample("sample-running"), { sessionTokens: { total: 15_322_587, cached: 14_943_278 } }));
     const turn = hostByTestId(tree.root, "detail-turn");
@@ -4186,7 +4302,7 @@ describe("overlays in the board's menu chrome", () => {
     for (const theme of [LIGHT, DARK]) {
       const tree = await render(cardElement(sample("sample-running"), { theme }));
       await act(async () => hostByTestId(tree.root, "task-card-context").props.onHoverIn());
-      expect(flat(hostByTestId(tree.root, "task-card-context-details").props.style)).toMatchObject({ position: "absolute", ...chromeOf(theme) });
+      expect(flat(hostByTestId(tree.root, "task-card-context-details").props.style)).toMatchObject({ position: "absolute", ...chromeOf(theme), borderRadius: 8, paddingHorizontal: 8 });
       await act(async () => tree.unmount());
       renderer = null;
     }
