@@ -4,7 +4,7 @@ import { openTerminalRpc, updateCommand } from "../shared/open-terminal";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { copyText, TextInput } from "@getpaseo/plugin/client/react-native";
-import { DETAILS_FONT_SIZE_DEFAULT, DETAILS_FONT_SIZE_MIN, DETAILS_FONT_SIZE_MAX, clampDetailsFontSize } from "../shared/preferences-settings";
+import { DETAILS_FONT_SIZE_DEFAULT, DETAILS_FONT_SIZE_MIN, DETAILS_FONT_SIZE_MAX, clampDetailsFontSize, nativeBlockPatternError } from "../shared/preferences-settings";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { codeSurface, itemRootFont } from "./components/host-font-escape";
 import { radiusV2, space, buildThemeTokens, inlineCodeColor, type ExtendedThemeTokens } from "./components/theme-tokens";
@@ -145,6 +145,44 @@ function CustomMonoInput({ value, look }: { value: string; look: PageLook }) {
       ]}
     />
   );
+}
+
+function NativeBlocksInput({ value, look }: { value: string[]; look: PageLook }) {
+  const { tokens, t } = look;
+  const [draft, setDraft] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const add = () => {
+    const pattern = draft.trim();
+    if (pattern === "") { setError(t.nativeBlocksEmpty); return; }
+    const invalid = nativeBlockPatternError(pattern);
+    if (invalid) { setError(`${t.nativeBlocksInvalid}: ${invalid}`); return; }
+    updateEnhancerPreferences({ nativeBlockLanguages: [...value, pattern] });
+    setDraft("");
+    setError(null);
+  };
+  return <View style={{ gap: space.sm }}>
+    {value.map((pattern, index) => <View key={index} style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
+      <Text style={[settingsTextStyle(tokens, -1), { color: tokens.foreground, fontFamily: tokens.fontMono, flex: 1 }]}>{pattern}</Text>
+      <PlainButton label={t.nativeBlocksRemove} accessibilityLabel={`${t.nativeBlocksRemove} ${index + 1}`}
+        onPress={() => updateEnhancerPreferences({ nativeBlockLanguages: value.filter((_, slot) => slot !== index) })} look={look} />
+    </View>)}
+    <TextInput
+      accessibilityLabel={t.nativeBlocksTitle}
+      value={draft}
+      onChangeText={(next) => { setDraft(next); setError(null); }}
+      onSubmitEditing={add}
+      placeholder="^drawio$"
+      placeholderTextColor={tokens.foregroundSubtle}
+      autoCapitalize="none"
+      autoCorrect={false}
+      style={[styles.input, settingsTextStyle(tokens, -1), {
+        color: tokens.foreground, borderColor: tokens.v2.border,
+        backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono,
+      }]}
+    />
+    {error ? <Text accessibilityRole="alert" style={[settingsTextStyle(tokens, -1), { color: tokens.danger }]}>{error}</Text> : null}
+    <PlainButton label={t.nativeBlocksAdd} onPress={add} look={look} />
+  </View>;
 }
 
 /** Seconds as the field shows them: `1`, `0.5`, never `1.0` or `0.30000000000000004`. */
@@ -1013,6 +1051,14 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
               look={look}
             />
           }
+          look={look}
+          stacked
+          disabled={!preferences.assistantMarkdown}
+        />
+        <SettingRow
+          title={t.nativeBlocksTitle}
+          description={t.nativeBlocksDescription}
+          control={<NativeBlocksInput value={preferences.nativeBlockLanguages} look={look} />}
           look={look}
           stacked
           disabled={!preferences.assistantMarkdown}
