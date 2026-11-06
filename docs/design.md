@@ -30,6 +30,22 @@ constants. Moving a constant from one family to the other is a design change, no
 - Lane titles are base 14/20 on the web and sm 12/18 on native (`laneTitle`). Board monospace is
   `TASK_MONO`: Menlo on iOS, `monospace` on Android, a `ui-monospace` stack on the web.
 
+### Short action tooltips
+
+Simple hover labels use the command-copy hint as their visual reference
+(`client/ui/toolbar-button.tsx`, `tooltipLook`): an opaque `surface0` background,
+`foreground` UI text, the theme's `v2.border` hairline (1px on web), 4pt corners,
+6pt horizontal and 4pt vertical padding, and fixed 12/18 type (`UI_SCALE.base`).
+The shadow is black at `0 2 8`, with 12% opacity in light themes and 36% in dark
+themes. The label is unselectable; it has no arrow or pill shape.
+
+This is the design constraint for short action labels, including host-rendered
+diagram and source toolbar hints. New simple hints reuse this look rather than
+introducing another bubble style. Rich hover panels keep their own content layout.
+Hover and keyboard focus retain the localized action label, disabled-state semantics,
+and existing button visibility. Placement must keep the hint readable above code,
+outside scrolling clips and within the viewport.
+
 ### Space, radius and lines
 
 - Chat, details and settings space on `space` (4, 8, 12, 16; 24 only between settings sections)
