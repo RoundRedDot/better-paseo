@@ -3926,7 +3926,9 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostParentOf(search())?.props.testID).toBe("tablet-toolbar-search-group");
     expect(hostParentOf(hostsById("tablet-toolbar-search-group")[0]!)?.props.testID).toBe("tablet-toolbar-start");
     expect(bar().findAll((node) => node === search())).toHaveLength(1);
-    expect(hostsById("tablet-search-toggle")).toHaveLength(0);
+    expect(hostsById("tablet-search-toggle")).toHaveLength(1);
+    expect(style(hostsById("tablet-search-toggle")[0]!).backgroundColor).toBe("transparent");
+    expect(hostsById("tablet-toolbar-start")[0]!.children.map((node) => typeof node === "string" ? node : node.props.testID)).toEqual(["tablet-search-toggle", "tablet-toolbar-search-group"]);
     expect(search().findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "Search")).toHaveLength(0);
     expect(style(search())).toMatchObject({ height: Math.round(40 * base / 14) - 8, flex: 1, minWidth: 0 });
     expect(style(search()).position).toBeUndefined();
@@ -3940,11 +3942,13 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(style(input()).fontSize).toBe(Math.round(12 * base / 14));
     act(() => input().props.onChangeText("needle"));
     expect(input().props.value).toBe("needle");
+    expect(style(hostsById("tablet-search-toggle")[0]!).backgroundColor).toBe("transparent");
     act(() => hostsById("tablet-search-clear")[0]!.props.onPress());
     expect(input().props.value).toBe("");
     expect(hostsById("tablet-search-clear")).toHaveLength(0);
-    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
+    act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     expect(hostsById("tablet-toolbar-search")).toHaveLength(0);
+    expect(style(hostsById("tablet-search-toggle")[0]!).backgroundColor).toBe("transparent");
     expect(hostsById("tablet-toolbar-total")).toHaveLength(1);
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
     act(() => hostsById("tablet-view")[0]!.props.onPress());
@@ -4199,7 +4203,7 @@ describe("Tasks board, tablet filters", () => {
     const field = hostsById("tablet-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput" && [BOARD_STRINGS.en.search, BOARD_STRINGS.zh.search].includes(node.props.accessibilityLabel));
     act(() => field.props.onChangeText("needle"));
     expect(order()).toEqual(expected);
-    expect(hostsById("tablet-search-toggle")).toHaveLength(0);
+    expect(hostsById("tablet-search-toggle")).toHaveLength(1);
     expect(order()).toEqual(expected);
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     expect(hostsById("filter-sheet-scroll")).toHaveLength(1);

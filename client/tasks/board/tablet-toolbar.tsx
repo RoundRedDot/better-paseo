@@ -125,7 +125,8 @@ export function TabletToolbar(props: {
       <View pointerEvents="box-none" testID="tablet-toolbar" onLayout={(event) => setToolbarWidth(event.nativeEvent.layout.width)} style={{ height, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>
         {/* Match both side slots' minimums: native flex otherwise shifts the title towards the search. */}
         <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: inlineSearch && searching ? 160 : compact && centered && !expandedSearch ? minimumActionsWidth : 0, marginLeft: -8, marginRight: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {inlineSearch || expandedSearch ? search : <ToolbarButton icon="Search" label={strings.searchButton} selected={!!board.params.query} theme={theme} testID="tablet-search-toggle" onPress={() => { props.filters?.onClose(); setPage(null); setSearchOpen(true); }} />}
+          {inlineSearch ? search : <ToolbarButton icon="Search" label={strings.searchButton} selected={searchOpen || !!board.params.query} hideSelectedBackground theme={theme} testID="tablet-search-toggle" onPress={() => { props.filters?.onClose(); setPage(null); setSearchOpen(!searchOpen); }} />}
+          {expandedSearch ? search : null}
         </View>
         {expandedSearch ? null : <SearchQueryChip board={board} theme={theme} />}
         <SearchCoverageItems theme={theme} />
