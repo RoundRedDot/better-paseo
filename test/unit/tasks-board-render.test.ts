@@ -2122,6 +2122,60 @@ describe("Tasks board, desktop", () => {
     expect(readSidebarPreference().open).toBe(true);
   });
 
+  it.each([
+    ["ios", 1100], ["ios", 1600], ["android", 1100], ["android", 1600],
+  ] as const)("%s shows and resizes the inline details handle at %i pt", async (os, viewport) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const { TurboModuleRegistry } = await import("react-native");
+    const handleSetJSResponder = vi.fn();
+    const flushOperations = vi.fn();
+    const module = vi.spyOn(TurboModuleRegistry, "get").mockImplementation(((name: string) =>
+      name === "RNGestureHandlerModule" ? { handleSetJSResponder, flushOperations } : null) as typeof TurboModuleRegistry.get);
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(viewport);
+      const handle = () => hostsById("sidebar-resize")[0]!;
+      const width = () => liveNumber(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).width);
+      const event = (pageX: number) => ({ nativeEvent: { pageX } });
+      const start = () => act(() => {
+        handle().props.onStartShouldSetPanResponderCapture(event(700));
+        expect(handle().props.onStartShouldSetPanResponder()).toBe(true);
+        handle().props.onPanResponderGrant();
+      });
+      const max = Math.min(800, viewport - 12 - 612);
+      expect(hostsById("floating-sidebar-resize")).toHaveLength(0);
+      expect(StyleSheet.flatten(hostsById("sidebar-resize-grabber")[0]!.props.style).opacity).toBe(0.5);
+      expect(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).paddingLeft).toBeGreaterThan(StyleSheet.flatten(handle().props.style).width);
+      expect(handle().props.accessibilityValue).toEqual({ min: 260, max, now: 380 });
+      start();
+      if (os === "ios") {
+        expect(handleSetJSResponder).toHaveBeenCalledWith(expect.any(Number), true);
+        expect(flushOperations).toHaveBeenCalledTimes(1);
+      }
+      expect(handle().props.onPanResponderTerminationRequest()).toBe(false);
+      act(() => handle().props.onPanResponderMove(event(0)));
+      expect(width()).toBe(max);
+      act(() => handle().props.onPanResponderMove(event(1000)));
+      expect(width()).toBe(260);
+      expect(readSidebarPreference().width).toBe(380);
+      act(() => handle().props.onPanResponderTerminate());
+      expect(width()).toBe(380);
+      start();
+      act(() => handle().props.onPanResponderMove(event(660)));
+      expect(width()).toBe(420);
+      act(() => handle().props.onPanResponderRelease(event(650)));
+      expect(width()).toBe(430);
+      expect(readSidebarPreference().width).toBe(430);
+      act(() => handle().props.onAccessibilityAction({ nativeEvent: { actionName: "increment" } }));
+      expect(width()).toBe(450);
+      act(() => { renderer!.unmount(); renderer = TestRenderer.create(screen(false)); });
+      layOut(viewport);
+      expect(width()).toBe(450);
+    } finally {
+      module.mockRestore();
+    }
+  });
+
   it.each([14, 21])("iPad floating sidebar uses smaller text at UI base %i and keeps other layouts unchanged", (base) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     const uiTheme = { ...(theme as object), typography: { fontSize: { ui: base } } };

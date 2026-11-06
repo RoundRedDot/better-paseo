@@ -765,7 +765,7 @@ export function DesktopBoard(props: {
           {unfilteredEmpty ? <BoardEmpty board={board} theme={theme} /> : null}
         </View>
         {mode === "inline" && !floating ? (
-          <SidebarColumn open={inline} width={panelWidth} theme={theme} fit={fitInline} onDrag={dragSidebar} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
+          <SidebarColumn open={inline} width={panelWidth} theme={theme} label={strings.sidebar.resize} fit={fitInline} onDrag={dragSidebar} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
             {sidebar}
           </SidebarColumn>
         ) : null}
@@ -950,7 +950,7 @@ function LaneGap(props: { onPress(): void }) {
 
 /**
  * The inline sidebar: a column at the board's right, 12 from its edge, its
- * left inset holding the drag handle on web. A drag
+ * left inset holding the drag handle. A drag
  * resizes the column and the lanes' viewport, at most once a frame; the
  * release keeps the width. A double click puts 380 back.
  *
@@ -963,6 +963,7 @@ function SidebarColumn(props: {
   open: boolean;
   width: number;
   theme: PluginTheme;
+  label: string;
   fit(width: number): number;
   onDrag(width: number | null, drawn: boolean): void;
   onResize(width: number): void;
@@ -994,6 +995,41 @@ function SidebarColumn(props: {
   const panelRef = useRef<View>(null);
   const handleRef = useRef<View>(null);
   const indicatorRef = useRef<View>(null);
+  const releaseGestures = useRef<(() => void) | null>(null);
+  useEffect(() => () => releaseGestures.current?.(), []);
+  const pan = useMemo(() => {
+    let touchX = 0;
+    let startWidth = 0;
+    const widthAt = (event: GestureResponderEvent) => live.current.fit(clampWidth(startWidth + touchX - event.nativeEvent.pageX));
+    return PanResponder.create({
+      onStartShouldSetPanResponderCapture: (event) => {
+        touchX = event.nativeEvent.pageX;
+        return false;
+      },
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 4 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        startWidth = live.current.width;
+        releaseGestures.current = holdHostGestures(handleRef.current);
+        setDragging(true);
+      },
+      onPanResponderMove: (event) => live.current.onDrag(widthAt(event), false),
+      onPanResponderRelease: (event) => {
+        releaseGestures.current?.();
+        releaseGestures.current = null;
+        live.current.onResize(widthAt(event));
+        live.current.onDrag(null, false);
+        setDragging(false);
+      },
+      onPanResponderTerminate: () => {
+        releaseGestures.current?.();
+        releaseGestures.current = null;
+        live.current.onDrag(null, false);
+        setDragging(false);
+      },
+    });
+  }, []);
   const dom = () => [handleRef.current, indicatorRef.current] as unknown as [HTMLElement | null, HTMLElement | null];
   const follow = (clientY: number) => followPointer(...dom(), clientY);
   const start = (event: { nativeEvent: { pageX: number; clientY: number } }) => {
@@ -1071,7 +1107,27 @@ function SidebarColumn(props: {
         <View ref={indicatorRef} {...resizeIndicatorProps} style={{ position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 }} />
       </View>
     </View>
-  ) : null;
+  ) : (
+    <View
+      ref={handleRef}
+      collapsable={false}
+      {...pan.panHandlers}
+      accessible
+      accessibilityRole="adjustable"
+      accessibilityLabel={props.label}
+      accessibilityValue={{ min: SIDEBAR.min, max: props.fit(SIDEBAR.max), now: props.width }}
+      accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+      onAccessibilityAction={(event) => {
+        const action = event.nativeEvent.actionName;
+        if (action !== "increment" && action !== "decrement") return;
+        props.onResize(props.fit(clampWidth(props.width + (action === "increment" ? 20 : -20))));
+      }}
+      testID="sidebar-resize"
+      style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 12, alignItems: "center", justifyContent: "center", zIndex: 5 }}
+    >
+      <View pointerEvents="none" testID="sidebar-resize-grabber" style={{ width: 4, height: 40, borderRadius: 2, backgroundColor: dragging ? props.theme.colors.accent : props.theme.colors.foregroundMuted, opacity: dragging ? 1 : 0.5 }} />
+    </View>
+  );
   if (!props.open && (!mounted || reduced)) return null;
   return (
     // Animate only the slot and surface: fixed-width cards do not reflow on every frame.
@@ -1095,7 +1151,7 @@ function SidebarColumn(props: {
           right: SIDEBAR.gap,
           width: props.width,
           // Include the outer margin in the right inset to match the toolbar's 16 pt.
-          ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingHorizontal: 10 }),
+          ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingLeft: 14, paddingRight: 10 }),
           paddingTop: 4,
           paddingBottom: 12,
           minHeight: 0,
