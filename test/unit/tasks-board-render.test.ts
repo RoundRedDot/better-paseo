@@ -2625,14 +2625,71 @@ describe("Tasks board, desktop", () => {
     expect(width()).toBe(410);
   });
 
-  it("keeps the web floating sidebar at its original width without the tablet grabber", () => {
+  it("uses the desktop handle for the web floating sidebar", () => {
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(900);
     toggleSidebarControl();
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width).toBe(380);
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).right).toBe(12);
-    expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).paddingLeft).toBe(8);
+    expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).paddingLeft).toBe(10);
+    expect(hostsById("sidebar-resize")).toHaveLength(1);
     expect(hostsById("floating-sidebar-resize")).toHaveLength(0);
+  });
+
+  it.each([900, 1600])("resizes a sidebar opened from a card after hiding it at %i pt", (viewport) => {
+    const listeners = new Map<string, (event: { pageX: number; clientY: number }) => void>();
+    vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
+    vi.stubGlobal("document", {
+      body: { style: {} },
+      addEventListener: (name: string, handler: (event: { pageX: number; clientY: number }) => void) => listeners.set(name, handler),
+      removeEventListener: (name: string) => listeners.delete(name),
+    });
+    vi.stubGlobal("requestAnimationFrame", (callback: () => void) => setTimeout(callback, 16));
+    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(1600);
+      toggleSidebarControl();
+      layOut(viewport);
+      expect(readSidebarPreference().open).toBe(false);
+      const select = () => {
+        const card = cards().find((node) => node.props.card.id === "sample-running")!;
+        act(() => card.props.onSelect(card.props.card));
+      };
+      select();
+      const panel = () => hostsById("sidebar-floating")[0]!;
+      const width = () => StyleSheet.flatten(panel().props.style).width;
+      const grabberOpacity = () => StyleSheet.flatten(hostsById("sidebar-resize-grabber")[0]!.props.style).opacity;
+      const laneWidths = () => LANE_ORDER.map((id) => StyleSheet.flatten(hostsById(`lane-surface-${id}`)[0]!.props.style).width);
+      const originalWidths = laneWidths();
+      expect(width()).toBe(380);
+      expect(hostsById("sidebar-inline")).toHaveLength(0);
+      act(() => panel().props.onPointerEnter());
+      expect(grabberOpacity()).toBe(0.5);
+      act(() => hostsById("sidebar-resize")[0]!.props.onPointerDown({ nativeEvent: { pageX: 1000, clientY: 200 } }));
+      act(() => panel().props.onPointerLeave());
+      expect(grabberOpacity()).toBe(0.5);
+      for (const [pageX, expected] of [[0, 800], [2000, 260], [950, 430]] as const) {
+        act(() => listeners.get("pointermove")!({ pageX, clientY: 200 }));
+        act(() => { vi.advanceTimersByTime(16); });
+        expect(width()).toBe(expected);
+        expect(laneWidths()).toEqual(originalWidths);
+      }
+      act(() => listeners.get("pointerup")!({ pageX: 950, clientY: 200 }));
+      expect(grabberOpacity()).toBe(0);
+      expect(readSidebarPreference()).toMatchObject({ open: false, width: 430 });
+      expect(listeners.has("pointermove")).toBe(false);
+      expect(listeners.has("pointerup")).toBe(false);
+      toggleSidebarControl();
+      expect(hostsById("sidebar-floating")).toHaveLength(0);
+      select();
+      expect(width()).toBe(430);
+      expect(readSidebarPreference().open).toBe(false);
+    } finally {
+      act(() => renderer?.unmount());
+      renderer = undefined;
+      vi.unstubAllGlobals();
+    }
   });
 
   it("wires the cards: open jumps to the agent, a hidden parent toasts", () => {

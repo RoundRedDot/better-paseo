@@ -322,6 +322,7 @@ export function DesktopBoard(props: {
   // not the sidebar's (`boardLaneLayout`).
   const dragViewRef = useRef<(width: number) => string>(() => "");
   dragViewRef.current = (width: number) => {
+    if (floating) return lanesInView(laneOrder, collapsed, layout.laneWidth, rowScrollX.current, lanesWidth - sidebarWidth(boardWidth, width, "floating") - SIDEBAR.gap);
     const viewport = Math.max(0, boardWidth - sidebarWidth(boardWidth, width, "inline") - SIDEBAR.gap);
     const lanes = boardLaneLayout(boardWidth, archivedSwitch.drawn, collapsedState, board.laneWidth, viewport, laneSizing);
     return `${lanes.scroll}${lanesInView(laneOrder, collapsed, lanes.laneWidth, rowScrollX.current, viewport)}`;
@@ -343,6 +344,7 @@ export function DesktopBoard(props: {
     setFloatingDragWidth(width);
   }, []);
   const fitInline = useCallback((width: number) => sidebarWidth(latest.current.boardWidth, width, "inline"), []);
+  const fitFloating = useCallback((width: number) => sidebarWidth(latest.current.boardWidth, width, "floating"), []);
   // The view the board last drew for the dragged width.
   const dragView = useRef<string | null>(null);
   // `drawn`: the column already took the width on the page. The board then
@@ -797,6 +799,10 @@ export function DesktopBoard(props: {
           >
             {sidebar}
           </BoardSheet>
+        ) : floating && !touch ? (
+          <SidebarColumn open floating width={panelWidth} theme={theme} label={strings.sidebar.resize} fit={fitFloating} onDrag={dragSidebar} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
+            {sidebar}
+          </SidebarColumn>
         ) : floating ? (
           <FloatingSidebar
             width={panelWidth}
@@ -963,8 +969,8 @@ function LaneGap(props: { onPress(): void }) {
 }
 
 /**
- * The inline sidebar: a column at the board's right, 12 from its edge, its
- * left inset holding the drag handle. A drag
+ * The desktop sidebar: inline or floating at the board's right, 12 from its
+ * edge, with its left inset holding the same drag handle in both modes. A drag
  * resizes the column and the lanes' viewport, at most once a frame; the
  * release keeps the width. A double click puts 380 back.
  *
@@ -975,6 +981,7 @@ function LaneGap(props: { onPress(): void }) {
  */
 function SidebarColumn(props: {
   open: boolean;
+  floating?: boolean;
   width: number;
   theme: PluginTheme;
   label: string;
@@ -1152,11 +1159,11 @@ function SidebarColumn(props: {
       aria-hidden={!props.open}
       accessibilityElementsHidden={!props.open}
       importantForAccessibility={props.open ? "auto" : "no-hide-descendants"}
-      style={{ width: reduced ? props.width + SIDEBAR.gap : progress.interpolate({ inputRange: [0, 1], outputRange: [0, props.width + SIDEBAR.gap] }), flexShrink: 0, minHeight: 0 }}
+      style={{ width: reduced ? props.width + SIDEBAR.gap : progress.interpolate({ inputRange: [0, 1], outputRange: [0, props.width + SIDEBAR.gap] }), flexShrink: 0, minHeight: 0, ...(props.floating ? { position: "absolute", top: 4, bottom: 12, right: 0, zIndex: 20 } as const : null) }}
     >
       <Animated.View
         ref={panelRef}
-        testID="sidebar-inline"
+        testID={props.floating ? "sidebar-floating" : "sidebar-inline"}
         {...(Platform.OS === "web" ? { onPointerEnter: hoverProps.onHoverIn, onPointerLeave: hoverProps.onHoverOut } : {})}
         style={{
           position: "absolute",
@@ -1170,6 +1177,7 @@ function SidebarColumn(props: {
           paddingBottom: 12,
           minHeight: 0,
           backgroundColor: props.theme.colors.surface0,
+          ...(props.floating ? { paddingTop: 8, paddingBottom: 8, paddingRight: 8, borderRadius: 16, borderWidth: HAIRLINE, borderColor: menuChrome(props.theme).border, backgroundColor: boardPalette(props.theme).panel } : null),
           boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
           zIndex: 1,
           opacity: reduced ? 1 : progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 1] }),

@@ -998,10 +998,14 @@ apply to all three.
   `-8px 0px 16px -8px`, black at 20% light / 50% dark. Floating uses the same shadow.
   It sits 12 from the right edge, padded 10 left and 4 right on web so the cards end 16 from the
   board edge, aligned with the toolbar; native keeps 10 on both sides. Top/bottom padding is 4/12.
-- The web resize target is 8 wide inside the inline surface's left edge, inset 4 at the top and
-  12 at the bottom. A permanent muted 3 × 40 grabber (radius 2, opacity 0.5) centres in it; the
-  1 px line shows after 100 ms of hover and follows the pointer. Drag resizes the lanes and panel;
-  double click restores 380.
+- Web inline and floating sidebars share `SidebarColumn` and its resize handle, including the
+  temporary floating panel opened by clicking a card while the sidebar is hidden. The resize
+  target is 8 wide inside the surface's left edge, inset 4 at the top and 12 at the bottom.
+  A muted 3 × 40 grabber (radius 2) shows at opacity 0.5 while the surface is hovered or dragged;
+  the 1 px line shows after 100 ms of handle hover and follows the pointer. Drag changes the
+  panel width, keeps lane widths stable and updates the lanes' visible area. Release remembers
+  the width without changing the sidebar's remembered open preference; double click restores
+  380. Keep this handle available after dismissing and reopening the same card's details.
 - The board sheet has a 58% half detent; full height leaves 8 of the lanes showing; radius 16 on
   top, a 36 × 5 handle.
 
