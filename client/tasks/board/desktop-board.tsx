@@ -801,8 +801,8 @@ export function DesktopBoard(props: {
           >
             {sidebar}
           </BoardSheet>
-        ) : floating && !touch ? (
-          <SidebarColumn open floating width={panelWidth} theme={theme} label={strings.sidebar.resize} fit={fitFloating} onDrag={dragSidebar} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
+        ) : !touch ? (
+          <SidebarColumn open={floating} floating width={panelWidth} theme={theme} label={strings.sidebar.resize} fit={fitFloating} onDrag={dragSidebar} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
             {sidebar}
           </SidebarColumn>
         ) : floating ? (
@@ -999,7 +999,7 @@ function SidebarColumn(props: {
   const progress = useRef(new Animated.Value(reduced && props.open ? 1 : 0)).current;
   if (props.open && !mounted) setMounted(true);
   useEffect(() => {
-    if (reduced || Platform.OS === "web" && !props.open) {
+    if (reduced) {
       progress.setValue(props.open ? 1 : 0);
       if (!props.open) setMounted(false);
       return;
@@ -1007,7 +1007,7 @@ function SidebarColumn(props: {
     // Reuse the current progress when reversed; never reset a half-open panel.
     const animation = Animated.timing(progress, {
       toValue: props.open ? 1 : 0,
-      duration: Platform.OS === "web" ? DESKTOP_OVERLAY.ms : props.open ? 240 : 180,
+      duration: props.open ? 240 : 180,
       easing: Platform.OS === "web" ? DESKTOP_OVERLAY.ease : MOTION.ease,
       useNativeDriver: false,
     });
@@ -1156,7 +1156,7 @@ function SidebarColumn(props: {
       <View pointerEvents="none" testID="sidebar-resize-grabber" style={{ width: 4, height: 40, borderRadius: 2, backgroundColor: dragging ? props.theme.colors.accent : props.theme.colors.foregroundMuted, opacity: dragging ? 1 : 0.5 }} />
     </View>
   );
-  if (!props.open && (!mounted || reduced || Platform.OS === "web")) return null;
+  if (!props.open && (!mounted || reduced)) return null;
   return (
     // Animate only the slot and surface: fixed-width cards do not reflow on every frame.
     <Animated.View

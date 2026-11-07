@@ -226,6 +226,13 @@ function layOut(width: number) {
   }
 }
 
+function finishSidebarCloseImmediately() {
+  const timing = Animated.timing;
+  vi.spyOn(Animated, "timing").mockImplementation((value, config) => config.toValue === 0 && config.duration === 180
+    ? { start: (done) => { (value as Animated.Value).setValue(0); done?.({ finished: true }); }, stop: () => {}, reset: () => {} }
+    : timing(value, config));
+}
+
 /** Host nodes with a test id (composites carry the same props). */
 /** Past the wait of the lanes behind an open filter panel (`useLaggedWhile` in the desktop board). */
 async function panelLag() {
@@ -362,6 +369,7 @@ afterEach(() => {
   resetHostAppearanceForTests();
   vi.useRealTimers();
   vi.clearAllMocks();
+  vi.restoreAllMocks();
   resetEnhancerPreferences();
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
   resetTasksEnabled();
@@ -1644,6 +1652,7 @@ describe("Tasks board, desktop", () => {
   });
 
   it("shows the status counts in an inline sidebar that takes its width from the lanes", () => {
+    finishSidebarCloseImmediately();
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
@@ -1678,7 +1687,7 @@ describe("Tasks board, desktop", () => {
     expect(lanesScroll().props.contentContainerStyle.width).toBe(2000 - 380 - 12);
   });
 
-  it("opens the desktop sidebar in 100ms and can close and reopen during entry", () => {
+  it("animates the desktop sidebar closed and can reverse during entry or exit", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const timing = vi.spyOn(Animated, "timing").mockImplementation((value, config) => {
       let timer: ReturnType<typeof setTimeout>;
@@ -1691,22 +1700,23 @@ describe("Tasks board, desktop", () => {
     try {
       act(() => { renderer = TestRenderer.create(screen(false)); });
       layOut(2000);
-      const progress = timing.mock.calls.find(([, config]) => config.toValue === 1 && config.duration === 100)![0] as Animated.Value;
+      const progress = timing.mock.calls.find(([, config]) => config.toValue === 1 && config.duration === 240)![0] as Animated.Value;
       expect(hostsById("sidebar-slot")[0]!.props.pointerEvents).toBe("auto");
       act(() => { vi.advanceTimersByTime(50); progress.setValue(0.5); });
       act(() => hostsById("sidebar-switch")[0]!.props.onPress());
-      expect(hostsById("sidebar-slot")).toHaveLength(0);
-      expect(hostsById("sidebar-stats")).toHaveLength(0);
-      expect((progress as unknown as { __value: number }).__value).toBe(0);
+      expect(hostsById("sidebar-slot")[0]!.props.pointerEvents).toBe("none");
+      expect(timing).toHaveBeenCalledWith(progress, expect.objectContaining({ toValue: 0, duration: 180 }));
+      expect((progress as unknown as { __value: number }).__value).toBe(0.5);
       act(() => hostsById("sidebar-switch")[0]!.props.onPress());
       expect(hostsById("sidebar-inline")).toHaveLength(1);
       expect(hostsById("sidebar-slot")[0]!.props.pointerEvents).toBe("auto");
-      expect(timing).toHaveBeenCalledWith(progress, expect.objectContaining({ toValue: 1, duration: 100 }));
-      act(() => { vi.advanceTimersByTime(100); });
+      expect(timing).toHaveBeenCalledWith(progress, expect.objectContaining({ toValue: 1, duration: 240 }));
+      act(() => { vi.advanceTimersByTime(240); });
       expect((progress as unknown as { __value: number }).__value).toBe(1);
       act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+      expect(hostsById("sidebar-slot")[0]!.props.pointerEvents).toBe("none");
+      act(() => { vi.advanceTimersByTime(180); });
       expect(hostsById("sidebar-slot")).toHaveLength(0);
-      expect(hostsById("sidebar-stats")).toHaveLength(0);
       act(() => hostsById("sidebar-switch")[0]!.props.onPress());
       expect(hostsById("sidebar-inline")).toHaveLength(1);
     } finally {
@@ -1735,6 +1745,27 @@ describe("Tasks board, desktop", () => {
       act(() => onReduce(false));
       subscription.mockRestore();
     }
+  });
+
+  it("keeps the floating desktop sidebar until its close animation finishes", () => {
+    const timing = vi.spyOn(Animated, "timing").mockImplementation((value, config) => {
+      let timer: ReturnType<typeof setTimeout>;
+      return {
+        start: (done) => { timer = setTimeout(() => { (value as Animated.Value).setValue(config.toValue as number); done?.({ finished: true }); }, config.duration); },
+        stop: () => clearTimeout(timer),
+        reset: () => clearTimeout(timer),
+      };
+    });
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(900);
+    toggleSidebarControl();
+    expect(hostsById("sidebar-floating")).toHaveLength(1);
+    act(() => { vi.advanceTimersByTime(240); });
+    toggleSidebarControl();
+    expect(hostsById("sidebar-slot")[0]!.props.pointerEvents).toBe("none");
+    expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ toValue: 0, duration: 180 }));
+    act(() => { vi.advanceTimersByTime(180); });
+    expect(hostsById("sidebar-floating")).toHaveLength(0);
   });
 
   it.each([
@@ -2394,6 +2425,7 @@ describe("Tasks board, desktop", () => {
   });
 
   it.each([2000, 900, 600])("opens a hidden sidebar when a card is clicked at %i pt, including the same card again", (width) => {
+    finishSidebarCloseImmediately();
     writeSidebarPreference({ open: false, width: 380 });
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(width);
@@ -2413,6 +2445,7 @@ describe("Tasks board, desktop", () => {
   });
 
   it("floats the sidebar over a narrow board only on demand, and puts it away on a tap outside", () => {
+    finishSidebarCloseImmediately();
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
@@ -2639,6 +2672,7 @@ describe("Tasks board, desktop", () => {
   });
 
   it.each([900, 1600])("resizes a sidebar opened from a card after hiding it at %i pt", (viewport) => {
+    finishSidebarCloseImmediately();
     const listeners = new Map<string, (event: { pageX: number; clientY: number }) => void>();
     vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
     vi.stubGlobal("document", {
@@ -2768,6 +2802,7 @@ describe("Tasks board, desktop", () => {
   });
 
   it.each([[2000, true], [2000, false], [900, true], [900, false], [600, false]] as const)("toggles the focused card preview with Space at %i pt (sidebar preference=%s)", (width, preferred) => {
+    finishSidebarCloseImmediately();
     writeSidebarPreference({ open: preferred, width: 380 });
     const keys = new Set<(event: unknown) => void>();
     vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
@@ -2988,6 +3023,7 @@ describe("Tasks board, desktop", () => {
   });
 
   it("previews a clicked card with Space while leaving text entry, other app focus and modified keys alone", () => {
+    finishSidebarCloseImmediately();
     writeSidebarPreference({ open: false, width: 380 });
     const keys = new Set<(event: unknown) => void>();
     vi.stubGlobal("window", { addEventListener() {}, removeEventListener() {} });
@@ -4410,6 +4446,7 @@ describe("Tasks board, tablet filters", () => {
   });
 
   it.each(["web", "ios", "android"])("matches the panel direction across sizes and resize boundaries on %s", (os) => {
+    finishSidebarCloseImmediately();
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(screen(false)); });
     // Cross both hysteresis bands in both directions, including their exact edges.
