@@ -15,6 +15,7 @@ import { scheduleLoadTraceDump } from "./client/debug/load-trace";
 import { transformCompaction, transformToolCall } from "./client/tools/transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
 import { assistantRows } from "./client/assistant-transform";
+import { assistantNeedsNativeBlocks } from "./client/assistant-native-blocks";
 import { externalHistoryRows } from "./client/external-history";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
@@ -223,16 +224,29 @@ export default function contribute(client: PluginClientContext) {
   // transformer is registered again when it changes, so replies already shown
   // follow it too; a reply the plugin should not own is left to the host.
   const removeAssistantTransformer = followPreference("assistantMarkdown", () =>
-    addChatTransformer({
+    followPreference("nativeBlockLanguages", () => addChatTransformer({
       id: "omp-enhanced-assistant",
       query: { itemType: "assistant_message" },
       transform({ item, phase }) {
         if (item.type !== "assistant_message") return undefined;
-        if (!getEnhancerPreferences().assistantMarkdown) return undefined;
+        const preferences = getEnhancerPreferences();
+        if (!preferences.assistantMarkdown) return undefined;
         if (!item.text.trim()) return undefined;
-        return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
+        const imported = externalHistoryRows(item.text, phase, item.messageId);
+        const patterns = preferences.nativeBlockLanguages;
+        // Imported tool output is source, not prose: only prose rows can hand the reply back.
+        const nativeReply = imported
+          ? imported.some((row) => {
+            const data = row.data;
+            return row.kind === "omp-assistant" && data !== null &&
+              typeof data === "object" && !Array.isArray(data) &&
+              typeof data.text === "string" && assistantNeedsNativeBlocks(data.text, patterns);
+          })
+          : assistantNeedsNativeBlocks(item.text, patterns);
+        if (nativeReply) return undefined;
+        return { items: imported ?? assistantRows(item.text, phase) };
       },
-    }),
+    })),
   );
 
   const removeAssistantRenderer = client.addTimelineRenderer({

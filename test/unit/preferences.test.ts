@@ -38,6 +38,15 @@ describe("preferences v2 defaults", () => {
     expect(parsePreferences({ accent }).accent).toBe(accent);
     expect(storedPart({ ...DEFAULT_PREFERENCES, accent }).accent).toBe(accent);
   });
+  it("starts with no native block patterns and preserves stored lists", () => {
+    expect(DEFAULT_PREFERENCES.nativeBlockLanguages).toEqual([]);
+    expect(parsePreferences({}).nativeBlockLanguages).toEqual([]);
+    for (const nativeBlockLanguages of [null, "mermaid", [1], { a: 1 }]) {
+      expect(parsePreferences({ nativeBlockLanguages }).nativeBlockLanguages).toEqual([]);
+    }
+    expect(parsePreferences({ nativeBlockLanguages: ["^DRAWIO(?:-xml)?$", "foo, bar", "\\d+", "["] }).nativeBlockLanguages)
+      .toEqual(["^DRAWIO(?:-xml)?$", "foo, bar", "\\d+", "["]);
+  });
   it("enables hover previews for old records and preserves an explicit opt-out", () => {
     expect(DEFAULT_PREFERENCES.hoverPreview).toBe(true);
     const { hoverPreview: _hover, ...older } = storedPart(DEFAULT_PREFERENCES);
@@ -291,6 +300,21 @@ describe("daemon-backed store (S5 fix round 1)", () => {
     expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ detailsFontSize: 18 }));
     mod.resetEnhancerPreferences();
     expect(mod.getEnhancerPreferences().detailsFontSize).toBe(14);
+  });
+  it("persists native block lists, applies host changes and resets the default", async () => {
+    const { mod, local } = await freshModule();
+    const persist = vi.fn();
+    mod.setPreferencePersister(persist);
+    mod.updateEnhancerPreferences({ nativeBlockLanguages: ["^Python$", "\\d+"] });
+    expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ nativeBlockLanguages: ["^Python$", "\\d+"] }));
+    expect(readStoredPreferences(local).nativeBlockLanguages).toEqual(["^Python$", "\\d+"]);
+    persist.mockClear();
+    mod.updateEnhancerPreferences({ nativeBlockLanguages: ["^Python$", "\\d+"] });
+    expect(persist).not.toHaveBeenCalled();
+    mod.applyStoredPreferences({ ...storedPart(DEFAULT_PREFERENCES), nativeBlockLanguages: ["^drawio$"] });
+    expect(mod.getEnhancerPreferences().nativeBlockLanguages).toEqual(["^drawio$"]);
+    mod.resetEnhancerPreferences();
+    expect(mod.getEnhancerPreferences().nativeBlockLanguages).toEqual([]);
   });
   it("persists the hover choice to the daemon and reloads it from the cache", async () => {
     const { mod, local } = await freshModule();

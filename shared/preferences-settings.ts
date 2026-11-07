@@ -16,6 +16,11 @@ import { z } from "zod";
  * default.
  */
 
+export function nativeBlockPatternError(pattern: string): string | null {
+  try { new RegExp(pattern, "i"); return null; }
+  catch (error) { return error instanceof Error ? error.message : String(error); }
+}
+
 export const ACCENT_IDS = ["host", "jade", "violet", "amber", "rose", "zinc", "midnight", "claude", "ghostty", "pureBlack"] as const;
 /** Inline code text on iOS and Android, where the span has no fill. */
 export const INLINE_CODE_COLORS = ["grey", "blue", "violet", "green", "coral", "jade", "amber", "rose", "zinc", "midnight", "claude", "ghostty", "pureBlack"] as const;
@@ -134,6 +139,7 @@ export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrate
   enhancedUserBubble: flag(false),
   selectionActions: flag(true),
   assistantMarkdown: flag(true),
+  nativeBlockLanguages: z.array(z.string()).catch([]),
   markdownVariant: z.enum(MARKDOWN_VARIANTS_STORED).catch("document"),
   rowLabelStyle: z.enum(ROW_LABEL_STYLES).catch("icon"),
   compactRowSpacing: flag(true),
