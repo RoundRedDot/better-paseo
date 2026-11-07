@@ -35,7 +35,7 @@ export function TabletToolbar(props: {
   searchRef: Ref<NativeTextInput>;
   onFilters(): void;
   filters?: { content: ReactNode; height: number; onClose(): void };
-  sidebar: { open: boolean; onToggle(): void };
+  sidebar: { open: boolean; sheet: boolean; onToggle(): void };
   emptyLanes: { collapsed: boolean; disabled: boolean; onToggle(): void };
 }) {
   const { board, theme } = props;
@@ -146,7 +146,7 @@ export function TabletToolbar(props: {
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
           <ToolbarButton icon="MoreVertical" label={strings.view} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); closeEmptySearch(); openPage(page ? null : "view"); }} />
         </View>
-        <ToolbarButton icon={<PanelMark open={props.sidebar.open} side="right" color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} hideSelectedBackground theme={theme} testID="sidebar-switch" onPress={() => { closeEmptySearch(); props.sidebar.onToggle(); }} />
+        <ToolbarButton icon={<PanelMark open={props.sidebar.open} side={props.sidebar.sheet ? "bottom" : "right"} color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} hideSelectedBackground theme={theme} testID="sidebar-switch" onPress={() => { closeEmptySearch(); props.sidebar.onToggle(); }} />
         </View>
       </View>
       {expandedSearch ? <View testID="tablet-search-row" onAccessibilityEscape={() => setSearchOpen(false)} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>

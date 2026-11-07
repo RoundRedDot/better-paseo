@@ -4399,6 +4399,42 @@ describe("Tasks board, tablet filters", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
   });
 
+  it.each(["web", "ios", "android"])("matches the panel direction across sizes and resize boundaries on %s", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    // Cross both hysteresis bands in both directions, including their exact edges.
+    for (const [width, side] of [
+      [320, "bottom"], [480, "bottom"], [600, "bottom"], [759, "bottom"],
+      [760, "bottom"], [783, "bottom"], [784, "right"], [995, "right"],
+      [996, "right"], [1019, "right"], [1020, "right"], [1440, "right"],
+      [2560, "right"], [1020, "right"], [1019, "right"], [996, "right"],
+      [995, "right"], [784, "right"], [783, "right"], [760, "right"],
+      [759, "bottom"], [320, "bottom"],
+    ] as const) {
+      layOut(width);
+      const sidebar = () => renderer!.root.findByType(os === "web" ? DesktopToolbar : TabletToolbar).props.sidebar;
+      if (sidebar().open) act(() => sidebar().onToggle());
+      for (const open of [false, true]) {
+        if (open) act(() => sidebar().onToggle());
+        expect(sidebar().open, `${width}: open`).toBe(open);
+        expect(sidebar().sheet, `${width}: direction`).toBe(side === "bottom");
+        if (hostsById("sidebar-switch").length) {
+          expect(hostsById("sidebar-switch")[0]!.props.accessibilityState.selected, `${width}: selected`).toBe(open);
+          expect(StyleSheet.flatten(hostsById("panel-mark")[0]!.props.style).flexDirection, `${width}: icon direction`).toBe(side === "bottom" ? "column" : "row");
+          expect(StyleSheet.flatten(hostsById("panel-mark-fill")[0]!.props.style), `${width}: icon fill`).toMatchObject(side === "bottom"
+            ? { width: 10, height: open ? 3 : 1.5 }
+            : { width: open ? 3.5 : 1.5, height: 7 });
+        } else {
+          // The narrow desktop toolbar moves this action into More, without an icon.
+          expect(os).toBe("web");
+          expect(hostsById("panel-mark")).toHaveLength(0);
+        }
+        expect(hostsById("board-sheet"), `${width}: bottom panel`).toHaveLength(open && side === "bottom" ? 1 : 0);
+        if (open && side === "right") expect(hostsById("sidebar-inline").length + hostsById("sidebar-floating").length, `${width}: right panel`).toBe(1);
+      }
+    }
+  });
+
   it("aligns the filter menu with its button and keeps it inside the board", () => {
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(800);
