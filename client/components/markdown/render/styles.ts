@@ -265,12 +265,29 @@ export interface MarkdownStyles {
   listItemText: TextStyle;
 }
 
+// Each row owns its tokens, so equal values must share styles across mounts.
+const stylesCache = new Map<string, MarkdownStyles>();
+const STYLES_CACHE_LIMIT = 64;
+
 export function buildStyles(
   tokens: ExtendedThemeTokens,
   variant: MarkdownVariant,
   metrics: VariantMetrics,
   quiet = false,
 ): MarkdownStyles {
+  const rule = hairline(tokens.platform);
+  const key = JSON.stringify([
+    tokens.platform, tokens.fontUi, tokens.fontMono, tokens.foreground, tokens.foregroundMuted,
+    tokens.accent, tokens.codeInline, tokens.isDark,
+    tokens.v2.surface1, tokens.v2.surface2, tokens.v2.border, tokens.v2.borderSubtle,
+    variant, metrics, quiet, rule,
+  ]);
+  const cached = stylesCache.get(key);
+  if (cached) {
+    stylesCache.delete(key);
+    stylesCache.set(key, cached);
+    return cached;
+  }
   const bodyFont = metrics.mono ? tokens.fontMono : tokens.fontUi;
   const [size1, size2, size3, size4] = metrics.headingSizes;
   const [lead1, lead2, lead3, lead4] = metrics.headingLineHeights;
@@ -311,7 +328,7 @@ export function buildStyles(
   const codeSpan: TextStyle =
     codeSpanWeight === undefined ? codeBase : { ...codeBase, fontWeight: codeSpanWeight };
 
-  return StyleSheet.create({
+  const styles = StyleSheet.create({
     root: {
       ...selectableSurface,
       width: "100%",
@@ -466,7 +483,7 @@ export function buildStyles(
     },
     codeBlock: {},
     rule: {
-      ...hairline(tokens.platform),
+      ...rule,
       backgroundColor: tokens.v2.border,
     },
     tableScroll: {
@@ -565,4 +582,7 @@ export function buildStyles(
       ...unselectable,
     },
   });
+  stylesCache.set(key, styles);
+  if (stylesCache.size > STYLES_CACHE_LIMIT) stylesCache.delete(stylesCache.keys().next().value!);
+  return styles;
 }
