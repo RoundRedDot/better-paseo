@@ -144,13 +144,13 @@ describe("assistant footer", () => {
       act(() => { toolbar.props.onLongPress(); });
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
       expect(table.findAllByType("Text" as never).map((node) => node.props.children))
-        .toEqual(["Agent", "codex", "模型名称", "GPT-6.1-Sol", "思考强度", "High", "开始时间", "2026-10-15 21:02:03",
-          "结束时间", "2026-10-15 21:03:25", "耗时", "1分22秒"]);
+        .toEqual(["Agent", "codex", "模型名称", "GPT-6.1-Sol", "思考强度", "High", "开始时间", "10-15 21:02:03",
+          "结束时间", "10-15 21:03:25", "耗时", "1分22秒"]);
       const buttons = table.findAllByType("Pressable" as never);
       expect(buttons.map((node) => node.props.accessibilityLabel))
         .toEqual(["Copy agent", "Copy model name", "Copy thinking level", "Copy start time", "Copy end time"]);
       // The model row shows its display label but copies the configured model name.
-      const copied = ["codex", "gpt-6.1-sol", "High", "2026-10-15 21:02:03", "2026-10-15 21:03:25"];
+      const copied = ["codex", "gpt-6.1-sol", "High", "10-15 21:02:03", "10-15 21:03:25"];
       for (const [index, value] of copied.entries()) {
         await act(async () => { buttons[index]!.props.onPress(); });
         expect(clipboard.copyText).toHaveBeenLastCalledWith(value);
@@ -402,7 +402,7 @@ describe("assistant footer", () => {
       expect(labels()).toEqual([language === "zh" ? "复制" : "Copy", "15:05", language === "zh" ? "3分56秒" : "3m 56s"]);
       const timeLabel = startedAt != null ? (language === "zh" ? "开始时间" : "Start time")
         : (language === "zh" ? "结束时间" : "End time");
-      const timeStamp = startedAt != null ? formatFullStamp(new Date(startedAt)) : "2026-10-15 15:05:03";
+      const timeStamp = startedAt != null ? formatFullStamp(new Date(startedAt)) : "10-15 15:05:03";
       for (const [index, hint] of [`${timeLabel} ${timeStamp}`, durationHint].entries()) {
         const item = metadata[index]!;
         expect(item.props.onPress).toBeUndefined();

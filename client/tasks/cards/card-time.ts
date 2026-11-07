@@ -53,7 +53,7 @@ export function formatEnded(iso: string | null, now: number, language: TasksLang
   const at = new Date(iso!);
   const sameDay = at.toDateString() === new Date(now).toDateString();
   if (sameDay && ago < 86_400_000) return formatRelative(ago, language);
-  return short ? formatFooterStamp(at, new Date(now)) : formatFullStamp(at);
+  return short ? formatFooterStamp(at, new Date(now)) : formatFullStamp(at, new Date(now));
 }
 
 /** The footer's timer at `now`; null when there is nothing to count. `short` as `formatEnded`. */
@@ -98,7 +98,7 @@ export function cardStart(card: Timed, now: number): string | null {
 export function timerHint(card: Timed, now: number, language: TasksLanguage): string | null {
   const { hint, starting } = cardStrings(language);
   const timing = card.timing;
-  const stamp = (iso: string | null) => (since(iso, now) === null ? null : formatFullStamp(new Date(iso!)));
+  const stamp = (iso: string | null) => (since(iso, now) === null ? null : formatFullStamp(new Date(iso!), new Date(now)));
   if (card.lane === "needs_input") {
     const at = stamp(timing.attentionAt) ?? stamp(timing.turnStartedAt);
     return at === null ? null : hint.pair(hint.waitingSince, at);

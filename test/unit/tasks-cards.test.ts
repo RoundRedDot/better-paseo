@@ -932,9 +932,9 @@ describe("TaskCardView rows", () => {
   it.each([
     ["zh", new Date(2026, 9, 22, 12), new Date(2026, 9, 22, 10), "8m · 2 小时前"],
     ["en", new Date(2026, 9, 22, 12), new Date(2026, 9, 22, 10), "~8m · 2h ago"],
-    ["zh", new Date(2026, 9, 22, 0, 5), new Date(2026, 9, 21, 23, 59, 10), "8m · 2026-10-21 23:59:10"],
-    ["en", new Date(2026, 9, 22, 12), new Date(2026, 9, 13, 23, 9, 10), "~8m · 2026-10-13 23:09:10"],
-    ["zh", new Date(2026, 9, 22, 12), new Date(2026, 9, 21, 12), "8m · 2026-10-21 12:00:00"],
+    ["zh", new Date(2026, 9, 22, 0, 5), new Date(2026, 9, 21, 23, 59, 10), "8m · 10-21 23:59:10"],
+    ["en", new Date(2026, 9, 22, 12), new Date(2026, 9, 13, 23, 9, 10), "~8m · 10-13 23:09:10"],
+    ["zh", new Date(2026, 9, 22, 12), new Date(2026, 9, 21, 12), "8m · 10-21 12:00:00"],
     ["zh", new Date(2026, 0, 1), new Date(2025, 11, 31, 23, 59, 59), "8m · 2025-12-31 23:59:59"],
   ] as const)("renders the %s footer at %s for a turn ended at %s", async (language, now, ended, expected) => {
     const card = sample("sample-done");
@@ -953,7 +953,7 @@ describe("TaskCardView rows", () => {
     expect(texts(hostByTestId(tree.root, "task-card-timer"))).toEqual(["1 分钟前"]);
     time += 1000;
     act(() => clock.tick());
-    expect(texts(hostByTestId(tree.root, "task-card-timer"))).toEqual(["2026-10-21 23:58:10"]);
+    expect(texts(hostByTestId(tree.root, "task-card-timer"))).toEqual(["10-21 23:58:10"]);
   });
 
   it("lays the card out as Linear does: meta, title, pills, footer, then the lane blocks", async () => {
@@ -4593,6 +4593,7 @@ describe("formatters", () => {
     const local = (day: number, hours: number, minutes: number) => new Date(2026, 9, day, hours, minutes).getTime();
     expect(formatClockTime(local(20, 9, 5), local(20, 23, 0))).toBe("09:05");
     expect(formatClockTime(local(19, 23, 58), local(20, 0, 10))).toBe("10/19 23:58");
+    expect(formatClockTime(new Date(2025, 11, 31, 23, 59).getTime(), new Date(2026, 0, 1).getTime())).toBe("2025/12/31 23:59");
     expect(formatWait(4 * 60_000 + 20_000, "zh")).toBe("等待 4m");
     expect(formatWait(4 * 60_000, "en")).toBe("Waiting 4m");
     expect(formatApprox(8 * 60_000, "zh")).toBe("8m");

@@ -71,7 +71,9 @@ export function formatClockTime(at: number, now: number): string {
   const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   const sameDay =
     date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate();
-  return sameDay ? time : `${date.getMonth() + 1}/${date.getDate()} ${time}`;
+  if (sameDay) return time;
+  const year = date.getFullYear() === today.getFullYear() ? "" : `${date.getFullYear()}/`;
+  return `${year}${date.getMonth() + 1}/${date.getDate()} ${time}`;
 }
 
 /** Milliseconds since an ISO time; null when absent or unparseable. */

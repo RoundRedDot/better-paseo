@@ -597,7 +597,7 @@ function VersionResult({ state, look, language, updateAvailable }: {
     </View>)}
     <View style={{ gap: 2, marginTop: space.xs }}>
       <Text style={[labelStyle, { color: tokens.foreground, fontWeight: updateAvailable ? "500" : "400" }]}>{state.matches ? t.versionUpToDate : updateAvailable ? t.versionNewAvailable : t.versionAvailable}</Text>
-      <Text style={labelStyle}>{t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US"))}</Text>
+      <Text style={labelStyle}>{t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US", { year: new Date(state.checkedAt).getFullYear() === new Date().getFullYear() ? undefined : "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }))}</Text>
       {state.versions.status === "unavailable" ? <Text style={labelStyle}>{t.versionMapUnavailable}</Text> : null}
       {state.versions.status === "available" && (state.versions.current === null || state.versions.latest === null || state.versions.currentBuild === null || state.versions.latestBuild === null) ? <Text style={labelStyle}>{t.versionUnmapped}</Text> : null}
     </View>

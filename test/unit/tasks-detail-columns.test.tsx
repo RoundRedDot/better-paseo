@@ -566,7 +566,7 @@ describe("detail message times", () => {
     const last = new Date(first);
     last.setDate(last.getDate() - 1);
     last.setHours(21, 47, 52, 0);
-    const day = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const day = (date: Date) => `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     for (const language of ["zh", "en"] as const) {
       for (const columns of [false, true]) {
         resetSectionChoices();
