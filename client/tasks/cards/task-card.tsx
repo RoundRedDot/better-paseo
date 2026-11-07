@@ -17,7 +17,7 @@ import { opensInPaseo, parentOpensInPaseo, turnRunning, type StatusKind, type Ta
 import { cardErrorReset, contextRatio, formatCardError, tildePath } from "./format";
 import { errorAction } from "./error-action";
 import { cardStart, cardTimer, startHint, timerHint } from "./card-time";
-import { CardHints, hintProps, type CardHintTexts } from "./card-hints";
+import { CardHints, hintProps, tipProps, type CardHintTexts } from "./card-hints";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
 import { CONTEXT_RING_BITMAPS } from "./context-ring-bitmaps";
@@ -926,7 +926,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           {metaCut ? <EdgeFade color={background} /> : null}
         </View>
         {shownParentTag !== null ? (
-          <View style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("tag")}>
+          <View {...tipProps(card.parent?.detached ? lines(strings.inferredHint, parentArchive && pair(strings.details.parent, parentArchive)) : pair(strings.details.parent, shownParentTag.label))} style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("tag")} testID="task-card-meta-parent-tag-tip">
             <ArchivedTag tokens={tokens} label={shownParentTag.label} icon={shownParentTag.icon} testID="task-card-meta-archived" />
           </View>
         ) : null}

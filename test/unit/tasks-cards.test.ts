@@ -1253,6 +1253,20 @@ describe("TaskCardView rows", () => {
     }
     await act(async () => hostByTestId(tree.root, "task-card-meta-parent").props.onPress());
     expect(onReveal).toHaveBeenLastCalledWith("former");
+
+    const platform = globalThis as { __rnMockOS?: string };
+    const saved = platform.__rnMockOS;
+    platform.__rnMockOS = "web";
+    try {
+      const web = await render(cardElement(inferred({ archivedAs: "agent" }), { onReveal, fields: fields("minimal") }));
+      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("根据归档时间推断的原父任务，可能有误");
+      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("父任务：已归档");
+      await act(async () => web.update(cardElement(orphan, { onReveal, fields: fields("minimal"), language: "en" })));
+      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toBe("Parent: Archived");
+    } finally {
+      if (saved === undefined) delete platform.__rnMockOS;
+      else platform.__rnMockOS = saved;
+    }
   });
 
   it.each([
