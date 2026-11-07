@@ -150,7 +150,7 @@ export function TabletToolbar(props: {
         <ToolbarButton icon={<PanelMark open={props.sidebar.open} side={props.sidebar.sheet ? "bottom" : "right"} color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} hideSelectedBackground theme={theme} testID="sidebar-switch" onPress={() => { closeEmptySearch(); props.sidebar.onToggle(); }} />
         </View>
       </View>
-      {expandedSearch ? <View testID="tablet-search-row" onAccessibilityEscape={() => setSearchOpen(false)} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>
+      {expandedSearch ? <View testID="tablet-search-row" onAccessibilityEscape={() => setSearchOpen(false)} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: LANES.edge, paddingVertical: 8, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>
         {search}
         <ToolbarButton icon="X" label={strings.closeMenu} theme={theme} onPress={() => setSearchOpen(false)} testID="tablet-search-close" />
       </View> : null}

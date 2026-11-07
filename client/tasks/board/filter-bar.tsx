@@ -30,6 +30,7 @@ import { useUpdateIndicator } from "./update-indicator";
 import { SETTINGS_STRINGS } from "../../i18n/settings-page-strings";
 import { useTasksLanguage } from "../i18n";
 import { TASK_TOOLBAR_METRICS } from "../toolbar-metrics";
+import { LANES } from "./navigation";
 
 export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
@@ -207,7 +208,7 @@ function DesktopToolbarView(props: {
   );
   return (
     <>
-    <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: 16, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 11 }}>
+    <View testID="desktop-toolbar" style={{ height: taskControlHeight(48, scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, paddingHorizontal: LANES.edge, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 11 }}>
       <View testID="desktop-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 8 }}>
       {inlineSearch ? search : <RoundButton
         icon="Search" quietOutline label={strings.searchButton} theme={theme}
@@ -303,7 +304,7 @@ function DesktopToolbarView(props: {
       </View>
     </View>
     {!inlineSearch && !searchFits ? <ToolbarSearchReveal visible={props.searchOpen}>
-    <View testID="desktop-search-row" style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
+    <View testID="desktop-search-row" style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: LANES.edge, paddingVertical: 8, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}>
       {search}
       <RoundButton icon="X" quietOutline label={strings.closeMenu} theme={theme} onPress={() => props.onSearchOpenChange(false)} size={toolbarButtonSize(scale)} iconSize={actionIconSize(scale)} testID="desktop-search-close" />
     </View>
@@ -617,7 +618,8 @@ function DesktopFilterBarView(props: {
         flexWrap: "wrap",
         alignItems: "flex-start",
         gap: TOOLBAR_GAP,
-        paddingHorizontal: FILTER_BAR_PADDING,
+        paddingLeft: LANES.edge,
+        paddingRight: FILTER_BAR_PADDING,
         paddingVertical: 8,
         zIndex: 10,
       }}
@@ -814,7 +816,7 @@ function useLabelFit(dropped: readonly DroppedWord[], enabled: boolean, laneWidt
   };
   const box = (key: keyof BarBoxes) => (event: LayoutChangeEvent) => {
     const { x, y, width } = event.nativeEvent.layout;
-    boxes.current[key] = { x, y, width: key === "bar" ? width - 2 * FILTER_BAR_PADDING - TOOLBAR_GAP : width, ...layout };
+    boxes.current[key] = { x, y, width: key === "bar" ? width - LANES.edge - FILTER_BAR_PADDING - TOOLBAR_GAP : width, ...layout };
     decide();
   };
   const measureLaneControl = (event: LayoutChangeEvent) => {

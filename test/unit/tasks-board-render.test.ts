@@ -595,6 +595,11 @@ describe("Tasks search coverage and centred toolbar", () => {
       expect(field()).toBe(lane());
       const frames = measureHostTree(hostsById(`${prefix}-toolbar`)[0]!, { width: 1600 });
       expect(frames.get(hostsById(`${prefix}-toolbar-search`)[0]!)!.width).toBe(expected);
+      expect(frames.get(hostsById(`${prefix}-toolbar-search`)[0]!)!.left).toBe(lanesScroll().props.contentContainerStyle.paddingLeft);
+      if (os === "web") {
+        const filters = hostsById("filter-bar")[0]!;
+        expect(measureHostTree(filters, { width: 1600 }).get(hostsById("filter-bar-controls")[0]!)!.left).toBe(lanesScroll().props.contentContainerStyle.paddingLeft);
+      }
     }
     await act(async () => { controller().setLaneWidth("default"); });
     layOut(1300);
@@ -620,7 +625,9 @@ describe("Tasks search coverage and centred toolbar", () => {
       const row = hostsById(`${prefix}-search-row`)[0]!;
       const field = hostsById(`${prefix}-toolbar-search`)[0]!;
       expect(StyleSheet.flatten(field.props.style).width).toBe(320);
-      expect(measureHostTree(row, { width: 600 }).get(field)!.width).toBe(320);
+      const frame = measureHostTree(row, { width: 600 }).get(field)!;
+      expect(frame.width).toBe(320);
+      expect(frame.left).toBe(lanesScroll().props.contentContainerStyle.paddingLeft);
     }
     layOut(480);
     const field = hostsById(`${prefix}-toolbar-search`)[0]!;
@@ -1720,7 +1727,7 @@ describe("Tasks board, desktop", () => {
     const sidebar = StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style);
     const filters = StyleSheet.flatten(hostsById("filter-bar")[0]!.props.style);
     expect(sidebar.paddingLeft).toBe(10);
-    expect(sidebar.paddingRight + sidebar.right).toBe(filters.paddingHorizontal);
+    expect(sidebar.paddingRight + sidebar.right).toBe(filters.paddingRight);
     expect(sidebar.width - sidebar.paddingLeft - sidebar.paddingRight).toBe(366);
     expect(lanesScroll().props.contentContainerStyle.width).toBe(2000 - 380 - 12);
   });
