@@ -535,6 +535,7 @@ export function SyntaxHighlightBlock({
     language,
     filename,
     dark: tokens.isDark,
+    syntaxTheme: tokens.syntaxTheme,
     diffBodyCode,
     enabled: highlight,
   });
