@@ -14,7 +14,7 @@ import { loadMark } from "./client/debug/load-marks";
 import { scheduleLoadTraceDump } from "./client/debug/load-trace";
 import { transformCompaction, transformToolCall } from "./client/tools/transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
-import { assistantRows } from "./client/assistant-transform";
+import { assistantRows, hasUiFence } from "./client/assistant-transform";
 import { externalHistoryRows } from "./client/external-history";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
@@ -221,7 +221,9 @@ export default function contribute(client: PluginClientContext) {
 
   // The assistant's reply. The preference is read inside `transform`, and the
   // transformer is registered again when it changes, so replies already shown
-  // follow it too; a reply the plugin should not own is left to the host.
+  // follow it too; a reply the plugin should not own is left to the host or,
+  // for ```ui/```app fences, to a plugin further down the chain that renders
+  // them live.
   const removeAssistantTransformer = followPreference("assistantMarkdown", () =>
     addChatTransformer({
       id: "omp-enhanced-assistant",
@@ -230,6 +232,7 @@ export default function contribute(client: PluginClientContext) {
         if (item.type !== "assistant_message") return undefined;
         if (!getEnhancerPreferences().assistantMarkdown) return undefined;
         if (!item.text.trim()) return undefined;
+        if (hasUiFence(item.text)) return undefined;
         return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
       },
     }),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assistantRows } from "../../client/assistant-transform";
+import { assistantRows, hasUiFence } from "../../client/assistant-transform";
 
 const longReply = Array.from({ length: 80 }, (_, index) =>
   `## Section ${index}\n\n${"A complete paragraph with **formatting**. ".repeat(20)}\n\n`).join("");
@@ -41,5 +41,30 @@ describe("long reply history rows", () => {
     const referenced = `${longReply}\n[reference][target]\n\n[target]: https://example.com\n`;
     expect(assistantRows(referenced, "complete")).toHaveLength(1);
     expect(assistantRows(`${longReply}\nfootnote[^1]\n\n[^1]: note\n`, "complete")).toHaveLength(1);
+  });
+});
+
+describe("ui fence yield", () => {
+  it("reports a message whose ui or app fence another plugin renders live", () => {
+    expect(hasUiFence(`Intro\n\n\`\`\`ui\nCard("Hi", [])\n\`\`\`\n`)).toBe(true);
+    expect(hasUiFence(`\`\`\`app\n<b>hi</b>\n\`\`\``)).toBe(true);
+    expect(hasUiFence(`~~~UI\nCard("Hi", [])\n~~~`)).toBe(true);
+    expect(hasUiFence("   \`\`\`app x\n<b>hi</b>")).toBe(true);
+  });
+
+  it("keeps plain markdown and ordinary code fences", () => {
+    expect(hasUiFence("Just **markdown**")).toBe(false);
+    expect(hasUiFence("```ts\nconst one = 1;\n```")).toBe(false);
+    expect(hasUiFence("```uish\nnot the ui language\n```")).toBe(false);
+    expect(hasUiFence("Text with ```ui mid-line is not a fence")).toBe(false);
+    expect(hasUiFence("~~~~\n```\nui\n```\n~~~~")).toBe(false);
+  });
+
+  it("ignores a ui fence nested inside another fenced block", () => {
+    expect(hasUiFence("```markdown\n```ui\nCard()\n```\n```")).toBe(false);
+  });
+
+  it("yields a streaming fence that has not closed yet", () => {
+    expect(hasUiFence("Reply so far\n\n```ui\nCard(\"Ping")).toBe(true);
   });
 });
