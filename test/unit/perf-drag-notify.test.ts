@@ -1,3 +1,5 @@
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   disablePerf,
@@ -5,6 +7,7 @@ import {
   observeTasksCommit,
   perfSnapshot,
   perfStart,
+  probeCard,
   probeDragEnd,
   probeDragMove,
   probeDragStart,
@@ -263,5 +266,44 @@ describe("store notification and board commit probes", () => {
     expect(snap.counters["board.notifyRingOverflow"]).toBe(1);
     // 64 kept: the oldest is notification 7, sent at 7.
     expect(snap.samples["board.notifyToCommitMs.oldest"]).toMatchObject({ max: 93 });
+  });
+});
+
+describe("timeline marks for attribution", () => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+  it("mark a card's commit with its render-to-commit time, and nothing while off", () => {
+    function Card() {
+      return probeCard("tool_call", "a").node;
+    }
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(Card)); });
+    expect(perfSnapshot().marks).toEqual([]);
+    enablePerf();
+    clock = 10;
+    act(() => renderer.update(React.createElement(Card)));
+    act(() => renderer.unmount());
+    const marks = perfSnapshot().marks.filter((mark) => mark.name === "card.commit");
+    expect(marks).toEqual([{ name: "card.commit", at: 10, data: { kind: "tool_call", ms: 0 } }]);
+  });
+
+  it("mark a long task at its start on the probes' clock", () => {
+    const observers: Array<(list: { getEntries(): unknown[] }) => void> = [];
+    class FakeObserver {
+      constructor(callback: (list: { getEntries(): unknown[] }) => void) { observers.push(callback); }
+      observe() {}
+      disconnect() {}
+    }
+    vi.stubGlobal("PerformanceObserver", FakeObserver);
+    try {
+      enablePerf();
+      for (const callback of observers) callback({ getEntries: () => [{ duration: 87.5, startTime: 1234.25 }] });
+      const marks = perfSnapshot().marks.filter((mark) => mark.name === "js.longtask");
+      expect(marks.length).toBeGreaterThan(0);
+      expect(marks[0]).toEqual({ name: "js.longtask", at: 1234.25, data: { ms: 87.5 } });
+    } finally {
+      disablePerf();
+      vi.unstubAllGlobals();
+    }
   });
 });

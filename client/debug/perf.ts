@@ -101,10 +101,16 @@ interface CommitProbeProps {
   start: number;
 }
 
-/** Renders nothing; its layout effect closes the render-to-commit interval. */
+/**
+ * Renders nothing; its layout effect closes the render-to-commit interval.
+ * The commit is also a mark (`card.commit`, at the layout effect, with the
+ * interval as `ms`), so a dump can place timeline renders against a drag.
+ */
 function CommitProbe({ kind, start }: CommitProbeProps): null {
   useLayoutEffect(() => {
-    store.commit(kind, now() - start);
+    const at = now();
+    store.commit(kind, at - start);
+    store.mark({ name: "card.commit", at, data: { kind, ms: ms(at - start) } });
   });
   return null;
 }
@@ -488,7 +494,11 @@ function startMeters(): void {
         // The entry type is not supported on this engine.
       }
     };
-    watch("longtask", (entry) => store.longTask(entry.duration));
+    watch("longtask", (entry) => {
+      store.longTask(entry.duration);
+      // `startTime` is on the probes' clock (`performance.now()`), so a long task lines up with the other marks.
+      store.mark({ name: "js.longtask", at: entry.startTime, data: { ms: ms(entry.duration) } });
+    });
     watch("layout-shift", (entry) => {
       const shift = entry as PerformanceEntry & { value?: number; hadRecentInput?: boolean };
       if (!shift.hadRecentInput) store.layoutShift(shift.value ?? 0);
