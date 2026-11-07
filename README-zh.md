@@ -40,7 +40,7 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 ## 安装
 
 ```bash
-paseo plugin install RoundRedDot/better-paseo
+paseo plugin install roundreddot/better-paseo
 ```
 
 需要 Paseo `>=0.14.0`，文中的性能测量基于 Paseo 0.13.0。版本要求见[兼容性](#兼容性)。在 **设置 → 插件 → Better Paseo**（页面标题为 **设置**）中配置。Paseo 从 GitHub 安装插件，并在安装时构建客户端；更新到新版本：
