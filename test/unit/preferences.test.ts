@@ -34,6 +34,10 @@ const V1 = {
 };
 
 describe("preferences v2 defaults", () => {
+  it.each(["zinc", "midnight", "claude", "ghostty", "pureBlack"] as const)("preserves the %s accent", (accent) => {
+    expect(parsePreferences({ accent }).accent).toBe(accent);
+    expect(storedPart({ ...DEFAULT_PREFERENCES, accent }).accent).toBe(accent);
+  });
   it("enables hover previews for old records and preserves an explicit opt-out", () => {
     expect(DEFAULT_PREFERENCES.hoverPreview).toBe(true);
     const { hoverPreview: _hover, ...older } = storedPart(DEFAULT_PREFERENCES);

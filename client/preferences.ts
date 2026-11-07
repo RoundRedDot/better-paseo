@@ -38,6 +38,11 @@ export const ACCENT_PRESETS = {
   violet: "#8b5cf6",
   amber: "#f59e0b",
   rose: "#f43f5e",
+  zinc: "#808080",
+  midnight: "#4A6BA8",
+  claude: "#D97757",
+  ghostty: "#8caaee",
+  pureBlack: "#000000",
 } as const;
 
 export type AccentPreset = keyof typeof ACCENT_PRESETS;

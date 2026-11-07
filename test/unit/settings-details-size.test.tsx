@@ -21,7 +21,7 @@ vi.mock("../../client/ui/tokens/host-appearance-shim", async (original) => ({
 vi.mock("../../client/ui/wide-host-column", () => ({ useWideHostColumn() {} }));
 
 import { BetterPaseoSettingsPage } from "../../client/settings-page";
-import { getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { ACCENT_PRESETS, getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { setSettingsTab } from "../../client/settings-tab";
 
@@ -34,6 +34,27 @@ afterEach(() => {
 });
 
 describe("independent details size in settings", () => {
+  it("shows and saves the Paseo theme colours in a wrapping mobile control", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    resetEnhancerPreferences();
+    updateEnhancerPreferences({ language: "en" });
+    setSettingsTab("display");
+    const colors = { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
+      foregroundMuted: "#666", accent: "#00f", accentForeground: "#fff", statusSuccess: "#080", statusWarning: "#a60", statusDanger: "#d00" };
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
+        theme: { colors }, layout: { platform: "ios", compact: true }, host: { id: "host" },
+      } as never));
+    });
+    const group = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Accent colour")[0]!;
+    expect(group.props.style.flexWrap).toBe("wrap");
+    for (const [id, label] of [["zinc", "Zinc"], ["midnight", "Midnight"], ["claude", "Claude"], ["ghostty", "Ghostty"], ["pureBlack", "Pure black"]] as const) {
+      const swatch = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === `Accent: ${label}`)[0]!;
+      expect(swatch.props.style[1].backgroundColor).toBe(ACCENT_PRESETS[id]);
+      act(() => swatch.props.onPress());
+      expect(getEnhancerPreferences().accent).toBe(id);
+    }
+  });
   it.each(["en", "zh"] as const)("changes, clamps and resets the same saved setting in %s", (language) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     resetEnhancerPreferences();

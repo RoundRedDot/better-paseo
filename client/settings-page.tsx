@@ -65,7 +65,7 @@ function storageHint(sync: SyncStatus, t: SettingsStrings): string | null {
 
 const ACCENT_OPTIONS: ReadonlyArray<{
   id: AccentPreset;
-  label: "accentHost" | "accentJade" | "accentViolet" | "accentAmber" | "accentRose";
+  label: "accentHost" | "accentJade" | "accentViolet" | "accentAmber" | "accentRose" | "accentZinc" | "accentMidnight" | "accentClaude" | "accentGhostty" | "accentPureBlack";
   color: string | undefined;
 }> = [
   { id: "host", label: "accentHost", color: undefined },
@@ -73,6 +73,11 @@ const ACCENT_OPTIONS: ReadonlyArray<{
   { id: "violet", label: "accentViolet", color: ACCENT_PRESETS.violet },
   { id: "amber", label: "accentAmber", color: ACCENT_PRESETS.amber },
   { id: "rose", label: "accentRose", color: ACCENT_PRESETS.rose },
+  { id: "zinc", label: "accentZinc", color: ACCENT_PRESETS.zinc },
+  { id: "midnight", label: "accentMidnight", color: ACCENT_PRESETS.midnight },
+  { id: "claude", label: "accentClaude", color: ACCENT_PRESETS.claude },
+  { id: "ghostty", label: "accentGhostty", color: ACCENT_PRESETS.ghostty },
+  { id: "pureBlack", label: "accentPureBlack", color: ACCENT_PRESETS.pureBlack },
 ];
 
 const INLINE_CODE_OPTIONS: ReadonlyArray<{
@@ -333,7 +338,7 @@ function DetailsSizeControl({ value, look }: { value: number; look: PageLook }) 
   );
 }
 
-/** "Host" and the four presets: round swatches, the selected one ringed. */
+/** "Host" and the presets: round swatches, the selected one ringed. */
 function AccentControl({ value, hostAccent, look }: { value: AccentPreset; hostAccent: string; look: PageLook }) {
   const { tokens, t } = look;
   return (
@@ -1233,7 +1238,7 @@ const styles = {
       fontSize: TYPE.button.size,
       fontVariant: ["tabular-nums"],
     },
-    swatches: { flexDirection: "row", alignItems: "center", gap: space.md },
+    swatches: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.md },
     hostChip: {
       height: SWATCH + 6,
       paddingHorizontal: space.sm,
