@@ -253,7 +253,7 @@ export function DesktopBoard(props: {
   const sheetRoom = inSheet ? sheetHeight(boardHeight, detent) : 0;
   const panelWidth = tabletFloating
     ? tabletSidebarWidth(boardWidth, floatingDragWidth ?? preference.floatingWidth)
-    : sidebarWidth(boardWidth, dragWidth ?? preference.width, floating ? "floating" : "inline");
+    : sidebarWidth(boardWidth, dragWidth ?? preference.width, narrow || floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
   const laneSizing = touch ? "stable" : "fit";
   const laneWidth = boardLaneLayout(boardWidth, laneOrder, collapsed, board.laneWidth, lanesWidth, laneSizing).laneWidth;
@@ -1186,10 +1186,9 @@ function SidebarColumn(props: {
           backgroundColor: props.theme.colors.surface0,
           boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
           zIndex: 1,
-          opacity: reduced ? 1 : Platform.OS === "web"
-            ? progress.interpolate({ inputRange: [0, 1], outputRange: [DESKTOP_OVERLAY.opacity, 1] })
-            : progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 1] }),
-          transform: [{ translateX: reduced ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [Platform.OS === "web" ? DESKTOP_OVERLAY.shift : 8, 0] }) }],
+          opacity: reduced || Platform.OS === "web" ? 1 : progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 1] }),
+          // The full surface travels with its slot, including the shadow, handle and bottom.
+          transform: [{ translateX: reduced ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [Platform.OS === "web" ? props.width + SIDEBAR.gap : 8, 0] }) }],
         }}
       >
         {handle}

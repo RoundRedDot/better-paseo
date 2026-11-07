@@ -1687,6 +1687,56 @@ describe("Tasks board, desktop", () => {
     expect(lanesScroll().props.contentContainerStyle.width).toBe(2000 - 380 - 12);
   });
 
+  it.each([900, 1600])("moves the complete desktop sidebar with its layout slot at %i pt", (viewport) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const Value = Animated.Value;
+    vi.spyOn(Animated, "Value").mockImplementation(function (initial) {
+      const value = new Value(initial);
+      const interpolate = value.interpolate.bind(value);
+      value.interpolate = ((config) => {
+        if (config.inputRange.length !== 2 || !config.outputRange.every((entry) => typeof entry === "number")) return interpolate(config);
+        return { get __value() {
+          const fraction = (Number(liveNumber(value)) - config.inputRange[0]!) / (config.inputRange[1]! - config.inputRange[0]!);
+          return Number(config.outputRange[0]) + fraction * (Number(config.outputRange[1]) - Number(config.outputRange[0]));
+        } };
+      }) as typeof value.interpolate;
+      return value;
+    });
+    const timing = vi.spyOn(Animated, "timing");
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(viewport);
+    if (viewport === 900) toggleSidebarControl();
+    const panel = hostsById(viewport === 900 ? "sidebar-floating" : "sidebar-inline")[0]!;
+    const content = hostsById("details-sidebar")[0]!;
+    const progress = timing.mock.calls.filter(([, config]) => config.toValue === 1 && config.duration === 240).at(-1)![0] as Animated.Value;
+    expect(hostParentOf(content)).toBe(panel);
+    expect(panel.findAll((node) => node === hostsById("sidebar-resize")[0])).toHaveLength(1);
+    expect(StyleSheet.flatten(hostsById("tasks-board-area")[0]!.props.style).overflow).toBe("hidden");
+    const sample = (fraction: number) => {
+      act(() => progress.setValue(fraction));
+      const slot = StyleSheet.flatten(hostsById("sidebar-slot")[0]!.props.style);
+      const surface = StyleSheet.flatten(panel.props.style);
+      const reserved = Number(liveNumber(slot.width));
+      const shift = Number(liveNumber(surface.transform[0].translateX));
+      // Its background, border/shadow, handle and bottom share one fixed-size moving ancestor.
+      expect(surface).toMatchObject({ width: 380, top: 0, bottom: 0, paddingTop: 4, paddingBottom: 12, opacity: 1 });
+      expect(surface.boxShadow).toBeTruthy();
+      expect(reserved).toBeCloseTo(392 * fraction);
+      expect(shift).toBeCloseTo(392 * (1 - fraction));
+      expect(shift + reserved).toBeCloseTo(392);
+      expect(viewport - surface.right - surface.width + shift).toBeCloseTo(viewport - reserved);
+      expect(hostsById("details-sidebar")[0]).toBe(content);
+    };
+    for (const fraction of [0, 0.25, 0.5, 0.75, 1]) sample(fraction);
+    toggleSidebarControl();
+    for (const fraction of [0.75, 0.5]) sample(fraction);
+    toggleSidebarControl();
+    sample(0.5);
+    sample(1);
+    toggleSidebarControl();
+    for (const fraction of [0.5, 0.25, 0]) sample(fraction);
+  });
+
   it("animates the desktop sidebar closed and can reverse during entry or exit", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const timing = vi.spyOn(Animated, "timing").mockImplementation((value, config) => {
