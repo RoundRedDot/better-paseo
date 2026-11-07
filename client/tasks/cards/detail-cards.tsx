@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useEffect, useRef, useState } from "react";
+import React, { useCallback, useMemo, useEffect, useReducer, useRef, useState } from "react";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
@@ -236,7 +236,11 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   // The caller's source, for what ticks each second: `now` below is whole minutes.
   const time: TimeSource = { now: props.now, clock: props.clock };
   const choices = useSectionChoices();
-  const [tab, setTab] = useState<"info" | "messages">("messages");
+  const [tabState, selectTab] = useReducer(
+    (state: { tab: "info" | "messages"; infoVisited: boolean }, tab: "info" | "messages") => ({ tab, infoVisited: state.infoVisited || tab === "info" }),
+    { tab: "messages", infoVisited: false },
+  );
+  const tab = tabState.tab;
   const [tabsPinned, setTabsPinned] = useState(false);
   // Each fixed tab keeps its own scroller, so both edges follow the page on screen.
   const bodyEdges = useRef({ info: emptyScrollEdge(), messages: emptyScrollEdge() });
@@ -308,7 +312,11 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   useEffect(() => { edgeListener.current?.(underBar); }, [underBar]);
   if (props.tabs) {
     const messages: DetailSection[] = order.filter((section) => section === "prompt" || section === "human" || section === "message");
-    const info: DetailSection[] = (["properties", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section));
+    // Touch keeps both pages ready; desktop mounts Info once on its first visit, then retains it.
+    const info: DetailSection[] = props.touch || tabState.infoVisited
+      ? (["properties", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section))
+      : [];
+    const TabPages = props.touch ? React.Fragment : View;
     const tabBar = (
       // Sticky headers replace their direct child's style; keep the row one level inside.
       <View testID="detail-tab-anchor" style={tabShadow && !props.scrollHeader ? { position: "relative", zIndex: 1 } : undefined} onLayout={props.scrollHeader ? (event) => {
@@ -326,7 +334,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
                 setBodyScrolled(bodyEdges.current[id].y > 0);
                 setBodyUnderBar(contentUnderBar(bodyEdges.current[id]));
               }
-              setTab(id);
+              selectTab(id);
             }} />
           ))}
         </View>
@@ -368,7 +376,8 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
               <View
                 key={id}
                 testID={`detail-tab-${id}-content`}
-                style={{ display: tab === id ? "flex" : "none", minHeight: Math.max(0, tabLayout.viewport - tabLayout.height) }}
+                // Keep desktop panel measurements alive while clipping the inactive page out of the shared scroll range.
+                style={!props.touch && tab !== id ? { height: 0, minHeight: 0, overflow: "hidden", ...({ visibility: "hidden" } as object) } : { display: tab === id ? "flex" : "none", minHeight: Math.max(0, tabLayout.viewport - tabLayout.height) }}
                 onLayout={() => {
                   if (tab !== id || !tabOffsets.current.restoring) return;
                   // Restore after the newly visible page has its native layout.
@@ -386,17 +395,19 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
           <>
             <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} />
             {tabBar}
-            <View style={{ flex: 1, minHeight: 0, display: tab === "info" ? "flex" : "none" }}>
-              <ScrollView key={`${card.id}-info`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("info", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("info", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("info", { content: height })} testID="detail-tab-info-scroll">
-                {info.map((section, index) => sectionView(section, index > 0))}
-              </ScrollView>
-            </View>
-            <View style={{ flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" }}>
-              <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("messages", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("messages", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("messages", { content: height })} testID="detail-tab-messages-scroll">
-                {messages.map((section, index) => sectionView(section, index > 0))}
-                <PendingQuestions card={card} tokens={tokens} language={props.language} />
-              </ScrollView>
-            </View>
+            <TabPages {...(!props.touch ? { style: { flex: 1, minHeight: 0 } } : {})}>
+              <View style={props.touch ? { flex: 1, minHeight: 0, display: tab === "info" ? "flex" : "none" } : { position: "absolute", inset: 0, ...({ visibility: tab === "info" ? "visible" : "hidden" } as object) }}>
+                <ScrollView key={`${card.id}-info`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("info", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("info", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("info", { content: height })} testID="detail-tab-info-scroll">
+                  {info.map((section, index) => sectionView(section, index > 0))}
+                </ScrollView>
+              </View>
+              <View style={props.touch ? { flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" } : { position: "absolute", inset: 0, ...({ visibility: tab === "messages" ? "visible" : "hidden" } as object) }}>
+                <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("messages", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("messages", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("messages", { content: height })} testID="detail-tab-messages-scroll">
+                  {messages.map((section, index) => sectionView(section, index > 0))}
+                  <PendingQuestions card={card} tokens={tokens} language={props.language} />
+                </ScrollView>
+              </View>
+            </TabPages>
           </>
         )}
         {props.actions !== false ? <View style={{ paddingBottom: 10 }}><DetailActionBar {...props} sidebar contentUnder={underBar} /></View> : null}

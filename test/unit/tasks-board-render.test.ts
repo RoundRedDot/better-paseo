@@ -25,6 +25,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
       data.length
         ? data.map((item, index) => {
             host.rowRenders += 1;
+            const lane = (item as TaskCard).lane;
+            host.laneRowRenders[lane] = (host.laneRowRenders[lane] ?? 0) + 1;
             return React.createElement(React.Fragment, { key: key(item, index) }, render({ item, index }));
           })
         : empty,
@@ -59,6 +61,7 @@ const host = vi.hoisted(() => ({
   reload: vi.fn(async () => {}),
   /** Rows a lane's list drew, counted by the FlatList mock. */
   rowRenders: 0,
+  laneRowRenders: {} as Record<string, number>,
   /** A fake daemon's API: the board then reads the real store (`useTasks`) instead of the samples. */
   liveTasks: null as unknown,
 }));
@@ -139,6 +142,7 @@ import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { NOTICE_MS } from "../../client/tasks/board/use-board";
 import { ANNOUNCE_AFTER_MS, FLASH_AFTER_ENTER_MS, FLASH_AFTER_SCROLL_MS, newCardStore, resetNewCards } from "../../client/tasks/board/new-cards";
 import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference } from "../../client/tasks/board/sidebar-model";
+import { MOTION } from "../../client/tasks/board/board-style";
 import { ACTIVE_LANE_ORDER as LANE_ORDER, type TaskCard } from "../../client/tasks/model";
 import { BrandMark, DetailActionBar, PiMark, TagMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
 import { deviceTasksStore } from "../../client/tasks/device-preferences";
@@ -389,6 +393,7 @@ beforeEach(() => {
   host.canStop = false;
   host.updateState = { state: "idle" };
   host.rowRenders = 0;
+  host.laneRowRenders = {};
   host.liveTasks = null;
   resetBoardSessions();
   resetNewCards();
@@ -1252,6 +1257,7 @@ describe("Tasks board, desktop", () => {
       const step = (size: number) => Math.round(size * base / 14);
       const host = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "Text" && node.props.testID === id);
       expect(font(host("detail-title"))).toBe(step(14));
+      act(() => hostsById("detail-tab-info")[0]!.props.onPress());
       const cwd = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "detail-cwd-value");
       expect(font(cwd.findAll((node) => (node.type as unknown) === "Text")[0]!)).toBe(step(12));
       expect(font(host("detail-branch-note"))).toBe(step(12));
@@ -1741,6 +1747,7 @@ describe("Tasks board, desktop", () => {
     const panel = hostsById(viewport === 900 ? "sidebar-floating" : "sidebar-inline")[0]!;
     const content = hostsById("details-sidebar")[0]!;
     const progress = timing.mock.calls.filter(([, config]) => config.toValue === 1 && config.duration === 240).at(-1)![0] as Animated.Value;
+    expect(timing).toHaveBeenCalledWith(progress, expect.objectContaining({ duration: 240, easing: MOTION.ease }));
     expect(hostParentOf(content)).toBe(panel);
     expect(panel.findAll((node) => node === hostsById("sidebar-resize")[0])).toHaveLength(1);
     expect(StyleSheet.flatten(hostsById("tasks-board-area")[0]!.props.style).overflow).toBe("hidden");
@@ -1767,6 +1774,162 @@ describe("Tasks board, desktop", () => {
     sample(1);
     toggleSidebarControl();
     for (const fraction of [0.5, 0.25, 0]) sample(fraction);
+  });
+
+  it("redraws only the selected lane when the desktop sidebar opens or closes", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    finishSidebarCloseImmediately();
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(2400);
+    const target = cards().find((node) => node.props.card.id === "sample-running")!;
+    const count = cards().filter((node) => node.props.card.lane === "running").length;
+    for (const action of [() => target.props.onSelect(target.props.card), toggleSidebarControl, toggleSidebarControl]) {
+      const before = { ...host.laneRowRenders };
+      await act(async () => action());
+      expect(Object.fromEntries(LANE_ORDER.map((lane) => [lane, (host.laneRowRenders[lane] ?? 0) - (before[lane] ?? 0)]))).toEqual({ needs_input: 0, running: count, review: 0, done: 0 });
+    }
+    expect(cards().find((node) => node.props.card.id === target.props.card.id)!.props.current).toBe(true);
+  });
+
+  it("keeps selection in the rendered lane while the live lookup has moved ahead", async () => {
+    const handle = (data as unknown as { __handle: { byId: Map<string, TaskCard> } }).__handle;
+    const saved = handle.byId;
+    try {
+      await act(async () => { renderer = TestRenderer.create(screen(false)); });
+      layOut(900);
+      const selected = () => cards().find((node) => node.props.card.id === "sample-running")!;
+      await act(async () => selected().props.onSelect(selected().props.card));
+      handle.byId = new Map(saved).set("sample-running", { ...saved.get("sample-running")!, lane: "review" });
+      await act(async () => renderer!.update(screen(false)));
+      expect(selected().props.card.lane).toBe("running");
+      expect(selected().props.current).toBe(true);
+      expect(cards().filter((node) => node.props.current).map((node) => node.props.card.id)).toEqual(["sample-running"]);
+    } finally {
+      handle.byId = saved;
+    }
+  });
+
+  it.each(["child", "provider"] as const)("keeps a selected %s subtask current across lane moves, floating close and deletion", async (kind) => {
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }>; byId: Map<string, TaskCard> } }).__handle;
+    const saved = { lanes: handle.lanes, byId: handle.byId };
+    const parent = saved.byId.get("sample-running")!;
+    const child = saved.byId.get("sample-child-1")!;
+    try {
+      if (kind === "provider") {
+        const next: TaskCard = { ...parent, children: [{ id: "provider-selection", title: "Provider child", kind: "provider" as const, lane: "running" as const, status: "running", timing: child.timing }] };
+        handle.lanes = { ...saved.lanes, running: { ...saved.lanes.running!, cards: [next] } };
+        handle.byId = new Map(saved.byId).set(parent.id, next);
+      }
+      finishSidebarCloseImmediately();
+      await act(async () => { renderer = TestRenderer.create(screen(false)); });
+      layOut(900);
+      const id = kind === "provider" ? "provider-selection" : child.id;
+      const selected = () => cards().find((node) => node.props.card.id === id)!;
+      await act(async () => selected().props.onSelect(selected().props.card));
+      expect(cards().filter((node) => node.props.current).map((node) => node.props.card.id)).toEqual([id]);
+      expect(hostsById("sidebar-floating")).toHaveLength(1);
+      await act(async () => toggleSidebarControl());
+      expect(selected().props.current).toBe(false);
+      await act(async () => toggleSidebarControl());
+      expect(selected().props.current).toBe(true);
+      const moved: TaskCard = { ...selected().props.card, lane: "review" };
+      const movedParent: TaskCard = { ...parent, children: [{ id, title: moved.title, kind: "provider" as const, lane: "review" as const, status: "running", timing: moved.timing }] };
+      handle.lanes = {
+        ...handle.lanes,
+        running: { ...handle.lanes.running!, cards: kind === "provider" ? [movedParent] : handle.lanes.running!.cards.filter((card) => card.id !== id) },
+        review: { ...handle.lanes.review!, cards: kind === "provider" ? handle.lanes.review!.cards : [...handle.lanes.review!.cards, moved] },
+      };
+      handle.byId = new Map(handle.byId).set(kind === "provider" ? parent.id : id, kind === "provider" ? movedParent : moved);
+      await act(async () => renderer!.update(screen(false)));
+      expect(selected().props.card.lane).toBe("review");
+      expect(selected().props.current).toBe(true);
+      handle.lanes = {
+        ...handle.lanes,
+        running: { ...handle.lanes.running!, cards: kind === "provider" ? [{ ...parent, children: [] }] : handle.lanes.running!.cards },
+        review: { ...handle.lanes.review!, cards: handle.lanes.review!.cards.filter((card) => card.id !== id) },
+      };
+
+      handle.byId = new Map(handle.byId);
+      if (kind === "provider") handle.byId.set(parent.id, { ...parent, children: [] });
+      else handle.byId.delete(id);
+      await act(async () => renderer!.update(screen(false)));
+      expect(cards().some((node) => node.props.card.id === id)).toBe(false);
+      expect(cards().some((node) => node.props.current)).toBe(false);
+    } finally {
+      handle.lanes = saved.lanes;
+      handle.byId = saved.byId;
+    }
+  });
+
+  it.each([560, 900])("mounts desktop Info once and retains local state and scroll bookkeeping at %i pt height", async (height) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const scrollTo = vi.fn();
+    await act(async () => { renderer = TestRenderer.create(screen(false), {
+      createNodeMock: (element) => (element.props as { testID?: string }).testID === "detail-tab-short-scroll" ? { scrollTo } : null,
+    }); });
+    layOut(2000);
+    act(() => hostsById("details-sidebar")[0]!.props.onLayout({ nativeEvent: { layout: { width: 366, height } } }));
+    const select = async (id: string) => {
+      const card = cards().find((node) => node.props.card.id === id)!;
+      await act(async () => card.props.onSelect(card.props.card));
+    };
+    await select("sample-running");
+    expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
+    expect(hostsById("detail-prompt")).toHaveLength(1);
+    expect(hostsById("detail-location")).toHaveLength(0);
+    expect(hostsById("detail-usage")).toHaveLength(0);
+    await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
+    const info = hostsById("detail-location")[0]!;
+    const properties = hostsById("detail-properties")[0]!;
+    act(() => properties.props.onLayout({ nativeEvent: { layout: { width: 500 } } }));
+    expect(properties.findAll((node) => (node.type as unknown) === "Text" && StyleSheet.flatten(node.props.style).width === 72).length).toBeGreaterThan(0);
+    const scroll = hostsById(height < 640 ? "detail-tab-short-scroll" : "detail-tab-info-scroll")[0]!;
+    if (height < 640) {
+      act(() => {
+        scroll.props.onLayout({ nativeEvent: { layout: { height: 300 } } });
+        hostsById("detail-tab-anchor")[0]!.props.onLayout({ nativeEvent: { layout: { y: 200, height: 46 } } });
+        hostsById("detail-tab-info-content")[0]!.props.onLayout();
+        scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 330 } } });
+      });
+    } else {
+      act(() => scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 123 }, layoutMeasurement: { height: 300 }, contentSize: { height: 900 } } }));
+    }
+    await act(async () => hostsById("detail-tab-messages")[0]!.props.onPress());
+    if (height < 640) {
+      expect(StyleSheet.flatten(hostsById("detail-tab-info-content")[0]!.props.style)).toMatchObject({ height: 0, overflow: "hidden", visibility: "hidden" });
+      act(() => hostsById("detail-tab-messages-content")[0]!.props.onLayout());
+    } else {
+      expect(StyleSheet.flatten(scroll.parent!.parent!.props.style)).toMatchObject({ position: "absolute", inset: 0, visibility: "hidden" });
+    }
+    await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
+    if (height < 640) {
+      act(() => hostsById("detail-tab-info-content")[0]!.props.onLayout());
+      expect(scrollTo).toHaveBeenLastCalledWith({ y: 330, animated: false });
+    } else {
+      expect(hostsById("detail-tab-info-scroll")[0]).toBe(scroll);
+      expect(StyleSheet.flatten(hostsById("detail-tabs")[0]!.props.style).boxShadow).toContain("0px 5px");
+    }
+    expect(hostsById("detail-location")[0]).toBe(info);
+    expect(hostsById("detail-properties")[0]).toBe(properties);
+    expect(properties.findAll((node) => (node.type as unknown) === "Text" && StyleSheet.flatten(node.props.style).width === 72).length).toBeGreaterThan(0);
+    await select("sample-failed");
+    expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
+    expect(hostsById("detail-location")).toHaveLength(0);
+    await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
+    expect(hostsById("detail-location")[0]).not.toBe(info);
+  });
+
+  it.each([["ios", false], ["android", false], ["ios", true], ["android", true], ["web", true]] as const)("keeps both Info and Messages mounted on %s touch layouts (phone=%s)", async (os, phone) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(phone)); });
+    if (!phone) layOut(1400);
+    await act(async () => cards()[0]!.props.onSelect(cards()[0]!.props.card));
+    expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
+    expect(hostsById("detail-location")).toHaveLength(1);
+    expect(hostsById("detail-prompt")).toHaveLength(1);
+    const hidden = hostsById("detail-tab-info-content")[0];
+    if (hidden) expect(StyleSheet.flatten(hidden.props.style).display).toBe("none");
+    else expect(StyleSheet.flatten(hostsById("detail-tab-info-scroll")[0]!.parent!.parent!.props.style).display).toBe("none");
   });
 
   it("animates the desktop sidebar closed and can reverse during entry or exit", () => {

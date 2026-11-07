@@ -7,7 +7,6 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, laneTitle, TasksTypography
 import { StatusIcon, taskTokens, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, isHistoryLane, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { useHover } from "../../ui/use-hover";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
@@ -633,6 +632,8 @@ export function DesktopBoard(props: {
   // view takes the board at once. The lane motion follows what the lanes show.
   const wantedLanes = `${inView}${focus ? `|${focus.lane}|` : ""}${flash ? `|${flash.lane}|` : ""}${highlightedLane ? `|${highlightedLane}|` : ""}`;
   const shownLanes = useOffscreenLanes(lanes, wantedLanes, { on: OFFSCREEN_LAG, churnLimit: LANE_CHURN_LIMIT ?? 0 });
+  // The live lookup can advance before the deferred lanes on screen do.
+  const selectedLane = selection.id === null ? null : findCard(shownLanes, selection.id)?.lane;
   // Filters, sort and search are the user's: lanes that change with them take their new order at once.
   const motion = useLaneMotion(shownLanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: true, churnLimit: LANE_CHURN_LIMIT });
   useTrackNewCards(board.hostId, shownLanes, tasks.ready);
@@ -766,7 +767,7 @@ export function DesktopBoard(props: {
                       callbacks={callbacks}
                       theme={theme}
                       focusIndex={focus?.lane === id ? focus.index : null}
-                      currentId={open ? selection.id : null}
+                      currentId={open && selectedLane === id ? selection.id : null}
                       listRef={publishList[id]}
                       breathing={breathing}
                       bottomRoom={sheetRoom}
@@ -1010,7 +1011,7 @@ function SidebarColumn(props: {
     const animation = Animated.timing(progress, {
       toValue: props.open ? 1 : 0,
       duration: props.open ? 240 : 180,
-      easing: Platform.OS === "web" ? DESKTOP_OVERLAY.ease : MOTION.ease,
+      easing: MOTION.ease,
       useNativeDriver: false,
     });
     animation.start(({ finished }) => {
