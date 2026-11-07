@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Modal } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import type { CardSettings } from "../../../shared/tasks-settings";
 import { LANE_STATUS, type TaskCard } from "../model";
 import { HOST_FONT, TaskText as Text } from "../typography";
@@ -59,6 +59,7 @@ export function hiddenExampleCard(language: "en" | "zh"): TaskCard {
 /** Tasks the board's filters leave out of the sidebar counts. Each one is the board's own card. */
 export function HiddenCount({ tasks, theme, language, fields, compact = false, hostId }: { tasks: readonly TaskCard[]; theme: PluginTheme; language: "en" | "zh"; fields: CardSettings; compact?: boolean; hostId?: string }) {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const title = language === "zh" ? "被隐藏的任务" : "Hidden tasks";
   const groups = (["needs_input", "running", "review"] as const).map((lane) => ({
     lane,
@@ -74,7 +75,7 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
     const node = anchor.current as unknown as HTMLElement | null;
     node?.setAttribute("title", `${label}\n${names}`);
   }, [label, names]);
-  return <>
+  return <View {...(Platform.OS === "web" ? { onClick: (event: React.MouseEvent) => event.stopPropagation() } : {})}>
     <Pressable ref={anchor} testID="hidden-tasks-count" accessibilityRole="button" accessibilityLabel={label} onPress={() => setOpen(true)} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
       <View style={{ width: 14, height: 14, alignItems: "center", justifyContent: "center" }}>
         <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: taskTokens(theme).card.archiveBorder }} />
@@ -85,13 +86,19 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
       <Modal.Content scrollable contentContainerStyle={{ gap: 16 }}>
         <Text style={{ color: theme.colors.foregroundMuted }}>{language === "zh" ? "当前筛选或搜索隐藏了以下任务。" : "The current filters or search hide these tasks."}</Text>
         {groups.map((group) => <View key={group.lane} testID={`hidden-tasks-${group.lane}`} style={{ gap: 8 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Pressable testID={`hidden-tasks-toggle-${group.lane}`} accessibilityRole="button" accessibilityLabel={`${group.label} · ${group.tasks.length}`} accessibilityState={{ expanded: !collapsed.has(group.lane) }} onPress={() => setCollapsed((previous) => {
+            const next = new Set(previous);
+            if (next.has(group.lane)) next.delete(group.lane);
+            else next.add(group.lane);
+            return next;
+          })} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Icon name={collapsed.has(group.lane) ? "ChevronRight" : "ChevronDown"} size={14} color={theme.colors.foregroundMuted} />
             <StatusIcon kind={LANE_STATUS[group.lane]} size={14} theme={theme} />
             <Text style={{ color: theme.colors.foregroundMuted, fontWeight: "600" }}>{group.label} · {group.tasks.length}</Text>
-          </View>
-          {group.tasks.map((task) => <TaskCardView key={task.id} card={task} fields={fields} theme={theme} compact={compact} language={language} hostId={hostId} permissionButtons={[]} stopPhase="idle" focused={false} highlighted={false} onReveal={noop} />)}
+          </Pressable>
+          {!collapsed.has(group.lane) ? group.tasks.map((task) => <TaskCardView key={task.id} card={task} fields={fields} theme={theme} compact={compact} language={language} hostId={hostId} permissionButtons={[]} stopPhase="idle" focused={false} highlighted={false} onReveal={noop} />) : null}
         </View>)}
       </Modal.Content>
     </Modal> : null}
-  </>;
+  </View>;
 }

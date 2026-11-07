@@ -6875,6 +6875,28 @@ describe("Tasks sidebar entry", () => {
     expect(modal.findAllByType(ProviderLogo).length).toBeGreaterThan(0);
   });
 
+  it("folds hidden groups independently and stops dialog clicks reaching the sidebar", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const card = (data as unknown as { __handle: { lanes: { running: { cards: TaskCard[] } } } }).__handle.lanes.running.cards[0]!;
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, sidebar: { count: "all" } };
+    host.counts = { needsInput: 0, running: 0, review: 0, done: 0, hidden: [card, { ...card, id: "review-hidden", lane: "review" }] };
+    const row = entry(null);
+    act(() => row.findAll((node) => node.props.testID === "hidden-tasks-count")[0]!.props.onPress());
+    const modal = () => renderer!.root.findByType(Modal);
+    const toggle = () => modal().findAll((node) => node.props.testID === "hidden-tasks-toggle-running" && (node.type as unknown) === "Pressable")[0]!;
+    expect(toggle().props.accessibilityState.expanded).toBe(true);
+    act(() => toggle().props.onPress());
+    expect(toggle().props.accessibilityState.expanded).toBe(false);
+    expect(modal().findAll((node) => node.props.testID === `task-card-${card.id}`)).toHaveLength(0);
+    expect(modal().findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-review-hidden")).toHaveLength(1);
+    act(() => toggle().props.onPress());
+    expect(modal().findAll((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.id}`)).toHaveLength(1);
+    const boundary = row.findAll((node) => typeof node.props.onClick === "function").find((node) => node.findAllByType(Modal).length > 0)!;
+    const event = { stopPropagation: vi.fn() };
+    boundary.props.onClick(event);
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+  });
+
   it.each([["all", true], ["input-only", false], ["none", false]] as const)("shows hidden running tasks only for the all indicator (%s)", (count, visible) => {
     const card = (data as unknown as { __handle: { lanes: { running: { cards: TaskCard[] } } } }).__handle.lanes.running.cards[0]!;
     host.settings = { ...DEFAULT_TASKS_SETTINGS, sidebar: { count } };
