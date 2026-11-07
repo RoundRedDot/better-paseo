@@ -43,12 +43,21 @@ paseo plugin reload better-paseo
 Paseo installs the plugin from GitHub, so a change on a local branch is not what a client runs
 until it is pushed and the plugin is updated (`paseo plugin update better-paseo`).
 
+A day-to-day update may install the current `main` SHA. A version release does not. The version commit, the daily daemon, and the marketplace pin are the same SHA. Bump `package.json` first, push that commit, map its full hash in `versions.json`, then install that SHA:
+
+```bash
+paseo plugin update better-paseo --yes --ref <version sha> --json --home ~/.paseo
+```
+
+Do not install the parent of the version commit. That parent is not in the version map, so Settings reports the version information as incomplete and will not say which side is newer. Without `--ref`, the update installs whatever `main` is at that moment.
+
 The public listing on paseo.sh/plugins installs the commit pinned in
-getpaseo/plugins. Open that pin pull request with
+getpaseo/plugins. Open that pin pull request for the same version SHA with
 [plugin-registry-update.md](plugin-registry-update.md). The same update
 publishes a GitHub release on RoundRedDot/better-paseo before the pull request
 is opened. The tag and the title are the same string, the plugin version, with
-no `v` prefix. The update is unfinished until that release exists.
+no `v` prefix. The update is unfinished until that release exists and the
+daily daemon is on that SHA.
 
 ## Install build
 
@@ -136,4 +145,4 @@ Unit-test fixtures and pure test helpers stay under `test/`, so plugin tests do 
 
 The Version tab uses the marketplace's reviewed Git commit as its target. It reads `versions.json` from `RoundRedDot/better-paseo-assets` for full Git hash, version and 12-digit build mappings. Release notes live in separate `changelogs/v<version>.json` files. Each file contains bilingual `versionNotes` snapshots keyed by build. Keep the earlier hash mappings and snapshots when adding a build with the same version; append its new user-visible changes to that version's existing notes. A new version starts with its own changes. Settings selects the newest snapshot at or before the marketplace build and shows up to three versions. A plugin update also publishes a same-named GitHub release before the registry pull request.
 
-For each release, set `package.json` `build` to the Singapore time in `YYYYMMDDHHmm` format before the version commit. After committing, map that exact commit hash to the same version and build in `versions.json`, and publish the JSON before the plugin commit is deployed. Version comparison uses the three version components first and the build number only when they match. Two releases with the same version within one minute have the same build and cannot be ordered by this scheme.
+For each release, set `package.json` `build` to the Singapore time in `YYYYMMDDHHmm` format before the version commit. After committing, map that exact commit hash to the same version and build in `versions.json`, and publish the JSON before the plugin commit is deployed. Deploy and pin that same hash. Do not deploy its parent and do not add the parent to the map in its place. Version comparison uses the three version components first and the build number only when they match. Two releases with the same version within one minute have the same build and cannot be ordered by this scheme. An installed hash missing from `versions.json` has no version, so Settings cannot tell whether the marketplace commit is newer.
