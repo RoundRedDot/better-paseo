@@ -20,6 +20,7 @@ let renderer: TestRenderer.ReactTestRenderer;
 beforeEach(() => { vi.useFakeTimers(); (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; });
 afterEach(() => { act(() => renderer?.unmount()); vi.useRealTimers(); });
 const hosts = (id: string) => renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === id);
+const testTheme = { colors: { foreground: "#111111", foregroundMuted: "#777777", surface0: "#ffffff", surface1: "#eeeeee", surface2: "#eeeeee", accent: "#2563eb", accentForeground: "#ffffff", statusWarning: "#a36a00", statusDanger: "#d92d20", statusSuccess: "#198754", border: "#dddddd" } } as never;
 const text = (node: TestRenderer.ReactTestInstance): string => node.children.map((child) => typeof child === "string" ? child : text(child)).join("");
 
 function mount(counts: ReturnType<SearchCoverageControl["read"]>, language: "en" | "zh" = "zh", phone = false, size = 13, hideSearchIcon = false) {
@@ -32,7 +33,7 @@ function mount(counts: ReturnType<SearchCoverageControl["read"]>, language: "en"
   const theme = { colors: { foreground: "#111111", foregroundMuted: "#777777", surface0: "#ffffff", surface1: "#eeeeee", surface2: "#eeeeee", accent: "#2563eb", accentForeground: "#ffffff", statusWarning: "#a36a00", statusDanger: "#d92d20", statusSuccess: "#198754", border: "#dddddd" } } as never;
   const render = () => <SearchCoverageProvider status={status} query={query} strings={BOARD_STRINGS[language].searchCoverage} total={6}>
     <Lanes />
-    <SearchInput hideSearchIcon={hideSearchIcon} iconSize={size} iconColor="#777777" value={query} />
+    <SearchInput theme={testTheme} hideSearchIcon={hideSearchIcon} iconSize={size} iconColor="#777777" value={query} />
     <SearchCoverageItems theme={theme} phone={phone} />
   </SearchCoverageProvider>;
   act(() => { renderer = TestRenderer.create(render()); });
@@ -52,7 +53,7 @@ it("announces history loading and offers a retry when its page fails", () => {
   const status: SearchCoverageControl = { read: () => counts, subscribe: () => () => {}, retry: async () => {}, prompt: () => ({ state: "idle" }) };
   const theme = { colors: { foreground: "#111", foregroundMuted: "#777", surface0: "#fff", surface1: "#eee", surface2: "#eee", accent: "#2563eb", accentForeground: "#ffffff", statusWarning: "#a36a00", statusDanger: "#d92d20", statusSuccess: "#198754", border: "#ddd" } } as never;
   const render = (historyLoading: boolean, historyError: string | null) => <SearchCoverageProvider status={status} query="query" strings={BOARD_STRINGS.zh.searchCoverage} total={0} historyLoading={historyLoading} historyError={historyError} retryHistory={retry} historyLoadingText={BOARD_STRINGS.zh.historyLoading} historyFailedText={BOARD_STRINGS.zh.historyFailed}>
-    <SearchInput iconSize={13} iconColor="#777" value="query" />
+    <SearchInput theme={testTheme} iconSize={13} iconColor="#777" value="query" />
     <SearchCoverageItems theme={theme} phone />
   </SearchCoverageProvider>;
   act(() => { renderer = TestRenderer.create(render(true, null)); vi.advanceTimersByTime(300); });
@@ -72,16 +73,27 @@ it("offers stop and resume without clearing the query", () => {
   const counts = state(1);
   const status: SearchCoverageControl = { read: () => counts, subscribe: () => () => {}, retry: async () => {}, prompt: () => ({ state: "idle" }) };
   const render = (cancelled: boolean) => <SearchCoverageProvider status={status} query="query" strings={BOARD_STRINGS.zh.searchCoverage} total={1} cancelled={cancelled} setCancelled={toggle} cancelText="停止搜索" resumeText="继续搜索" stoppedText="搜索已停止，结果不完整">
-    <SearchInput iconSize={13} iconColor="#777" value="query" />
+    <SearchInput theme={testTheme} iconSize={13} iconColor="#777" value="query" />
   </SearchCoverageProvider>;
+  (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   act(() => { renderer = TestRenderer.create(render(false)); });
   expect(hosts("search-cancel-toggle")[0]!.props.accessibilityLabel).toBe("停止搜索");
+  expect(hosts("search-cancel-toggle")[0]!.props.dataSet.bctip).toBe("停止搜索");
+  const idleStyle = hosts("search-cancel-toggle")[0]!.props.style;
+  act(() => hosts("search-cancel-toggle")[0]!.props.onHoverIn());
+  expect(hosts("search-cancel-toggle")[0]!.props.style).not.toEqual(idleStyle);
+  const hoverStyle = hosts("search-cancel-toggle")[0]!.props.style;
+  act(() => hosts("search-cancel-toggle")[0]!.props.onPressIn());
+  expect(hosts("search-cancel-toggle")[0]!.props.style).not.toEqual(hoverStyle);
+  act(() => hosts("search-cancel-toggle")[0]!.props.onPressOut());
   act(() => hosts("search-cancel-toggle")[0]!.props.onPress());
   expect(toggle).toHaveBeenLastCalledWith(true);
   act(() => renderer.update(render(true)));
   expect(hosts("search-cancel-toggle")[0]!.props.accessibilityLabel).toBe("继续搜索");
+  expect(hosts("search-cancel-toggle")[0]!.props.dataSet.bctip).toBe("继续搜索");
   act(() => hosts("search-cancel-toggle")[0]!.props.onPress());
   expect(toggle).toHaveBeenLastCalledWith(false);
+  delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
 });
 
 it("hides the search icon without losing loading feedback", () => {

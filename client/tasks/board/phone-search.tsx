@@ -79,7 +79,7 @@ export function PhoneSearch(props: {
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <View style={{ flex: 1, minWidth: 0, minHeight: 36, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 14, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 18 }}>
-            <SearchInput iconSize={15} iconColor={colors.foregroundMuted}
+            <SearchInput theme={theme} iconSize={15} iconColor={colors.foregroundMuted}
               autoFocus={props.autoFocus}
               value={props.query}
               onChangeText={props.onChange}

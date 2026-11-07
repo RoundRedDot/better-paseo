@@ -54,7 +54,7 @@ describe("full conversation switch", () => {
       const search = full ? conversation : first;
       shown = search.messages;
       return <SearchCoverageProvider status={search.status} query={query} total={shown.size} strings={full ? BOARD_STRINGS[language].conversationSearchCoverage : BOARD_STRINGS[language].searchCoverage} fullConversation={full} onFullConversationChange={setFull} fullConversationLabel={BOARD_STRINGS[language].fullConversationSearch} fullConversationHint={BOARD_STRINGS[language].fullConversationHint(full)}>
-        <SearchInput value={query} onChangeText={setQuery} iconSize={13} iconColor="#777777" />
+        <SearchInput theme={{ colors: { foreground: "#111", foregroundMuted: "#777", surface0: "#fff", surface1: "#eee", surface2: "#ddd", accent: "blue", accentForeground: "white", border: "gray" } } as never} value={query} onChangeText={setQuery} iconSize={13} iconColor="#777777" />
         <FullConversationSwitch theme={{ colors: { accent: "blue", accentForeground: "white", surface0: "white", surface2: "gray", border: "gray", foregroundMuted: "gray" } } as never} />
       </SearchCoverageProvider>;
     }
