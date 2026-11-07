@@ -1230,18 +1230,17 @@ describe("TaskCardView rows", () => {
     const old = { ...orphan, parent: { id: "old", title: "多设备连接", missing: true, archived: false } };
     await act(async () => tree.update(cardElement(old, { onReveal, fields: fields("minimal") })));
     expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["多设备连接"]);
-    // A parent link the plugin inferred says "Inferred" in every state of its parent, the archive
-    // icon only while the parent is archived; the card is no subtask, so its corner stays unmarked.
+    // Historical links retain one label across parent states; the icon follows the archive state.
     const subtaskMarks = () => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
     const tagIcons = () => icons(hostByTestId(tree.root, "task-card-meta-archived"));
     const inferred = (parent: Partial<NonNullable<TaskCard["parent"]>>) => ({ ...orphan, parent: { id: "former", title: "多设备连接", missing: true, archived: true, ...parent, detached: true as const } });
     const cases = [
-      { parent: { archivedAs: "agent" as const }, zh: ["多设备连接", "推断 · 已归档"], en: ["多设备连接", "Inferred · Archived"], icon: "Archive" },
-      { parent: { archived: false, archivedAs: "workspace" as const }, zh: ["多设备连接", "推断 · 工作区已归档"], en: ["多设备连接", "Inferred · Workspace archived"], icon: "Archive" },
+      { parent: { archivedAs: "agent" as const }, zh: ["多设备连接", "历史关联"], en: ["多设备连接", "History"], icon: "Archive" },
+      { parent: { archived: false, archivedAs: "workspace" as const }, zh: ["多设备连接", "历史关联"], en: ["多设备连接", "History"], icon: "Archive" },
       // Restored: on the board, not archived.
-      { parent: { missing: false, archived: false }, zh: ["多设备连接", "推断"], en: ["多设备连接", "Inferred"], icon: "Info" },
+      { parent: { missing: false, archived: false }, zh: ["多设备连接", "历史关联"], en: ["多设备连接", "History"], icon: "Info" },
       // Unreadable: no title, archive unknown.
-      { parent: { title: null, archived: null }, zh: ["父任务", "推断"], en: ["Parent task", "Inferred"], icon: "Info" },
+      { parent: { title: null, archived: null }, zh: ["父任务", "历史关联"], en: ["Parent task", "History"], icon: "Info" },
     ];
     for (const { parent, zh, en, icon } of cases) {
       await act(async () => tree.update(cardElement(inferred(parent), { onReveal, fields: fields("minimal") })));
@@ -1259,8 +1258,14 @@ describe("TaskCardView rows", () => {
     platform.__rnMockOS = "web";
     try {
       const web = await render(cardElement(inferred({ archivedAs: "agent" }), { onReveal, fields: fields("minimal") }));
-      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("根据归档时间推断的原父任务，可能有误");
+      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("历史关联根据归档时间推测，可能有误");
       expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("父任务：已归档");
+      await act(async () => web.update(cardElement(inferred({ archived: false, archivedAs: "workspace" }), { onReveal, fields: fields("minimal") })));
+      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("父任务：工作区已归档");
+      await act(async () => web.update(cardElement(inferred({ missing: false, archived: false }), { onReveal, fields: fields("minimal") })));
+      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("父任务当前未归档");
+      await act(async () => web.update(cardElement(inferred({ archived: null }), { onReveal, fields: fields("minimal"), language: "en" })));
+      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("Parent archive status unknown");
       await act(async () => web.update(cardElement(orphan, { onReveal, fields: fields("minimal"), language: "en" })));
       expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toBe("Parent: Archived");
     } finally {
@@ -3179,23 +3184,34 @@ describe("TaskDetailCards", () => {
     await act(async () => hostByTestId(tree.root, "detail-parent").props.onPress());
     expect(onJump).toHaveBeenCalledWith("gone");
 
-    // A parent link the plugin inferred says "Inferred" in every state of its parent, and says so to a
-    // screen reader. Restored, it still jumps; off the board it keeps its "Not on the board" note.
+    // Historical links keep their label and accessible name while the parent's state changes.
     const inferred = (parent: Partial<NonNullable<TaskCard["parent"]>>) => ({ ...orphan, parent: { id: "gone", title: "多设备连接", missing: true, archived: true, ...parent, detached: true as const } });
     await act(async () => tree.update(details(inferred({}), { onJump, unarchive })));
-    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "推断 · 已归档", "取消归档"]);
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "历史关联", "取消归档"]);
     expect(icons(hostByTestId(tree.root, "detail-parent-tag"))).toEqual(["Archive"]);
-    expect(hostByTestId(tree.root, "detail-parent").props.accessibilityLabel).toBe("父任务: 多设备连接, 推断 · 已归档");
+    expect(hostByTestId(tree.root, "detail-parent").props.accessibilityLabel).toBe("父任务: 多设备连接, 历史关联, 父任务：已归档\n历史关联根据归档时间推测，可能有误");
     await act(async () => tree.update(details(inferred({ missing: false, archived: false }), { onJump, unarchive })));
-    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "推断"]);
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "历史关联"]);
     expect(icons(hostByTestId(tree.root, "detail-parent-tag"))).toEqual(["Info"]);
     await act(async () => hostByTestId(tree.root, "detail-parent").props.onPress());
     expect(onJump).toHaveBeenLastCalledWith("gone");
     await act(async () => tree.update(details(inferred({ archived: false }), { onJump, onOpen: vi.fn(), unarchive })));
-    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "推断", "不在看板上"]);
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["多设备连接", "历史关联", "不在看板上"]);
     await act(async () => tree.update(details(inferred({ title: null, archived: null }), { onJump, unarchive }, "en")));
-    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["Parent task", "Inferred"]);
-    expect(hostByTestId(tree.root, "detail-parent").props.accessibilityLabel).toBe("Parent: Parent task, Inferred");
+    expect(texts(hostByTestId(tree.root, "detail-parent"))).toEqual(["Parent task", "History"]);
+    expect(hostByTestId(tree.root, "detail-parent").props.accessibilityLabel).toBe("Parent: Parent task, History, Parent archive status unknown\nThe former relationship is inferred from archive timing and may be incorrect");
+    const platform = globalThis as { __rnMockOS?: string };
+    const saved = platform.__rnMockOS;
+    platform.__rnMockOS = "web";
+    try {
+      const web = await render(details(inferred({ archivedAs: "workspace", archived: false }), { onJump }));
+      expect(hostByTestId(web.root, "detail-parent-tag").props.dataSet?.bctip).toContain("父任务：工作区已归档");
+      await act(async () => web.update(details(inferred({ missing: false, archived: false }), { onJump }, "en")));
+      expect(hostByTestId(web.root, "detail-parent-tag").props.dataSet?.bctip).toContain("Parent is not currently archived");
+    } finally {
+      if (saved === undefined) delete platform.__rnMockOS;
+      else platform.__rnMockOS = saved;
+    }
   });
 
   it("offers Archive beside Open in a done task's header", async () => {

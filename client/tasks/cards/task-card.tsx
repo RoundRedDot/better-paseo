@@ -847,7 +847,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   let parentArchive: string | null = null;
   if (card.parent?.archivedAs === "workspace") parentArchive = strings.workspaceArchived;
   else if (card.parent?.archivedAs === "agent" || (card.parent?.missing && card.parent.archived === true)) parentArchive = strings.archived;
-  const shownParentTag = parentTag(parentArchive, card.parent?.detached ? strings.inferred : null);
+  const shownParentTag = parentTag(parentArchive, card.parent?.detached ? { label: strings.parentHistory, tip: strings.parentHistoryHint(parentArchive, card.parent.archived) } : null);
   // Beside a context ring the text fades out before it instead of ending in
   // an ellipsis: clipped, with the fade only once the text no longer fits.
   const metaRing = hasMeta ? ringFor(m.metaLine) : null;
@@ -927,7 +927,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           {metaCut ? <EdgeFade color={background} /> : null}
         </View>
         {shownParentTag !== null ? (
-          <View {...tipProps(card.parent?.detached ? lines(strings.inferredHint, parentArchive && pair(strings.details.parent, parentArchive)) : pair(strings.details.parent, shownParentTag.label))} style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("tag")} testID="task-card-meta-parent-tag-tip">
+          <View {...tipProps(shownParentTag.tip ?? pair(strings.details.parent, shownParentTag.label))} style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("tag")} testID="task-card-meta-parent-tag-tip">
             <ArchivedTag tokens={tokens} label={shownParentTag.label} icon={shownParentTag.icon} testID="task-card-meta-archived" />
           </View>
         ) : null}

@@ -1228,8 +1228,7 @@ function Properties(props: Inner) {
     else if (archived || parent.archivedAs === "agent") archive = cardText.archived;
     if (archived && !unarchive) notes = [{ text: details.cannotJump }];
     else if (offBoard && !archive) notes = [{ text: details.offBoard }];
-    // A link the plugin inferred says so, whatever the parent's state.
-    const tag = parentTag(archive, parent.detached ? cardText.inferred : null);
+    const tag = parentTag(archive, parent.detached ? { label: cardText.parentHistory, tip: cardText.parentHistoryHint(archive, parent.archived) } : null);
     rows.push(
       <PropertyRow
         {...common}
@@ -1258,7 +1257,7 @@ function Properties(props: Inner) {
         onPress={jump}
         tip={offBoard ? cardText.openParent : cardText.revealParent}
         buttonTip={details.unarchive}
-        accessibilityLabel={parent.detached && tag ? `${words.parent}: ${title}, ${tag.label}` : `${words.parent}: ${title}`}
+        accessibilityLabel={parent.detached && tag ? `${words.parent}: ${title}, ${tag.label}, ${tag.tip}` : `${words.parent}: ${title}`}
         testID="detail-parent"
       />,
     );
@@ -1385,7 +1384,7 @@ function PropertyRow(props: {
     ) : null;
   const noteLine = props.tag ? (
     <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", columnGap: 6, marginTop: 3 }}>
-      <ArchivedTag tokens={tokens} label={props.tag.label} icon={props.tag.icon} testID={props.testID ? `${props.testID}-tag` : undefined} />
+      <ArchivedTag tokens={tokens} label={props.tag.label} icon={props.tag.icon} tip={props.tag.tip} testID={props.testID ? `${props.testID}-tag` : undefined} />
       {noteRun}
     </View>
   ) : noteRun;

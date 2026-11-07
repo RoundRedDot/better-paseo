@@ -50,12 +50,8 @@ const en = {
   filterProject: "Only this project",
   archived: "Archived",
   workspaceArchived: "Workspace archived",
-  /**
-   * Beside a parent link the plugin inferred: Paseo leaves no record of why a
-   * task was detached, so the server infers its parent's archive from timing.
-   */
-  inferred: "Inferred",
-  inferredHint: "The former parent was inferred from archive timing and may be incorrect",
+  parentHistory: "History",
+  parentHistoryHint: (archive: string | null, archived: boolean | null) => `${archive ? `Parent: ${archive}` : archived === false ? "Parent is not currently archived" : "Parent archive status unknown"}\nThe former relationship is inferred from archive timing and may be incorrect`,
   parentUnknown: "Parent task",
   revealParent: "Show parent task",
   /** A subtask's card menu: brings the parent's card into view on the board. */
@@ -299,8 +295,8 @@ const zh: CardStrings = {
   filterProject: "只看此项目",
   archived: "已归档",
   workspaceArchived: "工作区已归档",
-  inferred: "推断",
-  inferredHint: "根据归档时间推断的原父任务，可能有误",
+  parentHistory: "历史关联",
+  parentHistoryHint: (archive, archived) => `${archive ? `父任务：${archive}` : archived === false ? "父任务当前未归档" : "父任务归档状态未知"}\n历史关联根据归档时间推测，可能有误`,
   parentUnknown: "父任务",
   revealParent: "定位到父任务",
   revealParentCard: "显示父任务卡片",
