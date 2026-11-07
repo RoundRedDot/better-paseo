@@ -343,6 +343,8 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     return (
       <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), { flex: 1, minHeight: 0 }]}>
         {props.scrollHeader ? (
+          <>
+          <DetailStatusRow {...props} m={m} tokens={tokens} now={now} time={time} fixed />
           <SheetScrollView
             key={card.id}
             ref={tabScroll}
@@ -370,7 +372,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             {...detailScrollProps("inset")}
             testID="detail-tab-short-scroll"
           >
-            <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} gutter={gutter} />
+            <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} gutter={gutter} hideStatus />
             {tabBar}
             {(["info", "messages"] as const).map((id) => (
               <View
@@ -391,6 +393,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
               </View>
             ))}
           </SheetScrollView>
+          </>
         ) : (
           <>
             <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} />
@@ -526,11 +529,31 @@ function stopLabel(props: TaskDetailCardsProps): string | null {
 
 
 /** The header: status, title, the agent's chips and labels, the actions, then the block the card needs first. */
-function DetailHeader(props: Inner) {
+function DetailStatusRow(props: Inner & { fixed?: boolean }) {
   const { card, m, tokens, touch = false } = props;
   const scale = useTasksFontScale();
   const controls = touch ? TASK_TOOLBAR_METRICS.touch : TASK_TOOLBAR_METRICS.desktop;
   const menuRef = useRef<View>(null);
+  const cardText = cardStrings(props.language);
+  return (
+    <View testID="detail-status-row" style={[{ minHeight: m.round, flexDirection: "row", alignItems: "center", gap: 6 }, props.fixed ? { paddingHorizontal: m.padH, paddingTop: 8, backgroundColor: tokens.card.background, borderTopLeftRadius: DETAIL_CARD.radius, borderTopRightRadius: DETAIL_CARD.radius } : null]}>
+      <StatusIcon kind={card.stoppedManually ? "stopped" : card.status} size={14} theme={props.theme} />
+      <Text style={{ fontSize: F.sm, fontWeight: "500", color: tokens.foreground }}>
+        {card.stoppedManually ? cardText.details.stoppedTitle : cardText.status[card.status]}
+      </Text>
+      <StatusSub {...props} small={F.sm} />
+      <View style={{ flex: 1 }} />
+      <View testID="detail-header-controls" style={{ flexDirection: "row", alignItems: "center", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
+        {props.sheetToggle ? <RoundIcon icon={props.sheetToggle.full ? "Minimize2" : "Maximize2"} label={props.sheetToggle.label} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-sheet-toggle" onPress={props.sheetToggle.onPress} /> : null}
+        {props.onMenu ? <View ref={menuRef} collapsable={false}><RoundIcon icon="MoreVertical" label={props.language === "zh" ? "卡片菜单" : "Card menu"} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-menu" onPress={() => menuRef.current?.measureInWindow((x, y, width, height) => props.onMenu?.({ x: x + width, y: y + height }))} /></View> : null}
+        {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
+      </View>
+    </View>
+  );
+}
+
+function DetailHeader(props: Inner & { hideStatus?: boolean }) {
+  const { card, m, tokens, touch = false } = props;
   const titleUpdate = useTitleUpdateState(props.titleUpdates, card.id);
   const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
   const shownTitle = useRevealedTitle(streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : card.title), Boolean(streamedTitle) || titleUpdate.state === "done");
@@ -544,7 +567,6 @@ function DetailHeader(props: Inner) {
   const chipFont = F.sm * (11 / 12);
   const iconSize = props.compact ? 12 : 11;
   const chipHeight = props.compact ? TOUCH_CARD.chip : DETAIL_CARD.chip;
-  const kind = card.stoppedManually ? "stopped" : card.status;
   const hero = detailHero(card);
   const mode = card.modeLabel ? modeIcon(card.provider, card.modeLabel) : null;
   const stop = stopLabel(props);
@@ -625,7 +647,7 @@ function DetailHeader(props: Inner) {
     </>
   ) : unarchiveButton;
   return (
-    <View style={{ paddingLeft: m.padH, paddingRight: m.padH - (props.gutter ?? 0), paddingTop: 8, paddingBottom: 12 }} testID="detail-header">
+    <View style={{ paddingLeft: m.padH, paddingRight: m.padH - (props.gutter ?? 0), paddingTop: props.hideStatus ? 0 : 8, paddingBottom: 12 }} testID="detail-header">
       {props.back ? (
         <Pressable
           accessibilityRole="button"
@@ -655,19 +677,7 @@ function DetailHeader(props: Inner) {
           ) : null}
         </View>
       ) : null}
-      <View style={{ minHeight: m.round, flexDirection: "row", alignItems: "center", gap: 6 }}>
-        <StatusIcon kind={kind} size={14} theme={props.theme} />
-        <Text style={{ fontSize: small, fontWeight: "500", color: tokens.foreground }}>
-          {card.stoppedManually ? cardText.details.stoppedTitle : cardText.status[card.status]}
-        </Text>
-        <StatusSub {...props} small={small} />
-        <View style={{ flex: 1 }} />
-        <View testID="detail-header-controls" style={{ flexDirection: "row", alignItems: "center", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
-          {props.sheetToggle ? <RoundIcon icon={props.sheetToggle.full ? "Minimize2" : "Maximize2"} label={props.sheetToggle.label} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-sheet-toggle" onPress={props.sheetToggle.onPress} /> : null}
-          {props.onMenu ? <View ref={menuRef} collapsable={false}><RoundIcon icon="MoreVertical" label={props.language === "zh" ? "卡片菜单" : "Card menu"} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-menu" onPress={() => menuRef.current?.measureInWindow((x, y, width, height) => props.onMenu?.({ x: x + width, y: y + height }))} /></View> : null}
-          {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
-        </View>
-      </View>
+      {props.hideStatus ? null : <DetailStatusRow {...props} />}
       <View style={{ marginTop: 2, flexDirection: "row", alignItems: "center", gap: 6 }}>
       {card.subagent ? <SubagentLabel language={props.language} tokens={tokens} testID="detail-session-label" /> : null}
       {updatingTitle ? <TitleLoading title={shownTitle} mutedColor={tokens.foregroundMuted} highlightColor={tokens.isDark ? tokens.foreground : mix(tokens.card.background, tokens.foregroundMuted, 0.45)} accessibilityLabel={cardText.autoTitlePending} style={{ fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600" }} /> : <Text style={{ flex: 1, minWidth: 0, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">

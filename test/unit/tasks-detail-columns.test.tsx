@@ -78,6 +78,33 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it.each(["ios", "android", "web"])("keeps the status toolbar above the scrolling header and sticky tabs on %s", async (os) => {
+    vi.stubGlobal("__rnMockOS", os);
+    const onMenu = vi.fn();
+    const onClose = vi.fn();
+    const toggle = vi.fn();
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false} tabs scrollHeader onMenu={onMenu} onClose={onClose} sheetToggle={{ full: false, label: "Expand", onPress: toggle }} />, {
+        createNodeMock: (element) => (element.props as { collapsable?: boolean }).collapsable === false ? { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(10, 20, 30, 40) } : null,
+      });
+    });
+    const root = renderer!.root;
+    const scroll = host(root, "detail-tab-short-scroll");
+    const toolbar = host(root, "detail-status-row");
+    expect(scroll.findAll((node) => node === toolbar)).toHaveLength(0);
+    const order = host(root, "detail-cards").findAll((node) => typeof node.type === "string" && (node.props.testID === "detail-status-row" || node.props.testID === "detail-tab-short-scroll"));
+    expect(order).toEqual([toolbar, scroll]);
+    expect(scroll.props.stickyHeaderIndices).toEqual([1]);
+    await act(async () => {
+      scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 500 } } });
+      host(root, "detail-sheet-toggle").props.onPress();
+      host(root, "detail-menu").props.onPress();
+      host(root, "detail-close").props.onPress();
+    });
+    expect(toggle).toHaveBeenCalledOnce();
+    expect(onMenu).toHaveBeenCalledWith({ x: 40, y: 60 });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
   it.each([false, true])("shows a read-only pending question with selection marks (multiSelect: %s)", async (multiSelect) => {
     const base = props(false);
     const card = { ...base.card, lane: "needs_input" as const, permission: {
