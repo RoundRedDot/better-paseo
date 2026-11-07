@@ -993,6 +993,16 @@ apply to all three.
 
 ### Details
 
+- Clicking or tapping a board card selects it and opens its details whenever the sidebar is
+  hidden, including after the user explicitly hid it or when the same card is selected again.
+  Keep an already-visible sidebar in its current form. A hidden sidebar opens temporarily as a
+  floating panel, or as a bottom sheet in sheet mode, without changing the remembered open
+  preference. The sidebar switch, Escape or a click/tap on the lanes' blank space dismisses the
+  temporary panel; selecting a card opens it again (`DesktopBoard.showCard`, reconciled with
+  `0ceb077a` on 2026-11-06).
+- Space explicitly previews the focused or selected card and also opens a hidden sidebar;
+  pressing Space again on that card clears the preview. Moving keyboard focus alone does not
+  change the details. Open tab remains a separate action.
 - The sidebar (`sidebar-model.ts`) is inline from 1020, floating below 996 down to 784 and a bottom
   sheet below 760; between those pairs it keeps its current form. Inline it is 380 wide (260 to
   520, a double click restores 380). Inline, the slot and surface open over
