@@ -2,14 +2,62 @@ import React, { useLayoutEffect, useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Modal } from "@getpaseo/plugin/client/react-native";
-import type { TaskCard } from "../model";
+import type { CardSettings } from "../../../shared/tasks-settings";
+import { LANE_STATUS, type TaskCard } from "../model";
 import { HOST_FONT, TaskText as Text } from "../typography";
+import { StatusIcon, TaskCardView } from "../cards";
 import { statusMarkSize } from "../cards/status-icon";
 import { taskTokens } from "../cards/tokens";
 
-export type HiddenTask = Pick<TaskCard, "id" | "title" | "lane"> & { location: Pick<TaskCard["location"], "workspaceTitle" | "projectName"> };
+const noop = () => {};
 
-export function HiddenCount({ tasks, theme, language }: { tasks: readonly HiddenTask[]; theme: PluginTheme; language: "en" | "zh" }) {
+/** The settings preview's one hidden task: a real card, so the dialog draws the board's cell. */
+export function hiddenExampleCard(language: "en" | "zh"): TaskCard {
+  const now = new Date(0).toISOString();
+  const workspace = language === "zh" ? "示例工作区" : "Example workspace";
+  return {
+    id: "example",
+    title: language === "zh" ? "示例任务" : "Example task",
+    lane: "needs_input",
+    status: "needs_input",
+    provider: "claude",
+    providerLabel: "Claude",
+    providerMark: "lobe:claude",
+    model: "claude-opus",
+    modelLabel: "Opus",
+    thinkingLabel: "High",
+    modeLabel: "Default",
+    location: {
+      projectId: null,
+      projectKey: null,
+      projectName: null,
+      projectIcon: null,
+      workspaceId: null,
+      workspaceName: workspace,
+      workspaceTitle: workspace,
+      workspaceKind: null,
+      branch: null,
+      git: null,
+      folder: null,
+      folderName: null,
+      cwd: "",
+      pullRequest: null,
+    },
+    labels: [],
+    timing: { createdAt: now, updatedAt: now, turnStartedAt: null, attentionAt: now, lastUserMessageAt: null, lastTurnMs: null, lastTurnEndedAt: null },
+    context: null,
+    usage: null,
+    error: null,
+    permission: null,
+    parent: null,
+    children: [],
+    openTab: false,
+    stoppable: false,
+  };
+}
+
+/** Tasks the board's filters leave out of the sidebar counts. Each one is the board's own card. */
+export function HiddenCount({ tasks, theme, language, fields, compact = false, hostId }: { tasks: readonly TaskCard[]; theme: PluginTheme; language: "en" | "zh"; fields: CardSettings; compact?: boolean; hostId?: string }) {
   const [open, setOpen] = useState(false);
   const title = language === "zh" ? "被隐藏的任务" : "Hidden tasks";
   const groups = (["needs_input", "running", "review"] as const).map((lane) => ({
@@ -34,14 +82,14 @@ export function HiddenCount({ tasks, theme, language }: { tasks: readonly Hidden
       <Text style={{ fontSize: HOST_FONT.sm, color: theme.colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{tasks.length}</Text>
     </Pressable>
     {open ? <Modal title={title} open onOpenChange={setOpen}>
-      <Modal.Content>
+      <Modal.Content scrollable contentContainerStyle={{ gap: 16 }}>
         <Text style={{ color: theme.colors.foregroundMuted }}>{language === "zh" ? "当前筛选或搜索隐藏了以下任务。" : "The current filters or search hide these tasks."}</Text>
-        {groups.map((group) => <View key={group.lane} style={{ gap: 8 }}>
-          <Text style={{ color: theme.colors.foregroundMuted, fontWeight: "600" }}>{group.label} · {group.tasks.length}</Text>
-          {group.tasks.map((task) => <View key={task.id} style={{ gap: 3 }}>
-            <Text style={{ color: theme.colors.foreground }}>{task.title}</Text>
-            <Text style={{ color: theme.colors.foregroundMuted, fontSize: HOST_FONT.sm }}>{task.location.workspaceTitle ?? task.location.projectName ?? ""}</Text>
-          </View>)}
+        {groups.map((group) => <View key={group.lane} testID={`hidden-tasks-${group.lane}`} style={{ gap: 8 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <StatusIcon kind={LANE_STATUS[group.lane]} size={14} theme={theme} />
+            <Text style={{ color: theme.colors.foregroundMuted, fontWeight: "600" }}>{group.label} · {group.tasks.length}</Text>
+          </View>
+          {group.tasks.map((task) => <TaskCardView key={task.id} card={task} fields={fields} theme={theme} compact={compact} language={language} hostId={hostId} permissionButtons={[]} stopPhase="idle" focused={false} highlighted={false} onReveal={noop} />)}
         </View>)}
       </Modal.Content>
     </Modal> : null}

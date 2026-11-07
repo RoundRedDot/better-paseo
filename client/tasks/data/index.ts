@@ -557,6 +557,23 @@ function laneCompare(lane: LaneId): (left: TaskCard, right: TaskCard) => number 
 // One list per parent card, so a subagent's card keeps its identity while its parent's does.
 const subagentCardCache = new WeakMap<TaskCard, TaskCard[]>();
 
+/**
+ * What the sidebar's hidden-task dialog draws, besides the live timer and context ring.
+ * A running turn's clock must not rebuild the sidebar row.
+ */
+function hiddenListChanged(previous: TaskCard, card: TaskCard): boolean {
+  const location = card.location;
+  const was = previous.location;
+  return previous.id !== card.id || previous.title !== card.title || previous.lane !== card.lane || previous.status !== card.status
+    || previous.provider !== card.provider || previous.providerLabel !== card.providerLabel || previous.providerMark !== card.providerMark
+    || previous.modelLabel !== card.modelLabel || previous.thinkingLabel !== card.thinkingLabel
+    || previous.subagent?.subtitle !== card.subagent?.subtitle || previous.subagent?.type !== card.subagent?.type
+    || was.projectName !== location.projectName || was.workspaceName !== location.workspaceName || was.workspaceTitle !== location.workspaceTitle
+    || was.branch !== location.branch || was.folder !== location.folder
+    || previous.error !== card.error || previous.children.length !== card.children.length
+    || previous.labels.length !== card.labels.length || previous.labels.some((label, index) => label.name !== card.labels[index]?.name);
+}
+
 /** A parent's provider subagents as read-only cards, in the workspace, labels and agent of the parent. */
 function subagentCardsOf(parent: TaskCard): TaskCard[] {
   const cached = subagentCardCache.get(parent);
@@ -2677,8 +2694,7 @@ function createStore(api: PaseoApi): TaskStore {
         countsCache.hidden?.length !== hidden?.length ||
         hidden?.some((card, index) => {
           const previous = countsCache!.hidden?.[index];
-          return previous?.id !== card.id || previous.title !== card.title || previous.lane !== card.lane ||
-            previous.location.workspaceTitle !== card.location.workspaceTitle || previous.location.projectName !== card.location.projectName;
+          return !previous || hiddenListChanged(previous, card);
         })
       ) {
         countsCache = { needsInput, running, review, ready: statusReady && workspacesReady, ...(hidden ? { hidden } : {}) };

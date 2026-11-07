@@ -4,7 +4,7 @@ import type { PaseoApi } from "@getpaseo/client";
 import type { PluginSidebarItemProps } from "@getpaseo/plugin/client";
 import { usePaseo, useSettings } from "@getpaseo/plugin/client";
 import { SidebarRow } from "@getpaseo/plugin/client/ui";
-import { TASKS_SETTINGS, type SidebarCount, type TasksSettings } from "../../../shared/tasks-settings";
+import { TASKS_SETTINGS, effectiveCard, type SidebarCount, type TasksSettings } from "../../../shared/tasks-settings";
 import { StatusIcon, useTaskTokens } from "../cards";
 import { useTaskCounts, type CountScope } from "../data";
 import { firstPromptStoreFor } from "../data/first-prompt";
@@ -129,7 +129,7 @@ function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: 
       // The host's row scales its own label with the interface size; the counts follow the same ramp.
       <TasksTypography theme={props.theme}>
         <View ref={countsAnchor} testID="sidebar-counts-area" style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, marginVertical: -6, paddingLeft: 16, marginLeft: -16, paddingRight: 8, marginRight: -8 }}>
-          {hidden.length > 0 ? <HiddenCount tasks={hidden} theme={props.theme} language={language} /> : null}
+          {hidden.length > 0 ? <HiddenCount tasks={hidden} theme={props.theme} language={language} fields={effectiveCard(props.settings, props.layout.compact)} compact={props.layout.compact} hostId={props.host.id} /> : null}
           <View accessible accessibilityLabel={sidebarCountText(parts, language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             {parts.map((part) => <SidebarCountIndicator key={part.lane} part={part} theme={props.theme} language={language} color={part.lane === "needs_input" ? warning : colors.foregroundMuted} />)}
           </View>

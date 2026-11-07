@@ -287,7 +287,13 @@ describe("Tasks half of the settings page", () => {
     const button = byTestID(r, "hidden-tasks-count")[0]!;
     expect(button.props.accessibilityLabel).toBe("1 hidden task");
     act(() => button.props.onPress());
-    expect(textOf(r.root)).toContain("Example workspace");
+    const shown = r.root.findAll((node) => typeof node.type === "string" && node.props.card?.id === "example");
+    expect(shown).toHaveLength(1);
+    expect(shown[0]!.props.card.location.workspaceTitle).toBe("Example workspace");
+    expect(shown[0]!.props.card.provider).toBe("claude");
+    expect(shown[0]!.props.card.thinkingLabel).toBe("High");
+    expect(shown[0]!.props.fields.provider).toBe(true);
+    expect(shown[0]!.props.fields.thinking).toBe(true);
   });
 
   it("sets the web hover hint on the rendered button", () => {

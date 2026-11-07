@@ -6858,6 +6858,23 @@ describe("Tasks sidebar entry", () => {
     expect(textOf(entry(null))).toBe("");
   });
 
+  it("draws a hidden task as the board's card, with its agent mark and thinking level", () => {
+    const card = (data as unknown as { __handle: { lanes: { running: { cards: TaskCard[] } } } }).__handle.lanes.running.cards[0]!;
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, sidebar: { count: "all" } };
+    host.counts = { needsInput: 0, running: 0, review: 0, done: 0, hidden: [card] };
+    const row = entry(null);
+    act(() => row.findAll((node) => node.props.testID === "hidden-tasks-count")[0]!.props.onPress());
+    const modal = renderer!.root.findByType(Modal);
+    expect(modal.props.title).toBe("Hidden tasks");
+    expect(textOf(modal)).toContain("Running · 1");
+    expect(textOf(modal)).toContain(card.modelLabel);
+    expect(textOf(modal)).toContain(card.thinkingLabel);
+    expect(textOf(modal)).toContain(card.title);
+    expect(modal.findAll((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.id}`)).toHaveLength(1);
+    expect(modal.findAll((node) => node.props.testID === "agent-pill-thinking").map((node) => textOf(node))).toContain(card.thinkingLabel);
+    expect(modal.findAllByType(ProviderLogo).length).toBeGreaterThan(0);
+  });
+
   it.each([["all", true], ["input-only", false], ["none", false]] as const)("shows hidden running tasks only for the all indicator (%s)", (count, visible) => {
     const card = (data as unknown as { __handle: { lanes: { running: { cards: TaskCard[] } } } }).__handle.lanes.running.cards[0]!;
     host.settings = { ...DEFAULT_TASKS_SETTINGS, sidebar: { count } };
