@@ -1241,6 +1241,15 @@ function createStore(api: PaseoApi): TaskStore {
       removeRecord(agent.id);
       return;
     }
+    // The daemon sends one snapshot on every list it matches (a running agent
+    // that needs attention is on two), each in its own message. A resent one
+    // still goes through below, but tells the board only if a card changed:
+    // the board reads cards, and a base card reaches it only through the
+    // cards refreshed here (this agent's, its parent's row, its children's).
+    const previous = entries.get(agent.id);
+    const resent = previous !== undefined
+      && JSON.stringify(previous.agent) === JSON.stringify(agent)
+      && JSON.stringify(previous.placement) === JSON.stringify(placement);
     const oldParent = parentByChild.get(agent.id) ?? null;
     const wasActive = cards.get(agent.id)?.status === "running" || cards.get(agent.id)?.status === "needs_input";
     // A turn seen ending: the update that ends it carries its end. The agent
@@ -1275,7 +1284,8 @@ function createStore(api: PaseoApi): TaskStore {
     if (oldParent) affected.add(oldParent);
     if (newParent) affected.add(newParent);
     for (const childId of linkedChildrenOf(agent.id)) affected.add(childId);
-    for (const affectedId of affected) refreshFinalCard(affectedId);
+    let cardsChanged = false;
+    for (const affectedId of affected) if (refreshFinalCard(affectedId)) cardsChanged = true;
     if (wasActive && oldParent) dropIfUnreferenced(oldParent);
     // A prompt after the failure is the person acting on it: the parent may go.
     const subagentMembers = sourceMembers.get(SUBAGENT_KEY);
@@ -1283,7 +1293,7 @@ function createStore(api: PaseoApi): TaskStore {
       if (failsBySubagent(agent.id, agent.lastUserMessageAt)) subagentMembers.add(agent.id);
       else subagentMembers.delete(agent.id);
     }
-    notify();
+    if (!resent || cardsChanged) notify();
   }
 
   function removeRecord(id: string) {

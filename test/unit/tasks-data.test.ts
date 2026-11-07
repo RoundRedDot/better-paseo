@@ -1085,6 +1085,110 @@ describe("Tasks data store", () => {
     }
   });
 
+  describe("one agent update that reaches several lists", () => {
+    const flush = async () => { for (let index = 0; index < 8; index += 1) await Promise.resolve(); };
+    async function notifications(change: () => void) {
+      storeNotificationProbe.count = 0;
+      storeNotificationProbe.enabled = true;
+      try {
+        await act(async () => { change(); await flush(); });
+      } finally {
+        storeNotificationProbe.enabled = false;
+      }
+      return storeNotificationProbe.count;
+    }
+
+    it("notifies once for a running agent the status and attention lists both send", async () => {
+      const fake = createFakePaseo({ agents: [activeAgent("both", { status: "running", updatedAt: recentIso(5_000) })], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        // The daemon sends the same snapshot on each list it matches: running, and needing attention.
+        const updated = activeAgent("both", { status: "running", requiresAttention: true, attentionReason: "finished", title: "Asked again", updatedAt: recentIso(0) });
+        expect(await notifications(() => fake.upsertAgent(updated))).toBe(1);
+        expect(mounted.current.byId.get("both")).toMatchObject({ lane: "running", title: "Asked again" });
+        // The same snapshot again, on any list, changes nothing.
+        const before = mounted.current;
+        expect(await notifications(() => fake.pushAgentSnapshot(structuredClone(updated)))).toBe(0);
+        expect(mounted.current).toBe(before);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("notifies once for an idle agent the attention and done lists both send", async () => {
+      const fake = createFakePaseo({ agents: [activeAgent("finished", { status: "running", updatedAt: recentIso(5_000) })], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        const done = activeAgent("finished", { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(0) });
+        expect(await notifications(() => fake.upsertAgent(done))).toBe(1);
+        expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "review", status: "unread" });
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("still notifies a status change sent with the same updatedAt", async () => {
+      // The daemon has sent a new status stamped with the time of the one before (initializing, then idle).
+      const stamp = recentIso(5_000);
+      const fake = createFakePaseo({ agents: [activeAgent("stamped", { status: "running", updatedAt: stamp })], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        expect(mounted.current.byId.get("stamped")).toMatchObject({ lane: "running" });
+        const idle = activeAgent("stamped", { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: stamp });
+        expect(await notifications(() => fake.upsertAgent(idle))).toBeGreaterThan(0);
+        expect(mounted.current.byId.get("stamped")).toMatchObject({ lane: "review", status: "unread" });
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("still notifies the same agent sent with another placement", async () => {
+      const agent = activeAgent("moved", { status: "running", updatedAt: recentIso(5_000) });
+      const fake = createFakePaseo({ agents: [agent], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        // The same agent record, sent with another project placement: the card's project follows it.
+        const before = mounted.current.byId.get("moved")!;
+        const placement = { ...makePlacement(agent), projectKey: "other-project", projectName: "Other project" };
+        expect(await notifications(() => fake.upsertAgent(structuredClone(agent), placement))).toBeGreaterThan(0);
+        expect(mounted.current.byId.get("moved")).not.toEqual(before);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("still notifies a resent snapshot that brings a parent's row up to date", async () => {
+      // A provider's model names rebuild its agents' cards one by one, in the
+      // order the store holds them: a parent held first draws its row for the
+      // child before the child's card has the name, and a child whose status
+      // stays does not refresh its parent. A resent snapshot of the child
+      // refreshes its parent, so the board must hear it.
+      const catalog: PaseoProviderModelsResult["models"] = [{
+        provider: "claude",
+        id: "claude-opus-5-5",
+        label: "Claude Opus 5.5",
+        defaultThinkingOptionId: "high",
+        thinkingOptions: [{ id: "high", label: "High", isDefault: true }],
+      }];
+      const child = activeAgent("child", { status: "running", provider: "claude", model: "claude-opus-5-5", labels: { "paseo.parent-agent-id": "parent" }, updatedAt: recentIso(9_000) });
+      const fake = createFakePaseo({
+        // The newer parent comes first in the list, so the store holds it first.
+        agents: [activeAgent("parent", { status: "running", provider: "claude", model: "claude-opus-5-5", updatedAt: recentIso(5_000) }), child],
+        workspaces: [workspace()],
+        models: { claude: catalog },
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        expect(mounted.current.byId.get("child")?.modelLabel).toBe("Claude Opus 5.5");
+        expect(mounted.current.byId.get("parent")?.children.map((row) => row.modelLabel)).toEqual(["claude-opus-5-5"]);
+        expect(await notifications(() => fake.pushAgentSnapshot(structuredClone(child)))).toBeGreaterThan(0);
+        expect(mounted.current.byId.get("parent")?.children.map((row) => row.modelLabel)).toEqual(["Claude Opus 5.5"]);
+      } finally {
+        mounted.unmount();
+      }
+    });
+  });
+
   it("notifies store listeners once for a multi-agent subscription snapshot", async () => {
     const agents = Array.from({ length: 120 }, (_, index) => activeAgent(`snapshot-${index}`, { status: "running" }));
     const fake = createFakePaseo({ agents });
