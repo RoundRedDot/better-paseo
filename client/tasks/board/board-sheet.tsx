@@ -6,8 +6,8 @@ import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { menuChrome } from "./menu-model";
 import { sheetHeight, sheetRelease, type SheetDetent } from "./sidebar-model";
 
-/** The handle's strip at the sheet's top: a 36 x 5 grabber in a row tall enough to take a finger. */
-const HANDLE = 28;
+/** Match the side panel's 12 px resize strip with a compact horizontal grabber. */
+const HANDLE = 12;
 
 /**
  * The details of a board too narrow to float them beside its lanes
@@ -125,10 +125,10 @@ export function BoardSheet(props: {
           testID="board-sheet-handle"
           style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
         >
-          <View style={{ width: 36, height: 5, borderRadius: 3, backgroundColor: props.theme.colors.foregroundMuted, opacity: 0.35 }} />
+          <View style={{ width: 32, height: 3, borderRadius: 1.5, backgroundColor: props.theme.colors.foregroundMuted, opacity: 0.5 }} />
         </Pressable>
       </View>
-      <View style={{ flex: 1, minHeight: 0, paddingHorizontal: 8, paddingBottom: 8 }}>{props.children}</View>
+      <View style={{ flex: 1, minHeight: 0, paddingHorizontal: 4, paddingBottom: 4 }}>{props.children}</View>
     </Animated.View>
   );
 }
