@@ -1034,6 +1034,32 @@ describe("TaskCardView hover hints", () => {
     return element;
   }
 
+  it.each([
+    ["zh", "/Users/luke/work/project", "工作目录：~/work/project"],
+    ["en", "/srv/project", "Directory: /srv/project"],
+    ["zh", "", ""],
+  ] as const)("shows the working directory in the location hint (%s, %s)", async (language, cwd, expected) => {
+    vi.useFakeTimers();
+    try {
+      const { card: host, listeners } = fakeCard("task-card-sample-running");
+      const base = props("sample-running");
+      let renderer!: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TaskCardView, { ...base, language, card: { ...base.card, location: { ...base.card.location, cwd } } }), {
+          createNodeMock: (node) => (node.props as Record<string, unknown>).testID === "task-card-sample-running" ? host : { props: node.props },
+        });
+      });
+      await act(async () => listeners.get("pointerover")!({ pointerType: "mouse", target: mark("location", { left: 112, top: 80, width: 120, height: 20 }) }));
+      await act(async () => { vi.advanceTimersByTime(400); });
+      const hint = texts(renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-hint")).join("");
+      if (expected) expect(hint.split("\n").at(-1)).toBe(expected);
+      else expect(hint).not.toContain("工作目录：");
+      await act(async () => renderer.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("marks the meta row, status, pills, times and stop options, and names each", async () => {
     vi.useFakeTimers();
     try {

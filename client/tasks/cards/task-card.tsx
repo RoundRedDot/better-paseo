@@ -889,6 +889,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                   lines(
                     layout.project && location.projectName && pair(strings.hint.project, location.projectName),
                     layout.workspace && location.workspaceName && pair(strings.hint.workspace, location.workspaceName),
+                    location.cwd && pair(strings.hint.path, tildePath(location.cwd)),
                   ),
                 ),
               )}
