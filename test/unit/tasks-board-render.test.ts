@@ -2240,6 +2240,7 @@ describe("Tasks board, desktop", () => {
     layOut(1400);
     const card = cards().find((node) => node.props.card.id === "sample-running")!;
     await act(async () => card.props.onSelect(card.props.card));
+    expect(hostsById("detail-sheet-toggle")).toHaveLength(0);
     const column = hostsById("details-sidebar")[0]!;
     for (const height of [900, 560, 1100]) {
       await act(async () => column.props.onLayout({ nativeEvent: { layout: { width: 380, height } } }));
@@ -2278,6 +2279,14 @@ describe("Tasks board, desktop", () => {
     act(() => card.props.onSelect(card.props.card));
     expect(hostsById("board-sheet")).toHaveLength(1);
     expect(hostsById("sidebar-floating")).toHaveLength(0);
+    const toggle = () => hostsById("detail-sheet-toggle")[0]!;
+    expect(toggle().props.accessibilityLabel).toBe("Expand details");
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Maximize2");
+    act(() => toggle().props.onPress());
+    expect(toggle().props.accessibilityLabel).toBe("Collapse details");
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Minimize2");
+    act(() => toggle().props.onPress());
+    expect(toggle().props.accessibilityLabel).toBe("Expand details");
     expect(textOf(renderer!.root.findByProps({ testID: "detail-title" }))).toBe(card.props.card.title);
     // A card in the sheet leaves the counts out; each lane's list scrolls its last card above the half sheet (800 x 0.58).
     expect(hostsById("sidebar-stats")).toHaveLength(0);
@@ -2298,6 +2307,7 @@ describe("Tasks board, desktop", () => {
     expect(handle().props.accessibilityLabel).toBe("Expand details");
     act(() => handle().props.onPress());
     expect(handle().props.accessibilityLabel).toBe("Collapse details");
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Minimize2");
     expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 792);
     // A drag down on the handle takes it back to half, and the click the drag ends with does not switch it again.
     const strip = handle().parent!.parent!;

@@ -47,6 +47,7 @@ export interface DetailsSidebarProps {
   /** Scroll the whole column as one whatever its height (a bottom sheet: its handle, not the header, is what stays). */
   scrollAll?: boolean;
   tabs?: boolean;
+  sheetToggle?: { full: boolean; label: string; onPress(): void };
   testID?: string;
 }
 
@@ -93,6 +94,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
         clock: board.clock,
         onClose: () => dispatch({ type: "clear" }),
         onMenu: (point: { x: number; y: number }) => setMenu({ id: card.id, point }),
+        sheetToggle: props.sheetToggle,
         back: backId ? { title: backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null,
         notice,
         onOpen: board.callbacks.onOpen,

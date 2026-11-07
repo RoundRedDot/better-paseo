@@ -172,6 +172,7 @@ export interface TaskDetailCardsProps extends TimeSource {
   compact?: boolean;
   onClose?(): void;
   onMenu?(point: { x: number; y: number }): void;
+  sheetToggle?: { full: boolean; label: string; onPress(): void };
   /** The card to go back to after a parent or subtask jump. */
   back?: { title: string; onPress(): void } | null;
   notice?: DetailNotice | null;
@@ -651,6 +652,7 @@ function DetailHeader(props: Inner) {
         <StatusSub {...props} small={small} />
         <View style={{ flex: 1 }} />
         <View testID="detail-header-controls" style={{ flexDirection: "row", alignItems: "center", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
+          {props.sheetToggle ? <RoundIcon icon={props.sheetToggle.full ? "Minimize2" : "Maximize2"} label={props.sheetToggle.label} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-sheet-toggle" onPress={props.sheetToggle.onPress} /> : null}
           {props.onMenu ? <View ref={menuRef} collapsable={false}><RoundIcon icon="MoreVertical" label={props.language === "zh" ? "卡片菜单" : "Card menu"} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-menu" onPress={() => menuRef.current?.measureInWindow((x, y, width, height) => props.onMenu?.({ x: x + width, y: y + height }))} /></View> : null}
           {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
         </View>

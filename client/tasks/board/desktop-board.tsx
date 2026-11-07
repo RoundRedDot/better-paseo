@@ -659,6 +659,7 @@ export function DesktopBoard(props: {
       stats={!(inSheet && selection.id !== null)}
       scrollAll={inSheet}
       tabs={!inSheet || touch}
+      sheetToggle={inSheet ? { full: detent === "full", label: detent === "full" ? strings.sidebar.sheetShrink : strings.sidebar.sheetGrow, onPress: () => setDetent((current) => current === "full" ? "half" : "full") } : undefined}
     />
   );
   const activeCardId = focus ? `task-card-${lanes[focus.lane].cards[focus.index]!.id}` : undefined;
