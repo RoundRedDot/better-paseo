@@ -657,7 +657,7 @@ function VersionSection({ look, language, version, autoUpdateCheck, native }: { 
       {state.notes.status === "available"
         ? <View style={{ gap: 24 }}>
             {state.notes.releases.map((release) => <View key={release.version} style={{ gap: 12 }}>
-              <Text style={[settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi, fontWeight: "600" }]}>{release.version}</Text>
+              <Text style={[settingsTextStyle(look.tokens, 3), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi, fontWeight: "600" }]}>{release.version}</Text>
               <View style={{ gap: 8 }}>
                 {release[language].map((item, index) => <View key={index} style={{ flexDirection: "row", alignItems: "flex-start", gap: 13 }}>
                   <View style={{ width: 5, height: 5, borderRadius: 3, marginTop: Math.round((look.tokens.typography.ui.size + 1) * 1.56 / 2 - 2.5), backgroundColor: look.tokens.foregroundMuted }} />
