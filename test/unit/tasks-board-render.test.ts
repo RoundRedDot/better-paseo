@@ -145,6 +145,7 @@ import { deviceTasksStore } from "../../client/tasks/device-preferences";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled, setTasksSettingsOpener } from "../../client/tasks/board/enabled";
 import { createFakePaseo, makeAgent } from "./helpers/fake-paseo";
+import { disablePerf, enablePerf, perfSnapshot, resetPerf } from "../../client/debug/perf";
 import { TitleLoading } from "../../client/tasks/cards/title-loading";
 import { titleGenerationSettingsSchema, type TitleUpdateState } from "../../shared/title-generation";
 import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderForTests, triggerHostAppearanceCheck } from "../../client/ui/tokens/host-appearance-shim";
@@ -2317,6 +2318,56 @@ describe("Tasks board, desktop", () => {
       blank.props.onResponderRelease({ nativeEvent: { pageX: 10, pageY: 10 } });
     });
     expect(hostsById("board-sheet")).toHaveLength(0);
+  });
+
+  it("records a sheet drag and the board's commits in the perf probes only while they are on", () => {
+    const drag = (from: number, to: number) => {
+      const strip = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "board-sheet-handle").parent!.parent!;
+      act(() => {
+        strip.props.onStartShouldSetPanResponderCapture({ nativeEvent: { pageY: from } });
+        strip.props.onPanResponderGrant({ nativeEvent: { pageY: from + 8, timestamp: 1000 } }, { dy: 8, vy: 0 });
+        strip.props.onPanResponderMove({ nativeEvent: { pageY: from + 16, timestamp: 1008 } }, { dy: 16, vy: 0 });
+        strip.props.onPanResponderMove({ nativeEvent: { pageY: to, timestamp: 1016 } }, { dy: to - from, vy: 0 });
+        strip.props.onPanResponderTerminate({ nativeEvent: { pageY: to, timestamp: 1024 } }, { dy: to - from, vy: 0 });
+      });
+    };
+    try {
+      act(() => {
+        renderer = TestRenderer.create(screen(false));
+      });
+      layOut(600);
+      const card = cards().find((node) => node.props.card.id === "sample-running")!;
+      act(() => card.props.onSelect(card.props.card));
+      expect(hostsById("board-sheet")).toHaveLength(1);
+      // Off: the drag and the board's commits leave nothing.
+      drag(300, 260);
+      expect(perfSnapshot()).toMatchObject({ counters: {}, samples: {}, marks: [] });
+
+      enablePerf();
+      drag(300, 200);
+      const snap = perfSnapshot();
+      expect(snap.counters).toMatchObject({ "sheet.grant": 1, "sheet.terminate": 1 });
+      expect(snap.samples["sheet.move.handlerMs"]?.count).toBe(2);
+      expect(snap.samples["sheet.move.tsGapMs"]).toMatchObject({ count: 2, total: 16 });
+      expect(snap.marks.filter((mark) => mark.name.startsWith("sheet.")).map((mark) => [mark.name, mark.data.ts])).toEqual([
+        ["sheet.grant", 1000],
+        ["sheet.move", 1008],
+        ["sheet.move", 1016],
+        ["sheet.terminate", 1024],
+      ]);
+      // The drag moved the sheet as before.
+      expect(hostsById("board-sheet")).toHaveLength(1);
+      // A tap on the handle switches the height: the board's first commit since the probes went on
+      // mounts its commit probe as a baseline; the next is one the store did not ask for.
+      const tap = () => act(() => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "board-sheet-handle").props.onPress());
+      tap();
+      expect(perfSnapshot().counters["tasks.desktopBoard.commit"]).toBeUndefined();
+      tap();
+      expect(perfSnapshot().counters).toMatchObject({ "tasks.desktopBoard.commit": 1, "tasks.desktopBoard.commitWithoutNotify": 1 });
+    } finally {
+      disablePerf();
+      resetPerf();
+    }
   });
 
   it("keeps the blank-tap responder off the lanes' scroll views on touch, and above them on web", () => {

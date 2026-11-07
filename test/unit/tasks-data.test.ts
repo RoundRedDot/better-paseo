@@ -2,13 +2,14 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, tasksPerfOwner, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { fallbackLabelColor } from "../../client/tasks/label-colors";
 import { cardStart, cardTimer, formatEnded } from "../../client/tasks/cards/card-time";
 import { at, createFakePaseo, makeAgent, makePlacement, makeWorkspace } from "./helpers/fake-paseo";
+import { disablePerf, enablePerf, perfSnapshot, probeTasksCommit, resetPerf } from "../../client/debug/perf";
 import "./helpers/quiet-renderer";
 
 const storeNotificationProbe = vi.hoisted(() => ({ enabled: false, count: 0 }));
@@ -1082,6 +1083,51 @@ describe("Tasks data store", () => {
       expect(mounted.current.workspaces).toBe(options);
     } finally {
       mounted.unmount();
+    }
+  });
+
+  it("counts a batched snapshot as one perf notification, paired with the board commit after it by the store's API", async () => {
+    const agents = Array.from({ length: 30 }, (_, index) => activeAgent(`perf-${index}`, { status: "running" }));
+    const fake = createFakePaseo({ agents });
+    const other = createFakePaseo({ agents: [] });
+    enablePerf();
+    let current!: TasksHandle;
+    function Board() {
+      current = useTasks(fake.paseo, { doneWindow: "24h", includeDone: false });
+      return probeTasksCommit("board", tasksPerfOwner(fake.paseo), current, current);
+    }
+    function OtherBoard() {
+      const tasks = useTasks(other.paseo, { doneWindow: "24h", includeDone: false });
+      return probeTasksCommit("other", tasksPerfOwner(other.paseo), tasks, tasks);
+    }
+    let renderer!: Renderer;
+    try {
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(React.Fragment, null, React.createElement(Board), React.createElement(OtherBoard)));
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      // A first notification and commit after the reset is the board's baseline.
+      resetPerf();
+      await act(async () => {
+        fake.upsertAgent(activeAgent("perf-0", { status: "running", title: "Renamed", updatedAt: recentIso(0) }));
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      const before = perfSnapshot();
+      act(() => fake.reconnectAgentSubscription(0));
+      const after = perfSnapshot();
+      expect(current.lanes.running.cards).toHaveLength(30);
+      const notifies = after.marks.slice(before.marks.length).filter((mark) => mark.name === "tasks.notify");
+      expect(notifies).toHaveLength(1);
+      expect(notifies[0]!.data.listeners).toBe(1);
+      expect(after.samples["board.notifiesPerCommit"]).toMatchObject({ count: 1, max: 1 });
+      // The other host's board saw none of it.
+      expect(after.samples["other.notifiesPerCommit"]).toBeUndefined();
+      const stores = new Set(after.marks.filter((mark) => mark.name === "tasks.notify").map((mark) => mark.data.store));
+      expect(stores.size).toBe(1);
+    } finally {
+      act(() => renderer.unmount());
+      disablePerf();
+      resetPerf();
     }
   });
 

@@ -8,6 +8,8 @@
 const SAMPLE_CAP = 4000;
 /** Raw height-decrease events kept for the report; the counters keep going. */
 const EVENT_CAP = 200;
+/** Timeline marks kept for the report; later ones are counted in `marksDropped`, not kept. */
+const MARK_CAP = 1500;
 
 export interface SeriesSummary {
   count: number;
@@ -91,6 +93,18 @@ export interface HeightEvent {
   streaming: boolean | null;
 }
 
+/**
+ * One point on the probes' timeline: what happened, when (`at`, the probes'
+ * clock: `performance.now()` where there is one), and its raw numbers. A mark
+ * keeps raw values on purpose, so a dump can be read again with other
+ * questions than the summaries answer.
+ */
+export interface PerfMark {
+  name: string;
+  at: number;
+  data: Record<string, number | string | null>;
+}
+
 /** Frames slower than this multiple of the expected interval count as dropped. */
 const DROP_THRESHOLD = 1.5;
 /** A gap this long is a hidden tab or a suspended page, not a dropped frame. */
@@ -119,6 +133,10 @@ export interface PerfStore {
   layoutShift(value: number): void;
   /** A named event counter, for probes that only need "how many times". */
   count(name: string, by: number): void;
+  /** One value of the named series (a duration, a gap, a batch size), summarised in `samples`. */
+  sample(name: string, value: number): void;
+  /** A timeline mark: kept up to `MARK_CAP`, counted past it. */
+  mark(mark: PerfMark): void;
   snapshot(): PerfSnapshot;
   /**
    * Clears everything counted so far. Animations still mounted stay mounted:
@@ -157,6 +175,9 @@ function createCounters() {
     longTasks: createSeries(),
     layoutShifts: createSeries(),
     counters: new Map<string, number>(),
+    samples: new Map<string, Series>(),
+    marks: [] as PerfMark[],
+    marksDropped: 0,
   };
 }
 
@@ -266,6 +287,20 @@ export function createPerfStore(): PerfStore {
       bump(c.counters, name, by);
     },
 
+    sample(name, value) {
+      let series = c.samples.get(name);
+      if (!series) {
+        series = createSeries();
+        c.samples.set(name, series);
+      }
+      series.add(value);
+    },
+
+    mark(mark) {
+      if (c.marks.length < MARK_CAP) c.marks.push(mark);
+      else c.marksDropped += 1;
+    },
+
     snapshot() {
       const total = c.frames + c.droppedFrames;
       return {
@@ -312,6 +347,9 @@ export function createPerfStore(): PerfStore {
         longTasks: c.longTasks.summary(),
         layoutShifts: c.layoutShifts.summary(),
         counters: toRecord(c.counters),
+        samples: seriesRecord(c.samples),
+        marks: [...c.marks],
+        marksDropped: c.marksDropped,
       };
     },
 
@@ -355,4 +393,10 @@ export interface PerfSnapshot {
   layoutShifts: SeriesSummary;
   /** Named counters from `perfCount`, e.g. `md.finalRerender`. */
   counters: Record<string, number>;
+  /** Named series, e.g. `sheet.move.jsGapMs`; what each one measures is documented where it is recorded. */
+  samples: Record<string, SeriesSummary>;
+  /** The timeline, oldest first, at most `MARK_CAP` long. */
+  marks: PerfMark[];
+  /** Marks recorded after the timeline was full. */
+  marksDropped: number;
 }

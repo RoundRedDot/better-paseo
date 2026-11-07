@@ -15,6 +15,7 @@ import type {
 import { doneWindowMs, type DoneWindow } from "../../../shared/tasks-settings";
 import type { LastTurn } from "../../../shared/turn-usage-rpc";
 import type { ParentOrigin, ProviderSubagent } from "../../../shared/tasks-rpc";
+import { perfOn, probeTasksNotify } from "../../debug/perf";
 import { footerModel } from "../../state/footer-model";
 import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
@@ -1027,6 +1028,8 @@ function createStore(api: PaseoApi): TaskStore {
   const emitNotification = () => {
     snapshotCaches = [];
     countsDirty = true;
+    // Keyed by `api`: one store per API (`stores`), and a board can name it (`tasksPerfOwner`).
+    if (perfOn()) probeTasksNotify(api, listeners.size);
     for (const listener of listeners) listener();
   };
 
@@ -2958,6 +2961,14 @@ function createStore(api: PaseoApi): TaskStore {
     requestProjectIcon,
   };
   return store;
+}
+
+/**
+ * What the perf probes know `api`'s Tasks store by (`probeTasksCommit`): the
+ * API itself, as `stores` keys the store by it.
+ */
+export function tasksPerfOwner(api: PaseoApi): object {
+  return api;
 }
 
 function getStore(api: PaseoApi): TaskStore {

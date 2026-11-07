@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { Animated, PanResponder, Platform, Pressable, View, type GestureResponderEvent } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { perfStart, probeDragEnd, probeDragMove, probeDragStart, type DragTrack } from "../../debug/perf";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { menuChrome } from "./menu-model";
@@ -54,6 +55,8 @@ export function BoardSheet(props: {
     // measure the drag from where the finger went down.
     let touchY = 0;
     const travel = (event: GestureResponderEvent) => event.nativeEvent.pageY - touchY;
+    // The perf probes' record of this drag (`/bc-perf`); null while they are off.
+    let probe: DragTrack | null = null;
     return PanResponder.create({
       onStartShouldSetPanResponderCapture: (event) => {
         touchY = event.nativeEvent.pageY;
@@ -62,15 +65,20 @@ export function BoardSheet(props: {
       onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dy) > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onPanResponderTerminationRequest: () => false,
-      onPanResponderGrant: () => {
+      onPanResponderGrant: (event) => {
         start = sheetHeight(latest.current.area, latest.current.detent);
         dragged.current = true;
+        probe = probeDragStart("sheet", event.nativeEvent.timestamp);
       },
       onPanResponderMove: (event) => {
+        const startedAt = probe === null ? 0 : perfStart();
         const full = sheetHeight(latest.current.area, "full");
         height.setValue(Math.max(HANDLE, Math.min(full, start - travel(event))));
+        if (probe !== null) probeDragMove(probe, event.nativeEvent.timestamp, startedAt);
       },
       onPanResponderRelease: (event, gesture) => {
+        probeDragEnd(probe, "release", event.nativeEvent.timestamp);
+        probe = null;
         setTimeout(() => {
           dragged.current = false;
         }, 300);
@@ -86,7 +94,9 @@ export function BoardSheet(props: {
           now.onDetent(next);
         }
       },
-      onPanResponderTerminate: () => {
+      onPanResponderTerminate: (event) => {
+        probeDragEnd(probe, "terminate", event.nativeEvent.timestamp);
+        probe = null;
         dragged.current = false;
         const now = latest.current;
         Animated.timing(height, { toValue: sheetHeight(now.area, now.detent), duration: 200, easing: MOTION.ease, useNativeDriver: false }).start();

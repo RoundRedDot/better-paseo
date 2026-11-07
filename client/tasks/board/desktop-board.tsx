@@ -48,6 +48,8 @@ import {
   type SidebarPreference,
 } from "./sidebar-model";
 import { BoardSheet } from "./board-sheet";
+import { probeTasksCommit } from "../../debug/perf";
+import { tasksPerfOwner } from "../data";
 import { activeFilterCount, rememberCollapsed, rememberedCollapsed } from "./params";
 import { FilterSheetBody } from "./filter-sheet";
 import { sortsLoadedOnly } from "./sort";
@@ -677,6 +679,8 @@ export function DesktopBoard(props: {
 
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }} {...claimKeys(rootRef, () => setFocus(null), activeCardId)}>
+      {/* `/bc-perf`: the store's notifications against this board's commits; null while the probes are off. */}
+      {probeTasksCommit("tasks.desktopBoard", tasksPerfOwner(live.paseo), live.tasks, tasks)}
       {touch ? <TabletToolbar
         board={live}
         theme={theme}
