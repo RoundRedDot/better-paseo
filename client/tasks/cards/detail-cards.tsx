@@ -1150,7 +1150,20 @@ function Properties(props: Inner) {
   };
   const common = { m, tokens, language: props.language, wide, searchQuery: props.searchQuery };
   const rows: React.ReactNode[] = [];
-
+  if (card.hostLabel) {
+    rows.push(
+      <PropertyRow
+        {...common}
+        key="host"
+        label={details.host}
+        icon="Server"
+        value={card.hostLabel}
+        strong
+        lines={1}
+        testID="detail-host"
+      />,
+    );
+  }
   const placeName = location.projectName ?? location.workspaceName;
   if (placeName) {
     const kind = location.workspaceKind;

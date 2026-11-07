@@ -17,6 +17,8 @@ export interface BoardParams {
   workspaceIds: string[];
   providers: string[];
   labels: string[];
+  /** Empty means every host. */
+  hostIds: string[];
   hideSubtasks: boolean | null;
   doneWindow: DoneWindow | null;
   /** One order for every lane; null keeps each lane's own (the spec's). Not a filter: "Clear all" keeps it. */
@@ -28,6 +30,7 @@ export const EMPTY_PARAMS: BoardParams = {
   workspaceIds: [],
   providers: [],
   labels: [],
+  hostIds: [],
   hideSubtasks: null,
   doneWindow: null,
   sort: null,
@@ -40,7 +43,7 @@ export interface BoardDefaults {
 }
 
 // Short keys: params ride in the screen's URL.
-const KEY = { query: "q", workspaceIds: "ws", providers: "agent", labels: "label", hideSubtasks: "sub", doneWindow: "win", sort: "sort" } as const;
+const KEY = { query: "q", workspaceIds: "ws", providers: "agent", labels: "label", hostIds: "h", hideSubtasks: "sub", doneWindow: "win", sort: "sort" } as const;
 
 /** A list as one param: each item URI-encoded, so ids and label names may hold commas. */
 function encodeList(values: readonly string[]): string {
@@ -70,6 +73,7 @@ export function encodeBoardParams(params: BoardParams): PluginScreenParams {
   if (params.workspaceIds.length) out[KEY.workspaceIds] = encodeList(params.workspaceIds);
   if (params.providers.length) out[KEY.providers] = encodeList(params.providers);
   if (params.labels.length) out[KEY.labels] = encodeList(params.labels);
+  if (params.hostIds.length) out[KEY.hostIds] = encodeList(params.hostIds);
   if (params.hideSubtasks !== null) out[KEY.hideSubtasks] = params.hideSubtasks ? "1" : "0";
   if (params.doneWindow !== null) out[KEY.doneWindow] = params.doneWindow;
   const sort = encodeSort(params.sort);
@@ -90,6 +94,7 @@ export function decodeBoardParams(params: PluginScreenParams | null | undefined)
     workspaceIds: decodeList(read(KEY.workspaceIds)),
     providers: decodeList(read(KEY.providers)),
     labels: decodeList(read(KEY.labels)),
+    hostIds: decodeList(read(KEY.hostIds)),
     hideSubtasks: sub === "1" ? true : sub === "0" ? false : null,
     doneWindow: (DONE_WINDOWS as readonly string[]).includes(win ?? "") ? (win as DoneWindow) : null,
     sort: decodeSort(read(KEY.sort)),
@@ -135,6 +140,7 @@ export function resolveBoardParams(params: BoardParams, defaults: BoardDefaults)
       workspaceIds: params.workspaceIds,
       providers: params.providers,
       labels: params.labels,
+      hostIds: params.hostIds,
       hideSubtasks: params.hideSubtasks ?? defaults.hideSubtasks,
     },
     doneWindow: params.doneWindow ?? defaults.doneWindow,
@@ -142,10 +148,9 @@ export function resolveBoardParams(params: BoardParams, defaults: BoardDefaults)
 }
 
 /**
- * The filter badge on the phone More button, the tablet Filters button, and
- * the desktop sheet's Filters button: one per selected workspace, agent and
- * label, and one for a search. The done window and subtask visibility have
- * their own controls and do not contribute.
+ * The filters' badge: one per selected workspace, agent, label and host, and
+ * one for a search. The done window and subtask visibility have their own
+ * controls and do not contribute.
  */
 export function activeFilterCount(params: BoardParams, defaults: BoardDefaults): number {
   const { filters } = resolveBoardParams(params, defaults);
@@ -153,6 +158,7 @@ export function activeFilterCount(params: BoardParams, defaults: BoardDefaults):
     filters.workspaceIds.length +
     filters.providers.length +
     filters.labels.length +
+    filters.hostIds.length +
     (filters.query.trim() ? 1 : 0)
   );
 }

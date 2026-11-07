@@ -71,9 +71,21 @@ describe("tasks settings", () => {
     expect(minimal.density).toBe("minimal");
     expect(minimal.card.provider).toBe(false);
     expect(minimal.card.timer).toBe(true);
+    expect(minimal.card.host).toBe(false);
     const full = applyDensity(DEFAULT_TASKS_SETTINGS, "full");
     expect(full.card.labelLimit).toBe("all");
     expect(full.card.gitStatus).toBe(true);
+    expect(full.card.host).toBe(true);
+    expect(DEFAULT_TASKS_SETTINGS.card.host).toBe(true);
+  });
+
+  it("reads the host switch a record saved before it from that record's density", () => {
+    const { host: _host, ...saved } = CARD_PRESETS.minimal.fields;
+    const parsed = tasksSettingsSchema.parse({ density: "minimal", card: { ...saved, labelLimit: "2" } });
+    expect(parsed.card.host).toBe(false);
+    expect(densityOf(parsed.card)).toBe("minimal");
+    // No density to read: the standard preset's value.
+    expect(tasksSettingsSchema.parse({ card: { provider: false } }).card.host).toBe(true);
   });
 
   it("turns custom after a hand edit and back when the switches match a preset again", () => {
@@ -93,6 +105,8 @@ describe("tasks settings", () => {
     const phone = { ...DEFAULT_TASKS_SETTINGS, mobile: { compactCards: true } };
     expect(effectiveCard(phone, false)).toBe(phone.card);
     expect(effectiveCard(phone, true).provider).toBe(false);
+    expect(effectiveCard(phone, true).host).toBe(true);
+    expect(effectiveCard(setCardSetting(phone, "host", false), true).host).toBe(false);
   });
 
   it("converts limits and windows", () => {
