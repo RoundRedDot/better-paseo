@@ -47,7 +47,7 @@ import {
   type SidebarMode,
   type SidebarPreference,
 } from "./sidebar-model";
-import { BoardSheet } from "./board-sheet";
+import { BoardSheet, type BoardSheetHandle } from "./board-sheet";
 import { activeFilterCount, rememberCollapsed, rememberedCollapsed } from "./params";
 import { FilterSheetBody } from "./filter-sheet";
 import { sortsLoadedOnly } from "./sort";
@@ -237,6 +237,7 @@ export function DesktopBoard(props: {
   const searchExpanded = searchOpen && boardWidth < 960 * Math.max(1, scale);
   const [boardHeight, setBoardHeight] = useState(0);
   const [detent, setDetent] = useState<SheetDetent>("half");
+  const sheetRef = useRef<BoardSheetHandle>(null);
   const modeRef = useRef<SidebarMode | null>(null);
   const mode = boardWidth > 0 ? sidebarMode(boardWidth, modeRef.current) : modeRef.current ?? "inline";
   modeRef.current = boardWidth > 0 ? mode : modeRef.current;
@@ -659,7 +660,7 @@ export function DesktopBoard(props: {
       stats={!(inSheet && selection.id !== null)}
       scrollAll={inSheet}
       tabs={!inSheet || touch}
-      sheetToggle={inSheet ? { full: detent === "full", label: detent === "full" ? strings.sidebar.sheetShrink : strings.sidebar.sheetGrow, onPress: () => setDetent((current) => current === "full" ? "half" : "full") } : undefined}
+      sheetToggle={inSheet ? { full: detent === "full", label: detent === "full" ? strings.sidebar.sheetShrink : strings.sidebar.sheetGrow, onPress: () => sheetRef.current?.toggle() } : undefined}
     />
   );
   const activeCardId = focus ? `task-card-${lanes[focus.lane].cards[focus.index]!.id}` : undefined;
@@ -789,6 +790,7 @@ export function DesktopBoard(props: {
         ) : null}
         {inSheet ? (
           <BoardSheet
+            ref={sheetRef}
             area={boardHeight}
             detent={detent}
             onDetent={setDetent}

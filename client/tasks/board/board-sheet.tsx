@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { Animated, PanResponder, Platform, Pressable, View, type GestureResponderEvent } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -16,8 +16,18 @@ const HANDLE = 12;
  * a click. Half height leaves the lanes' top in view; full leaves a strip.
  * Only the handle drags it (the content scrolls); a tap on the handle
  * switches the two heights, a drag down from half closes it.
+ *
+ * A switch moves the sheet first and tells the board (`onDetent`) once it is
+ * there: the board's render that follows a new height (every lane's bottom
+ * room, the details) held the JS thread for 200-360 ms on an Android tablet,
+ * and a JS-driven height cannot move before that render is done.
  */
-export function BoardSheet(props: {
+export interface BoardSheetHandle {
+  /** Switch the two heights, from the one a switch already moving is heading to. */
+  toggle(): void;
+}
+
+export const BoardSheet = forwardRef<BoardSheetHandle, {
   /** The lanes' area the sheet rises in. */
   area: number;
   detent: SheetDetent;
@@ -26,8 +36,10 @@ export function BoardSheet(props: {
   theme: PluginTheme;
   labels: { grow: string; shrink: string };
   children: React.ReactNode;
-}) {
+}>(function BoardSheet(props, ref) {
   const reduced = useReducedMotion();
+  const reducedNow = useRef(reduced);
+  reducedNow.current = reduced;
   const target = sheetHeight(props.area, props.detent);
   const height = useRef(new Animated.Value(0)).current;
   const latest = useRef(props);
@@ -35,8 +47,14 @@ export function BoardSheet(props: {
   const opened = useRef(false);
   // A drag ends with a click on the handle it moved with: that click must not switch the height back.
   const dragged = useRef(false);
+  // The height the value rests at or is moving to: a board that catches up with a switch already there moves nothing.
+  const aimed = useRef<number | null>(null);
+  // A switch on its way, before the board hears of it.
+  const heading = useRef<{ detent: SheetDetent; run: Animated.CompositeAnimation } | null>(null);
 
   useEffect(() => {
+    if (aimed.current === target) return;
+    aimed.current = target;
     const animation = Animated.timing(height, {
       toValue: target,
       duration: reduced ? 0 : opened.current ? 240 : 280,
@@ -47,6 +65,43 @@ export function BoardSheet(props: {
     animation.start();
     return () => animation.stop();
   }, [height, target, reduced]);
+
+  const motion = useMemo(() => {
+    const drop = () => {
+      const last = heading.current;
+      heading.current = null;
+      last?.run.stop();
+    };
+    const settle = (next: SheetDetent, duration: number) => {
+      drop();
+      const to = sheetHeight(latest.current.area, next);
+      aimed.current = to;
+      const tell = () => {
+        if (latest.current.detent !== next) latest.current.onDetent(next);
+      };
+      if (reducedNow.current) {
+        height.setValue(to);
+        tell();
+        return;
+      }
+      const run = Animated.timing(height, { toValue: to, duration, easing: MOTION.ease, useNativeDriver: false });
+      heading.current = { detent: next, run };
+      run.start(({ finished }) => {
+        // Stopped by another switch, a drag or the sheet closing: that one decides.
+        if (heading.current?.run !== run) return;
+        heading.current = null;
+        if (finished) tell();
+      });
+    };
+    return {
+      drop,
+      settle,
+      toggle: () => settle((heading.current?.detent ?? latest.current.detent) === "full" ? "half" : "full", 240),
+    };
+  }, [height]);
+  useImperativeHandle(ref, () => ({ toggle: motion.toggle }), [motion]);
+  // A switch still moving when the sheet closes does not reach the board.
+  useEffect(() => motion.drop, [motion]);
 
   const pan = useMemo(() => {
     let start = 0;
@@ -63,7 +118,13 @@ export function BoardSheet(props: {
       onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dy) > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
+        // A drag catches the sheet where it is, a switch still moving included.
+        motion.drop();
         start = sheetHeight(latest.current.area, latest.current.detent);
+        height.stopAnimation((value) => {
+          start = value;
+        });
+        aimed.current = null;
         dragged.current = true;
       },
       onPanResponderMove: (event) => {
@@ -77,22 +138,18 @@ export function BoardSheet(props: {
         const now = latest.current;
         const next = sheetRelease(now.detent, travel(event), gesture.vy);
         if (next === "closed") {
+          aimed.current = 0;
           Animated.timing(height, { toValue: 0, duration: 200, easing: MOTION.ease, useNativeDriver: false }).start(() => latest.current.onClose());
           return;
         }
-        if (next === now.detent) {
-          Animated.timing(height, { toValue: sheetHeight(now.area, next), duration: 200, easing: MOTION.ease, useNativeDriver: false }).start();
-        } else {
-          now.onDetent(next);
-        }
+        motion.settle(next, next === now.detent ? 200 : 240);
       },
       onPanResponderTerminate: () => {
         dragged.current = false;
-        const now = latest.current;
-        Animated.timing(height, { toValue: sheetHeight(now.area, now.detent), duration: 200, easing: MOTION.ease, useNativeDriver: false }).start();
+        motion.settle(latest.current.detent, 200);
       },
     });
-  }, [height]);
+  }, [height, motion]);
 
   const palette = boardPalette(props.theme);
   const chrome = menuChrome(props.theme);
@@ -120,7 +177,7 @@ export function BoardSheet(props: {
           accessibilityLabel={full ? props.labels.shrink : props.labels.grow}
           onPress={() => {
             if (dragged.current) return;
-            props.onDetent(full ? "half" : "full");
+            motion.toggle();
           }}
           testID="board-sheet-handle"
           style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
@@ -131,4 +188,4 @@ export function BoardSheet(props: {
       <View style={{ flex: 1, minHeight: 0, paddingHorizontal: 4, paddingBottom: 4 }}>{props.children}</View>
     </Animated.View>
   );
-}
+});

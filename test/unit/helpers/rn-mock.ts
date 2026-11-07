@@ -97,6 +97,9 @@ function makeValue(initial: number) {
     setValue(next: number) {
       value = next;
     },
+    stopAnimation(callback?: (value: number) => void) {
+      callback?.(value);
+    },
     interpolate() {
       return value;
     },

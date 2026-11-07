@@ -259,6 +259,38 @@ function cards(): ReactTestInstance[] {
   return renderer!.root.findAllByType(TaskCardView);
 }
 
+interface HeldRun { value: Animated.Value; to: number; duration: number; done?: (result: { finished: boolean }) => void; over: boolean }
+
+/**
+ * `Animated.timing` runs that end only when the test finishes them; a stop
+ * ends one unfinished, as React Native does. `sheet` lists the bottom
+ * sheet's height runs.
+ */
+function holdTimings() {
+  const runs: HeldRun[] = [];
+  const spy = vi.spyOn(Animated, "timing").mockImplementation((value, config) => {
+    const run: HeldRun = { value: value as Animated.Value, to: config.toValue as number, duration: config.duration as number, over: false };
+    runs.push(run);
+    return {
+      start: (done) => { run.done = done; },
+      stop: () => {
+        if (run.over) return;
+        run.over = true;
+        run.done?.({ finished: false });
+      },
+      reset: () => {},
+    };
+  });
+  const sheetValue = () => StyleSheet.flatten(hostsById("board-sheet")[0]!.props.style).height as unknown as Animated.Value;
+  const sheet = () => runs.filter((run) => run.value === sheetValue());
+  const finish = (run: HeldRun) => act(() => {
+    run.over = true;
+    run.value.setValue(run.to);
+    run.done?.({ finished: true });
+  });
+  return { sheet, sheetValue, finish, restore: () => spy.mockRestore() };
+}
+
 /** The card ids a phone pager page draws. */
 function laneCards(lane: string): string[] {
   return renderer!.root.findByProps({ testID: `phone-lane-${lane}` }).findAllByType(TaskCardView).map((card) => card.props.card.id);
@@ -2348,6 +2380,8 @@ describe("Tasks board, desktop", () => {
   });
 
   it("raises the details from the bottom of a board too narrow to float them, and the lanes make room", () => {
+    const timings = holdTimings();
+    try {
     act(() => {
       renderer = TestRenderer.create(screen(false));
     });
@@ -2364,9 +2398,14 @@ describe("Tasks board, desktop", () => {
     expect(toggle().props.accessibilityLabel).toBe("Expand details");
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Maximize2");
     act(() => toggle().props.onPress());
+    // The sheet moves first; the board hears of the new height once it is there.
+    expect(toggle().props.accessibilityLabel).toBe("Expand details");
+    expect(timings.sheet().at(-1)).toMatchObject({ to: 792, duration: 240 });
+    timings.finish(timings.sheet().at(-1)!);
     expect(toggle().props.accessibilityLabel).toBe("Collapse details");
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Minimize2");
     act(() => toggle().props.onPress());
+    timings.finish(timings.sheet().at(-1)!);
     expect(toggle().props.accessibilityLabel).toBe("Expand details");
     expect(textOf(renderer!.root.findByProps({ testID: "detail-title" }))).toBe(card.props.card.title);
     // A card in the sheet leaves the counts out; each lane's list scrolls its last card above the half sheet (800 x 0.58).
@@ -2387,6 +2426,8 @@ describe("Tasks board, desktop", () => {
     const handle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "board-sheet-handle");
     expect(handle().props.accessibilityLabel).toBe("Expand details");
     act(() => handle().props.onPress());
+    expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 464);
+    timings.finish(timings.sheet().at(-1)!);
     expect(handle().props.accessibilityLabel).toBe("Collapse details");
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Minimize2");
     expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 792);
@@ -2399,6 +2440,8 @@ describe("Tasks board, desktop", () => {
       strip.props.onPanResponderRelease({ nativeEvent: { pageY: 420 } }, { dy: 80, vy: 0 });
     });
     act(() => handle().props.onPress());
+    expect(timings.sheet().at(-1)).toMatchObject({ to: 464, duration: 240 });
+    timings.finish(timings.sheet().at(-1)!);
     expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 464);
     // A tap on the lanes' blank space puts it away.
     let blank = lanesScroll().parent!;
@@ -2408,6 +2451,125 @@ describe("Tasks board, desktop", () => {
       blank.props.onResponderRelease({ nativeEvent: { pageX: 10, pageY: 10 } });
     });
     expect(hostsById("board-sheet")).toHaveLength(0);
+    } finally {
+      timings.restore();
+    }
+  });
+
+  it.each(["web", "ios", "android"])("on %s moves the sheet before the board hears of a new height, and a switch can be turned back, caught or closed on its way", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const timings = holdTimings();
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(600);
+      const open = () => {
+        const card = cards().find((node) => node.props.card.id === "sample-running")!;
+        act(() => card.props.onSelect(card.props.card));
+      };
+      open();
+      const toggle = () => hostsById("detail-sheet-toggle")[0]!;
+      const handle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "board-sheet-handle");
+      const label = () => toggle().props.accessibilityLabel;
+      const room = () => StyleSheet.flatten(renderer!.root.findAll((node) => typeof node.props.renderItem === "function" && node.props.contentContainerStyle !== undefined)[0]!.props.contentContainerStyle).paddingBottom;
+      const last = () => timings.sheet().at(-1)!;
+      const height = () => (timings.sheetValue() as unknown as { __value: number }).__value;
+      timings.finish(last());
+      expect(height()).toBe(464);
+
+      // A second tap before the sheet is there turns it back; the stopped run tells the board nothing.
+      act(() => toggle().props.onPress());
+      const up = last();
+      expect(up).toMatchObject({ to: 792, duration: 240 });
+      expect([label(), room()]).toEqual(["Expand details", 8 + 464]);
+      act(() => toggle().props.onPress());
+      expect(up.over).toBe(true);
+      expect(last()).toMatchObject({ to: 464, duration: 240 });
+      expect([label(), room()]).toEqual(["Expand details", 8 + 464]);
+      timings.finish(last());
+      expect([label(), room()]).toEqual(["Expand details", 8 + 464]);
+
+      // Three taps, the handle's among them, count from where each switch is heading.
+      act(() => toggle().props.onPress());
+      act(() => handle().props.onPress());
+      act(() => toggle().props.onPress());
+      expect(timings.sheet().slice(-3).map((run) => [run.to, run.over])).toEqual([[792, true], [464, true], [792, false]]);
+      expect(label()).toBe("Expand details");
+      const runs = timings.sheet().length;
+      timings.finish(last());
+      expect([label(), room(), height()]).toEqual(["Collapse details", 8 + 792, 792]);
+      // The board catching up starts no second run to where the sheet already is.
+      expect(timings.sheet()).toHaveLength(runs);
+
+      // A drag catches a switch where it is, and a short one leaves the height the board knows.
+      act(() => toggle().props.onPress());
+      const down = last();
+      act(() => timings.sheetValue().setValue(600));
+      const strip = handle().parent!.parent!;
+      act(() => {
+        strip.props.onStartShouldSetPanResponderCapture({ nativeEvent: { pageY: 300 } });
+        strip.props.onPanResponderGrant({ nativeEvent: { pageY: 300 } }, { dy: 0, vy: 0 });
+      });
+      expect(down.over).toBe(true);
+      act(() => strip.props.onPanResponderMove({ nativeEvent: { pageY: 310 } }, { dy: 10, vy: 0 }));
+      expect(height()).toBe(590);
+      act(() => strip.props.onPanResponderRelease({ nativeEvent: { pageY: 310 } }, { dy: 10, vy: 0 }));
+      expect(last()).toMatchObject({ to: 792, duration: 200 });
+      timings.finish(last());
+      expect([label(), room()]).toEqual(["Collapse details", 8 + 792]);
+
+      // A long drag down goes to half: the sheet gets there before the lanes change.
+      act(() => {
+        strip.props.onStartShouldSetPanResponderCapture({ nativeEvent: { pageY: 300 } });
+        strip.props.onPanResponderGrant({ nativeEvent: { pageY: 300 } }, { dy: 0, vy: 0 });
+        strip.props.onPanResponderRelease({ nativeEvent: { pageY: 400 } }, { dy: 100, vy: 0 });
+      });
+      expect(last()).toMatchObject({ to: 464, duration: 240 });
+      expect([label(), room()]).toEqual(["Collapse details", 8 + 792]);
+      timings.finish(last());
+      expect([label(), room()]).toEqual(["Expand details", 8 + 464]);
+      act(() => { vi.advanceTimersByTime(300); });
+
+      // Closed while a switch moves: the switch never reaches the board, and the sheet opens at half again.
+      act(() => toggle().props.onPress());
+      const lost = last();
+      act(() => hostsById("detail-close")[0]!.props.onPress());
+      expect(hostsById("board-sheet")).toHaveLength(0);
+      expect(lost.over).toBe(true);
+      open();
+      expect([label(), room()]).toEqual(["Expand details", 8 + 464]);
+    } finally {
+      timings.restore();
+    }
+  });
+
+  it("switches the sheet at once under reduced motion", () => {
+    let onReduce = (_on: boolean) => {};
+    const addListener = AccessibilityInfo.addEventListener;
+    const subscription = vi.spyOn(AccessibilityInfo, "addEventListener").mockImplementation(((name: string, listener: (enabled: boolean) => void) => {
+      if (name === "reduceMotionChanged") onReduce = listener;
+      return addListener("reduceMotionChanged", listener);
+    }) as typeof AccessibilityInfo.addEventListener);
+    const timings = holdTimings();
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(600);
+      act(() => onReduce(true));
+      const card = cards().find((node) => node.props.card.id === "sample-running")!;
+      act(() => card.props.onSelect(card.props.card));
+      const toggle = () => hostsById("detail-sheet-toggle")[0]!;
+      const runs = timings.sheet().length;
+      act(() => toggle().props.onPress());
+      expect(timings.sheet()).toHaveLength(runs);
+      expect((timings.sheetValue() as unknown as { __value: number }).__value).toBe(792);
+      expect(toggle().props.accessibilityLabel).toBe("Collapse details");
+      act(() => toggle().props.onPress());
+      expect((timings.sheetValue() as unknown as { __value: number }).__value).toBe(464);
+      expect(toggle().props.accessibilityLabel).toBe("Expand details");
+    } finally {
+      act(() => onReduce(false));
+      subscription.mockRestore();
+      timings.restore();
+    }
   });
 
   it("keeps the blank-tap responder off the lanes' scroll views on touch, and above them on web", () => {
