@@ -156,6 +156,7 @@ import { ProseRedrawContext } from "../../client/ui/prose-text";
 import { useLineSelection } from "../../client/ui/line-selection";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { PreviewLines } from "../../client/ui/preview-lines";
+import { DiffPreview, ToolOutput } from "../../client/components/tool-output";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -983,20 +984,26 @@ describe("block switch height", () => {
     layOut(renderer, "details-drawer", 462);
     const panel = byTestId(renderer, "details-body")!.props as Record<string, (...args: unknown[]) => unknown>;
     const pull = () => {
-      panel.onStartShouldSetPanResponderCapture!(event(100, 400));
-      return panel.onMoveShouldSetPanResponderCapture!(event(100, 440));
+      let moved;
+      act(() => {
+        panel.onTouchStartCapture!(event(100, 400));
+        moved = panel.onTouchMoveCapture!(event(100, 440));
+      });
+      return moved;
     };
     act(() => seen.body!.scrolled(120));
     expect(pull()).toBe(false);
     act(() => seen.body!.scrolled(0));
     expect(pull()).toBe(true);
     // Upwards at its top the drawer takes it too, and scrolls the body itself.
-    panel.onStartShouldSetPanResponderCapture!(event(100, 400));
-    expect(panel.onMoveShouldSetPanResponderCapture!(event(100, 360))).toBe(true);
+    act(() => {
+      panel.onTouchStartCapture!(event(100, 400));
+      expect(panel.onTouchMoveCapture!(event(100, 360))).toBe(true);
+    });
     // Scrolled down, upwards is the body's own scroll.
     act(() => seen.body!.scrolled(120));
-    panel.onStartShouldSetPanResponderCapture!(event(100, 400));
-    expect(panel.onMoveShouldSetPanResponderCapture!(event(100, 360))).toBe(false);
+    panel.onTouchStartCapture!(event(100, 400));
+    expect(panel.onTouchMoveCapture!(event(100, 360))).toBe(false);
   });
 });
 
@@ -1281,8 +1288,12 @@ describe("content gestures in the drawer", () => {
   }
   /** A body touch from (100, 400) at 1000 ms to (100 + dx, 400 + dy) at `at`: whether the drawer takes it. */
   function pull(panel: Handlers, dy: number, at = 1050, dx = 0): boolean {
-    panel.onStartShouldSetPanResponderCapture!(event(100, 400, 1000));
-    return Boolean(panel.onMoveShouldSetPanResponderCapture!(event(100 + dx, 400 + dy, at)));
+    let moved = false;
+    act(() => {
+      panel.onTouchStartCapture!(event(100, 400, 1000));
+      moved = Boolean(panel.onTouchMoveCapture!(event(100 + dx, 400 + dy, at)));
+    });
+    return moved;
   }
 
   it("moves the drawer on a pull down from an unclaimed body at its top", () => {
@@ -1290,11 +1301,10 @@ describe("content gestures in the drawer", () => {
     const panel = panelOf(renderer);
     act(() => {
       expect(pull(panel, 40)).toBe(true);
-      panel.onPanResponderGrant!(event(100, 440, 1050), {});
-      panel.onPanResponderMove!(event(100, 500, 1100), {});
+      panel.onTouchMoveCapture!(event(100, 500, 1100), {});
     });
     expect(value((flat(byTestId(renderer, "details-drawer-frame")!.props.style).transform as { translateY: unknown }[])[0]!.translateY)).toBe(100);
-    act(() => { panel.onPanResponderRelease!(event(100, 500, 1100), { vx: 0, vy: 0 }); });
+    act(() => { panel.onTouchEndCapture!(event(100, 500, 1100), { vx: 0, vy: 0 }); });
     expect(fake.api.close).toHaveBeenCalledWith(AGENT);
   });
 
@@ -1317,9 +1327,9 @@ describe("content gestures in the drawer", () => {
   it("leaves a body touch that went sideways first to the code's scroll, even if it turns down", () => {
     const renderer = atTop();
     const panel = panelOf(renderer);
-    panel.onStartShouldSetPanResponderCapture!(event(100, 400, 1000));
-    expect(panel.onMoveShouldSetPanResponderCapture!(event(130, 403, 1030))).toBe(false);
-    expect(panel.onMoveShouldSetPanResponderCapture!(event(140, 480, 1100))).toBe(false);
+    panel.onTouchStartCapture!(event(100, 400, 1000));
+    expect(panel.onTouchMoveCapture!(event(130, 403, 1030))).toBe(false);
+    expect(panel.onTouchMoveCapture!(event(140, 480, 1100))).toBe(false);
   });
 
   it("leaves a body touch that rested before it moved to the content (a text selection)", () => {
@@ -1335,7 +1345,7 @@ describe("content gestures in the drawer", () => {
     const renderer = atTop();
     const panel = panelOf(renderer);
     const press = (ms: number) => {
-      panel.onStartShouldSetPanResponderCapture!(event(100, 400, 1000));
+      panel.onTouchStartCapture!(event(100, 400, 1000));
       panel.onTouchEndCapture!(event(102, 401, 1000 + ms));
     };
     // A long press selects a word; the next drags take its handles.
@@ -1367,17 +1377,17 @@ describe("content gestures in the drawer", () => {
     const props = () => byTestId(renderer, "gutter")!.props as Handlers;
     const frame = () => flat(byTestId(renderer, "details-drawer-frame")!.props.style);
     act(() => {
-      panel.onStartShouldSetPanResponderCapture!(event(20, 420, 1000));
+      panel.onTouchStartCapture!(event(20, 420, 1000));
       props().onTouchStart!(event(20, 420, 1000));
       expect(props().onStartShouldSetResponder!(event(20, 420, 1000))).toBe(true);
       props().onResponderGrant!({ nativeEvent: { locationY: 20, pageX: 20, pageY: 420, timestamp: 1000 } });
     });
     // Diagonal jitter during the hold: past the drawer's 10 px, inside the gutter's 8.
-    expect(panel.onMoveShouldSetPanResponderCapture!(event(27, 427.5, 1100))).toBe(false);
+    expect(panel.onTouchMoveCapture!(event(27, 427.5, 1100))).toBe(false);
     act(() => { props().onResponderMove!(event(27, 427.5, 1100)); });
     act(() => { vi.advanceTimersByTime(400); });
     expect(gutter.state!.range).toEqual({ from: 1, to: 1 });
-    expect(panel.onMoveShouldSetPanResponderCapture!(event(20, 470, 1600))).toBe(false);
+    expect(panel.onTouchMoveCapture!(event(20, 470, 1600))).toBe(false);
     act(() => { props().onResponderMove!(event(20, 470, 1600)); });
     expect(gutter.state!.range).toEqual({ from: 1, to: 3 });
     act(() => {
@@ -1441,7 +1451,7 @@ describe("content gestures in the drawer", () => {
       && node.props.testID === "markdown-table-cell" && flat(node.props.style).backgroundColor === tokens.selectionFill).length;
     web.row = 0;
     act(() => {
-      panel.onStartShouldSetPanResponderCapture!(event(10, 440, 1000));
+      panel.onTouchStartCapture!(event(10, 440, 1000));
       frame().onTouchStart!(touch(10, 440, 1000));
     });
     act(() => { vi.advanceTimersByTime(350); });
@@ -1449,7 +1459,7 @@ describe("content gestures in the drawer", () => {
     expect(highlighted()).toBe(1);
     // Down across the rows, at the body's top: still the table's. Stamped as
     // a quick drag, so only the table's claim keeps it from the drawer.
-    expect(panel.onMoveShouldSetPanResponderCapture!(event(10, 500, 1200))).toBe(false);
+    expect(panel.onTouchMoveCapture!(event(10, 500, 1200))).toBe(false);
     act(() => { frame().onTouchMove!(touch(10, 500, 1500)); });
     act(() => { frame().onTouchEnd!(touch(10, 500, 1600)); });
     expect(contentOwnsTouch()).toBe(false);
@@ -1492,33 +1502,31 @@ describe("a phone body at its top", () => {
     return { renderer, body, panel: byTestId(renderer, "details-body")!.props as Handlers };
   }
 
-  it.each(["ios", "android"])("on %s is claimed by the drawer for a pull down without any scroll event", (os) => {
+  it.each(["ios", "android"])("on %s moves the drawer for a pull down without any scroll event", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const { renderer, body, panel } = fresh(`pull-${os}`);
     // At its top the body does not scroll natively, so nothing native takes the pull first.
     expect(body()).toMatchObject({ scrollEnabled: false, bounces: false, disableScrollViewPanResponder: true });
     act(() => {
-      panel.onStartShouldSetPanResponderCapture!(event(100, 560, 1000));
-      expect(panel.onMoveShouldSetPanResponderCapture!(event(100, 577, 1030))).toBe(true);
-      panel.onPanResponderGrant!(event(100, 577, 1030), {});
-      panel.onPanResponderMove!(event(100, 780, 1200), {});
+      panel.onTouchStartCapture!(event(100, 560, 1000));
+      expect(panel.onTouchMoveCapture!(event(100, 577, 1030))).toBe(true);
+      panel.onTouchMoveCapture!(event(100, 780, 1200), {});
     });
     expect(value((flat(byTestId(renderer, "details-drawer-frame")!.props.style).transform as { translateY: unknown }[])[0]!.translateY)).toBe(220);
-    act(() => { panel.onPanResponderRelease!(event(100, 780, 1230), { vx: 0, vy: 0 }); });
+    act(() => { panel.onTouchEndCapture!(event(100, 780, 1230), { vx: 0, vy: 0 }); });
     expect(fake.api.close).toHaveBeenCalledWith(AGENT);
   });
 
   it("scrolls the body up with the finger from its top, glides on after a fling, and then scrolls natively", () => {
     const { body, panel } = fresh("lift");
     act(() => {
-      panel.onStartShouldSetPanResponderCapture!(event(100, 560, 1000));
-      expect(panel.onMoveShouldSetPanResponderCapture!(event(100, 540, 1020))).toBe(true);
-      panel.onPanResponderGrant!(event(100, 540, 1020), {});
-      panel.onPanResponderMove!(event(100, 500, 1060), {});
-      panel.onPanResponderMove!(event(100, 400, 1100), {});
+      panel.onTouchStartCapture!(event(100, 560, 1000));
+      expect(panel.onTouchMoveCapture!(event(100, 540, 1020))).toBe(true);
+      panel.onTouchMoveCapture!(event(100, 500, 1060), {});
+      panel.onTouchMoveCapture!(event(100, 400, 1100), {});
     });
-    expect(web.scrolls).toEqual([60, 160]);
-    act(() => { panel.onPanResponderRelease!(event(100, 380, 1110), { vx: 0, vy: 0 }); });
+    expect(web.scrolls).toEqual([20, 60, 160]);
+    act(() => { panel.onTouchEndCapture!(event(100, 380, 1110), { vx: 0, vy: 0 }); });
     // About 1.6 px/ms upwards over the last 100 ms: on by 300 ms of it, within the content.
     expect(web.glides).toHaveLength(1);
     expect(web.glides[0]).toBeGreaterThan(160);
@@ -1526,8 +1534,8 @@ describe("a phone body at its top", () => {
     expect(fake.api.close).not.toHaveBeenCalled();
     act(() => { body().onScroll!({ nativeEvent: { contentOffset: { y: 400 }, layoutMeasurement: { height: 300 }, contentSize: { height: 900 } } }); });
     expect(body()).toMatchObject({ scrollEnabled: true, bounces: true, disableScrollViewPanResponder: false });
-    panel.onStartShouldSetPanResponderCapture!(event(100, 560, 2000));
-    expect(panel.onMoveShouldSetPanResponderCapture!(event(100, 520, 2030))).toBe(false);
+    panel.onTouchStartCapture!(event(100, 560, 2000));
+    expect(panel.onTouchMoveCapture!(event(100, 520, 2030))).toBe(false);
   });
 
   it("scrolls natively in the side panel, which takes no pulls", () => {
@@ -1576,19 +1584,25 @@ function negotiation(path: Array<Record<string, unknown>>) {
     }
     return null;
   };
+  const capture = (kind: string, event: unknown) => {
+    path.forEach((node) => call(node, `onTouch${kind}Capture`, event));
+  };
   return {
     get holder() { return holder; },
     start(event: unknown) {
       holder = null;
+      capture("Start", event);
       const to = ask("Start", path.length - 1, event);
       if (to !== null) transfer(to, event);
     },
     move(event: unknown) {
+      capture("Move", event);
       const to = ask("Move", holder === null ? path.length - 1 : holder - 1, event);
       if (to !== null) transfer(to, event);
       if (holder !== null) call(path[holder]!, "onResponderMove", event, {});
     },
     end(event: unknown) {
+      capture("End", event);
       if (holder !== null) call(path[holder]!, "onResponderRelease", event, {});
       holder = null;
     },
@@ -1598,6 +1612,63 @@ function negotiation(path: Array<Record<string, unknown>>) {
 describe("the pull under the Modal's own responder", () => {
   // The native details layer is a Modal, whose root takes every touch no view inside took.
   const modal = { onStartShouldSetResponder: () => true };
+  const longLine = `const value = "${"long-content-".repeat(30)}";`;
+  const surfaces = [
+    { kind: "diff", render: () => createElement(DiffPreview, { text: `-${longLine}\n+${longLine} changed`, filename: "x.ts", tokens, style: {} }) },
+    { kind: "file", render: () => createElement(PreviewLines, { text: longLine, lines: [longLine], tokens, style: {} }) },
+    { kind: "terminal", render: () => createElement(ToolOutput, { text: longLine, tokens, style: {}, preview: true }) },
+    { kind: "raw", render: () => createElement(PreviewLines, { text: longLine, lines: [longLine], tokens, style: {}, numbered: false }) },
+    { kind: "code", render: () => createElement(MarkdownView, { text: `\`\`\`ts\n${longLine}\n\`\`\``, tokens, variant: "document" }) },
+    { kind: "table", render: () => createElement(MarkdownView, { text: `| A | B |\n| --- | --- |\n| ${longLine} | ${longLine} |`, tokens, variant: "document" }) },
+  ];
+
+  describe.each(["ios", "android"])("%s horizontal content", (os) => {
+    describe.each([
+      { width: 390, height: 844, form: "drawer" },
+      { width: 834, height: 1194, form: "floating" },
+    ])("$form", ({ width, height, form }) => {
+      it.each(surfaces.flatMap((surface) => [0, 120].map((offset) => ({ ...surface, offset }))))(
+        "keeps $kind scrolling free of an ancestor JS responder at offset $offset",
+        ({ kind, render: content, offset }) => {
+          (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+          screen.width = width;
+          screen.height = height;
+          // Code and tables own their sideways scrollers even when the body wraps.
+          updateEnhancerPreferences({ previewWrap: kind === "code" || kind === "table" });
+          const id = `horizontal-${os}-${form}-${kind}-${offset}`;
+          fake.box.blocks = [block(id, 1, { render: () => createElement(HoverPreviewBody, null, content()) })];
+          const renderer = render(slot());
+          open(id);
+          layOut(renderer, `details-${form}`, 462);
+          if (kind === "code") {
+            act(() => renderer.root.find((node) => (node.type as unknown) === "Pressable"
+              && node.props.accessibilityLabel === "Do not wrap lines").props.onPress());
+          }
+          const scroller = renderer.root.find((node) => typeof node.type === "string" && node.props.horizontal);
+          expect(scroller.props.scrollEnabled).not.toBe(false);
+          const body = byTestId(renderer, "details-body")!.props;
+          const scroll = byTestId(renderer, "hover-preview-body")!.props;
+          act(() => scroll.onScroll({ nativeEvent: { contentOffset: { y: offset }, layoutMeasurement: { height: 300 }, contentSize: { height: 900 } } }));
+          const touch = negotiation([modal, body, scroll, scroller.props, {}]);
+          act(() => {
+            touch.start(event(240, 600, 1000));
+            // iOS Fabric's touchesShouldCancelInContentView refuses a scroll
+            // while an ancestor view is the JS responder. The presented Modal
+            // host is outside that native ancestor chain; details-body is not.
+            expect(touch.holder).toBe(0);
+            touch.move(event(180, 602, 1030));
+            expect(touch.holder).toBe(0);
+            // A diagonal continuation must not turn into a drawer pull.
+            touch.move(event(160, 690, 1100));
+            touch.end(event(160, 690, 1200));
+          });
+          expect(web.scrolls).toEqual([]);
+          expect(fake.api.close).not.toHaveBeenCalled();
+          expect(fake.api.setDetent).not.toHaveBeenCalled();
+        },
+      );
+    });
+  });
   const swipeDown = (touch: ReturnType<typeof negotiation>, x: number, y: number) => {
     act(() => {
       touch.start(event(x, y, 1000));
@@ -1909,22 +1980,21 @@ describe("a pinch in the phone drawer", () => {
   it("lets go of the drawer's pull once a second finger comes down", () => {
     const { renderer, panel } = drawer("pinch-pull", 0);
     act(() => {
-      panel().onStartShouldSetPanResponderCapture!(event(100, 560, 1000));
-      expect(panel().onMoveShouldSetPanResponderCapture!(event(100, 577, 1030))).toBe(true);
-      panel().onPanResponderGrant!(event(100, 577, 1030), {});
-      panel().onPanResponderMove!(event(100, 700, 1100), {});
+      panel().onTouchStartCapture!(event(100, 560, 1000));
+      expect(panel().onTouchMoveCapture!(event(100, 577, 1030))).toBe(true);
+      panel().onTouchMoveCapture!(event(100, 700, 1100), {});
     });
     const frame = () => value((flat(byTestId(renderer, "details-drawer-frame")!.props.style).transform as { translateY: unknown }[])[0]!.translateY);
     expect(frame()).toBeGreaterThan(0);
     act(() => {
       panel().onTouchStart!(fingers(700, 760));
-      panel().onPanResponderMove!({ nativeEvent: { ...fingers(700, 760).nativeEvent, timestamp: 1150 } }, {});
+      panel().onTouchMoveCapture!({ nativeEvent: { ...fingers(700, 760).nativeEvent, timestamp: 1150 } }, {});
     });
     // Back at rest, and the rest of the touch moves nothing.
     expect(frame()).toBe(0);
     act(() => {
-      panel().onPanResponderMove!(event(100, 820, 1200), {});
-      panel().onPanResponderRelease!(event(100, 820, 1230), { vx: 0, vy: 0 });
+      panel().onTouchMoveCapture!(event(100, 820, 1200), {});
+      panel().onTouchEndCapture!(event(100, 820, 1230), { vx: 0, vy: 0 });
     });
     expect(frame()).toBe(0);
     expect(fake.api.close).not.toHaveBeenCalled();

@@ -414,16 +414,15 @@ export function BottomPanel(props: BottomPanelProps) {
       cancel() {},
     };
   }, []);
-  // On the body itself, not the panel: the header, the toolbar and the
-  // handle above it drag the drawer their own way. On iOS and Android a body
-  // at its top takes the touch as it starts (see `claimAtStart`).
+  // Observe native body pulls without taking the responder from sideways
+  // scrollers. The header, toolbar and handle drag through their own responders.
   const bodyPan = useMemo(() => panelResponder({
     vertical: () => drag,
     hold: () => latest.current.hold(),
     pullDown: () => latest.current.bodyAtTop() === true,
     ...(Platform.OS === "web" ? {} : {
       pullUp: () => lift,
-      claimAtStart: () => latest.current.bodyAtTop() === true,
+      observeTouches: true,
     }),
   }), [drag, lift]);
   props.body.setPanHandlers(bodyPan.panHandlers as unknown as Record<string, unknown>);
