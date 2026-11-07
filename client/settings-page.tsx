@@ -82,13 +82,21 @@ const ACCENT_OPTIONS: ReadonlyArray<{
 
 const INLINE_CODE_OPTIONS: ReadonlyArray<{
   id: InlineCodeColorPreference;
-  label: "inlineCodeGrey" | "inlineCodeBlue" | "inlineCodeViolet" | "inlineCodeGreen" | "inlineCodeCoral";
+  label: "inlineCodeGrey" | "inlineCodeBlue" | "inlineCodeViolet" | "inlineCodeGreen" | "inlineCodeCoral" | "accentJade" | "accentAmber" | "accentRose" | "accentZinc" | "accentMidnight" | "accentClaude" | "accentGhostty" | "accentPureBlack";
 }> = [
   { id: "grey", label: "inlineCodeGrey" },
   { id: "blue", label: "inlineCodeBlue" },
   { id: "violet", label: "inlineCodeViolet" },
   { id: "green", label: "inlineCodeGreen" },
   { id: "coral", label: "inlineCodeCoral" },
+  { id: "jade", label: "accentJade" },
+  { id: "amber", label: "accentAmber" },
+  { id: "rose", label: "accentRose" },
+  { id: "zinc", label: "accentZinc" },
+  { id: "midnight", label: "accentMidnight" },
+  { id: "claude", label: "accentClaude" },
+  { id: "ghostty", label: "accentGhostty" },
+  { id: "pureBlack", label: "accentPureBlack" },
 ];
 
 type PreviewDevice = "desktop" | "mobile";
@@ -1257,7 +1265,7 @@ const styles = {
       justifyContent: "center",
     },
     // Centre to centre as far apart as the accent swatches above.
-    ringedSwatches: { flexDirection: "row", alignItems: "center", gap: space.md - (RINGED_SWATCH - SWATCH) },
+    ringedSwatches: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.md - (RINGED_SWATCH - SWATCH) },
     swatchFill: { width: SWATCH, height: SWATCH, borderRadius: SWATCH / 2 },
     secondsField: { flexDirection: "row", alignItems: "center", gap: space.sm },
     secondsInput: { alignSelf: "auto", width: 72, textAlign: "right" },

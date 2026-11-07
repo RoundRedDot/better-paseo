@@ -57,6 +57,14 @@ export const INLINE_CODE_PALETTE = {
   violet: { light: "#8250df", dark: "#bc8cff" },
   green: { light: "#1a7f37", dark: "#3fb950" },
   coral: { light: "#cf222e", dark: "#ff7b72" },
+  jade: { light: "#047857", dark: "#34d399" },
+  amber: { light: "#925900", dark: "#fbbf24" },
+  rose: { light: "#be123c", dark: "#fb7185" },
+  zinc: { light: "#52525b", dark: "#a1a1aa" },
+  midnight: { light: "#35568e", dark: "#91b2e9" },
+  claude: { light: "#a7452c", dark: "#ee9a7e" },
+  ghostty: { light: "#435fa8", dark: "#a9bff4" },
+  pureBlack: { light: "#000000", dark: "#ffffff" },
 } as const;
 
 export type InlineCodeColorPreference = "grey" | keyof typeof INLINE_CODE_PALETTE;

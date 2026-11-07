@@ -18,7 +18,7 @@ import { z } from "zod";
 
 export const ACCENT_IDS = ["host", "jade", "violet", "amber", "rose", "zinc", "midnight", "claude", "ghostty", "pureBlack"] as const;
 /** Inline code text on iOS and Android, where the span has no fill. */
-export const INLINE_CODE_COLORS = ["grey", "blue", "violet", "green", "coral"] as const;
+export const INLINE_CODE_COLORS = ["grey", "blue", "violet", "green", "coral", "jade", "amber", "rose", "zinc", "midnight", "claude", "ghostty", "pureBlack"] as const;
 export const UI_FONTS = ["host", "inter", "system"] as const;
 export const MONO_FONTS = ["host", "custom"] as const;
 export const TOOL_DETAILS = ["collapsed", "expand-failed"] as const;

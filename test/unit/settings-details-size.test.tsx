@@ -34,14 +34,14 @@ afterEach(() => {
 });
 
 describe("independent details size in settings", () => {
-  it("shows and saves the Paseo theme colours in a wrapping mobile control", () => {
+  it("shows and saves the Paseo theme colours in a wrapping mobile control", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     resetEnhancerPreferences();
     updateEnhancerPreferences({ language: "en" });
     setSettingsTab("display");
     const colors = { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
       foregroundMuted: "#666", accent: "#00f", accentForeground: "#fff", statusSuccess: "#080", statusWarning: "#a60", statusDanger: "#d00" };
-    act(() => {
+    await act(async () => {
       renderer = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
         theme: { colors }, layout: { platform: "ios", compact: true }, host: { id: "host" },
       } as never));
@@ -55,14 +55,36 @@ describe("independent details size in settings", () => {
       expect(getEnhancerPreferences().accent).toBe(id);
     }
   });
-  it.each(["en", "zh"] as const)("changes, clamps and resets the same saved setting in %s", (language) => {
+  it("shows and saves the additional inline code colours in a wrapping control", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    resetEnhancerPreferences();
+    updateEnhancerPreferences({ language: "en" });
+    setSettingsTab("display");
+    const colors = { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
+      foregroundMuted: "#666", accent: "#00f", accentForeground: "#fff", statusSuccess: "#080", statusWarning: "#a60", statusDanger: "#d00" };
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
+        theme: { colors }, layout: { platform: "ios", compact: true }, host: { id: "host" },
+      } as never));
+    });
+    const t = SETTINGS_STRINGS.en;
+    const group = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === t.inlineCodeTitle)[0]!;
+    expect(group.props.style.flexWrap).toBe("wrap");
+    for (const [id, label] of [["jade", t.accentJade], ["amber", t.accentAmber], ["rose", t.accentRose], ["zinc", t.accentZinc], ["midnight", t.accentMidnight], ["claude", t.accentClaude], ["ghostty", t.accentGhostty], ["pureBlack", t.accentPureBlack]] as const) {
+      const swatch = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === t.inlineCodeOption(label))[0]!;
+      act(() => swatch.props.onPress());
+      expect(getEnhancerPreferences().inlineCodeColor).toBe(id);
+      expect(swatch.props.accessibilityState.checked).toBe(true);
+    }
+  });
+  it.each(["en", "zh"] as const)("changes, clamps and resets the same saved setting in %s", async (language) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     resetEnhancerPreferences();
     updateEnhancerPreferences({ language });
     setSettingsTab("display");
     const colors = { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
       foregroundMuted: "#666", accent: "#00f", accentForeground: "#fff", statusSuccess: "#080", statusWarning: "#a60", statusDanger: "#d00" };
-    act(() => {
+    await act(async () => {
       renderer = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
         theme: { colors }, layout: { platform: "ios", compact: true }, host: { id: "host" },
       } as never));
