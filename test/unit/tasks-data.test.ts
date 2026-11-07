@@ -1124,6 +1124,18 @@ describe("Tasks data store", () => {
       expect(after.samples["other.notifiesPerCommit"]).toBeUndefined();
       const stores = new Set(after.marks.filter((mark) => mark.name === "tasks.notify").map((mark) => mark.data.store));
       expect(stores.size).toBe(1);
+      // Applying that snapshot is one timed span, named by its subscription.
+      const applied = after.marks.slice(before.marks.length).filter((mark) => mark.name === "tasks.apply");
+      expect(applied).toHaveLength(1);
+      expect(applied[0]!.data).toMatchObject({ kind: "snapshot" });
+      expect(typeof applied[0]!.data.key).toBe("string");
+      expect(after.samples["tasks.apply.ms"]?.count).toBeGreaterThanOrEqual(1);
+      // Off, the same snapshot is applied untimed.
+      disablePerf();
+      resetPerf();
+      act(() => fake.reconnectAgentSubscription(0));
+      expect(perfSnapshot().marks).toEqual([]);
+      expect(current.lanes.running.cards).toHaveLength(30);
     } finally {
       act(() => renderer.unmount());
       disablePerf();

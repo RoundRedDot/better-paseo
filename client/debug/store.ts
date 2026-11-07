@@ -9,7 +9,7 @@ const SAMPLE_CAP = 4000;
 /** Raw height-decrease events kept for the report; the counters keep going. */
 const EVENT_CAP = 200;
 /** Timeline marks kept for the report; later ones are counted in `marksDropped`, not kept. */
-const MARK_CAP = 1500;
+const MARK_CAP = 5000;
 
 export interface SeriesSummary {
   count: number;

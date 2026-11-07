@@ -55,10 +55,10 @@ describe("perf store samples and marks", () => {
 
   it("stops keeping marks at the cap and counts the rest", () => {
     const store = createPerfStore();
-    for (let index = 0; index < 1505; index += 1) store.mark({ name: "m", at: index, data: {} });
+    for (let index = 0; index < 5005; index += 1) store.mark({ name: "m", at: index, data: {} });
     const snap = store.snapshot();
-    expect(snap.marks).toHaveLength(1500);
-    expect(snap.marks.at(-1)!.at).toBe(1499);
+    expect(snap.marks).toHaveLength(5000);
+    expect(snap.marks.at(-1)!.at).toBe(4999);
     expect(snap.marksDropped).toBe(5);
   });
 });

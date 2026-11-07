@@ -299,6 +299,19 @@ export function probeDragMove(track: DragTrack | null, timestamp: number | undef
   store.mark({ name: `${name}.move`, at: startedAt, data: { drag: track.id, move: track.moves, ts, handlerMs: ms(handlerMs) } });
 }
 
+/**
+ * A span of synchronous work that began at `startedAt` (`perfStart`) and
+ * ends now: a sample `<name>.ms` and a mark at its start with `data` and
+ * `ms`. Call only while the probes are on (check `perfOn` before building
+ * `data`).
+ */
+export function probeSpan(name: string, startedAt: number, data: Record<string, number | string | null>): void {
+  if (!on) return;
+  const spent = now() - startedAt;
+  store.sample(`${name}.ms`, spent);
+  store.mark({ name, at: startedAt, data: { ...data, ms: ms(spent) } });
+}
+
 export function probeDragEnd(track: DragTrack | null, how: "release" | "terminate", timestamp: number | undefined): void {
   if (!on || track === null || track.round !== round) return;
   const at = now();

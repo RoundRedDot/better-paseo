@@ -15,7 +15,7 @@ import type {
 import { doneWindowMs, type DoneWindow } from "../../../shared/tasks-settings";
 import type { LastTurn } from "../../../shared/turn-usage-rpc";
 import type { ParentOrigin, ProviderSubagent } from "../../../shared/tasks-rpc";
-import { perfOn, probeTasksNotify } from "../../debug/perf";
+import { perfOn, perfStart, probeSpan, probeTasksNotify } from "../../debug/perf";
 import { footerModel } from "../../state/footer-model";
 import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
@@ -1617,14 +1617,30 @@ function createStore(api: PaseoApi): TaskStore {
     }
     const pending: Array<{ kind: "snapshot"; value: T } | { kind: "update"; value: unknown }> = [];
     let initialApplied = false;
+    // `/bc-perf` times applying each message, so a JS stall can be told from the store's own work.
+    // Off, it is one test: no clock read, no allocation.
     const observer = {
       snapshot(snapshot: unknown) {
-        if (initialApplied) initial(snapshot as T);
-        else pending.push({ kind: "snapshot", value: snapshot as T });
+        if (!initialApplied) {
+          pending.push({ kind: "snapshot", value: snapshot as T });
+        } else if (!perfOn()) {
+          initial(snapshot as T);
+        } else {
+          const startedAt = perfStart();
+          initial(snapshot as T);
+          probeSpan("tasks.apply", startedAt, { key, kind: "snapshot" });
+        }
       },
       update(message: unknown) {
-        if (initialApplied) update(message);
-        else pending.push({ kind: "update", value: message });
+        if (!initialApplied) {
+          pending.push({ kind: "update", value: message });
+        } else if (!perfOn()) {
+          update(message);
+        } else {
+          const startedAt = perfStart();
+          update(message);
+          probeSpan("tasks.apply", startedAt, { key, kind: "update" });
+        }
       },
       error: subscriptionError,
     };
