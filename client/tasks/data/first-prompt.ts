@@ -28,7 +28,10 @@ const LOADING: FirstPrompt = { state: "loading" };
 
 interface Store {
   read(agentId: string): FirstPrompt;
-  request(agentId: string, canRead?: () => boolean): Promise<void>;
+  request(agentId: string, canRead?: () => boolean, owner?: object): Promise<void>;
+  claim(agentId: string, owner: object, canRead: () => boolean): void;
+  release(owner: object): void;
+  retain(agentId: string): void;
   subscribe(listener: () => void): () => void;
   version(): number;
 }
@@ -37,47 +40,75 @@ export function createFirstPromptStore(api: Api): Store {
   const prompts = new Map<string, FirstPrompt>();
   const listeners = new Set<() => void>();
   const pending = new Map<string, Promise<void>>();
+  const owners = new Map<string, Map<object, () => boolean>>();
+  const epochs = new Map<string, object>();
   let revision = 0;
   const set = (agentId: string, value: FirstPrompt) => {
     prompts.set(agentId, value);
     revision += 1;
     for (const listener of [...listeners]) listener();
   };
-  const read = async (agentId: string, canRead?: () => boolean) => {
+  const read = async (agentId: string, canRead: (() => boolean) | undefined, epoch: object, interrupted: FirstPrompt) => {
+    const save = (value: FirstPrompt) => { if (epochs.get(agentId) === epoch) set(agentId, value); };
     try {
       let cursor: NonNullable<Parameters<PaseoAgentTimelineHandle["refetch"]>[0]>["cursor"];
       for (;;) {
-        if (canRead && !canRead()) return set(agentId, { state: "error" });
+        if (epochs.get(agentId) !== epoch) return;
+        if (canRead && !canRead()) return save(interrupted);
         const page = await api.agents.ref(agentId).timeline.refetch({
           direction: "after", projection: "projected", limit: HEAD_LIMIT, ...(cursor ? { cursor } : {}),
         });
-        if (page.error) return set(agentId, firstPromptError(page.error));
-        if (page.reset && cursor) return set(agentId, { state: "error" });
+        if (epochs.get(agentId) !== epoch) return;
+        if (canRead && !canRead()) return save(interrupted);
+        if (page.error) return save(firstPromptError(page.error));
+        if (page.reset && cursor) return save({ state: "error" });
         // An empty first user message is still the first; never substitute a later prompt.
         if (page.entries.some((entry) => entry.item.type === "user_message")) {
-          return set(agentId, firstPromptMessage(page.entries) ?? { state: "none" });
+          return save(firstPromptMessage(page.entries) ?? { state: "none" });
         }
-        if (!page.hasNewer) return set(agentId, { state: "none" });
+        if (!page.hasNewer) return save({ state: "none" });
         const next = page.endCursor;
-        if (!next || cursor && (next.epoch !== cursor.epoch || next.seq <= cursor.seq)) return set(agentId, { state: "error" });
+        if (!next || cursor && (next.epoch !== cursor.epoch || next.seq <= cursor.seq)) return save({ state: "error" });
         cursor = next;
       }
     } catch (error) {
-      set(agentId, firstPromptError(error instanceof Error ? error.message : String(error)));
+      if (canRead && !canRead()) return save(interrupted);
+      save(firstPromptError(error instanceof Error ? error.message : String(error)));
     }
   };
   return {
     read: (agentId) => prompts.get(agentId) ?? IDLE,
-    request(agentId, canRead) {
+    claim(agentId, owner, canRead) { owners.get(agentId)?.set(owner, canRead); },
+    request(agentId, canRead, owner) {
+      if (!owner) owners.delete(agentId);
+      if (owner && canRead) owners.get(agentId)?.set(owner, canRead);
       const known = prompts.get(agentId)?.state;
+      const previous = prompts.get(agentId);
       // Found once is found for good; a miss or a failure is asked again on the next open.
       if (known === "ready") return Promise.resolve();
       const inflight = pending.get(agentId);
       if (inflight) return inflight;
+      if (owner && !prompts.has(agentId)) owners.set(agentId, new Map([[owner, canRead ?? (() => true)]]));
       set(agentId, LOADING);
-      const request = read(agentId, canRead).finally(() => pending.delete(agentId));
+      const epoch = {};
+      epochs.set(agentId, epoch);
+      const canContinue = owner && owners.get(agentId)?.has(owner) && canRead ? () => !owners.has(agentId) || [...owners.get(agentId)!.values()].some((allowed) => allowed()) : canRead;
+      const interrupted = owner ? previous ?? IDLE : { state: "error" as const };
+      const request = read(agentId, canContinue, epoch, interrupted).finally(() => { if (pending.get(agentId) === request) { pending.delete(agentId); epochs.delete(agentId); } });
       pending.set(agentId, request);
       return request;
+    },
+    retain(agentId) { owners.delete(agentId); },
+    release(owner) {
+      let changed = false;
+      for (const [id, held] of owners) if (held.delete(owner) && held.size === 0) {
+        owners.delete(id);
+        prompts.delete(id);
+        pending.delete(id);
+        epochs.delete(id);
+        changed = true;
+      }
+      if (changed) { revision++; for (const listener of [...listeners]) listener(); }
     },
     version: () => revision,
     subscribe(listener) {
@@ -120,6 +151,7 @@ export function firstPromptStoreFor(api: PaseoApi | Api): Store {
  */
 export function useFirstPrompt(api: PaseoApi, agentId: string, auto: boolean): { prompt: FirstPrompt; load(): void } {
   const store = firstPromptStoreFor(api);
+  useLayoutEffect(() => { if (auto) store.retain(agentId); }, [store, agentId, auto]);
   const prompt = useSyncExternalStore(store.subscribe, () => store.read(agentId), () => store.read(agentId));
   useLayoutEffect(() => {
     if (auto) store.request(agentId);

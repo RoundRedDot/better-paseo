@@ -100,12 +100,14 @@ describe("history lane loading", () => {
     const list = laneList("done", compact)[0]!;
     expect(list).toBeDefined();
     expect(list.props.data).toEqual([]);
-    expect(list.findByType(LoadMoreRow).props.loading).toBe(false);
+    expect(list.findAllByType(LoadMoreRow)).toHaveLength(0);
     for (let page = 0; page < 2; page++) {
       act(() => list.props.onEndReached());
+      expect(mounted.current.lanes.done.loading).toBe(false);
+      act(() => mounted.current.loadMoreSearch?.(() => true));
       expect(mounted.current.lanes.done.loading).toBe(true);
       expect(laneList("done", compact)[0]).toBe(list);
-      expect(list.findByType(LoadMoreRow).props.loading).toBe(true);
+      expect(list.findAllByType(LoadMoreRow)).toHaveLength(0);
       // Both lanes share the cursor, including a lane with no archived cards at all.
       expect(laneList("archived", compact)[0]).toBeDefined();
       await act(async () => land());
@@ -130,16 +132,17 @@ describe("history lane loading", () => {
     expect(laneList("done", true)).toHaveLength(1);
   });
 
-  it("keeps the empty list and Load more action after a page fails", async () => {
+  it("keeps the empty list and search-specific failure after a page fails", async () => {
     const fake = createFakePaseo({ agents: Array.from({ length: 51 }, (_, index) => makeAgent({ id: `task-${index}` })) });
     const mounted = await mount(fake, true, "done", { doneWindow: "all", includeDone: true });
     vi.spyOn(fake.paseo.agents, "list").mockRejectedValueOnce(new Error("Page unavailable"));
     const list = laneList("done", true)[0]!;
-    await act(async () => list.props.onEndReached());
-    expect(mounted.current.error).toBe("Page unavailable");
+    await act(async () => { list.props.onEndReached(); mounted.current.loadMoreSearch?.(() => true); });
+    expect(mounted.current.error).toBeNull();
+    expect(mounted.current.historyError).toBe("Page unavailable");
     expect(mounted.current.lanes.done).toMatchObject({ hasMore: true, initialLoading: false, loading: false });
     expect(laneList("done", true)[0]).toBe(list);
-    expect(list.findByType(LoadMoreRow).props.loading).toBe(false);
+    expect(list.findAllByType(LoadMoreRow)).toHaveLength(0);
   });
 
   it.each([false, true])("waits for the first history list even after the active board is ready (compact=%s)", async (compact) => {

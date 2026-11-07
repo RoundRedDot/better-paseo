@@ -16,6 +16,71 @@ function fakeApi(pages: (Page | Error)[]) {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("first prompt", () => {
+  it.each(["error", "none"] as const)("restores an existing details %s if a search read is interrupted", async (initial) => {
+    let resolve!: (value: Page) => void;
+    let calls = 0;
+    const api = { agents: { ref: () => ({ timeline: { refetch: () => {
+      calls++;
+      if (calls === 1) return Promise.resolve({ error: initial === "error" ? "offline" : null, entries: [] });
+      return new Promise<Page>((done) => { resolve = done; });
+    } } }) } };
+    const store = createFirstPromptStore(api as never);
+    await store.request("shared");
+    const owner = {};
+    let active = true;
+    const request = store.request("shared", () => active, owner);
+    active = false;
+    store.release(owner);
+    resolve({ error: null, entries: [{ item: { type: "user_message", text: "late" } }] });
+    await request;
+    expect(store.read("shared").state).toBe(initial);
+  });
+  it("restores a shared empty result if an interrupted search read throws", async () => {
+    let reject!: (error: Error) => void;
+    let calls = 0;
+    const api = { agents: { ref: () => ({ timeline: { refetch: () => ++calls === 1
+      ? Promise.resolve({ error: null, entries: [] })
+      : new Promise<Page>((_resolve, fail) => { reject = fail; }) } }) } };
+    const store = createFirstPromptStore(api as never);
+    await store.request("shared");
+    let active = true;
+    const request = store.request("shared", () => active, {});
+    active = false;
+    reject(new Error("offline"));
+    await request;
+    expect(store.read("shared")).toEqual({ state: "none" });
+  });
+  it("releases search-owned prompts, preserves retained ones and ignores late responses", async () => {
+    let resolve!: (value: Page) => void;
+    const api = { agents: { ref: () => ({ timeline: { refetch: () => new Promise<Page>((done) => { resolve = done; }) } }) } };
+    const store = createFirstPromptStore(api as never);
+    const owner = {};
+    const late = store.request("late", () => true, owner);
+    store.release(owner);
+    resolve({ error: null, entries: [{ item: { type: "user_message", text: "late" } }] });
+    await late;
+    expect(store.read("late").state).toBe("idle");
+    const kept = store.request("kept", () => true, owner);
+    store.retain("kept");
+    store.release(owner);
+    resolve({ error: null, entries: [{ item: { type: "user_message", text: "shared" } }] });
+    await kept;
+    expect(store.read("kept")).toMatchObject({ state: "ready", text: "shared" });
+  });
+  it("continues an in-flight search read adopted by details after search ends", async () => {
+    let resolve!: (value: Page) => void;
+    const api = { agents: { ref: () => ({ timeline: { refetch: () => new Promise<Page>((done) => { resolve = done; }) } }) } };
+    const store = createFirstPromptStore(api as never);
+    const owner = {};
+    let active = true;
+    const request = store.request("shared", () => active, owner);
+    store.retain("shared");
+    active = false;
+    store.release(owner);
+    resolve({ error: null, entries: [{ item: { type: "user_message", text: "details prompt" } }] });
+    await request;
+    expect(store.read("shared")).toMatchObject({ state: "ready", text: "details prompt" });
+  });
   it("ignores tool data before the first user message", async () => {
     const { api } = fakeApi([{ error: null, entries: [
       { item: { type: "tool_call", text: "tool-only keyword" } },

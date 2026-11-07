@@ -16,7 +16,7 @@ import { SearchSpinner, useSearchCoverage } from "./search-loading";
 export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean }) {
   const { context, counts: currentCounts } = useSearchCoverage();
   const active = Boolean(context?.query.trim());
-  const visible = active && Boolean(currentCounts.unavailable || currentCounts.failed || currentCounts.retrying);
+  const visible = active && Boolean(context?.cancelled || context?.historyError || currentCounts.unavailable || currentCounts.failed || currentCounts.retrying);
   const lastCounts = useRef(currentCounts);
   if (visible) lastCounts.current = currentCounts;
   const counts = visible ? currentCounts : lastCounts.current;
@@ -111,6 +111,12 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
     </View>)}
   </View>;
   return <Animated.View testID="search-coverage-items" ref={anchor} collapsable={false} {...(Platform.OS === "web" ? {} : hoverProps)} onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: 1, height: props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 32] }) : 28, opacity, zIndex: open ? 40 : 1 }}>
+    {context.cancelled ? <Text testID="search-stopped" style={textStyle}>{context.stoppedText}</Text> : null}
+    {context.historyError ? <View testID="search-history-failure" style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8 }}>
+      <Icon name="CircleAlert" size={15} color={danger} />
+      <Text style={textStyle}>{context.historyFailedText}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel={strings.retry} hitSlop={props.phone ? { top: 6, bottom: 6, left: 6, right: 6 } : undefined} onPress={context.retryHistory} style={{ minHeight: props.phone ? 32 : 24, justifyContent: "center" }}><Text style={textStyle}>{strings.retry}</Text></Pressable>
+    </View> : null}
     {counts.unavailable ? <Pressable testID="search-coverage-unavailable" accessibilityRole="button" accessibilityLabel={strings.unavailable(counts.unavailable)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={unavailablePress.guard(toggle)} onPressIn={unavailablePress.onPressIn} onPressOut={unavailablePress.onPressOut} onTouchStart={unavailablePress.onTouchStart} onTouchMove={unavailablePress.onTouchMove} onTouchEnd={unavailablePress.onTouchEnd} onTouchCancel={unavailablePress.onTouchCancel} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: "100%", borderRadius: 7, backgroundColor: open ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), unavailableLift), ...scaleStyle(unavailableLift.scale) }}>
       <Icon name="MessageSquareOff" size={15} color={colors.foregroundMuted} />
       <Text numberOfLines={1} style={textStyle}>{squeeze ? counts.unavailable : strings.unavailable(counts.unavailable)}</Text>

@@ -92,6 +92,12 @@ export interface TasksSnapshot {
 export type TasksRefreshResult = "done" | "failed" | "superseded";
 
 export interface TasksHandle extends TasksSnapshot {
+  historyBlocked?: boolean;
+  historyError?: string | null;
+  clearHistoryError?(): void;
+  loadMoreSearch?(current: () => boolean): void;
+  beginHistorySearch?(owner: object): void;
+  endHistorySearch?(owner: object): void;
   /**
    * Read the board's lists again (`TaskStore.refresh`): the cards stay and
    * change in place, the done pages already loaded are read again, and the
@@ -1000,6 +1006,9 @@ function createStore(api: PaseoApi): TaskStore {
   let countsDirty = true;
   let countsScope: CountScope | undefined;
   let loadingDone = false;
+  let historyError: string | null = null;
+  let searchPages: { cursor: string | null; tail: string | null; keys: Set<string> } | null = null;
+  const historySearchOwners = new Set<object>();
   /** The done run a refresh is reading again; no next page is fetched while it is the current one. */
   let doneRefreshRun = -1;
   let doneReady = false;
@@ -1528,6 +1537,7 @@ function createStore(api: PaseoApi): TaskStore {
         if (!pagesKept) {
           doneCursor = snapshot.pageInfo.nextCursor;
           doneTailAt = snapshot.entries.at(-1)?.agent.updatedAt ?? null;
+          if (searchPages) { searchPages.cursor = doneCursor; searchPages.tail = doneTailAt; searchPages.keys.clear(); }
         }
         doneListLanded();
       }
@@ -1541,11 +1551,11 @@ function createStore(api: PaseoApi): TaskStore {
    * in at once: the lane neither shrinks while they load nor keeps an agent
    * archived or deleted since. A failed read keeps the old pages.
    */
-  async function rereadDonePages(run: Run, first: PaseoAgentListResult, pages: number): Promise<Landing> {
+  async function rereadDonePages(run: Run, first: PaseoAgentListResult, pages: number, session: typeof searchPages, regularPages: number): Promise<Landing> {
     const read: Array<{ key: string; result: PaseoAgentListResult }> = [];
     let cursor = first.pageInfo.nextCursor;
     try {
-      while (read.length < pages && cursor) {
+      while (read.length < (session && searchPages !== session ? regularPages : pages) && cursor) {
         const result = await api.agents.list({ filter: doneFilter(), sort: DONE_SORT, page: { limit: PAGE_SIZE, cursor } });
         if (!isCurrent(run)) return "stale";
         read.push({ key: `done-page-${cursor}`, result });
@@ -1553,8 +1563,14 @@ function createStore(api: PaseoApi): TaskStore {
       }
     } catch (caught) {
       if (!isCurrent(run)) return "stale";
-      subscriptionError(caught);
-      return "failed";
+      if (!session || searchPages === session || read.length < regularPages) {
+        subscriptionError(caught);
+        return "failed";
+      }
+    }
+    if (session && searchPages !== session) {
+      read.splice(regularPages);
+      cursor = read.length ? read.at(-1)!.result.pageInfo.nextCursor : first.pageInfo.nextCursor;
     }
     batchUpdates(() => {
       const before = new Set<string>();
@@ -1574,6 +1590,16 @@ function createStore(api: PaseoApi): TaskStore {
       for (const id of before) dropIfUnreferenced(id);
       doneCursor = cursor;
       doneTailAt = read.length ? read.at(-1)!.result.entries.at(-1)?.agent.updatedAt ?? doneTailAt : first.entries.at(-1)?.agent.updatedAt ?? null;
+      if (session && searchPages === session) {
+        const lastRegular = regularPages > 0 ? read[Math.min(regularPages, read.length) - 1]?.result : first;
+        session.cursor = lastRegular?.pageInfo.nextCursor ?? null;
+        session.tail = lastRegular?.entries.at(-1)?.agent.updatedAt ?? null;
+        session.keys = new Set(read.slice(regularPages).map((page) => page.key));
+      }
+      if (searchPages && searchPages !== session && searchPages.keys.size === 0) {
+        searchPages.cursor = doneCursor;
+        searchPages.tail = doneTailAt;
+      }
       notify();
     });
     return "landed";
@@ -2471,6 +2497,7 @@ function createStore(api: PaseoApi): TaskStore {
     loadingDone = false;
     doneReady = false;
     doneReloading = false;
+    historyError = null;
     archivedLane = archivedAsked;
     error = null;
     notify();
@@ -2594,6 +2621,12 @@ function createStore(api: PaseoApi): TaskStore {
       labels: [...labelsByName.values()].sort((a, b) => compareText(a.name, b.name)),
       ready: statusReady && attentionReady && workspacesReady,
       error,
+      historyBlocked: doneReloading || doneRefreshRun === doneRun,
+      historyError,
+      clearHistoryError,
+      loadMoreSearch,
+      beginHistorySearch,
+      endHistorySearch,
       refresh,
       loadMoreDone: loadMoreFor(options),
       resolveParent,
@@ -2654,7 +2687,41 @@ function createStore(api: PaseoApi): TaskStore {
     return countsCache;
   }
 
-  function loadMoreDone(window: DoneWindow) {
+  function clearHistoryError() {
+    if (historyError === null) return;
+    historyError = null;
+    notify();
+  }
+
+  function beginHistorySearch(owner: object) {
+    historySearchOwners.add(owner);
+    if (!searchPages) searchPages = { cursor: doneCursor, tail: doneTailAt, keys: new Set() };
+  }
+
+  function endHistorySearch(owner: object) {
+    historySearchOwners.delete(owner);
+    if (historySearchOwners.size) return;
+    const session = searchPages;
+    if (!session) return;
+    searchPages = null;
+    batchUpdates(() => {
+      const ids = new Set<string>();
+      for (const key of session.keys) {
+        for (const id of sourceMembers.get(key) ?? []) ids.add(id);
+        sourceMembers.delete(key);
+      }
+      for (const id of ids) dropIfUnreferenced(id);
+      if (session.keys.size) { doneCursor = session.cursor; doneTailAt = session.tail; }
+      historyError = null;
+      notify();
+    });
+  }
+
+  function loadMoreSearch(current: () => boolean) {
+    loadMoreDone("all", current);
+  }
+
+  function loadMoreDone(window: DoneWindow, current?: () => boolean) {
     if (loadingDone || doneReloading || doneRefreshRun === doneRun || !doneCursor || doneConsumers === 0) return;
     const cutoff = doneWindowMs(window);
     const tailTime = doneTailAt ? Date.parse(doneTailAt) : Number.NaN;
@@ -2668,7 +2735,7 @@ function createStore(api: PaseoApi): TaskStore {
       sort: [{ key: "updated_at", direction: "desc" }],
       page: { limit: PAGE_SIZE, cursor },
     }).then((result) => {
-      if (!isCurrent(run)) return;
+      if (!isCurrent(run) || (current && !current())) return;
       const key = `done-page-${cursor}`;
       batchUpdates(() => {
         const pageMembers = new Set<string>();
@@ -2679,9 +2746,19 @@ function createStore(api: PaseoApi): TaskStore {
         sourceMembers.set(key, pageMembers);
         doneCursor = result.pageInfo.nextCursor;
         doneTailAt = result.entries.at(-1)?.agent.updatedAt ?? doneTailAt;
+        if (searchPages) {
+          if (current) searchPages.keys.add(key);
+          else { searchPages.keys.clear(); searchPages.cursor = doneCursor; searchPages.tail = doneTailAt; }
+        }
         notify();
       });
-    }).catch(subscriptionError).finally(() => {
+    }).catch((caught: unknown) => {
+      if (!isCurrent(run)) return;
+      if (!current) { subscriptionError(caught); return; }
+      if (!current()) return;
+      historyError = caught instanceof Error ? caught.message : String(caught);
+      notify();
+    }).finally(() => {
       if (!isCurrent(run)) return;
       loadingDone = false;
       notify();
@@ -2883,14 +2960,17 @@ function createStore(api: PaseoApi): TaskStore {
     if (doneConsumers > 0 && doneReady && !doneReloading) {
       const run: Run = { generation, tier: "done", tierRun: ++doneRun, refresh: token };
       const pages = [...sourceMembers.keys()].filter((key) => key.startsWith("done-page-")).length;
+      const session = searchPages;
+      const regularPages = pages - (session?.keys.size ?? 0);
       // A page in flight belongs to the old run; the pages are read again below.
       loadingDone = false;
       doneRefreshRun = doneRun;
+      notify();
       let first: PaseoAgentListResult | null = null;
       landings.push(openAgentSubscription(DONE_SUBSCRIPTION, doneListOptions(), run, (list) => { first = list; })
-        .then((landing) => (landing === "landed" && first && pages > 0 ? rereadDonePages(run, first, pages) : landing))
+        .then((landing) => (landing === "landed" && first && pages > 0 ? rereadDonePages(run, first, pages, session, regularPages) : landing))
         .finally(() => {
-          if (doneRefreshRun === run.tierRun) doneRefreshRun = -1;
+          if (doneRefreshRun === run.tierRun) { doneRefreshRun = -1; notify(); }
         }));
     }
     scheduleSubagents(0);
@@ -2918,6 +2998,7 @@ function createStore(api: PaseoApi): TaskStore {
     active.token.cancelled = true;
     for (const [key, own] of [...replacements]) dropReplacement(key, own);
     doneRefreshRun = -1;
+    notify();
     active.end(result);
   }
 

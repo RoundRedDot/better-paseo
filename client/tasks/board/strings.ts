@@ -37,6 +37,11 @@ const en = {
   /** The phone tab's and the collapsed lane's dot. */
   newTasksIn: (lane: string) => `New tasks in ${lane}`,
   search: "Search tasks",
+  historyLoading: "Loading older tasks",
+  historyFailed: "Could not load older tasks",
+  cancelSearch: "Stop search",
+  resumeSearch: "Resume search",
+  searchStopped: "Search stopped; results are incomplete",
   fullConversationSearch: "Full search",
   fullConversationShort: "Full",
   fullConversationHint: (on: boolean): string => on
@@ -243,6 +248,11 @@ const zh: typeof en = {
   newTasksIn: (lane) => `${lane}有新任务`,
   totalUnit: () => "个任务",
   search: "搜索任务",
+  historyLoading: "正在加载更早的任务",
+  historyFailed: "加载历史任务失败",
+  cancelSearch: "停止搜索",
+  resumeSearch: "继续搜索",
+  searchStopped: "搜索已停止，结果不完整",
   fullConversationSearch: "全文搜索",
   fullConversationShort: "全文",
   fullConversationHint: (on) => on

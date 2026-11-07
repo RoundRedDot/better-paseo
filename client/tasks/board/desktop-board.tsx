@@ -1711,7 +1711,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
           }}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
-            if (isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
+            if (!board.params.query.trim() && isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
           }}
           ListEmptyComponent={
             <BoardEmptyState
@@ -1727,7 +1727,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
           ListFooterComponent={
             <>
               {/* Both history lanes can have no visible matches while later pages still have some. */}
-              {isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
+              {!board.params.query.trim() && isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
                 <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} />
               ) : null}
               <LaneFilterHint board={board} lane={lane.id} count={props.hidden} theme={theme} />

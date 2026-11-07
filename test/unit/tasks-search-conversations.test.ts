@@ -14,6 +14,26 @@ const deferred = () => {
 };
 
 describe("incremental conversation search", () => {
+  it("pauses queued work and resumes without losing results", async () => {
+    const pending = deferred();
+    const load = vi.fn().mockResolvedValueOnce({ ...page, match: "target" }).mockImplementationOnce(() => pending.promise).mockResolvedValue(page);
+    const store = createConversationSearch(load);
+    store.configure([card("a"), card("b"), card("c")], "target");
+    await settle();
+    expect(store.messages().has("a")).toBe(true);
+    store.setPaused(true);
+    const before = load.mock.calls.length;
+    pending.resolve({ ...page, match: "late" });
+    await settle();
+    expect(load).toHaveBeenCalledTimes(before);
+    expect(store.messages().has("a")).toBe(true);
+    expect(store.messages().has("b")).toBe(false);
+    store.setPaused(false);
+    await settle();
+    expect(load.mock.calls.length).toBeGreaterThan(before);
+    store.configure([], "");
+    expect(store.messages().size).toBe(0);
+  });
   it("keeps two page requests in flight, rotates between tasks and exposes matches immediately", async () => {
     const requests = Array.from({ length: 4 }, deferred);
     const load = vi.fn().mockImplementationOnce(() => requests[0]!.promise).mockImplementationOnce(() => requests[1]!.promise).mockImplementationOnce(() => requests[2]!.promise).mockImplementationOnce(() => requests[3]!.promise);

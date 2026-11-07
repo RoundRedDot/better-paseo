@@ -53,9 +53,9 @@ const messages = createLastMessageStore(api);
 export { prompts as subagentFirstPrompts };
 
 /** Search and details share the first-message cache; a subagent always names its own parent. */
-export function requestSubagentFirstPrompt(subagentId: string, parentAgentId: string, canRead?: () => boolean): Promise<void> {
+export function requestSubagentFirstPrompt(subagentId: string, parentAgentId: string, canRead?: () => boolean, owner?: object): Promise<void> {
   parents.set(subagentId, parentAgentId);
-  return prompts.request(subagentId, canRead);
+  return prompts.request(subagentId, canRead, owner);
 }
 
 /**
@@ -70,6 +70,7 @@ export function useSubagentTimeline(
   const { id, parentId, running } = subagent;
   if (id && parentId) parents.set(id, parentId);
   const prompt = useSyncExternalStore(prompts.subscribe, () => prompts.read(id), () => prompts.read(id));
+  useEffect(() => { if (auto && id) prompts.retain(id); }, [id, auto]);
   const message = useSyncExternalStore(messages.subscribe, () => messages.read(id), () => messages.read(id));
   const [tick, setTick] = useState(0);
   const version = `${subagent.version}|${tick}`;

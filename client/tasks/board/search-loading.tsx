@@ -15,6 +15,16 @@ import type { PluginIcon } from "@getpaseo/plugin/client";
 
 export const SearchCoverageContext = createContext<{
   status: SearchCoverageControl;
+  cancelled?: boolean;
+  setCancelled?(cancelled: boolean): void;
+  cancelText?: string;
+  resumeText?: string;
+  stoppedText?: string;
+  historyLoading?: boolean;
+  historyError?: string | null;
+  retryHistory?(): void;
+  historyLoadingText?: string;
+  historyFailedText?: string;
   query: string;
   strings: BoardStrings["searchCoverage"];
   total: number;
@@ -25,8 +35,8 @@ export const SearchCoverageContext = createContext<{
   fullConversationHint?: string;
 } | null>(null);
 
-export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; query: string; strings: BoardStrings["searchCoverage"]; total: number; fullConversation?: boolean; onFullConversationChange?(on: boolean): void; fullConversationLabel?: string; fullConversationShortLabel?: string; fullConversationHint?: string }>) {
-  const value = useMemo(() => ({ status: props.status, query: props.query, strings: props.strings, total: props.total, fullConversation: props.fullConversation, onFullConversationChange: props.onFullConversationChange, fullConversationLabel: props.fullConversationLabel, fullConversationShortLabel: props.fullConversationShortLabel, fullConversationHint: props.fullConversationHint }), [props.status, props.query, props.strings, props.total, props.fullConversation, props.onFullConversationChange, props.fullConversationLabel, props.fullConversationShortLabel, props.fullConversationHint]);
+export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; cancelled?: boolean; setCancelled?(cancelled: boolean): void; cancelText?: string; resumeText?: string; stoppedText?: string; historyLoading?: boolean; historyError?: string | null; retryHistory?(): void; historyLoadingText?: string; historyFailedText?: string; query: string; strings: BoardStrings["searchCoverage"]; total: number; fullConversation?: boolean; onFullConversationChange?(on: boolean): void; fullConversationLabel?: string; fullConversationShortLabel?: string; fullConversationHint?: string }>) {
+  const value = useMemo(() => ({ status: props.status, cancelled: props.cancelled, setCancelled: props.setCancelled, cancelText: props.cancelText, resumeText: props.resumeText, stoppedText: props.stoppedText, historyLoading: props.historyLoading, historyError: props.historyError, retryHistory: props.retryHistory, historyLoadingText: props.historyLoadingText, historyFailedText: props.historyFailedText, query: props.query, strings: props.strings, total: props.total, fullConversation: props.fullConversation, onFullConversationChange: props.onFullConversationChange, fullConversationLabel: props.fullConversationLabel, fullConversationShortLabel: props.fullConversationShortLabel, fullConversationHint: props.fullConversationHint }), [props.status, props.cancelled, props.setCancelled, props.cancelText, props.resumeText, props.stoppedText, props.historyLoading, props.historyError, props.retryHistory, props.historyLoadingText, props.historyFailedText, props.query, props.strings, props.total, props.fullConversation, props.onFullConversationChange, props.fullConversationLabel, props.fullConversationShortLabel, props.fullConversationHint]);
   return <SearchCoverageContext.Provider value={value}>{props.children}</SearchCoverageContext.Provider>;
 }
 
@@ -84,14 +94,12 @@ export function SearchSpinner(props: { size: number; color: string }) {
 export function SearchInput(props: React.ComponentProps<typeof TextInput> & { iconSize: number; iconColor: string; hideSearchIcon?: boolean; ref?: React.Ref<NativeTextInput> }) {
   const { iconSize, iconColor, hideSearchIcon, ...input } = props;
   const { context, counts } = useSearchCoverage();
-  const loading = counts.pending > 0 || counts.retrying > 0;
+  const loading = !context?.cancelled && (counts.pending > 0 || counts.retrying > 0 || context?.historyLoading === true);
   const shown = useSearchLoading(loading, input.value ?? "");
   const opacity = useRef(new Animated.Value(0)).current;
   const [present, setPresent] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const announced = useRef({ query: input.value, started: false });
-  const lastCount = useRef(0);
-  if (counts.pending) lastCount.current = counts.pending;
   useEffect(() => {
     if (!shown && present === null) return;
     if (shown) setPresent(input.value ?? null);
@@ -107,13 +115,18 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { ic
     }
     if (!input.value?.trim()) return;
     if (!context) return;
+    if (context.historyError) {
+      announced.current.started = false;
+      setAnnouncement(context.historyFailedText ?? context.historyError);
+      return;
+    }
     if (shown && loading && !announced.current.started) {
       announced.current.started = true;
-      setAnnouncement(context.strings.started);
+      setAnnouncement(context.historyLoading ? context.historyLoadingText ?? context.strings.started : context.strings.started);
     }
     if (!loading && announced.current.started) {
       announced.current.started = false;
-      setAnnouncement(context.strings.complete(context.total, counts.unavailable, counts.failed));
+      setAnnouncement(context.cancelled ? context.stoppedText ?? "" : context.historyError ? context.historyFailedText ?? context.historyError : context.strings.complete(context.total, counts.unavailable, counts.failed));
     }
   }, [shown, loading, context, counts.unavailable, counts.failed, input.value]);
   useEffect(() => {
@@ -121,11 +134,14 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { ic
   }, [announcement]);
   const spinnerVisible = Boolean(input.value?.trim() && (shown || present === input.value));
   return <>
-    {!hideSearchIcon || spinnerVisible ? <View testID="search-icon-slot" {...tipProps(shown && context ? context.strings.tip(counts.pending || lastCount.current) : undefined)} style={{ width: iconSize, height: iconSize, flexShrink: 0 }}>
+    {!hideSearchIcon || spinnerVisible ? <View testID="search-icon-slot" {...tipProps(shown && context ? counts.pending ? context.strings.tip(counts.pending) : context.historyLoading ? context.historyLoadingText : undefined : undefined)} style={{ width: iconSize, height: iconSize, flexShrink: 0 }}>
       {!hideSearchIcon ? <Animated.View style={{ position: "absolute", opacity: opacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}><Icon name="Search" size={iconSize} color={iconColor} /></Animated.View> : null}
       {spinnerVisible ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
     </View> : null}
     <TextInput {...input} accessibilityState={{ ...input.accessibilityState, busy: loading }} />
+    {input.value?.trim() && context?.setCancelled && (loading || context.cancelled) ? <Pressable testID="search-cancel-toggle" accessibilityRole="button" accessibilityLabel={context.cancelled ? context.resumeText : context.cancelText} onPress={() => context.setCancelled?.(!context.cancelled)} hitSlop={6}>
+      <Icon name={context.cancelled ? "Play" : "Square"} size={iconSize} color={iconColor} />
+    </Pressable> : null}
     <Text testID="search-announcement" accessibilityLiveRegion="polite" role="status" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}>{announcement}</Text>
   </>;
 }

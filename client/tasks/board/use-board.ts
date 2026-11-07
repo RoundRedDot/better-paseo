@@ -33,6 +33,7 @@ import {
 import { BOARD_STRINGS, type BoardStrings } from "./strings";
 import { useBoardClock, useBoardVisible } from "./visibility";
 import { useTaskAvailability } from "../availability";
+import { useSearchHistory } from "./search-history";
 import { taskIssueText } from "../cards/availability-tag";
 import type { TaskOperation } from "../../../shared/task-availability";
 
@@ -75,6 +76,9 @@ export interface BoardController {
   lanes: Record<LaneId, LaneModel>;
   /** First messages still loading or not covered by this search. Other metadata is searched for every card. */
   searchStatus: SearchCoverageControl;
+  searchHistoryLoading: boolean;
+  searchCancelled: boolean;
+  setSearchCancelled(cancelled: boolean): void;
   fullConversationSearch: boolean;
   setFullConversationSearch(on: boolean): void;
   /** A card by id, a provider subagent's included (`tasks.byId` has only the agents'), filtered out or not. */
@@ -275,13 +279,17 @@ export function useBoard(
     [settings.board.hideSubtasks, settings.board.doneWindow],
   );
   const { filters, doneWindow } = useMemo(() => resolveBoardParams(params, defaults), [params, defaults]);
-  const options = useMemo(() => ({ doneWindow, includeDone: true, includeArchived: showArchived }), [doneWindow, showArchived]);
+  const [searchCancelled, setSearchCancelled] = useState(false);
+  useEffect(() => { setSearchCancelled(false); }, [filters.query]);
+  const searching = Boolean(filters.query.trim());
+  const options = useMemo(() => ({ doneWindow: searching ? "all" as const : doneWindow, includeDone: true, includeArchived: showArchived }), [doneWindow, showArchived, searching]);
   const laneOrder = boardLaneOrder(showArchived);
   // Closed, the board's data stays warm a while, so a quick reopen sends nothing.
   // After a reconnect the last cards stand in until the store is ready.
   const visible = useBoardVisible(rootRef, compact);
   const availability = useTaskAvailability(useCarriedTasks(hostId, options, useTasks(paseo, options, lingerBoard)), visible, hostId);
   const tasks = availability.tasks;
+  const searchHistoryLoading = useSearchHistory(tasks, filters.query, visible, searchCancelled);
   useEffect(() => {
     if (tasks.error) toast.error(tasks.error);
   }, [tasks.error]);
@@ -347,8 +355,8 @@ export function useBoard(
   // Every card the board can draw: the store's, with a card for each provider subagent.
   const unfiltered = useMemo(() => withSubagentCards(withStopReasons(titleLanes, stoppedIds, strings.stoppedManually)), [titleLanes, stoppedIds, strings.stoppedManually]);
   const [fullConversationSearch, setFullConversationSearchState] = useState(false);
-  const firstPrompts = useSearchFirstPrompts(paseo, unfiltered, fullConversationSearch ? "" : filters.query);
-  const conversations = useSearchConversations(paseo, unfiltered, fullConversationSearch ? filters.query : "");
+  const firstPrompts = useSearchFirstPrompts(paseo, unfiltered, filters.query, !searchCancelled && !fullConversationSearch);
+  const conversations = useSearchConversations(paseo, unfiltered, fullConversationSearch ? filters.query : "", !searchCancelled);
   const search = fullConversationSearch ? conversations : firstPrompts;
   const filtered = useMemo(() => filterLanes(unfiltered, filters, search.messages), [unfiltered, filters, search.messages]);
   // The order is taken when the sort or the cards change, never on a clock
@@ -530,6 +538,9 @@ export function useBoard(
     paseo,
     lanes,
     searchStatus: search.status,
+    searchHistoryLoading,
+    searchCancelled,
+    setSearchCancelled,
     fullConversationSearch,
     setFullConversationSearch,
     cardById,

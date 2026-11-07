@@ -921,7 +921,7 @@ const PhoneLane = memo(function PhoneLane(props: {
       }}
       onEndReachedThreshold={0.5}
       onEndReached={() => {
-        if (props.active !== false && isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
+        if (!board.params.query.trim() && props.active !== false && isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
       }}
       ListEmptyComponent={
         <BoardEmptyState
@@ -944,7 +944,7 @@ const PhoneLane = memo(function PhoneLane(props: {
       }
       ListFooterComponent={
         <View testID="phone-lane-footer">
-          {isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
+          {!board.params.query.trim() && isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
             <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} large />
           ) : null}
           <LaneFilterHint board={board} lane={lane.id} count={board.hidden[lane.id]} theme={theme} />

@@ -46,6 +46,44 @@ function mount(counts: ReturnType<SearchCoverageControl["read"]>, language: "en"
 
 const state = (pending = 0, unavailable = 0, failed = 0, retrying = 0) => ({ pending, unavailable, failed, retrying });
 
+it("announces history loading and offers a retry when its page fails", () => {
+  const retry = vi.fn();
+  const counts = state();
+  const status: SearchCoverageControl = { read: () => counts, subscribe: () => () => {}, retry: async () => {}, prompt: () => ({ state: "idle" }) };
+  const theme = { colors: { foreground: "#111", foregroundMuted: "#777", surface0: "#fff", surface1: "#eee", surface2: "#eee", accent: "#2563eb", accentForeground: "#ffffff", statusWarning: "#a36a00", statusDanger: "#d92d20", statusSuccess: "#198754", border: "#ddd" } } as never;
+  const render = (historyLoading: boolean, historyError: string | null) => <SearchCoverageProvider status={status} query="query" strings={BOARD_STRINGS.zh.searchCoverage} total={0} historyLoading={historyLoading} historyError={historyError} retryHistory={retry} historyLoadingText={BOARD_STRINGS.zh.historyLoading} historyFailedText={BOARD_STRINGS.zh.historyFailed}>
+    <SearchInput iconSize={13} iconColor="#777" value="query" />
+    <SearchCoverageItems theme={theme} phone />
+  </SearchCoverageProvider>;
+  act(() => { renderer = TestRenderer.create(render(true, null)); vi.advanceTimersByTime(300); });
+  act(() => { vi.advanceTimersByTime(300); });
+  expect(text(hosts("search-announcement")[0]!)).toBe("正在加载更早的任务");
+  act(() => { renderer.update(render(false, "offline")); });
+  expect(text(hosts("search-history-failure")[0]!)).toContain("加载历史任务失败");
+  const button = hosts("search-history-failure")[0]!.find((node) => node.props.accessibilityRole === "button");
+  expect(button.props.hitSlop).toEqual({ top: 6, bottom: 6, left: 6, right: 6 });
+  expect(button.props.style.minHeight).toBe(32);
+  act(() => button.props.onPress());
+  expect(retry).toHaveBeenCalledOnce();
+});
+
+it("offers stop and resume without clearing the query", () => {
+  const toggle = vi.fn();
+  const counts = state(1);
+  const status: SearchCoverageControl = { read: () => counts, subscribe: () => () => {}, retry: async () => {}, prompt: () => ({ state: "idle" }) };
+  const render = (cancelled: boolean) => <SearchCoverageProvider status={status} query="query" strings={BOARD_STRINGS.zh.searchCoverage} total={1} cancelled={cancelled} setCancelled={toggle} cancelText="停止搜索" resumeText="继续搜索" stoppedText="搜索已停止，结果不完整">
+    <SearchInput iconSize={13} iconColor="#777" value="query" />
+  </SearchCoverageProvider>;
+  act(() => { renderer = TestRenderer.create(render(false)); });
+  expect(hosts("search-cancel-toggle")[0]!.props.accessibilityLabel).toBe("停止搜索");
+  act(() => hosts("search-cancel-toggle")[0]!.props.onPress());
+  expect(toggle).toHaveBeenLastCalledWith(true);
+  act(() => renderer.update(render(true)));
+  expect(hosts("search-cancel-toggle")[0]!.props.accessibilityLabel).toBe("继续搜索");
+  act(() => hosts("search-cancel-toggle")[0]!.props.onPress());
+  expect(toggle).toHaveBeenLastCalledWith(false);
+});
+
 it("hides the search icon without losing loading feedback", () => {
   const mounted = mount(state(1), "en", false, 16, true);
   expect(hosts("search-icon-slot")).toHaveLength(0);
