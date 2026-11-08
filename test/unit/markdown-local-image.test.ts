@@ -55,6 +55,18 @@ describe("localPath", () => {
     expect(localPath("here")).toBeNull();
     expect(localPath("/tmp/%E0%A4%A.md")).toBeNull();
   });
+
+  it("refuses network shares and device paths (issue #25)", () => {
+    expect(localPath("\\\\server\\share\\a.png")).toBeNull();
+    expect(localPath("\\\\?\\UNC\\server\\share\\a.png")).toBeNull();
+    expect(localPath("\\\\?\\C:\\tmp\\a.png")).toBeNull();
+    expect(localPath("\\\\.\\pipe\\a.png")).toBeNull();
+    expect(localPath("\\??\\UNC\\server\\share\\a.png")).toBeNull();
+    expect(localPath("/??/UNC/server/share/a.png")).toBeNull();
+    expect(localPath("\\??\\C:\\tmp\\a.png")).toBeNull();
+    expect(localPath("file:////server/share/a.png")).toBeNull();
+    expect(localPath("%5C%5Cserver%5Cshare%5Ca.png")).toBeNull();
+  });
 });
 
 describe("splitLocalImages", () => {
@@ -102,5 +114,14 @@ describe("isImagePath", () => {
     expect(isImagePath("shot.png:1-20")).toBe(true);
     expect(isImagePath("/tmp/notes.txt")).toBe(false);
     expect(isImagePath("/tmp/a.png.d/notes")).toBe(false);
+  });
+
+  it("never treats a network share or device path as an image (issue #25)", () => {
+    expect(isImagePath("\\\\server\\share\\a.png")).toBe(false);
+    expect(isImagePath("//server/share/a.png")).toBe(false);
+    expect(isImagePath("\\\\?\\UNC\\server\\share\\a.png")).toBe(false);
+    expect(isImagePath("\\\\.\\pipe\\a.png")).toBe(false);
+    expect(isImagePath("\\??\\UNC\\server\\share\\a.png")).toBe(false);
+    expect(isImagePath("/??/UNC/server/share/a.png")).toBe(false);
   });
 });

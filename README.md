@@ -1109,6 +1109,12 @@ On a touch device the same press copies the absolute path, with a toast, since a
 the daemon machine's screen. Paseo's own file panel is out of reach for now; see
 [What a plugin cannot do](#what-a-plugin-cannot-do).
 
+Better Paseo never reads a path that names a network share or a Windows device. `\\host\share`,
+`//host/share`, `\??\`, `\\?\` and `\\.\` are refused before the daemon touches the filesystem, for
+image previews and open-file presses alike. Relative image previews still read that share, because
+the preview sends the workspace directory separately. An open press is refused once the client has
+turned the path into an absolute share path. A refused path stays plain text or an inert link.
+
 ---
 
 ## What a plugin cannot do
