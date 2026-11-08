@@ -106,6 +106,29 @@ async function mount(title: string): Promise<ReactTestRenderer> {
 const settle = (tree: ReactTestRenderer) => settleHostLayout(() => host(tree.root, "detail-cards"), { width: SIDEBAR_WIDTH, wrapText: true });
 
 describe("detail title fold", () => {
+  it("keeps the latest measured height after native layout events are released", async () => {
+    const tree = await mount("A title whose layout changes before React renders");
+    const onLayout = host(tree.root, "detail-title-measure").props.onLayout;
+
+    await act(async () => {
+      for (const height of [6 * TITLE_LINE, 8 * TITLE_LINE]) {
+        const event: { nativeEvent: { layout: { height: number } } | null } = { nativeEvent: { layout: { height } } };
+        onLayout(event);
+        // Native synthetic events are released when their handler returns,
+        // before React processes all the queued state updates.
+        event.nativeEvent = null;
+      }
+    });
+
+    expect(textOf(host(tree.root, "detail-title-more"))).toBe("Show all \u00b7 8 lines");
+    await act(async () => {
+      const event: { nativeEvent: { layout: { height: number } } | null } = { nativeEvent: { layout: { height: TITLE_LINE } } };
+      onLayout(event);
+      event.nativeEvent = null;
+    });
+    expect(tree.root.findAll((node) => node.props.testID === "detail-title-more")).toHaveLength(0);
+  });
+
   it("shows five lines of a long title under the fade, then all of it", async () => {
     const sentence = "A generated title that keeps going well past the five lines a sidebar card shows before it folds, so the reader sees the start of the work and opens the rest from the row under it.";
     const tree = await mount(`${sentence} ${sentence}`);

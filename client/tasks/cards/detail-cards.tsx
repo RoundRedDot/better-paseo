@@ -1796,7 +1796,7 @@ function FoldedText(props: {
   return (
     <View>
       <Animated.View style={style} testID={`${props.id}-text`}>
-        <View testID={`${props.id}-measure`} onLayout={(event) => setHeight((current) => current === event.nativeEvent.layout.height ? current : event.nativeEvent.layout.height)}>
+        <View testID={`${props.id}-measure`} onLayout={(event) => setHeight(event.nativeEvent.layout.height)}>
           {props.children}
         </View>
         {folded ? (
