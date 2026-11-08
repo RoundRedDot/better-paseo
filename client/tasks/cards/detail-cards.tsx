@@ -558,6 +558,10 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
   const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
   const shownTitle = useRevealedTitle(streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : card.title), Boolean(streamedTitle) || titleUpdate.state === "done");
   const updatingTitle = titleUpdate.state === "running" || titleUpdate.state === "done" && shownTitle !== titleUpdate.title || titleUpdate.state === "idle" && shownTitle !== card.title;
+  // A title that overflows opens folded on every card, as the sidebar's messages do.
+  const [foldedTitle, setFoldedTitle] = useState<{ id: string; open: boolean }>({ id: card.id, open: false });
+  const titleOpen = foldedTitle.id === card.id && foldedTitle.open;
+  const titleLine = Math.round(HOST_LINE.base * useTasksFontScale());
   useEffect(() => {
     if (titleUpdate.state === "done" && shownTitle === titleUpdate.title) props.titleUpdates?.showUndo(card.id);
   }, [titleUpdate, shownTitle, card.id, props.titleUpdates]);
@@ -678,14 +682,30 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
         </View>
       ) : null}
       {props.hideStatus ? null : <DetailStatusRow {...props} />}
-      <View style={{ marginTop: 2, flexDirection: "row", alignItems: "center", gap: 6 }}>
-      {card.subagent ? <SubagentLabel language={props.language} tokens={tokens} testID="detail-session-label" /> : null}
-      {updatingTitle ? <TitleLoading title={shownTitle} mutedColor={tokens.foregroundMuted} highlightColor={tokens.isDark ? tokens.foreground : mix(tokens.card.background, tokens.foregroundMuted, 0.45)} accessibilityLabel={cardText.autoTitlePending} style={{ fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600" }} /> : <Text style={{ flex: 1, minWidth: 0, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
-        {highlightText(shownTitle, props.searchQuery ?? "", tokens.isDark)}
-      </Text>}
-      <View pointerEvents="box-none" style={{ position: "absolute", right: 0, top: 0 }}>
-        <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} fadeColor={tokens.card.background} />
-      </View>
+      <View style={{ marginTop: 2, flexDirection: "row", alignItems: "flex-start", gap: 6 }}>
+        {card.subagent ? <SubagentLabel language={props.language} tokens={tokens} testID="detail-session-label" /> : null}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          {updatingTitle
+            ? <TitleLoading title={shownTitle} mutedColor={tokens.foregroundMuted} highlightColor={tokens.isDark ? tokens.foreground : mix(tokens.card.background, tokens.foregroundMuted, 0.45)} accessibilityLabel={cardText.autoTitlePending} style={{ fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600" }} />
+            : <FoldedText
+                id="detail-title"
+                language={props.language}
+                tokens={tokens}
+                line={titleLine}
+                limit={TITLE_LINES}
+                expanded={titleOpen}
+                fadeColor={tokens.card.background}
+                touch={touch}
+                onToggle={() => setFoldedTitle({ id: card.id, open: !titleOpen })}
+              >
+                <Text style={{ minWidth: 0, fontSize: m.title, lineHeight: HOST_LINE.base, fontWeight: "600", color: tokens.foreground }} testID="detail-title">
+                  {highlightText(shownTitle, props.searchQuery ?? "", tokens.isDark)}
+                </Text>
+              </FoldedText>}
+        </View>
+        <View pointerEvents="box-none" style={{ position: "absolute", right: 0, top: 0 }}>
+          <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} fadeColor={tokens.card.background} />
+        </View>
       </View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }} testID="detail-agent">
         <Chip
@@ -1614,6 +1634,8 @@ function repeatsFirstPrompt(human: LastHumanMessage | undefined, first: FirstPro
 
 /** The lines a prompt or reply shows before "show all". */
 const PROMPT_LINES = 10;
+/** A card's title folds after five lines; anything shorter stays whole. */
+const TITLE_LINES = 5;
 const FADE_STEPS = 6;
 
 /**
@@ -1690,45 +1712,72 @@ function TimelineTextBody(props: Inner & {
   const text = prompt.text;
   const lines = errorLines(text);
   const long = lines.length > PROMPT_LINES || text.length > 600;
-  const folded = long && !expanded;
-  const sunk = tokens.card.background;
   return (
     <View style={{ paddingHorizontal: 6, paddingTop: 4 }}>
       <View>
         {props.flash ? (
           <Animated.View pointerEvents="none" testID={`${id}-flash`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }} />
         ) : null}
-        <MessageText expanded={expanded} long={long} line={line} id={id} fade={folded ? (
-            // A heading or code block cuts the last line anywhere: fade it out.
-            <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: line, flexDirection: "column" }}>
-              {Array.from({ length: FADE_STEPS }, (_, step) => (
-                <View key={step} style={{ flex: 1, backgroundColor: withAlpha(sunk, (step + 1) / FADE_STEPS) }} />
-              ))}
-            </View>
-          ) : null}>
+        <FoldedText
+          id={id}
+          language={props.language}
+          tokens={tokens}
+          line={line}
+          limit={PROMPT_LINES}
+          total={lines.length}
+          long={long}
+          expanded={expanded}
+          fadeColor={tokens.card.background}
+          touch={props.touch}
+          onToggle={() => query ? setSearchFold({ query, closed: expanded }) : setOpen((was) => !was)}
+        >
           <HoverPreviewContext.Provider value>
             <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />
           </HoverPreviewContext.Provider>
-        </MessageText>
+        </FoldedText>
       </View>
-      {long ? <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded }} {...tipProps(expanded ? words.showLess : words.showAll(lines.length))} onPress={() => query ? setSearchFold({ query, closed: expanded }) : setOpen((was) => !was)} hitSlop={4} testID={`${id}-more`} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Icon name={expanded ? "ChevronsUp" : "ChevronsDown"} size={14} color={tokens.foregroundMuted} />
-            <Text style={{ fontSize: small, color: tokens.foregroundMuted }}>{expanded ? words.showLess : words.showAll(lines.length)}</Text>
-          </Pressable>
-      </View> : null}
       {streaming ? <ReplyLoading tokens={tokens} language={props.language} /> : null}
     </View>
   );
 }
 
-function MessageText(props: { expanded: boolean; long: boolean; line: number; id: string; fade: React.ReactNode; children: React.ReactNode }) {
+/**
+ * Text that folds under a fade after `limit` lines, with the same
+ * "Show all · N lines" row under it as every message body. A caller that knows
+ * the text's line count passes `long` and `total`; the card's title leaves
+ * both out, so the fold measures the laid-out text: a title that fits stays
+ * whole, and a narrower sidebar folds sooner.
+ */
+function FoldedText(props: {
+  id: string;
+  language: TasksLanguage;
+  tokens: TaskTokens;
+  /** One line's height, already scaled as the text is. */
+  line: number;
+  limit: number;
+  expanded: boolean;
+  /** Whether the text overflows the fold; measured when absent. */
+  long?: boolean;
+  /** The text's line count; measured when absent. */
+  total?: number;
+  fadeColor: string;
+  touch?: boolean;
+  onToggle(): void;
+  children: React.ReactNode;
+}) {
   const reduced = useReducedMotion();
+  const words = cardStrings(props.language).details;
   const [height, setHeight] = useState<number | null>(null);
   const progress = useRef(new Animated.Value(props.expanded ? 1 : 0)).current;
   const target = useRef(props.expanded);
+  const limit = props.limit * props.line;
+  // Android's text box keeps a few font-padding pixels past its lines; count
+  // whole lines so a title that just fits five stays whole.
+  const overflows = height !== null && Math.round(height / props.line) > props.limit;
+  // Unmeasured text stays clamped: a long title must not paint open for a frame.
+  const long = props.long ?? (height === null || overflows);
   useEffect(() => {
-    if (reduced || !props.long || height === null) {
+    if (reduced || !long || height === null) {
       target.current = props.expanded;
       progress.setValue(props.expanded ? 1 : 0);
       return;
@@ -1738,18 +1787,36 @@ function MessageText(props: { expanded: boolean; long: boolean; line: number; id
     const animation = Animated.timing(progress, { toValue: props.expanded ? 1 : 0, duration: props.expanded ? 180 : 140, easing: MOTION.ease, useNativeDriver: false, isInteraction: false });
     animation.start();
     return () => animation.stop();
-  }, [props.expanded, props.long, reduced, progress]);
-  const limit = PROMPT_LINES * props.line;
-  const style = !props.long || (props.expanded && (reduced || height === null)) ? null
+  }, [props.expanded, long, reduced, progress, height]);
+  const folded = long && !props.expanded;
+  const style = !long || (props.expanded && (reduced || height === null)) ? null
     : reduced || height === null ? { maxHeight: limit, overflow: "hidden" as const }
     : { maxHeight: progress.interpolate({ inputRange: [0, 1], outputRange: [Math.min(limit, height), height] }), overflow: "hidden" as const };
+  const total = props.total ?? (height === null ? 0 : Math.max(1, Math.round(height / props.line)));
   return (
-    <Animated.View style={style} testID={`${props.id}-text`}>
-      <View onLayout={(event) => setHeight((current) => current === event.nativeEvent.layout.height ? current : event.nativeEvent.layout.height)}>
-        {props.children}
-      </View>
-      {props.fade}
-    </Animated.View>
+    <View>
+      <Animated.View style={style} testID={`${props.id}-text`}>
+        <View testID={`${props.id}-measure`} onLayout={(event) => setHeight((current) => current === event.nativeEvent.layout.height ? current : event.nativeEvent.layout.height)}>
+          {props.children}
+        </View>
+        {folded ? (
+          // A heading or code block cuts the last line anywhere: fade it out.
+          <View testID={`${props.id}-fade`} pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: props.line, flexDirection: "column" }}>
+            {Array.from({ length: FADE_STEPS }, (_, step) => (
+              <View key={step} style={{ flex: 1, backgroundColor: withAlpha(props.fadeColor, (step + 1) / FADE_STEPS) }} />
+            ))}
+          </View>
+        ) : null}
+      </Animated.View>
+      {long && total > 0 ? (
+        <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: props.expanded }} {...tipProps(props.expanded ? words.showLess : words.showAll(total))} onPress={props.onToggle} hitSlop={4} testID={`${props.id}-more`} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Icon name={props.expanded ? "ChevronsUp" : "ChevronsDown"} size={14} color={props.tokens.foregroundMuted} />
+            <Text style={{ fontSize: F.sm, color: props.tokens.foregroundMuted }}>{props.expanded ? words.showLess : words.showAll(total)}</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
   );
 }
 

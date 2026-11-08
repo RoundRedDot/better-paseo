@@ -3719,6 +3719,39 @@ describe("TaskDetailCards", () => {
     expect(tree.root.findAll((node) => node.props.testID === "detail-prompt")).toHaveLength(0);
   });
 
+  it("folds a title longer than five lines under the messages' fade and show-all row, and leaves a short one whole", async () => {
+    const card = { ...sample("sample-running"), title: "A generated title that runs well past five lines once the sidebar wraps it around the card" };
+    const tree = await render(details(card, {}, "en"));
+    // Folded before it is measured: a long title never paints open for a frame.
+    expect(flat(hostByTestId(tree.root, "detail-title-text").props.style)).toMatchObject({ maxHeight: 5 * 20, overflow: "hidden" });
+    expect(tree.root.findAll((node) => node.props.testID === "detail-title-more")).toHaveLength(0);
+
+    // Measured at eight lines: the same fade and "Show all" row as the messages.
+    await act(async () => hostByTestId(tree.root, "detail-title-measure").props.onLayout({ nativeEvent: { layout: { height: 8 * 20 } } }));
+    expect(hostByTestId(tree.root, "detail-title-fade")).toBeDefined();
+    expect(texts(hostByTestId(tree.root, "detail-title"))).toEqual([card.title]);
+    expect(texts(hostByTestId(tree.root, "detail-title-more"))).toEqual(["Show all · 8 lines"]);
+    await act(async () => hostByTestId(tree.root, "detail-title-more").props.onPress());
+    expect(hostByTestId(tree.root, "detail-title-more").props.accessibilityState).toMatchObject({ expanded: true });
+    expect(texts(hostByTestId(tree.root, "detail-title-more"))).toEqual(["Show less"]);
+    expect(tree.root.findAll((node) => node.props.testID === "detail-title-fade")).toHaveLength(0);
+    await act(async () => hostByTestId(tree.root, "detail-title-more").props.onPress());
+    expect(texts(hostByTestId(tree.root, "detail-title-more"))).toEqual(["Show all · 8 lines"]);
+    expect(hostByTestId(tree.root, "detail-title-fade")).toBeDefined();
+
+    // A title whose lines fit stays whole: no clamp, no row.
+    await act(async () => tree.update(details({ ...card, title: "Short enough" }, {}, "en")));
+    await act(async () => hostByTestId(tree.root, "detail-title-measure").props.onLayout({ nativeEvent: { layout: { height: 2 * 20 } } }));
+    expect(hostByTestId(tree.root, "detail-title-text").props.style).toBeNull();
+    expect(tree.root.findAll((node) => node.props.testID === "detail-title-more")).toHaveLength(0);
+
+    // Five lines plus Android's font padding still fit: the fold counts whole lines.
+    await act(async () => tree.update(details({ ...card, title: "Five lines exactly" }, {}, "en")));
+    await act(async () => hostByTestId(tree.root, "detail-title-measure").props.onLayout({ nativeEvent: { layout: { height: 5 * 20 + 6 } } }));
+    expect(hostByTestId(tree.root, "detail-title-text").props.style).toBeNull();
+    expect(tree.root.findAll((node) => node.props.testID === "detail-title-more")).toHaveLength(0);
+  });
+
   it.each(["web", "ios", "android"])("toggles each entire message heading and keeps copying independent on %s", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     resetSectionChoices();

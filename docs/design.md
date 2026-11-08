@@ -1074,6 +1074,9 @@ apply to all three.
   cards and 12 × 6 inside. The header is padded 12: the status row (icon 14, the status, card menu, close),
   the title at base weight 600, chips and labels, and the actions 12 below. Open tab leads on the
   desktop and comes last on touch.
+- A title longer than five lines folds under the same fade and "Show all · N lines" row as the
+  message bodies below it, and opens folded. The fold measures the laid-out title, so a title that
+  fits stays whole and a narrow column folds sooner; the title's line height is the scaled base step.
 - On web, the card menu and close icons use the toolbar's radius-7 quiet outline and hover
   shadow. Native keeps round icon buttons and follows the touch press treatment.
 - Hero blocks (the running turn, a permission request, an error, the last turn's summary) are
