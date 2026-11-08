@@ -1,12 +1,11 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, View } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import type { CardSettings } from "../../../shared/tasks-settings";
 import { LANE_STATUS, type TaskCard } from "../model";
-import { HOST_FONT, TaskText as Text } from "../typography";
+import { HOST_FONT, HOST_LINE, TaskText as Text, taskControlHeight, useTasksFontScale } from "../typography";
 import { StatusIcon, TaskCardView } from "../cards";
-import { CardButton } from "../cards/action-buttons";
 import { statusMarkSize } from "../cards/status-icon";
 import { taskTokens } from "../cards/tokens";
 
@@ -91,6 +90,9 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
       {!collapsed.has(group.lane) ? group.tasks.map((task) => <TaskCardView key={task.id} card={task} fields={fields} theme={theme} compact={compact} language={language} hostId={hostId} permissionButtons={[]} stopPhase="idle" focused={false} highlighted={false} onReveal={noop} />) : null}
     </View>)}
   </>;
+  const touch = Platform.OS !== "web";
+  const scale = useTasksFontScale();
+  const warning = taskTokens(theme).status.warning;
   const anchor = useRef<View>(null);
   useLayoutEffect(() => {
     if (Platform.OS !== "web") return;
@@ -105,15 +107,13 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
       <Text style={{ fontSize: HOST_FONT.sm, color: theme.colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{tasks.length}</Text>
     </Pressable>
     {open ? <Modal title={title} open onOpenChange={setOpen}>
-      <Modal.Content scrollable={!onClearFilters} contentContainerStyle={onClearFilters ? { flex: 1, minHeight: 0, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0 } : { gap: 16 }}>
-        {onClearFilters ? (
-          <View style={{ flex: 1, minHeight: 0 }}>
-            <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, gap: 16 }}>{body}</ScrollView>
-            <View testID="hidden-tasks-actions" style={{ borderTopWidth: 1, borderTopColor: theme.colors.border, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, flexDirection: "row", justifyContent: "flex-end", alignItems: "center" }}>
-              <CardButton testID="hidden-tasks-clear-filters" label={clearLabel} look="plain" tokens={taskTokens(theme)} compact={Platform.OS !== "web"} onPress={() => { setOpen(false); onClearFilters(); }} />
-            </View>
-          </View>
-        ) : body}
+      <Modal.Content scrollable contentContainerStyle={touch && onClearFilters ? { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap: 0 } : { gap: 16 }}>
+        {touch && onClearFilters ? <View style={{ paddingHorizontal: 24, paddingTop: 20, gap: 16 }}>{body}</View> : body}
+        {onClearFilters ? <View testID="hidden-tasks-actions" style={touch ? { paddingTop: 12, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: theme.colors.border, flexDirection: "row" } : { flexDirection: "row", justifyContent: "flex-end" }}>
+          <Pressable testID="hidden-tasks-clear-filters" accessibilityRole="button" accessibilityLabel={clearLabel} onPress={() => { setOpen(false); onClearFilters(); }} style={{ flex: touch ? 1 : undefined, minHeight: taskControlHeight(touch ? 44 : 32, scale), paddingHorizontal: touch ? 18 : 12, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: touch ? 22 : 12, borderWidth: touch ? 1 : 0, borderColor: theme.colors.border, backgroundColor: touch ? undefined : theme.colors.surface2 }}>
+            <Text style={{ fontSize: HOST_FONT.base, lineHeight: HOST_LINE.base, color: warning }}>{clearLabel}</Text>
+          </Pressable>
+        </View> : null}
       </Modal.Content>
     </Modal> : null}
   </View>;
