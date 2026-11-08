@@ -69,13 +69,26 @@ paseo plugin install roundreddot/better-paseo
 
 Paseo `>=0.14.0` is required; the published performance measurements use Paseo 0.13.0. See
 [Compatibility](#compatibility) for older and pre-release versions. Open **Settings → Plugins →
-Better Paseo** (the page is titled **Settings**) to configure it. Paseo installs plugins from
-GitHub and builds the client on install, so pull a new version with:
+Better Paseo** (the page is titled **Settings**) to configure it. That command installs from the
+plugin marketplace, which pins a reviewed revision of this GitHub repository and builds the client
+on install. Updates follow that pin, not the default branch:
 
 ```bash
 paseo plugin update better-paseo        # reviews the update and asks
 paseo plugin update better-paseo --yes  # applies it without asking
 ```
+
+To run the repository's default branch instead, replace the marketplace install with the Git
+source. A plugin ID holds one source, so remove it first; removing also deletes this plugin's saved
+settings, so note them and set them again after installing:
+
+```bash
+paseo plugin remove better-paseo
+paseo plugin install github:RoundRedDot/better-paseo
+```
+
+The Git source tracks the repository's default branch (`main`), so the same `paseo plugin update`
+later picks up a pushed commit.
 
 ---
 
@@ -1182,7 +1195,7 @@ The performance measurements above were made on Paseo 0.13.0 and have not been r
 | Pinched text in the drawer is too large or small on another phone | The size is shared by every client of the daemon; pinch again, or press **Reset** on the badge. |
 | Grok and Cursor replayed turns have no elapsed time in the Copy toolbar or turn details | Upstream tool issue: when the daemon reloads a Grok or Cursor history, the records carry no per-message timestamps, so every replayed record shares the load time or differs by 1 ms, producing a misleading `0s`. Better Paseo hides an elapsed time under one second for the `grok` and `cursor` providers; turns they run live keep their elapsed time. This is based on the provider, not the model name. |
 | A phone shows "This plugin surface is unavailable." | The app lost its connection; the screen returns when it reconnects ([#7088](https://github.com/getpaseo/paseo/issues/7088)). |
-| Nothing changed after pushing a fix | Run `paseo plugin update better-paseo`; Paseo runs the GitHub version. |
+| Nothing changed after pushing a fix | A marketplace install only picks up a revision published there: wait for the next pin and run `paseo plugin update better-paseo`. A Git-source install follows the default branch, so the same command picks up the push. Switching from the marketplace to the Git source means removing the plugin first, which also deletes its saved settings ([Install](#install)). |
 
 ## Development
 
