@@ -294,6 +294,8 @@ describe("Tasks half of the settings page", () => {
     expect(shown[0]!.props.card.thinkingLabel).toBe("High");
     expect(shown[0]!.props.fields.provider).toBe(true);
     expect(shown[0]!.props.fields.thinking).toBe(true);
+    // The preview has no board to clear, so the dialog offers no clear action there.
+    expect(r.root.findAll((node) => node.props.testID === "hidden-tasks-clear-filters")).toHaveLength(0);
   });
 
   it("sets the web hover hint on the rendered button", () => {

@@ -28,7 +28,6 @@ export const SearchCoverageContext = createContext<{
   historyFailedText?: string;
   query: string;
   strings: BoardStrings["searchCoverage"];
-  total: number;
   fullConversation?: boolean;
   onFullConversationChange?(on: boolean): void;
   fullConversationLabel?: string;
@@ -36,12 +35,12 @@ export const SearchCoverageContext = createContext<{
   fullConversationHint?: string;
 } | null>(null);
 
-export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; cancelled?: boolean; setCancelled?(cancelled: boolean): void; cancelText?: string; resumeText?: string; stoppedText?: string; historyLoading?: boolean; historyError?: string | null; retryHistory?(): void; historyLoadingText?: string; historyFailedText?: string; query: string; strings: BoardStrings["searchCoverage"]; total: number; fullConversation?: boolean; onFullConversationChange?(on: boolean): void; fullConversationLabel?: string; fullConversationShortLabel?: string; fullConversationHint?: string }>) {
-  const value = useMemo(() => ({ status: props.status, cancelled: props.cancelled, setCancelled: props.setCancelled, cancelText: props.cancelText, resumeText: props.resumeText, stoppedText: props.stoppedText, historyLoading: props.historyLoading, historyError: props.historyError, retryHistory: props.retryHistory, historyLoadingText: props.historyLoadingText, historyFailedText: props.historyFailedText, query: props.query, strings: props.strings, total: props.total, fullConversation: props.fullConversation, onFullConversationChange: props.onFullConversationChange, fullConversationLabel: props.fullConversationLabel, fullConversationShortLabel: props.fullConversationShortLabel, fullConversationHint: props.fullConversationHint }), [props.status, props.cancelled, props.setCancelled, props.cancelText, props.resumeText, props.stoppedText, props.historyLoading, props.historyError, props.retryHistory, props.historyLoadingText, props.historyFailedText, props.query, props.strings, props.total, props.fullConversation, props.onFullConversationChange, props.fullConversationLabel, props.fullConversationShortLabel, props.fullConversationHint]);
+export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; cancelled?: boolean; setCancelled?(cancelled: boolean): void; cancelText?: string; resumeText?: string; stoppedText?: string; historyLoading?: boolean; historyError?: string | null; retryHistory?(): void; historyLoadingText?: string; historyFailedText?: string; query: string; strings: BoardStrings["searchCoverage"]; fullConversation?: boolean; onFullConversationChange?(on: boolean): void; fullConversationLabel?: string; fullConversationShortLabel?: string; fullConversationHint?: string }>) {
+  const value = useMemo(() => ({ status: props.status, cancelled: props.cancelled, setCancelled: props.setCancelled, cancelText: props.cancelText, resumeText: props.resumeText, stoppedText: props.stoppedText, historyLoading: props.historyLoading, historyError: props.historyError, retryHistory: props.retryHistory, historyLoadingText: props.historyLoadingText, historyFailedText: props.historyFailedText, query: props.query, strings: props.strings, fullConversation: props.fullConversation, onFullConversationChange: props.onFullConversationChange, fullConversationLabel: props.fullConversationLabel, fullConversationShortLabel: props.fullConversationShortLabel, fullConversationHint: props.fullConversationHint }), [props.status, props.cancelled, props.setCancelled, props.cancelText, props.resumeText, props.stoppedText, props.historyLoading, props.historyError, props.retryHistory, props.historyLoadingText, props.historyFailedText, props.query, props.strings, props.fullConversation, props.onFullConversationChange, props.fullConversationLabel, props.fullConversationShortLabel, props.fullConversationHint]);
   return <SearchCoverageContext.Provider value={value}>{props.children}</SearchCoverageContext.Provider>;
 }
 
-const EMPTY = { pending: 0, unavailable: 0, failed: 0, retrying: 0 };
+const EMPTY = { pending: 0, loaded: 0 };
 const emptyRead = () => EMPTY;
 const emptySubscribe = () => () => {};
 
@@ -95,7 +94,7 @@ export function SearchSpinner(props: { size: number; color: string }) {
 export function SearchInput(props: React.ComponentProps<typeof TextInput> & { theme: PluginTheme; iconSize: number; iconColor: string; hideSearchIcon?: boolean; ref?: React.Ref<NativeTextInput> }) {
   const { theme, iconSize, iconColor, hideSearchIcon, ...input } = props;
   const { context, counts } = useSearchCoverage();
-  const loading = !context?.cancelled && (counts.pending > 0 || counts.retrying > 0 || context?.historyLoading === true);
+  const loading = !context?.cancelled && (counts.pending > 0 || context?.historyLoading === true);
   const shown = useSearchLoading(loading, input.value ?? "");
   const opacity = useRef(new Animated.Value(0)).current;
   const [present, setPresent] = useState<string | null>(null);
@@ -127,15 +126,15 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { th
     }
     if (!loading && announced.current.started) {
       announced.current.started = false;
-      setAnnouncement(context.cancelled ? context.stoppedText ?? "" : context.historyError ? context.historyFailedText ?? context.historyError : context.strings.complete(context.total, counts.unavailable, counts.failed));
+      setAnnouncement(context.cancelled ? context.stoppedText ?? "" : context.historyError ? context.historyFailedText ?? context.historyError : context.strings.complete(counts.loaded));
     }
-  }, [shown, loading, context, counts.unavailable, counts.failed, input.value]);
+  }, [shown, loading, context, counts.loaded, input.value]);
   useEffect(() => {
     if (announcement && Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(announcement);
   }, [announcement]);
   const spinnerVisible = Boolean(input.value?.trim() && (shown || present === input.value));
   return <>
-    {!hideSearchIcon || spinnerVisible ? <View testID="search-icon-slot" {...tipProps(shown && context ? counts.pending ? context.strings.tip(counts.pending) : context.historyLoading ? context.historyLoadingText : undefined : undefined)} style={{ width: iconSize, height: iconSize, flexShrink: 0 }}>
+    {!hideSearchIcon || spinnerVisible ? <View testID="search-icon-slot" {...tipProps(shown && context ? counts.pending ? context.strings.tip(counts.loaded) : context.historyLoading ? context.historyLoadingText : undefined : undefined)} style={{ width: iconSize, height: iconSize, flexShrink: 0 }}>
       {!hideSearchIcon ? <Animated.View style={{ position: "absolute", opacity: opacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}><Icon name="Search" size={iconSize} color={iconColor} /></Animated.View> : null}
       {spinnerVisible ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
     </View> : null}

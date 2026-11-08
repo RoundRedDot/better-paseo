@@ -5,9 +5,10 @@ import { requestSubagentFirstPrompt, subagentFirstPrompts } from "./subagent-tim
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../model";
 
 export interface SearchCoverage {
+  /** Tasks whose read is still running. */
   pending: number;
-  unavailable: number;
-  failed: number;
+  /** Tasks whose first message (or conversation) has been read: "ready" and "none" both finish a read. */
+  loaded: number;
 }
 
 /**
@@ -103,7 +104,7 @@ export function useSearchFirstPrompts(api: PaseoApi, lanes: Record<LaneId, LaneM
   }, [store, active, enabled, owner]);
   useEffect(() => { enqueue.current?.(cards); }, [requestKey, store, active, enabled]);
 
-  const status = useMemo(() => createSearchCoverage(api, () => [...latestCards.current.values()], () => latestActive.current, (id) => latestCards.current.get(id), requests.current, () => wake.current?.(), owner), [api, owner]);
+  const status = useMemo(() => createSearchCoverage(api, () => [...latestCards.current.values()], () => latestActive.current, (id) => latestCards.current.get(id)), [api]);
   const nextMessages = useMemo(() => {
     const messages = new Map<string, string>();
     if (active) for (const card of cards) {
@@ -116,13 +117,12 @@ export function useSearchFirstPrompts(api: PaseoApi, lanes: Record<LaneId, LaneM
   const messages = useRef(nextMessages);
   if (messages.current.size !== nextMessages.size || [...nextMessages].some(([id, text]) => messages.current.get(id) !== text)) messages.current = nextMessages;
   const coverage = status.read();
-  return { messages: messages.current, coverage: { pending: coverage.pending, unavailable: coverage.unavailable, failed: coverage.failed }, status };
+  return { messages: messages.current, coverage: { pending: coverage.pending, loaded: coverage.loaded }, status };
 }
 
 export interface SearchCoverageControl {
   subscribe(listener: () => void): () => void;
-  read(): SearchCoverage & { retrying: number };
-  retry(): Promise<void>;
+  read(): SearchCoverage;
   prompt(card: TaskCard): SearchPrompt;
 }
 
@@ -139,12 +139,10 @@ export function retrySearchPrompt(api: PaseoApi, card: TaskCard, cardById: (id: 
 }
 
 /** Leaf subscribers observe counts directly; a loading tick does not invalidate the board. */
-export function createSearchCoverage(api: PaseoApi, getCards: () => readonly TaskCard[], isActive: () => boolean, cardById: (id: string) => TaskCard | undefined, requests = new Set<Promise<void>>(), onSlot = () => {}, owner?: object): SearchCoverageControl {
+export function createSearchCoverage(api: PaseoApi, getCards: () => readonly TaskCard[], isActive: () => boolean, cardById: (id: string) => TaskCard | undefined): SearchCoverageControl {
   const store = firstPromptStoreFor(api);
   const listeners = new Set<() => void>();
-  let retrying = 0;
-  let snapshot = { pending: 0, unavailable: 0, failed: 0, retrying: 0 };
-  const publish = () => { for (const listener of listeners) listener(); };
+  let snapshot: SearchCoverage = { pending: 0, loaded: 0 };
   const pendingPrompt: FirstPrompt = { state: "idle" };
   return {
     prompt(card) {
@@ -158,43 +156,18 @@ export function createSearchCoverage(api: PaseoApi, getCards: () => readonly Tas
       return () => { listeners.delete(listener); own(); sub(); };
     },
     read() {
-      const next = { pending: 0, unavailable: 0, failed: 0, retrying };
+      const next: SearchCoverage = { pending: 0, loaded: 0 };
       if (isActive()) for (const card of getCards()) {
         const prompt = (card.subagent ? subagentFirstPrompts : store).read(card.id);
-        if (prompt.state === "ready" || prompt.state === "none") continue;
+        if (prompt.state === "ready" || prompt.state === "none") { next.loaded++; continue; }
+        // A read that failed or never started (closed session) is neither pending nor loaded.
+        if (prompt.state === "error") continue;
         const owner = cardById(card.subagent ? card.parent?.id ?? "" : card.id);
-        if (card.closed || !owner || owner.closed || prompt.state === "error" && prompt.unavailable) next.unavailable++;
-        else if (prompt.state === "error") next.failed++;
-        else next.pending++;
+        if (card.closed || !owner || owner.closed) continue;
+        next.pending++;
       }
-      if (Object.keys(next).some((key) => next[key as keyof typeof next] !== snapshot[key as keyof typeof snapshot])) snapshot = next;
+      if (next.pending !== snapshot.pending || next.loaded !== snapshot.loaded) snapshot = next;
       return snapshot;
-    },
-    async retry() {
-      if (!isActive() || retrying) return;
-      const batch = getCards().filter((card) => {
-        const owner = cardById(card.subagent ? card.parent?.id ?? "" : card.id);
-        const prompt = (card.subagent ? subagentFirstPrompts : store).read(card.id);
-        return !card.closed && owner && !owner.closed && prompt.state === "error" && !prompt.unavailable;
-      });
-      if (!batch.length) return;
-      retrying = batch.length;
-      publish();
-      let index = 0;
-      const work = async () => {
-        while (isActive() && index < batch.length) {
-          // Retries share the automatic reader's four slots, including reads already in flight.
-          if (requests.size >= 4) { await Promise.race(requests); continue; }
-          const request = retrySearchPrompt(api, batch[index++]!, cardById, owner, isActive);
-          requests.add(request);
-          await request;
-          requests.delete(request);
-          onSlot();
-        }
-      };
-      await Promise.all(Array.from({ length: Math.min(4, batch.length) }, () => work()));
-      retrying = 0;
-      publish();
     },
   };
 }

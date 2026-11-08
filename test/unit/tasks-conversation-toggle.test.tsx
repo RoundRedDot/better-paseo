@@ -24,9 +24,9 @@ const switchIcons = () => nodes("search-full-conversation-toggle")[0]!.findAll((
 
 describe("full conversation switch", () => {
   it("shows only an icon while retaining the full accessibility label", () => {
-    const counts = { pending: 0, unavailable: 0, failed: 0, retrying: 0 };
-    const status = { read: () => counts, subscribe: () => () => {}, retry: async () => {}, prompt: () => ({ state: "idle" as const }) };
-    act(() => { tree = TestRenderer.create(<SearchCoverageProvider status={status} query="" total={0} strings={BOARD_STRINGS.zh.searchCoverage} fullConversation={false} onFullConversationChange={() => {}} fullConversationLabel={BOARD_STRINGS.zh.fullConversationSearch} fullConversationShortLabel={BOARD_STRINGS.zh.fullConversationShort}>
+    const counts = { pending: 0, loaded: 0 };
+    const status = { read: () => counts, subscribe: () => () => {}, prompt: () => ({ state: "idle" as const }) };
+    act(() => { tree = TestRenderer.create(<SearchCoverageProvider status={status} query="" strings={BOARD_STRINGS.zh.searchCoverage} fullConversation={false} onFullConversationChange={() => {}} fullConversationLabel={BOARD_STRINGS.zh.fullConversationSearch} fullConversationShortLabel={BOARD_STRINGS.zh.fullConversationShort}>
       <FullConversationSwitch compact theme={{ colors: { accent: "blue", accentForeground: "white", surface0: "white", surface2: "gray", border: "gray", foregroundMuted: "gray" } } as never} />
     </SearchCoverageProvider>); });
     const toggle = nodes("search-full-conversation-toggle")[0]!;
@@ -53,7 +53,7 @@ describe("full conversation switch", () => {
       const conversation = useSearchConversations(api, lanes, full ? query : "");
       const search = full ? conversation : first;
       shown = search.messages;
-      return <SearchCoverageProvider status={search.status} query={query} total={shown.size} strings={full ? BOARD_STRINGS[language].conversationSearchCoverage : BOARD_STRINGS[language].searchCoverage} fullConversation={full} onFullConversationChange={setFull} fullConversationLabel={BOARD_STRINGS[language].fullConversationSearch} fullConversationHint={BOARD_STRINGS[language].fullConversationHint(full)}>
+      return <SearchCoverageProvider status={search.status} query={query} strings={full ? BOARD_STRINGS[language].conversationSearchCoverage : BOARD_STRINGS[language].searchCoverage} fullConversation={full} onFullConversationChange={setFull} fullConversationLabel={BOARD_STRINGS[language].fullConversationSearch} fullConversationHint={BOARD_STRINGS[language].fullConversationHint(full)}>
         <SearchInput theme={{ colors: { foreground: "#111", foregroundMuted: "#777", surface0: "#fff", surface1: "#eee", surface2: "#ddd", accent: "blue", accentForeground: "white", border: "gray" } } as never} value={query} onChangeText={setQuery} iconSize={13} iconColor="#777777" />
         <FullConversationSwitch theme={{ colors: { accent: "blue", accentForeground: "white", surface0: "white", surface2: "gray", border: "gray", foregroundMuted: "gray" } } as never} />
       </SearchCoverageProvider>;

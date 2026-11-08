@@ -12,11 +12,17 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { openToolbarDetailsLayer } from "../../web";
 import { SearchSpinner, useSearchCoverage } from "./search-loading";
 
-/** Board-wide information stays with the search, outside each lane's scroll. */
+/**
+ * Board-wide information stays with the search, outside each lane's scroll:
+ * how many tasks' messages are loaded while a read is running, a stopped
+ * search, and a failed history page. Reads that fail are not offered a retry:
+ * their prerequisites (a closed session, a missing directory, an unavailable
+ * provider) do not change between attempts.
+ */
 export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean }) {
   const { context, counts: currentCounts } = useSearchCoverage();
   const active = Boolean(context?.query.trim());
-  const visible = active && Boolean(context?.cancelled || context?.historyError || currentCounts.unavailable || currentCounts.failed || currentCounts.retrying);
+  const visible = active && Boolean(context?.cancelled || context?.historyError || currentCounts.pending);
   const lastCounts = useRef(currentCounts);
   if (visible) lastCounts.current = currentCounts;
   const counts = visible ? currentCounts : lastCounts.current;
@@ -37,16 +43,13 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
   const anchor = useRef<View>(null);
   const panel = useRef<View>(null);
   const [open, setOpen] = useState(false);
-  const [width, setWidth] = useState(0);
-  const [unavailableWidth, setUnavailableWidth] = useState(0);
-  const [failureWidth, setFailureWidth] = useState(0);
   const [position, setPosition] = useState({ left: 16, top: 100 });
   const window = useWindowDimensions();
   const { hovered, hoverProps } = useHover(anchor);
-  const unavailablePress = usePressCue(hovered);
+  const loadedPress = usePressCue(hovered);
   const reduced = useReducedMotion();
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancel = () => { if (timer.current) clearTimeout(timer.current); };
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const cancel = () => clearTimeout(timer.current);
   useEffect(() => {
     cancel();
     if (hovered) timer.current = setTimeout(() => setOpen(true), 300);
@@ -80,53 +83,34 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
   const strings = context.strings;
   const colors = props.theme.colors;
   const danger = taskTokens(props.theme).isDark ? "#F85149" : "#CF222E";
-  const retrying = counts.retrying > 0;
-  const failureText = retrying ? strings.retrying(counts.retrying) : strings.failed(counts.failed);
-  const squeeze = width > 0 && unavailableWidth + (counts.failed || counts.retrying ? failureWidth : 0) + 2 > width;
   const toggle = () => { cancel(); setOpen((value) => !value); };
-  const retry = () => { void context.status.retry(); };
   const textStyle = { fontSize: 13, lineHeight: 18, color: colors.foregroundMuted, fontVariant: ["tabular-nums" as const] };
-  const retryButton = (id: string) => <Pressable testID={id} accessibilityRole="button" accessibilityLabel={strings.retry} onPress={retry} style={{ minHeight: props.phone ? 26 : 24, paddingHorizontal: 9, borderRadius: 6, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center" }}><Text numberOfLines={1} style={{ fontSize: 12, fontWeight: "500", color: colors.foreground }}>{strings.retry}</Text></Pressable>;
-  const failure = <>
-    {retrying ? <SearchSpinner size={13} color={colors.foregroundMuted} /> : <Icon name="CircleAlert" size={15} color={danger} />}
-    <Text numberOfLines={1} style={{ ...textStyle, color: retrying ? colors.foregroundMuted : colors.foreground, fontWeight: retrying ? "400" : "500" }}>{failureText}</Text>
-  </>;
-  const rows = [
-    ...(counts.pending && !retrying ? [{ key: "pending", title: strings.reading(counts.pending), hint: strings.readingHint, icon: <SearchSpinner size={13} color={colors.foregroundMuted} /> }] : []),
-    ...(counts.unavailable ? [{ key: "unavailable", title: strings.unavailable(counts.unavailable), hint: strings.unavailableHint, icon: <Icon name="MessageSquareOff" size={15} color={colors.foregroundMuted} /> }] : []),
-    ...(counts.failed || retrying ? [{ key: "failed", title: failureText, hint: strings.failedHint, icon: retrying ? <SearchSpinner size={13} color={colors.foregroundMuted} /> : <Icon name="CircleAlert" size={15} color={danger} /> }] : []),
-  ];
-  const unavailableLift = surfaceLift(hovered, unavailablePress.pressed, reduced, "control", unavailablePress.input);
+  const loadedLift = surfaceLift(hovered, loadedPress.pressed, reduced, "control", loadedPress.input);
   const explanation = <View testID="search-coverage-popover" role="dialog" accessibilityLabel={strings.title} style={{ ...panelChrome(props.theme), borderRadius: 10, padding: 6 }}>
     <View style={{ paddingHorizontal: 8, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
       <Text style={{ fontSize: 12, fontWeight: "600", color: colors.foregroundMuted }}>{strings.title}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel={strings.close} onPress={() => setOpen(false)}><Text style={{ fontSize: 12, color: colors.foregroundMuted }}>{props.phone || Platform.OS !== "web" ? strings.close : "Esc"}</Text></Pressable>
     </View>
-    {rows.map((row) => <View key={row.key} style={{ flexDirection: "row", gap: 8, paddingVertical: 7, paddingHorizontal: 8 }}>
-      <View style={{ width: 15, height: 20, justifyContent: "center", alignItems: "center" }}>{row.icon}</View>
+    <View style={{ flexDirection: "row", gap: 8, paddingVertical: 7, paddingHorizontal: 8 }}>
+      <View style={{ width: 15, height: 20, justifyContent: "center", alignItems: "center" }}><SearchSpinner size={13} color={colors.foregroundMuted} /></View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}><Text style={{ flex: 1, fontSize: 13, lineHeight: 20, fontWeight: "500", color: colors.foreground }}>{row.title}</Text>{row.key === "failed" && !retrying ? retryButton("search-coverage-popover-retry") : null}</View>
-        <Text style={{ fontSize: 12.5, lineHeight: 19, color: colors.foregroundMuted }}>{row.hint}</Text>
+        <Text style={{ fontSize: 13, lineHeight: 20, fontWeight: "500", color: colors.foreground, fontVariant: ["tabular-nums"] }}>{strings.loaded(counts.loaded)}</Text>
+        <Text style={{ fontSize: 12.5, lineHeight: 19, color: colors.foregroundMuted }}>{strings.readingHint}</Text>
       </View>
-    </View>)}
+    </View>
   </View>;
-  return <Animated.View testID="search-coverage-items" ref={anchor} collapsable={false} {...(Platform.OS === "web" ? {} : hoverProps)} onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: 1, height: props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 32] }) : 28, opacity, zIndex: open ? 40 : 1 }}>
+  return <Animated.View testID="search-coverage-items" ref={anchor} collapsable={false} {...(Platform.OS === "web" ? {} : hoverProps)} style={{ flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: 1, height: props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 32] }) : 28, opacity, zIndex: open ? 40 : 1 }}>
     {context.cancelled ? <Text testID="search-stopped" style={textStyle}>{context.stoppedText}</Text> : null}
     {context.historyError ? <View testID="search-history-failure" style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8 }}>
       <Icon name="CircleAlert" size={15} color={danger} />
       <Text style={textStyle}>{context.historyFailedText}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel={strings.retry} hitSlop={props.phone ? { top: 6, bottom: 6, left: 6, right: 6 } : undefined} onPress={context.retryHistory} style={{ minHeight: props.phone ? 32 : 24, justifyContent: "center" }}><Text style={textStyle}>{strings.retry}</Text></Pressable>
     </View> : null}
-    {counts.unavailable ? <Pressable testID="search-coverage-unavailable" accessibilityRole="button" accessibilityLabel={strings.unavailable(counts.unavailable)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={unavailablePress.guard(toggle)} onPressIn={unavailablePress.onPressIn} onPressOut={unavailablePress.onPressOut} onTouchStart={unavailablePress.onTouchStart} onTouchMove={unavailablePress.onTouchMove} onTouchEnd={unavailablePress.onTouchEnd} onTouchCancel={unavailablePress.onTouchCancel} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: "100%", borderRadius: 7, backgroundColor: open ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), unavailableLift), ...scaleStyle(unavailableLift.scale) }}>
-      <Icon name="MessageSquareOff" size={15} color={colors.foregroundMuted} />
-      <Text numberOfLines={1} style={textStyle}>{squeeze ? counts.unavailable : strings.unavailable(counts.unavailable)}</Text>
+    {counts.pending ? <Pressable testID="search-coverage-loaded" accessibilityRole="button" accessibilityLabel={strings.loaded(counts.loaded)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={loadedPress.guard(toggle)} onPressIn={loadedPress.onPressIn} onPressOut={loadedPress.onPressOut} onTouchStart={loadedPress.onTouchStart} onTouchMove={loadedPress.onTouchMove} onTouchEnd={loadedPress.onTouchEnd} onTouchCancel={loadedPress.onTouchCancel} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: "100%", borderRadius: 7, backgroundColor: open ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), loadedLift), ...scaleStyle(loadedLift.scale) }}>
+      <SearchSpinner size={13} color={colors.foregroundMuted} />
+      <Text numberOfLines={1} style={textStyle}>{strings.loaded(counts.loaded)}</Text>
       <Icon name="Info" size={14} color={colors.foregroundMuted} />
     </Pressable> : null}
-    {counts.failed || retrying ? <View testID="search-coverage-failure" onLayout={(event) => setFailureWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", alignItems: "center", flexShrink: 0, gap: 6, paddingHorizontal: 8, height: "100%" }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={failureText} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={toggle} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>{failure}</Pressable>
-      {!retrying ? retryButton("search-coverage-retry") : null}
-    </View> : null}
-    {counts.unavailable ? <View pointerEvents="none" aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ position: "absolute", opacity: 0 }}><Text onLayout={(event) => setUnavailableWidth(event.nativeEvent.layout.width + 15 + 14 + 12 + 16)} style={textStyle}>{strings.unavailable(counts.unavailable)}</Text></View> : null}
     {open && Platform.OS === "web" ? <View ref={panel} collapsable={false} style={{ position: "absolute", left: 0, top: "100%", paddingTop: 6, width: Math.min(props.phone ? 340 : 320, window.width - 16) }}>{explanation}</View> : null}
     {open && Platform.OS !== "web" ? <Modal transparent visible onRequestClose={() => setOpen(false)} animationType="none"><Pressable testID="search-coverage-backdrop" accessibilityLabel={strings.close} onPress={() => setOpen(false)} style={{ flex: 1 }}><Pressable onPress={(event) => event.stopPropagation()} style={{ position: "absolute", ...position, width: Math.min(props.phone ? 340 : 320, window.width - 16) }}>{explanation}</Pressable></Pressable></Modal> : null}
   </Animated.View>;

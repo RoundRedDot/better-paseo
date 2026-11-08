@@ -33,16 +33,15 @@ export function createConversationSearch(load: Loader): SearchCoverageControl & 
   const listeners = new Set<() => void>();
   let revision = 0;
   let matches: ReadonlyMap<string, string> = EMPTY_MESSAGES;
-  let counts = { pending: 0, unavailable: 0, failed: 0, retrying: 0 };
+  let counts = { pending: 0, loaded: 0 };
   const publish = () => {
     revision++;
-    const next = { pending: 0, unavailable: 0, failed: 0, retrying: 0 };
+    const next = { pending: 0, loaded: 0 };
     for (const record of records.values()) {
       if (record.prompt.state === "loading") next.pending++;
-      if (record.prompt.state === "error") record.prompt.unavailable ? next.unavailable++ : next.failed++;
-      if (record.retrying) next.retrying++;
+      else if (record.prompt.state === "ready" || record.prompt.state === "none") next.loaded++;
     }
-    if (Object.keys(next).some((key) => next[key as keyof typeof next] !== counts[key as keyof typeof counts])) counts = next;
+    if (next.pending !== counts.pending || next.loaded !== counts.loaded) counts = next;
     for (const listener of listeners) listener();
   };
   const eligible = (card: TaskCard) => {
@@ -113,7 +112,6 @@ export function createConversationSearch(load: Loader): SearchCoverageControl & 
     messages: () => matches,
     query: () => query,
     version: () => revision,
-    retry: () => retry([...records.keys()]),
     retryCard: (card) => retry([card.id]),
     setPaused(next) {
       if (paused === next) return;

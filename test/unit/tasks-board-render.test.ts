@@ -431,12 +431,15 @@ describe("search coverage render isolation", () => {
       let request!: Promise<void>;
       act(() => { request = firstPromptStoreFor(paseo as never).request(task.id); });
       expect(host.rowRenders).toBe(before);
+      expect(textOf(hostsById("search-coverage-loaded")[0]!)).toBe(BOARD_STRINGS.en.searchCoverage.loaded(0));
       await act(async () => { finish(); await request; });
-      expect(textOf(hostsById("search-coverage-failure")[0]!)).toContain("1 failed");
+      // A failed read is neither counted nor offered a retry; the notice keeps its loaded-count wording.
+      expect(textOf(hostsById("search-coverage-loaded")[0]!)).toBe(BOARD_STRINGS.en.searchCoverage.loaded(0));
+      expect(hostsById("search-coverage-failure")).toHaveLength(0);
+      expect(hostsById("search-coverage-retry")).toHaveLength(0);
       if (phone) {
         const summary = hostsById("phone-search-summary")[0]!;
         expect(summary.props.horizontal).toBe(true);
-        expect(summary.findAll((node) => node.props.testID === "search-coverage-failure").length).toBeGreaterThan(0);
         expect(textOf(summary)).toContain("coverage probe");
       }
       expect(host.rowRenders).toBe(before);
@@ -6890,6 +6893,26 @@ describe("Tasks sidebar entry", () => {
     expect(modal.findAll((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.id}`)).toHaveLength(1);
     expect(modal.findAll((node) => node.props.testID === "agent-pill-thinking").map((node) => textOf(node))).toContain(card.thinkingLabel);
     expect(modal.findAllByType(ProviderLogo).length).toBeGreaterThan(0);
+  });
+
+  it("clears the board's search and filters from the hidden-task dialog and closes it", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const card = (data as unknown as { __handle: { lanes: { running: { cards: TaskCard[] } } } }).__handle.lanes.running.cards[0]!;
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, sidebar: { count: "all" } };
+    host.counts = { needsInput: 0, running: 0, review: 0, done: 0, hidden: [card] };
+    rememberBoardParams("host-1", { ...EMPTY_PARAMS, query: "deploy", providers: ["codex"], labels: ["frontend"] });
+    const openScreen = vi.fn();
+    const row = entry(null, openScreen);
+    act(() => row.findAll((node) => node.props.testID === "hidden-tasks-count")[0]!.props.onPress());
+    const button = renderer!.root.findAll((node) => node.props.testID === "hidden-tasks-clear-filters" && (node.type as unknown) === "Pressable")[0]!;
+    expect(button.props.accessibilityLabel).toBe("Clear filters");
+    act(() => button.props.onPress());
+    expect(renderer!.root.findAllByType(Modal)).toHaveLength(0);
+    expect(openScreen).toHaveBeenCalledOnce();
+    const params = openScreen.mock.calls[0]![0] as { screenId: string; params: Record<string, string> };
+    expect(params.screenId).toBe("tasks");
+    // The subtask switch is the device's own preference and stays out of the cleared route.
+    expect(params.params).toEqual({});
   });
 
   it("folds hidden groups independently and stops dialog clicks reaching the sidebar", () => {

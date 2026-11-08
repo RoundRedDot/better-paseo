@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { Platform, Pressable, ScrollView, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import type { CardSettings } from "../../../shared/tasks-settings";
@@ -56,8 +56,13 @@ export function hiddenExampleCard(language: "en" | "zh"): TaskCard {
   };
 }
 
-/** Tasks the board's filters leave out of the sidebar counts. Each one is the board's own card. */
-export function HiddenCount({ tasks, theme, language, fields, compact = false, hostId }: { tasks: readonly TaskCard[]; theme: PluginTheme; language: "en" | "zh"; fields: CardSettings; compact?: boolean; hostId?: string }) {
+/**
+ * Tasks the board's filters leave out of the sidebar counts. Each one is the
+ * board's own card. `onClearFilters` adds the dialog's way back to a full
+ * board: the board's own "Clear all" filters, without touching the subtask
+ * switch. Omitted in the settings preview, whose example card is not on a board.
+ */
+export function HiddenCount({ tasks, theme, language, fields, compact = false, hostId, onClearFilters, clearLabel = language === "zh" ? "清除筛选" : "Clear filters" }: { tasks: readonly TaskCard[]; theme: PluginTheme; language: "en" | "zh"; fields: CardSettings; compact?: boolean; hostId?: string; onClearFilters?(): void; clearLabel?: string }) {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const title = language === "zh" ? "被隐藏的任务" : "Hidden tasks";
@@ -69,6 +74,22 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
   const names = groups.map((group) => `${group.label} (${group.tasks.length})\n${group.tasks.map((task) => task.title).join("\n")}`).join("\n\n");
   const label = language === "zh" ? `${tasks.length} 个被隐藏的任务` : `${tasks.length} hidden ${tasks.length === 1 ? "task" : "tasks"}`;
   const dot = statusMarkSize(14) / 2;
+  const body = <>
+    <Text style={{ color: theme.colors.foregroundMuted }}>{language === "zh" ? "当前筛选或搜索隐藏了以下任务。" : "The current filters or search hide these tasks."}</Text>
+    {groups.map((group) => <View key={group.lane} testID={`hidden-tasks-${group.lane}`} style={{ gap: 8 }}>
+      <Pressable testID={`hidden-tasks-toggle-${group.lane}`} accessibilityRole="button" accessibilityLabel={`${group.label} · ${group.tasks.length}`} accessibilityState={{ expanded: !collapsed.has(group.lane) }} onPress={() => setCollapsed((previous) => {
+        const next = new Set(previous);
+        if (next.has(group.lane)) next.delete(group.lane);
+        else next.add(group.lane);
+        return next;
+      })} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <Icon name={collapsed.has(group.lane) ? "ChevronRight" : "ChevronDown"} size={14} color={theme.colors.foregroundMuted} />
+        <StatusIcon kind={LANE_STATUS[group.lane]} size={14} theme={theme} />
+        <Text style={{ color: theme.colors.foregroundMuted, fontWeight: "600" }}>{group.label} · {group.tasks.length}</Text>
+      </Pressable>
+      {!collapsed.has(group.lane) ? group.tasks.map((task) => <TaskCardView key={task.id} card={task} fields={fields} theme={theme} compact={compact} language={language} hostId={hostId} permissionButtons={[]} stopPhase="idle" focused={false} highlighted={false} onReveal={noop} />) : null}
+    </View>)}
+  </>;
   const anchor = useRef<View>(null);
   useLayoutEffect(() => {
     if (Platform.OS !== "web") return;
@@ -83,21 +104,17 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
       <Text style={{ fontSize: HOST_FONT.sm, color: theme.colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{tasks.length}</Text>
     </Pressable>
     {open ? <Modal title={title} open onOpenChange={setOpen}>
-      <Modal.Content scrollable contentContainerStyle={{ gap: 16 }}>
-        <Text style={{ color: theme.colors.foregroundMuted }}>{language === "zh" ? "当前筛选或搜索隐藏了以下任务。" : "The current filters or search hide these tasks."}</Text>
-        {groups.map((group) => <View key={group.lane} testID={`hidden-tasks-${group.lane}`} style={{ gap: 8 }}>
-          <Pressable testID={`hidden-tasks-toggle-${group.lane}`} accessibilityRole="button" accessibilityLabel={`${group.label} · ${group.tasks.length}`} accessibilityState={{ expanded: !collapsed.has(group.lane) }} onPress={() => setCollapsed((previous) => {
-            const next = new Set(previous);
-            if (next.has(group.lane)) next.delete(group.lane);
-            else next.add(group.lane);
-            return next;
-          })} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-            <Icon name={collapsed.has(group.lane) ? "ChevronRight" : "ChevronDown"} size={14} color={theme.colors.foregroundMuted} />
-            <StatusIcon kind={LANE_STATUS[group.lane]} size={14} theme={theme} />
-            <Text style={{ color: theme.colors.foregroundMuted, fontWeight: "600" }}>{group.label} · {group.tasks.length}</Text>
-          </Pressable>
-          {!collapsed.has(group.lane) ? group.tasks.map((task) => <TaskCardView key={task.id} card={task} fields={fields} theme={theme} compact={compact} language={language} hostId={hostId} permissionButtons={[]} stopPhase="idle" focused={false} highlighted={false} onReveal={noop} />) : null}
-        </View>)}
+      <Modal.Content scrollable={!onClearFilters} contentContainerStyle={onClearFilters ? { flex: 1, minHeight: 0, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, gap: 0 } : { gap: 16 }}>
+        {onClearFilters ? (
+          <View style={{ flex: 1, minHeight: 0 }}>
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, gap: 16 }}>{body}</ScrollView>
+            <View testID="hidden-tasks-actions" style={{ borderTopWidth: 1, borderTopColor: theme.colors.border, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, flexDirection: "row", justifyContent: Platform.OS === "web" ? "flex-end" : "flex-start" }}>
+              <Pressable testID="hidden-tasks-clear-filters" accessibilityRole="button" accessibilityLabel={clearLabel} onPress={() => { setOpen(false); onClearFilters(); }} style={{ flex: Platform.OS === "web" ? undefined : 1, minHeight: Platform.OS === "web" ? 32 : 44, paddingHorizontal: 16, borderRadius: Platform.OS === "web" ? 12 : 22, borderWidth: 1, borderColor: theme.colors.border, alignItems: "center", justifyContent: "center" }}>
+                <Text style={{ fontSize: HOST_FONT.base, fontWeight: "500", color: theme.colors.foreground }}>{clearLabel}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : body}
       </Modal.Content>
     </Modal> : null}
   </View>;

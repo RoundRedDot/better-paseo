@@ -906,7 +906,12 @@ subscription, and the board's code is not fetched. Its options are listed under
   workspaces. The search box matches titles and project, workspace and branch names. Several picks
   of one filter fold into one chip ("2 projects and 1 workspace selected") led by the filter's
   icon. When the filters leave out some of a lane's cards, a line under the lane says how many and
-  which filters.
+  which filters. While searching, a line beside the field reports how many tasks' first messages
+  are loaded ("86 loaded") and disappears when they finish; closed sessions and unavailable
+  providers are not counted or retried, and their titles, projects and labels still match. The
+  yellow number at the end of the sidebar's Tasks row opens "Hidden tasks"; "Clear filters" at the
+  bottom of that dialog (bottom right on desktop) clears the search and filters like the board's
+  "Clear all" and closes the dialog.
 - The bar ends with the done window (24h, 7d, ∞), switches for subtasks, the archived lane and
   groups with no tasks, the sort and the lane width; a pointer resting on a control shows
   what it does. With subtasks hidden, a subtask folds into its parent's card, but running, waiting

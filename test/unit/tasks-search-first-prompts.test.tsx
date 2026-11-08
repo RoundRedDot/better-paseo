@@ -118,12 +118,12 @@ describe("first-message search", () => {
     await act(async () => { await firstPromptStoreFor(mounted.api as never).request("cached"); });
     read.mockClear();
     mounted.update([cached, closed, loaded], "dragonfruit");
-    expect(mounted.current.coverage).toEqual({ pending: 1, unavailable: 1, failed: 0 });
+    expect(mounted.current.coverage).toEqual({ pending: 1, loaded: 1 });
     expect(mounted.shown()).toEqual(["cached"]);
     await act(async () => { await vi.advanceTimersByTimeAsync(200); });
     expect(read.mock.calls).toEqual([["loaded"]]);
     expect(mounted.shown()).toEqual(["cached", "loaded"]);
-    expect(mounted.current.coverage).toEqual({ pending: 0, unavailable: 1, failed: 0 });
+    expect(mounted.current.coverage).toEqual({ pending: 0, loaded: 2 });
     expect(firstPromptStoreFor(mounted.api as never).read("loaded")).toMatchObject({ state: "ready", text: "First line\nFresh Dragonfruit" });
     mounted.update([cached, closed, loaded], "only in");
     expect(mounted.shown()).toEqual([]);
@@ -144,17 +144,17 @@ describe("first-message search", () => {
     mounted.update(cards, "");
     await act(async () => { finish.forEach((resolve) => resolve()); await vi.advanceTimersByTimeAsync(500); });
     expect(read).toHaveBeenCalledTimes(4);
-    expect(mounted.current.coverage).toEqual({ pending: 0, unavailable: 0, failed: 0 });
+    expect(mounted.current.coverage).toEqual({ pending: 0, loaded: 0 });
     expect(mounted.current.messages.size).toBe(0);
   });
 
-  it("reports a failed read and retries after clearing search; late results use the current query", async () => {
+  it("treats a failed read as neither pending nor loaded; a new query reads again, and late results use the current query", async () => {
     let resolve!: (value: unknown) => void;
     const read = vi.fn().mockRejectedValueOnce(new Error("offline")).mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
     const cards = [makeCard("loaded")];
     const mounted = mount(read, cards);
     await act(async () => { await vi.advanceTimersByTimeAsync(200); });
-    expect(mounted.current.coverage.failed).toBe(1);
+    expect(mounted.current.coverage).toEqual({ pending: 0, loaded: 0 });
     mounted.update(cards, "");
     mounted.update(cards, "dragonfruit");
     await act(async () => { await vi.advanceTimersByTimeAsync(200); });
@@ -176,6 +176,6 @@ describe("first-message search", () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(200); });
     expect(load.mock.calls).toEqual([[{ subagentId: "loaded-sub", parentAgentId: parent.id, direction: "after", limit: 8 }]]);
     expect(mounted.shown()).toEqual(["loaded-sub"]);
-    expect(mounted.current.coverage.unavailable).toBe(2);
+    expect(mounted.current.coverage).toEqual({ pending: 0, loaded: 2 });
   });
 });
