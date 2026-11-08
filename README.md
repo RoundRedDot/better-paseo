@@ -64,7 +64,7 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 ## Install
 
 ```bash
-paseo plugin install RoundRedDot/better-paseo
+paseo plugin install roundreddot/better-paseo
 ```
 
 Paseo `>=0.14.0` is required; the published performance measurements use Paseo 0.13.0. See
