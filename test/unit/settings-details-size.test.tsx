@@ -46,8 +46,15 @@ describe("independent details size in settings", () => {
         theme: { colors }, layout: { platform: "ios", compact: true }, host: { id: "host" },
       } as never));
     });
-    const group = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Accent colour")[0]!;
+    const t = SETTINGS_STRINGS.en;
+    const group = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === t.accentTitle)[0]!;
     expect(group.props.style.flexWrap).toBe("wrap");
+    // The same hue order as the inline code row, so the two rows line up.
+    const accentLabels = [...new Set(group.findAll((node) => node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel))];
+    expect(accentLabels).toEqual([
+      t.accentHost, t.accentRose, t.accentClaude, t.accentAmber, t.accentJade,
+      t.accentZinc, t.accentMidnight, t.accentGhostty, t.accentViolet, t.accentPureBlack,
+    ].map((label) => t.accentOption(label)));
     for (const [id, label] of [["zinc", "Zinc"], ["midnight", "Midnight"], ["claude", "Claude"], ["ghostty", "Ghostty"], ["pureBlack", "Pure black"]] as const) {
       const swatch = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === `Accent: ${label}`)[0]!;
       expect(swatch.props.style[1].backgroundColor).toBe(ACCENT_PRESETS[id]);
@@ -73,13 +80,13 @@ describe("independent details size in settings", () => {
     // One shade per hue: the palette no longer repeats blue, red or grey.
     const labels = [...new Set(group.findAll((node) => node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel))];
     expect(labels).toEqual([
-      t.inlineCodeGrey, t.inlineCodeBlue, t.inlineCodeViolet, t.inlineCodeGreen, t.inlineCodeCoral,
-      t.accentJade, t.accentAmber, t.accentMidnight, t.accentClaude, t.accentPureBlack,
+      t.inlineCodeGrey, t.inlineCodeCoral, t.accentClaude, t.accentAmber, t.accentJade,
+      t.inlineCodeGreen, t.accentMidnight, t.inlineCodeBlue, t.inlineCodeViolet, t.accentPureBlack,
     ].map((label) => t.inlineCodeOption(label)));
     for (const [id, label] of [
-      ["grey", t.inlineCodeGrey], ["blue", t.inlineCodeBlue], ["violet", t.inlineCodeViolet],
-      ["green", t.inlineCodeGreen], ["coral", t.inlineCodeCoral], ["jade", t.accentJade],
-      ["amber", t.accentAmber], ["midnight", t.accentMidnight], ["claude", t.accentClaude],
+      ["grey", t.inlineCodeGrey], ["coral", t.inlineCodeCoral], ["claude", t.accentClaude],
+      ["amber", t.accentAmber], ["jade", t.accentJade], ["green", t.inlineCodeGreen],
+      ["midnight", t.accentMidnight], ["blue", t.inlineCodeBlue], ["violet", t.inlineCodeViolet],
       ["pureBlack", t.accentPureBlack],
     ] as const) {
       const swatch = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === t.inlineCodeOption(label))[0]!;

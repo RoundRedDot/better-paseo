@@ -63,20 +63,26 @@ function storageHint(sync: SyncStatus, t: SettingsStrings): string | null {
   return null;
 }
 
+/**
+ * Both palettes run in the same hue order so the two rows line up column by
+ * column: the default, then red, orange, amber, green, the blues, violet and
+ * black. Each row also carries one colour the other lacks; `zinc` against
+ * `green` is the single column whose hues differ.
+ */
 const ACCENT_OPTIONS: ReadonlyArray<{
   id: AccentPreset;
   label: "accentHost" | "accentJade" | "accentViolet" | "accentAmber" | "accentRose" | "accentZinc" | "accentMidnight" | "accentClaude" | "accentGhostty" | "accentPureBlack";
   color: string | undefined;
 }> = [
   { id: "host", label: "accentHost", color: undefined },
-  { id: "jade", label: "accentJade", color: ACCENT_PRESETS.jade },
-  { id: "violet", label: "accentViolet", color: ACCENT_PRESETS.violet },
-  { id: "amber", label: "accentAmber", color: ACCENT_PRESETS.amber },
   { id: "rose", label: "accentRose", color: ACCENT_PRESETS.rose },
+  { id: "claude", label: "accentClaude", color: ACCENT_PRESETS.claude },
+  { id: "amber", label: "accentAmber", color: ACCENT_PRESETS.amber },
+  { id: "jade", label: "accentJade", color: ACCENT_PRESETS.jade },
   { id: "zinc", label: "accentZinc", color: ACCENT_PRESETS.zinc },
   { id: "midnight", label: "accentMidnight", color: ACCENT_PRESETS.midnight },
-  { id: "claude", label: "accentClaude", color: ACCENT_PRESETS.claude },
   { id: "ghostty", label: "accentGhostty", color: ACCENT_PRESETS.ghostty },
+  { id: "violet", label: "accentViolet", color: ACCENT_PRESETS.violet },
   { id: "pureBlack", label: "accentPureBlack", color: ACCENT_PRESETS.pureBlack },
 ];
 
@@ -85,14 +91,14 @@ const INLINE_CODE_OPTIONS: ReadonlyArray<{
   label: "inlineCodeGrey" | "inlineCodeBlue" | "inlineCodeViolet" | "inlineCodeGreen" | "inlineCodeCoral" | "accentJade" | "accentAmber" | "accentMidnight" | "accentClaude" | "accentPureBlack";
 }> = [
   { id: "grey", label: "inlineCodeGrey" },
+  { id: "coral", label: "inlineCodeCoral" },
+  { id: "claude", label: "accentClaude" },
+  { id: "amber", label: "accentAmber" },
+  { id: "jade", label: "accentJade" },
+  { id: "green", label: "inlineCodeGreen" },
+  { id: "midnight", label: "accentMidnight" },
   { id: "blue", label: "inlineCodeBlue" },
   { id: "violet", label: "inlineCodeViolet" },
-  { id: "green", label: "inlineCodeGreen" },
-  { id: "coral", label: "inlineCodeCoral" },
-  { id: "jade", label: "accentJade" },
-  { id: "amber", label: "accentAmber" },
-  { id: "midnight", label: "accentMidnight" },
-  { id: "claude", label: "accentClaude" },
   { id: "pureBlack", label: "accentPureBlack" },
 ];
 
