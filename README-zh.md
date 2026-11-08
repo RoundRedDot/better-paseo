@@ -43,12 +43,21 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 paseo plugin install roundreddot/better-paseo
 ```
 
-需要 Paseo `>=0.14.0`，文中的性能测量基于 Paseo 0.13.0。版本要求见[兼容性](#兼容性)。在 **设置 → 插件 → Better Paseo**（页面标题为 **设置**）中配置。Paseo 从 GitHub 安装插件，并在安装时构建客户端；更新到新版本：
+需要 Paseo `>=0.14.0`，文中的性能测量基于 Paseo 0.13.0。版本要求见[兼容性](#兼容性)。在 **设置 → 插件 → Better Paseo**（页面标题为 **设置**）中配置。上面的命令经插件市场安装：市场钉住本仓库一个审核过的修订，并在安装时构建客户端。更新跟随这个钉住的修订，不跟随默认分支：
 
 ```bash
 paseo plugin update better-paseo        # 列出更新并询问
 paseo plugin update better-paseo --yes  # 不询问，直接更新
 ```
+
+想直接运行仓库的默认分支，把市场安装换成 Git 源。同一个插件 ID 只能有一个来源，要先移除；移除也会删掉这个插件已保存的设置，请先记下要保留的设置，装好后再配：
+
+```bash
+paseo plugin remove better-paseo
+paseo plugin install github:RoundRedDot/better-paseo
+```
+
+Git 源跟随仓库的默认分支（`main`），之后同一条 `paseo plugin update` 就能拿到推送的提交。
 
 ---
 
@@ -821,7 +830,7 @@ Better Paseo 需要 Paseo 0.14.0 或更新版本。任务看板使用该版本�
 | 抽屉里捏合调出的字号在另一台手机上太大或太小 | 这个字号由同一 daemon 的所有客户端共用；再捏合一次，或点标记上的「复原」。 |
 | Grok 和 Cursor 回放出来的轮次在 Copy 工具栏和轮次详情里不显示耗时 | 上游工具问题：daemon 重新加载 Grok 或 Cursor 的历史时，记录没有逐条时间戳，回放记录的时间都是加载时刻或仅相差 1 毫秒，会误显示为 `0秒`。Better Paseo 对 `grok` 和 `cursor` 服务商隐藏不足 1 秒的耗时；实时运行的轮次照常显示耗时。按服务商判断，不按模型名称判断。 |
 | 手机上显示「This plugin surface is unavailable.」 | App 断开了连接，重新连上后界面会回来（[#7088](https://github.com/getpaseo/paseo/issues/7088)）。 |
-| 推送了修复，但界面没变化 | 运行 `paseo plugin update better-paseo`；Paseo 运行的是 GitHub 上的版本。 |
+| 推送了修复，但界面没变化 | 市场安装只跟随市场发布过的修订：等市场更新钉住的修订后运行 `paseo plugin update better-paseo`。Git 源安装跟随默认分支，同一条命令就能拿到推送。从市场安装切换到 Git 源要先移除插件，这也会删掉插件已保存的设置（见[安装](#安装)）。 |
 
 ## 开发
 
