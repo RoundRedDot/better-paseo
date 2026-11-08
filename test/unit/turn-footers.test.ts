@@ -49,6 +49,13 @@ describe("completed turn footers", () => {
     expect(completedTurnFooters(rows, false, null)).toEqual([{ at: 2000, text: "answer", startedAt: 1000, completedAt: 4000, durationMs: 3000 }]);
   });
 
+  it("treats omp's single-dot filler as no reply of its own", () => {
+    const rows = [prompt(1), reply(2, "answer"), reply(3, "."),
+      entry({ type: "tool_call", callId: "c1", name: "read", status: "completed", error: null,
+        detail: { type: "plain_text", label: "Read", text: "file" } }, 4)];
+    expect(completedTurnFooters(rows, false, null)).toEqual([{ at: 2000, text: "answer", startedAt: 1000, completedAt: 4000, durationMs: 3000 }]);
+  });
+
   it("retains prompt boundaries when canonical turn IDs are unavailable", () => {
     const rows = [prompt(1), reply(2, "first"), prompt(3), reply(4, "second")];
     expect(completedTurnFooters(rows, true, null).map((row) => row.text)).toEqual(["first"]);

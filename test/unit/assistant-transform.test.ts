@@ -20,6 +20,13 @@ describe("long reply history rows", () => {
       .toEqual({ text: "A short reply", phase: "complete" });
   });
 
+  it("drops the single-dot filler omp writes for tool-only assistant messages", () => {
+    expect(assistantRows(".", "complete")).toEqual([]);
+    expect(assistantRows(" . \n", "streaming")).toEqual([]);
+    expect(assistantRows("...", "complete")).toHaveLength(1);
+    expect(assistantRows("Done.", "complete")).toHaveLength(1);
+  });
+
   it("virtualizes a large tight unordered list at whole-item boundaries", () => {
     const items = Array.from({ length: 244 }, (_, index) => `- Item ${index}: ${"detail ".repeat(20)}\n`);
     const text = items.join("");

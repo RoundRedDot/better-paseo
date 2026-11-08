@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useSyncExternalStore } from "react";
 import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
+import { isAssistantPlaceholder } from "../../assistant-text";
 import type { FirstPrompt } from "./first-prompt";
 import { turnRunning, type LaneId } from "../model";
 
@@ -92,7 +93,7 @@ export function lastReplyMessage(entries: readonly { timestamp?: string; item: {
     const { item, timestamp } = entries[index]!;
     if (item.type !== "assistant_message") continue;
     const text = item.text?.trim();
-    if (text) return { state: "ready", text, timestamp };
+    if (text && !isAssistantPlaceholder(text)) return { state: "ready", text, timestamp };
   }
   return null;
 }
@@ -149,7 +150,7 @@ export function createLiveLastMessageStore(api: LiveApi) {
     if (event.item.type === "assistant_message") {
       entry.raw = append ? entry.raw + event.item.text : event.item.text;
       const text = entry.raw.trim();
-      if (text) entry.value = { state: "ready", text, timestamp: update.timestamp };
+      if (text && !isAssistantPlaceholder(text)) entry.value = { state: "ready", text, timestamp: update.timestamp };
     }
     entry.tail = { type: event.item.type, seqEnd: update.seq, turnId: event.turnId,
       messageId: event.item.type === "assistant_message" ? append ? entry.tail?.messageId : event.item.messageId : undefined };

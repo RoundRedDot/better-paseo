@@ -28,6 +28,7 @@ describe("last message", () => {
       { timestamp: "2026-10-25T08:14:00Z", item: { type: "assistant_message", text: "Earlier reply" } },
       { timestamp: "2026-10-25T08:15:00Z", item: { type: "assistant_message", text: "  Done:\nall green  " } },
       { timestamp: "2026-10-25T08:16:00Z", item: { type: "assistant_message", text: " " } },
+      { timestamp: "2026-10-25T08:16:30Z", item: { type: "assistant_message", text: "." } },
       { timestamp: "2026-10-25T08:17:00Z", item: { type: "tool_call" } },
     ])).toEqual({ state: "ready", text: "Done:\nall green", timestamp: "2026-10-25T08:15:00Z" });
     expect(lastReplyMessage([{ item: { type: "user_message", text: "Fix it" } }])).toBeNull();
@@ -130,6 +131,17 @@ describe("streaming last reply", () => {
     expect(live.refetch).toHaveBeenCalledTimes(1);
     release();
     expect(live.releases.get("a")).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the previous reply when omp streams its single-dot filler", async () => {
+    const live = liveApi([snapshot("Earlier reply")]);
+    const store = createLiveLastMessageStore(live.api as never);
+    const release = store.watch("a");
+    store.request("a", "v1");
+    await flush();
+    live.emit(1, ".", { messageId: "m2" });
+    expect(store.read("a")).toMatchObject({ text: "Earlier reply" });
+    release();
   });
 
   it("replays chunks arriving during bootstrap exactly once", async () => {
