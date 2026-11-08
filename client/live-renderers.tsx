@@ -699,9 +699,9 @@ function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, 
 }
 
 /**
- * The host draws a `notification` or `error` item as bare text with an icon,
- * which reads as a different product beside the plugin's callouts. Both carry
- * only a level and a message, so the card is a badge plus that message.
+ * A host `notification` or `error` item carries only a level and a message.
+ * Both transformers turn one into this renderer, which draws the plugin's
+ * notice row instead of the host's tinted card.
  */
 function LiveNoticeRendererBody({
   agentId,

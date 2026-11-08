@@ -38,6 +38,7 @@ const TRANSFORMERS = [
   "omp-enhanced-todo",
   "omp-enhanced-user-message",
   "omp-enhanced-assistant",
+  "omp-enhanced-notification",
   "omp-enhanced-error",
 ];
 

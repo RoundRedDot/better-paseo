@@ -363,7 +363,8 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
   trailing line holds Copy, the rewind menu, the time and the usage.
 - **Notice**: a row. Info is a muted `Info`, warning `TriangleAlert`, error `CircleX`, fatal
   `OctagonX` at weight 500; error and fatal add a 2 pt left rule. Long or technical text opens in
-  a mono block on `surfaceCode`.
+  a mono block on `surfaceCode`. The host's own background-job notice and error item both transform
+  into this row; nothing about a notice is drawn as a tinted card.
 - **Turn footer**: one line 24 high, 8 above and 16 below: Copy, the model with its provider logo,
   the clock, the duration. On a phone it drops the clock, then the model, rather than wrap.
 - Rows take back 12 of the host's 16 between timeline items (`ROW_GAP_COMPENSATION`).
