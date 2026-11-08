@@ -70,7 +70,18 @@ describe("independent details size in settings", () => {
     const t = SETTINGS_STRINGS.en;
     const group = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === t.inlineCodeTitle)[0]!;
     expect(group.props.style.flexWrap).toBe("wrap");
-    for (const [id, label] of [["jade", t.accentJade], ["amber", t.accentAmber], ["rose", t.accentRose], ["zinc", t.accentZinc], ["midnight", t.accentMidnight], ["claude", t.accentClaude], ["ghostty", t.accentGhostty], ["pureBlack", t.accentPureBlack]] as const) {
+    // One shade per hue: the palette no longer repeats blue, red or grey.
+    const labels = [...new Set(group.findAll((node) => node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel))];
+    expect(labels).toEqual([
+      t.inlineCodeGrey, t.inlineCodeBlue, t.inlineCodeViolet, t.inlineCodeGreen, t.inlineCodeCoral,
+      t.accentJade, t.accentAmber, t.accentMidnight, t.accentClaude, t.accentPureBlack,
+    ].map((label) => t.inlineCodeOption(label)));
+    for (const [id, label] of [
+      ["grey", t.inlineCodeGrey], ["blue", t.inlineCodeBlue], ["violet", t.inlineCodeViolet],
+      ["green", t.inlineCodeGreen], ["coral", t.inlineCodeCoral], ["jade", t.accentJade],
+      ["amber", t.accentAmber], ["midnight", t.accentMidnight], ["claude", t.accentClaude],
+      ["pureBlack", t.accentPureBlack],
+    ] as const) {
       const swatch = renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === t.inlineCodeOption(label))[0]!;
       act(() => swatch.props.onPress());
       expect(getEnhancerPreferences().inlineCodeColor).toBe(id);

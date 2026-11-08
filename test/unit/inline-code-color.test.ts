@@ -29,9 +29,8 @@ function codeSpan(inlineCodeColor: InlineCodeColor, { quiet = false, colors = LI
 describe("inline code colour on native", () => {
   it.each([
     ["jade", "#047857", "#34d399"], ["amber", "#925900", "#fbbf24"],
-    ["rose", "#be123c", "#fb7185"], ["zinc", "#52525b", "#a1a1aa"],
     ["midnight", "#35568e", "#91b2e9"], ["claude", "#a7452c", "#ee9a7e"],
-    ["ghostty", "#435fa8", "#a9bff4"], ["pureBlack", "#000000", "#ffffff"],
+    ["pureBlack", "#000000", "#ffffff"],
   ] as const)("preserves %s and uses its light and dark shades on both mobile platforms", (inlineCodeColor, light, dark) => {
     expect(parsePreferences(storedPart({ ...DEFAULT_PREFERENCES, inlineCodeColor })).inlineCodeColor).toBe(inlineCodeColor);
     for (const platform of ["ios", "android"] as const) {

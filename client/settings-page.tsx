@@ -82,7 +82,7 @@ const ACCENT_OPTIONS: ReadonlyArray<{
 
 const INLINE_CODE_OPTIONS: ReadonlyArray<{
   id: InlineCodeColorPreference;
-  label: "inlineCodeGrey" | "inlineCodeBlue" | "inlineCodeViolet" | "inlineCodeGreen" | "inlineCodeCoral" | "accentJade" | "accentAmber" | "accentRose" | "accentZinc" | "accentMidnight" | "accentClaude" | "accentGhostty" | "accentPureBlack";
+  label: "inlineCodeGrey" | "inlineCodeBlue" | "inlineCodeViolet" | "inlineCodeGreen" | "inlineCodeCoral" | "accentJade" | "accentAmber" | "accentMidnight" | "accentClaude" | "accentPureBlack";
 }> = [
   { id: "grey", label: "inlineCodeGrey" },
   { id: "blue", label: "inlineCodeBlue" },
@@ -91,11 +91,8 @@ const INLINE_CODE_OPTIONS: ReadonlyArray<{
   { id: "coral", label: "inlineCodeCoral" },
   { id: "jade", label: "accentJade" },
   { id: "amber", label: "accentAmber" },
-  { id: "rose", label: "accentRose" },
-  { id: "zinc", label: "accentZinc" },
   { id: "midnight", label: "accentMidnight" },
   { id: "claude", label: "accentClaude" },
-  { id: "ghostty", label: "accentGhostty" },
   { id: "pureBlack", label: "accentPureBlack" },
 ];
 
