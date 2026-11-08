@@ -86,7 +86,7 @@ Cards, the sidebar's capsules, and the board's buttons share one treatment (`sur
 - On desktop web, a fine pointer (`(hover: hover) and (pointer: fine)`) deepens the shadow while hovered. Nothing scales.
 - On a phone, a touch browser, and an iPad (the app, trackpad included), the deeper shadow and a scale of 1.03 happen only while pressed. Hover, including an iPad pointer, does not.
 - Reduced motion skips the scale and keeps the shadow. Action buttons animate the scale over 100 ms; the other controls snap.
-- A selected, open, current, expanded, or on fill stays where the control has one. The tablet toolbar's Subtasks switch has no selected fill. The stop chevron keeps its danger wash while its menu is open. An expanded pill keeps its 6% wash. Chat rows, menu rows, detail property rows, subtask rows, and the lane panel are outside this treatment.
+- A selected, open, current, expanded, or on fill stays where the control has one. The tablet toolbar’s Subtasks switch uses `surface2` when selected. The stop chevron keeps its danger wash while its menu is open. An expanded pill keeps its 6% wash. Chat rows, menu rows, detail property rows, subtask rows, and the lane panel are outside this treatment.
 - Menu chrome (`menuChrome`): `surface0`, hairline border, hover foreground 5.5% (8% dark),
   shadow `0 4 24` and `0 1 3` at 8% and 4% (45% and 30% dark). `panelChrome` reuses it.
 - Chat rows have no surface at rest: `surface1` hovered, `surface2` pressed or held. The chat's
@@ -158,6 +158,25 @@ rule: put its movement behind `motionDuration` and keep at most a short fade.
   hit area. A long press is 450 ms on a card and 500 ms on a chat row.
 
 ## Icons
+
+### Icon and label consistency
+
+These rules apply to the named controls across desktop, tablet and phone, web and native, in light and dark themes. Other surfaces remain subject to their existing rules until audited. Touch targets and icon sizes may vary by platform. All values are logical points at the default text size; fixed gaps do not scale with larger text.
+
+| Scope | Icon-to-label gap | State |
+| --- | --- | --- |
+| Three message section headings | 4 pt from the 14 pt `Icon` layout box to the text layout box | No icon backing; all three icons use `foregroundMuted`, including the last reply. The heading stays `foreground`, weight 600; keep the existing icon shapes. |
+| Named card and detail action buttons, filter menu buttons, filter chips and the phone sort pill | 4 pt between the leading icon box and label | Keep each action's semantic colours and each chip's existing accent border, fill, text and brand marks. Tail arrows and hints retain their separate layout and require individual review. |
+| Named phone card-menu, sort and filter-switch rows | 8 pt between leading icon box and label | Menu leading icons use `foregroundMuted`, danger actions keep danger, checked choices keep the `accent` check. Switch state stays on its track. |
+| Named persistent Subtasks and Archived icon-only switches on desktop, tablet and phone | No label gap | Off uses `foregroundMuted`; on uses `foreground` and a `surface2` control surface. Keep the state icon, archive slash, badge and accessibility semantics. |
+
+A message heading positions the 14 pt icon 5 pt inside its wrapper, with 4 pt from the icon box to the text. Keep its existing left alignment and hit area; do not add a gap outside a centered 24 pt wrapper.
+
+For an icon-only switch, the surface belongs to the whole control, never to a decorative icon tile. Only the on state uses `surface2`. The archive slash and hidden-subtask badge appear when off: match the slash cutout and badge ring to that control's actual off-state background (`surface0` on these toolbars), not the on-state fill. Keep the shared `CornerBadge` default unchanged; a caller supplies its own ring colour when needed. Search, sidebar, filter/menu expansion, chips, lane-status icons, copy-success feedback, errors, warnings, brand marks and primary actions keep their own semantics and are not covered by this switch state. The message headings are not toggles and never gain a selection background or green reply icon. Distinguish hover, press, focus, selection, expansion and disabled states.
+
+Audit the remaining chat, settings and detail controls separately rather than treating them as automatic changes. Reconcile each implemented control's description here in the same change. Measure the actual icon box and wrappers; update fitting calculations with visual gaps. Check `en` and `zh`, large system text, dark and light themes, and desktop, tablet and phone. Mockups are not native-client verification.
+
+### Timeline icon family
 
 Every icon in the timeline is one line family: the host's Lucide set, drawn at the host's stroke.
 A tool row, a preview header, a hub or agent card all draw from it. Where a call belongs to a
@@ -880,7 +899,7 @@ apply to all three.
 | Toolbar | Height | Targets | Contents |
 | --- | --- | --- | --- |
 | Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 320 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
-| Tablet (`TabletToolbar`) | 40 | 32 | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when selected or expanded, except the Subtasks switch |
+| Tablet (`TabletToolbar`) | 40 | 32 | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface2` for the selected Subtasks switch and `surface1` for expanded menus |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
 - Board toolbar actions and detail header menu/close buttons share `TASK_TOOLBAR_METRICS`
@@ -924,10 +943,9 @@ apply to all three.
   search is not empty. Switching the time range does not show the circle. The subtask switch,
   archived lane, empty groups, lane width and sort already show their own state and do not add
   to it. Zero draws nothing.
-- The tablet Subtasks switch stays transparent in both states; its icon and hidden-card badge
-  communicate the state. Keep its accessibility selected state and the normal press lift.
+- The tablet Subtasks switch uses `surface2` when selected and is transparent when off. Keep its hidden-card badge, accessibility selected state and normal press lift.
 - Round buttons (`RoundButton`) are a 36 circle in a 44 target with a hairline, an accent border
-  when active, and a badge at least 20 high on the accent with a 2 pt `surface0` ring.
+  when active, and a badge at least 20 high on the accent with a 2 pt `surface0` ring. The persistent Subtasks and Archived switches use the icon-only selection treatment above.
 - Desktop toolbar icon buttons with `quietOutline` use radius 7 and a transparent hairline at
   rest; hovering reveals the theme border and the shared button shadow without a fill.
 - An on/off switch in a toolbar is a round button whose icon tells the state; Archived is struck
@@ -960,7 +978,7 @@ apply to all three.
   | Selected-filter group | 280 | Selected values, optional kind hints, checks and Clear filters |
   | Tablet View and its drill-down pages | 220 | Translated actions and layout choices in one touch panel |
 
-  Keep the existing row gutters (6 pt), horizontal padding (8 pt) and column gaps (8 pt).
+  Keep the existing row gutters (6 pt), horizontal padding (8 pt) and column gaps (8 pt). Phone card-menu, sort and filter-switch rows also use an 8 pt icon-to-label gap.
   Ordinary dropdowns use the full calculated width instead of hugging short labels; long
   labels keep their existing one-line ellipsis and cannot displace counts, checks or
   chevrons. Project and workspace search fields share their panel width. Verify both

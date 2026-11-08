@@ -434,8 +434,8 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
   const reduced = useReducedMotion();
   const lift = surfaceLift(hovered, press.pressed, reduced, "control", press.input);
   const line = Platform.OS === "web" && !hovered ? "transparent" : colors.border;
-  // The slash cuts a hole in the resting fill. Hover and press do not change that fill.
-  const background = colors.surface0;
+  const background = props.on ? colors.surface2 : colors.surface0;
+  const iconColor = props.on ? colors.foreground : colors.foregroundMuted;
   return (
     <Pressable
       accessibilityRole="switch"
@@ -469,9 +469,9 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
         justifyContent: "center",
       }}
     >
-      <Icon name={props.icon} size={icon} color={colors.foreground} />
-      {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={background} /> : null}
-      <CornerBadge count={props.badge ?? 0} theme={props.theme} style={{ bottom: -1, right: -1 }} testID={`${props.testID}-count`} />
+      <Icon name={props.icon} size={icon} color={iconColor} />
+      {props.slashed ? <SlashMark size={icon} color={iconColor} gap={background} /> : null}
+      <CornerBadge count={props.badge ?? 0} theme={props.theme} ringColor={background} style={{ bottom: -1, right: -1 }} testID={`${props.testID}-count`} />
     </Pressable>
   );
 }

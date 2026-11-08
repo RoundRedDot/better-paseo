@@ -1221,8 +1221,8 @@ describe("card action leaf migration", () => {
   });
 
   it.each([
-    { compact: false, fullWidth: 139, foldedWidth: 28 },
-    { compact: true, fullWidth: 144, foldedWidth: 32 },
+    { compact: false, fullWidth: 138, foldedWidth: 28 },
+    { compact: true, fullWidth: 143, foldedWidth: 32 },
   ])("keeps authored fit chrome and restores labels for compact=$compact", async ({ compact, fullWidth, foldedWidth }) => {
     const renderer = await render(React.createElement(TasksTypographyScale, {
       factor: 1.5,

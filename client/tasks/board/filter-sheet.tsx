@@ -411,7 +411,7 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
         backgroundColor: on ? taskTokens(props.theme).accentSoft : "transparent",
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
+        gap: 4,
       }}
     >
       {props.leading}
@@ -438,7 +438,7 @@ function ToggleRow(props: { icon: string; label: string; hint?: string; on: bool
       onPress={props.onPress}
       {...spaceKeys}
       testID={props.testID}
-      style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 12 }}
+      style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8 }}
     >
       <Icon name={props.icon} size={18} color={colors.foregroundMuted} />
       <View style={{ flex: 1, paddingVertical: 6 }}>
@@ -519,7 +519,7 @@ function SortRow(props: { icon: string; label: string; hint?: string; checked?: 
       accessibilityRole="menuitem"
       accessibilityState={{ checked: props.checked }}
       onPress={props.onPress}
-      style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 12 }}
+      style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8 }}
     >
       <Icon name={props.icon} size={18} color={colors.foregroundMuted} />
       <Text style={{ flex: 1, fontSize: F.base, color: colors.foreground }}>{props.label}</Text>

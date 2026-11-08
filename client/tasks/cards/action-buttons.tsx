@@ -52,7 +52,7 @@ export function CardButton(props: {
   const size = compact ? 14 : 13;
   const height = taskControlHeight(compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, scale);
   const hasIcon = !!props.icon || props.busy || answer || props.arrow;
-  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, 2 * (compact ? 12 : 10) + (hasIcon ? size + 5 : 0) + 1, forcedSquare, kind === "primary");
+  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, 2 * (compact ? 12 : 10) + (hasIcon ? size + 4 : 0) + 1, forcedSquare, kind === "primary");
   const square = fit.iconOnly;
   return (
     <ActionPressable
@@ -76,7 +76,7 @@ export function CardButton(props: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: 5,
+        gap: 4,
         opacity: disabled ? 0.6 : 1,
         ...webTransition,
         ...fit.style,

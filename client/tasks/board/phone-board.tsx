@@ -334,7 +334,7 @@ export function PhoneBoard(props: {
               borderColor: colors.border,
               flexDirection: "row",
               alignItems: "center",
-              gap: 5,
+              gap: 4,
             }}
           >
             <Icon name="ArrowUpDown" size={13} color={colors.foregroundMuted} />
@@ -351,6 +351,7 @@ export function PhoneBoard(props: {
             borderless
             label={strings.showSubtasks}
             selected={!filters.hideSubtasks}
+            toggle
             cornerBadge={board.hiddenSubtasks}
             theme={theme}
             onPress={() => board.setParams((params) => ({ ...params, hideSubtasks: !(params.hideSubtasks ?? board.defaults.hideSubtasks) }))}
@@ -363,6 +364,7 @@ export function PhoneBoard(props: {
             style={{ marginLeft: -6 }}
             label={strings.archivedLane.row}
             selected={board.showArchived}
+            toggle
             slashed={!board.showArchived}
             theme={theme}
             onPress={() => board.setShowArchived(!board.showArchived)}

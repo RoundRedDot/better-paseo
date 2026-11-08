@@ -38,7 +38,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   }
   Modal.Content = (props: Props) => React.createElement("ModalContent", null, props.children);
   return {
-    Icon: (props: Props) => React.createElement("Icon", { name: props.name, size: props.size }),
+    Icon: (props: Props) => React.createElement("Icon", { name: props.name, size: props.size, color: props.color }),
     FlatList,
     Modal,
     ScrollView: rn.ScrollView,
@@ -130,7 +130,7 @@ import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
 import { firstPromptStoreFor } from "../../client/tasks/data/first-prompt";
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
-import { CardCell, RollingCount, RollingTotal, WindowSegments } from "../../client/tasks/board/board-parts";
+import { CardCell, RollingCount, RollingTotal, SlashMark, WindowSegments } from "../../client/tasks/board/board-parts";
 import { createLaneMotionStore, LaneMotionLayer, LaneMotionProvider } from "../../client/tasks/board/lane-motion";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
@@ -1078,6 +1078,7 @@ describe("F1: Web switch Space activation", () => {
     act(() => hostsById("subtasks-toggle")[0]!.props.onPress());
     // The running child shows on its running parent's card, so the sidebar counts one card more than the lane.
     expect(textOf(hostsById("subtasks-toggle-count")[0]!)).toBe("1");
+    expect(StyleSheet.flatten(hostParentOf(hostsById("subtasks-toggle-count")[0]!)!.props.style).borderColor).toBe("#ffffff");
     act(() => hostsById("subtasks-toggle")[0]!.props.onPress());
     expect(hostsById("subtasks-toggle-count")).toHaveLength(0);
   });
@@ -5107,11 +5108,13 @@ describe("Tasks board, tablet filters", () => {
     layOut(1200);
     expect(hostsById("tablet-toolbar-end")[0]!.findAll((n) => (n.type as unknown) === "Pressable").map((n) => n.props.testID)).toEqual(["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"]);
     expect(hostsById("subtasks-toggle")[0]!.props.accessibilityState.selected).toBe(true);
-    expect(StyleSheet.flatten(hostsById("subtasks-toggle")[0]!.props.style).backgroundColor).toBe("transparent");
+    expect(StyleSheet.flatten(hostsById("subtasks-toggle")[0]!.props.style).backgroundColor).toBe("#e4e4e7");
+    expect(hostsById("subtasks-toggle")[0]!.find((n) => (n.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
     await act(async () => hostsById("subtasks-toggle")[0]!.props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
     expect(hostsById("subtasks-toggle")[0]!.props.accessibilityState.selected).toBe(false);
     expect(StyleSheet.flatten(hostsById("subtasks-toggle")[0]!.props.style).backgroundColor).toBe("transparent");
+    expect(hostsById("subtasks-toggle")[0]!.find((n) => (n.type as unknown) === "Icon").props.color).toBe("#6b6b75");
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     const sheet = hostsById("filter-sheet-scroll")[0]!;
     act(() => hostsById("filter-sheet-workspaces-toggle")[0]!.props.onPress());
@@ -5493,15 +5496,16 @@ describe("Tasks board, tablet filters", () => {
     expect(toggle().props).toMatchObject({ accessibilityLabel: "Show subtasks", accessibilityState: { checked: true } });
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Network");
     expect(slashed()).toBe(false);
-    const on = { ...look() };
+    expect(look().backgroundColor).toBe("#e4e4e7");
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
     act(() => toggle().props.onPress());
     expect(lastBoardParams("host-1")).toMatchObject({ hideSubtasks: null });
     expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(true);
     expect(toggle().props.accessibilityState).toEqual({ checked: false });
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("ListTree");
     expect(slashed()).toBe(false);
-    // Only the icon changes: the outline and fill stay.
-    expect(look()).toMatchObject(on);
+    expect(look().backgroundColor).toBe("#ffffff");
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#6b6b75");
   });
 });
 
@@ -5754,8 +5758,12 @@ describe("Tasks board, phone", () => {
     const controls = hostParentOf(button())!.findAll((node) => (node.type as unknown) === "Pressable");
     expect(controls.slice(-3).map((node) => node.props.testID)).toEqual(["phone-subtasks", "phone-archived", "phone-more"]);
     expect(button().props.accessibilityState).toEqual({ selected: true });
+    expect(button().findAll((node) => (node.type as unknown) === "View" && StyleSheet.flatten(node.props.style)?.backgroundColor === "#e4e4e7")).toHaveLength(1);
+    expect(button().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
     await act(async () => button().props.onPress());
     expect(button().props.accessibilityState).toEqual({ selected: false });
+    expect(button().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#6b6b75");
+    expect(button().findAll((node) => (node.type as unknown) === "View" && StyleSheet.flatten(node.props.style)?.backgroundColor === "#e4e4e7")).toHaveLength(0);
     expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(true);
     expect(lastBoardParams("host-1").hideSubtasks).toBeNull();
     act(() => pressable("More").props.onPress());
@@ -6307,8 +6315,10 @@ describe("Tasks board, phone", () => {
     const controls = hostParentOf(button())!.findAll((node) => (node.type as unknown) === "Pressable");
     expect(controls.slice(-2).map((node) => node.props.testID)).toEqual(["phone-archived", "phone-more"]);
     expect(button().props.accessibilityState).toEqual({ selected: false });
+    expect(button().findByType(SlashMark).props).toMatchObject({ color: "#6b6b75", gap: "#ffffff" });
     await act(async () => button().props.onPress());
     expect(button().props.accessibilityState).toEqual({ selected: true });
+    expect(button().findAllByType(SlashMark)).toHaveLength(0);
     expect(hostsById("phone-stat-archived")).toHaveLength(1);
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
     act(() => pressable("More").props.onPress());

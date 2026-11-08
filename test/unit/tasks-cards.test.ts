@@ -1405,7 +1405,7 @@ describe("TaskCardView rows", () => {
     const buttons = permissionButtons(card.permission, "zh");
     const tree = await render(cardElement(card, { permissionButtons: buttons, onStop: () => {} }));
     const answer = box(byLabel(tree.root, "去回答").props.style);
-    expect(answer).toEqual({ height: 28, radius: 6, padding: 10, gap: 5 });
+    expect(answer).toEqual({ height: 28, radius: 6, padding: 10, gap: 4 });
     expect(box(byLabel(tree.root, "停止").props.style)).toEqual(answer);
     await act(async () => tree.update(cardElement({ ...sample("sample-unread"), readable: true }, { onRead: () => {} })));
     expect(box(byLabel(tree.root, "标为已读").props.style)).toEqual(answer);
@@ -2051,7 +2051,7 @@ describe("TaskCardView actions", () => {
         label.props.onLayout({ nativeEvent: { layout: { width: 40 } } });
       }
     });
-    expect(flat(hostByTestId(answer.root, "task-card-stop").props.style)).toMatchObject({ width: 84, flexGrow: 0 });
+    expect(flat(hostByTestId(answer.root, "task-card-stop").props.style)).toMatchObject({ width: 82, flexGrow: 0 });
     await act(async () => answer.unmount());
 
     // Without onOpen there is nothing to open.

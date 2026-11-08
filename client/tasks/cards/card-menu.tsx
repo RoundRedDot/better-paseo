@@ -211,9 +211,9 @@ export function CardContextMenu(props: {
                           item.onSelect?.();
                           if (!item.keepOpen) props.onClose();
                         }}
-                        style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, opacity: item.disabled ? 0.5 : 1 }}
+                        style={{ minHeight: taskControlHeight(44, scale), paddingHorizontal: 12, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 8, opacity: item.disabled ? 0.5 : 1 }}
                       >
-                        {(typeof item.leading === "function" ? item.leading(color) : item.leading) ?? (item.icon ? <Icon name={item.icon} size={18} color={color} /> : null)}
+                        {(typeof item.leading === "function" ? item.leading(color) : item.leading) ?? (item.icon ? <Icon name={item.icon} size={18} color={item.danger ? colors.statusDanger : colors.foregroundMuted} /> : null)}
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color }}>{item.label}</Text>
                           {item.detail ? <Text numberOfLines={1} style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{item.detail}</Text> : null}

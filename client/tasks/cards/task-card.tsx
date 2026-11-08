@@ -2082,7 +2082,7 @@ function ReadControl(props: {
   const height = taskControlHeight(compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, scale);
   const label = strings.markRead;
   const iconSize = compact ? 14 : 13;
-  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, 2 * (compact ? 12 : 10) + iconSize + 6);
+  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, 2 * (compact ? 12 : 10) + iconSize + 4);
   const disabled = pending || props.disabled;
   const hover = hovered && !disabled;
   const hue = buttonHue(tokens, props.unread ? "read" : "plain");
@@ -2107,7 +2107,7 @@ function ReadControl(props: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: 5,
+        gap: 4,
         opacity: disabled ? 0.6 : 1,
         ...webTransition,
         ...fit.style,
@@ -2206,7 +2206,7 @@ function StopControl(props: StopControlProps) {
   const iconSize = compact ? 14 : 13;
   const label = confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : props.childrenOnly ? strings.stopChildren : strings.stop;
   const chevronWidth = props.parent ? (compact ? 36 : 26) : 0;
-  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, (compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT) + chevronWidth, 2 * (compact ? (confirming ? 10 : 12) : 10) + iconSize + 6 + chevronWidth);
+  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, (compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT) + chevronWidth, 2 * (compact ? (confirming ? 10 : 12) : 10) + iconSize + 4 + chevronWidth);
   const segment: ViewStyle = {
     ...(compact ? { minHeight: height, paddingVertical: 4 } : { height }),
     flexDirection: "row",
@@ -2289,7 +2289,7 @@ function StopControl(props: StopControlProps) {
           props.parent ? null : liftedButtonOutline(tokens, tokens.danger, false, stopLift),
           {
             flexGrow: 1, flexShrink: 0, flexBasis: "auto",
-            gap: 5,
+            gap: 4,
             // The row drops the whole label when needed; keep the confirm icon and menu target.
             paddingHorizontal: fit.iconOnly ? 0 : compact ? (confirming ? 10 : 12) : 10,
             backgroundColor: "transparent",

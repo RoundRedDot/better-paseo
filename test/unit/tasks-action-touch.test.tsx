@@ -337,7 +337,7 @@ describe("phone sheet action size", () => {
     const buttons = root.findAllByType(Pressable);
     expect(buttons).toHaveLength(2);
     for (const button of buttons) {
-      expect(style(button, false)).toMatchObject({ height: Math.round(36 * factor), borderRadius: 8, paddingHorizontal: 10, gap: 5 });
+      expect(style(button, false)).toMatchObject({ height: Math.round(36 * factor), borderRadius: 8, paddingHorizontal: 10, gap: 4 });
       expect(button.findAll((node) => (node.type as unknown) === "Icon").every((icon) => icon.props.size === 14)).toBe(true);
       const label = button.find((node) => (node.type as unknown) === "Text");
       expect(StyleSheet.flatten(label.props.style).fontSize).toBe(Math.round(12 * factor));

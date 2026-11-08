@@ -887,7 +887,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
   const hue = buttonHue(tokens, requestLook(button));
   const scale = useTasksFontScale();
   const height = taskControlHeight(props.height, scale);
-  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + 13 + 6 + 1, false, requestLook(button) === "primary");
+  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + 13 + 4 + 1, false, requestLook(button) === "primary");
   const icon = button.kind === "open" ? "ArrowUpRight" : button.action.behavior === "allow" ? "Check" : "X";
   return (
     <Pressable
@@ -903,7 +903,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
         return {
           height,
           flexDirection: "row" as const,
-          gap: 6,
+          gap: 4,
           paddingHorizontal: 14,
           borderRadius: 6,
           ...liftedButtonOutline(tokens, hue.border, requestLook(button) === "plain", lift),
@@ -1018,7 +1018,7 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
       <View style={{ paddingTop: 4, paddingBottom: bottom, paddingLeft: m.padH - 6, paddingRight: m.padH - 6 - gutter }}>
         {messageSection ? (
           <Pressable {...ROW_ROLE} accessibilityLabel={props.closed ? words.expand(title) : words.collapse(title)} {...tipProps(props.closed ? words.expand(title) : words.collapse(title))} accessibilityState={{ expanded: !props.closed }} onPress={toggle} testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
-            <View style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center" }}>
+            <View style={{ width: 23, height: 24, paddingLeft: 5, alignItems: "flex-start", justifyContent: "center" }}>
               <Icon name={section === "message" ? "MessageSquareText" : "MessageCircle"} size={14} color={tokens.foregroundMuted} />
             </View>
             <Text style={{ flex: 1, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
@@ -2146,7 +2146,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const height = taskControlHeight(compact ? 36 : 40, scale);
   const iconSize = compact ? 14 : 16;
   const padding = compact ? 10 : 12;
-  const gap = compact ? 5 : 6;
+  const gap = 4;
   const look = props.look ?? "plain";
   const hue = buttonHue(tokens, look);
   const text = hue.color;

@@ -720,6 +720,7 @@ export function RoundButton(props: {
   testID?: string;
   /** A toggle's state, read out as selected. */
   selected?: boolean;
+  toggle?: boolean;
   disabled?: boolean;
   /** Struck through, as Lucide's "-off" icons: a toggle that is off. */
   slashed?: boolean;
@@ -739,6 +740,8 @@ export function RoundButton(props: {
   const size = props.size ?? 36;
   const pad = props.size === undefined ? 4 : 0;
   const icon = props.iconSize ?? Math.round(size / 2);
+  const toggleColor = props.selected ? colors.foreground : colors.foregroundMuted;
+  const toggleSurface = props.selected ? colors.surface2 : colors.surface0;
   const { hovered, hoverProps } = useHover();
   const press = usePressCue(hovered, !props.disabled);
   const lift = surfaceLift(hovered, press.pressed, undefined, "control", press.input);
@@ -769,14 +772,15 @@ export function RoundButton(props: {
           borderRadius: props.quietOutline && Platform.OS === "web" ? 7 : size / 2,
           borderWidth: props.borderless ? 0 : HAIRLINE,
           borderColor: line,
+          ...(props.toggle ? { backgroundColor: props.selected ? colors.surface2 : "transparent" } : null),
           ...(props.disabled ? { boxShadow: undefined } : liftStyle(() => taskTokens(props.theme), lift, props.borderless ? {} : { border: line, hued: !!props.active })),
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : <Icon name={props.icon} size={icon} color={props.borderless && props.active ? colors.accent : colors.foreground} />}
-        {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={colors.surface0} /> : null}
-        <CornerBadge count={props.cornerBadge ?? 0} theme={props.theme} style={{ bottom: 0, right: 0 }} testID={props.testID ? `${props.testID}-count` : undefined} />
+        {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : <Icon name={props.icon} size={icon} color={props.toggle ? toggleColor : props.borderless && props.active ? colors.accent : colors.foreground} />}
+        {props.slashed ? <SlashMark size={icon} color={props.toggle ? toggleColor : colors.foreground} gap={props.toggle ? toggleSurface : colors.surface0} /> : null}
+        <CornerBadge count={props.cornerBadge ?? 0} theme={props.theme} ringColor={props.toggle ? toggleSurface : undefined} style={{ bottom: 0, right: 0 }} testID={props.testID ? `${props.testID}-count` : undefined} />
       </View>
       {props.badge ? (
         <View
@@ -808,7 +812,7 @@ export function RoundButton(props: {
  * filter count, and the cards a switch leaves off the board. Placed by
  * its parent (`style`), in a 1 px ring of the surface. Nothing at zero.
  */
-export function CornerBadge(props: { count: number; theme: PluginTheme; style: { top?: number; right?: number; bottom?: number; left?: number }; testID?: string }) {
+export function CornerBadge(props: { count: number; theme: PluginTheme; ringColor?: string; style: { top?: number; right?: number; bottom?: number; left?: number }; testID?: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   if (props.count <= 0) return null;
@@ -816,7 +820,7 @@ export function CornerBadge(props: { count: number; theme: PluginTheme; style: {
   return (
     <View
       pointerEvents="none"
-      style={{ position: "absolute", ...props.style, minWidth: size, height: size, paddingHorizontal: 2, borderRadius: size / 2, backgroundColor: colors.foregroundMuted, borderWidth: 1, borderColor: colors.surface0, alignItems: "center", justifyContent: "center" }}
+      style={{ position: "absolute", ...props.style, minWidth: size, height: size, paddingHorizontal: 2, borderRadius: size / 2, backgroundColor: colors.foregroundMuted, borderWidth: 1, borderColor: props.ringColor ?? colors.surface0, alignItems: "center", justifyContent: "center" }}
     >
       <Text testID={props.testID} style={{ fontSize: 8, lineHeight: 10, includeFontPadding: false, fontWeight: "600", fontVariant: ["tabular-nums"], color: colors.surface0 }}>
         {props.count > 99 ? "99+" : props.count}

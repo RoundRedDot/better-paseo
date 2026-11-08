@@ -18,7 +18,7 @@ export interface BarBoxes {
 }
 
 /** The gap between a button's icon and its word, which goes with the word. */
-export const LABEL_GAP = 5;
+export const LABEL_GAP = 4;
 
 /** Room the icon-only buttons keep spare before their words come back, so the bar does not flip at the edge. */
 export const LABELS_SLACK = 12;
