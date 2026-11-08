@@ -215,6 +215,24 @@ export function rememberBoardParams(hostId: string, params: BoardParams): void {
   if (changed) for (const listener of [...paramsListeners]) listener();
 }
 
+const clearRequests = new Map<string, number>();
+
+/**
+ * The sidebar's hidden-task dialog asks the open board to drop its search and
+ * filters. A screen's props cannot change while it is open, and cleared params
+ * encode to `{}`, which the board reads as "no route" and ignores, so the
+ * request travels beside the params instead.
+ */
+export function requestBoardClear(hostId: string): void {
+  clearRequests.set(hostId, (clearRequests.get(hostId) ?? 0) + 1);
+  for (const listener of [...paramsListeners]) listener();
+}
+
+/** How many times this host has been asked to clear; the board applies each new value once. */
+export function boardClearCount(hostId: string): number {
+  return clearRequests.get(hostId) ?? 0;
+}
+
 /** Re-runs `listener` when a board remembers new params on any host. */
 export function subscribeBoardParams(listener: () => void): () => void {
   paramsListeners.add(listener);
@@ -249,6 +267,7 @@ export function rememberedCollapsed(hostId: string): LaneId[] {
 export function resetBoardSessions(): void {
   sessions.clear();
   paramsListeners.clear();
+  clearRequests.clear();
   lastHost = null;
   forgetCarried();
 }

@@ -16,7 +16,7 @@ import { HOST_FONT, TaskText as Text, TasksTypography } from "../typography";
 import { useTasksLanguage } from "../i18n";
 import { useTasksSettings } from "./enabled";
 import { sidebarCountParts, sidebarCountText, type SidebarCountPart } from "./navigation";
-import { encodeBoardParams, lastBoardParams, rememberBoardParams, resolveBoardParams, subscribeBoardParams } from "./params";
+import { encodeBoardParams, lastBoardParams, rememberBoardParams, requestBoardClear, resolveBoardParams, subscribeBoardParams } from "./params";
 import { useBoardIntent } from "./prefetch";
 import { BOARD_STRINGS } from "./strings";
 import { loadMark } from "../../debug/load-marks";
@@ -131,10 +131,12 @@ function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: 
       <TasksTypography theme={props.theme}>
         <View ref={countsAnchor} testID="sidebar-counts-area" style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, marginVertical: -6, paddingLeft: 16, marginLeft: -16, paddingRight: 8, marginRight: -8 }}>
           {hidden.length > 0 ? <HiddenCount tasks={hidden} theme={props.theme} language={language} fields={effectiveCard(props.settings, props.layout.compact)} compact={props.layout.compact} hostId={props.host.id} clearLabel={BOARD_STRINGS[language].clearFilters} onClearFilters={() => {
-            // The board screen reads these params on open and applies an explicit route; the store covers the counts here.
             const cleared = clearedParams(lastBoardParams(props.host.id));
+            // The store keeps the sidebar's own counts honest; an open board cannot
+            // take new props, so it applies the request itself.
             rememberBoardParams(props.host.id, cleared);
-            props.openScreen({ screenId: SCREEN_ID, params: encodeBoardParams(cleared) });
+            requestBoardClear(props.host.id);
+            if (props.currentScreen?.screenId !== SCREEN_ID) props.openScreen({ screenId: SCREEN_ID, params: encodeBoardParams(cleared) });
           }} /> : null}
           <View accessible accessibilityLabel={sidebarCountText(parts, language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             {parts.map((part) => <SidebarCountIndicator key={part.lane} part={part} theme={props.theme} language={language} color={part.lane === "needs_input" ? warning : colors.foregroundMuted} />)}

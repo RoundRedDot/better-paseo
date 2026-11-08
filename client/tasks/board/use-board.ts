@@ -18,15 +18,17 @@ import { DEFAULT_CARD_TITLE_LINES, type CardTitleLineCount } from "../device-sto
 import { MOTION } from "./board-style";
 import { carriedSettings, useCarriedTasks } from "./carry";
 import { lingerBoard } from "./prefetch";
-import { cardFilterState, filterToCard } from "./filter-options";
+import { cardFilterState, clearedParams, filterToCard } from "./filter-options";
 import { encodeSort, nameCompare, sortLaneCards } from "./sort";
 import {
+  boardClearCount,
   decodeBoardParams,
   encodeBoardParams,
   rememberBoardParams,
   rememberBoardRoute,
   restoreBoardRoute,
   resolveBoardParams,
+  subscribeBoardParams,
   type BoardDefaults,
   type BoardParams,
 } from "./params";
@@ -273,6 +275,16 @@ export function useBoard(
     rememberBoardRoute(hostId, JSON.parse(routeKey) as Record<string, string>, next);
     setParamsState({ ...next, hideSubtasks: null });
   }, [hostId, routeKey, updateDevice]);
+
+  // The sidebar's hidden-task dialog cannot pass new params to an open screen;
+  // its clear request arrives here and is applied once per request.
+  const clearRequest = useSyncExternalStore(subscribeBoardParams, () => boardClearCount(hostId), () => boardClearCount(hostId));
+  const appliedClear = useRef(clearRequest);
+  useEffect(() => {
+    if (clearRequest === appliedClear.current) return;
+    appliedClear.current = clearRequest;
+    setParams(clearedParams);
+  }, [clearRequest, setParams]);
 
   const defaults = useMemo<BoardDefaults>(
     () => ({ hideSubtasks: settings.board.hideSubtasks, doneWindow: settings.board.doneWindow }),

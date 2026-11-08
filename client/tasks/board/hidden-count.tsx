@@ -6,6 +6,7 @@ import type { CardSettings } from "../../../shared/tasks-settings";
 import { LANE_STATUS, type TaskCard } from "../model";
 import { HOST_FONT, TaskText as Text } from "../typography";
 import { StatusIcon, TaskCardView } from "../cards";
+import { CardButton } from "../cards/action-buttons";
 import { statusMarkSize } from "../cards/status-icon";
 import { taskTokens } from "../cards/tokens";
 
@@ -108,10 +109,8 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
         {onClearFilters ? (
           <View style={{ flex: 1, minHeight: 0 }}>
             <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, gap: 16 }}>{body}</ScrollView>
-            <View testID="hidden-tasks-actions" style={{ borderTopWidth: 1, borderTopColor: theme.colors.border, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, flexDirection: "row", justifyContent: Platform.OS === "web" ? "flex-end" : "flex-start" }}>
-              <Pressable testID="hidden-tasks-clear-filters" accessibilityRole="button" accessibilityLabel={clearLabel} onPress={() => { setOpen(false); onClearFilters(); }} style={{ flex: Platform.OS === "web" ? undefined : 1, minHeight: Platform.OS === "web" ? 32 : 44, paddingHorizontal: 16, borderRadius: Platform.OS === "web" ? 12 : 22, borderWidth: 1, borderColor: theme.colors.border, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ fontSize: HOST_FONT.base, fontWeight: "500", color: theme.colors.foreground }}>{clearLabel}</Text>
-              </Pressable>
+            <View testID="hidden-tasks-actions" style={{ borderTopWidth: 1, borderTopColor: theme.colors.border, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, flexDirection: "row", justifyContent: "flex-end", alignItems: "center" }}>
+              <CardButton testID="hidden-tasks-clear-filters" label={clearLabel} look="plain" tokens={taskTokens(theme)} compact={Platform.OS !== "web"} onPress={() => { setOpen(false); onClearFilters(); }} />
             </View>
           </View>
         ) : body}
