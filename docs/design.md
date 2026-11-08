@@ -572,6 +572,17 @@ Unarchive, Open tab. None is ever filled with its hue.
 take them from it, and `requestLook(button)` picks a permission button's look in every place.
 A new action button takes a look from the table rather than its own colours.
 
+### Dialog footers
+
+A dialog footer's action is not a card action. It takes the rename dialog's shape
+(`client/tasks/cards/rename-dialog.tsx`): 44 high with radius 22 and the theme hairline on
+touch, 32 high with radius 12 filled `surface2` and no border on the web. Do not reuse the
+card's outline look (`CardButton`) or hand-draw a pill: a dialog is not a card, and a footer
+action that matches neither the card row nor the dialog reads as a different product. The
+hidden task dialog's "Clear filters" is the first of these; its label is `status.warning`,
+because the action changes which tasks the board shows. Keep one footer action per dialog
+unless the dialog also has a primary; then the primary takes the accent.
+
 ### Same buttons on the card and in its details
 
 The details sidebar's header and the phone sheet's bar offer the card's buttons, with its labels
@@ -996,6 +1007,11 @@ apply to all three.
   Native menus omit shortcut hints.
 - On touch every row is at least 44 and submenus become a drill-down in the same panel, with a
   `›` hint and a Back row (`touchSections`).
+- A host `Modal`'s card sizes to its content only through `Modal.Content`'s own scroll, the
+  default (`scrollable`). `scrollable={false}` tells the host to pin the desktop card at
+  `height: 85%` (`packages/app/src/plugins/react-native/modal.tsx`), so a dialog with one row
+  floats in a mostly empty panel. Keep the host scroll and put an action row after the content:
+  the plugin `Modal` exposes no footer of its own.
 - The card menu opens at the pointer on the web, flipping at the edges. A tablet long press opens
   a popover at the touch point with its submenus flattened and rows at least 44 high. Its width is
   `menuWidth(240, scale, window.width - 16)`, with 8 pt at each screen edge. A phone long press
@@ -1093,6 +1109,15 @@ board's remembered filters for that host and this device's Subtasks preference, 
 provider subagent cards. Its counts match the filtered lane headers. Search reads already-loaded
 first prompts and follows their updates; the entry does not load timelines just to count.
 Keep counts hidden until their required lists are ready, and honour the configured count mode.
+
+The count opens the hidden task dialog (`board/hidden-count.tsx`), which sizes to its content
+(see [Menus and sheets](#menus-and-sheets)) and ends with "Clear filters". That action has to
+reach a board that is already open, and an open screen keeps the params it was opened with.
+Cleared params encode to `{}`, which the board reads as "no route" and ignores, so `openScreen`
+alone leaves the board untouched. The sidebar remembers the cleared params for the next open and
+bumps `requestBoardClear(hostId)` (`board/params.ts`), which the board subscribes to
+(`subscribeBoardParams`) and applies once with its own `clearedParams`, leaving the Subtasks
+preference alone; the route is opened only when the board is not the current screen.
 
 ### Status marks
 
