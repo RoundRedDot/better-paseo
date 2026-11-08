@@ -55,7 +55,7 @@ Better Paseo 的设置里开启看板后，侧边栏顶部（新建工作区、�
 | 标为已读、归档、取消归档 | 已做（标为已读走插件服务端的 daemon 连接，取消归档走 CLI，见「操作」） | |
 | 追加一条指令 | | 未做 |
 | 多 host 聚合 | | 未做 |
-| provider 内部的 subagent（Claude Code 的 Agent 工具、Codex 和 Pi 自己的） | 已做：运行中和失败的画成只读虚线卡片，见「父子 agent 关联」 | |
+| provider 内部的 subagent（Claude Code 的 Agent 工具、Codex、OMP 和 Pi 自己的） | 已做：运行中及最近结束的画成只读虚线卡片，见「父子 agent 关联」 | |
 | 在看板上改模型、模式、思考等级 | 不做 | 不做 |
 
 ## 泳道定义
@@ -232,11 +232,13 @@ Better Paseo 的设置里开启看板后，侧边栏顶部（新建工作区、�
 - 子 agent 被 detach 后 label 清空，订阅推送到达后关联自动消失。
 - 父任务归档时，Paseo 不会归档跨 workspace 的子任务和还开着 tab 的子任务，而是把它们 detach，清掉 `paseo.parent-agent-id`，和手动 detach 一样不留痕迹。插件服务端用一个订阅跟着所有未归档的 agent（含后台），在内存里记下看到的父子关系；父任务的 `agent.archived` hook 到达或父任务从列表消失时，立即读一次它的子任务，之后在 2、10、30 秒再读，因为 Paseo 0.15 detach 已关闭的子任务时不推送更新。手动 detach 和归档引起的 detach 走 Paseo 同一段代码，推给其他客户端的 `agent_update` 完全一样，0.15 也没有 detach hook，所以插件只能按时序推断，不能证实。只有同一段连续订阅里同时满足三条才推断为出处：归档前已看到子任务挂在这个父任务下、父任务确实已归档、子任务去掉 label 时的 `updatedAt` 不早于归档时间。以下手动 detach 会被误判为归档引起：级联还没轮到这个子任务时手动 detach；级联中途因某个子任务归档失败而停下，剩下的子任务仍挂在已归档的父任务下，之后被手动 detach；通过 metadata 把 `paseo.parent-agent-id` 改成空串。出处写进 `tasks-parent-origins.json`，文件读不了或格式不对时 RPC 直接报错、不会被覆盖，写盘失败时这条出处不生效并记进插件日志，由 RPC `tasks.parent-origins` 给看板，和 provider subagent 一起读（`server/tasks/parent-origins.ts`）。看板只用它在子卡片和详情里显示「↳ 父任务标题」，旁边的小标签总以「推断」开头（英文 Inferred），不说归档就是原因：父任务仍归档时是「推断 · 已归档」或「推断 · 工作区已归档」，带归档图标；父任务恢复或读不到时只写「推断」，换成 Info 图标；详情行的读屏文字也带上这个标签。这只是历史出处，不建立父子关系：父卡片不列这个子任务，不按它算「等待子任务」，停止父任务不带上它，「显示子任务」关闭时也不折叠它，卡片右上角也没有子任务标记。手动 detach、归档后又被恢复再手动 detach 的子任务、插件重启或订阅中断期间发生的 detach、读不到父任务（比如在别的 host）都不记录；子任务重新有了活跃父任务时删掉出处。功能上线前已经丢失父任务的子任务没有出处可显示。
 
-provider 内部的 subagent（Claude Code 的 Agent 工具、Codex 和 Pi 自己派出的）不是 Paseo agent：没有 tab，也没有 `paseo.parent-agent-id` label，`PaseoApi` 列不出来。插件服务端用自己的 daemon 连接（`connectHostDaemon`）先读一次各 agent 的 provider subagent，之后跟随 daemon 的更新，通过 RPC `tasks.subagents` 交给看板（`server/tasks/provider-subagents.ts`）。看板只显示运行中和失败的：
+provider 内部的 subagent（Claude Code 的 Agent 工具、Codex、OMP 和 Pi 自己派出的）不是 Paseo agent：没有 tab，也没有 `paseo.parent-agent-id` label，`PaseoApi` 列不出来。插件服务端用自己的 daemon 连接（`connectHostDaemon`）先读一次各 agent 的 provider subagent，之后跟随 daemon 的更新，通过 RPC `tasks.subagents` 交给看板（`server/tasks/provider-subagents.ts`）。运行中的持续显示，结束的保留 7 天；较早的记录能否恢复取决于 daemon 的列表和会话重放。新提示不会隐藏保留的记录，但之前的失败不会重新把父任务标成失败。
 
-- 每个画成一张只读的虚线卡片，运行中的在运行中列，失败的在待查看列，按所在列的排序并入；侧边栏计数也算它们。卡片带父任务的 workspace、分支和标签、父任务链接、计时，模型的位置换成 provider 给的信息（类型图标、模型、思考等级）。没有停止、标为已读和归档。
+- 每个画成一张只读的虚线卡片，运行中的在运行中列，失败的在待查看列，完成或取消的在已完成列，按所在列的排序并入；侧边栏计数也算它们。卡片带父任务的 workspace、分支和标签、父任务链接、计时，模型的位置换成 provider 给的信息（类型图标、模型、思考等级）。没有停止、标为已读和归档。
 - 点卡片打开详情；首条提示（交给它的任务）和最新回复由 RPC `tasks.subagent-timeline` 从 daemon 读（`agent.provider_subagents.timeline.get`），运行中每 15 秒重读一次。没有上下文、用量和时间线。「打开 tab」打开父任务的 tab，Paseo 在那里列出这个 subagent。
 - 父卡片上它们也是子任务行：点一行定位到它的卡片（被隐藏或过滤掉时打开父任务的 tab），行尾的 ArrowUpRight 打开父任务的 tab。「显示子任务」关闭时按普通子任务处理。
+
+卡片还单独显示会话 todo 的完成数量；它是任务清单，不算 agent 子任务。可见卡片从会话时间线读取最新 todo 并跟随更新，不读取已关闭会话；重连后重读，读取范围最多 1000 条时间线记录。
 
 ## 操作
 
@@ -387,7 +389,7 @@ agent 分几路请求，避免一次拉全 340 个 agent 的完整快照；works
 | 停止依赖 CLI：无头 daemon 或 Linux 上可能没有 `PASEO_CLI` | 停止按钮不可用 | 已做：退回 PATH，再退回 daemon 自带的 npm CLI，都找不到就隐藏按钮。上游 `cancel()` 还没提 |
 | 列表数据量：每条快照带 `availableModes`、`features` 等，全量订阅很重 | 重连和中继解密变慢 | 看板可以关闭；开启时只常驻状态订阅，待查看订阅只在需要时打开，已完成列分页，workspace、项目和标签只在看板打开时请求 |
 | 客户端包体积：宿主每次重连都重发整个插件包 | 重连变慢 | 最初打算独立成插件；实际放进了 Better Paseo。已做：安装时把看板、侧边栏入口和看板设置的代码拆成单独的 Tasks chunk（`scripts/build-client.mjs`），由插件服务端经 `tasks.chunk` 按需下发；看板关闭时不取。目录里的客户端包从 1,977 KB 降到约 730 KB（2026-10-23 主包 728 KB、Tasks chunk 346 KB） |
-| Paseo 层以外的 subagent | 用户以为父子关系不全 | 已做：运行中和失败的 provider subagent 画成只读虚线卡片；跑完的不显示。这条路依赖插件服务端的 daemon 连接，连不上时看不到 |
+| Paseo 层以外的 subagent | 用户以为父子关系不全 | 已做：provider subagent 画成只读虚线卡片，结束后保留 7 天。这条路依赖插件服务端的 daemon 连接，连不上时看不到 |
 | 上一轮耗时只从插件装上起有数 | 更早的轮次没有耗时 | 没有记录就不显示，不再用 `updatedAt` 估算 |
 | `lastUsage` 在重启后是否保留未验证（时间线上的用量已知不持久化） | 上下文环可能为空 | 拿不到就不显示，不显示「0%」 |
 | 「待查看」何时清除由宿主决定 | 卡片可能在用户看过后仍停留 | 已做：卡片上有「标为已读」，和在 Paseo 里打开 tab 一样清除 attention；失败的卡片清除后仍会被读成失败，所以看板另记已读，直到下一轮 |

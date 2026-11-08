@@ -917,6 +917,14 @@ describe("StatusIcon", () => {
 });
 
 describe("TaskCardView rows", () => {
+  it("shows todo progress separately from provider subagents", async () => {
+    const card = sample("sample-running");
+    card.children = [{ id: "provider-child", title: "Design", status: "done", kind: "provider" }];
+    const tree = await render(cardElement(card, { todo: { completed: 3, total: 13 } }));
+    expect(texts(hostByTestId(tree.root, "pill-todo"))).toEqual(["3/13 项任务"]);
+    expect(hostByTestId(tree.root, "pill-subtasks")).toBeDefined();
+  });
+
   it.each([LIGHT, DARK])("draws the branch on a faint blue fill with a blue icon and a monospace name in either theme", async (theme) => {
     const tree = await render(cardElement(sample("sample-running"), { theme, fields: fields("full") }));
     const tokens = buildTaskTokens(theme.colors);

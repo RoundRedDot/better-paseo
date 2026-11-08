@@ -100,6 +100,7 @@ export interface CardCallbacks {
 
 export interface TaskCardViewProps extends CardCallbacks {
   card: TaskCard;
+  todo?: { completed: number; total: number } | null;
   searchQuery?: string;
   searchPrompt?: SearchPrompt;
   searchPromptUnavailable?: boolean;
@@ -1179,6 +1180,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         hint={hint("pr", () => pair(strings.hint.pr, pr.number !== null ? `#${pr.number} ${pr.title}` : pr.title))}
       />,
     );
+  }
+  if (fields.subtasks && props.todo) {
+    const label = language === "zh" ? `${props.todo.completed}/${props.todo.total} 项任务` : `${props.todo.completed}/${props.todo.total} tasks`;
+    pills.push(<Pill key="todo" {...pill} icon="ListTodo" label={label} tabular testID="pill-todo" accessibilityLabel={label} />);
   }
   if (layout.subtasks) {
     // Icons and counts, no words: Network (the subtask toggle's icon), then each status the children are in.

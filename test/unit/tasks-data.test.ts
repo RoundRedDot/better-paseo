@@ -2469,9 +2469,9 @@ describe("Tasks data store", () => {
       });
     });
 
-    it("lets a failure go once the parent is prompted after it, and keeps a working parent's lane", () => {
+    it("retains an old failure without failing a parent prompted after it", () => {
       const prompted = { ...doneCard(), timing: { ...doneCard().timing, lastUserMessageAt: "2026-10-22T09:30:00.000Z" } };
-      expect(withSubagents(prompted, [subagent("a")])).toBe(prompted);
+      expect(withSubagents(prompted, [subagent("a")])).toMatchObject({ lane: "done", status: "done", error: null, children: [{ id: "a", status: "failed" }] });
       const running = { ...doneCard(), lane: "running" as const, status: "running" as const };
       const shown = withSubagents(running, [subagent("a")]);
       expect(shown).toMatchObject({ lane: "running", status: "running", error: null });
@@ -2479,6 +2479,13 @@ describe("Tasks data store", () => {
       // A failure of its own keeps its own reason.
       const failed = { ...doneCard(), lane: "review" as const, status: "failed" as const, error: "API error" };
       expect(withSubagents(failed, [subagent("a")]).error).toBe("API error");
+    });
+
+    it("retains completed and canceled provider subagents after a later prompt", () => {
+      const parent = { ...doneCard(), timing: { ...doneCard().timing, lastUserMessageAt: "2026-10-22T09:30:00.000Z" } };
+      const card = withSubagents(parent, [subagent("done", { status: "completed" }), subagent("canceled", { status: "canceled" })]);
+      expect(card.children.map((child) => [child.id, child.status, child.lane])).toEqual([["done", "done", "done"], ["canceled", "done", "done"]]);
+      expect(card).toMatchObject({ lane: "done", status: "done", error: null });
     });
 
     it("moves a done parent to review on the board and drops it when the failures go", async () => {

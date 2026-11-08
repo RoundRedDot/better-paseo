@@ -10,6 +10,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { liftStyle, scaleStyle, surfaceLift, type LiftSize } from "../cards/surface-lift";
 import { usePressCue } from "../cards/action-pressable";
 import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
+import { useTodoSummary } from "../data/todo-summary";
 import { SpinnerRing } from "../cards/status-icon";
 import { tipProps } from "../cards/card-hints";
 import type { LaneId, TaskCard } from "../model";
@@ -406,6 +407,7 @@ export interface CardCellProps {
  */
 export function CardCell(props: CardCellProps) {
   const { card, board, register } = props;
+  const todo = useTodoSummary(board.paseo, card.id, board.visible && !props.copy && !card.subagent && !card.closed && board.fields.subtasks);
   const searchPrompt = useSyncExternalStore(
     board.params.query.trim() ? board.searchStatus.subscribe : () => () => {},
     () => board.params.query.trim() ? board.searchStatus.prompt(card) : undefined,
@@ -436,6 +438,7 @@ export function CardCell(props: CardCellProps) {
         <EnterOnMount enabled={props.fresh}>
           <TaskCardView
             card={card}
+            todo={todo}
             searchQuery={board.params.query.trim().toLowerCase()}
             searchPrompt={searchPrompt}
             searchPromptUnavailable={Boolean(card.closed || card.subagent && (!card.parent || !board.cardById(card.parent.id) || board.cardById(card.parent.id)!.closed))}

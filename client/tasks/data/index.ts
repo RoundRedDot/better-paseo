@@ -466,15 +466,11 @@ function epoch(value: string | null | undefined): number {
 }
 
 /**
- * A parent's provider subagents worth a row: the running ones, and the
- * failures since its latest prompt. A prompt after a failure is the person
- * acting on it, so the failure leaves the card then.
+ * A parent's retained provider subagents, ordered by creation time.
  */
-export function shownSubagents(subagents: readonly ProviderSubagent[] | undefined, lastUserMessageAt: string | null): ProviderSubagent[] {
+export function shownSubagents(subagents: readonly ProviderSubagent[] | undefined): ProviderSubagent[] {
   if (!subagents?.length) return [];
-  const prompted = epoch(lastUserMessageAt);
-  return subagents
-    .filter((subagent) => subagent.status === "running" || epoch(subagent.updatedAt) > prompted)
+  return [...subagents]
     .sort((left, right) => epoch(left.createdAt) - epoch(right.createdAt));
 }
 
@@ -491,12 +487,12 @@ function subagentChild(subagent: ProviderSubagent, parent: TaskCard): TaskChild 
   return {
     id: subagent.id,
     title: subagent.description?.trim() || subagent.title?.trim() || "Subagent",
-    status: running ? "running" : "failed",
+    status: running ? "running" : subagent.status === "failed" ? "failed" : "done",
     kind: "provider",
     subtitle: subagent.subtitle,
     subagentType: subagentType(subagent.title, subagent.subtitle),
     provider: parent.provider,
-    lane: running ? "running" : "review",
+    lane: running ? "running" : subagent.status === "failed" ? "review" : "done",
     timing: {
       createdAt: subagent.createdAt,
       updatedAt: subagent.updatedAt,
@@ -516,9 +512,9 @@ function subagentChild(subagent: ProviderSubagent, parent: TaskCard): TaskChild 
  * its rows say what failed.
  */
 export function withSubagents(card: TaskCard, subagents: readonly ProviderSubagent[] | undefined): TaskCard {
-  const shown = shownSubagents(subagents, card.timing.lastUserMessageAt);
+  const shown = shownSubagents(subagents);
   if (shown.length === 0) return card;
-  const failed = shown.filter((subagent) => subagent.status === "failed").length;
+  const failed = shown.filter((subagent) => subagent.status === "failed" && epoch(subagent.updatedAt) > epoch(card.timing.lastUserMessageAt)).length;
   const finished = card.lane === "review" || card.lane === "done";
   return {
     ...card,
@@ -1863,7 +1859,7 @@ function createStore(api: PaseoApi): TaskStore {
   function failsBySubagent(id: string, lastUserMessageAt: string | null): boolean {
     const readAt = readMarks.get(id);
     const seen = readAt !== undefined && readAt >= epoch(lastUserMessageAt) ? readAt : Number.NEGATIVE_INFINITY;
-    return shownSubagents(subagentsByParent.get(id), lastUserMessageAt).some((subagent) => subagent.status === "failed" && epoch(subagent.updatedAt) > seen);
+    return shownSubagents(subagentsByParent.get(id)).some((subagent) => subagent.status === "failed" && epoch(subagent.updatedAt) > epoch(lastUserMessageAt) && epoch(subagent.updatedAt) > seen);
   }
 
   /** The latest failure the board knows the time of: the last turn's error, or a provider subagent's. */
