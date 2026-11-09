@@ -16,7 +16,7 @@ import { lastHumanMessageVersion, useLastHumanMessage } from "../data/last-human
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
 import { useSubagentTimeline } from "../data/subagent-timeline";
-import { FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption } from "./filter-options";
+import { FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption, type ShownFilterOptions } from "./filter-options";
 import { RollingCount, RollingTotal } from "./board-parts";
 import { useRequestProjectIcons } from "./project-icons";
 import { toggleItem } from "./params";
@@ -114,6 +114,12 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
       }
     : null;
 
+  const showStats = props.stats !== false;
+  // The counts' summary and the groups read the same options: built once here, and only while one of them is shown.
+  const optionsShown = showStats || detailProps === null;
+  const showEmpty = board.showEmptyGroups;
+  const options = useMemo(() => (optionsShown ? shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty) : null), [optionsShown, board.tasks, board.params, showEmpty]);
+
   // A short column (an iPad in landscape, a low window) has no room to hold
   // the header still: the fixed part left the sections a strip of 80. There
   // the whole column scrolls as one.
@@ -124,11 +130,11 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   const content = (
     <>
       {menu && board.cardById(menu.id) ? <SidebarCardMenu board={board} card={board.cardById(menu.id)!} theme={theme} point={menu.point} onClose={() => setMenu(null)} /> : null}
-      {props.stats === false ? null : <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />}
+      {showStats ? <StatsCard board={board} options={options!} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} /> : null}
       {detailProps ? (
         <TaskDetailCards key={tabs ? card?.id : undefined} {...detailProps} scrollBody={!short && !columns && !tabs} columns={columns} tabs={tabs} scrollHeader={tabs && (props.touch || layout.short || props.scrollAll === true)} />
       ) : (
-        <GroupCard board={board} theme={theme} tokens={tokens} touch={props.touch} />
+        <GroupCard board={board} options={options!} theme={theme} tokens={tokens} touch={props.touch} />
       )}
     </>
   );
@@ -230,8 +236,8 @@ const SHEET_COLUMNS = 640;
 const SHORT_COLUMN = 640;
 
 /** The board's lanes' counts after the filters, each with its lane's mark; a press shows the lane. */
-function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; onLane(lane: LaneId): void; touch: boolean }) {
-  const { board, tokens } = props;
+function StatsCard(props: { board: BoardController; options: ShownFilterOptions; theme: PluginTheme; tokens: TaskTokens; onLane(lane: LaneId): void; touch: boolean }) {
+  const { board, options, tokens } = props;
   const scale = useTasksFontScale();
   const [rowWidth, setRowWidth] = useState(0);
   const [measured, setMeasured] = useState<{ value: number; scale: number; width: number } | null>(null);
@@ -243,8 +249,6 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   const countSize = measured?.value === largestCount && measured.scale === scale && measured.width > 0 && available > 0
     ? Math.min(F.base, Math.floor(F.base * available / measured.width * scale) / scale)
     : F.base;
-  const showEmpty = board.showEmptyGroups;
-  const options = useMemo(() => shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty), [board.tasks, board.params, showEmpty]);
   const summary = filterSummary(board.params, board.defaults, options, board.strings);
   return (
     <DetailCard tokens={tokens} style={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: props.touch ? 4 : 8, gap: 6 }} testID="sidebar-stats">
@@ -401,8 +405,8 @@ interface GroupRow {
  * loaded card, including done and archived), a row a filter; those at 0 too
  * while `board.showEmptyGroups` is on.
  */
-function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; touch: boolean }) {
-  const { board, tokens } = props;
+function GroupCard(props: { board: BoardController; options: ShownFilterOptions; theme: PluginTheme; tokens: TaskTokens; touch: boolean }) {
+  const { board, options, tokens } = props;
   const strings = board.strings.sidebar;
   const scale = useTasksFontScale();
   const [labelFits, setLabelFits] = useState<Partial<Record<GroupKind, { key: string; fits: boolean }>>>({});
@@ -415,8 +419,6 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   const [queries, setQueries] = useState<Record<GroupKind, string>>({ agent: "", project: "", workspace: "", label: "" });
   const [searchFocused, setSearchFocused] = useState(false);
   const query = queries[kind];
-  const showEmpty = board.showEmptyGroups;
-  const options = useMemo(() => shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty), [board.tasks, board.params, showEmpty]);
   const rows = useMemo<GroupRow[]>(() => {
     const byCount = (a: { count: number }, b: { count: number }) => b.count - a.count;
     if (kind === "agent") {

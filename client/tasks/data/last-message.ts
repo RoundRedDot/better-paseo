@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import { isAssistantPlaceholder } from "../../assistant-text";
 import type { FirstPrompt } from "./first-prompt";
@@ -31,6 +31,16 @@ const LOADING: LastMessage = { state: "loading" };
 /** Read once for its version: asked again only when the version moves. */
 const SETTLED = new Set(["ready", "loading", "first"]);
 
+/** Whether a request for `version` asks nothing: that version's read is in flight or done. */
+function settledFor(entry: { version: string; value: Value } | undefined, version: string): boolean {
+  return entry !== undefined && entry.version === version && SETTLED.has(entry.value.state);
+}
+
+/** What a read shows while it loads: an older reply stays up until the tail answers. */
+function shownWhileLoading<V extends Value>(value: V | undefined): V {
+  return value?.state === "ready" ? value : (LOADING as V);
+}
+
 interface Entry<V> {
   version: string;
   value: V;
@@ -40,6 +50,8 @@ interface Entry<V> {
 
 interface Store<V extends Value = LastMessage> {
   read(agentId: string): V;
+  /** What `read` returns right after `request(agentId, version)`: the same object, without reading or changing anything. */
+  readRequested(agentId: string, version: string): V;
   request(agentId: string, version: string): void;
   subscribe(listener: () => void): () => void;
 }
@@ -61,12 +73,16 @@ export function createLastMessageStore<V extends Value = LastMessage>(api: Api, 
   };
   return {
     read: (agentId) => entries.get(agentId)?.value ?? (IDLE as V),
+    readRequested(agentId, version) {
+      const known = entries.get(agentId);
+      return settledFor(known, version) ? known!.value : shownWhileLoading(known?.value);
+    },
     request(agentId, version) {
       const known = entries.get(agentId);
-      if (known && known.version === version && SETTLED.has(known.value.state)) return;
+      if (settledFor(known, version)) return;
       const ticket = ++tickets;
       // A newer version keeps showing the older reply until the tail answers.
-      const value = known?.value.state === "ready" ? known.value : (LOADING as V);
+      const value = shownWhileLoading(known?.value);
       entries.set(agentId, { version, value, ticket });
       if (value !== known?.value) notify();
       const land = (next: V) => {
@@ -162,7 +178,7 @@ export function createLiveLastMessageStore(api: LiveApi) {
     const ticket = ++entry.ticket;
     entry.pending = true;
     entry.buffered = buffered;
-    if (entry.value.state !== "ready") {
+    if (shownWhileLoading(entry.value) === LOADING) {
       entry.value = LOADING;
       notify();
     }
@@ -198,9 +214,14 @@ export function createLiveLastMessageStore(api: LiveApi) {
   };
   return {
     read: (id: string) => entryFor(id).value,
+    /** What `read` returns right after `request(id, version)` (not forced): the same object, without reading or changing anything. */
+    readRequested(id: string, version: string): LastMessage {
+      const entry = entries.get(id) ?? { version: "", value: IDLE };
+      return settledFor(entry, version) ? entry.value : shownWhileLoading(entry.value);
+    },
     request(id: string, version: string, force = false) {
       const entry = entryFor(id);
-      if (!force && entry.version === version && SETTLED.has(entry.value.state)) return;
+      if (!force && settledFor(entry, version)) return;
       entry.version = version;
       refresh(id);
     },
@@ -260,7 +281,10 @@ function storeFor(api: PaseoApi) {
 /** The visible running reply observes live chunks. Otherwise `auto` reads the tail once, including an agent the daemon has not loaded. */
 export function useLastMessage(api: PaseoApi, agentId: string, version: string, auto: boolean, live = false): { prompt: LastMessage; load(): void } {
   const store = storeFor(api);
-  const prompt = useSyncExternalStore(store.subscribe, () => store.read(agentId), () => store.read(agentId));
+  // Until this commit's tail read runs, an auto read shows what it will. A live reply waits for its subscription, so it shows what is held.
+  const asked = useRef<{ store: typeof store; agentId: string; version: string } | null>(null);
+  const snapshot = () => (auto && !live && (asked.current?.store !== store || asked.current.agentId !== agentId || asked.current.version !== version) ? store.readRequested(agentId, version) : store.read(agentId));
+  const prompt = useSyncExternalStore(store.subscribe, snapshot, snapshot);
   useEffect(() => {
     if (!live || !agentId) return;
     const release = store.watch(agentId);
@@ -273,6 +297,7 @@ export function useLastMessage(api: PaseoApi, agentId: string, version: string, 
   }, [store, agentId, live, version]);
   useLayoutEffect(() => {
     if (auto && !live) store.request(agentId, version);
+    asked.current = auto && !live ? { store, agentId, version } : null;
   }, [store, agentId, version, auto, live]);
   return { prompt, load: () => store.request(agentId, version) };
 }

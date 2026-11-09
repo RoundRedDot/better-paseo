@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import "./helpers/quiet-renderer";
 import TestRenderer, { act, type ReactTestRenderer } from "react-test-renderer";
-import { createLastMessageStore, createLiveLastMessageStore, lastMessageVersion, lastReplyMessage, useLastMessage } from "../../client/tasks/data/last-message";
+import { createLastMessageStore, createLiveLastMessageStore, lastMessageVersion, lastReplyMessage, useLastMessage, type LastMessage } from "../../client/tasks/data/last-message";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -268,6 +268,127 @@ describe("streaming last reply", () => {
     await act(async () => renderer.update(React.createElement(Probe, { visible: false })));
     await act(async () => renderer.update(React.createElement(Probe, { visible: true })));
     expect(latest).toMatchObject({ text: "While hidden" });
+    act(() => renderer.unmount());
+  });
+});
+
+/** Reads that wait until the test answers them, in order. */
+function heldReads(live = false) {
+  const answers: ((page: unknown) => void)[] = [];
+  const refetch = vi.fn(() => new Promise((resolve, reject) => {
+    answers.push((next) => (next instanceof Error ? reject(next) : resolve(next)));
+  }));
+  const answer = async (next: unknown) => {
+    answers.shift()!(next);
+    await flush();
+  };
+  const subscribe = () => Object.assign(() => {}, { ready: Promise.resolve() });
+  return { refetch, answer, api: { agents: { ref: () => ({ timeline: live ? { refetch, subscribe } : { refetch } }) } } };
+}
+
+type Held = ReturnType<typeof heldReads>;
+type ReadStore = { read(id: string): unknown; readRequested(id: string, version: string): unknown; request(id: string, version: string): void; subscribe(listener: () => void): () => void };
+
+/** Each state a store can hold for "a" at version v1. */
+const versionedStates: [string, (store: ReadStore, held: Held) => Promise<unknown>][] = [
+  ["missing", async () => {}],
+  ["loading", async (store) => store.request("a", "v1")],
+  ["ready", async (store, held) => { store.request("a", "v1"); await held.answer(snapshot("Reply")); }],
+  ["none", async (store, held) => { store.request("a", "v1"); await held.answer({ ...snapshot("x"), entries: [] }); }],
+  ["error", async (store, held) => { store.request("a", "v1"); await held.answer(new Error("offline")); }],
+];
+
+/** `readRequested` changes nothing, and `request` then shows that very object. */
+async function expectRequestShows(make: (held: Held) => ReadStore, reach: (store: ReadStore, held: Held) => Promise<unknown>, version: string) {
+  const held = heldReads(true);
+  const store = make(held);
+  await reach(store, held);
+  const listener = vi.fn();
+  store.subscribe(listener);
+  const read = store.read("a");
+  const calls = held.refetch.mock.calls.length;
+  const shown = store.readRequested("a", version);
+  expect(store.read("a")).toBe(read);
+  expect(held.refetch).toHaveBeenCalledTimes(calls);
+  expect(listener).not.toHaveBeenCalled();
+  store.request("a", version);
+  expect(store.read("a")).toBe(shown);
+  return shown;
+}
+
+describe("last message, what a request shows at once", () => {
+  for (const version of ["v1", "v2"]) {
+    it.each(versionedStates)(`versioned store, %s, request ${version}`, async (_name, reach) => {
+      await expectRequestShows((held) => createLastMessageStore(held.api as never), reach, version);
+    });
+    it.each(versionedStates)(`live store read once, %s, request ${version}`, async (_name, reach) => {
+      await expectRequestShows((held) => createLiveLastMessageStore(held.api as never), reach, version);
+    });
+  }
+
+  it("keeps an older reply up for a new version, and shows loading for a first read", async () => {
+    expect(await expectRequestShows((held) => createLastMessageStore(held.api as never), versionedStates[2]![1], "v2")).toMatchObject({ state: "ready", text: "Reply" });
+    expect(await expectRequestShows((held) => createLastMessageStore(held.api as never), versionedStates[0]![1], "v1")).toEqual({ state: "loading" });
+    expect(await expectRequestShows((held) => createLastMessageStore(held.api as never), versionedStates[4]![1], "v1")).toEqual({ state: "loading" });
+  });
+});
+
+describe("useLastMessage, read once", () => {
+  function mount(held: Held, props: { version: string; auto: boolean; live?: boolean }) {
+    const seen: LastMessage[] = [];
+    function Probe(given: { version: string; auto: boolean; live?: boolean }) {
+      seen.push(useLastMessage(held.api as never, "a", given.version, given.auto, given.live).prompt);
+      return null;
+    }
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(React.createElement(Probe, props)); });
+    return { seen, renderer, update: (next: typeof props) => act(() => { renderer.update(React.createElement(Probe, next)); }) };
+  }
+
+  it("waits for load() when not auto", () => {
+    const held = heldReads();
+    const { seen, renderer } = mount(held, { version: "v1", auto: false });
+    expect(seen.map((read) => read.state)).toEqual(["idle"]);
+    expect(held.refetch).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+  });
+
+  it("draws a fresh read loading from its first render, keeps an error on screen, and asks again for a new version", async () => {
+    const held = heldReads();
+    const { seen, renderer, update } = mount(held, { version: "v1", auto: true });
+    expect(seen.map((read) => read.state)).toEqual(["loading"]);
+    await act(async () => held.answer(new Error("offline")));
+    expect(seen.at(-1)).toEqual({ state: "error" });
+    seen.length = 0;
+    update({ version: "v2", auto: true });
+    // Already subscribed, React compares the request's news against the last committed error and draws again;
+    // no render shows that error for the new version.
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((read) => read.state === "loading")).toBe(true);
+    expect(held.refetch).toHaveBeenCalledTimes(2);
+    await act(async () => held.answer(snapshot("Reply")));
+    expect(seen.at(-1)).toMatchObject({ state: "ready", text: "Reply" });
+    // A newer version keeps the reply up while the tail is read again.
+    seen.length = 0;
+    update({ version: "v3", auto: true });
+    expect(seen.map((read) => read.state)).toEqual(["ready"]);
+    expect(held.refetch).toHaveBeenCalledTimes(3);
+    await act(async () => held.answer(snapshot("Newer")));
+    expect(seen.at(-1)).toMatchObject({ state: "ready", text: "Newer" });
+    // The same version again reads nothing.
+    update({ version: "v3", auto: true });
+    expect(held.refetch).toHaveBeenCalledTimes(3);
+    act(() => renderer.unmount());
+  });
+
+  it("does not project a live reply: it shows what is held until its subscription is ready", async () => {
+    const held = heldReads(true);
+    const { seen, renderer } = mount(held, { version: "v1", auto: true, live: true });
+    expect(seen.map((read) => read.state)).toEqual(["idle"]);
+    expect(held.refetch).not.toHaveBeenCalled();
+    await act(async () => { await flush(); });
+    expect(held.refetch).toHaveBeenCalledTimes(1);
+    expect(seen.at(-1)!.state).toBe("loading");
     act(() => renderer.unmount());
   });
 });

@@ -85,6 +85,27 @@ describe("detail timeline reads", () => {
     act(() => renderer.unmount());
   });
 
+  it("draws a closed card's reads loading in one synchronous render, then their results", async () => {
+    const { refetch, api } = timeline();
+    const board = { paseo: api, visible: true } as unknown as BoardController;
+    const seen: (string | undefined)[][] = [];
+    function Probe(props: { card: TaskCard | undefined }) {
+      const reads = useDetailReads(board, props.card);
+      seen.push([reads.firstPrompt?.prompt.state, reads.humanMessage?.prompt.state, reads.lastMessage?.prompt.state]);
+      return null;
+    }
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<Probe card={undefined} />); });
+    seen.length = 0;
+    // Opening it: the reads start in the same commit, and the first render already shows them loading.
+    act(() => renderer.update(<Probe card={card("closed-2", true)} />));
+    expect(refetch.mock.calls.map(([options]) => options.direction)).toEqual(["after", "tail", "tail"]);
+    expect(seen).toEqual([["loading", "loading", "loading"]]);
+    await act(async () => {});
+    expect(seen.at(-1)).toEqual(["ready", "ready", "ready"]);
+    act(() => renderer.unmount());
+  });
+
   it("still loads an open card", async () => {
     const { refetch, api } = timeline();
     const board = { paseo: api, visible: true } as unknown as BoardController;

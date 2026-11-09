@@ -1,4 +1,4 @@
-import { useLayoutEffect, useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 
 /**
@@ -28,6 +28,8 @@ const LOADING: FirstPrompt = { state: "loading" };
 
 interface Store {
   read(agentId: string): FirstPrompt;
+  /** What `read` returns right after `request(agentId)`: the same object, without reading or changing anything. */
+  readRequested(agentId: string): FirstPrompt;
   request(agentId: string, canRead?: () => boolean, owner?: object): Promise<void>;
   claim(agentId: string, owner: object, canRead: () => boolean): void;
   release(owner: object): void;
@@ -43,6 +45,8 @@ export function createFirstPromptStore(api: Api): Store {
   const owners = new Map<string, Map<object, () => boolean>>();
   const epochs = new Map<string, object>();
   let revision = 0;
+  // Found once is found for good; a miss or a failure is asked again on the next open. One read at a time.
+  const starts = (agentId: string) => prompts.get(agentId)?.state !== "ready" && !pending.has(agentId);
   const set = (agentId: string, value: FirstPrompt) => {
     prompts.set(agentId, value);
     revision += 1;
@@ -78,16 +82,13 @@ export function createFirstPromptStore(api: Api): Store {
   };
   return {
     read: (agentId) => prompts.get(agentId) ?? IDLE,
+    readRequested: (agentId) => (starts(agentId) ? LOADING : prompts.get(agentId) ?? IDLE),
     claim(agentId, owner, canRead) { owners.get(agentId)?.set(owner, canRead); },
     request(agentId, canRead, owner) {
       if (!owner) owners.delete(agentId);
       if (owner && canRead) owners.get(agentId)?.set(owner, canRead);
-      const known = prompts.get(agentId)?.state;
       const previous = prompts.get(agentId);
-      // Found once is found for good; a miss or a failure is asked again on the next open.
-      if (known === "ready") return Promise.resolve();
-      const inflight = pending.get(agentId);
-      if (inflight) return inflight;
+      if (!starts(agentId)) return previous?.state === "ready" ? Promise.resolve() : pending.get(agentId)!;
       if (owner && !prompts.has(agentId)) owners.set(agentId, new Map([[owner, canRead ?? (() => true)]]));
       set(agentId, LOADING);
       const epoch = {};
@@ -152,9 +153,13 @@ export function firstPromptStoreFor(api: PaseoApi | Api): Store {
 export function useFirstPrompt(api: PaseoApi, agentId: string, auto: boolean): { prompt: FirstPrompt; load(): void } {
   const store = firstPromptStoreFor(api);
   useLayoutEffect(() => { if (auto) store.retain(agentId); }, [store, agentId, auto]);
-  const prompt = useSyncExternalStore(store.subscribe, () => store.read(agentId), () => store.read(agentId));
+  // Until this commit's request runs, an auto read shows what it will: no draw of the state it replaces at once.
+  const asked = useRef<{ store: Store; agentId: string } | null>(null);
+  const snapshot = () => (auto && (asked.current?.store !== store || asked.current.agentId !== agentId) ? store.readRequested(agentId) : store.read(agentId));
+  const prompt = useSyncExternalStore(store.subscribe, snapshot, snapshot);
   useLayoutEffect(() => {
     if (auto) store.request(agentId);
+    asked.current = auto ? { store, agentId } : null;
   }, [store, agentId, auto]);
   return { prompt, load: () => store.request(agentId) };
 }

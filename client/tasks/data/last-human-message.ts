@@ -1,4 +1,4 @@
-import { useLayoutEffect, useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import { parseSystemEnvelope } from "../../system-envelope";
 import type { FirstPrompt } from "./first-prompt";
@@ -91,9 +91,13 @@ function storeFor(api: PaseoApi | Api) {
  */
 export function useLastHumanMessage(api: PaseoApi, agentId: string, version: string, auto: boolean): { prompt: LastHumanMessage; load(): void } {
   const store = storeFor(api);
-  const prompt = useSyncExternalStore(store.subscribe, () => store.read(agentId), () => store.read(agentId));
+  // Until this commit's request runs, an auto read shows what it will: no draw of the state it replaces at once.
+  const asked = useRef<{ store: typeof store; agentId: string; version: string } | null>(null);
+  const snapshot = () => (auto && (asked.current?.store !== store || asked.current.agentId !== agentId || asked.current.version !== version) ? store.readRequested(agentId, version) : store.read(agentId));
+  const prompt = useSyncExternalStore(store.subscribe, snapshot, snapshot);
   useLayoutEffect(() => {
     if (auto) store.request(agentId, version);
+    asked.current = auto ? { store, agentId, version } : null;
   }, [store, agentId, version, auto]);
   return { prompt, load: () => store.request(agentId, version) };
 }

@@ -125,7 +125,15 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
   };
 });
 
+// Counts the filter options built from outside the module (the sidebar, the
+// board's open filter panel); `readFilterOptions`' own call is not counted.
+vi.mock("../../client/tasks/board/filter-options", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../client/tasks/board/filter-options")>();
+  return { ...actual, buildFilterOptions: vi.fn(actual.buildFilterOptions) };
+});
+
 import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
+import { buildFilterOptions } from "../../client/tasks/board/filter-options";
 import { Modal } from "@getpaseo/plugin/client/react-native";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
@@ -7422,5 +7430,93 @@ describe("Tasks board, new tasks", () => {
     layOut(2400);
     await act(async () => { await vi.advanceTimersByTimeAsync(400); });
     expect(hostsById("lane-new-dot-running")).toHaveLength(1);
+  });
+});
+
+describe("Tasks sidebar filter options", () => {
+  const builds = () => vi.mocked(buildFilterOptions).mock.calls.length;
+  /** Builds of a data and params pair already built: the work a shared result saves. */
+  const repeats = () => vi.mocked(buildFilterOptions).mock.calls.filter(([tasks, params], index, calls) => calls.findIndex((call) => call[0] === tasks && call[1] === params) < index).length;
+  const handle = () => (data as unknown as { __handle: data.TasksHandle }).__handle;
+  const groupRows = () => renderer!.root.findByProps({ testID: "sidebar-groups" }).findAll((node) => node.props.accessibilityRole === "checkbox" && typeof node.props.onPress === "function").map((node) => node.props.accessibilityLabel as string);
+  const statsText = () => textOf(renderer!.root.findByProps({ testID: "sidebar-stats" }));
+  /** Counts the builds `run` causes. */
+  const during = async (run: () => unknown) => {
+    vi.mocked(buildFilterOptions).mockClear();
+    await act(async () => { await run(); });
+    return builds();
+  };
+
+  beforeEach(() => {
+    // A tablet: its filter panel (closed here) is the board's only other builder, so every count is the sidebar's.
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+  });
+
+  it("builds the overview's options once for the counts and the groups, and once per change", async () => {
+    vi.mocked(buildFilterOptions).mockClear();
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1400);
+    expect(hostsById("sidebar-stats")).toHaveLength(1);
+    expect(hostsById("sidebar-groups")).toHaveLength(1);
+    // Mounting reads the data twice (its availability arrives after the first draw): one build for each.
+    expect(builds()).toBe(new Set(vi.mocked(buildFilterOptions).mock.calls.map(([tasks]) => tasks)).size);
+    expect(builds()).toBeGreaterThan(0);
+    expect(repeats()).toBe(0);
+    expect(groupRows()).toEqual(expect.arrayContaining([expect.stringMatching(/^Claude \d+$/), expect.stringMatching(/^Codex \d+$/)]));
+    const before = statsText();
+
+    // A filter: both cards follow from the one build.
+    const codex = () => renderer!.root.findByProps({ testID: "sidebar-groups" }).find((node) => node.props.accessibilityRole === "checkbox" && /^Codex /.test(node.props.accessibilityLabel ?? ""));
+    expect(await during(() => codex().props.onPress())).toBe(1);
+    expect(codex().props.accessibilityState).toEqual({ checked: true });
+    expect(statsText()).not.toBe(before);
+    expect(statsText()).toContain("Codex");
+
+    // New data from the store.
+    const next = { ...handle(), providers: [...handle().providers, { id: "pi", label: "Pi" }] };
+    const useTasks = vi.spyOn(data, "useTasks").mockReturnValue(next);
+    expect(await during(() => renderer!.update(screen(false)))).toBe(1);
+    expect(groupRows()).toContain("Pi 0");
+
+    // Hiding the empty groups.
+    expect(await during(() => deviceTasksStore().update({ showEmptyGroups: false }))).toBe(1);
+    expect(groupRows()).not.toContain("Pi 0");
+    expect(await during(() => deviceTasksStore().update({ showEmptyGroups: true }))).toBe(1);
+    expect(groupRows()).toContain("Pi 0");
+    useTasks.mockRestore();
+
+    // Closed, the sidebar builds nothing: no other part of the board was counted.
+    finishSidebarCloseImmediately();
+    act(() => renderer!.root.findByProps({ testID: "sidebar-switch" }).props.onPress());
+    expect(hostsById("sidebar-stats")).toHaveLength(0);
+    expect(await during(() => renderer!.root.findAllByType(TabletToolbar)[0]!.props.board.setParams((params: BoardParams) => ({ ...params, providers: [] })))).toBe(0);
+  });
+
+  it("builds once for the counts above a chosen card, and not at all in a sheet that leaves them out", async () => {
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1400);
+    const card = cards().find((node) => node.props.card.id === "sample-running")!;
+    // Choosing a card keeps the counts' options: nothing new to build.
+    expect(await during(() => card.props.onSelect(card.props.card))).toBe(0);
+    expect(hostsById("sidebar-stats")).toHaveLength(1);
+    expect(hostsById("sidebar-groups")).toHaveLength(0);
+    const filter = () => renderer!.root.findAllByType(TabletToolbar)[0]!.props.board.setParams((params: BoardParams) => ({ ...params, providers: ["codex"] }));
+    expect(await during(filter)).toBe(1);
+    expect(statsText()).toContain("Codex");
+    act(() => renderer!.unmount());
+    renderer = undefined;
+
+    // A sheet showing a card: neither the counts nor the groups.
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(600);
+    const sheetCard = cards().find((node) => node.props.card.id === "sample-running")!;
+    expect(await during(() => sheetCard.props.onSelect(sheetCard.props.card))).toBe(0);
+    expect(hostsById("board-sheet")).toHaveLength(1);
+    expect(hostsById("sidebar-stats")).toHaveLength(0);
+    expect(hostsById("sidebar-groups")).toHaveLength(0);
+    expect(await during(() => renderer!.root.findAllByType(TabletToolbar)[0]!.props.board.setParams((params: BoardParams) => ({ ...params, providers: [] })))).toBe(0);
+    const useTasks = vi.spyOn(data, "useTasks").mockReturnValue({ ...handle(), providers: [...handle().providers, { id: "pi", label: "Pi" }] });
+    expect(await during(() => renderer!.update(screen(false)))).toBe(0);
+    useTasks.mockRestore();
   });
 });
