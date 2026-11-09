@@ -221,7 +221,9 @@ describe("TaskCardView on web", () => {
     };
     const look = (id: string) => flat(button(id).props.style);
     expect(look("detail-bar-open").backgroundColor).toBe(tokens.card.background);
-    expect(String(look("detail-bar-open").boxShadow)).toContain("inset");
+    expect(String(look("detail-bar-open").boxShadow)).toContain(tokens.card.primaryBorder);
+    const openIcon = button("detail-bar-open").find((node) => (node.type as unknown) === "Icon" && node.props.name === "ArrowUpRight");
+    expect(openIcon.props.color).toBe(tokens.card.primaryText);
     expect(String(look("detail-bar-open").boxShadow)).not.toContain(tokens.card.buttonShadowHover);
     expect(look("detail-bar-open").transitionProperty).toBe("background-color, border-color, box-shadow, color, opacity");
     await act(async () => button("detail-bar-open").props.onHoverIn());
@@ -1207,15 +1209,15 @@ describe("card action leaf migration", () => {
       const stop = renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止");
       expect(flat(open)).toMatchObject(compact
         ? { minHeight: 32, minWidth: 32, borderRadius: 7 }
-        : { height: Math.round(28 * factor), borderRadius: 6 });
+        : { height: Math.round(30 * factor), borderRadius: 6 });
       // Outside ActionRow, the compact minimum width grows with type; inside,
       // useActionFit retains its authored target until the full label is measured.
       expect(flat(host(renderer.root, "standalone-action"))).toMatchObject(compact
         ? { minHeight: 32, minWidth: Math.round(32 * factor), borderRadius: 7 }
-        : { height: Math.round(28 * factor), borderRadius: 6 });
+        : { height: Math.round(30 * factor), borderRadius: 6 });
       expect(flat(stop)).toMatchObject(compact
         ? { minHeight: Math.round(32 * factor), borderTopLeftRadius: 7 }
-        : { height: Math.round(28 * factor), borderTopLeftRadius: 6 });
+        : { height: Math.round(30 * factor), borderTopLeftRadius: 6 });
       for (const node of [open, stop, host(renderer.root, "task-card-sample-running"), host(renderer.root, "pill-subtasks")]) {
         expect(flat(node)).toMatchObject(transition);
       }
@@ -1230,14 +1232,14 @@ describe("card action leaf migration", () => {
       const read = host(readRenderer.root, "task-card-read");
       expect(flat(read)).toMatchObject(compact
         ? { minHeight: Math.round(32 * factor), borderRadius: 7 }
-        : { height: Math.round(28 * factor), borderRadius: 6 });
+        : { height: Math.round(30 * factor), borderRadius: 6 });
       expect(flat(read)).toMatchObject(transition);
       await act(async () => readRenderer.unmount());
     }
   });
 
   it.each([
-    { compact: false, fullWidth: 138, foldedWidth: 28 },
+    { compact: false, fullWidth: 138, foldedWidth: 30 },
     { compact: true, fullWidth: 143, foldedWidth: 32 },
   ])("keeps authored fit chrome and restores labels for compact=$compact", async ({ compact, fullWidth, foldedWidth }) => {
     const renderer = await render(React.createElement(TasksTypographyScale, {

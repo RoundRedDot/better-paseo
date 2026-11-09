@@ -83,9 +83,9 @@ describe("details columns", () => {
     await act(async () => {
       renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false} tabs scrollHeader onOpen={() => {}} sheetToggle={sheet ? { full: false, label: "Expand", onPress() {} } : undefined} />);
     });
-    expect(StyleSheet.flatten(host(renderer!.root, "detail-action-bar").props.style).paddingTop).toBe(os === "android" && sheet ? 6 : 10);
+    expect(StyleSheet.flatten(host(renderer!.root, "detail-action-bar").props.style).paddingTop).toBe((os === "android" && sheet ? 6 : 10) + (os === "web" ? 0 : 4));
     expect(StyleSheet.flatten(host(renderer!.root, "detail-action-bar-frame").props.style).paddingBottom).toBe(os === "android" && sheet ? 6 : 10);
-    if (os === "android") expect(StyleSheet.flatten(host(renderer!.root, "detail-bar-open").props.style).height).toBe(sheet ? 36 : 40);
+    expect(StyleSheet.flatten(host(renderer!.root, "detail-bar-open").props.style).height).toBe(os === "web" ? 34 : 36);
   });
   it.each(["ios", "android", "web"])("keeps the status toolbar above the scrolling header and sticky tabs on %s", async (os) => {
     vi.stubGlobal("__rnMockOS", os);

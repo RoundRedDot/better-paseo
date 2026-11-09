@@ -8,7 +8,7 @@ import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
 import { usePressCue } from "../cards/action-pressable";
-import { BrandMark, DETAIL_CARD, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
+import { BrandMark, DETAIL_CARD, DetailActionBar, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { activeStopChildren } from "../actions/stop-targets";
 import { useFirstPrompt } from "../data/first-prompt";
@@ -48,6 +48,7 @@ export interface DetailsSidebarProps {
   scrollAll?: boolean;
   tabs?: boolean;
   sheetToggle?: { full: boolean; label: string; onPress(): void };
+  onSheetClose?(): void;
   testID?: string;
 }
 
@@ -95,6 +96,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
         onClose: () => dispatch({ type: "clear" }),
         onMenu: (point: { x: number; y: number }) => setMenu({ id: card.id, point }),
         sheetToggle: props.sheetToggle,
+        onSheetClose: props.onSheetClose,
         back: backId ? { title: backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null,
         notice,
         onOpen: board.callbacks.onOpen,
@@ -132,12 +134,13 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
       {menu && board.cardById(menu.id) ? <SidebarCardMenu board={board} card={board.cardById(menu.id)!} theme={theme} point={menu.point} onClose={() => setMenu(null)} /> : null}
       {showStats ? <StatsCard board={board} options={options!} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} /> : null}
       {detailProps ? (
-        <TaskDetailCards key={tabs ? card?.id : undefined} {...detailProps} scrollBody={!short && !columns && !tabs} columns={columns} tabs={tabs} scrollHeader={tabs && (props.touch || layout.short || props.scrollAll === true)} />
+        <TaskDetailCards key={tabs ? card?.id : undefined} {...detailProps} actions={!tabs && props.onSheetClose ? false : undefined} scrollBody={!short && !columns && !tabs} columns={columns} tabs={tabs} scrollHeader={tabs && (props.touch || layout.short || props.scrollAll === true)} />
       ) : (
         <GroupCard board={board} options={options!} theme={theme} tokens={tokens} touch={props.touch} />
       )}
     </>
   );
+  const sheetActions = !tabs && detailProps && props.onSheetClose ? <DetailActionBar {...detailProps} sidebar onClose={props.onSheetClose} /> : null;
   const onLayout = (event: { nativeEvent: { layout: { width: number; height: number } } }) => {
     const height = Math.round(event.nativeEvent.layout.height);
     const short = height > 0 && height < SHORT_COLUMN;
@@ -152,12 +155,14 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
         <ScrollView key={selection.id ?? ""} style={{ flex: 1, marginRight: outsideIndicator ? -12 : 0 }} contentContainerStyle={{ gap: DETAIL_CARD.gap, paddingRight: outsideIndicator ? 12 : 0 }} {...detailScrollProps("column")} testID="details-sidebar-scroll">
           {content}
         </ScrollView>
+        {sheetActions}
       </View>
     );
   }
   return (
     <View style={{ flex: 1, minHeight: 0, gap: DETAIL_CARD.gap }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
       {content}
+      {sheetActions}
     </View>
   );
 }

@@ -38,7 +38,7 @@ import { subtaskFinished } from "./details-format";
 import { ActionRow, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
 import { ActionPressable, useLiftPress, usePressCue } from "./action-pressable";
-import { buttonHue, CARD_BUTTON_HEIGHT, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_ICON, requestLook, webTransition } from "./action-style";
+import { buttonHue, cardButtonHeight, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_ICON, requestLook, webTransition } from "./action-style";
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu, openToolbarDetailsLayer } from "../../web";
 import { ArchivedTag, parentTag } from "./archived-tag";
@@ -596,7 +596,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     previousTitle.current = card.title;
   }, [card.title, card.id, props.titleUpdates, titleUpdate, shownTitle]);
   const m = compact ? PHONE : DESKTOP;
-  const buttonHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT;
+  const buttonHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : cardButtonHeight();
   const layout = cardLayout(card, fields, compact);
   const query = props.searchQuery ?? "";
   const titleClip = useSearchClip(shownTitle, updatingTitle ? "" : query, 2);
@@ -2118,10 +2118,11 @@ function ReadControl(props: {
   const { tokens, strings, pending, compact } = props;
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
-  const height = taskControlHeight(compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, scale);
+  const baseHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : cardButtonHeight();
+  const height = taskControlHeight(baseHeight, scale);
   const label = strings.markRead;
   const iconSize = compact ? 14 : 13;
-  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, 2 * (compact ? 12 : 10) + iconSize + 4);
+  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, baseHeight, 2 * (compact ? 12 : 10) + iconSize + 4);
   const disabled = pending || props.disabled;
   const hover = hovered && !disabled;
   const hue = buttonHue(tokens, props.unread ? "read" : "plain");
@@ -2239,13 +2240,14 @@ function StopControl(props: StopControlProps) {
   const hue = buttonHue(tokens, "danger");
   const color = hue.color;
   const stopLift = stopping ? surfaceLift(false, false) : surfaceLift(pillHovered, pulse.pressed, undefined, "control", pulse.input);
-  const height = taskControlHeight(compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, scale);
+  const baseHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : cardButtonHeight();
+  const height = taskControlHeight(baseHeight, scale);
   // A card button's: 7 at a phone's 32, 6 at the desktop's 28, as "Answer" is.
   const round = compact ? 7 : 6;
   const iconSize = compact ? 14 : 13;
   const label = confirming ? (props.all ? strings.confirmStopAll : strings.confirmStop) : props.childrenOnly ? strings.stopChildren : strings.stop;
   const chevronWidth = props.parent ? (compact ? 36 : 26) : 0;
-  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, (compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT) + chevronWidth, 2 * (compact ? (confirming ? 10 : 12) : 10) + iconSize + 4 + chevronWidth);
+  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, baseHeight + chevronWidth, 2 * (compact ? (confirming ? 10 : 12) : 10) + iconSize + 4 + chevronWidth);
   const segment: ViewStyle = {
     ...(compact ? { minHeight: height, paddingVertical: 4 } : { height }),
     flexDirection: "row",

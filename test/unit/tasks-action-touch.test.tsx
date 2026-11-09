@@ -323,12 +323,12 @@ describe("mobile card action feedback", () => {
 
 describe("phone sheet action size", () => {
   it.each([
-    { os: "web", sidebar: true, font: 12, height: 36, radius: 8, icon: 14 },
-    { os: "web", sidebar: false, font: 12, height: 40, radius: 10, icon: 16 },
-    { os: "ios", sidebar: true, font: 12, height: 36, radius: 8, icon: 14 },
+    { os: "web", sidebar: true, font: 12, height: 34, radius: 8, icon: 14 },
+    { os: "web", sidebar: false, font: 12, height: 34, radius: 10, icon: 14 },
+    { os: "ios", sidebar: true, font: 12, height: 36, radius: 8, icon: 16 },
     { os: "android", sidebar: true, smallTablet: true, font: 12, height: 36, radius: 10, icon: 16 },
-    { os: "android", sidebar: true, smallTablet: false, font: 12, height: 40, radius: 10, icon: 16 },
-    { os: "android", sidebar: false, font: 12, height: 40, radius: 10, icon: 16 },
+    { os: "android", sidebar: true, smallTablet: false, font: 12, height: 36, radius: 10, icon: 16 },
+    { os: "android", sidebar: false, font: 12, height: 36, radius: 10, icon: 16 },
   ])("sizes archive and open labels for $os sidebar=$sidebar", async ({ os, sidebar, smallTablet, font, height, radius, icon }) => {
     vi.stubGlobal("__rnMockOS", os);
     device.tablet = os === "ios";
@@ -346,13 +346,13 @@ describe("phone sheet action size", () => {
     }
   });
 
-  it("keeps the Android sidebar's icon-only open action at its original width", async () => {
+  it("keeps the Android sidebar's icon-only open action at the touch size", async () => {
     vi.stubGlobal("__rnMockOS", "android");
     const card = sample("sample-input");
     const root = await render(<DetailActionBar card={card} theme={theme} language="en" strings={BOARD_STRINGS.en.sidebar}
       sidebar smallTablet onOpen={() => {}} onPermission={() => {}} permissionButtons={permissionButtons(card.permission!, "en")} />);
     const open = root.findAllByType(Pressable).find((button) => button.props.testID === "detail-bar-open")!;
-    expect(style(open, false)).toMatchObject({ width: 40, height: 36 });
+    expect(style(open, false)).toMatchObject({ width: 36, height: 36 });
   });
 
   it.each([1, 1.5])("uses smaller iPad archive and open actions at font scale %s", async (factor) => {
@@ -368,7 +368,7 @@ describe("phone sheet action size", () => {
     expect(buttons).toHaveLength(2);
     for (const button of buttons) {
       expect(style(button, false)).toMatchObject({ height: Math.round(36 * factor), borderRadius: 8, paddingHorizontal: 10, gap: 4 });
-      expect(button.findAll((node) => (node.type as unknown) === "Icon").every((icon) => icon.props.size === 14)).toBe(true);
+      expect(button.findAll((node) => (node.type as unknown) === "Icon").every((icon) => icon.props.size === 16)).toBe(true);
       const label = button.find((node) => (node.type as unknown) === "Text");
       expect(StyleSheet.flatten(label.props.style).fontSize).toBe(Math.round(12 * factor));
       button.props.onPress();
@@ -421,7 +421,7 @@ describe("phone sheet action size", () => {
     vi.useFakeTimers();
     for (const button of buttons) {
       const rest = StyleSheet.flatten(button.props.style);
-      expect(rest).toMatchObject({ height: Math.round((tablet ? 36 : 40) * factor), borderRadius: tablet ? 8 : 10 });
+      expect(rest).toMatchObject({ height: Math.round(36 * factor), borderRadius: tablet ? 8 : 10 });
       expect(rest.boxShadow).toBeFalsy();
       // A finger held still: a bar button wider than it shows the raised shadow; the square Open is covered.
       hold(button);
@@ -431,11 +431,11 @@ describe("phone sheet action size", () => {
       release(button);
       expect(StyleSheet.flatten(button.props.style).boxShadow).toBeFalsy();
       const icons = button.findAll((node) => (node.type as unknown) === "Icon");
-      expect(icons.every((icon) => icon.props.size === (tablet ? 14 : 16))).toBe(true);
+      expect(icons.every((icon) => icon.props.size === 16)).toBe(true);
     }
     vi.useRealTimers();
     const open = buttons.find((button) => button.props.testID === "detail-bar-open")!;
-    expect(style(open, false).width).toBe(Math.round((tablet ? 36 : 40) * factor));
+    expect(style(open, false).width).toBe(Math.round(36 * factor));
     const allow = buttons.find((button) => button.props.accessibilityLabel === "Allow")!;
     expect(style(allow, false).paddingHorizontal).toBe(tablet ? 10 : 12);
     const label = allow.find((node) => (node.type as unknown) === "Text");

@@ -4156,9 +4156,9 @@ describe("TaskDetailCards", () => {
       React.createElement(DetailActionBar, { card, theme: LIGHT, language: "zh", strings, onOpen: vi.fn(), ...more });
     const running = await render(bar(sample("sample-running"), { stop: { phase: "idle", onPress: vi.fn() } }));
     expect(texts(hostByTestId(running.root, "detail-action-bar"))).toEqual(["停止", "打开"]);
-    // Open is the card's plain outline, not an accent.
+    // Open uses the theme's accent outline, while the surface stays unchanged.
     const look = taskTokens(LIGHT).card;
-    expect(flat(hostByTestId(running.root, "detail-bar-open").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: look.buttonBorder, borderWidth: 0.5 });
+    expect(flat(hostByTestId(running.root, "detail-bar-open").props.style)).toMatchObject({ backgroundColor: look.background, borderColor: look.primaryBorder, borderWidth: 0.5 });
     await act(async () => running.unmount());
     renderer = null;
     const card = sample("sample-input");
@@ -4317,9 +4317,31 @@ describe("TaskDetailCards", () => {
     renderer = null;
     const bar = await render(React.createElement(DetailActionBar, { card: subagent, theme: LIGHT, language: "zh", strings: BOARD_STRINGS.zh.sidebar, onOpen }));
     expect(texts(hostByTestId(bar.root, "detail-action-bar"))).toEqual(["打开父任务"]);
-    expect(flat(hostByTestId(bar.root, "detail-bar-open-parent").props.style)).toMatchObject({ borderColor: taskTokens(LIGHT).card.buttonBorder });
+    expect(flat(hostByTestId(bar.root, "detail-bar-open-parent").props.style)).toMatchObject({ borderColor: taskTokens(LIGHT).card.primaryBorder });
     await act(async () => hostByTestId(bar.root, "detail-bar-open-parent").props.onPress());
     expect(onOpen).toHaveBeenLastCalledWith(parentId);
+  });
+
+  it.each([["light", LIGHT], ["dark", DARK]] as const)("uses the %s theme accent for detail open actions", async (_name, theme) => {
+    const child = { ...sample("sample-child-1"), openTab: false };
+    const colors = taskTokens(theme).card;
+    const onOpen = vi.fn();
+    const desk = await render(details(child, { theme, onOpen, stop: { phase: "idle", onPress() {} } }));
+    const check = (button: ReactTestInstance) => {
+      expect(flat(button.props.style)).toMatchObject({ backgroundColor: colors.background, borderColor: colors.primaryBorder });
+      const label = button.find((node) => (node.type as unknown) === "Text" && typeof node.props.children === "string");
+      expect(flat(label.props.style).color).toBe(colors.primaryText);
+      for (const icon of button.findAll((node) => (node.type as unknown) === "Icon")) expect(icon.props.color).toBe(colors.primaryText);
+    };
+    check(hostByTestId(desk.root, "detail-open"));
+    check(hostByTestId(desk.root, "detail-open-parent"));
+    expect(flat(hostByTestId(desk.root, "detail-stop").props.style).borderColor).toBe(taskTokens(theme).danger);
+    await act(async () => desk.unmount());
+    renderer = null;
+    const bar = await render(React.createElement(DetailActionBar, { card: child, theme, language: "zh", strings: BOARD_STRINGS.zh.sidebar, onOpen, stop: { phase: "idle", onPress() {} } }));
+    check(hostByTestId(bar.root, "detail-bar-open"));
+    check(hostByTestId(bar.root, "detail-bar-open-parent"));
+    expect(flat(hostByTestId(bar.root, "detail-bar-stop").props.style).borderColor).toBe(taskTokens(theme).danger);
   });
 
   it("paints the stop button as a danger outline, armed or not", async () => {

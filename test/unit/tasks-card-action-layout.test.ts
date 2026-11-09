@@ -72,6 +72,7 @@ beforeEach(() => resetActionWidths());
 afterEach(async () => {
   if (renderer) await act(async () => renderer!.unmount());
   renderer = null;
+  (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
 });
 
 function sample(id: string): TaskCard {
@@ -322,6 +323,64 @@ describe("phone card action bar under native (Yoga) layout", () => {
       await act(async () => renderer!.unmount());
       renderer = null;
     }
+  });
+
+  it.each((["ios", "android"] as const).flatMap((os) => [300, 340, 500].flatMap((width) => [1, 1.35, 1.8].flatMap((scale) => (["zh", "en"] as const).flatMap((language) => ["sample-running", "sample-input"].map((id) => [os, width, scale, language, id] as const))))))(
+    "fits the sheet's close action on %s at %ipt, text scale %f, %s, %s",
+    async (os, width, textScale, language, id) => {
+      (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+      const card = sample(id);
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: React.createElement(DetailActionBar, {
+          card, theme: THEME as never, language, strings: BOARD_STRINGS[language].sidebar,
+          sidebar: true, smallTablet: true, onOpen() {}, onClose() {}, onPermission() {},
+          stop: { phase: "idle", onPress() {} }, permissionButtons: card.permission ? permissionButtons(card.permission, language) : [],
+        }) }));
+      });
+      const bar = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-action-bar");
+      const frames = await settleHostLayout(bar, { width, textScale });
+      const box = frames.get(bar())!;
+      const items = bar().findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+      expect(items.at(-1)!.props.testID).toBe("detail-bar-close");
+      const close = frames.get(items.at(-1)!)!;
+      const open = frames.get(items.find((node) => node.props.testID === "detail-bar-open")!)!;
+      expect(close.left + close.width).toBeCloseTo(box.left + box.width - 16, 0);
+      if (close.width > Math.round(36 * textScale) + 1) expect(open.width / close.width).toBeCloseTo(3, 1);
+      for (const item of items) {
+        const frame = frames.get(item)!;
+        expect(item.props.hitSlop).toBe(4);
+        expect(frame.width + 8).toBeGreaterThanOrEqual(44);
+        expect(frame.height + 8).toBeGreaterThanOrEqual(44);
+        expect(frame.left).toBeGreaterThanOrEqual(box.left - 0.5);
+        expect(frame.left + frame.width).toBeLessThanOrEqual(box.left + box.width + 0.5);
+        for (const text of labelsOf(item)) {
+          const textFrame = frames.get(text)!;
+          const fontSize = (Object.assign({}, ...[text.props.style].flat(Infinity).filter(Boolean)) as { fontSize?: number }).fontSize ?? 14;
+          expect(textFrame.width).toBeGreaterThanOrEqual(estimateTextWidth(text.children.join(""), fontSize) * textScale - 0.5);
+          expect(textFrame.left + textFrame.width).toBeLessThanOrEqual(frame.left + frame.width + 0.5);
+        }
+      }
+      for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+        const a = frames.get(items[i]!)!;
+        const b = frames.get(items[j]!)!;
+        const overlapX = a.left - 4 < b.left + b.width + 4 - 0.01 && b.left - 4 < a.left + a.width + 4 - 0.01;
+        const overlapY = a.top - 4 < b.top + b.height + 4 - 0.01 && b.top - 4 < a.top + a.height + 4 - 0.01;
+        expect(overlapX && overlapY, `${items[i]!.props.testID} ${JSON.stringify(a)} vs ${items[j]!.props.testID} ${JSON.stringify(b)}`).toBe(false);
+      }
+    },
+  );
+
+  it("keeps the sheet close action when the task has no other actions", async () => {
+    const onClose = vi.fn();
+    const card = { ...sample("sample-running"), stoppable: false, subagent: { subtitle: null }, parent: null };
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(DetailActionBar, {
+        card, theme: THEME as never, language: "en", strings: BOARD_STRINGS.en.sidebar, onClose,
+      }));
+    });
+    const close = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-bar-close");
+    act(() => close.props.onPress());
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it("gives a card that mounts after another its buttons' widths at once, with no second layout pass", async () => {

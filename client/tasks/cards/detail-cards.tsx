@@ -106,11 +106,11 @@ export const DETAIL_CARD = {
   title: F.base,
   icon: 16,
   chip: 20,
-  button: 32,
+  button: 34,
   round: 28,
 } as const;
 
-const TOUCH_CARD = { ...DETAIL_CARD, row: 44, listRow: 44, heading: 44, icon: 18, chip: 24, button: 44, round: 36 } as const;
+const TOUCH_CARD = { ...DETAIL_CARD, row: 44, listRow: 44, heading: 44, icon: 18, chip: 24, button: 36, round: 36 } as const;
 
 type Metrics = typeof DETAIL_CARD | typeof TOUCH_CARD;
 
@@ -171,6 +171,7 @@ export interface TaskDetailCardsProps extends TimeSource {
   /** Match the phone board's pills; tablet and desktop cards use the regular size. */
   compact?: boolean;
   onClose?(): void;
+  onSheetClose?(): void;
   onMenu?(point: { x: number; y: number }): void;
   sheetToggle?: { full: boolean; label: string; onPress(): void };
   /** The card to go back to after a parent or subtask jump. */
@@ -414,7 +415,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             </TabPages>
           </>
         )}
-        {props.actions !== false ? <View testID="detail-action-bar-frame" style={{ paddingBottom: props.touch && props.sheetToggle && Platform.OS === "android" ? 6 : 10 }}><DetailActionBar {...props} sidebar smallTablet={!!(props.touch && props.sheetToggle && Platform.OS === "android")} contentUnder={underBar} /></View> : null}
+        {props.actions !== false ? <View testID="detail-action-bar-frame" style={{ paddingBottom: props.touch && props.sheetToggle && Platform.OS === "android" ? 6 : 10 }}><DetailActionBar {...props} onClose={props.onSheetClose} sidebar smallTablet={!!(props.touch && props.sheetToggle && Platform.OS === "android")} contentUnder={underBar} /></View> : null}
       </View>
     );
   }
@@ -545,9 +546,9 @@ function DetailStatusRow(props: Inner & { fixed?: boolean }) {
       <StatusSub {...props} small={F.sm} />
       <View style={{ flex: 1 }} />
       <View testID="detail-header-controls" style={{ flexDirection: "row", alignItems: "center", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
-        {props.sheetToggle ? <RoundIcon icon={props.sheetToggle.full ? "Minimize2" : "Maximize2"} label={props.sheetToggle.label} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-sheet-toggle" onPress={props.sheetToggle.onPress} /> : null}
         {props.onMenu ? <View ref={menuRef} collapsable={false}><RoundIcon icon="MoreVertical" label={props.language === "zh" ? "卡片菜单" : "Card menu"} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-menu" onPress={() => menuRef.current?.measureInWindow((x, y, width, height) => props.onMenu?.({ x: x + width, y: y + height }))} /></View> : null}
-        {props.onClose ? <RoundIcon icon="X" label={props.strings.close} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
+        {props.sheetToggle ? <RoundIcon icon={props.sheetToggle.full ? "Minimize2" : "Maximize2"} label={props.sheetToggle.label} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-sheet-toggle" onPress={props.sheetToggle.onPress} /> : null}
+        {props.onClose && !props.onSheetClose ? <RoundIcon icon="X" label={props.strings.close} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}
       </View>
     </View>
   );
@@ -589,6 +590,7 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
   const openButton = ownOpen ? (
     <OutlineButton
       label={cardText.openTab}
+      look="primary"
       hint={card.openTab ? <OpenHint tokens={tokens} label={cardText.details.tabOpen} /> : null}
       trailing="ArrowUpRight"
       height={m.button}
@@ -635,6 +637,7 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
     <OutlineButton
       icon="CornerLeftUp"
       label={cardText.openParent}
+      look="primary"
       height={m.button}
       font={m.font}
       tokens={tokens}
@@ -755,7 +758,7 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
       </View>
       <AvailabilityTag issue={card.availability?.issue} language={props.language} tokens={tokens} theme={props.theme} compact={touch} />
       {showActions ? (
-        <ActionRow style={{ marginTop: 12 }} testID="detail-actions">
+        <ActionRow style={{ marginTop: 12, ...(touch && Platform.OS !== "web" ? { paddingVertical: 4, paddingHorizontal: 4, alignItems: "center" } : null) }} testID="detail-actions">
           {touch ? null : lead}
           {stop && props.stop ? (
             <OutlineButton
@@ -882,9 +885,9 @@ function PermissionBlock(props: Inner) {
       ) : null}
       {buttons.length > 0 ? (
         <View testID="detail-permission-buttons" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
-          <ActionRow style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0 }} testID="detail-permission-actions">
+          <ActionRow style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0, ...(props.touch && Platform.OS !== "web" ? { paddingVertical: 4, paddingHorizontal: 4, alignItems: "center" } : null) }} testID="detail-permission-actions">
             {buttons.map((button) => (
-              <RequestButton key={button.key} button={button} tokens={tokens} disabled={button.kind !== "open" && !!taskOperationIssue(card, "permission")} height={props.touch ? 36 : 28} onPress={() => props.onPermission?.(button)} />
+              <RequestButton key={button.key} button={button} tokens={tokens} disabled={button.kind !== "open" && !!taskOperationIssue(card, "permission")} height={props.touch ? 36 : 34} onPress={() => props.onPermission?.(button)} />
             ))}
           </ActionRow>
           {waited !== null ? (
@@ -914,6 +917,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={button.label}
+      hitSlop={Platform.OS !== "web" ? 4 : undefined}
       disabled={props.disabled}
       accessibilityState={{ disabled: props.disabled }}
       {...tipProps(button.label)}
@@ -2012,6 +2016,7 @@ function OutlineButton(props: {
     <ActionPressable lift={props.grow ? "row" : "control"}
       accessibilityRole="button"
       accessibilityLabel={props.label}
+      hitSlop={Platform.OS !== "web" ? 4 : undefined}
       {...tipProps(props.label)}
       accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
       disabled={disabled}
@@ -2048,7 +2053,7 @@ function OutlineButton(props: {
       {props.trailing && !(fit.iconOnly && props.busy) ? (
         <>
           {fit.iconOnly ? null : <View style={{ flex: 1 }} />}
-          <Icon name={props.trailing} size={14} color={tokens.foregroundMuted} />
+          <Icon name={props.trailing} size={14} color={look === "primary" ? hue.color : tokens.foregroundMuted} />
         </>
       ) : null}
     </ActionPressable>
@@ -2058,7 +2063,7 @@ function OutlineButton(props: {
 // ---- The phone's action bar ------------------------------------------------
 
 /**
- * Under the phone's sheet: compact actions (40, radius 10).
+ * Under the phone's sheet: compact actions (36, radius 10).
  * Running: stop, then open the tab at the right. Asking: deny, allow as the
  * main button, and the tab shrunk to a square at the right. Otherwise: open the tab.
  */
@@ -2068,6 +2073,7 @@ export function DetailActionBar(props: {
   language: TasksLanguage;
   strings: DetailCardsStrings;
   onOpen?(agentId: string): void;
+  onClose?(): void;
   stop?: { phase: StopPhase; onPress(): void } | null;
   permissionButtons?: PermissionButton[];
   onPermission?(button: PermissionButton): void;
@@ -2095,14 +2101,15 @@ export function DetailActionBar(props: {
   // a provider subagent's "Open parent" alone (its own tab is the parent's).
   const parentOpens = !!onOpen && parentOpensInPaseo(card);
   const ownOpen = !!onOpen && !card.subagent;
-  if (!ownOpen && !parentOpens && !stop && !read && !asking && !unarchive && !archive) return null;
+  if (!ownOpen && !parentOpens && !stop && !read && !asking && !unarchive && !archive && !props.onClose) return null;
   const open = () => onOpen?.(card.id);
   const cardText = cardStrings(props.language);
   const openText = cardText.openTab;
   // Deny first, allow last: the main button sits under the thumb.
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
+  const pairedOpen = !!props.onClose && (ownOpen || parentOpens) && !answer;
   return (
-    <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: 12, paddingTop: props.smallTablet ? 6 : 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border, zIndex: props.contentUnder ? 1 : undefined, boxShadow: props.contentUnder ? scrollEdgeShadow(tokens.isDark, "up") : undefined }}>
+    <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: 12, paddingTop: (props.smallTablet ? 6 : 10) + (Platform.OS === "web" ? 0 : 4), paddingBottom: Platform.OS === "web" ? 0 : 4, alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border, zIndex: props.contentUnder ? 1 : undefined, boxShadow: props.contentUnder ? scrollEdgeShadow(tokens.isDark, "up") : undefined, ...(props.onClose ? { flexWrap: "wrap", justifyContent: "flex-end" } : null) }}>
       {asking ? (
         <>
           {ordered.map((button) => (
@@ -2121,9 +2128,9 @@ export function DetailActionBar(props: {
           {stop && props.stop ? (
             <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"} look="danger" label={stop} busy={props.stop.phase === "stopping"} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" />
           ) : null}
-          {ownOpen && !answer ? <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} arrow label={openText} square onPress={open} testID="detail-bar-open" /> : null}
-          {!ownOpen && parentOpens && !answer ? (
-            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} square onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
+          {ownOpen && !answer && !pairedOpen ? <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} look="primary" keepLabel={false} arrow label={openText} square onPress={open} testID="detail-bar-open" /> : null}
+          {!ownOpen && parentOpens && !answer && !pairedOpen ? (
+            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} look="primary" keepLabel={false} icon="CornerLeftUp" label={cardText.openParent} square onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
           ) : null}
         </>
       ) : (
@@ -2167,9 +2174,9 @@ export function DetailActionBar(props: {
             />
           ) : null}
           {parentOpens ? (
-            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
+            pairedOpen && !ownOpen ? null : <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} look="primary" keepLabel={false} icon="CornerLeftUp" label={cardText.openParent} grow={pairedOpen ? false : undefined} onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
           ) : null}
-          {ownOpen ? <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} arrow label={openText} onPress={open} testID="detail-bar-open" /> : null}
+          {ownOpen && !pairedOpen ? <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} look="primary" keepLabel={false} arrow label={openText} onPress={open} testID="detail-bar-open" /> : null}
           {unarchive ? (
             <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar}
               tokens={tokens}
@@ -2183,7 +2190,25 @@ export function DetailActionBar(props: {
           ) : null}
         </>
       )}
+      {pairedOpen && props.onClose ? <SheetOpenClose tokens={tokens} sidebar={props.sidebar} smallTablet={props.smallTablet} openLabel={ownOpen ? openText : cardText.openParent} parent={!ownOpen} onOpen={ownOpen ? open : () => onOpen?.(card.parent!.id)} closeLabel={props.strings.close} onClose={props.onClose} /> : props.onClose ? <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} icon="X" label={props.strings.close} grow={false} onPress={props.onClose} testID="detail-bar-close" /> : null}
     </ActionRow>
+  );
+}
+
+/** Share the space left by other actions, while preserving each icon's minimum width. */
+function SheetOpenClose(props: { tokens: TaskTokens; sidebar?: boolean; smallTablet?: boolean; openLabel: string; parent: boolean; onOpen(): void; closeLabel: string; onClose(): void }) {
+  const scale = useTasksFontScale();
+  const minimum = taskControlHeight(Platform.OS === "web" ? 34 : 36, scale);
+  const inset = Platform.OS === "web" ? 0 : 4;
+  const [width, setWidth] = useState(0);
+  const available = Math.max(0, width - 8 - inset * 2);
+  const closeWidth = width > 0 ? Math.max(minimum, available / 4) : undefined;
+  const openWidth = closeWidth === undefined ? undefined : available - closeWidth;
+  return (
+    <View testID="detail-open-close" onLayout={(event) => setWidth((old) => old === event.nativeEvent.layout.width ? old : event.nativeEvent.layout.width)} style={{ flexDirection: "row", flexBasis: 0, flexGrow: 1, flexShrink: 1, minWidth: minimum * 2 + 8 + inset * 2, padding: inset, gap: 8 }}>
+      <BarButton tokens={props.tokens} sidebar={props.sidebar} smallTablet={props.smallTablet} look="primary" keepLabel={false} icon={props.parent ? "CornerLeftUp" : undefined} arrow={!props.parent} label={props.openLabel} width={openWidth} onPress={props.onOpen} testID={props.parent ? "detail-bar-open-parent" : "detail-bar-open"} />
+      <BarButton tokens={props.tokens} sidebar={props.sidebar} smallTablet={props.smallTablet} icon="X" label={props.closeLabel} width={closeWidth} onPress={props.onClose} testID="detail-bar-close" />
+    </View>
   );
 }
 
@@ -2205,24 +2230,24 @@ function archivable(card: TaskCard): boolean {
  * deepens it while pressed, and grows. A busy one does neither.
  */
 /** `arrow` ends the button in a ↗ after its label (Open tab); a square shows only the arrow. */
-function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; sidebar?: boolean; smallTablet?: boolean; square?: boolean; grow?: boolean; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
+function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; keepLabel?: boolean; label: string; sidebar?: boolean; smallTablet?: boolean; square?: boolean; grow?: boolean; width?: number; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
-  // Desktop steps down to the iPad bar. The phone keeps the taller thumb size.
+  // Desktop and touch layouts keep their own visual heights.
   const compact = (props.sidebar === true && Platform.OS === "web") || (Platform.OS === "ios" && Platform.isPad);
   const font = F.sm;
-  const squareWidth = taskControlHeight(compact ? 36 : 40, scale);
-  const height = taskControlHeight(compact || props.smallTablet ? 36 : 40, scale);
-  const iconSize = compact ? 14 : 16;
+  const height = taskControlHeight(Platform.OS === "web" ? 34 : 36, scale);
+  const squareWidth = height;
+  const iconSize = Platform.OS === "web" ? 14 : 16;
   const padding = compact ? 10 : 12;
   const gap = 4;
   const look = props.look ?? "plain";
   const hue = buttonHue(tokens, look);
   const text = hue.color;
   const iconColor = look === "plain" ? tokens.foregroundMuted : text;
-  const fit = useActionFit(props.label, `${scale}|${compact}|${font}|${useWindowDimensions().fontScale}`, squareWidth, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, look === "primary");
-  const square = fit.iconOnly;
+  const fit = useActionFit(props.label, `${scale}|${compact}|${font}|${useWindowDimensions().fontScale}`, squareWidth, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, props.keepLabel ?? look === "primary");
+  const square = fit.iconOnly || (props.width !== undefined && fit.full !== null && props.width < fit.full);
   const disabled = props.busy || props.disabled;
   const hovered = hover && !disabled;
   // A bar button spans its share of the bar, wider than a finger; a square one is covered by it.
@@ -2231,6 +2256,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
     <ActionPressable lift={liftAs}
       accessibilityRole="button"
       accessibilityLabel={props.label}
+      hitSlop={Platform.OS !== "web" ? 4 : undefined}
       accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
       disabled={disabled}
       onPress={props.onPress}
@@ -2252,6 +2278,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         gap,
         ...webTransition,
         ...fit.style,
+        ...(props.width === undefined ? null : { width: props.width, minWidth: square ? squareWidth : fit.full ?? squareWidth, flexGrow: 0, flexShrink: 0, ...(square ? { paddingHorizontal: 0 } : null) }),
       })}
     >
       {props.busy ? (

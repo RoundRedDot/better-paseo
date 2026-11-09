@@ -6,6 +6,11 @@ import type { TaskTokens } from "./tokens";
 export const CARD_BUTTON_HEIGHT = 28;
 export const COMPACT_CARD_BUTTON_HEIGHT = 32;
 
+/** Desktop cards grow to 30; native tablet cards keep their existing size. */
+export function cardButtonHeight(): number {
+  return Platform.OS === "web" ? 30 : CARD_BUTTON_HEIGHT;
+}
+
 export const webTransition = (Platform.OS === "web"
   ? { transitionProperty: "background-color, border-color, box-shadow, color, opacity", transitionDuration: "120ms", transitionTimingFunction: "ease-out" }
   : {}) as ViewStyle;

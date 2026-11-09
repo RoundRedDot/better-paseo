@@ -662,6 +662,7 @@ export function DesktopBoard(props: {
       scrollAll={inSheet}
       tabs={!inSheet || touch}
       sheetToggle={inSheet ? { full: detent === "full", label: detent === "full" ? strings.sidebar.sheetShrink : strings.sidebar.sheetGrow, onPress: () => sheetRef.current?.toggle() } : undefined}
+      onSheetClose={inSheet ? () => { dispatch({ type: "clear" }); setShown(null); } : undefined}
     />
   );
   const activeCardId = focus ? `task-card-${lanes[focus.lane].cards[focus.index]!.id}` : undefined;

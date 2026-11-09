@@ -6,7 +6,7 @@ import { useHover } from "../../ui/use-hover";
 import { useActionFit } from "./action-row";
 import { ActionPressable } from "./action-pressable";
 import { liftedButtonOutline, surfaceLift } from "./surface-lift";
-import { arrowInset, buttonHue, CARD_BUTTON_HEIGHT, COMPACT_CARD_BUTTON_HEIGHT, webTransition, type CardButtonLook } from "./action-style";
+import { arrowInset, buttonHue, cardButtonHeight, COMPACT_CARD_BUTTON_HEIGHT, webTransition, type CardButtonLook } from "./action-style";
 import { hintProps } from "./card-hints";
 import { SpinnerRing } from "./status-icon";
 import type { TaskTokens } from "./tokens";
@@ -50,9 +50,10 @@ export function CardButton(props: {
   const color = hue.color;
   const border = hue.border;
   const size = compact ? 14 : 13;
-  const height = taskControlHeight(compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, scale);
+  const baseHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : cardButtonHeight();
+  const height = taskControlHeight(baseHeight, scale);
   const hasIcon = !!props.icon || props.busy || answer || props.arrow;
-  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, compact ? COMPACT_CARD_BUTTON_HEIGHT : CARD_BUTTON_HEIGHT, 2 * (compact ? 12 : 10) + (hasIcon ? size + 4 : 0) + 1, forcedSquare, kind === "primary");
+  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, baseHeight, 2 * (compact ? 12 : 10) + (hasIcon ? size + 4 : 0) + 1, forcedSquare, kind === "primary");
   const square = fit.iconOnly;
   return (
     <ActionPressable
@@ -66,7 +67,7 @@ export function CardButton(props: {
       testID={props.testID}
       style={({ pressed }) => ({
         // A phone's button grows with a large system font.
-        ...(compact ? { minHeight: COMPACT_CARD_BUTTON_HEIGHT, paddingVertical: 4, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height } : { height: taskControlHeight(CARD_BUTTON_HEIGHT, scale) }),
+        ...(compact ? { minHeight: COMPACT_CARD_BUTTON_HEIGHT, paddingVertical: 4, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height } : { height }),
         ...(compact && props.hug ? { flexGrow: 0 } : null),
         ...(square ? { width: taskControlHeight(COMPACT_CARD_BUTTON_HEIGHT, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
         paddingHorizontal: square ? 0 : compact ? 12 : 10,

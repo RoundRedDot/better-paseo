@@ -2698,6 +2698,14 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("detail-tab-short-scroll")[0]).toBe(scroll);
     expect(hostsById("detail-location")).toHaveLength(1);
     expect(hostsById("detail-action-bar")).toHaveLength(1);
+    expect(hostsById("detail-close")).toHaveLength(0);
+    expect(hostsById("detail-bar-close")).toHaveLength(1);
+    const controls = hostsById("detail-header-controls")[0]!;
+    const buttons = controls.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    expect(buttons.map((node) => node.props.testID)).toEqual(["detail-menu", "detail-sheet-toggle"]);
+    const bar = hostsById("detail-action-bar")[0]!;
+    const actions = bar.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    expect(actions.at(-1)!.props.testID).toBe("detail-bar-close");
   });
 
   it("places the iPad sheet's scroll indicator outside the unchanged card width", async () => {
@@ -2868,7 +2876,7 @@ describe("Tasks board, desktop", () => {
       // Closed while a switch moves: the switch never reaches the board, and the sheet opens at half again.
       act(() => toggle().props.onPress());
       const lost = last();
-      act(() => hostsById("detail-close")[0]!.props.onPress());
+      act(() => hostsById("detail-bar-close")[0]!.props.onPress());
       expect(lost.over).toBe(true);
       expect(last()).toMatchObject({ to: 0, duration: 200 });
       expect(hostsById("board-sheet")).toHaveLength(1);
@@ -2905,7 +2913,7 @@ describe("Tasks board, desktop", () => {
       act(() => toggle().props.onPress());
       expect((timings.sheetValue() as unknown as { __value: number }).__value).toBe(464);
       expect(toggle().props.accessibilityLabel).toBe("Expand details");
-      act(() => hostsById("detail-close")[0]!.props.onPress());
+      act(() => hostsById("detail-bar-close")[0]!.props.onPress());
       expect(hostsById("board-sheet")).toHaveLength(0);
     } finally {
       act(() => onReduce(false));
