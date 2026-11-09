@@ -5135,6 +5135,9 @@ describe("Tasks board, tablet filters", () => {
     const bar = hostsById("tablet-toolbar")[0]!;
     expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ height: Math.round(40 * Math.max(1, base / 14)), flexDirection: "row", flexShrink: 0 });
     expect(StyleSheet.flatten(hostsById("tablet-toolbar-end")[0]!.props.style).gap).toBe(0);
+    const sidebar = hostsById("sidebar-switch")[0]!;
+    expect(StyleSheet.flatten(hostParentOf(sidebar)!.props.style)).toMatchObject({ marginLeft: 6, marginRight: -6 });
+    expect(StyleSheet.flatten(bar.props.style).paddingHorizontal).toBe(12);
     const buttons = bar.findAll((n) => (n.type as unknown) === "Pressable" && n.props.testID !== "search-full-conversation-toggle");
     for (const button of buttons) {
       const style = StyleSheet.flatten(button.props.style);

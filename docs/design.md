@@ -920,6 +920,9 @@ apply to all three.
   icons in 32 pt targets, with only targets growing through `taskControlHeight`. Keep adjacent
   detail header controls in one group with the tablet toolbar's 0 pt extra gap; target padding
   separates the glyphs. Do not assign larger, independent sizes to the detail header icons.
+- The tablet toolbar's rightmost sidebar switch sits 6 pt closer to the board edge, with its
+  full touch target preserved. With a 32 pt target its 16 pt panel mark ends 14 pt from the
+  board edge; the target grows with larger interface text.
 - Search width is fixed at 320, independent of filter-label measurements, task counts and
   active filters. At board widths below `960 * max(1, scale)`, desktop and tablet show only
   the Search button; pressing it opens a separate row below the toolbar with autofocus,
@@ -1056,7 +1059,8 @@ apply to all three.
 - The inline surface uses `surface0`, with a left shadow cast over the lanes:
   `-8px 0px 16px -8px`, black at 20% light / 50% dark. Floating uses the same shadow.
   It sits 12 from the right edge, padded 10 left and 4 right on web so the cards end 16 from the
-  board edge, aligned with the toolbar; native keeps 10 on both sides. Top/bottom padding is 4/12.
+  board edge, aligned with the toolbar; native uses 14 left and 2 right, making both card
+  insets 14 when the outer margin is included. Top/bottom padding is 4/12.
 - Web inline and floating sidebars share `SidebarColumn` and its resize handle, including the
   temporary floating panel opened by clicking a card while the sidebar is hidden. The resize
   target is 8 wide inside the surface's left edge, inset 4 at the top and 12 at the bottom.
