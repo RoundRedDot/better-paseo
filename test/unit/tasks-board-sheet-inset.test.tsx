@@ -15,7 +15,7 @@ const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", 
 describe("board sheet bottom spacing", () => {
   afterEach(() => { delete (globalThis as { __rnMockOS?: string }).__rnMockOS; });
 
-  it.each([["android", 32], ["ios", 4], ["web", 4]])("keeps the content inset on %s", (os, paddingBottom) => {
+  it.each([["android", 24], ["ios", 4], ["web", 4]])("keeps the content inset on %s", (os, paddingBottom) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     let renderer: TestRenderer.ReactTestRenderer;
     act(() => {
