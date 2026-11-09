@@ -1182,7 +1182,7 @@ function SidebarColumn(props: {
           right: SIDEBAR.gap,
           width: props.width,
           // Include the outer margin in the right inset to match the toolbar's 16 pt.
-          ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingLeft: 14, paddingRight: 10 }),
+          ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingLeft: 14, paddingRight: 14 - SIDEBAR.gap }),
           paddingTop: 4,
           paddingBottom: 12,
           minHeight: 0,

@@ -3017,6 +3017,8 @@ describe("Tasks board, desktop", () => {
       expect(hostsById("floating-sidebar-resize")).toHaveLength(0);
       expect(StyleSheet.flatten(hostsById("sidebar-resize-grabber")[0]!.props.style).opacity).toBe(0.5);
       expect(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).paddingLeft).toBeGreaterThan(StyleSheet.flatten(handle().props.style).width);
+      const panelStyle = StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style);
+      expect(panelStyle.right + panelStyle.paddingRight).toBe(panelStyle.paddingLeft);
       expect(handle().props.accessibilityValue).toEqual({ min: 260, max, now: 380 });
       start();
       if (os === "ios") {
