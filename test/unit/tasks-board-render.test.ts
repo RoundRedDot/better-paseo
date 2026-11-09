@@ -5412,7 +5412,7 @@ describe("Tasks board, tablet filters", () => {
     const footer = hostsById("filter-sheet-footer")[0]!;
     expect(hostParentOf(footer)).toBe(hostParentOf(hostsById("filter-sheet-scroll")[0]!));
     expect(hostsById("filter-sheet-subtasks")).toHaveLength(0);
-    expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
+    expect(hostsById("filter-sheet-empty-groups")).toHaveLength(1);
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     expect(hostsById("tablet-filter-popover")).toHaveLength(0);
     open();
@@ -5458,7 +5458,7 @@ describe("Tasks board, tablet filters", () => {
     expect(Number(StyleSheet.flatten(panel.props.style).width)).toBeLessThanOrEqual(width - 24);
     expect(StyleSheet.flatten(panel.props.style).elevation).toBe(8);
     expect(hostsById("filter-sheet-subtasks")).toHaveLength(0);
-    expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
+    expect(hostsById("filter-sheet-empty-groups")).toHaveLength(1);
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     expect(hostsById("tablet-filter-popover")).toHaveLength(0);
   });
@@ -5526,11 +5526,14 @@ describe("Tasks board, tablet filters", () => {
     expect(textOf(view).includes(BOARD_STRINGS[language].view)).toBe(false);
     act(() => view.props.onPress());
     expect(hostsById("tablet-view-menu")).toHaveLength(1);
-    // Visibility switches share the View menu.
+    // The empty-groups switch belongs to the filter panel, not View.
     const items = hostsById("tablet-view-menu")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem").map(textOf);
-    expect(items.some((text) => text.startsWith(BOARD_STRINGS[language].emptyGroups.row))).toBe(true);
+    expect(items.some((text) => text.startsWith(BOARD_STRINGS[language].emptyGroups.row))).toBe(false);
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     expect(hostsById("tablet-view-menu")).toHaveLength(0);
+    act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+    expect(textOf(hostsById("filter-sheet-empty-groups")[0]!)).toContain(BOARD_STRINGS[language].emptyGroups.sheetLabel(true));
+    act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
   });
 
   it.each([
@@ -5543,12 +5546,12 @@ describe("Tasks board, tablet filters", () => {
     const order = () => end().findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
     const expected = ["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"];
     expect(order()).toEqual(expected);
-    // View owns layout and visibility switches.
+    // View owns layout and the board's visibility switches; empty groups stay with the filters.
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     const strings = BOARD_STRINGS.en;
     const items = hostsById("tablet-view-menu")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem").map(textOf);
     expect(items.some((text) => text.startsWith(strings.showSubtasks))).toBe(true);
-    expect(items.some((text) => text.startsWith(strings.emptyGroups.row))).toBe(true);
+    expect(items.some((text) => text.startsWith(strings.emptyGroups.row))).toBe(false);
     expect(items.some((text) => text.startsWith(strings.archivedLane.row))).toBe(true);
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
@@ -5645,7 +5648,7 @@ describe("Tasks board, tablet filters", () => {
     expect(lastBoardParams("host-1")).toMatchObject({ providers: [], labels: [], workspaceIds: [] });
   });
 
-  it.each(["ios", "android"])("%s moves filter switches into View and retains their saved state", async (os) => {
+  it.each(["ios", "android"])("%s keeps subtasks in View and empty groups in the filter panel, retaining their saved state", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const handle = (data as unknown as { __handle: { providers: object[] } }).__handle;
     const saved = handle.providers;
@@ -5653,31 +5656,36 @@ describe("Tasks board, tablet filters", () => {
     try {
       await act(async () => { renderer = TestRenderer.create(screen(false)); });
       layOut(800);
+      const emptyGroups = () => hostsById("filter-sheet-empty-groups")[0]!;
       act(() => hostsById("toolbar-filters")[0]!.props.onPress());
       expect(hostsById("filter-sheet-subtasks")).toHaveLength(0);
-      expect(hostsById("filter-sheet-empty-groups")).toHaveLength(0);
+      expect(emptyGroups().props).toMatchObject({ accessibilityRole: "switch", accessibilityState: { checked: true } });
+      expect(textOf(emptyGroups())).toContain("Show all");
       expect(textOf(hostsById("filter-sheet-scroll")[0]!)).toContain("Pi");
+      await act(async () => emptyGroups().props.onPress());
+      expect(emptyGroups().props.accessibilityState).toEqual({ checked: false });
+      expect(textOf(hostsById("filter-sheet-scroll")[0]!)).not.toContain("Pi");
+      expect(hostsById("tablet-filter-popover")).toHaveLength(1);
       act(() => hostsById("tablet-view")[0]!.props.onPress());
       const rows = () => hostsById("tablet-view-menu")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "menuitem");
-      expect(rows().slice(-4).map(textOf)).toEqual(["Show subtasks", "Show all", "Collapse empty lanes", "Show the archived lane"]);
-      for (const label of ["Show subtasks", "Show all"]) {
-        expect(menuOption(label).props.accessibilityState.checked).toBe(true);
-        await act(async () => menuOption(label).props.onPress());
-        expect(menuOption(label).props.accessibilityState.checked).toBe(false);
-        expect(hostsById("tablet-view-menu")).toHaveLength(1);
-      }
+      expect(rows().slice(-3).map(textOf)).toEqual(["Show subtasks", "Collapse empty lanes", "Show the archived lane"]);
+      expect(rows().map(textOf)).not.toContain("Show all");
+      expect(menuOption("Show subtasks").props.accessibilityState.checked).toBe(true);
+      await act(async () => menuOption("Show subtasks").props.onPress());
+      expect(menuOption("Show subtasks").props.accessibilityState.checked).toBe(false);
+      expect(hostsById("tablet-view-menu")).toHaveLength(1);
       expect(hostsById("subtasks-toggle")[0]!.props.accessibilityState.selected).toBe(false);
       expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true, showEmptyGroups: false });
       expect(host.save).not.toHaveBeenCalled();
       act(() => hostsById("toolbar-filters")[0]!.props.onPress());
+      expect(emptyGroups().props.accessibilityState).toEqual({ checked: false });
       expect(textOf(hostsById("filter-sheet-scroll")[0]!)).not.toContain("Pi");
+      await act(async () => emptyGroups().props.onPress());
+      expect(textOf(hostsById("filter-sheet-scroll")[0]!)).toContain("Pi");
       act(() => hostsById("tablet-view")[0]!.props.onPress());
       expect(menuOption("Show subtasks").props.accessibilityState.checked).toBe(false);
-      expect(menuOption("Show all").props.accessibilityState.checked).toBe(false);
-      for (const label of ["Show subtasks", "Show all"]) {
-        await act(async () => menuOption(label).props.onPress());
-        expect(menuOption(label).props.accessibilityState.checked).toBe(true);
-      }
+      await act(async () => menuOption("Show subtasks").props.onPress());
+      expect(menuOption("Show subtasks").props.accessibilityState.checked).toBe(true);
       expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: false, showEmptyGroups: true });
     } finally {
       handle.providers = saved;

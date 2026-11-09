@@ -675,7 +675,7 @@ export function DesktopBoard(props: {
       theme={theme}
       options={options}
       hideSubtasksToggle={touch}
-      showEmptyGroupsToggle={!touch}
+      showEmptyGroupsToggle
       tablet={touch}
       laneWidth={touch ? undefined : { value: live.laneWidth, onChange: live.setLaneWidth }}
       onDone={() => setFiltersOpen(false)}
