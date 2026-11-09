@@ -1,16 +1,18 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { PaseoApi, PaseoAgentTimelineHandle } from "@getpaseo/client";
 
-export interface TodoSummary { completed: number; total: number }
+import type { TodoTask } from "../../state/todo-timeline";
+
+export interface TodoSummary { completed: number; total: number; items: readonly TodoTask[] }
 
 type Timeline = Pick<PaseoAgentTimelineHandle, "refetch" | "subscribe">;
 type Api = { agents: { ref(id: string): { timeline: Timeline } } };
 type Cursor = NonNullable<Parameters<Timeline["refetch"]>[0]>["cursor"];
-type Todo = { type: "todo"; items: readonly { completed: boolean }[] };
+type Todo = { type: "todo"; items: readonly TodoTask[] };
 
 export function summarizeTodo(item: Todo): TodoSummary | null {
   if (!item.items.length) return null;
-  return { completed: item.items.filter((entry) => entry.completed).length, total: item.items.length };
+  return { completed: item.items.filter((entry) => entry.completed).length, total: item.items.length, items: item.items };
 }
 
 export function createTodoSummaryStore(api: Api) {
@@ -22,7 +24,8 @@ export function createTodoSummaryStore(api: Api) {
   };
   const set = (id: string, value: TodoSummary | null) => {
     const entry = entryFor(id);
-    if (entry.value?.completed === value?.completed && entry.value?.total === value?.total) return;
+    if (entry.value === null && value === null) return;
+    if (entry.value && value && JSON.stringify(entry.value.items) === JSON.stringify(value.items)) return;
     entry.value = value;
     for (const listener of entry.listeners) listener();
   };
@@ -75,11 +78,11 @@ const stores = new WeakMap<object, ReturnType<typeof createTodoSummaryStore>>();
 const emptySubscribe = () => () => {};
 const emptyRead = () => null;
 
-export function useTodoSummary(api: PaseoApi | undefined, id: string, enabled: boolean): TodoSummary | null {
+export function useTodoSummary(api: PaseoApi | undefined, id: string, enabled: boolean, watch = true): TodoSummary | null {
   let store = api && stores.get(api);
   if (api && !store) { store = createTodoSummaryStore(api); stores.set(api, store); }
   const summary = useSyncExternalStore(store && enabled ? (listener) => store.subscribe(id, listener) : emptySubscribe,
     store && enabled ? () => store.read(id) : emptyRead, emptyRead);
-  useEffect(() => store && enabled ? store.watch(id) : undefined, [store, id, enabled]);
+  useEffect(() => store && enabled && watch ? store.watch(id) : undefined, [store, id, enabled, watch]);
   return summary;
 }

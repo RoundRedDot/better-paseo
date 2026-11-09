@@ -7,7 +7,9 @@ import { nativeProseText } from "./helpers/native-prose-text";
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React from "react";
-import { StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { measureHostTree } from "./helpers/yoga-host-layout";
+import { TodoRow } from "../../client/tasks/cards/todo-row";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -920,9 +922,82 @@ describe("TaskCardView rows", () => {
   it("shows todo progress separately from provider subagents", async () => {
     const card = sample("sample-running");
     card.children = [{ id: "provider-child", title: "Design", status: "done", kind: "provider" }];
-    const tree = await render(cardElement(card, { todo: { completed: 3, total: 13 } }));
+    const tree = await render(cardElement(card, { todo: { completed: 3, total: 13, items: Array.from({ length: 13 }, (_, i) => ({ text: `Task ${i}`, completed: i < 3 })) } }));
     expect(texts(hostByTestId(tree.root, "pill-todo"))).toEqual(["3/13 项任务"]);
     expect(hostByTestId(tree.root, "pill-subtasks")).toBeDefined();
+  });
+
+  it.each([false, true])("connects the next mark across one and two line rows (compact=%s)", async (compact) => {
+    const tokens = taskTokens(LIGHT);
+    const items = ["A long task that wraps into two lines for the layout check", "Short", "Last"];
+    const tree = await render(React.createElement(View, { testID: "todo-layout" }, items.map((text, index) =>
+      React.createElement(TodoRow, { key: text, item: { text, completed: false }, last: index === 2, compact, theme: LIGHT, tokens, background: tokens.card.background, animated: false }))));
+    const root = hostByTestId(tree.root, "todo-layout");
+    const frames = measureHostTree(root, { width: 150, wrapText: true });
+    const rails = root.findAll((node) => typeof node.type === "string" && node.props.testID === "todo-rail");
+    const marks = root.findAll((node) => typeof node.type === "string" && node.props.testID === "todo-mark-mask");
+    const rows = root.findAll((node) => typeof node.type === "string" && node.props.testID === "todo-row-pending");
+    expect(frames.get(rows[0]!)!.height).toBeGreaterThan(compact ? 32 : 24);
+    for (let index = 0; index < rails.length; index++) {
+      const rail = frames.get(rails[index]!)!;
+      const nextMark = frames.get(marks[index + 1]!)!;
+      expect(rail.top + rail.height).toBeCloseTo(nextMark.top + nextMark.height / 2, 5);
+    }
+  });
+
+  it("toggles an uncontrolled plan and limits phone hitSlop vertically", async () => {
+    const todo = { completed: 0, total: 1, items: [{ text: "Todo", completed: false }] };
+    const tree = await render(cardElement(sample("sample-running"), { todo, compact: true, animated: false }));
+    const button = () => hostByTestId(tree.root, "pill-todo");
+    expect(button().props.hitSlop).toEqual({ top: 10, bottom: 10 });
+    await act(async () => button().props.onPress());
+    expect(button().props.accessibilityState.expanded).toBe(true);
+    expect(hostByTestId(tree.root, "task-card-todo")).toBeDefined();
+    await act(async () => button().props.onPress());
+    expect(button().props.accessibilityState.expanded).toBe(false);
+  });
+
+  it("uses distinct text tones for completed, running and pending", async () => {
+    const todo = { completed: 1, total: 3, items: [{ text: "Done", completed: true }, { text: "Running", completed: false, status: "in_progress" }, { text: "Pending", completed: false }] };
+    const tree = await render(cardElement(sample("sample-running"), { todo, todoExpanded: true, animated: false }));
+    const color = (status: string) => flat(hostByTestId(tree.root, `todo-row-${status}`).find((node) => (node.type as unknown) === "Text").props.style).color;
+    const tokens = taskTokens(LIGHT);
+    expect(color("completed")).toBe(tokens.foregroundMuted);
+    expect(color("in_progress")).toBe(tokens.foreground);
+    expect(color("pending")).toBe(mix(tokens.foreground, tokens.foregroundMuted, 0.55));
+  });
+
+  it("uses board expansion for the checklist independently of subtasks", async () => {
+    const card = sample("sample-running");
+    card.children = [{ id: "provider-child", title: "Design", status: "done", kind: "provider" }];
+    const todo = { completed: 1, total: 3, items: [
+      { text: "Finished", completed: true },
+      { text: "Working", completed: false, status: "in_progress" },
+      { text: "Waiting", completed: false },
+    ] };
+    const change = vi.fn();
+    const open = vi.fn();
+    const props = { todo, todoExpanded: false, subtasksExpanded: true, onTodoExpandedChange: change, onOpen: open, animated: false };
+    const tree = await render(cardElement(card, props));
+    const capsule = hostByTestId(tree.root, "pill-todo");
+    expect(capsule.props.accessibilityState).toEqual({ expanded: false });
+    expect(capsule.props.accessibilityHint).toBe("1/3 项任务 · 点按展开清单");
+    await act(async () => capsule.props.onPress());
+    expect(change).toHaveBeenCalledWith(card.id, true);
+    expect(open).not.toHaveBeenCalled();
+    await act(async () => tree.update(cardElement(card, { ...props, todoExpanded: true })));
+    expect(hostByTestId(tree.root, "pill-todo").props.accessibilityState).toEqual({ expanded: true });
+    expect(hostByTestId(tree.root, "pill-todo").props.accessibilityHint).toBe("1/3 项任务 · 点按收起");
+    expect(hostByTestId(tree.root, "task-card-subtasks")).toBeDefined();
+    for (const [status, label] of [["completed", "Finished"], ["in_progress", "Working"], ["pending", "Waiting"]]) {
+      const row = hostByTestId(tree.root, `todo-row-${status}`);
+      expect(texts(row)).toContain(label);
+      expect(row.find((node) => (node.type as unknown) === "Text").props.numberOfLines).toBe(2);
+    }
+    expect(hostByTestId(tree.root, "todo-pending-mark")).toBeDefined();
+    await act(async () => tree.update(cardElement(card, { ...props, todo: null, todoExpanded: true })));
+    expect(tree.root.findAll((node) => node.props.testID === "pill-todo")).toHaveLength(0);
+    expect(tree.root.findAll((node) => node.props.testID === "task-card-todo-panel")).toHaveLength(0);
   });
 
   it.each([LIGHT, DARK])("draws the branch on a faint blue fill with a blue icon and a monospace name in either theme", async (theme) => {

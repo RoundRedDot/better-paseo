@@ -167,6 +167,22 @@ async function render(element: React.ReactElement) {
 }
 
 describe("TaskCardView on web", () => {
+  it("shows a keyboard focus outline on the plan and subtask buttons", async () => {
+    const todo = { completed: 0, total: 1, items: [{ text: "Task", completed: false }] };
+    const renderer = await render(React.createElement(TaskCardView, props("sample-running", { todo })));
+    for (const id of ["pill-todo", "pill-subtasks"]) {
+      const button = () => renderer.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+      const style = () => Object.assign({}, ...[button().props.style].flat(Infinity).filter(Boolean));
+      await act(async () => button().props.onFocus({ target: { matches: () => true } }));
+      expect(style()).toMatchObject({ outlineStyle: "solid", outlineWidth: 1, outlineOffset: 2, outlineColor: taskTokens(THEME).foregroundMuted });
+      await act(async () => button().props.onBlur());
+      expect(style().outlineStyle).toBeUndefined();
+      await act(async () => button().props.onFocus({ target: { matches: () => false } }));
+      expect(style().outlineStyle).toBeUndefined();
+    }
+    await act(async () => renderer.unmount());
+  });
+
   it.each([
     ["#ffffff", "0px 2px 6px rgba(0, 0, 0, 0.14)"],
     ["#181b1a", "0px 2px 6px rgba(0, 0, 0, 0.38)"],

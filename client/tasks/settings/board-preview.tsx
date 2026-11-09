@@ -12,7 +12,7 @@ import { StatusIcon, TaskCardView } from "../cards";
 import { taskTokens } from "../cards/tokens";
 import type { TasksLanguage } from "../i18n";
 import { LANE_STATUS, boardLaneOrder, isHistoryLane, type LaneId, type TaskCard } from "../model";
-import { previewSampleCards } from "../sample-cards";
+import { previewSampleCards, previewTodoItems } from "../sample-cards";
 
 /**
  * The lanes scroll inside this height, so the switches under the preview
@@ -83,6 +83,7 @@ export function TasksBoardPreview(props: {
     <TaskCardView
       key={item.id}
       card={item}
+      todo={previewTodoItems(language)[item.id]}
       fields={fields}
       titleLines={titleLines === "all" ? null : Number(titleLines)}
       theme={theme}

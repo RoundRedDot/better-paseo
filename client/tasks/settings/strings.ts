@@ -35,6 +35,10 @@ export interface TasksSettingsStrings {
   densities: Record<Density, string>;
   cardTitle: string;
   fieldsTitle: string;
+  fieldPreviewTitle: string;
+  fieldPreviewHint: string;
+  fieldPreviewHidden: string;
+  fieldPreviewOffHint: string;
   fieldsHint: string;
   fields: Record<CardField, string>;
   moduleReset: (module: string) => string;
@@ -109,6 +113,10 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     densities: { minimal: "Minimal", standard: "Standard", full: "Full", custom: "Custom" },
     cardTitle: "Cards",
     fieldsTitle: "Fields",
+    fieldPreviewTitle: "Card preview",
+    fieldPreviewHint: "Follows the switches above; click the capsule for the list",
+    fieldPreviewHidden: "Hidden",
+    fieldPreviewOffHint: "Plan capsule is off",
     fieldsHint: "What each card shows. Phones keep the essentials whatever is picked here.",
     moduleReset: (module) => `Reset ${module} settings`,
     moduleResetHint: "Only settings in this section will be restored.",
@@ -130,6 +138,7 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
       pullRequest: "Linked PR",
       timer: "Timer / finished at",
       context: "Context usage ring",
+      plan: "Plan capsule",
       subtasks: "Subtask summary",
     },
     labelLimit: "Labels shown",
@@ -195,6 +204,10 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     densities: { minimal: "精简", standard: "标准", full: "完整", custom: "自定义" },
     cardTitle: "卡片",
     fieldsTitle: "显示字段",
+    fieldPreviewTitle: "卡片预览",
+    fieldPreviewHint: "随上面的开关变化；点胶囊查看清单",
+    fieldPreviewHidden: "已隐藏",
+    fieldPreviewOffHint: "计划胶囊已关闭",
     fieldsHint: "每张卡片显示哪些信息。手机上始终保留最关键的几项。",
     moduleReset: (module) => `恢复「${module}」默认设置`,
     moduleResetHint: "只恢复本组设置，不影响其他组。",
@@ -216,6 +229,7 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
       pullRequest: "关联 PR",
       timer: "计时 / 完成于",
       context: "上下文占用环",
+      plan: "计划胶囊",
       subtasks: "子任务摘要",
     },
     labelLimit: "标签数量",

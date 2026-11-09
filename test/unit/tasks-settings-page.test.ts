@@ -434,6 +434,16 @@ describe("Tasks half of the settings page", () => {
     act(() => r.unmount());
   });
 
+  it("saves the plan chip independently and changes density", async () => {
+    const api = makeSettings();
+    const r = panel();
+    expect(byTestID(r, "tasks-field-preview")).toHaveLength(1);
+    await act(async () => byLabel(r, "Plan capsule").props.onPress());
+    expect(lastSaved(api).card.plan).toBe(false);
+    expect(lastSaved(api).density).toBe("custom");
+    act(() => r.unmount());
+  });
+
   it("a field chip flips its field and makes the density custom", async () => {
     const api = makeSettings();
     const r = panel();
@@ -473,8 +483,9 @@ describe("Tasks half of the settings page", () => {
     const values = { ...DEFAULT_TASKS_SETTINGS, mobile: { compactCards: true } };
     makeSettings({ values });
     panel(true);
-    expect(state.previews.at(-1)!.fields).toEqual(effectiveCard(values, true));
-    expect(state.previews.at(-1)!.compact).toBe(true);
+    const phoneCard = state.previews.findLast((card) => card.compact === true)!;
+    expect(phoneCard.fields).toEqual(effectiveCard(values, true));
+    expect(phoneCard.compact).toBe(true);
   });
 
   it("on a desktop page, draws the board as a phone does when the preview's device switch says so", () => {

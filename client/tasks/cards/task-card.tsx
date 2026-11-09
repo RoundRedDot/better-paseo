@@ -29,6 +29,8 @@ import { SpinnerRing, StatusIcon } from "./status-icon";
 import { TitleLoading } from "./title-loading";
 import { TitleUndo } from "./title-undo";
 import { useRevealedTitle } from "./title-reveal";
+import type { TodoSummary } from "../data/todo-summary";
+import { TodoRow } from "./todo-row";
 import { SubtaskRow } from "./subtask-row";
 import { SubagentLabel } from "./subagent-label";
 import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
@@ -100,7 +102,9 @@ export interface CardCallbacks {
 
 export interface TaskCardViewProps extends CardCallbacks {
   card: TaskCard;
-  todo?: { completed: number; total: number } | null;
+  todo?: TodoSummary | null;
+  todoExpanded?: boolean;
+  onTodoExpandedChange?(agentId: string, expanded: boolean): void;
   searchQuery?: string;
   searchPrompt?: SearchPrompt;
   searchPromptUnavailable?: boolean;
@@ -619,6 +623,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // Standalone previews own their state; board cards and motion copies share the board's.
   const [localExpanded, setLocalExpanded] = useState(false);
   const expanded = props.subtasksExpanded ?? localExpanded;
+  const [localTodoExpanded, setLocalTodoExpanded] = useState(false);
+  const todoExpanded = props.todoExpanded ?? localTodoExpanded;
   const [ringOpen, setRingOpen] = useState(false);
   // The warning corner's hint is open (hovered, focused or pinned): the card rises over the next one.
   const [cornerOpen, setCornerOpen] = useState(false);
@@ -1181,9 +1187,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       />,
     );
   }
-  if (fields.subtasks && props.todo) {
+  if (fields.plan && props.todo && props.todo.total > 0) {
     const label = language === "zh" ? `${props.todo.completed}/${props.todo.total} 项任务` : `${props.todo.completed}/${props.todo.total} tasks`;
-    pills.push(<Pill key="todo" {...pill} icon="ListTodo" label={label} tabular testID="pill-todo" accessibilityLabel={label} />);
+    const todoHint = strings.todoHint(label, todoExpanded);
+    pills.push(<PillButton key="todo" {...pill} icon="ListTodo" label={label} tabular testID="pill-todo" accessibilityLabel={label} accessibilityHint={todoHint} hitSlop={compact ? { top: 10, bottom: 10 } : undefined} hint={hint("todo", () => todoHint)} expanded={todoExpanded} onPress={() => {
+      const next = !todoExpanded;
+      if (!reducedMotion && props.animated !== false) prepareSubtaskToggle(next);
+      if (props.onTodoExpandedChange) props.onTodoExpandedChange(card.id, next);
+      else setLocalTodoExpanded(next);
+    }} />);
   }
   if (layout.subtasks) {
     // Icons and counts, no words: Network (the subtask toggle's icon), then each status the children are in.
@@ -1464,6 +1476,14 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       </View>
     ) : null;
 
+  const todoList = fields.plan && props.todo?.items.length ? (
+    <SubtaskPanel expanded={todoExpanded} animated={props.animated} testID="task-card-todo-panel">
+      <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: look.border, paddingTop: 4 }} testID="task-card-todo">
+        {props.todo.items.map((item, index) => <TodoRow key={item.id ?? index} item={item} last={index === props.todo!.items.length - 1} compact={compact} theme={theme} tokens={tokens} background={background} animated={props.animated} />)}
+      </View>
+    </SubtaskPanel>
+  ) : null;
+
   const mixedChildren = card.children.some((child) => !subtaskFinished(child));
   const subtaskList =
     layout.subtasks ? (
@@ -1587,7 +1607,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const footRow = minimalSummary ? <View style={{ marginTop: m.rowGap, minHeight: footHeight, zIndex: footerZ, flexDirection: "row", alignItems: "center" }}><SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal rowHeight={footHeight} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPrompt.unavailable && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} />{footerContent}</View> : footer;
   // Below the title, in order. Each starts `m.rowGap` under the row above it,
   // except the search summary's 6 pt rule (`SearchHitSummary`).
-  const tailList = [pillRow, footRow, answerRow ? null : controlRow, permissionBlock, failure, subtaskList, actionBar, hiddenHitsRow];
+  const tailList = [pillRow, footRow, answerRow ? null : controlRow, permissionBlock, failure, todoList, subtaskList, actionBar, hiddenHitsRow];
   const firstTail = tailList.find((row) => row !== null);
   // A ticket with nothing below its title: an empty stub, one row gap tall,
   // takes the first row's place, so the notches, the rule and the tail's
@@ -1600,6 +1620,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       {answerRow ? null : controlRow}
       {permissionBlock}
       {failure}
+      {todoList}
       {subtaskList}
       {actionBar}
       {hiddenHitsRow}
@@ -1737,6 +1758,8 @@ interface PillProps {
   /** The label in monospace, a size down (a branch name). */
   mono?: boolean;
   accessibilityLabel?: string;
+  accessibilityHint?: string;
+  hitSlop?: { top: number; bottom: number };
   /** The key of its hover hint (`CardHints`). */
   hint?: string;
   testID?: string;
@@ -1863,6 +1886,7 @@ function CopyPill(props: PillProps & { copy: NonNullable<PillProps["copy"]> }) {
 }
 
 function PillButton(props: PillProps & { expanded: boolean; onPress(): void }) {
+  const [focusVisible, setFocusVisible] = useState(false);
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
   return (
@@ -1870,6 +1894,13 @@ function PillButton(props: PillProps & { expanded: boolean; onPress(): void }) {
       accessibilityRole="button"
       accessibilityLabel={props.accessibilityLabel}
       accessibilityState={{ expanded: props.expanded }}
+      accessibilityHint={props.accessibilityHint}
+      hitSlop={props.hitSlop}
+      onFocus={(event) => {
+        const target = event.target as unknown as { matches?: (selector: string) => boolean };
+        if (WEB && (!target?.matches || target.matches(":focus-visible"))) setFocusVisible(true);
+      }}
+      onBlur={() => setFocusVisible(false)}
       onPress={props.onPress}
       {...hoverProps}
       {...hintProps(props.hint)}
@@ -1882,6 +1913,7 @@ function PillButton(props: PillProps & { expanded: boolean; onPress(): void }) {
           pillLift(props, lift),
           scaleStyle(lift.scale),
           webTransition,
+          WEB && focusVisible ? { outlineStyle: "solid", outlineWidth: 1, outlineColor: props.tokens.foregroundMuted, outlineOffset: 2 } as ViewStyle : null,
         ];
       }}
     >

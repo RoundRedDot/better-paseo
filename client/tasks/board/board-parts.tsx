@@ -407,7 +407,7 @@ export interface CardCellProps {
  */
 export function CardCell(props: CardCellProps) {
   const { card, board, register } = props;
-  const todo = useTodoSummary(board.paseo, card.id, board.visible && !props.copy && !card.subagent && !card.closed && board.fields.subtasks);
+  const todo = useTodoSummary(board.paseo, card.id, board.visible && !card.subagent && !card.closed && board.fields.plan, !props.copy);
   const searchPrompt = useSyncExternalStore(
     board.params.query.trim() ? board.searchStatus.subscribe : () => () => {},
     () => board.params.query.trim() ? board.searchStatus.prompt(card) : undefined,
@@ -446,6 +446,8 @@ export function CardCell(props: CardCellProps) {
             titleLines={board.titleLines === "all" ? null : Number(board.titleLines)}
             theme={props.theme}
             compact={props.compact}
+            todoExpanded={board.expandedTodo.has(card.id)}
+            onTodoExpandedChange={board.setTodoExpanded}
             subtasksExpanded={board.expandedSubtasks.has(card.id)}
             onSubtasksExpandedChange={board.setSubtasksExpanded}
             permissionButtons={board.buttonsFor(card)}

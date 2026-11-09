@@ -36,6 +36,7 @@ import { TASKS_SETTINGS_STRINGS, type TasksSettingsStrings } from "./strings";
 import { dismissEnabledNotice, useTasksForm, type TasksForm } from "./use-tasks-form";
 import { TitleGenerationSettings } from "./title-generation";
 import { HiddenCount, hiddenExampleCard } from "../board/hidden-count";
+import { FieldPreview } from "./field-preview";
 import { OpenTasksShortcut } from "./open-shortcut";
 
 /**
@@ -412,6 +413,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         title={strings.fieldsTitle}
         description={strings.fieldsHint}
         control={
+          <View>
           <View accessibilityLabel={strings.fieldsTitle} style={styles.chips} testID="tasks-field-chips">
             {CARD_FIELDS.map((field: CardField) => (
               <FieldChip
@@ -422,6 +424,8 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
                 look={look}
               />
             ))}
+          </View>
+          <FieldPreview values={values} titleLines={titleLines} theme={theme} look={look} language={language} strings={strings} hostId={hostId} />
           </View>
         }
         look={look}

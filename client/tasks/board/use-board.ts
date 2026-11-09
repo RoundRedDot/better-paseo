@@ -95,6 +95,8 @@ export interface BoardController {
   fields: CardSettings;
   titleLines: CardTitleLineCount;
   /** Shared by virtualised cards and their lane-motion copies. */
+  expandedTodo: ReadonlySet<string>;
+  setTodoExpanded(agentId: string, expanded: boolean): void;
   expandedSubtasks: ReadonlySet<string>;
   setSubtasksExpanded(agentId: string, expanded: boolean): void;
   /** The 1 s clock for what shows the time; its identity holds across ticks. */
@@ -311,6 +313,17 @@ export function useBoard(
   const fieldsRef = useRef(cardFields);
   if (!sameFields(fieldsRef.current, cardFields)) fieldsRef.current = cardFields;
   const fields = fieldsRef.current;
+
+  const [expandedTodo, setExpandedTodo] = useState<ReadonlySet<string>>(() => new Set());
+  const setTodoExpanded = useCallback((agentId: string, expanded: boolean) => {
+    setExpandedTodo((current) => {
+      if (current.has(agentId) === expanded) return current;
+      const next = new Set(current);
+      if (expanded) next.add(agentId);
+      else next.delete(agentId);
+      return next;
+    });
+  }, []);
 
   const [expandedSubtasks, setExpandedSubtasks] = useState<ReadonlySet<string>>(() => new Set());
   const setSubtasksExpanded = useCallback((agentId: string, expanded: boolean) => {
@@ -562,6 +575,8 @@ export function useBoard(
     total,
     fields,
     titleLines,
+    expandedTodo,
+    setTodoExpanded,
     expandedSubtasks,
     setSubtasksExpanded,
     clock,

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 import { measureHostTree } from "./helpers/yoga-host-layout";
+import * as todoSummary from "../../client/tasks/data/todo-summary";
 
 vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -410,6 +411,21 @@ afterEach(() => {
   resetEnhancerPreferences();
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
   resetTasksEnabled();
+});
+
+describe("plan subscription", () => {
+  it("enables the todo subscription from plan independently of subtasks", () => {
+    const todo = vi.spyOn(todoSummary, "useTodoSummary").mockReturnValue(null);
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, card: { ...DEFAULT_TASKS_SETTINGS.card, plan: false, subtasks: true } };
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    expect(todo.mock.calls.length).toBeGreaterThan(0);
+    expect(todo.mock.calls.every((call) => call[2] === false)).toBe(true);
+    todo.mockClear();
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, card: { ...DEFAULT_TASKS_SETTINGS.card, plan: true, subtasks: false } };
+    act(() => renderer!.update(screen(false)));
+    expect(todo.mock.calls.some((call) => call[2] === true)).toBe(true);
+  });
 });
 
 describe("search coverage render isolation", () => {

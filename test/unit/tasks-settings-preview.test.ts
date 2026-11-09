@@ -55,6 +55,8 @@ import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } fro
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS, applyDensity, setCardSetting } from "../../shared/tasks-settings";
 // These tests start from the board and the archived lane both off; the stock settings turn both on.
 const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...STOCK_SETTINGS.board, showArchived: false } };
+import { FieldPreview } from "../../client/tasks/settings/field-preview";
+import { TASKS_SETTINGS_STRINGS } from "../../client/tasks/settings/strings";
 import { TasksBoardPreview, previewLanes } from "../../client/tasks/settings/board-preview";
 import { StyleSheet } from "react-native";
 import { TasksTypography } from "../../client/tasks/typography";
@@ -101,6 +103,42 @@ beforeEach(() => {
 });
 
 describe("Tasks board preview", () => {
+  it("shows sample plans on the board and follows the plan switch", () => {
+    const r = draw();
+    expect(byTestID(r.root, "pill-todo")).toHaveLength(2);
+    draw({ values: setCardSetting(DEFAULT_TASKS_SETTINGS, "subtasks", false) });
+    expect(byTestID(r.root, "pill-todo")).toHaveLength(2);
+    draw({ values: setCardSetting(DEFAULT_TASKS_SETTINGS, "plan", false) });
+    expect(byTestID(r.root, "pill-todo")).toHaveLength(0);
+  });
+
+  it("expands the field preview and removes a disabled plan or model", () => {
+    const look = { compact: false, tokens: { foreground: "#111", foregroundMuted: "#777", accent: "#2563eb", v2: { border: "#ddd", surface0: "#fff", surface1: "#fafafa" } } } as never;
+    const props = { values: DEFAULT_TASKS_SETTINGS, titleLines: "2" as const, theme, look, language: "en" as const, strings: TASKS_SETTINGS_STRINGS.en };
+    act(() => { renderer = TestRenderer.create(React.createElement(FieldPreview, props)); });
+    expect(byTestID(renderer!.root, "pill-todo")).toHaveLength(1);
+    expect(textOf(byTestID(renderer!.root, "pill-model")[0]!)).toContain("GPT-5.5 Codex");
+    expect(byTestID(renderer!.root, "pill-branch")).toHaveLength(1);
+    expect(byTestID(renderer!.root, "pill-subtasks")).toHaveLength(1);
+    expect(byTestID(renderer!.root, "task-card-sample-running")).toHaveLength(1);
+    expect(byTestID(renderer!.root, "status-running").length).toBeGreaterThan(0);
+    expect(byTestID(renderer!.root, "subtask-count-running")).toHaveLength(1);
+    expect(byTestID(renderer!.root, "context-ring")).toHaveLength(1);
+    expect(textOf(byTestID(renderer!.root, "pill-todo")[0]!)).toContain("2/5");
+    act(() => byTestID(renderer!.root, "pill-todo")[0]!.props.onPress());
+    expect(byTestID(renderer!.root, "task-card-todo")).toHaveLength(1);
+    act(() => renderer!.update(React.createElement(FieldPreview, { ...props, values: setCardSetting(props.values, "plan", false) })));
+    expect(byTestID(renderer!.root, "pill-todo")).toHaveLength(0);
+    expect(byTestID(renderer!.root, "task-card-todo")).toHaveLength(0);
+    expect(textOf(byTestID(renderer!.root, "tasks-field-preview-tag")[0]!)).toBe("Hidden");
+    expect(textOf(renderer!.root)).toContain("Plan capsule is off");
+    act(() => renderer!.update(React.createElement(FieldPreview, { ...props, language: "zh", strings: TASKS_SETTINGS_STRINGS.zh, values: setCardSetting(props.values, "plan", false) })));
+    expect(textOf(byTestID(renderer!.root, "tasks-field-preview-tag")[0]!)).toBe("已隐藏");
+    expect(textOf(renderer!.root)).toContain("计划胶囊已关闭");
+    act(() => renderer!.update(React.createElement(FieldPreview, { ...props, values: setCardSetting(props.values, "model", false) })));
+    expect(textOf(byTestID(renderer!.root, "pill-model")[0]!)).not.toContain("GPT-5.5 Codex");
+  });
+
   it("copies sample labels and other copyable pills", async () => {
     spy.copyText.mockClear();
     spy.show.mockClear();

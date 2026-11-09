@@ -72,6 +72,7 @@ const en = {
   contextTokens: (used: string, max: string) => `${used} / ${max} tokens`,
   sessionCost: (cost: string) => `Session cost ${cost}`,
   starting: "Starting",
+  todoHint: (label: string, expanded: boolean) => `${label} · ${expanded ? "Click to collapse" : "Click to expand list"}`,
   subtasks: (total: number, parts: string) => `${total} ${total === 1 ? "subtask" : "subtasks"}: ${parts}`,
   status: {
     needs_input: "needs input",
@@ -313,6 +314,7 @@ const zh: CardStrings = {
   contextTokens: (used, max) => `${used} / ${max} tokens`,
   sessionCost: (cost) => `会话费用 ${cost}`,
   starting: "启动中",
+  todoHint: (label, expanded) => `${label} · ${expanded ? "点按收起" : "点按展开清单"}`,
   subtasks: (total, parts) => `${total} 个子任务：${parts}`,
   status: {
     needs_input: "待输入",
