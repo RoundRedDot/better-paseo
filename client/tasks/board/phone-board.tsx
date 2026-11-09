@@ -23,7 +23,8 @@ import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { BoardEmptyState } from "./empty-state";
-import { CardCell, NewCardsDot, NewCardsPill, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, SkeletonCard, WindowSegments, laneHue, useBreathing, useFreshIds } from "./board-parts";
+import { CardCell, HoverPressable, NewCardsDot, NewCardsPill, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, SkeletonCard, WindowSegments, laneHue, useBreathing, useFreshIds } from "./board-parts";
+import { liftStyle, surfaceLift } from "../cards/surface-lift";
 import { pillDirection, useSeenCards, useTrackNewCards, useUnseenCards, useUnseenLanes } from "./new-cards";
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { buildFilterOptions, clearedParams } from "./filter-options";
@@ -319,12 +320,13 @@ export function PhoneBoard(props: {
         </Text>
         {board.params.sort ? (
           // A non-default sort says so, as the desktop sort button's label does; it opens the sheet.
-          <Pressable
+          <HoverPressable
+            lift="toolbar"
             accessibilityRole="button"
             accessibilityLabel={`${strings.sort}: ${sortLabel(board.params.sort, strings)}`}
             onPress={() => setSheet({ kind: "filters", focus: "sort" })}
             testID="phone-sort-hint"
-            style={{
+            style={(hovered, pressed, input) => ({
               flexShrink: 1,
               minHeight: 28,
               marginLeft: 4,
@@ -332,16 +334,17 @@ export function PhoneBoard(props: {
               borderRadius: 14,
               borderWidth: HAIRLINE,
               borderColor: colors.border,
+              ...liftStyle(() => taskTokens(theme), surfaceLift(hovered, pressed, undefined, "toolbar", input), { border: colors.border }),
               flexDirection: "row",
               alignItems: "center",
               gap: 4,
-            }}
+            })}
           >
             <Icon name="ArrowUpDown" size={13} color={colors.foregroundMuted} />
             <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, fontWeight: "500", color: colors.foreground }}>
               {sortLabel(board.params.sort, strings)}
             </Text>
-          </Pressable>
+          </HoverPressable>
         ) : null}
         <View style={{ flex: 1 }} />
         <View style={{ flexDirection: "row" }}>

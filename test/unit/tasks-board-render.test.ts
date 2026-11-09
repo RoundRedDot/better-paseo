@@ -4790,6 +4790,52 @@ describe("Tasks board, toolbar tips", () => {
   });
 });
 
+describe("mobile toolbar press feedback", () => {
+  it.each(["ios", "android"].flatMap((os) => [true, false].map((phone) => ({ os, phone }))))("shows the same touch cue on $os phone=$phone", async ({ os, phone }) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(phone, phone ? { sort: "branch-desc" } : {})); });
+    if (!phone) layOut(1200);
+    await act(async () => {});
+    const ids = phone ? ["phone-subtasks", "phone-archived", "phone-more", "phone-sort-hint"] : ["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch", "search-full-conversation-toggle"];
+    const event = { nativeEvent: { pageX: 100, pageY: 100, identifier: 0 } };
+    for (const id of ids) {
+      const button = () => hostsById(id)[0]!;
+      const shadow = () => phone && id !== "phone-sort-hint"
+        ? StyleSheet.flatten(button().find((node) => (node.type as unknown) === "View").props.style).boxShadow
+        : StyleSheet.flatten(button().props.style).boxShadow;
+      expect(shadow(), id).toBeFalsy();
+      await act(async () => { button().props.onPressIn(event); button().props.onTouchStart(event); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+      expect(StyleSheet.flatten(button().props.style).transform, id).toEqual([{ scale: 1.03 }]);
+      expect(shadow(), id).toBeTruthy();
+      await act(async () => { button().props.onPressOut(event); button().props.onTouchEnd(event); });
+      expect(shadow(), id).toBeFalsy();
+    }
+    const toggle = () => hostsById(phone ? "phone-subtasks" : "subtasks-toggle")[0]!;
+    const before = toggle().props.accessibilityState.selected;
+    await act(async () => { toggle().props.onPressIn(event); toggle().props.onTouchStart(event); toggle().props.onTouchMove({ nativeEvent: { ...event.nativeEvent, pageY: 108 } }); toggle().props.onPressOut(event); toggle().props.onTouchEnd(event); toggle().props.onPress(event); });
+    expect(toggle().props.accessibilityState.selected).toBe(before);
+    await act(async () => { toggle().props.onPressIn(event); toggle().props.onTouchStart(event); toggle().props.onPressOut(event); toggle().props.onTouchEnd(event); });
+    expect(StyleSheet.flatten(toggle().props.style).transform).toEqual([{ scale: 1.03 }]);
+    await act(async () => toggle().props.onPress(event));
+    expect(toggle().props.accessibilityState.selected).toBe(!before);
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(StyleSheet.flatten(toggle().props.style).transform).toBeUndefined();
+    if (phone) {
+      await act(async () => pressable("Search").props.onPress());
+      const input = renderer!.root.find((node) => (node.type as unknown) === "TextInput" && node.props.accessibilityLabel === BOARD_STRINGS.en.search);
+      await act(async () => input.props.onChangeText("needle"));
+      for (const id of ["phone-search-clear", "search-full-conversation-toggle"]) {
+        const button = () => hostsById(id)[0]!;
+        await act(async () => { button().props.onPressIn(event); button().props.onTouchStart(event); await vi.advanceTimersByTimeAsync(100); });
+        expect(StyleSheet.flatten(button().props.style).transform, id).toEqual([{ scale: 1.03 }]);
+        expect(StyleSheet.flatten(button().props.style).boxShadow, id).toBeTruthy();
+        await act(async () => { button().props.onPressOut(event); button().props.onTouchEnd(event); });
+      }
+    }
+  });
+});
+
 describe("F2: tablet overlays outside toolbar AX bounds", () => {
   const bar = () => hostsById("tablet-toolbar")[0]!;
   const end = () => hostsById("tablet-toolbar-end")[0]!;

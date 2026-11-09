@@ -7,7 +7,7 @@ import type { DoneWindow } from "../../../shared/tasks-settings";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { liftStyle, scaleStyle, surfaceLift, type LiftSize } from "../cards/surface-lift";
+import { liftStyle, scaleStyle, surfaceLift, type LiftSize, type PressInput } from "../cards/surface-lift";
 import { usePressCue } from "../cards/action-pressable";
 import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
 import { useTodoSummary } from "../data/todo-summary";
@@ -334,14 +334,14 @@ export function HoverPressable(
     /** What the lift treats it as (`LiftSize`); false keeps its size on every press. */
     lift?: boolean | LiftSize;
     /** `pressed` is the press cue: at once for a pointer, after a still 100 ms for a finger (`usePressCue`). */
-    style(hovered: boolean, pressed: boolean): StyleProp<ViewStyle>;
+    style(hovered: boolean, pressed: boolean, input: PressInput): StyleProp<ViewStyle>;
   },
 ) {
   const { style, onPress, onLongPress, onPressIn, onPressOut, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, lift: liftAs = true, ...rest } = props;
   const { hovered, hoverProps } = useHover();
   const reduced = useReducedMotion();
   const press = usePressCue(hovered, !rest.disabled);
-  const visual = style(hovered, press.pressed);
+  const visual = style(hovered, press.pressed, press.input);
   const lift = scaleStyle(liftAs === false ? 1 : surfaceLift(hovered, press.pressed, reduced, liftAs === true ? "control" : liftAs, press.input).scale);
   const flat = visual && typeof visual === "object" && !Array.isArray(visual) ? { ...visual, ...lift } : [visual, lift];
   return (
@@ -748,7 +748,7 @@ export function RoundButton(props: {
   const toggleColor = props.selected ? colors.foreground : colors.foregroundMuted;
   const { hovered, hoverProps } = useHover();
   const press = usePressCue(hovered, !props.disabled);
-  const lift = surfaceLift(hovered, press.pressed, undefined, "control", press.input);
+  const lift = surfaceLift(hovered, press.pressed, undefined, "toolbar", press.input);
   const line = props.quietOutline && Platform.OS === "web" && !hovered ? "transparent" : props.active ? colors.accent : colors.border;
   return (
     <Pressable

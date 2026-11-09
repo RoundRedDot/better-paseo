@@ -26,6 +26,7 @@ import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { permissionButtons } from "../../client/tasks/actions";
 import { TasksTypographyScale } from "../../client/tasks/typography";
+import { RoundButton } from "../../client/tasks/board/board-parts";
 
 const motion = vi.hoisted(() => ({ reduced: false }));
 vi.mock("../../client/ui/use-reduced-motion", () => ({
@@ -85,6 +86,22 @@ function hold(button: ReactTestInstance, ms = 100) {
 function release(button: ReactTestInstance) {
   act(() => { button.props.onPressOut?.({}); button.props.onTouchEnd?.({}); });
 }
+
+describe("mobile toolbar feedback", () => {
+  it.each(["ios", "android"])("keeps the shadow without scaling under reduced motion on %s", async (os) => {
+    vi.stubGlobal("__rnMockOS", os);
+    vi.useFakeTimers();
+    motion.reduced = true;
+    const onPress = vi.fn();
+    const root = await render(<RoundButton icon="Search" label="Search" theme={theme} borderless onPress={onPress} />);
+    const button = root.findByType(Pressable);
+    hold(button);
+    expect(StyleSheet.flatten(button.props.style).transform).toBeUndefined();
+    expect(StyleSheet.flatten(button.find((node) => (node.type as unknown) === "View").props.style).boxShadow).toBe(tokens.card.buttonShadowHover);
+    release(button);
+    expect(StyleSheet.flatten(button.find((node) => (node.type as unknown) === "View").props.style).boxShadow).toBeFalsy();
+  });
+});
 
 describe("mobile card action feedback", () => {
   it.each(["scroll", "pan", "cancel"])("suppresses a %s gesture and accepts the next quick tap", async (kind) => {

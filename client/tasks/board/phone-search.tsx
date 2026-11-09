@@ -1,11 +1,14 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { Animated, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { HOST_FONT as F, useTasksFontScale } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { FullConversationSwitch, SearchInput } from "./search-loading";
 import { HAIRLINE, MOTION } from "./board-style";
+import { HoverPressable } from "./board-parts";
+import { liftStyle, surfaceLift } from "../cards/surface-lift";
+import { taskTokens } from "../cards/tokens";
 
 /** Owns its height and exit lifetime instead of relying on a host layout transaction. */
 export function PhoneSearch(props: {
@@ -90,9 +93,9 @@ export function PhoneSearch(props: {
               style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground }}
             />
             {props.query ? (
-              <Pressable accessibilityRole="button" accessibilityLabel={props.clear} testID="phone-search-clear" hitSlop={10} onPress={() => props.onChange("")}>
+              <HoverPressable lift="toolbar" accessibilityRole="button" accessibilityLabel={props.clear} testID="phone-search-clear" hitSlop={10} onPress={() => props.onChange("")} style={(hovered, pressed, input) => ({ borderRadius: 4, ...liftStyle(() => taskTokens(theme), surfaceLift(hovered, pressed, undefined, "toolbar", input)) })}>
                 <Icon name="X" size={15} color={colors.foregroundMuted} />
-              </Pressable>
+              </HoverPressable>
             ) : null}
           </View>
           <FullConversationSwitch theme={theme} compact iconSize={22} />

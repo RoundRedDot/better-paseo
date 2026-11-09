@@ -86,7 +86,8 @@ Cards, the sidebar's capsules, and the board's buttons share one treatment (`sur
 - On desktop web, a fine pointer (`(hover: hover) and (pointer: fine)`) deepens the shadow while hovered. Nothing scales.
 - On a phone, a touch browser, and an iPad (the app, trackpad included), the deeper shadow and a scale of 1.03 happen only while pressed. Hover, including an iPad pointer, does not.
 - Reduced motion skips the scale and keeps the shadow. Action buttons animate the scale over 100 ms; the other controls snap.
-- A selected, open, current, expanded, or on fill stays where the control has one. The tablet toolbar’s Subtasks switch uses `surface2` when selected. The stop chevron keeps its danger wash while its menu is open. An expanded pill keeps its 6% wash. Chat rows, menu rows, detail property rows, subtask rows, and the lane panel are outside this treatment.
+- Phone and tablet toolbar buttons show the press shadow and 1.03 scale after a finger stays still for 100 ms; a quick tap shows the cue briefly after release. A scroll or pan cancels it. Reduced motion keeps the shadow without the scale.
+- A selected, open, current, expanded, or on fill stays where the control has one. The stop chevron keeps its danger wash while its menu is open. An expanded pill keeps its 6% wash. Chat rows, menu rows, detail property rows, subtask rows, and the lane panel are outside this treatment.
 - Menu chrome (`menuChrome`): `surface0`, hairline border, hover foreground 5.5% (8% dark),
   shadow `0 4 24` and `0 1 3` at 8% and 4% (45% and 30% dark). `panelChrome` reuses it.
 - Chat rows have no surface at rest: `surface1` hovered, `surface2` pressed or held. The chat's

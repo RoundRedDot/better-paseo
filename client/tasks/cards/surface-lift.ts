@@ -10,11 +10,12 @@ import type { TaskTokens } from "./tokens";
  * - `capsule`: a sidebar stat capsule, wider than a finger.
  * - `row`: a full-width row or bar button, wider than a finger.
  * - `control`: a button, tab or chip a finger covers whole.
+ * - `toolbar`: a toolbar button, which gives visible finger feedback.
  */
-export type LiftSize = "card" | "capsule" | "row" | "control";
+export type LiftSize = "card" | "capsule" | "row" | "control" | "toolbar";
 
-/** How far a desktop or iPad trackpad press insets each size. A finger press never scales. */
-export const PRESS_INSET: Record<LiftSize, number> = { card: 1, capsule: 0.97, row: 0.96, control: 0.96 };
+/** How far a desktop or iPad trackpad press insets each size. */
+export const PRESS_INSET: Record<LiftSize, number> = { card: 1, capsule: 0.97, row: 0.96, control: 0.96, toolbar: 0.96 };
 
 /** A finger shows the press cue only after it has been down this long without moving. */
 export const PRESS_CUE_DELAY = 100;
@@ -64,13 +65,16 @@ const REST: SurfaceLift = { line: false, shadow: false, scale: 1, finger: false 
  * - Desktop hover: the line steps and the shadow rises. Nothing scales. iPad hover paints nothing.
  * - Desktop or trackpad press: the line stays stepped, the shadow drops back, the surface insets
  *   (a card keeps its size and its raised shadow).
- * - Finger press: nothing scales. A control the finger covers shows nothing; a card, capsule or row
- *   steps its line and raises its shadow. `pressed` is the delayed cue from `usePressCue`.
+ * - Finger press: toolbar buttons grow and raise their shadow; other controls keep their size.
+ *   Cards, capsules and rows step their line and raise their shadow. `pressed` is the delayed cue from `usePressCue`.
  * Reduced motion skips the inset and keeps the line and shadow.
  */
 export function surfaceLift(hovered: boolean, pressed: boolean, reduced = getReducedMotion(), size: LiftSize = "control", input?: PressInput): SurfaceLift {
   if (pressed) {
-    if ((input ?? pressInput(hovered)) === "finger") return size === "control" ? REST : { line: true, shadow: true, scale: 1, finger: true };
+    if ((input ?? pressInput(hovered)) === "finger") {
+      if (size === "toolbar") return { line: false, shadow: true, scale: reduced ? 1 : 1.03, finger: true };
+      return size === "control" ? REST : { line: true, shadow: true, scale: 1, finger: true };
+    }
     if (size === "card") return { line: true, shadow: true, scale: 1, finger: false };
     return { line: true, shadow: false, scale: reduced ? 1 : PRESS_INSET[size], finger: false };
   }

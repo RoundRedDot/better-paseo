@@ -145,7 +145,7 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { th
     </View> : null}
     <TextInput {...input} accessibilityState={{ ...input.accessibilityState, busy: loading }} />
     {beforeCancel}
-    {input.value?.trim() && context?.setCancelled && (loading || context.cancelled) ? <HoverPressable testID="search-cancel-toggle" accessibilityRole="button" accessibilityLabel={context.cancelled ? context.resumeText : context.cancelText} {...tipProps(context.cancelled ? context.resumeText : context.cancelText)} onPress={() => context.setCancelled?.(!context.cancelled)} hitSlop={6} style={(hovered, pressed) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", ...liftStyle(() => taskTokens(theme), surfaceLift(hovered, pressed)) })}>
+    {input.value?.trim() && context?.setCancelled && (loading || context.cancelled) ? <HoverPressable lift="toolbar" testID="search-cancel-toggle" accessibilityRole="button" accessibilityLabel={context.cancelled ? context.resumeText : context.cancelText} {...tipProps(context.cancelled ? context.resumeText : context.cancelText)} onPress={() => context.setCancelled?.(!context.cancelled)} hitSlop={6} style={(hovered, pressed, source) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", ...liftStyle(() => taskTokens(theme), surfaceLift(hovered, pressed, undefined, "toolbar", source)) })}>
       <Icon name={context.cancelled ? "Play" : "Square"} size={iconSize} color={iconColor} />
     </HoverPressable> : null}
     <Text testID="search-announcement" accessibilityLiveRegion="polite" role="status" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}>{announcement}</Text>
@@ -175,7 +175,7 @@ export function FullConversationSwitch({ theme, compact, iconSize: requestedIcon
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);
   if (!context?.onFullConversationChange) return null;
-  const lift = surfaceLift(hovered, press.pressed, reduced, "control", press.input);
+  const lift = surfaceLift(hovered, press.pressed, reduced, "toolbar", press.input);
   const outlined = !compact && Platform.OS === "web";
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
     accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={press.guard(toggle)} hitSlop={4} {...hoverProps}
