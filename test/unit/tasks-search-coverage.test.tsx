@@ -109,6 +109,18 @@ it("offers stop and resume without clearing the query", () => {
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
 });
 
+it("keeps the search icon in place while loading when the field asks for it", () => {
+  const counts = state(1, 0);
+  const status: SearchCoverageControl = { read: () => counts, subscribe: () => () => {}, prompt: () => ({ state: "idle" }) };
+  act(() => { renderer = TestRenderer.create(<SearchCoverageProvider status={status} query="deploy" strings={BOARD_STRINGS.en.searchCoverage}>
+    <SearchInput theme={testTheme} iconSize={13} iconColor="#777777" value="deploy" staticIcon />
+  </SearchCoverageProvider>); });
+  act(() => { vi.advanceTimersByTime(300); });
+  const slot = hosts("search-icon-slot")[0]!;
+  expect(slot.findAll((node) => typeof node.type === "string" && node.props.name === "Search")).toHaveLength(1);
+  expect(slot.findAll((node) => node.props.testID === "search-spinner")).toHaveLength(0);
+});
+
 it("keeps a hidden search icon from reappearing as a loading spinner", () => {
   mount(state(1, 0), "en", false, 16, true);
   act(() => { vi.advanceTimersByTime(300); });

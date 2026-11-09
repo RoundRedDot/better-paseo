@@ -558,6 +558,9 @@ describe("Tasks search coverage and centred toolbar", () => {
       const badge = hostsById("search-coverage-items")[0]!;
       expect(field.findAll((node) => node === badge)).toHaveLength(1);
       expect(textOf(badge)).toBe("0");
+      // The inline field keeps its magnifier; the count badge carries the loading state.
+      expect(field.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "Search")).toHaveLength(1);
+      expect(hostsById("search-icon-slot")[0]!.findAll((node) => node.props.testID === "search-spinner")).toHaveLength(0);
       const summary = hostsById("desktop-toolbar-search-summary")[0]!;
       expect(textOf(summary)).not.toContain("Contains");
       expect(textOf(summary)).toContain("Clear filters");

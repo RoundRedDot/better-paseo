@@ -191,7 +191,7 @@ function DesktopToolbarView(props: {
           borderRadius: 6,
         }}
       >
-        <SearchInput theme={theme} hideSearchIcon iconSize={13} iconColor={colors.foregroundMuted}
+        <SearchInput theme={theme} hideSearchIcon={!inlineSearch} staticIcon={inlineSearch} iconSize={13} iconColor={colors.foregroundMuted}
           ref={props.searchRef}
           autoFocus={!inlineSearch}
           value={board.params.query}

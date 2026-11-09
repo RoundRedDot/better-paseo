@@ -91,8 +91,13 @@ export function SearchSpinner(props: { size: number; color: string }) {
   </Animated.View>;
 }
 
-export function SearchInput(props: React.ComponentProps<typeof TextInput> & { theme: PluginTheme; iconSize: number; iconColor: string; hideSearchIcon?: boolean; ref?: React.Ref<NativeTextInput>; beforeCancel?: ReactNode }) {
-  const { theme, iconSize, iconColor, hideSearchIcon, beforeCancel, ...input } = props;
+/**
+ * `staticIcon` keeps the magnifier while a read runs: the loading state is
+ * shown elsewhere (the field's count badge), so the icon must not crossfade
+ * into a spinner.
+ */
+export function SearchInput(props: React.ComponentProps<typeof TextInput> & { theme: PluginTheme; iconSize: number; iconColor: string; hideSearchIcon?: boolean; staticIcon?: boolean; ref?: React.Ref<NativeTextInput>; beforeCancel?: ReactNode }) {
+  const { theme, iconSize, iconColor, hideSearchIcon, staticIcon, beforeCancel, ...input } = props;
   const { context, counts } = useSearchCoverage();
   const loading = !context?.cancelled && (counts.pending > 0 || context?.historyLoading === true);
   const shown = useSearchLoading(loading, input.value ?? "");
@@ -135,8 +140,8 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { th
   const spinnerVisible = Boolean(input.value?.trim() && (shown || present === input.value));
   return <>
     {!hideSearchIcon ? <View testID="search-icon-slot" {...tipProps(shown && context ? counts.pending ? context.strings.tip(counts.loaded) : context.historyLoading ? context.historyLoadingText : undefined : undefined)} style={{ width: iconSize, height: iconSize, flexShrink: 0 }}>
-      <Animated.View style={{ position: "absolute", opacity: opacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}><Icon name="Search" size={iconSize} color={iconColor} /></Animated.View>
-      {spinnerVisible ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
+      <Animated.View style={{ position: "absolute", opacity: staticIcon ? 1 : opacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}><Icon name="Search" size={iconSize} color={iconColor} /></Animated.View>
+      {!staticIcon && spinnerVisible ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
     </View> : null}
     <TextInput {...input} accessibilityState={{ ...input.accessibilityState, busy: loading }} />
     {beforeCancel}

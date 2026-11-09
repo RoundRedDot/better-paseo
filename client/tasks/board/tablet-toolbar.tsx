@@ -102,7 +102,7 @@ export function TabletToolbar(props: {
   const search = (
     <View testID="tablet-toolbar-search-group" style={{ minWidth: 0, maxWidth: "100%", flexShrink: inlineSearch ? 0 : 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
     <View testID="tablet-toolbar-search" style={{ width: inlineSearch ? props.laneWidth : 320, flexShrink: 1, minWidth: 0, height: height - 8, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
-      <SearchInput theme={theme} hideSearchIcon iconSize={16} iconColor={colors.foregroundMuted}
+      <SearchInput theme={theme} hideSearchIcon={!inlineSearch} staticIcon={inlineSearch} iconSize={16} iconColor={colors.foregroundMuted}
         ref={props.searchRef}
         value={board.params.query}
         onChangeText={(query) => board.setParams((p) => ({ ...p, query }))}
