@@ -3906,7 +3906,7 @@ describe("Tasks board, sorting", () => {
     expect(menuOption(strings.emptyGroups.row)).toBeDefined();
     expect(menuOption("Claude")).toBeDefined();
     const rowStyle = StyleSheet.flatten(menuOption("Claude").props.style);
-    expect(rowStyle).toMatchObject({ paddingHorizontal: 8, marginHorizontal: 6, gap: 8 });
+    expect(rowStyle).toMatchObject({ paddingHorizontal: 8, marginHorizontal: 10, gap: 8 });
     for (const [tip, width] of [[strings.tips.project, 280], [strings.tips.workspace, 260], [strings.tips.labels, 200]] as const) {
       toggle(tip);
       expect(StyleSheet.flatten(hostsById("menu-panel")[0]!.props.style).width).toBe(Math.min(Math.round(width * base / 14), 390 - 16));

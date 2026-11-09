@@ -146,7 +146,7 @@ describe("split Stop button", () => {
     const root = await render();
     await act(async () => button(root, "Stop options").props.onPress());
     await act(async () => root.find((node) => (node.type as unknown) === "Modal").props.onShow());
-    expect(flat(host(root, "task-card-stop-menu-anchor"))).toMatchObject({ left: 8, top: 192, opacity: 1 });
+    expect(flat(host(root, "task-card-stop-menu-anchor"))).toMatchObject({ left: 8, top: 184, opacity: 1 });
   });
 
   it("keeps the web menu inside its trigger boundary without a modal backdrop", async () => {

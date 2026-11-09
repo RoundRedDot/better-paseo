@@ -418,7 +418,7 @@ describe("CascadeMenu", () => {
     expect(StyleSheet.flatten(submenu()[0]!.props.style).left).toBe(280 - MENU.overlap);
   });
 
-  it("draws Linear's chrome from the theme: radius 12, a hairline, a wide soft shadow, rows 32 inset 6", () => {
+  it("draws themed menu chrome with equal 10 pt top and side insets", () => {
     for (const colors of [LIGHT, DARK, SEPIA]) {
       render(sections(), colors);
       const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
@@ -427,10 +427,10 @@ describe("CascadeMenu", () => {
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         backgroundColor: colors.surface0,
-        paddingVertical: 6,
+        paddingVertical: 10,
         boxShadow: menuChrome(theme(colors)).shadow,
       });
-      expect(StyleSheet.flatten(row("Plain").props.style)).toMatchObject({ height: 32, marginHorizontal: 6, borderRadius: 6 });
+      expect(StyleSheet.flatten(row("Plain").props.style)).toMatchObject({ height: 32, marginHorizontal: 10, borderRadius: 6 });
       act(() => renderer!.unmount());
     }
     renderer = undefined;
@@ -816,7 +816,9 @@ describe("CascadeMenu", () => {
       const scroller = panel.find((node) => (node.type as unknown) === "ScrollView");
       expect(panel.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "menu-search")).toHaveLength(1);
       expect(scroller.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "menu-search")).toHaveLength(0);
-      expect(StyleSheet.flatten(scroller.props.style).maxHeight).toBe(MENU.maxHeight - (MENU.searchHeight + 1));
+      const search = panel.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-search");
+      expect(StyleSheet.flatten(search.props.style).paddingTop).toBe(StyleSheet.flatten(row("Row 0").props.style).marginHorizontal);
+      expect(StyleSheet.flatten(scroller.props.style).maxHeight).toBe(MENU.maxHeight - (MENU.padV + MENU.searchHeight + 1));
     });
 
     it("draws no field over a menu with nothing to filter", () => {

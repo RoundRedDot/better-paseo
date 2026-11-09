@@ -292,8 +292,8 @@ function MenuSearch(props: {
   const colors = props.theme.colors;
   const [clearHovered, setClearHovered] = useState(false);
   return (
-    <View testID="menu-search">
-      <View style={{ height: menuSearchHeight(scale) - 1, flexDirection: "row", alignItems: "center", gap: MENU.gap, paddingHorizontal: MENU.inset + 8 }}>
+    <View testID="menu-search" style={{ paddingTop: MENU.padV }}>
+      <View style={{ height: menuSearchHeight(scale) - MENU.padV - 1, flexDirection: "row", alignItems: "center", gap: MENU.gap, paddingHorizontal: MENU.inset + 8 }}>
         <Icon name="Search" size={14} color={colors.foregroundMuted} />
         <TextInput
           ref={props.inputRef}
