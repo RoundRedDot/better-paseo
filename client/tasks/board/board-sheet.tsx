@@ -221,7 +221,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
           <View style={{ width: 32, height: 3, borderRadius: 1.5, backgroundColor: props.theme.colors.foregroundMuted, opacity: 0.5 }} />
         </Pressable>
       </View>
-      <View testID="board-sheet-content" style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingBottom: 4 }}>{content.current}</View>
+      <View testID="board-sheet-content" style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingBottom: Platform.OS === "android" ? 32 : 4 }}>{content.current}</View>
     </Animated.View>
   );
 });
