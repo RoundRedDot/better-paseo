@@ -2672,6 +2672,8 @@ describe("Tasks board, desktop", () => {
     for (const height of [900, 560, 1100]) {
       await act(async () => column.props.onLayout({ nativeEvent: { layout: { width: 380, height } } }));
       const scroll = hostsById("detail-tab-short-scroll")[0]!;
+      expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(0);
+      expect(scroll.props.contentContainerStyle).toBeUndefined();
       expect(scroll.props.stickyHeaderIndices).toEqual([1]);
       expect(scroll.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-header")).toHaveLength(1);
       expect(scroll.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-action-bar")).toHaveLength(0);
@@ -2687,9 +2689,13 @@ describe("Tasks board, desktop", () => {
     await act(async () => card.props.onSelect(card.props.card));
     expect(hostsById("board-sheet")).toHaveLength(1);
     expect(StyleSheet.flatten(hostsById("board-sheet-content")[0]!.props.style).paddingHorizontal).toBe(12);
-    expect(hostsById("detail-tab-short-scroll")).toHaveLength(1);
+    const scroll = hostsById("detail-tab-short-scroll")[0]!;
+    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(os === "ios" ? -12 : 0);
+    expect(scroll.props.contentContainerStyle).toEqual(os === "ios" ? { paddingRight: 12 } : undefined);
+    expect(scroll.props.showsVerticalScrollIndicator).toBe(true);
     expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
     await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
+    expect(hostsById("detail-tab-short-scroll")[0]).toBe(scroll);
     expect(hostsById("detail-location")).toHaveLength(1);
     expect(hostsById("detail-action-bar")).toHaveLength(1);
   });
@@ -6812,6 +6818,8 @@ describe("Tasks board, phone", () => {
     expect(detail.props).toMatchObject({ touch: true, tabs: true, scrollHeader: true, actions: false });
     const scroll = hostsById("detail-tab-short-scroll")[0]!;
     const bar = hostsById("detail-action-bar")[0]!;
+    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(0);
+    expect(scroll.props.contentContainerStyle).toBeUndefined();
     expect(scroll.findAll((node) => node === bar)).toHaveLength(0);
     expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
     expect(hostsById("detail-prompt")).toHaveLength(1);

@@ -348,7 +348,8 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
           <SheetScrollView
             key={card.id}
             ref={tabScroll}
-            style={{ flex: 1 }}
+            style={{ flex: 1, marginRight: Platform.OS === "ios" && props.sheetToggle ? -12 : 0 }}
+            contentContainerStyle={Platform.OS === "ios" && props.sheetToggle ? { paddingRight: 12 } : undefined}
             stickyHeaderIndices={[1]}
             scrollEventThrottle={16}
             onLayout={(event) => {
