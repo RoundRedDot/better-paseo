@@ -2686,6 +2686,18 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("detail-action-bar")).toHaveLength(1);
   });
 
+  it("places the iPad sheet's scroll indicator outside the unchanged card width", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(600);
+    act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+    const scroll = hostsById("details-sidebar-scroll")[0]!;
+    expect(scroll.props.showsVerticalScrollIndicator).toBe(true);
+    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(-12);
+    expect(StyleSheet.flatten(scroll.props.contentContainerStyle).paddingRight).toBe(12);
+    expect(hostsById("sidebar-stats")).toHaveLength(1);
+  });
+
   it("raises the details from the bottom of a board too narrow to float them, and the lanes make room", () => {
     const timings = holdTimings();
     try {

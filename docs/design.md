@@ -1077,6 +1077,9 @@ apply to all three.
   380. Keep this handle available after dismissing and reopening the same card's details.
 - The board sheet has a 58% half detent; full height leaves 8 of the lanes showing; radius 16 on
   top, a 36 × 5 handle.
+- On a narrow iPad board sheet, place the column's vertical scroll indicator outside the cards.
+  Keep the cards' existing width and alignment; moving the indicator must not narrow the cards or
+  add space between them and the sheet edge. Check the placement while scrolling on an iPad.
 
 | Metric (`DETAIL_CARD`, `TOUCH_CARD`) | Pointer | Touch |
 | --- | --- | --- |
