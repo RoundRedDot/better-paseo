@@ -201,13 +201,11 @@ function DesktopToolbarView(props: {
           placeholder={strings.search}
           placeholderTextColor={colors.foregroundMuted}
           accessibilityLabel={strings.search}
+          beforeCancel={<SearchCoverageItems theme={theme} part="badge" />}
           style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }}
         />
         {board.params.query.length > 0 ? (
-          <>
-            <SearchCoverageItems theme={theme} part="badge" />
-            <ClearButton label={strings.menuSearch.clear} onPress={() => board.setParams((params) => ({ ...params, query: "" }))} theme={theme} />
-          </>
+          <ClearButton label={strings.menuSearch.clear} onPress={() => board.setParams((params) => ({ ...params, query: "" }))} theme={theme} />
         ) : null}
       </View>
       <FullConversationSwitch theme={theme} />

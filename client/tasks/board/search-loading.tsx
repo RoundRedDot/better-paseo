@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AccessibilityInfo, Animated, Platform, Pressable, View, type TextInput as NativeTextInput } from "react-native";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { SearchCoverageControl } from "../data/search-first-prompts";
@@ -91,8 +91,8 @@ export function SearchSpinner(props: { size: number; color: string }) {
   </Animated.View>;
 }
 
-export function SearchInput(props: React.ComponentProps<typeof TextInput> & { theme: PluginTheme; iconSize: number; iconColor: string; hideSearchIcon?: boolean; ref?: React.Ref<NativeTextInput> }) {
-  const { theme, iconSize, iconColor, hideSearchIcon, ...input } = props;
+export function SearchInput(props: React.ComponentProps<typeof TextInput> & { theme: PluginTheme; iconSize: number; iconColor: string; hideSearchIcon?: boolean; ref?: React.Ref<NativeTextInput>; beforeCancel?: ReactNode }) {
+  const { theme, iconSize, iconColor, hideSearchIcon, beforeCancel, ...input } = props;
   const { context, counts } = useSearchCoverage();
   const loading = !context?.cancelled && (counts.pending > 0 || context?.historyLoading === true);
   const shown = useSearchLoading(loading, input.value ?? "");
@@ -139,6 +139,7 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { th
       {spinnerVisible ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
     </View> : null}
     <TextInput {...input} accessibilityState={{ ...input.accessibilityState, busy: loading }} />
+    {beforeCancel}
     {input.value?.trim() && context?.setCancelled && (loading || context.cancelled) ? <HoverPressable testID="search-cancel-toggle" accessibilityRole="button" accessibilityLabel={context.cancelled ? context.resumeText : context.cancelText} {...tipProps(context.cancelled ? context.resumeText : context.cancelText)} onPress={() => context.setCancelled?.(!context.cancelled)} hitSlop={6} style={(hovered, pressed) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", ...liftStyle(() => taskTokens(theme), surfaceLift(hovered, pressed)) })}>
       <Icon name={context.cancelled ? "Play" : "Square"} size={iconSize} color={iconColor} />
     </HoverPressable> : null}

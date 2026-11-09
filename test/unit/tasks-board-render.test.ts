@@ -566,6 +566,9 @@ describe("Tasks search coverage and centred toolbar", () => {
       const badgeFrame = frames.get(badge)!;
       expect(badgeFrame.left).toBeGreaterThanOrEqual(fieldFrame.left);
       expect(badgeFrame.left + badgeFrame.width).toBeLessThanOrEqual(fieldFrame.left + fieldFrame.width);
+      // The count precedes the stop toggle that used to sit before it.
+      const cancelFrame = frames.get(hostsById("search-cancel-toggle")[0]!)!;
+      expect(badgeFrame.left + badgeFrame.width).toBeLessThanOrEqual(cancelFrame.left);
       await act(async () => { finish(); await request; });
     } finally {
       act(() => renderer?.unmount()); renderer = undefined;
