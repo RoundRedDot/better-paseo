@@ -241,9 +241,16 @@ function layOut(width: number) {
 
 function finishSidebarCloseImmediately() {
   const timing = Animated.timing;
-  vi.spyOn(Animated, "timing").mockImplementation((value, config) => config.toValue === 0 && (config.duration === 180 || config.duration === 200)
-    ? { start: (done) => { (value as Animated.Value).setValue(0); done?.({ finished: true }); }, stop: () => {}, reset: () => {} }
+  vi.spyOn(Animated, "timing").mockImplementation((value, config) => (config.toValue === 0 || value === sheetSlide()) && (config.duration === 180 || config.duration === 200)
+    ? { start: (done) => { (value as Animated.Value).setValue(config.toValue as number); done?.({ finished: true }); }, stop: () => {}, reset: () => {} }
     : timing(value, config));
+}
+
+/** What moves the bottom sheet in and out (`BoardSheet`'s translateY), if it is up. */
+function sheetSlide(): unknown {
+  const sheet = renderer?.root.findAll((node) => typeof node.type === "string" && node.props.testID === "board-sheet")[0];
+  const transform = sheet ? (StyleSheet.flatten(sheet.props.style).transform as { translateY?: unknown }[] | undefined) : undefined;
+  return transform?.[0]?.translateY;
 }
 
 /** Host nodes with a test id (composites carry the same props). */
@@ -272,7 +279,7 @@ function cards(): ReactTestInstance[] {
   return renderer!.root.findAllByType(TaskCardView);
 }
 
-interface HeldRun { value: Animated.Value; to: number; duration: number; done?: (result: { finished: boolean }) => void; over: boolean }
+interface HeldRun { value: Animated.Value; to: number; duration: number; native?: boolean; done?: (result: { finished: boolean }) => void; over: boolean }
 
 /**
  * `Animated.timing` runs that end only when the test finishes them; a stop
@@ -282,7 +289,7 @@ interface HeldRun { value: Animated.Value; to: number; duration: number; done?: 
 function holdTimings() {
   const runs: HeldRun[] = [];
   const spy = vi.spyOn(Animated, "timing").mockImplementation((value, config) => {
-    const run: HeldRun = { value: value as Animated.Value, to: config.toValue as number, duration: config.duration as number, over: false };
+    const run: HeldRun = { value: value as Animated.Value, to: config.toValue as number, duration: config.duration as number, native: config.useNativeDriver, over: false };
     runs.push(run);
     return {
       start: (done) => { run.done = done; },
@@ -294,14 +301,15 @@ function holdTimings() {
       reset: () => {},
     };
   });
-  const sheetValue = () => StyleSheet.flatten(hostsById("board-sheet")[0]!.props.style).height as unknown as Animated.Value;
+  const sheetValue = () => StyleSheet.flatten(hostsById("board-sheet-body")[0]!.props.style).height as unknown as Animated.Value;
   const sheet = () => runs.filter((run) => run.value === sheetValue());
+  const slide = () => runs.filter((run) => run.value === sheetSlide());
   const finish = (run: HeldRun) => act(() => {
     run.over = true;
     run.value.setValue(run.to);
     run.done?.({ finished: true });
   });
-  return { sheet, sheetValue, finish, restore: () => spy.mockRestore() };
+  return { sheet, sheetValue, slide, finish, restore: () => spy.mockRestore() };
 }
 
 /** The card ids a phone pager page draws. */
@@ -2735,6 +2743,7 @@ describe("Tasks board, desktop", () => {
     act(() => card.props.onSelect(card.props.card));
     expect(hostsById("board-sheet")).toHaveLength(1);
     expect(hostsById("sidebar-floating")).toHaveLength(0);
+    timings.finish(timings.slide().at(-1)!);
     const toggle = () => hostsById("detail-sheet-toggle")[0]!;
     expect(toggle().props.accessibilityLabel).toBe("Expand details");
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Maximize2");
@@ -2791,9 +2800,9 @@ describe("Tasks board, desktop", () => {
       blank.props.onResponderGrant({ nativeEvent: { pageX: 10, pageY: 10 } });
       blank.props.onResponderRelease({ nativeEvent: { pageX: 10, pageY: 10 } });
     });
-    expect(timings.sheet().at(-1)).toMatchObject({ to: 0, duration: 200 });
+    expect(timings.slide().at(-1)).toMatchObject({ to: 464, duration: 200 });
     expect(hostsById("board-sheet")).toHaveLength(1);
-    timings.finish(timings.sheet().at(-1)!);
+    timings.finish(timings.slide().at(-1)!);
     expect(hostsById("board-sheet")).toHaveLength(0);
     } finally {
       timings.restore();
@@ -2817,8 +2826,14 @@ describe("Tasks board, desktop", () => {
       const room = () => StyleSheet.flatten(renderer!.root.findAll((node) => typeof node.props.renderItem === "function" && node.props.contentContainerStyle !== undefined)[0]!.props.contentContainerStyle).paddingBottom;
       const last = () => timings.sheet().at(-1)!;
       const height = () => (timings.sheetValue() as unknown as { __value: number }).__value;
-      timings.finish(last());
+      // The sheet stands at its height from the start and slides in; the lanes make room once it is in.
+      expect(timings.sheet()).toHaveLength(0);
       expect(height()).toBe(464);
+      // Off the JS thread where there is a native driver: the board's render for the selection cannot hold it.
+      expect(timings.slide().at(-1)).toMatchObject({ to: 0, duration: 280, native: os !== "web" });
+      expect(room()).toBe(8);
+      timings.finish(timings.slide().at(-1)!);
+      expect(room()).toBe(8 + 464);
 
       // A second tap before the sheet is there turns it back; the stopped run tells the board nothing.
       act(() => toggle().props.onPress());
@@ -2878,13 +2893,40 @@ describe("Tasks board, desktop", () => {
       const lost = last();
       act(() => hostsById("detail-bar-close")[0]!.props.onPress());
       expect(lost.over).toBe(true);
-      expect(last()).toMatchObject({ to: 0, duration: 200 });
+      // It slides out at the height it stands at, and the lanes keep their room until it is out.
+      expect(timings.slide().at(-1)).toMatchObject({ to: 464, duration: 200 });
       expect(hostsById("board-sheet")).toHaveLength(1);
-      const closing = last();
+      expect(room()).toBe(8 + 464);
+      const closing = timings.slide().at(-1)!;
       open();
       expect(closing.over).toBe(true);
-      expect(last()).toMatchObject({ to: 464 });
+      expect(timings.slide().at(-1)).toMatchObject({ to: 0, duration: 240 });
+      expect(height()).toBe(464);
       expect([label(), room()]).toEqual(["Expand details", 8 + 464]);
+      timings.finish(timings.slide().at(-1)!);
+      act(() => hostsById("detail-bar-close")[0]!.props.onPress());
+      timings.finish(timings.slide().at(-1)!);
+      expect(hostsById("board-sheet")).toHaveLength(0);
+      expect(room()).toBe(8);
+
+      // A drag down from half slides it out from where the finger left it, then closes it.
+      open();
+      timings.finish(timings.slide().at(-1)!);
+      act(() => {
+        handle().parent!.parent!.props.onStartShouldSetPanResponderCapture({ nativeEvent: { pageY: 300 } });
+        handle().parent!.parent!.props.onPanResponderGrant({ nativeEvent: { pageY: 300 } }, { dy: 0, vy: 0 });
+      });
+      act(() => handle().parent!.parent!.props.onPanResponderMove({ nativeEvent: { pageY: 400 } }, { dy: 100, vy: 0 }));
+      act(() => handle().parent!.parent!.props.onPanResponderRelease({ nativeEvent: { pageY: 400 } }, { dy: 100, vy: 0 }));
+      expect(timings.slide().at(-1)).toMatchObject({ to: 364, duration: 200, native: os !== "web" });
+      expect([hostsById("board-sheet").length, room()]).toEqual([1, 8 + 464]);
+      timings.finish(timings.slide().at(-1)!);
+      expect([hostsById("board-sheet").length, room()]).toEqual([0, 8]);
+      // It opens again at its full half height.
+      act(() => { vi.advanceTimersByTime(300); });
+      open();
+      expect(height()).toBe(464);
+      expect(timings.slide().at(-1)).toMatchObject({ to: 0, duration: 280 });
     } finally {
       timings.restore();
     }
@@ -2929,11 +2971,11 @@ describe("Tasks board, desktop", () => {
       act(() => { renderer = TestRenderer.create(screen(false)); });
       layOut(600);
       toggleSidebarControl();
-      timings.finish(timings.sheet().at(-1)!);
+      timings.finish(timings.slide().at(-1)!);
       toggleSidebarControl();
       expect(hostsById("board-sheet")[0]!.props.pointerEvents).toBe("none");
-      expect(timings.sheet().at(-1)).toMatchObject({ to: 0, duration: 200 });
-      timings.finish(timings.sheet().at(-1)!);
+      expect(timings.slide().at(-1)).toMatchObject({ to: 464, duration: 200 });
+      timings.finish(timings.slide().at(-1)!);
       expect(hostsById("board-sheet")).toHaveLength(0);
     } finally {
       timings.restore();

@@ -21,6 +21,13 @@ const HANDLE = 12;
  * there: the board's render that follows a new height (every lane's bottom
  * room, the details) held the JS thread for 200-360 ms on an Android tablet,
  * and a JS-driven height cannot move before that render is done.
+ *
+ * Opening and closing slide the sheet at its resting height on the native
+ * driver instead of growing it from 0: a JS-driven height laid the details
+ * out again on every frame while the board re-rendered for the selection, and
+ * a small Android tablet showed a few frames of it. The board hears that the
+ * sheet is in (`onShown`) once it has slid in, and that it is gone once it
+ * has slid out, so the lanes' bottom room changes while nothing moves.
  */
 export interface BoardSheetHandle {
   /** Switch the two heights, from the one a switch already moving is heading to. */
@@ -33,6 +40,8 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
   open: boolean;
   detent: SheetDetent;
   onDetent(detent: SheetDetent): void;
+  /** The sheet has slid in (true) or out (false). */
+  onShown?(shown: boolean): void;
   onClose(): void;
   theme: PluginTheme;
   labels: { grow: string; shrink: string };
@@ -45,49 +54,114 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
   const reducedNow = useRef(reduced);
   reducedNow.current = reduced;
   const target = sheetHeight(props.area, props.detent);
-  const height = useRef(new Animated.Value(0)).current;
+  const height = useRef(new Animated.Value(props.open ? target : 0)).current;
+  // How far below its place the sheet sits: opening and closing move only this, on the native driver.
+  const slide = useRef(new Animated.Value(props.open && !reduced ? target : 0)).current;
   const latest = useRef(props);
   latest.current = props;
-  const opened = useRef(false);
-  const closedByDrag = useRef(false);
+  // Where the sheet is: sliding in or resting ("in"), sliding out ("leaving"), or slid out and waiting to go ("out").
+  const phase = useRef<"entering" | "in" | "leaving" | "out">(props.open ? "entering" : "out");
+  const slideRun = useRef<Animated.CompositeAnimation | null>(null);
+  const heightRun = useRef<Animated.CompositeAnimation | null>(null);
   // A drag ends with a click on the handle it moved with: that click must not switch the height back.
   const dragged = useRef(false);
   // The height the value rests at or is moving to: a board that catches up with a switch already there moves nothing.
-  const aimed = useRef<number | null>(null);
+  const aimed = useRef<number | null>(props.open ? target : null);
   // A switch on its way, before the board hears of it.
   const heading = useRef<{ detent: SheetDetent; run: Animated.CompositeAnimation } | null>(null);
 
+  const motionNow = useRef({
+    /** Slide to `to` below the sheet's place, then `done`; a later slide stops this one. */
+    slideTo(to: number, duration: number, done: () => void) {
+      slideRun.current?.stop();
+      if (reducedNow.current || duration === 0) {
+        slideRun.current = null;
+        slide.setValue(to);
+        done();
+        return;
+      }
+      const run = Animated.timing(slide, { toValue: to, duration, easing: MOTION.ease, useNativeDriver: Platform.OS !== "web" });
+      slideRun.current = run;
+      run.start(({ finished }) => {
+        if (slideRun.current !== run) return;
+        slideRun.current = null;
+        if (finished) done();
+      });
+    },
+    /** The height the sheet stands at now, a run on its way stopped where it is. */
+    heightNow() {
+      heightRun.current?.stop();
+      heightRun.current = null;
+      let now = aimed.current ?? 0;
+      height.stopAnimation((value) => {
+        now = value;
+      });
+      return now;
+    },
+  }).current;
+
   useEffect(() => {
+    const { slideTo, heightNow } = motionNow;
     if (!props.open) {
-      if (!present) return;
-      if (closedByDrag.current || reduced) {
-        height.setValue(0);
-        aimed.current = 0;
+      if (!present || phase.current === "leaving") return;
+      if (phase.current === "out") {
         setPresent(false);
         return;
       }
-      aimed.current = 0;
-      const animation = Animated.timing(height, { toValue: 0, duration: 200, easing: MOTION.ease, useNativeDriver: false });
-      animation.start(({ finished }) => { if (finished) setPresent(false); });
-      return () => animation.stop();
+      phase.current = "leaving";
+      slideTo(heightNow(), reduced ? 0 : 200, () => {
+        phase.current = "out";
+        setPresent(false);
+      });
+      return;
     }
-    closedByDrag.current = false;
     if (!present) {
+      // Mounted below its place at the height it opens to: the first frame shows nothing, the slide everything.
+      heightRun.current?.stop();
+      heightRun.current = null;
+      height.setValue(target);
+      aimed.current = target;
+      slide.setValue(reduced ? 0 : target);
+      phase.current = "entering";
       setPresent(true);
       return;
     }
+    // Opened again on its way out (or after a drag closed it): it comes back from where it is, at its height.
+    const back = phase.current === "leaving" || phase.current === "out";
+    if (back || (phase.current === "entering" && !slideRun.current)) {
+      phase.current = "entering";
+      if (aimed.current !== target) {
+        heightNow();
+        height.setValue(target);
+        aimed.current = target;
+      }
+      slideTo(0, reduced ? 0 : back ? 240 : 280, () => {
+        phase.current = "in";
+        latest.current.onShown?.(true);
+      });
+      return;
+    }
     if (aimed.current === target) return;
+    // The area changed while the sheet was up: the height follows it.
     aimed.current = target;
-    const animation = Animated.timing(height, {
-      toValue: target,
-      duration: reduced ? 0 : opened.current ? 240 : 280,
-      easing: MOTION.ease,
-      useNativeDriver: false,
+    heightRun.current?.stop();
+    const run = Animated.timing(height, { toValue: target, duration: reduced ? 0 : 240, easing: MOTION.ease, useNativeDriver: false });
+    heightRun.current = run;
+    run.start(() => {
+      if (heightRun.current === run) heightRun.current = null;
     });
-    opened.current = true;
-    animation.start();
-    return () => animation.stop();
-  }, [height, target, reduced, props.open, present]);
+  }, [height, slide, motionNow, target, reduced, props.open, present]);
+  // The board hears the sheet went once it is gone, whether it slid out or the board stopped drawing it.
+  const wasPresent = useRef(present);
+  useEffect(() => {
+    if (wasPresent.current && !present) latest.current.onShown?.(false);
+    wasPresent.current = present;
+  }, [present]);
+  useEffect(() => () => {
+    slideRun.current?.stop();
+    heightRun.current?.stop();
+    if (phase.current !== "out") latest.current.onShown?.(false);
+  }, []);
 
   const motion = useMemo(() => {
     const drop = () => {
@@ -162,16 +236,10 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
         const now = latest.current;
         const next = sheetRelease(now.detent, travel(event), gesture.vy);
         if (next === "closed") {
-          aimed.current = 0;
-          if (reducedNow.current) {
-            height.setValue(0);
-            closedByDrag.current = true;
-            latest.current.onClose();
-            return;
-          }
-          Animated.timing(height, { toValue: 0, duration: 200, easing: MOTION.ease, useNativeDriver: false }).start(({ finished }) => {
-            if (!finished) return;
-            closedByDrag.current = true;
+          // Slides out from where the finger left it; the board closes it once it is out.
+          phase.current = "leaving";
+          motionNow.slideTo(motionNow.heightNow(), 200, () => {
+            phase.current = "out";
             latest.current.onClose();
           });
           return;
@@ -183,7 +251,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
         motion.settle(latest.current.detent, 200);
       },
     });
-  }, [height, motion]);
+  }, [height, motion, motionNow]);
 
   const palette = boardPalette(props.theme);
   const chrome = menuChrome(props.theme);
@@ -193,35 +261,35 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
     <Animated.View
       testID="board-sheet"
       pointerEvents={props.open ? "auto" : "none"}
-      style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        bottom: 0,
-        height,
-        zIndex: 20,
-        borderRadius: 0,
-        borderTopWidth: HAIRLINE,
-        borderColor: chrome.border,
-        backgroundColor: palette.panel,
-        ...(Platform.OS === "web" ? ({ boxShadow: "0 -8px 28px rgba(0, 0, 0, 0.14)" } as object) : { elevation: 12, shadowColor: "#000", shadowOpacity: 0.14, shadowRadius: 14, shadowOffset: { width: 0, height: -6 } }),
-      }}
+      style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 20, transform: [{ translateY: slide }] }}
     >
-      <View {...pan.panHandlers} style={{ height: HANDLE, ...(Platform.OS === "web" ? ({ cursor: "grab", touchAction: "none" } as object) : null) }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={full ? props.labels.shrink : props.labels.grow}
-          onPress={() => {
-            if (dragged.current) return;
-            motion.toggle();
-          }}
-          testID="board-sheet-handle"
-          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
-        >
-          <View style={{ width: 32, height: 3, borderRadius: 1.5, backgroundColor: props.theme.colors.foregroundMuted, opacity: 0.5 }} />
-        </Pressable>
-      </View>
-      <View testID="board-sheet-content" style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingBottom: Platform.OS === "android" ? 20 : 4 }}>{content.current}</View>
+      <Animated.View
+        testID="board-sheet-body"
+        style={{
+          height,
+          borderRadius: 0,
+          borderTopWidth: HAIRLINE,
+          borderColor: chrome.border,
+          backgroundColor: palette.panel,
+          ...(Platform.OS === "web" ? ({ boxShadow: "0 -8px 28px rgba(0, 0, 0, 0.14)" } as object) : { elevation: 12, shadowColor: "#000", shadowOpacity: 0.14, shadowRadius: 14, shadowOffset: { width: 0, height: -6 } }),
+        }}
+      >
+        <View {...pan.panHandlers} style={{ height: HANDLE, ...(Platform.OS === "web" ? ({ cursor: "grab", touchAction: "none" } as object) : null) }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={full ? props.labels.shrink : props.labels.grow}
+            onPress={() => {
+              if (dragged.current) return;
+              motion.toggle();
+            }}
+            testID="board-sheet-handle"
+            style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+          >
+            <View style={{ width: 32, height: 3, borderRadius: 1.5, backgroundColor: props.theme.colors.foregroundMuted, opacity: 0.5 }} />
+          </Pressable>
+        </View>
+        <View testID="board-sheet-content" style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingBottom: Platform.OS === "android" ? 20 : 4 }}>{content.current}</View>
+      </Animated.View>
     </Animated.View>
   );
 });

@@ -250,7 +250,9 @@ export function DesktopBoard(props: {
   useEffect(() => {
     if (!tabletFloating) setFloatingDragWidth(null);
   }, [tabletFloating]);
-  const sheetRoom = inSheet ? sheetHeight(boardHeight, detent) : 0;
+  // The lanes make room once the sheet has slid in and keep it until it has slid out: their render waits for the sheet to stand still.
+  const [sheetShown, setSheetShown] = useState(false);
+  const sheetRoom = mode === "sheet" && sheetShown ? sheetHeight(boardHeight, detent) : 0;
   const panelWidth = tabletFloating
     ? tabletSidebarWidth(boardWidth, floatingDragWidth ?? preference.floatingWidth)
     : sidebarWidth(boardWidth, dragWidth ?? preference.width, narrow || floating ? "floating" : "inline");
@@ -272,10 +274,11 @@ export function DesktopBoard(props: {
   }, [shown, narrow, setPreference]);
   // A panel shown for the moment does not outlive the width it was shown at.
   useEffect(() => setShown(null), [mode]);
-  // A sheet opens at half height again after it closed.
+  // A sheet opens at half height again after it closed, once it has slid out.
+  const sheetGone = !inSheet && !sheetShown;
   useEffect(() => {
-    if (!inSheet) setDetent("half");
-  }, [inSheet]);
+    if (sheetGone) setDetent("half");
+  }, [sheetGone]);
 
   const scrollTo = useCallback((lane: LaneId, index: number, viewPosition = 0.3) => {
     const list = listRefs.current[lane];
@@ -797,6 +800,7 @@ export function DesktopBoard(props: {
             open={inSheet}
             detent={detent}
             onDetent={setDetent}
+            onShown={setSheetShown}
             onClose={() => {
               dispatch({ type: "clear" });
               setShown(null);
