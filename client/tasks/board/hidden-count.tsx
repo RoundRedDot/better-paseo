@@ -110,8 +110,8 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
       <Modal.Content scrollable contentContainerStyle={touch && onClearFilters ? { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap: 0 } : { gap: 16 }}>
         {touch && onClearFilters ? <View style={{ paddingHorizontal: 24, paddingTop: 20, gap: 16 }}>{body}</View> : body}
         {onClearFilters ? <View testID="hidden-tasks-actions" style={touch ? { paddingTop: 12, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: theme.colors.border, flexDirection: "row" } : { flexDirection: "row", justifyContent: "flex-end" }}>
-          <Pressable testID="hidden-tasks-clear-filters" accessibilityRole="button" accessibilityLabel={clearLabel} onPress={() => { setOpen(false); onClearFilters(); }} style={{ flex: touch ? 1 : undefined, minHeight: taskControlHeight(touch ? 44 : 32, scale), paddingHorizontal: touch ? 18 : 12, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: touch ? 22 : 12, borderWidth: touch ? 1 : 0, borderColor: theme.colors.border, backgroundColor: touch ? undefined : theme.colors.surface2 }}>
-            <Text style={{ fontSize: HOST_FONT.base, lineHeight: HOST_LINE.base, color: warning }}>{clearLabel}</Text>
+          <Pressable testID="hidden-tasks-clear-filters" accessibilityRole="button" accessibilityLabel={clearLabel} onPress={() => { setOpen(false); onClearFilters(); }} style={touch ? { flex: 1, minHeight: taskControlHeight(44, scale), paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 22, borderWidth: 1, borderColor: theme.colors.border } : { minHeight: taskControlHeight(32, scale), paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: theme.colors.accent }}>
+            <Text style={{ fontSize: HOST_FONT.base, lineHeight: HOST_LINE.base, color: touch ? warning : theme.colors.accentForeground }}>{clearLabel}</Text>
           </Pressable>
         </View> : null}
       </Modal.Content>
