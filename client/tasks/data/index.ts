@@ -737,6 +737,8 @@ function buildBaseCard(
     requiresAttention: agent.requiresAttention,
     attentionReason: agent.attentionReason,
     lastError: agent.lastError,
+    lastUserMessageAt: agent.lastUserMessageAt,
+    hasActiveTurn: agent.activeTurn != null,
   });
   const workspaceTitle = workspace?.title?.trim() || workspace?.name || placement?.workspaceName || null;
   const projectName = workspace?.projectCustomName?.trim() || workspace?.projectDisplayName ||

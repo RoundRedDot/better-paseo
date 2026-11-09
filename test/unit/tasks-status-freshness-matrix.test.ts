@@ -8,7 +8,8 @@ vi.mock("react-native", () => import("./helpers/rn-mock"));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const cases = [
-  { name: "initializing", from: "idle", change: { status: "initializing" }, lane: "running", status: "running" },
+  { name: "initializing with an active turn", from: "idle", change: { status: "initializing", activeTurn: { turnId: "next", startedAt: at(11) } }, lane: "running", status: "running" },
+  { name: "history initialization", from: "idle", change: { status: "initializing", activeTurn: null }, lane: "done", status: "done" },
   { name: "running", from: "idle", change: { status: "running" }, lane: "running", status: "running" },
   { name: "needs input", from: "idle", change: { status: "running", attentionReason: "permission", requiresAttention: true }, lane: "needs_input", status: "needs_input" },
   { name: "failed", from: "idle", change: { status: "error", lastError: "API error" }, lane: "review", status: "failed" },
