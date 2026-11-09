@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useLayoutEffect, useRef } from "react";
-import { ActivityIndicator, Animated, Platform, View, type ViewStyle } from "react-native";
+import { ActivityIndicator, Animated, PixelRatio, Platform, View, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { probeAnimationLoop } from "../../debug/perf";
@@ -165,15 +165,21 @@ const RunningRing = memo(function RunningRing(props: {
   testID?: string;
   accessibilityLabel?: string;
 }) {
-  const { box, mark, color } = props;
+  const { box, color } = props;
   const reduced = useReducedMotion();
   const active = props.animated && !reduced;
   const platformSpinner = active && Platform.OS === "android";
   const setWebNode = useWebSpin(WEB && active);
   useNativeSpin(!WEB && active && !platformSpinner);
+  const density = Platform.OS === "android" ? PixelRatio.get() : 0;
+  const markPixels = Math.round(props.mark * density);
+  const mark = density ? markPixels / density : props.mark;
   const scale = mark / 12;
   const stroke = 1.5 * scale;
-  const dot = 6 * scale;
+  // An integer inset keeps all three centres on the same physical pixel grid.
+  const dot = density ? (markPixels - 2 * Math.round(markPixels / 4)) / density : 6 * scale;
+  const spinnerInset = density ? Math.round(stroke * density) / density : stroke;
+  const spinnerSize = mark + 2 * spinnerInset;
   const circle: ViewStyle = {
     position: "absolute",
     left: 0,
@@ -191,7 +197,7 @@ const RunningRing = memo(function RunningRing(props: {
         {WEB ? (
           <View ref={setWebNode as never} style={arc} />
         ) : platformSpinner ? (
-          <ActivityIndicator size={mark + stroke * 2} color={color} style={{ position: "absolute", left: -stroke, top: -stroke }} />
+          <ActivityIndicator size={spinnerSize} color={color} style={{ position: "absolute", left: -spinnerInset, top: -spinnerInset, width: spinnerSize, height: spinnerSize }} />
         ) : (
           <Animated.View style={[arc, active ? { transform: [{ rotate: sharedRotation() }] } : null]} />
         )}

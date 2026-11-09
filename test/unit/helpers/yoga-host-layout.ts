@@ -27,6 +27,8 @@ export interface Frame {
 export interface YogaLayoutOptions {
   /** The width the root's container offers, as a card's content column does. */
   width: number;
+  /** Physical pixels per layout point. */
+  pixelScale?: number;
   /** Multiplies every text width, as a larger system font does. */
   textScale?: number;
   /**
@@ -157,7 +159,7 @@ function applyStyle(node: Node, style: Style) {
 export function measureHostTree(root: ReactTestInstance, options: YogaLayoutOptions): Map<ReactTestInstance, Frame> {
   const config = Yoga.Config.create();
   config.setErrata(Errata.All);
-  config.setPointScaleFactor(3);
+  config.setPointScaleFactor(options.pixelScale ?? 3);
   const scale = options.textScale ?? 1;
   const nodes = new Map<ReactTestInstance, Node>();
 

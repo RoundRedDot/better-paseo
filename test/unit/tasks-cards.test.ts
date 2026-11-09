@@ -7,8 +7,8 @@ import { nativeProseText } from "./helpers/native-prose-text";
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React from "react";
-import { StyleSheet, View } from "react-native";
-import { measureHostTree } from "./helpers/yoga-host-layout";
+import { PixelRatio, StyleSheet, View } from "react-native";
+import { hostChildren, measureHostTree } from "./helpers/yoga-host-layout";
 import { TodoRow } from "../../client/tasks/cards/todo-row";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -862,8 +862,8 @@ describe("StatusIcon", () => {
       expect(flat(track!.props.style)).toMatchObject({ width: 12, opacity: 0.3 });
       const [spinner] = running!.findAll(isSpinner);
       expect(running!.findAll(isSpinner)).toHaveLength(1);
-      expect(spinner!.props).toMatchObject({ size: 15, color: "#268ae0" });
-      expect(flat(spinner!.props.style)).toMatchObject({ position: "absolute", left: -1.5, top: -1.5 });
+      expect(spinner!.props).toMatchObject({ size: 46 / 3, color: "#268ae0" });
+      expect(flat(spinner!.props.style)).toMatchObject({ position: "absolute", left: -5 / 3, top: -5 / 3 });
       expect(flat(dot!.props.style)).toMatchObject({ width: 6, borderRadius: 3 });
       // The working button's spinner turns the same way, without the centre dot.
       const button = hostByTestId(tree.root, "button-spinner");
@@ -886,6 +886,47 @@ describe("StatusIcon", () => {
       expect(statusRingHolders()).toBe(0);
     } finally {
       motion.reduced = false;
+      delete platform.__rnMockOS;
+    }
+  });
+
+  it("keeps Android ring, spinner and dot concentric on the physical pixel grid", async () => {
+    const platform = globalThis as { __rnMockOS?: string };
+    const pixelRatio = vi.spyOn(PixelRatio, "get");
+    platform.__rnMockOS = "android";
+    try {
+      for (const density of [1, 1.5, 2, 2.5, 2.625, 3, 3.5]) {
+        pixelRatio.mockReturnValue(density);
+        for (const size of [12, 13, 14, 15, 16, 18, 20]) {
+          for (const [width, offset] of [[320, 0], [600, 0.25], [1200, 0.5]] as const) {
+            const tree = await render(React.createElement(View, { testID: "layout-root", style: { paddingLeft: offset, paddingTop: offset } },
+              React.createElement(View, { testID: "active" }, React.createElement(StatusIcon, { kind: "running", size, height: size + 3, theme: LIGHT })),
+              React.createElement(View, { testID: "still" }, React.createElement(StatusIcon, { kind: "running", size, height: size + 3, theme: LIGHT, animated: false })),
+              React.createElement(SpinnerRing, { size, color: "#268ae0" }),
+            ));
+            const root = hostByTestId(tree.root, "layout-root");
+            const frames = measureHostTree(root, { width, pixelScale: density });
+            const centre = (node: ReactTestInstance) => {
+              const frame = frames.get(node)!;
+              return [frame.left + frame.width / 2, frame.top + frame.height / 2];
+            };
+            for (const id of ["active", "still", "spinner-ring"]) {
+              const mark = hostByTestId(hostByTestId(root, id), "running-mark");
+              const [track, ...layers] = hostChildren(mark);
+              for (const layer of layers) {
+                const actual = centre(layer);
+                const expected = centre(track!);
+                expect((actual[0]! - expected[0]!) * density).toBeCloseTo(0, 4);
+                expect((actual[1]! - expected[1]!) * density).toBeCloseTo(0, 4);
+              }
+            }
+            await act(async () => tree.unmount());
+            renderer = null;
+          }
+        }
+      }
+    } finally {
+      pixelRatio.mockRestore();
       delete platform.__rnMockOS;
     }
   });
