@@ -141,15 +141,13 @@ export function TabletToolbar(props: {
             </View>
           </View>
         </View>
-        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: searching || !centered ? 0 : 1, flexBasis: searching || !centered ? "auto" : 0, minWidth: compact && centered ? minimumActionsWidth : 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
+        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: searching || !centered ? 0 : 1, flexBasis: searching || !centered ? "auto" : 0, minWidth: compact && centered ? minimumActionsWidth : 0, marginLeft: 6, marginRight: -6, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
         <ToolbarButton icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} toggle badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => { closeEmptySearch(); board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })); }} />
         {separateFilters ? <View testID="tablet-filter-anchor" onLayout={(event) => setFilterLayout(event.nativeEvent.layout)}><ToolbarButton icon="Filter" label={strings.filters} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /></View> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
           <ToolbarButton icon="MoreVertical" label={strings.view} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); closeEmptySearch(); openPage(page ? null : "view"); }} />
         </View>
-        <View style={{ marginLeft: 6, marginRight: -6 }}>
-          <ToolbarButton icon={<PanelMark open={props.sidebar.open} side={props.sidebar.sheet ? "bottom" : "right"} color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} hideSelectedBackground theme={theme} testID="sidebar-switch" onPress={() => { closeEmptySearch(); props.sidebar.onToggle(); }} />
-        </View>
+        <ToolbarButton icon={<PanelMark open={props.sidebar.open} side={props.sidebar.sheet ? "bottom" : "right"} color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} hideSelectedBackground theme={theme} testID="sidebar-switch" onPress={() => { closeEmptySearch(); props.sidebar.onToggle(); }} />
         </View>
       </View>
       {expandedSearch ? <View testID="tablet-search-row" onAccessibilityEscape={() => setSearchOpen(false)} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: LANES.edge, paddingVertical: 8, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>

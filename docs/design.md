@@ -920,9 +920,9 @@ apply to all three.
   icons in 32 pt targets, with only targets growing through `taskControlHeight`. Keep adjacent
   detail header controls in one group with the tablet toolbar's 0 pt extra gap; target padding
   separates the glyphs. Do not assign larger, independent sizes to the detail header icons.
-- The tablet toolbar's rightmost sidebar switch sits 6 pt closer to the board edge, with its
-  full touch target preserved. With a 32 pt target its 16 pt panel mark ends 14 pt from the
-  board edge; the target grows with larger interface text.
+- The tablet toolbar's right-hand action group sits 6 pt closer to the board edge. All its
+  buttons keep the same spacing and full touch targets. With a 32 pt target the sidebar's
+  16 pt panel mark ends 14 pt from the board edge; targets grow with larger interface text.
 - Search width is fixed at 320, independent of filter-label measurements, task counts and
   active filters. At board widths below `960 * max(1, scale)`, desktop and tablet show only
   the Search button; pressing it opens a separate row below the toolbar with autofocus,

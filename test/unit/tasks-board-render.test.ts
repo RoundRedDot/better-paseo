@@ -5135,9 +5135,12 @@ describe("Tasks board, tablet filters", () => {
     const bar = hostsById("tablet-toolbar")[0]!;
     expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ height: Math.round(40 * Math.max(1, base / 14)), flexDirection: "row", flexShrink: 0 });
     expect(StyleSheet.flatten(hostsById("tablet-toolbar-end")[0]!.props.style).gap).toBe(0);
-    const sidebar = hostsById("sidebar-switch")[0]!;
-    expect(StyleSheet.flatten(hostParentOf(sidebar)!.props.style)).toMatchObject({ marginLeft: 6, marginRight: -6 });
-    expect(StyleSheet.flatten(bar.props.style).paddingHorizontal).toBe(12);
+    const frames = measureHostTree(bar, { width });
+    const actions = ["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"].map((id) => frames.get(hostsById(id)[0]!)!);
+    for (let index = 1; index < actions.length; index++) {
+      expect(actions[index]!.left - (actions[index - 1]!.left + actions[index - 1]!.width)).toBeCloseTo(0, 4);
+    }
+    expect(Math.abs(width - (actions[3]!.left + actions[3]!.width) - 6)).toBeLessThan(0.5);
     const buttons = bar.findAll((n) => (n.type as unknown) === "Pressable" && n.props.testID !== "search-full-conversation-toggle");
     for (const button of buttons) {
       const style = StyleSheet.flatten(button.props.style);
