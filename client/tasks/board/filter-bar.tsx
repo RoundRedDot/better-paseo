@@ -139,16 +139,20 @@ function DesktopToolbarView(props: {
   const window = useWindowDimensions();
   const colors = theme.colors;
   const strings = board.strings;
+  const inlineSearch = props.width >= 960 * Math.max(1, scale);
+  // The query lives in the field whenever one is on screen: inline on a wide
+  // board, or revealed by its button. A chip would repeat it and its clear ×.
+  const fieldVisible = inlineSearch || props.searchOpen;
   const chips = props.filterOptions
-    ? groupChips(activeChips(board.params, board.defaults, props.filterOptions, strings).filter((chip) => !BAR_OWN_CONTROLS.has(chip.key)), strings)
+    ? groupChips(activeChips(board.params, board.defaults, props.filterOptions, strings).filter((chip) => !BAR_OWN_CONTROLS.has(chip.key) && !(fieldVisible && chip.key === "q")), strings)
     : [];
+  const queryInField = fieldVisible && Boolean(board.params.query.trim());
   const chipMenu = props.menu?.startsWith("chips:") ? props.menu : null;
   const groupGone = !!chipMenu && !chips.some((entry) => entry.key === `group:${chipMenu.slice(6)}`);
   useEffect(() => {
     if (groupGone) props.setMenu(null);
   }, [groupGone, props.setMenu]);
   const toggle = (menuId: FilterMenu) => props.setMenu(props.menu === menuId ? null : menuId);
-  const inlineSearch = props.width >= 960 * Math.max(1, scale);
   const [searchFocused, setSearchFocused] = useState(false);
   const [actionWidth, setActionWidth] = useState(0);
   // Equal side slots keep the total centred; the end slot also measures the search's room.
@@ -200,7 +204,10 @@ function DesktopToolbarView(props: {
           style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: colors.foreground, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }}
         />
         {board.params.query.length > 0 ? (
-          <ClearButton label={strings.menuSearch.clear} onPress={() => board.setParams((params) => ({ ...params, query: "" }))} theme={theme} />
+          <>
+            <SearchCoverageItems theme={theme} part="badge" />
+            <ClearButton label={strings.menuSearch.clear} onPress={() => board.setParams((params) => ({ ...params, query: "" }))} theme={theme} />
+          </>
         ) : null}
       </View>
       <FullConversationSwitch theme={theme} />
@@ -220,7 +227,7 @@ function DesktopToolbarView(props: {
       {!inlineSearch && searchFits ? <ToolbarSearchReveal visible={props.searchOpen} width={searchWidth}>
         {search}
       </ToolbarSearchReveal> : null}
-      {chips.length ? (
+      {chips.length || queryInField ? (
         <View testID="desktop-toolbar-search-summary" style={{ flexDirection: "row", alignItems: "center", minWidth: 0, maxWidth: "100%", flexShrink: 1, gap: 10, overflow: !inlineSearch && searchFits ? "hidden" : undefined }}>
           {chips.map((entry) =>
             isChipGroup(entry) ? (
@@ -252,6 +259,7 @@ function DesktopToolbarView(props: {
               ) : <Chip key={entry.key} chip={entry} onClear={() => board.setParams(entry.clear)} clearLabel={`${strings.clear} ${entry.value}`} theme={theme} />
             ),
           )}
+          {queryInField ? <SearchCoverageItems theme={theme} part="notice" /> : null}
           <ClearAllButton board={board} theme={theme} />
         </View>
       ) : null}

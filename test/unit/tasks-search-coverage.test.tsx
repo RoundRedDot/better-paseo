@@ -44,6 +44,23 @@ function mount(counts: ReturnType<SearchCoverageControl["read"]>, language: "en"
 
 const state = (pending = 0, loaded = 0) => ({ pending, loaded });
 
+it("folds the loaded count into the field as a bare badge and leaves notices outside", () => {
+  const counts = state(2, 52);
+  const status: SearchCoverageControl = { read: () => counts, subscribe: () => () => {}, prompt: () => ({ state: "idle" }) };
+  const render = (historyError: string | null) => <SearchCoverageProvider status={status} query="query" strings={BOARD_STRINGS.zh.searchCoverage} historyError={historyError} historyFailedText={BOARD_STRINGS.zh.historyFailed}>
+    <SearchCoverageItems theme={testTheme} part="badge" />
+    <SearchCoverageItems theme={testTheme} part="notice" />
+  </SearchCoverageProvider>;
+  act(() => { renderer = TestRenderer.create(render(null)); vi.advanceTimersByTime(200); });
+  expect(text(hosts("search-coverage-loaded")[0]!)).toBe("52");
+  expect(hosts("search-coverage-loaded")[0]!.props.accessibilityLabel).toBe(BOARD_STRINGS.zh.searchCoverage.loaded(52));
+  expect(hosts("search-coverage-notices")).toHaveLength(0);
+  act(() => { renderer.update(render("offline")); vi.advanceTimersByTime(200); });
+  expect(text(hosts("search-coverage-notices")[0]!)).toContain("加载历史任务失败");
+  expect(hosts("search-coverage-loaded")).toHaveLength(1);
+  expect(hosts("search-history-failure")).toHaveLength(1);
+});
+
 it("announces history loading and offers a retry when its page fails", () => {
   const retry = vi.fn();
   const counts = state();

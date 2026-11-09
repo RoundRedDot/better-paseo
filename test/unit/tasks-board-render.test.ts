@@ -521,6 +521,58 @@ describe("Tasks search coverage and centred toolbar", () => {
     }
   });
 
+  it("moves the query from the chip into the field only while the field is on screen", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    act(() => { renderer = TestRenderer.create(screen(false, { q: "status" })); });
+    layOut(800);
+    expect(textOf(hostsById("desktop-toolbar-search-summary")[0]!)).toContain("Contains「status」");
+    act(() => hostsById("desktop-search-toggle")[0]!.props.onPress());
+    expect(hostsById("desktop-toolbar-search")).toHaveLength(1);
+    const summary = hostsById("desktop-toolbar-search-summary")[0]!;
+    expect(textOf(summary)).not.toContain("Contains");
+    expect(textOf(summary)).not.toContain("status");
+    expect(textOf(summary)).toContain("Clear filters");
+    act(() => hostsById("desktop-search-toggle")[0]!.props.onPress());
+    expect(textOf(hostsById("desktop-toolbar-search-summary")[0]!)).toContain("Contains「status」");
+  });
+
+  it("puts the loaded count inside the desktop search field instead of a query chip", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }>; byId: Map<string, TaskCard> } }).__handle;
+    const saved = { lanes: handle.lanes, byId: handle.byId };
+    const task = { ...handle.lanes.needs_input!.cards[0]!, id: "coverage-in-field", title: "badge probe", closed: false };
+    handle.lanes = { ...handle.lanes, needs_input: { ...handle.lanes.needs_input!, cards: [task] } };
+    handle.byId = new Map(handle.byId).set(task.id, task);
+    let finish!: () => void;
+    const ref = vi.spyOn(paseo.agents, "ref").mockImplementation(() => ({ timeline: {
+      // The repo's tsconfig predates Promise.withResolvers; match the neighbouring test.
+      refetch: () => new Promise((resolve) => { finish = () => resolve({ error: "offline", entries: [] } as never); }),
+      subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }),
+    } }));
+    let request!: Promise<void>;
+    try {
+      await act(async () => { renderer = TestRenderer.create(screen(false, { q: "badge probe" })); });
+      layOut(1200);
+      act(() => { request = firstPromptStoreFor(paseo as never).request(task.id); });
+      const field = hostsById("desktop-toolbar-search")[0]!;
+      const badge = hostsById("search-coverage-items")[0]!;
+      expect(field.findAll((node) => node === badge)).toHaveLength(1);
+      expect(textOf(badge)).toBe("0");
+      const summary = hostsById("desktop-toolbar-search-summary")[0]!;
+      expect(textOf(summary)).not.toContain("Contains");
+      expect(textOf(summary)).toContain("Clear filters");
+      const frames = measureHostTree(hostsById("desktop-toolbar")[0]!, { width: 1200 });
+      const fieldFrame = frames.get(field)!;
+      const badgeFrame = frames.get(badge)!;
+      expect(badgeFrame.left).toBeGreaterThanOrEqual(fieldFrame.left);
+      expect(badgeFrame.left + badgeFrame.width).toBeLessThanOrEqual(fieldFrame.left + fieldFrame.width);
+      await act(async () => { finish(); await request; });
+    } finally {
+      act(() => renderer?.unmount()); renderer = undefined;
+      handle.lanes = saved.lanes; handle.byId = saved.byId; ref.mockRestore();
+    }
+  });
+
   it.each([320, 600])("respects reduced motion when search opens and closes at %s", (width) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     let onReduce = (_on: boolean) => {};
@@ -829,7 +881,10 @@ describe("Tasks search coverage and centred toolbar", () => {
     const start = hostsById("desktop-toolbar-start")[0]!;
     const summary = hostsById("desktop-toolbar-search-summary")[0]!;
     expect(hostParentOf(summary)).toBe(start);
-    expect(textOf(summary)).toContain("Contains「status」");
+    // The field is on screen: the query and its clear live there, not in a chip.
+    expect(hostsById("desktop-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("status");
+    expect(textOf(summary)).not.toContain("Contains");
+    expect(textOf(summary)).not.toContain("status");
     expect(textOf(summary)).toContain("api");
     expect(summary.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Labels")).toBeDefined();
     expect(textOf(summary)).toContain("Clear filters");
@@ -842,7 +897,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false, { q: "status", label: "api" })); });
     layOut(1600);
-    expect(textOf(hostsById("desktop-toolbar-search-summary")[0]!)).toContain("Contains「status」");
+    expect(textOf(hostsById("desktop-toolbar-search-summary")[0]!)).toContain("api");
     act(() => requestBoardClear("host-1"));
     expect(lastBoardParams("host-1")).toMatchObject({ query: "", workspaceIds: [], providers: [], labels: [] });
     expect(hostsById("desktop-toolbar-search-summary")).toHaveLength(0);

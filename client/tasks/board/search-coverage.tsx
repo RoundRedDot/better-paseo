@@ -18,11 +18,19 @@ import { SearchSpinner, useSearchCoverage } from "./search-loading";
  * search, and a failed history page. Reads that fail are not offered a retry:
  * their prerequisites (a closed session, a missing directory, an unavailable
  * provider) do not change between attempts.
+ *
+ * While the desktop search field is on screen the count sits inside it as the
+ * `badge` part — a bare number beside the spinner, no repeated "loaded"
+ * wording — and only the stopped/failed notices keep their place in the
+ * toolbar as the `notice` part. Hidden fields, phone and tablet use `all`.
  */
-export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean }) {
+export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean; part?: "all" | "badge" | "notice" }) {
+  const part = props.part ?? "all";
+  const showsBadge = part !== "notice";
+  const showsNotice = part !== "badge";
   const { context, counts: currentCounts } = useSearchCoverage();
   const active = Boolean(context?.query.trim());
-  const visible = active && Boolean(context?.cancelled || context?.historyError || currentCounts.pending);
+  const visible = active && Boolean((showsNotice && (context?.cancelled || context?.historyError)) || (showsBadge && currentCounts.pending));
   const lastCounts = useRef(currentCounts);
   if (visible) lastCounts.current = currentCounts;
   const counts = visible ? currentCounts : lastCounts.current;
@@ -99,19 +107,19 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
       </View>
     </View>
   </View>;
-  return <Animated.View testID="search-coverage-items" ref={anchor} collapsable={false} {...(Platform.OS === "web" ? {} : hoverProps)} style={{ flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: 1, height: props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 32] }) : 28, opacity, zIndex: open ? 40 : 1 }}>
-    {context.cancelled ? <Text testID="search-stopped" style={textStyle}>{context.stoppedText}</Text> : null}
-    {context.historyError ? <View testID="search-history-failure" style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8 }}>
+  return <Animated.View testID={part === "notice" ? "search-coverage-notices" : "search-coverage-items"} ref={anchor} collapsable={false} {...(Platform.OS === "web" ? {} : hoverProps)} style={{ flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: 1, height: props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 32] }) : 28, opacity, zIndex: open ? 40 : 1 }}>
+    {showsNotice && context.cancelled ? <Text testID="search-stopped" style={textStyle}>{context.stoppedText}</Text> : null}
+    {showsNotice && context.historyError ? <View testID="search-history-failure" style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8 }}>
       <Icon name="CircleAlert" size={15} color={danger} />
       <Text style={textStyle}>{context.historyFailedText}</Text>
       <Pressable accessibilityRole="button" accessibilityLabel={strings.retry} hitSlop={props.phone ? { top: 6, bottom: 6, left: 6, right: 6 } : undefined} onPress={context.retryHistory} style={{ minHeight: props.phone ? 32 : 24, justifyContent: "center" }}><Text style={textStyle}>{strings.retry}</Text></Pressable>
     </View> : null}
-    {counts.pending ? <Pressable testID="search-coverage-loaded" accessibilityRole="button" accessibilityLabel={strings.loaded(counts.loaded)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={loadedPress.guard(toggle)} onPressIn={loadedPress.onPressIn} onPressOut={loadedPress.onPressOut} onTouchStart={loadedPress.onTouchStart} onTouchMove={loadedPress.onTouchMove} onTouchEnd={loadedPress.onTouchEnd} onTouchCancel={loadedPress.onTouchCancel} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, height: "100%", borderRadius: 7, backgroundColor: open ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), loadedLift), ...scaleStyle(loadedLift.scale) }}>
+    {showsBadge && counts.pending ? <Pressable testID="search-coverage-loaded" accessibilityRole="button" accessibilityLabel={strings.loaded(counts.loaded)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={loadedPress.guard(toggle)} onPressIn={loadedPress.onPressIn} onPressOut={loadedPress.onPressOut} onTouchStart={loadedPress.onTouchStart} onTouchMove={loadedPress.onTouchMove} onTouchEnd={loadedPress.onTouchEnd} onTouchCancel={loadedPress.onTouchCancel} style={{ flexDirection: "row", alignItems: "center", gap: part === "badge" ? 5 : 6, paddingHorizontal: part === "badge" ? 2 : 8, height: part === "badge" ? 24 : "100%", borderRadius: part === "badge" ? 5 : 7, overflow: "hidden", backgroundColor: open ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), loadedLift), ...scaleStyle(loadedLift.scale) }}>
       <SearchSpinner size={13} color={colors.foregroundMuted} />
-      <Text numberOfLines={1} style={textStyle}>{strings.loaded(counts.loaded)}</Text>
-      <Icon name="Info" size={14} color={colors.foregroundMuted} />
+      <Text numberOfLines={1} style={part === "badge" ? { ...textStyle, fontSize: 12, flexShrink: 1 } : textStyle}>{part === "badge" ? String(counts.loaded) : strings.loaded(counts.loaded)}</Text>
+      <Icon name="Info" size={part === "badge" ? 13 : 14} color={colors.foregroundMuted} />
     </Pressable> : null}
-    {open && Platform.OS === "web" ? <View ref={panel} collapsable={false} style={{ position: "absolute", left: 0, top: "100%", paddingTop: 6, width: Math.min(props.phone ? 340 : 320, window.width - 16) }}>{explanation}</View> : null}
-    {open && Platform.OS !== "web" ? <Modal transparent visible onRequestClose={() => setOpen(false)} animationType="none"><Pressable testID="search-coverage-backdrop" accessibilityLabel={strings.close} onPress={() => setOpen(false)} style={{ flex: 1 }}><Pressable onPress={(event) => event.stopPropagation()} style={{ position: "absolute", ...position, width: Math.min(props.phone ? 340 : 320, window.width - 16) }}>{explanation}</Pressable></Pressable></Modal> : null}
+    {showsBadge && open && Platform.OS === "web" ? <View ref={panel} collapsable={false} style={{ position: "absolute", left: 0, top: "100%", paddingTop: 6, width: Math.min(props.phone ? 340 : 320, window.width - 16) }}>{explanation}</View> : null}
+    {showsBadge && open && Platform.OS !== "web" ? <Modal transparent visible onRequestClose={() => setOpen(false)} animationType="none"><Pressable testID="search-coverage-backdrop" accessibilityLabel={strings.close} onPress={() => setOpen(false)} style={{ flex: 1 }}><Pressable onPress={(event) => event.stopPropagation()} style={{ position: "absolute", ...position, width: Math.min(props.phone ? 340 : 320, window.width - 16) }}>{explanation}</Pressable></Pressable></Modal> : null}
   </Animated.View>;
 }
