@@ -1,5 +1,13 @@
 @AGENTS.md
 
+## 事件回调：`nativeEvent` 只在回调里同步读
+
+RN 0.86 的 Fabric 渲染器仍然复用事件对象：回调一返回，`event.nativeEvent` 就被置成 `null`（`ReactFabric-prod.js` 的 `destructor`）。事件只要在回调结束后才被读取，就会抛 `Cannot read property 'layout' of null`。如果读取发生在 setState 的 updater 里，这个错误会在渲染阶段抛出。宿主错误边界接住后，整个任务页都会变成「Plugin failed」。updater 只有在组件已有排队更新时才推迟执行，所以这个错误是偶发的，而且只出现在真机上；网页端、浏览器和测试渲染器都不会清空事件，复现不了。2026-11-06 至 11-09，折叠屏上先后出现过两次：详情折叠区测高度，和「打开 / 关闭」按钮组测宽度（`201c2135`）。
+
+- `onLayout`、`onScroll`、`onPress` 等回调，要在回调里同步读出需要的值，之后只把这些值传给 updater、定时器、`requestAnimationFrame`、Promise 回调、`startTransition` 或子函数，不要把 `event` 本身传进去。写 `setWidth(event.nativeEvent.layout.width)` 即可；值没变时 React 本来就不会重渲染，不需要再包一层 `(old) => old === … ? old : …`。
+- 回调里先用解构取出 `const { width } = event.nativeEvent.layout`，再在嵌套函数里使用 `width`，这样是安全的。不要用可选链或判空把读取结果吞掉，那样只会把错误换成错误的布局。
+- `test/unit/pooled-event-reads.test.ts` 用 TypeScript AST 扫描整个 `client/`：只要在嵌套函数里引用了「读过 `.nativeEvent` 的回调参数」，测试就会失败。它包含在 `npm test` 里，每次提交、推送、部署和发插件更新 PR 前都必须通过。不要放宽这个检查，也不要为了让它通过加例外；改成同步读取。
+
 ## 提交身份（commit 与 PR）
 
 推到 GitHub 的 PR 只保留 `luopeihuan@gmail.com` 这一个账号，GitHub 登录名是 `luoph`。author、committer 和 PR 参与者里不能再出现第二个账号。`luopeihuan@roundreddot.com` 会被 GitHub 算成 `lukeRRD`，PR 上就会有两个参与者。

@@ -2213,7 +2213,7 @@ function SheetOpenClose(props: { tokens: TaskTokens; sidebar?: boolean; smallTab
   const closeWidth = width > 0 ? Math.max(minimum, available / 4) : undefined;
   const openWidth = closeWidth === undefined ? undefined : available - closeWidth;
   return (
-    <View testID="detail-open-close" onLayout={(event) => setWidth((old) => old === event.nativeEvent.layout.width ? old : event.nativeEvent.layout.width)} style={{ flexDirection: "row", flexBasis: 0, flexGrow: 1, flexShrink: 1, minWidth: minimum * 2 + 8 + inset * 2, padding: inset, gap: 8 }}>
+    <View testID="detail-open-close" onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", flexBasis: 0, flexGrow: 1, flexShrink: 1, minWidth: minimum * 2 + 8 + inset * 2, padding: inset, gap: 8 }}>
       <BarButton tokens={props.tokens} sidebar={props.sidebar} smallTablet={props.smallTablet} look="primary" keepLabel={false} icon={props.parent ? "CornerLeftUp" : undefined} arrow={!props.parent} label={props.openLabel} width={openWidth} onPress={props.onOpen} testID={props.parent ? "detail-bar-open-parent" : "detail-bar-open"} />
       <BarButton tokens={props.tokens} sidebar={props.sidebar} smallTablet={props.smallTablet} icon="X" label={props.closeLabel} width={closeWidth} onPress={props.onClose} testID="detail-bar-close" />
     </View>
