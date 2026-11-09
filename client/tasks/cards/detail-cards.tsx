@@ -2263,7 +2263,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         </Text>
       )}
       {props.arrow && !(square && props.busy) ? (
-        <View style={{ marginLeft: square ? 0 : -arrowInset(iconSize) }}>
+        <View style={square ? undefined : { marginLeft: -arrowInset(iconSize), width: iconSize * 18 / 24 }}>
           <Icon name="ArrowUpRight" size={iconSize} color={iconColor} />
         </View>
       ) : null}

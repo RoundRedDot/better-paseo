@@ -95,7 +95,7 @@ export function CardButton(props: {
       )}
       {/* The one arrow: a label that still ends in its own is trimmed by the caller. */}
       {(answer || props.arrow) && !(square && props.busy) ? (
-        <View style={{ marginLeft: square ? 0 : -arrowInset(size) }}>
+        <View style={square ? undefined : { marginLeft: -arrowInset(size), width: size * 18 / 24 }}>
           <Icon name="ArrowUpRight" size={size} color={color} />
         </View>
       ) : null}

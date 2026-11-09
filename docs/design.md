@@ -574,6 +574,11 @@ Unarchive, Open tab. None is ever filled with its hue.
 take them from it, and `requestLook(button)` picks a permission button's look in every place.
 A new action button takes a look from the table rather than its own colours.
 
+Center the visible label and icon together inside a centered action button, not just their layout
+boxes: account for empty space inside the icon, especially a trailing arrow. Preserve the intended
+icon-to-label gap, button size and hit area; icon-only controls stay centered in their full box.
+Check the result in each affected surface, language and icon-only state, including native layout.
+
 ### Dialog footers
 
 A dialog footer's action is not a card action. It takes the rename dialog's shape

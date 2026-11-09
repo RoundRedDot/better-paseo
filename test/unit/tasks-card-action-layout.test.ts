@@ -45,6 +45,8 @@ import { TasksTypographyScale } from "../../client/tasks/typography";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { estimateTextWidth, hostChildren, settleHostLayout, type Frame } from "./helpers/yoga-host-layout";
 import { resetActionWidths } from "../../client/tasks/cards/action-row";
+import { DetailActionBar } from "../../client/tasks/cards/detail-cards";
+import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 
 const NOW = Date.parse("2026-10-20T09:00:00.000Z");
 const THEME = {
@@ -281,6 +283,45 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(stop!.width).toBeLessThan(340 / 2);
     expect(Math.abs(allow!.width - deny!.width)).toBeLessThanOrEqual(0.5);
     expect(stop!.left + stop!.width).toBeCloseTo(340, 0);
+  });
+
+  it.each(["zh", "en"] as const)("centers the visible Open label and arrow in %s", async (language) => {
+    const item = CASES.find((entry) => entry.name === "a running Stop beside Open tab")!;
+    const frames = await settle(item, language, 340, 1);
+    const button = row().find((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab");
+    const label = labelsOf(button)[0]!;
+    const arrow = button.find((node) => (node.type as unknown) === "Icon" && node.props.name === "ArrowUpRight");
+    const box = frames.get(button)!;
+    const text = frames.get(label)!;
+    const icon = frames.get(arrow)!;
+    // The Lucide stroke reaches column 18 of the 24-unit icon box.
+    const left = text.left - box.left;
+    const right = box.left + box.width - (icon.left + icon.width * 18 / 24);
+    expect(Math.abs(left - right)).toBeLessThan(1);
+  });
+
+  it.each(["zh", "en"] as const)("centers the visible Open and Answer actions in the detail bar in %s", async (language) => {
+    for (const id of ["sample-running", "sample-question"]) {
+      const card = sample(id);
+      const buttons = card.permission ? permissionButtons(card.permission, language) : [];
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(DetailActionBar, {
+          card, theme: THEME as never, language, strings: BOARD_STRINGS[language].sidebar,
+          onOpen() {}, onPermission() {}, permissionButtons: buttons,
+        }));
+      });
+      const bar = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-action-bar");
+      const frames = await settleHostLayout(bar, { width: 340 });
+      const label = id === "sample-running" ? cardStrings(language).openTab : buttons.find((button) => button.kind === "open")!.label;
+      const button = bar().find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === label);
+      const text = frames.get(labelsOf(button)[0]!)!;
+      const arrow = button.find((node) => (node.type as unknown) === "Icon" && node.props.name === "ArrowUpRight");
+      const icon = frames.get(arrow)!;
+      const box = frames.get(button)!;
+      expect(Math.abs((text.left - box.left) - (box.left + box.width - icon.left - icon.width * 18 / 24))).toBeLessThan(1);
+      await act(async () => renderer!.unmount());
+      renderer = null;
+    }
   });
 
   it("gives a card that mounts after another its buttons' widths at once, with no second layout pass", async () => {
