@@ -413,7 +413,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             </TabPages>
           </>
         )}
-        {props.actions !== false ? <View style={{ paddingBottom: 10 }}><DetailActionBar {...props} sidebar contentUnder={underBar} /></View> : null}
+        {props.actions !== false ? <View testID="detail-action-bar-frame" style={{ paddingBottom: props.touch && props.sheetToggle && Platform.OS === "android" ? 6 : 10 }}><DetailActionBar {...props} sidebar smallTablet={!!(props.touch && props.sheetToggle && Platform.OS === "android")} contentUnder={underBar} /></View> : null}
       </View>
     );
   }
@@ -2074,6 +2074,7 @@ export function DetailActionBar(props: {
   archive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   markRead?: DetailRead | null;
   sidebar?: boolean;
+  smallTablet?: boolean;
   /** The page still runs under this bar, so it casts the same edge the tabs do. */
   contentUnder?: boolean;
 }) {
@@ -2100,11 +2101,11 @@ export function DetailActionBar(props: {
   // Deny first, allow last: the main button sits under the thumb.
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
   return (
-    <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border, zIndex: props.contentUnder ? 1 : undefined, boxShadow: props.contentUnder ? scrollEdgeShadow(tokens.isDark, "up") : undefined }}>
+    <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: 12, paddingTop: props.smallTablet ? 6 : 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border, zIndex: props.contentUnder ? 1 : undefined, boxShadow: props.contentUnder ? scrollEdgeShadow(tokens.isDark, "up") : undefined }}>
       {asking ? (
         <>
           {ordered.map((button) => (
-            <BarButton sidebar={props.sidebar}
+            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar}
               key={button.key}
               tokens={tokens}
               label={button.label}
@@ -2115,19 +2116,19 @@ export function DetailActionBar(props: {
             />
           ))}
           {/* "Answer" already opens the tab, so, as on the card, Open tab is the square beside Allow and Deny only. */}
-          {answer ? <BarButton sidebar={props.sidebar} tokens={tokens} label={answer.label} arrow look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
+          {answer ? <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} label={answer.label} arrow look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
           {stop && props.stop ? (
-            <BarButton sidebar={props.sidebar} tokens={tokens} icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"} look="danger" label={stop} busy={props.stop.phase === "stopping"} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" />
+            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"} look="danger" label={stop} busy={props.stop.phase === "stopping"} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" />
           ) : null}
-          {ownOpen && !answer ? <BarButton sidebar={props.sidebar} tokens={tokens} arrow label={openText} square onPress={open} testID="detail-bar-open" /> : null}
+          {ownOpen && !answer ? <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} arrow label={openText} square onPress={open} testID="detail-bar-open" /> : null}
           {!ownOpen && parentOpens && !answer ? (
-            <BarButton sidebar={props.sidebar} tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} square onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
+            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} square onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
           ) : null}
         </>
       ) : (
         <>
           {stop && props.stop ? (
-            <BarButton sidebar={props.sidebar}
+            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar}
               tokens={tokens}
               icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"}
               look="danger"
@@ -2139,7 +2140,7 @@ export function DetailActionBar(props: {
             />
           ) : null}
           {read ? (
-            <BarButton sidebar={props.sidebar}
+            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar}
               tokens={tokens}
               icon="CheckCheck"
               look={card.status === "failed" ? "plain" : "read"}
@@ -2152,7 +2153,7 @@ export function DetailActionBar(props: {
             />
           ) : null}
           {archive ? (
-            <BarButton sidebar={props.sidebar}
+            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar}
               tokens={tokens}
               icon="Archive"
               look="archive"
@@ -2165,11 +2166,11 @@ export function DetailActionBar(props: {
             />
           ) : null}
           {parentOpens ? (
-            <BarButton sidebar={props.sidebar} tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
+            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} icon="CornerLeftUp" label={cardText.openParent} onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" />
           ) : null}
-          {ownOpen ? <BarButton sidebar={props.sidebar} tokens={tokens} arrow label={openText} onPress={open} testID="detail-bar-open" /> : null}
+          {ownOpen ? <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} arrow label={openText} onPress={open} testID="detail-bar-open" /> : null}
           {unarchive ? (
-            <BarButton sidebar={props.sidebar}
+            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar}
               tokens={tokens}
               icon="ArchiveRestore"
               label={cardText.details.unarchive}
@@ -2203,15 +2204,15 @@ function archivable(card: TaskCard): boolean {
  * deepens it while pressed, and grows. A busy one does neither.
  */
 /** `arrow` ends the button in a ↗ after its label (Open tab); a square shows only the arrow. */
-function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; sidebar?: boolean; square?: boolean; grow?: boolean; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
+function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; label: string; sidebar?: boolean; smallTablet?: boolean; square?: boolean; grow?: boolean; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
-  // Sidebars use compact controls; the phone keeps the taller thumb size.
-  const compact = (props.sidebar === true && Platform.OS !== "ios") || (Platform.OS === "ios" && Platform.isPad);
-  const grow = props.grow !== false && !(props.sidebar && Platform.OS === "android");
+  // Desktop steps down to the iPad bar. The phone keeps the taller thumb size.
+  const compact = (props.sidebar === true && Platform.OS === "web") || (Platform.OS === "ios" && Platform.isPad);
   const font = F.sm;
-  const height = taskControlHeight(compact ? 36 : 40, scale);
+  const squareWidth = taskControlHeight(compact ? 36 : 40, scale);
+  const height = taskControlHeight(compact || props.smallTablet ? 36 : 40, scale);
   const iconSize = compact ? 14 : 16;
   const padding = compact ? 10 : 12;
   const gap = 4;
@@ -2219,12 +2220,12 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const hue = buttonHue(tokens, look);
   const text = hue.color;
   const iconColor = look === "plain" ? tokens.foregroundMuted : text;
-  const fit = useActionFit(props.label, `${scale}|${compact}|${font}|${useWindowDimensions().fontScale}`, height, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, look === "primary");
+  const fit = useActionFit(props.label, `${scale}|${compact}|${font}|${useWindowDimensions().fontScale}`, squareWidth, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, look === "primary");
   const square = fit.iconOnly;
   const disabled = props.busy || props.disabled;
   const hovered = hover && !disabled;
   // A bar button spans its share of the bar, wider than a finger; a square one is covered by it.
-  const liftAs = square || !grow ? "control" : "row";
+  const liftAs = square || props.grow === false ? "control" : "row";
   return (
     <ActionPressable lift={liftAs}
       accessibilityRole="button"
@@ -2236,8 +2237,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
       testID={props.testID}
       style={({ pressed }) => ({
         height,
-        width: square ? height : undefined,
-        flexGrow: square || !grow ? 0 : 1,
+        width: square ? squareWidth : undefined,
+        flexGrow: square || props.grow === false ? 0 : 1,
         flexShrink: square ? 0 : 1,
         paddingHorizontal: square ? 0 : padding,
         borderRadius: compact ? 8 : 10,

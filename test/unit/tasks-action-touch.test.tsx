@@ -326,23 +326,33 @@ describe("phone sheet action size", () => {
     { os: "web", sidebar: true, font: 12, height: 36, radius: 8, icon: 14 },
     { os: "web", sidebar: false, font: 12, height: 40, radius: 10, icon: 16 },
     { os: "ios", sidebar: true, font: 12, height: 36, radius: 8, icon: 14 },
-    { os: "android", sidebar: true, font: 12, height: 36, radius: 8, icon: 14 },
+    { os: "android", sidebar: true, smallTablet: true, font: 12, height: 36, radius: 10, icon: 16 },
+    { os: "android", sidebar: true, smallTablet: false, font: 12, height: 40, radius: 10, icon: 16 },
     { os: "android", sidebar: false, font: 12, height: 40, radius: 10, icon: 16 },
-  ])("sizes archive and open labels for $os sidebar=$sidebar", async ({ os, sidebar, font, height, radius, icon }) => {
+  ])("sizes archive and open labels for $os sidebar=$sidebar", async ({ os, sidebar, smallTablet, font, height, radius, icon }) => {
     vi.stubGlobal("__rnMockOS", os);
     device.tablet = os === "ios";
     const card = sample("sample-done");
     const root = await render(<DetailActionBar card={card} theme={theme} language="zh" strings={BOARD_STRINGS.zh.sidebar}
-      sidebar={sidebar} archive={{ pending: () => false, press() {} }} onOpen={() => {}} />);
+      sidebar={sidebar} smallTablet={smallTablet} archive={{ pending: () => false, press() {} }} onOpen={() => {}} />);
     const buttons = root.findAllByType(Pressable);
     expect(buttons).toHaveLength(2);
     for (const button of buttons) {
       expect(style(button, false)).toMatchObject({ height, borderRadius: radius });
-      if (os === "android" && button.props.testID === "detail-bar-open") expect(style(button, false).flexGrow).toBe(sidebar ? 0 : 1);
+      if (os === "android" && button.props.testID === "detail-bar-open") expect(style(button, false)).toMatchObject({ flexGrow: 1, paddingHorizontal: 12 });
       expect(button.findAll((node) => (node.type as unknown) === "Icon").every((mark) => mark.props.size === icon)).toBe(true);
       const label = button.find((node) => (node.type as unknown) === "Text");
       expect(StyleSheet.flatten(label.props.style).fontSize).toBe(font);
     }
+  });
+
+  it("keeps the Android sidebar's icon-only open action at its original width", async () => {
+    vi.stubGlobal("__rnMockOS", "android");
+    const card = sample("sample-input");
+    const root = await render(<DetailActionBar card={card} theme={theme} language="en" strings={BOARD_STRINGS.en.sidebar}
+      sidebar smallTablet onOpen={() => {}} onPermission={() => {}} permissionButtons={permissionButtons(card.permission!, "en")} />);
+    const open = root.findAllByType(Pressable).find((button) => button.props.testID === "detail-bar-open")!;
+    expect(style(open, false)).toMatchObject({ width: 40, height: 36 });
   });
 
   it.each([1, 1.5])("uses smaller iPad archive and open actions at font scale %s", async (factor) => {
