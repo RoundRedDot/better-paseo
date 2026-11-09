@@ -134,8 +134,8 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { th
   }, [announcement]);
   const spinnerVisible = Boolean(input.value?.trim() && (shown || present === input.value));
   return <>
-    {!hideSearchIcon || spinnerVisible ? <View testID="search-icon-slot" {...tipProps(shown && context ? counts.pending ? context.strings.tip(counts.loaded) : context.historyLoading ? context.historyLoadingText : undefined : undefined)} style={{ width: iconSize, height: iconSize, flexShrink: 0 }}>
-      {!hideSearchIcon ? <Animated.View style={{ position: "absolute", opacity: opacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}><Icon name="Search" size={iconSize} color={iconColor} /></Animated.View> : null}
+    {!hideSearchIcon ? <View testID="search-icon-slot" {...tipProps(shown && context ? counts.pending ? context.strings.tip(counts.loaded) : context.historyLoading ? context.historyLoadingText : undefined : undefined)} style={{ width: iconSize, height: iconSize, flexShrink: 0 }}>
+      <Animated.View style={{ position: "absolute", opacity: opacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}><Icon name="Search" size={iconSize} color={iconColor} /></Animated.View>
       {spinnerVisible ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
     </View> : null}
     <TextInput {...input} accessibilityState={{ ...input.accessibilityState, busy: loading }} />

@@ -109,13 +109,12 @@ it("offers stop and resume without clearing the query", () => {
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
 });
 
-it("hides the search icon without losing loading feedback", () => {
-  const mounted = mount(state(1, 0), "en", false, 16, true);
-  expect(hosts("search-icon-slot")).toHaveLength(0);
+it("keeps a hidden search icon from reappearing as a loading spinner", () => {
+  mount(state(1, 0), "en", false, 16, true);
   act(() => { vi.advanceTimersByTime(300); });
-  expect(hosts("search-spinner").length).toBeGreaterThan(0);
-  mounted.query("");
   expect(hosts("search-icon-slot")).toHaveLength(0);
+  // The state still reaches assistive tech and the coverage item.
+  expect(text(hosts("search-announcement")[0]!)).toBe(BOARD_STRINGS.en.searchCoverage.started);
 });
 
 const matrix = [
