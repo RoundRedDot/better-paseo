@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal, ScrollView } from "@getpaseo/plugin/client/react-native";
 import type { CardSettings } from "../../../shared/tasks-settings";
 import { LANE_STATUS, type TaskCard } from "../model";
 import { HOST_FONT, HOST_LINE, TaskText as Text, taskControlHeight, useTasksFontScale } from "../typography";
@@ -107,8 +107,8 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
       <Text style={{ fontSize: HOST_FONT.sm, color: theme.colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{tasks.length}</Text>
     </Pressable>
     {open ? <Modal title={title} open onOpenChange={setOpen}>
-      <Modal.Content scrollable contentContainerStyle={touch && onClearFilters ? { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap: 0 } : { gap: 16 }}>
-        {touch && onClearFilters ? <View style={{ paddingHorizontal: 24, paddingTop: 20, gap: 16 }}>{body}</View> : body}
+      <Modal.Content scrollable={!(touch && onClearFilters)} contentContainerStyle={touch && onClearFilters ? { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap: 0, flex: 1, minHeight: 0 } : { gap: 16 }}>
+        {touch && onClearFilters ? <ScrollView testID="hidden-tasks-scroll" style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, gap: 16 }}>{body}</ScrollView> : body}
         {onClearFilters ? <View testID="hidden-tasks-actions" style={touch ? { paddingTop: 12, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: theme.colors.border, flexDirection: "row" } : { flexDirection: "row", justifyContent: "flex-end" }}>
           <Pressable testID="hidden-tasks-clear-filters" accessibilityRole="button" accessibilityLabel={clearLabel} onPress={() => { setOpen(false); onClearFilters(); }} style={touch ? { flex: 1, minHeight: taskControlHeight(44, scale), paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 22, borderWidth: 1, borderColor: theme.colors.border } : { minHeight: taskControlHeight(32, scale), paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: theme.colors.accent }}>
             <Text style={{ fontSize: HOST_FONT.base, lineHeight: HOST_LINE.base, color: touch ? warning : theme.colors.accentForeground }}>{clearLabel}</Text>

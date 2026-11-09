@@ -7415,6 +7415,19 @@ describe("Tasks sidebar entry", () => {
     expect(modal.findAllByType(ProviderLogo).length).toBeGreaterThan(0);
   });
 
+  it("keeps the native hidden-task action outside the scrolling list", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    const card = (data as unknown as { __handle: { lanes: { running: { cards: TaskCard[] } } } }).__handle.lanes.running.cards[0]!;
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, sidebar: { count: "all" } };
+    host.counts = { needsInput: 0, running: 0, review: 0, done: 0, hidden: [card] };
+    const row = entry(null);
+    act(() => row.findAll((node) => node.props.testID === "hidden-tasks-count")[0]!.props.onPress());
+    const scroll = renderer!.root.findByProps({ testID: "hidden-tasks-scroll" });
+    expect(textOf(scroll)).toContain(card.title);
+    expect(scroll.findAllByProps({ testID: "hidden-tasks-actions" })).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ testID: "hidden-tasks-clear-filters" }).length).toBeGreaterThan(0);
+  });
+
   it("clears the board's search and filters from the hidden-task dialog and closes it", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const card = (data as unknown as { __handle: { lanes: { running: { cards: TaskCard[] } } } }).__handle.lanes.running.cards[0]!;
