@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
-import { createTodoSummaryStore, useTodoSummary } from "../../client/tasks/data/todo-summary";
+import { createTodoSummaryStore, summarizePlan, useTodoSummary } from "../../client/tasks/data/todo-summary";
 
 function todo(completed: number, total: number) {
   return { type: "todo", items: Array.from({ length: total }, (_, index) => ({ text: `Task ${index}`, completed: index < completed })) };
@@ -23,6 +23,27 @@ function fixture() {
 }
 
 describe("task card todo summary", () => {
+  it("parses plan steps, keeps checkbox state and bounds the list", () => {
+    expect(summarizePlan("# Plan\nExplanation\n1. First\n- [x] Second\n* Third")).toEqual({ source: "plan", completed: 1, total: 3, items: [{ text: "First", completed: false }, { text: "Second", completed: true }, { text: "Third", completed: false }] });
+    expect(summarizePlan("# Plan\nOnly prose")).toBeNull();
+    expect(summarizePlan(Array.from({ length: 15 }, (_, i) => `${i + 1}. Step`).join("\n"))).toMatchObject({ total: 15, items: expect.arrayContaining([{ text: "Step", completed: false }]) });
+    expect(summarizePlan(Array.from({ length: 15 }, () => "* Step").join("\n"))?.items).toHaveLength(12);
+  });
+
+  it("uses the latest plan or todo without another subscription", async () => {
+    const f = fixture();
+    const plan = { type: "tool_call", detail: { type: "plan", text: "# Plan\n1. First\n2. Second" } };
+    f.timeline.refetch.mockResolvedValue({ entries: [{ item: todo(1, 1) }, { item: plan }], hasOlder: false });
+    const stop = f.store.watch("parent");
+    await vi.waitFor(() => expect(f.store.read("parent")).toMatchObject({ source: "plan", total: 2 }));
+    f.emit({ type: "timeline", item: todo(0, 3) });
+    expect(f.store.read("parent")).toEqual({ completed: 0, total: 3, items: todo(0, 3).items });
+    f.emit({ type: "timeline", item: plan });
+    expect(f.store.read("parent")).toMatchObject({ source: "plan", total: 2 });
+    expect(f.timeline.subscribe).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
   it("finds the latest todo across older pages and follows live updates", async () => {
     const f = fixture();
     f.timeline.refetch.mockResolvedValueOnce({ entries: [], hasOlder: true, startCursor: { epoch: "e", seq: 40 } })

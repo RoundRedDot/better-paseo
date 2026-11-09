@@ -1188,8 +1188,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     );
   }
   if (fields.plan && props.todo && props.todo.total > 0) {
-    const label = language === "zh" ? `${props.todo.completed}/${props.todo.total} 项任务` : `${props.todo.completed}/${props.todo.total} tasks`;
-    const todoHint = strings.todoHint(label, todoExpanded);
+    const label = props.todo.source === "plan"
+      ? language === "zh" ? `${props.todo.total} 项计划` : `${props.todo.total} plan ${props.todo.total === 1 ? "step" : "steps"}`
+      : language === "zh" ? `${props.todo.completed}/${props.todo.total} 项任务` : `${props.todo.completed}/${props.todo.total} tasks`;
+    const todoHint = `${props.todo.source === "plan" ? language === "zh" ? "来自计划 · " : "From plan · " : ""}${strings.todoHint(label, todoExpanded)}`;
     pills.push(<PillButton key="todo" {...pill} icon="ListTodo" label={label} tabular testID="pill-todo" accessibilityLabel={label} accessibilityHint={todoHint} hitSlop={compact ? { top: 10, bottom: 10 } : undefined} hint={hint("todo", () => todoHint)} expanded={todoExpanded} onPress={() => {
       const next = !todoExpanded;
       if (!reducedMotion && props.animated !== false) prepareSubtaskToggle(next);

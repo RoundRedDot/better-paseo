@@ -919,6 +919,17 @@ describe("StatusIcon", () => {
 });
 
 describe("TaskCardView rows", () => {
+  it("shows a read-only plan without claiming progress", async () => {
+    const todo = { source: "plan" as const, completed: 0, total: 2, items: [{ text: "First", completed: false }, { text: "Second", completed: false }] };
+    const tree = await render(cardElement(sample("sample-running"), { todo, animated: false }));
+    const button = hostByTestId(tree.root, "pill-todo");
+    expect(texts(button)).toEqual(["2 项计划"]);
+    expect(button.props.accessibilityHint).toContain("来自计划");
+    await act(async () => button.props.onPress());
+    expect(tree.root.findAll((node) => node.props.testID === "todo-row-in_progress")).toHaveLength(0);
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "todo-row-pending")).toHaveLength(2);
+  });
+
   it("shows todo progress separately from provider subagents", async () => {
     const card = sample("sample-running");
     card.children = [{ id: "provider-child", title: "Design", status: "done", kind: "provider" }];
