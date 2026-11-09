@@ -2327,7 +2327,10 @@ function StopControl(props: StopControlProps) {
         {...hintProps(fit.iconOnly ? props.hint : undefined)}
         style={({ pressed }) => [
           segment,
-          props.parent ? null : liftedButtonOutline(tokens, tokens.danger, false, stopLift),
+          // A split pill's outline is the overlay below, but the width stays an explicit 0: when Stop
+          // turns split (a running task starts subtasks), a removed borderWidth reaches Android as
+          // NaN, and this `overflow: hidden` view clips to a NaN padding box, so its icon and label vanish.
+          props.parent ? NO_BORDER : liftedButtonOutline(tokens, tokens.danger, false, stopLift),
           {
             flexGrow: 1, flexShrink: 0, flexBasis: "auto",
             gap: 4,
@@ -2421,6 +2424,8 @@ function StopControl(props: StopControlProps) {
 }
 
 const STOP_MENU_WIDTH = 220;
+/** A split Stop's own half: no line, but a border width set to 0 rather than removed. */
+const NO_BORDER: ViewStyle = { borderWidth: 0 };
 
 /** A drawn mark in the menu's 16 pt icon slot. */
 function MenuGlyph(props: { children: ReactNode }) {
