@@ -233,7 +233,7 @@ function layOut(width: number) {
 
 function finishSidebarCloseImmediately() {
   const timing = Animated.timing;
-  vi.spyOn(Animated, "timing").mockImplementation((value, config) => config.toValue === 0 && config.duration === 180
+  vi.spyOn(Animated, "timing").mockImplementation((value, config) => config.toValue === 0 && (config.duration === 180 || config.duration === 200)
     ? { start: (done) => { (value as Animated.Value).setValue(0); done?.({ finished: true }); }, stop: () => {}, reset: () => {} }
     : timing(value, config));
 }
@@ -2678,6 +2678,7 @@ describe("Tasks board, desktop", () => {
     const card = cards().find((node) => node.props.card.id === "sample-running")!;
     await act(async () => card.props.onSelect(card.props.card));
     expect(hostsById("board-sheet")).toHaveLength(1);
+    expect(StyleSheet.flatten(hostsById("board-sheet-content")[0]!.props.style).paddingHorizontal).toBe(12);
     expect(hostsById("detail-tab-short-scroll")).toHaveLength(1);
     expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
     await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
@@ -2756,6 +2757,9 @@ describe("Tasks board, desktop", () => {
       blank.props.onResponderGrant({ nativeEvent: { pageX: 10, pageY: 10 } });
       blank.props.onResponderRelease({ nativeEvent: { pageX: 10, pageY: 10 } });
     });
+    expect(timings.sheet().at(-1)).toMatchObject({ to: 0, duration: 200 });
+    expect(hostsById("board-sheet")).toHaveLength(1);
+    timings.finish(timings.sheet().at(-1)!);
     expect(hostsById("board-sheet")).toHaveLength(0);
     } finally {
       timings.restore();
@@ -2839,9 +2843,13 @@ describe("Tasks board, desktop", () => {
       act(() => toggle().props.onPress());
       const lost = last();
       act(() => hostsById("detail-close")[0]!.props.onPress());
-      expect(hostsById("board-sheet")).toHaveLength(0);
       expect(lost.over).toBe(true);
+      expect(last()).toMatchObject({ to: 0, duration: 200 });
+      expect(hostsById("board-sheet")).toHaveLength(1);
+      const closing = last();
       open();
+      expect(closing.over).toBe(true);
+      expect(last()).toMatchObject({ to: 464 });
       expect([label(), room()]).toEqual(["Expand details", 8 + 464]);
     } finally {
       timings.restore();
@@ -2871,9 +2879,29 @@ describe("Tasks board, desktop", () => {
       act(() => toggle().props.onPress());
       expect((timings.sheetValue() as unknown as { __value: number }).__value).toBe(464);
       expect(toggle().props.accessibilityLabel).toBe("Expand details");
+      act(() => hostsById("detail-close")[0]!.props.onPress());
+      expect(hostsById("board-sheet")).toHaveLength(0);
     } finally {
       act(() => onReduce(false));
       subscription.mockRestore();
+      timings.restore();
+    }
+  });
+
+  it.each(["ios", "android"])("animates the %s tablet toolbar close before removing the sheet", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const timings = holdTimings();
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(600);
+      toggleSidebarControl();
+      timings.finish(timings.sheet().at(-1)!);
+      toggleSidebarControl();
+      expect(hostsById("board-sheet")[0]!.props.pointerEvents).toBe("none");
+      expect(timings.sheet().at(-1)).toMatchObject({ to: 0, duration: 200 });
+      timings.finish(timings.sheet().at(-1)!);
+      expect(hostsById("board-sheet")).toHaveLength(0);
+    } finally {
       timings.restore();
     }
   });

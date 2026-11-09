@@ -789,10 +789,11 @@ export function DesktopBoard(props: {
             {sidebar}
           </SidebarColumn>
         ) : null}
-        {inSheet ? (
+        {mode === "sheet" ? (
           <BoardSheet
             ref={sheetRef}
             area={boardHeight}
+            open={inSheet}
             detent={detent}
             onDetent={setDetent}
             onClose={() => {

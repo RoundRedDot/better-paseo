@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
+import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Animated, PanResponder, Platform, Pressable, View, type GestureResponderEvent } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -30,6 +30,7 @@ export interface BoardSheetHandle {
 export const BoardSheet = forwardRef<BoardSheetHandle, {
   /** The lanes' area the sheet rises in. */
   area: number;
+  open: boolean;
   detent: SheetDetent;
   onDetent(detent: SheetDetent): void;
   onClose(): void;
@@ -38,6 +39,9 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
   children: React.ReactNode;
 }>(function BoardSheet(props, ref) {
   const reduced = useReducedMotion();
+  const [present, setPresent] = useState(props.open);
+  const content = useRef(props.children);
+  if (props.open) content.current = props.children;
   const reducedNow = useRef(reduced);
   reducedNow.current = reduced;
   const target = sheetHeight(props.area, props.detent);
@@ -45,6 +49,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
   const latest = useRef(props);
   latest.current = props;
   const opened = useRef(false);
+  const closedByDrag = useRef(false);
   // A drag ends with a click on the handle it moved with: that click must not switch the height back.
   const dragged = useRef(false);
   // The height the value rests at or is moving to: a board that catches up with a switch already there moves nothing.
@@ -53,6 +58,24 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
   const heading = useRef<{ detent: SheetDetent; run: Animated.CompositeAnimation } | null>(null);
 
   useEffect(() => {
+    if (!props.open) {
+      if (!present) return;
+      if (closedByDrag.current || reduced) {
+        height.setValue(0);
+        aimed.current = 0;
+        setPresent(false);
+        return;
+      }
+      aimed.current = 0;
+      const animation = Animated.timing(height, { toValue: 0, duration: 200, easing: MOTION.ease, useNativeDriver: false });
+      animation.start(({ finished }) => { if (finished) setPresent(false); });
+      return () => animation.stop();
+    }
+    closedByDrag.current = false;
+    if (!present) {
+      setPresent(true);
+      return;
+    }
     if (aimed.current === target) return;
     aimed.current = target;
     const animation = Animated.timing(height, {
@@ -64,7 +87,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
     opened.current = true;
     animation.start();
     return () => animation.stop();
-  }, [height, target, reduced]);
+  }, [height, target, reduced, props.open, present]);
 
   const motion = useMemo(() => {
     const drop = () => {
@@ -100,6 +123,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
     };
   }, [height]);
   useImperativeHandle(ref, () => ({ toggle: motion.toggle }), [motion]);
+  useEffect(() => { if (!props.open) motion.drop(); }, [motion, props.open]);
   // A switch still moving when the sheet closes does not reach the board.
   useEffect(() => motion.drop, [motion]);
 
@@ -139,7 +163,17 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
         const next = sheetRelease(now.detent, travel(event), gesture.vy);
         if (next === "closed") {
           aimed.current = 0;
-          Animated.timing(height, { toValue: 0, duration: 200, easing: MOTION.ease, useNativeDriver: false }).start(() => latest.current.onClose());
+          if (reducedNow.current) {
+            height.setValue(0);
+            closedByDrag.current = true;
+            latest.current.onClose();
+            return;
+          }
+          Animated.timing(height, { toValue: 0, duration: 200, easing: MOTION.ease, useNativeDriver: false }).start(({ finished }) => {
+            if (!finished) return;
+            closedByDrag.current = true;
+            latest.current.onClose();
+          });
           return;
         }
         motion.settle(next, next === now.detent ? 200 : 240);
@@ -154,9 +188,11 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
   const palette = boardPalette(props.theme);
   const chrome = menuChrome(props.theme);
   const full = props.detent === "full";
+  if (!present) return null;
   return (
     <Animated.View
       testID="board-sheet"
+      pointerEvents={props.open ? "auto" : "none"}
       style={{
         position: "absolute",
         left: 0,
@@ -185,7 +221,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
           <View style={{ width: 32, height: 3, borderRadius: 1.5, backgroundColor: props.theme.colors.foregroundMuted, opacity: 0.5 }} />
         </Pressable>
       </View>
-      <View style={{ flex: 1, minHeight: 0, paddingHorizontal: 4, paddingBottom: 4 }}>{props.children}</View>
+      <View testID="board-sheet-content" style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingBottom: 4 }}>{content.current}</View>
     </Animated.View>
   );
 });
