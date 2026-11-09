@@ -911,7 +911,7 @@ apply to all three.
 | Toolbar | Height | Targets | Contents |
 | --- | --- | --- | --- |
 | Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 320 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
-| Tablet (`TabletToolbar`) | 40 | 32 | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface2` for the selected Subtasks switch and `surface1` for expanded menus |
+| Tablet (`TabletToolbar`) | 40 | 32 | see [tasks-board.md](tasks-board.md); buttons radius 7, no selected fill for two-state icons and `surface1` for expanded menus |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
 - Board toolbar actions and detail header menu/close buttons share `TASK_TOOLBAR_METRICS`
@@ -955,7 +955,12 @@ apply to all three.
   search is not empty. Switching the time range does not show the circle. The subtask switch,
   archived lane, empty groups, lane width and sort already show their own state and do not add
   to it. Zero draws nothing.
-- The tablet Subtasks switch uses `surface2` when selected and is transparent when off. Keep its hidden-card badge, accessibility selected state and normal press lift.
+- Across phone, Pad, web and desktop, toolbar action icons that already distinguish two states
+  by their glyph, slash or panel mark never add a persistent selected fill. This includes
+  Subtasks, Archived, the details sidebar, empty-lane folding and search scope. Keep the
+  same resting background in both states, accessibility selected/checked state, hidden-card
+  badges and normal hover/press feedback. Badge rings and slash cutouts match the resting
+  surface. Menu expansion, menu selections and segmented controls retain their own treatment.
 - Round buttons (`RoundButton`) are a 36 circle in a 44 target with a hairline, an accent border
   when active, and a badge at least 20 high on the accent with a 2 pt `surface0` ring. The persistent Subtasks and Archived switches use the icon-only selection treatment above.
 - Desktop toolbar icon buttons with `quietOutline` use radius 7 and a transparent hairline at

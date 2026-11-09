@@ -379,7 +379,7 @@ function EmptyLanesButton({ emptyLanes, strings, theme }: { emptyLanes: EmptyLan
   );
 }
 
-/** A round outlined button, filled grey while the sidebar shows. */
+/** A round outlined button whose panel mark shows the sidebar state. */
 function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void; theme: PluginTheme; label: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
@@ -411,7 +411,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
         height: size,
         borderRadius: Platform.OS === "web" ? 7 : size / 2,
         borderWidth: HAIRLINE,
-        backgroundColor: props.open ? colors.surface2 : colors.surface0,
+        backgroundColor: colors.surface0,
         ...liftStyle(() => taskTokens(props.theme), lift, { border: line }),
         ...scaleStyle(lift.scale),
         alignItems: "center",
@@ -440,7 +440,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
   const reduced = useReducedMotion();
   const lift = surfaceLift(hovered, press.pressed, reduced, "control", press.input);
   const line = Platform.OS === "web" && !hovered ? "transparent" : colors.border;
-  const background = props.on ? colors.surface2 : colors.surface0;
+  const background = colors.surface0;
   const iconColor = props.on ? colors.foreground : colors.foregroundMuted;
   return (
     <Pressable

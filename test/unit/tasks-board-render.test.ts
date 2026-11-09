@@ -39,7 +39,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   }
   Modal.Content = (props: Props) => React.createElement("ModalContent", null, props.children);
   return {
-    Icon: (props: Props) => React.createElement("Icon", { name: props.name, size: props.size, color: props.color }),
+    Icon: (props: Props) => React.createElement("Icon", { name: props.name, icon: props.icon, size: props.size, color: props.color }),
     FlatList,
     Modal,
     ScrollView: rn.ScrollView,
@@ -1117,6 +1117,52 @@ describe("Tasks search coverage and centred toolbar", () => {
   });
 
 
+});
+
+describe("Two-state toolbar icons", () => {
+  it.each([
+    ["web", 1600, false], ["web", 600, false],
+    ["ios", 1200, false], ["android", 1200, false],
+    ["web", 390, true], ["ios", 390, true], ["android", 390, true],
+  ] as const)("keeps %s icons unfilled at %i pt (phone=%s)", async (os, width, phone) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(phone)); });
+    if (!phone) layOut(width);
+    const ids = phone ? ["phone-subtasks", "phone-archived"]
+      : os === "web" ? width === 600 ? ["toolbar-archived", "sidebar-switch"]
+        : ["subtasks-toggle", "archived-lane-toggle", "sidebar-switch", "search-full-conversation-toggle"]
+        : ["subtasks-toggle", "sidebar-switch", "search-full-conversation-toggle"];
+    for (const id of ids) {
+      const button = () => hostsById(id)[0]!;
+      const state = () => button().props.accessibilityState;
+      const glyph = () => button().findAll((node) => (node.type as unknown) === "Icon")
+        .map((node) => node.props.icon ?? node.props.name);
+      const unfilled = () => {
+        for (const node of [button(), ...button().findAll((node) => typeof node.type === "string")]) {
+          expect(StyleSheet.flatten(node.props.style)?.backgroundColor, id).not.toBe("#e4e4e7");
+        }
+      };
+      const initial = state();
+      const initialGlyph = glyph();
+      const initialSlash = button().findAllByType(SlashMark).length;
+      const initialPanel = hostsById("panel-mark-fill")[0]?.props.style;
+      unfilled();
+      await act(async () => button().props.onPress());
+      expect(state(), id).not.toEqual(initial);
+      unfilled();
+      if (id.includes("archived")) expect(button().findAllByType(SlashMark).length).not.toBe(initialSlash);
+      else if (id === "sidebar-switch") expect(hostsById("panel-mark-fill")[0]!.props.style).not.toEqual(initialPanel);
+      else expect(glyph(), id).not.toEqual(initialGlyph);
+      if (id.includes("subtasks")) {
+        const badge = hostsById(`${id}-count`)[0]!;
+        expect(textOf(badge)).toBe("1");
+        expect(StyleSheet.flatten(hostParentOf(badge)!.props.style).borderColor).toBe("#ffffff");
+      }
+      await act(async () => button().props.onPress());
+      expect(state(), id).toEqual(initial);
+      unfilled();
+    }
+  });
 });
 
 describe("F1: Web switch Space activation", () => {
@@ -2265,7 +2311,7 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("details-sidebar-scroll")).toHaveLength(0);
   });
 
-  it.each([2000, 600])("preserves the panel silhouette and selected styling at %i pt", (width) => {
+  it.each([2000, 600])("preserves the panel silhouette without a selected fill at %i pt", (width) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(width);
@@ -2276,7 +2322,7 @@ describe("Tasks board, desktop", () => {
     const check = (open: boolean) => {
       expect(frame()).toMatchObject({ width: 16, height: 13, borderWidth: 1.5, borderRadius: 2.5, flexDirection: bottom ? "column" : "row", ...(bottom ? { paddingBottom: 1.5 } : { paddingRight: 1.5 }) });
       expect(fill()).toMatchObject({ width: bottom ? 10 : open ? 3.5 : 1.5, height: bottom ? open ? 3 : 1.5 : 7, borderRadius: 0.75, backgroundColor: open ? "#1b1b1f" : "#6b6b75" });
-      expect(StyleSheet.flatten(button().props.style).backgroundColor).toBe(open ? "#e4e4e7" : "#ffffff");
+      expect(StyleSheet.flatten(button().props.style).backgroundColor).toBe("#ffffff");
       expect(button().findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(0);
     };
     const initial = button().props.accessibilityState.selected;
@@ -5197,7 +5243,7 @@ describe("Tasks board, tablet filters", () => {
     layOut(1200);
     expect(hostsById("tablet-toolbar-end")[0]!.findAll((n) => (n.type as unknown) === "Pressable").map((n) => n.props.testID)).toEqual(["subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"]);
     expect(hostsById("subtasks-toggle")[0]!.props.accessibilityState.selected).toBe(true);
-    expect(StyleSheet.flatten(hostsById("subtasks-toggle")[0]!.props.style).backgroundColor).toBe("#e4e4e7");
+    expect(StyleSheet.flatten(hostsById("subtasks-toggle")[0]!.props.style).backgroundColor).toBe("transparent");
     expect(hostsById("subtasks-toggle")[0]!.find((n) => (n.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
     await act(async () => hostsById("subtasks-toggle")[0]!.props.onPress());
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
@@ -5585,7 +5631,7 @@ describe("Tasks board, tablet filters", () => {
     expect(toggle().props).toMatchObject({ accessibilityLabel: "Show subtasks", accessibilityState: { checked: true } });
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Network");
     expect(slashed()).toBe(false);
-    expect(look().backgroundColor).toBe("#e4e4e7");
+    expect(look().backgroundColor).toBe("#ffffff");
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
     act(() => toggle().props.onPress());
     expect(lastBoardParams("host-1")).toMatchObject({ hideSubtasks: null });
@@ -5847,7 +5893,7 @@ describe("Tasks board, phone", () => {
     const controls = hostParentOf(button())!.findAll((node) => (node.type as unknown) === "Pressable");
     expect(controls.slice(-3).map((node) => node.props.testID)).toEqual(["phone-subtasks", "phone-archived", "phone-more"]);
     expect(button().props.accessibilityState).toEqual({ selected: true });
-    expect(button().findAll((node) => (node.type as unknown) === "View" && StyleSheet.flatten(node.props.style)?.backgroundColor === "#e4e4e7")).toHaveLength(1);
+    expect(button().findAll((node) => (node.type as unknown) === "View" && StyleSheet.flatten(node.props.style)?.backgroundColor === "#e4e4e7")).toHaveLength(0);
     expect(button().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
     await act(async () => button().props.onPress());
     expect(button().props.accessibilityState).toEqual({ selected: false });

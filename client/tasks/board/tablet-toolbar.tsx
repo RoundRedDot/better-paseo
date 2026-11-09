@@ -179,11 +179,11 @@ function ToolbarButton(props: { icon: string | React.ReactElement; label: string
   const target = taskControlHeight(props.size ?? TASK_TOOLBAR_METRICS.touch.button, scale);
   const iconSize = TASK_TOOLBAR_METRICS.touch.icon;
   return (
-    <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered, pressed) => ({ minWidth: target, height: target, flexShrink: 0, borderRadius: 7, backgroundColor: props.toggle ? (props.selected ? colors.surface2 : "transparent") : props.expanded || (props.selected && !props.hideSelectedBackground) ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), surfaceLift(hovered, pressed)), flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
+    <HoverPressable accessibilityRole="button" accessibilityLabel={props.label} accessibilityState={{ ...(props.selected === undefined ? {} : { selected: props.selected }), ...(props.expanded === undefined ? {} : { expanded: props.expanded }) }} {...tipProps(props.label)} onPress={props.onPress} testID={props.testID} style={(hovered, pressed) => ({ minWidth: target, height: target, flexShrink: 0, borderRadius: 7, backgroundColor: props.expanded || (props.selected && !props.toggle && !props.hideSelectedBackground) ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), surfaceLift(hovered, pressed)), flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
       <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
         {typeof props.icon === "string" ? <Icon name={props.icon} size={iconSize} color={props.toggle && !props.selected ? colors.foregroundMuted : colors.foreground} /> : props.icon}
         {props.slashed ? <SlashMark size={iconSize} color={colors.foreground} gap={colors.surface0} /> : null}
-        <CornerBadge count={props.badge ?? 0} theme={props.theme} ringColor={props.toggle && props.selected ? colors.surface2 : undefined} style={{ bottom: -4, right: -4 }} testID={props.badgeTestID ?? "tablet-filter-count"} />
+        <CornerBadge count={props.badge ?? 0} theme={props.theme} style={{ bottom: -4, right: -4 }} testID={props.badgeTestID ?? "tablet-filter-count"} />
       </View>
     </HoverPressable>
   );

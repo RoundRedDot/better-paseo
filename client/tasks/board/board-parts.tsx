@@ -746,7 +746,6 @@ export function RoundButton(props: {
   const pad = props.size === undefined ? 4 : 0;
   const icon = props.iconSize ?? Math.round(size / 2);
   const toggleColor = props.selected ? colors.foreground : colors.foregroundMuted;
-  const toggleSurface = props.selected ? colors.surface2 : colors.surface0;
   const { hovered, hoverProps } = useHover();
   const press = usePressCue(hovered, !props.disabled);
   const lift = surfaceLift(hovered, press.pressed, undefined, "control", press.input);
@@ -777,15 +776,15 @@ export function RoundButton(props: {
           borderRadius: props.quietOutline && Platform.OS === "web" ? 7 : size / 2,
           borderWidth: props.borderless ? 0 : HAIRLINE,
           borderColor: line,
-          ...(props.toggle ? { backgroundColor: props.selected ? colors.surface2 : "transparent" } : null),
+          ...(props.toggle ? { backgroundColor: "transparent" } : null),
           ...(props.disabled ? { boxShadow: undefined } : liftStyle(() => taskTokens(props.theme), lift, props.borderless ? {} : { border: line, hued: !!props.active })),
           alignItems: "center",
           justifyContent: "center",
         }}
       >
         {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : <Icon name={props.icon} size={icon} color={props.toggle ? toggleColor : props.borderless && props.active ? colors.accent : colors.foreground} />}
-        {props.slashed ? <SlashMark size={icon} color={props.toggle ? toggleColor : colors.foreground} gap={props.toggle ? toggleSurface : colors.surface0} /> : null}
-        <CornerBadge count={props.cornerBadge ?? 0} theme={props.theme} ringColor={props.toggle ? toggleSurface : undefined} style={{ bottom: 0, right: 0 }} testID={props.testID ? `${props.testID}-count` : undefined} />
+        {props.slashed ? <SlashMark size={icon} color={props.toggle ? toggleColor : colors.foreground} gap={colors.surface0} /> : null}
+        <CornerBadge count={props.cornerBadge ?? 0} theme={props.theme} style={{ bottom: 0, right: 0 }} testID={props.testID ? `${props.testID}-count` : undefined} />
       </View>
       {props.badge ? (
         <View

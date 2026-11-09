@@ -180,7 +180,7 @@ export function FullConversationSwitch({ theme, compact, iconSize: requestedIcon
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
     accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={press.guard(toggle)} hitSlop={4} {...hoverProps}
     onPressIn={press.onPressIn} onPressOut={press.onPressOut} onTouchStart={press.onTouchStart} onTouchMove={press.onTouchMove} onTouchEnd={press.onTouchEnd} onTouchCancel={press.onTouchCancel}
-    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: outlined ? 1 : 0, borderColor: hovered ? theme.colors.border : "transparent", borderRadius: 7, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0, ...liftStyle(() => taskTokens(theme), lift, outlined ? { border: hovered ? theme.colors.border : "transparent" } : {}), ...scaleStyle(lift.scale) }}>
+    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: outlined ? 1 : 0, borderColor: hovered ? theme.colors.border : "transparent", borderRadius: 7, backgroundColor: theme.colors.surface0, ...liftStyle(() => taskTokens(theme), lift, outlined ? { border: hovered ? theme.colors.border : "transparent" } : {}), ...scaleStyle(lift.scale) }}>
     <Icon icon={on ? FULL_TEXT_SEARCH_ICON : OUTLINE_SEARCH_ICON} size={iconSize} color={theme.colors.foreground} />
   </Pressable>;
 }
