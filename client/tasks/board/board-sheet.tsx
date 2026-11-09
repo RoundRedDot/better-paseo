@@ -7,8 +7,8 @@ import { menuChrome } from "./menu-model";
 import { sheetHeight, sheetRelease, type SheetDetent } from "./sidebar-model";
 import { createSheetMotion, SheetFrameContext, SheetMotionContext, type SheetFrame } from "../sheet-motion";
 
-/** Match the side panel's 12 px resize strip with a compact horizontal grabber. */
-const HANDLE = 12;
+/** The strip the sheet is dragged by: its whole width, with the grabber in the middle. */
+const HANDLE = 16;
 
 /**
  * The details of a board too narrow to float them beside its lanes
@@ -93,6 +93,16 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
   const moving = useRef(createSheetMotion()).current;
   // A switch on its way, before the board hears of it: waiting for the frames after a grown scroller, then running.
   const heading = useRef<{ detent: SheetDetent; run: Animated.CompositeAnimation | null; wait: (() => void) | null } | null>(null);
+
+  // The grabber shows a finger on the strip, from the touch down through a drag (0 resting, 1 held).
+  const grip = useRef(new Animated.Value(0)).current;
+  const grabber = useRef({
+    opacity: grip.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }),
+    transform: [{ scaleX: grip.interpolate({ inputRange: [0, 1], outputRange: [1, 1.25] }) }],
+  }).current;
+  const hold = useRef((on: boolean) => {
+    Animated.timing(grip, { toValue: on ? 1 : 0, duration: on ? 90 : 160, easing: MOTION.ease, useNativeDriver: native() }).start();
+  }).current;
 
   const motionNow: {
     slideTo(to: number, duration: number, done: () => void): void;
@@ -297,6 +307,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
           start = value;
         });
         dragged.current = true;
+        hold(true);
         moving.set(true);
         // The whole height may come into view.
         setHidden(0);
@@ -308,6 +319,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
         shift.setValue(aimed.current);
       },
       onPanResponderRelease: (event, gesture) => {
+        hold(false);
         setTimeout(() => {
           dragged.current = false;
         }, 300);
@@ -326,11 +338,12 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
         motion.settle(next, next === now.detent ? 200 : 240);
       },
       onPanResponderTerminate: () => {
+        hold(false);
         dragged.current = false;
         motion.settle(latest.current.detent, 200);
       },
     });
-  }, [shift, motion, motionNow, moving, setHidden]);
+  }, [shift, motion, motionNow, moving, setHidden, hold]);
 
   const palette = boardPalette(props.theme);
   const chrome = menuChrome(props.theme);
@@ -364,10 +377,24 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
               if (dragged.current) return;
               motion.toggle();
             }}
+            onPressIn={() => hold(true)}
+            // A drag taking the touch over keeps the grabber held until it lets go.
+            onPressOut={() => {
+              if (!dragged.current) hold(false);
+            }}
             testID="board-sheet-handle"
             style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
           >
-            <View style={{ width: 32, height: 3, borderRadius: 1.5, backgroundColor: props.theme.colors.foregroundMuted, opacity: 0.5 }} />
+            <Animated.View
+              testID="board-sheet-grabber"
+              style={{
+                width: 32,
+                height: 3,
+                borderRadius: 1.5,
+                backgroundColor: props.theme.colors.foregroundMuted,
+                ...grabber,
+              }}
+            />
           </Pressable>
         </View>
         <View testID="board-sheet-content" style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingBottom: pad }}>

@@ -315,7 +315,7 @@ function holdTimings() {
     run.value.setValue(run.to);
     run.done?.({ finished: true });
   });
-  return { sheet, sheetValue, slide, finish, restore: () => spy.mockRestore() };
+  return { runs: () => runs, sheet, sheetValue, slide, finish, restore: () => spy.mockRestore() };
 }
 
 /** The two frames a first slide in waits for the details to mount (`BoardSheet`). */
@@ -3047,6 +3047,50 @@ describe("Tasks board, desktop", () => {
       expect(room[0]!.findAll((node) => typeof node.type === "string" && node.props.testID === (os === "web" ? "details-sidebar-scroll" : "detail-tab-short-scroll"))).toHaveLength(1);
       // The sheet is laid out at its full height whatever it shows.
       expect(StyleSheet.flatten(hostsById("board-sheet-body")[0]!.props.style).height).toBe(792);
+    } finally {
+      timings.restore();
+    }
+  });
+
+  it.each(["web", "ios", "android"])("on %s drags the sheet by a 16 px strip across its width, and shows the grabber held from the touch down until it lets go", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const timings = holdTimings();
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(600);
+      const card = cards().find((node) => node.props.card.id === "sample-running")!;
+      act(() => card.props.onSelect(card.props.card));
+      mountFrames();
+      timings.finish(timings.slide().at(-1)!);
+      const handle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "board-sheet-handle");
+      const strip = handle().parent!.parent!;
+      // The strip is the sheet's first row, as wide as the sheet; the handle fills it.
+      expect(StyleSheet.flatten(strip.props.style)).toMatchObject({ height: 16 });
+      expect(StyleSheet.flatten(strip.props.style).width).toBeUndefined();
+      expect(StyleSheet.flatten(handle().props.style)).toMatchObject({ flex: 1 });
+      // The grip's runs: 90 ms in, 160 ms out (the sheet's own run 200-280 ms).
+      expect(hostsById("board-sheet-grabber")).toHaveLength(1);
+      const base = timings.runs().length;
+      const grips = () => timings.runs().slice(base).filter((run) => run.duration === 90 || run.duration === 160).map((run) => [run.to, run.native]);
+      const native = os !== "web";
+
+      // A tap: held while the finger is down.
+      act(() => handle().props.onPressIn());
+      expect(grips()).toEqual([[1, native]]);
+      act(() => handle().props.onPressOut());
+      expect(grips()).toEqual([[1, native], [0, native]]);
+
+      // A drag takes the touch from the handle; the grabber stays held until the drag lets go.
+      act(() => handle().props.onPressIn());
+      act(() => {
+        strip.props.onStartShouldSetPanResponderCapture({ nativeEvent: { pageY: 300 } });
+        strip.props.onPanResponderGrant({ nativeEvent: { pageY: 300 } }, { dy: 0, vy: 0 });
+      });
+      act(() => handle().props.onPressOut());
+      act(() => strip.props.onPanResponderMove({ nativeEvent: { pageY: 280 } }, { dy: -20, vy: 0 }));
+      expect(grips().at(-1)).toEqual([1, native]);
+      act(() => strip.props.onPanResponderRelease({ nativeEvent: { pageY: 280 } }, { dy: -20, vy: 0 }));
+      expect(grips().at(-1)).toEqual([0, native]);
     } finally {
       timings.restore();
     }
