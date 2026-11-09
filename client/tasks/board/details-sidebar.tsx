@@ -11,6 +11,7 @@ import { usePressCue } from "../cards/action-pressable";
 import { BrandMark, DETAIL_CARD, DetailActionBar, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { activeStopChildren } from "../actions/stop-targets";
+import { SheetFoot, SheetScrollRoom } from "../sheet-motion";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastHumanMessageVersion, useLastHumanMessage } from "../data/last-human-message";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
@@ -140,7 +141,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
       )}
     </>
   );
-  const sheetActions = !tabs && detailProps && props.onSheetClose ? <DetailActionBar {...detailProps} sidebar onClose={props.onSheetClose} /> : null;
+  const sheetActions = !tabs && detailProps && props.onSheetClose ? <SheetFoot><DetailActionBar {...detailProps} sidebar onClose={props.onSheetClose} /></SheetFoot> : null;
   const onLayout = (event: { nativeEvent: { layout: { width: number; height: number } } }) => {
     const height = Math.round(event.nativeEvent.layout.height);
     const short = height > 0 && height < SHORT_COLUMN;
@@ -152,16 +153,19 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
     return (
       <View style={{ flex: 1, minHeight: 0 }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
         {/* Keyed by the card: a jump to the parent or back starts at the top. */}
-        <ScrollView key={selection.id ?? ""} style={{ flex: 1, marginRight: outsideIndicator ? -12 : 0 }} contentContainerStyle={{ gap: DETAIL_CARD.gap, paddingRight: outsideIndicator ? 12 : 0 }} {...detailScrollProps("column")} testID="details-sidebar-scroll">
-          {content}
-        </ScrollView>
+        <SheetScrollRoom>
+          <ScrollView key={selection.id ?? ""} style={{ flex: 1, marginRight: outsideIndicator ? -12 : 0 }} contentContainerStyle={{ gap: DETAIL_CARD.gap, paddingRight: outsideIndicator ? 12 : 0 }} {...detailScrollProps("column")} testID="details-sidebar-scroll">
+            {content}
+          </ScrollView>
+        </SheetScrollRoom>
         {sheetActions}
       </View>
     );
   }
   return (
     <View style={{ flex: 1, minHeight: 0, gap: DETAIL_CARD.gap }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
-      {content}
+      {/* A tabbed card gives up the room inside, above its own foot. */}
+      {columns ? <SheetScrollRoom>{content}</SheetScrollRoom> : content}
       {sheetActions}
     </View>
   );

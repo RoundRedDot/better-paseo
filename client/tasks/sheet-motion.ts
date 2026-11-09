@@ -1,11 +1,11 @@
-import { createContext, useCallback, useContext, useEffect, useRef } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useRef } from "react";
+import { Animated, StyleSheet, View } from "react-native";
 
 /**
  * Whether the board's bottom sheet is changing height (a switch or a drag).
- * Its height is JS-driven, so every frame of it lays the details out again;
- * a size the details keep in state (their scroller's viewport) re-rendered
- * every card section on each of those frames and left an Android tablet 3-5
- * frames of a 240 ms switch. Such sizes wait for the sheet to stand still.
+ * A size the details keep in state (their scroller's viewport) re-renders
+ * every card section when it changes: it waits for the sheet to stand still,
+ * so one switch costs one such render, not one per frame.
  */
 export interface SheetMotion {
   moving(): boolean;
@@ -69,4 +69,72 @@ export function useAfterSheetMotion<T>(apply: (value: T) => void): (value: T) =>
     };
     held.current = entry;
   }, [motion]);
+}
+
+/**
+ * How the board's bottom sheet stands (`board/board-sheet.tsx`). It is laid
+ * out at its full height whatever height it shows, and a switch moves it up
+ * or down on the native driver: a JS-driven height laid the details out on
+ * every frame and showed 3-8 frames of a 240 ms switch on an Android tablet,
+ * up to 180 ms apart. What lies below the shown part is off the board.
+ *
+ * - `hidden`: how much of the sheet is below the board at rest. A scroller
+ *   gives it up (`SheetScrollRoom`), so its content scrolls into view. It
+ *   changes once per switch: before a sheet grows, after it shrinks.
+ * - `foot`: moves the sheet's foot (its action bar) up by the part below the
+ *   board, every frame, so it stays at the bottom of what shows (`SheetFoot`).
+ */
+export interface SheetFrame {
+  hidden: number;
+  foot: Animated.AnimatedInterpolation<number> | Animated.Value | Animated.AnimatedMultiplication<number>;
+  /** The sheet's colour, painted under a foot over what continues below it. */
+  panel: string;
+  /** The sheet's margin under its content. */
+  pad: number;
+}
+
+export const SheetFrameContext = createContext<SheetFrame | null>(null);
+
+/** A scroller in the sheet: it ends where the shown part does. */
+export function SheetScrollRoom(props: { children: React.ReactNode }) {
+  const frame = useContext(SheetFrameContext);
+  if (!frame) return React.createElement(React.Fragment, null, props.children);
+  return React.createElement(View, { testID: "sheet-scroll-room", style: { flex: 1, minHeight: 0, marginBottom: frame.hidden } }, props.children);
+}
+
+/**
+ * The sheet's foot, kept at the bottom of the shown part. Below the board's
+ * edge the details go on (the sheet keeps its full height), so the foot paints
+ * what should end there: the sheet's margin and, for a foot inside a card, the
+ * card's bottom edge.
+ */
+export function SheetFoot(props: { card?: { background: string; border: string; radius: number }; children: React.ReactNode }) {
+  const frame = useContext(SheetFrameContext);
+  if (!frame) return React.createElement(React.Fragment, null, props.children);
+  const edge = props.card ? StyleSheet.hairlineWidth : 0;
+  return React.createElement(
+    Animated.View,
+    { testID: "sheet-foot", style: { transform: [{ translateY: frame.foot }] } },
+    React.createElement(View, { pointerEvents: "none", style: { position: "absolute", left: -edge, right: -edge, top: 0, bottom: -(edge + frame.pad), backgroundColor: frame.panel } }),
+    props.card
+      ? React.createElement(View, {
+          pointerEvents: "none",
+          style: {
+            position: "absolute",
+            left: -edge,
+            right: -edge,
+            top: 0,
+            bottom: -edge,
+            backgroundColor: props.card.background,
+            borderColor: props.card.border,
+            borderLeftWidth: edge,
+            borderRightWidth: edge,
+            borderBottomWidth: edge,
+            borderBottomLeftRadius: props.card.radius,
+            borderBottomRightRadius: props.card.radius,
+          },
+        })
+      : null,
+    props.children,
+  );
 }

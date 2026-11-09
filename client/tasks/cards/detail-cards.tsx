@@ -28,7 +28,7 @@ import { formatClockTime, formatDuration, formatRelative, formatTokenTotal, sinc
 import { cardStrings } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { TagMark } from "./tag-mark";
-import { useAfterSheetMotion } from "../sheet-motion";
+import { SheetFoot, SheetScrollRoom, useAfterSheetMotion } from "../sheet-motion";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
 import { SubtaskRow } from "./subtask-row";
@@ -352,6 +352,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
         {props.scrollHeader ? (
           <>
           <DetailStatusRow {...props} m={m} tokens={tokens} now={now} time={time} fixed />
+          <SheetScrollRoom>
           <SheetScrollView
             key={card.id}
             ref={tabScroll}
@@ -397,6 +398,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
               </View>
             ))}
           </SheetScrollView>
+          </SheetScrollRoom>
           </>
         ) : (
           <>
@@ -417,7 +419,11 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             </TabPages>
           </>
         )}
-        {props.actions !== false ? <View testID="detail-action-bar-frame" style={{ paddingBottom: props.touch && props.sheetToggle && Platform.OS === "android" ? 6 : 10 }}><DetailActionBar {...props} onClose={props.onSheetClose} sidebar smallTablet={!!(props.touch && props.sheetToggle && Platform.OS === "android")} contentUnder={underBar} /></View> : null}
+        {props.actions !== false ? (
+          <SheetFoot card={{ background: tokens.card.background, border: tokens.card.border, radius: DETAIL_CARD.radius }}>
+            <View testID="detail-action-bar-frame" style={{ paddingBottom: props.touch && props.sheetToggle && Platform.OS === "android" ? 6 : 10 }}><DetailActionBar {...props} onClose={props.onSheetClose} sidebar smallTablet={!!(props.touch && props.sheetToggle && Platform.OS === "android")} contentUnder={underBar} /></View>
+          </SheetFoot>
+        ) : null}
       </View>
     );
   }

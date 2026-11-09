@@ -289,7 +289,7 @@ interface HeldRun { value: Animated.Value; to: number; duration: number; native?
 /**
  * `Animated.timing` runs that end only when the test finishes them; a stop
  * ends one unfinished, as React Native does. `sheet` lists the bottom
- * sheet's height runs.
+ * sheet's shift runs (how far down from its full height it stands).
  */
 function holdTimings() {
   const runs: HeldRun[] = [];
@@ -306,7 +306,8 @@ function holdTimings() {
       reset: () => {},
     };
   });
-  const sheetValue = () => StyleSheet.flatten(hostsById("board-sheet-body")[0]!.props.style).height as unknown as Animated.Value;
+  // How far down from its full height the sheet stands (`BoardSheet`'s shift): 0 at full, 792 - 464 at half.
+  const sheetValue = () => (StyleSheet.flatten(hostsById("board-sheet-body")[0]!.props.style).transform as { translateY: unknown }[])[0]!.translateY as Animated.Value;
   const sheet = () => runs.filter((run) => run.value === sheetValue());
   const slide = () => runs.filter((run) => run.value === sheetSlide());
   const finish = (run: HeldRun) => act(() => {
@@ -2761,7 +2762,8 @@ describe("Tasks board, desktop", () => {
     act(() => toggle().props.onPress());
     // The sheet moves first; the board hears of the new height once it is there.
     expect(toggle().props.accessibilityLabel).toBe("Expand details");
-    expect(timings.sheet().at(-1)).toMatchObject({ to: 792, duration: 240 });
+    mountFrames();
+    expect(timings.sheet().at(-1)).toMatchObject({ to: 0, duration: 240 });
     timings.finish(timings.sheet().at(-1)!);
     expect(toggle().props.accessibilityLabel).toBe("Collapse details");
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Minimize2");
@@ -2788,6 +2790,7 @@ describe("Tasks board, desktop", () => {
     expect(handle().props.accessibilityLabel).toBe("Expand details");
     act(() => handle().props.onPress());
     expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 464);
+    mountFrames();
     timings.finish(timings.sheet().at(-1)!);
     expect(handle().props.accessibilityLabel).toBe("Collapse details");
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Minimize2");
@@ -2801,7 +2804,7 @@ describe("Tasks board, desktop", () => {
       strip.props.onPanResponderRelease({ nativeEvent: { pageY: 420 } }, { dy: 80, vy: 0 });
     });
     act(() => handle().props.onPress());
-    expect(timings.sheet().at(-1)).toMatchObject({ to: 464, duration: 240 });
+    expect(timings.sheet().at(-1)).toMatchObject({ to: 328, duration: 240 });
     timings.finish(timings.sheet().at(-1)!);
     expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 464);
     // A tap on the lanes' blank space puts it away.
@@ -2836,7 +2839,8 @@ describe("Tasks board, desktop", () => {
       const label = () => toggle().props.accessibilityLabel;
       const room = () => StyleSheet.flatten(renderer!.root.findAll((node) => typeof node.props.renderItem === "function" && node.props.contentContainerStyle !== undefined)[0]!.props.contentContainerStyle).paddingBottom;
       const last = () => timings.sheet().at(-1)!;
-      const height = () => (timings.sheetValue() as unknown as { __value: number }).__value;
+      // The height it shows: laid out at its full 792, it stands this far down.
+      const height = () => 792 - (timings.sheetValue() as unknown as { __value: number }).__value;
       // The sheet stands at its height from the start and slides in; the lanes make room once it is in.
       expect(timings.sheet()).toHaveLength(0);
       expect(height()).toBe(464);
@@ -2851,23 +2855,31 @@ describe("Tasks board, desktop", () => {
       timings.finish(timings.slide().at(-1)!);
       expect(room()).toBe(8 + 464);
 
-      // A second tap before the sheet is there turns it back; the stopped run tells the board nothing.
+      // Growing, the scrollers take the room below the board first; the sheet moves (on the native driver) two frames on.
+      const sheetRoom = () => StyleSheet.flatten(hostsById("sheet-scroll-room")[0]!.props.style).marginBottom;
+      expect(sheetRoom()).toBe(328);
       act(() => toggle().props.onPress());
+      expect(timings.sheet()).toHaveLength(0);
+      expect(sheetRoom()).toBe(0);
+      mountFrames();
+      // A second tap before the sheet is there turns it back; the stopped run tells the board nothing.
       const up = last();
-      expect(up).toMatchObject({ to: 792, duration: 240 });
+      expect(up).toMatchObject({ to: 0, duration: 240, native: os !== "web" });
       expect([label(), room()]).toEqual(["Expand details", 8 + 464]);
       act(() => toggle().props.onPress());
       expect(up.over).toBe(true);
-      expect(last()).toMatchObject({ to: 464, duration: 240 });
-      expect([label(), room()]).toEqual(["Expand details", 8 + 464]);
+      expect(last()).toMatchObject({ to: 328, duration: 240 });
+      expect([label(), room(), sheetRoom()]).toEqual(["Expand details", 8 + 464, 0]);
       timings.finish(last());
-      expect([label(), room()]).toEqual(["Expand details", 8 + 464]);
+      // Shrunk, they give the room up again once it is there.
+      expect([label(), room(), sheetRoom()]).toEqual(["Expand details", 8 + 464, 328]);
 
-      // Three taps, the handle's among them, count from where each switch is heading.
+      // Three taps, the handle's among them, count from where each switch is heading; a turn before the frames starts no run.
       act(() => toggle().props.onPress());
       act(() => handle().props.onPress());
       act(() => toggle().props.onPress());
-      expect(timings.sheet().slice(-3).map((run) => [run.to, run.over])).toEqual([[792, true], [464, true], [792, false]]);
+      mountFrames();
+      expect(timings.sheet().slice(-2).map((run) => [run.to, run.over])).toEqual([[328, true], [0, false]]);
       expect(label()).toBe("Expand details");
       const runs = timings.sheet().length;
       timings.finish(last());
@@ -2878,7 +2890,8 @@ describe("Tasks board, desktop", () => {
       // A drag catches a switch where it is, and a short one leaves the height the board knows.
       act(() => toggle().props.onPress());
       const down = last();
-      act(() => timings.sheetValue().setValue(600));
+      expect(down).toMatchObject({ to: 328, duration: 240 });
+      act(() => timings.sheetValue().setValue(792 - 600));
       const strip = handle().parent!.parent!;
       act(() => {
         strip.props.onStartShouldSetPanResponderCapture({ nativeEvent: { pageY: 300 } });
@@ -2888,7 +2901,7 @@ describe("Tasks board, desktop", () => {
       act(() => strip.props.onPanResponderMove({ nativeEvent: { pageY: 310 } }, { dy: 10, vy: 0 }));
       expect(height()).toBe(590);
       act(() => strip.props.onPanResponderRelease({ nativeEvent: { pageY: 310 } }, { dy: 10, vy: 0 }));
-      expect(last()).toMatchObject({ to: 792, duration: 200 });
+      expect(last()).toMatchObject({ to: 0, duration: 200 });
       timings.finish(last());
       expect([label(), room()]).toEqual(["Collapse details", 8 + 792]);
 
@@ -2898,7 +2911,7 @@ describe("Tasks board, desktop", () => {
         strip.props.onPanResponderGrant({ nativeEvent: { pageY: 300 } }, { dy: 0, vy: 0 });
         strip.props.onPanResponderRelease({ nativeEvent: { pageY: 400 } }, { dy: 100, vy: 0 });
       });
-      expect(last()).toMatchObject({ to: 464, duration: 240 });
+      expect(last()).toMatchObject({ to: 328, duration: 240 });
       expect([label(), room()]).toEqual(["Collapse details", 8 + 792]);
       timings.finish(last());
       expect([label(), room()]).toEqual(["Expand details", 8 + 464]);
@@ -2906,6 +2919,7 @@ describe("Tasks board, desktop", () => {
 
       // Closed while a switch moves: the switch never reaches the board, and the sheet opens at half again.
       act(() => toggle().props.onPress());
+      mountFrames();
       const lost = last();
       act(() => hostsById("detail-bar-close")[0]!.props.onPress());
       expect(lost.over).toBe(true);
@@ -2980,6 +2994,7 @@ describe("Tasks board, desktop", () => {
 
       // A switch resizes the scroller on every frame: the page keeps its height until the sheet is there.
       act(() => hostsById("detail-sheet-toggle")[0]!.props.onPress());
+      mountFrames();
       viewport(400);
       viewport(500);
       expect(least()).toBe(300);
@@ -3007,6 +3022,36 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it.each(["web", "ios", "android"])("on %s keeps the sheet's action bar at the bottom of what shows, with one scroller giving up the room below", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const timings = holdTimings();
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(600);
+      const card = cards().find((node) => node.props.card.id === "sample-running")!;
+      act(() => card.props.onSelect(card.props.card));
+      mountFrames();
+      timings.finish(timings.slide().at(-1)!);
+      const foot = hostsById("sheet-foot");
+      expect(foot).toHaveLength(1);
+      // The foot moves up by what the sheet's shift moves it down (the mock's multiply hands back the value).
+      expect((StyleSheet.flatten(foot[0]!.props.style).transform as { translateY: unknown }[])[0]!.translateY).toBe(timings.sheetValue());
+      expect(foot[0]!.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-bar-close")).toHaveLength(1);
+      // Inside a tablet's card the foot paints the card's bottom edge; on the web its bar sits on the sheet.
+      const painted = foot[0]!.findAll((node) => typeof node.type === "string" && node.props.pointerEvents === "none" && StyleSheet.flatten(node.props.style)?.position === "absolute");
+      expect(painted.map((node) => StyleSheet.flatten(node.props.style).borderBottomLeftRadius ?? null)).toEqual(os === "web" ? [null] : [null, 12]);
+      expect(StyleSheet.flatten(painted[0]!.props.style).bottom).toBe(os === "web" ? -4 : -(StyleSheet.hairlineWidth + (os === "android" ? 20 : 4)));
+      const room = hostsById("sheet-scroll-room");
+      expect(room).toHaveLength(1);
+      expect(StyleSheet.flatten(room[0]!.props.style).marginBottom).toBe(328);
+      expect(room[0]!.findAll((node) => typeof node.type === "string" && node.props.testID === (os === "web" ? "details-sidebar-scroll" : "detail-tab-short-scroll"))).toHaveLength(1);
+      // The sheet is laid out at its full height whatever it shows.
+      expect(StyleSheet.flatten(hostsById("board-sheet-body")[0]!.props.style).height).toBe(792);
+    } finally {
+      timings.restore();
+    }
+  });
+
   it("switches the sheet at once under reduced motion", () => {
     let onReduce = (_on: boolean) => {};
     const addListener = AccessibilityInfo.addEventListener;
@@ -3025,10 +3070,10 @@ describe("Tasks board, desktop", () => {
       const runs = timings.sheet().length;
       act(() => toggle().props.onPress());
       expect(timings.sheet()).toHaveLength(runs);
-      expect((timings.sheetValue() as unknown as { __value: number }).__value).toBe(792);
+      expect((timings.sheetValue() as unknown as { __value: number }).__value).toBe(0);
       expect(toggle().props.accessibilityLabel).toBe("Collapse details");
       act(() => toggle().props.onPress());
-      expect((timings.sheetValue() as unknown as { __value: number }).__value).toBe(464);
+      expect((timings.sheetValue() as unknown as { __value: number }).__value).toBe(328);
       expect(toggle().props.accessibilityLabel).toBe("Expand details");
       act(() => hostsById("detail-bar-close")[0]!.props.onPress());
       expect(hostsById("board-sheet")).toHaveLength(0);
