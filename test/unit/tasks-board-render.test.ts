@@ -2962,6 +2962,51 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it.each(["ios", "android"])("on %s holds the details' viewport while the sheet changes height, then takes the last one", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const timings = holdTimings();
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(600);
+      const card = cards().find((node) => node.props.card.id === "sample-running")!;
+      act(() => card.props.onSelect(card.props.card));
+      mountFrames();
+      timings.finish(timings.slide().at(-1)!);
+      const scroll = () => hostsById("detail-tab-short-scroll")[0]!;
+      const viewport = (height: number) => act(() => scroll().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 580, height } } }));
+      const least = () => StyleSheet.flatten(hostsById("detail-tab-messages-content")[0]!.props.style).minHeight;
+      viewport(300);
+      expect(least()).toBe(300);
+
+      // A switch resizes the scroller on every frame: the page keeps its height until the sheet is there.
+      act(() => hostsById("detail-sheet-toggle")[0]!.props.onPress());
+      viewport(400);
+      viewport(500);
+      expect(least()).toBe(300);
+      timings.finish(timings.sheet().at(-1)!);
+      expect(least()).toBe(500);
+      // At rest it follows at once.
+      viewport(480);
+      expect(least()).toBe(480);
+
+      // So does a drag, until the sheet settles after it.
+      const strip = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "board-sheet-handle").parent!.parent!;
+      act(() => {
+        strip.props.onStartShouldSetPanResponderCapture({ nativeEvent: { pageY: 300 } });
+        strip.props.onPanResponderGrant({ nativeEvent: { pageY: 300 } }, { dy: 0, vy: 0 });
+      });
+      viewport(420);
+      expect(least()).toBe(480);
+      act(() => strip.props.onPanResponderRelease({ nativeEvent: { pageY: 400 } }, { dy: 100, vy: 0 }));
+      viewport(360);
+      expect(least()).toBe(480);
+      timings.finish(timings.sheet().at(-1)!);
+      expect(least()).toBe(360);
+    } finally {
+      timings.restore();
+    }
+  });
+
   it("switches the sheet at once under reduced motion", () => {
     let onReduce = (_on: boolean) => {};
     const addListener = AccessibilityInfo.addEventListener;

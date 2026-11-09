@@ -5,6 +5,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { menuChrome } from "./menu-model";
 import { sheetHeight, sheetRelease, type SheetDetent } from "./sidebar-model";
+import { createSheetMotion, SheetMotionContext } from "../sheet-motion";
 
 /** Match the side panel's 12 px resize strip with a compact horizontal grabber. */
 const HANDLE = 12;
@@ -69,6 +70,8 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
   const dragged = useRef(false);
   // The height the value rests at or is moving to: a board that catches up with a switch already there moves nothing.
   const aimed = useRef<number | null>(props.open ? target : null);
+  // Whether the height is changing: the details hold their measured sizes until it stands still (`sheet-motion.ts`).
+  const moving = useRef(createSheetMotion()).current;
   // A switch on its way, before the board hears of it.
   const heading = useRef<{ detent: SheetDetent; run: Animated.CompositeAnimation } | null>(null);
 
@@ -201,6 +204,11 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
       heading.current = null;
       last?.run.stop();
     };
+    // A switch that stops without another motion taking over (closing, unmounting): the held sizes follow.
+    const stop = () => {
+      drop();
+      moving.set(false);
+    };
     const settle = (next: SheetDetent, duration: number) => {
       drop();
       const to = sheetHeight(latest.current.area, next);
@@ -215,23 +223,26 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
       }
       const run = Animated.timing(height, { toValue: to, duration, easing: MOTION.ease, useNativeDriver: false });
       heading.current = { detent: next, run };
+      moving.set(true);
       run.start(({ finished }) => {
         // Stopped by another switch, a drag or the sheet closing: that one decides.
         if (heading.current?.run !== run) return;
         heading.current = null;
+        moving.set(false);
         if (finished) tell();
       });
     };
     return {
       drop,
+      stop,
       settle,
       toggle: () => settle((heading.current?.detent ?? latest.current.detent) === "full" ? "half" : "full", 240),
     };
-  }, [height]);
+  }, [height, moving]);
   useImperativeHandle(ref, () => ({ toggle: motion.toggle }), [motion]);
-  useEffect(() => { if (!props.open) motion.drop(); }, [motion, props.open]);
+  useEffect(() => { if (!props.open) motion.stop(); }, [motion, props.open]);
   // A switch still moving when the sheet closes does not reach the board.
-  useEffect(() => motion.drop, [motion]);
+  useEffect(() => motion.stop, [motion]);
 
   const pan = useMemo(() => {
     let start = 0;
@@ -256,6 +267,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
         });
         aimed.current = null;
         dragged.current = true;
+        moving.set(true);
       },
       onPanResponderMove: (event) => {
         const full = sheetHeight(latest.current.area, "full");
@@ -268,6 +280,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
         const now = latest.current;
         const next = sheetRelease(now.detent, travel(event), gesture.vy);
         if (next === "closed") {
+          moving.set(false);
           // Slides out from where the finger left it; the board closes it once it is out.
           phase.current = "leaving";
           motionNow.slideTo(motionNow.heightNow(), 200, () => {
@@ -283,7 +296,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
         motion.settle(latest.current.detent, 200);
       },
     });
-  }, [height, motion, motionNow]);
+  }, [height, motion, motionNow, moving]);
 
   const palette = boardPalette(props.theme);
   const chrome = menuChrome(props.theme);
@@ -320,7 +333,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
             <View style={{ width: 32, height: 3, borderRadius: 1.5, backgroundColor: props.theme.colors.foregroundMuted, opacity: 0.5 }} />
           </Pressable>
         </View>
-        <View testID="board-sheet-content" style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingBottom: Platform.OS === "android" ? 20 : 4 }}>{content.current}</View>
+        <View testID="board-sheet-content" style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingBottom: Platform.OS === "android" ? 20 : 4 }}><SheetMotionContext.Provider value={moving}>{content.current}</SheetMotionContext.Provider></View>
       </Animated.View>
     </Animated.View>
   );

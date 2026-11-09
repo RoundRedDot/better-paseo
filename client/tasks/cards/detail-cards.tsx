@@ -28,6 +28,7 @@ import { formatClockTime, formatDuration, formatRelative, formatTokenTotal, sinc
 import { cardStrings } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { TagMark } from "./tag-mark";
+import { useAfterSheetMotion } from "../sheet-motion";
 import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { BrandMark } from "./brand-mark";
 import { SubtaskRow } from "./subtask-row";
@@ -308,6 +309,11 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   // Sticky tabs cast this once they pin. Fixed tabs cast it once their page has scrolled under them.
   const tabShadow = (props.scrollHeader ? tabsPinned : bodyScrolled) ? scrollEdgeShadow(tokens.isDark, "down") : undefined;
   const underBar = props.tabs === true && (props.scrollHeader ? headerUnderBar : bodyUnderBar);
+  // A sheet changing height resizes the scroller on every frame: its viewport (a page's least height) follows once it stands still.
+  const noteViewport = useAfterSheetMotion((viewport: number) => {
+    setTabLayout((current) => current.viewport === viewport ? current : { ...current, viewport });
+    noteHeaderEdge({ viewport });
+  });
   const edgeListener = useRef(props.onScrollEdge);
   edgeListener.current = props.onScrollEdge;
   useEffect(() => { edgeListener.current?.(underBar); }, [underBar]);
@@ -353,11 +359,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             contentContainerStyle={Platform.OS === "ios" && props.sheetToggle ? { paddingRight: 12 } : undefined}
             stickyHeaderIndices={[1]}
             scrollEventThrottle={16}
-            onLayout={(event) => {
-              const viewport = event.nativeEvent.layout.height;
-              setTabLayout((current) => current.viewport === viewport ? current : { ...current, viewport });
-              noteHeaderEdge({ viewport });
-            }}
+            onLayout={(event) => noteViewport(event.nativeEvent.layout.height)}
             onContentSizeChange={(_width, height) => noteHeaderEdge({ content: height })}
             onScroll={(event) => {
               const native = event.nativeEvent;
