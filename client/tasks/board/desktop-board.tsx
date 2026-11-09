@@ -1000,6 +1000,7 @@ function SidebarColumn(props: {
   const { hovered, hoverProps } = useHover();
   const [dragging, setDragging] = useState(false);
   const [mounted, setMounted] = useState(props.open);
+  const liveWidth = useRef(new Animated.Value(props.width)).current;
   const progress = useRef(new Animated.Value(reduced && props.open ? 1 : 0)).current;
   if (props.open && !mounted) setMounted(true);
   useEffect(() => {
@@ -1013,7 +1014,7 @@ function SidebarColumn(props: {
       toValue: props.open ? 1 : 0,
       duration: props.open ? 240 : 180,
       easing: MOTION.ease,
-      useNativeDriver: false,
+      useNativeDriver: Platform.OS !== "web",
     });
     animation.start(({ finished }) => {
       if (finished && !props.open) setMounted(false);
@@ -1043,10 +1044,15 @@ function SidebarColumn(props: {
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: () => {
         startWidth = live.current.width;
+        liveWidth.setValue(startWidth);
         releaseGestures.current = holdHostGestures(handleRef.current);
         setDragging(true);
       },
-      onPanResponderMove: (event) => live.current.onDrag(widthAt(event), false),
+      onPanResponderMove: (event) => {
+        const width = widthAt(event);
+        liveWidth.setValue(width);
+        live.current.onDrag(width, true);
+      },
       onPanResponderRelease: (event) => {
         releaseGestures.current?.();
         releaseGestures.current = null;
@@ -1161,8 +1167,41 @@ function SidebarColumn(props: {
     </View>
   );
   if (!props.open && (!mounted || reduced)) return null;
+  const width = Platform.OS !== "web" && dragging ? liveWidth : props.width;
+  const slotWidth = Platform.OS === "web"
+    ? reduced ? props.width + SIDEBAR.gap : progress.interpolate({ inputRange: [0, 1], outputRange: [0, props.width + SIDEBAR.gap] })
+    : !props.open ? 0 : dragging ? Animated.add(liveWidth, SIDEBAR.gap) : props.width + SIDEBAR.gap;
+  const panel = (
+    <Animated.View
+      ref={panelRef}
+      testID={props.floating ? "sidebar-floating" : "sidebar-inline"}
+      {...(Platform.OS === "web" ? { onPointerEnter: hoverProps.onHoverIn, onPointerLeave: hoverProps.onHoverOut } : {})}
+      style={{
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        right: SIDEBAR.gap,
+        width,
+        // Include the outer margin in the right inset to match the toolbar's 16 pt.
+        ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingLeft: 14, paddingRight: 14 - SIDEBAR.gap }),
+        paddingTop: 4,
+        paddingBottom: 12,
+        minHeight: 0,
+        backgroundColor: props.theme.colors.surface0,
+        boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
+        zIndex: 1,
+        ...(Platform.OS === "web" ? {
+          opacity: 1,
+          transform: [{ translateX: reduced ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [props.width + SIDEBAR.gap, 0] }) }],
+        } : null),
+      }}
+    >
+      {handle}
+      {props.children}
+    </Animated.View>
+  );
   return (
-    // Animate only the slot and surface: fixed-width cards do not reflow on every frame.
+    // Native transitions move only the surface; changing the slot each frame lays out the whole board.
     <Animated.View
       ref={slotRef}
       testID="sidebar-slot"
@@ -1170,34 +1209,16 @@ function SidebarColumn(props: {
       aria-hidden={!props.open}
       accessibilityElementsHidden={!props.open}
       importantForAccessibility={props.open ? "auto" : "no-hide-descendants"}
-      style={{ width: reduced ? props.width + SIDEBAR.gap : progress.interpolate({ inputRange: [0, 1], outputRange: [0, props.width + SIDEBAR.gap] }), flexShrink: 0, minHeight: 0, ...(props.floating ? { position: "absolute", top: 0, bottom: 0, right: 0, zIndex: 20 } as const : null) }}
+      style={{ width: slotWidth, flexShrink: 0, minHeight: 0, ...(props.floating ? { position: "absolute", top: 0, bottom: 0, right: 0, zIndex: 20 } as const : null) }}
     >
-      <Animated.View
-        ref={panelRef}
-        testID={props.floating ? "sidebar-floating" : "sidebar-inline"}
-        {...(Platform.OS === "web" ? { onPointerEnter: hoverProps.onHoverIn, onPointerLeave: hoverProps.onHoverOut } : {})}
-        style={{
-          position: "absolute",
-          top: 0,
-          bottom: 0,
-          right: SIDEBAR.gap,
-          width: props.width,
-          // Include the outer margin in the right inset to match the toolbar's 16 pt.
-          ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingLeft: 14, paddingRight: 14 - SIDEBAR.gap }),
-          paddingTop: 4,
-          paddingBottom: 12,
-          minHeight: 0,
-          backgroundColor: props.theme.colors.surface0,
-          boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
-          zIndex: 1,
-          opacity: reduced || Platform.OS === "web" ? 1 : progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 1] }),
-          // The full surface travels with its slot, including the shadow, handle and bottom.
-          transform: [{ translateX: reduced ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [Platform.OS === "web" ? props.width + SIDEBAR.gap : 8, 0] }) }],
-        }}
-      >
-        {handle}
-        {props.children}
-      </Animated.View>
+      {Platform.OS === "web" ? panel : (
+        // Native motion must not make the JS-driven resize width part of its animated graph.
+        <Animated.View testID="sidebar-motion" style={{
+          position: "absolute", top: 0, bottom: 0, left: 0, right: 0,
+          opacity: reduced ? 1 : progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 1] }),
+          transform: [{ translateX: reduced ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+        }}>{panel}</Animated.View>
+      )}
     </Animated.View>
   );
 }
@@ -1275,50 +1296,54 @@ function FloatingSidebar(props: {
     return () => animation.stop();
   }, [x, opacity, reduced]);
   return (
-    <Animated.View
-      testID="sidebar-floating"
-      style={{
-        position: "absolute",
-        top: props.flushRight ? 0 : 4,
-        right: props.flushRight ? 0 : SIDEBAR.gap,
-        bottom: props.flushRight ? 0 : 12,
-        width: dragging ? liveWidth : props.width,
-        padding: 8,
-        paddingLeft: props.resize ? 12 : 8,
-        ...(props.flushRight ? { paddingTop: 4, paddingBottom: 12, paddingRight: 10 } : null),
-        borderRadius: props.flushRight ? 0 : 16,
-        borderWidth: props.flushRight ? 0 : HAIRLINE,
-        borderColor: chrome.border,
-        backgroundColor: props.flushRight ? props.theme.colors.surface0 : boardPalette(props.theme).panel,
-        boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
-        zIndex: 20,
-        opacity,
-        transform: [{ translateX: x }],
-      } as object}
-    >
-      {props.resize ? (
-        <View
-          ref={handleRef}
-          collapsable={false}
-          {...pan.panHandlers}
-          accessible
-          accessibilityRole="adjustable"
-          accessibilityLabel={props.resize.label}
-          accessibilityValue={{ min: TABLET_SIDEBAR.min, max: props.resize.max, now: props.width }}
-          accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
-          onAccessibilityAction={(event) => {
-            const action = event.nativeEvent.actionName;
-            if (action !== "increment" && action !== "decrement") return;
-            const width = props.width + (action === "increment" ? 20 : -20);
-            props.resize?.onResize(Math.max(TABLET_SIDEBAR.min, Math.min(props.resize.max, width)));
-          }}
-          testID="floating-sidebar-resize"
-          style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 12, alignItems: "center", justifyContent: "center", zIndex: 5 }}
-        >
-          <View pointerEvents="none" testID="floating-sidebar-grabber" style={{ width: 4, height: 40, borderRadius: 2, backgroundColor: dragging ? props.theme.colors.accent : props.theme.colors.foregroundMuted, opacity: dragging ? 1 : 0.5 }} />
-        </View>
-      ) : null}
-      {props.children}
+    <Animated.View testID="floating-sidebar-motion" pointerEvents="box-none" style={{
+      position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 20,
+      opacity,
+      transform: [{ translateX: x }],
+    }}>
+      <Animated.View
+        testID="sidebar-floating"
+        style={{
+          position: "absolute",
+          top: props.flushRight ? 0 : 4,
+          right: props.flushRight ? 0 : SIDEBAR.gap,
+          bottom: props.flushRight ? 0 : 12,
+          width: dragging ? liveWidth : props.width,
+          padding: 8,
+          paddingLeft: props.resize ? 12 : 8,
+          ...(props.flushRight ? { paddingTop: 4, paddingBottom: 12, paddingRight: 10 } : null),
+          borderRadius: props.flushRight ? 0 : 16,
+          borderWidth: props.flushRight ? 0 : HAIRLINE,
+          borderColor: chrome.border,
+          backgroundColor: props.flushRight ? props.theme.colors.surface0 : boardPalette(props.theme).panel,
+          boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
+          zIndex: 20,
+        } as object}
+      >
+        {props.resize ? (
+          <View
+            ref={handleRef}
+            collapsable={false}
+            {...pan.panHandlers}
+            accessible
+            accessibilityRole="adjustable"
+            accessibilityLabel={props.resize.label}
+            accessibilityValue={{ min: TABLET_SIDEBAR.min, max: props.resize.max, now: props.width }}
+            accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+            onAccessibilityAction={(event) => {
+              const action = event.nativeEvent.actionName;
+              if (action !== "increment" && action !== "decrement") return;
+              const width = props.width + (action === "increment" ? 20 : -20);
+              props.resize?.onResize(Math.max(TABLET_SIDEBAR.min, Math.min(props.resize.max, width)));
+            }}
+            testID="floating-sidebar-resize"
+            style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 12, alignItems: "center", justifyContent: "center", zIndex: 5 }}
+          >
+            <View pointerEvents="none" testID="floating-sidebar-grabber" style={{ width: 4, height: 40, borderRadius: 2, backgroundColor: dragging ? props.theme.colors.accent : props.theme.colors.foregroundMuted, opacity: dragging ? 1 : 0.5 }} />
+          </View>
+        ) : null}
+        {props.children}
+      </Animated.View>
     </Animated.View>
   );
 }

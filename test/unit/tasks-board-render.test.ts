@@ -2075,8 +2075,8 @@ describe("Tasks board, desktop", () => {
     else expect(StyleSheet.flatten(hostsById("detail-tab-info-scroll")[0]!.parent!.parent!.props.style).display).toBe("none");
   });
 
-  it("animates the desktop sidebar closed and can reverse during entry or exit", () => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+  it.each(["web", "ios", "android"])("animates the %s sidebar closed and can reverse during entry or exit", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const timing = vi.spyOn(Animated, "timing").mockImplementation((value, config) => {
       let timer: ReturnType<typeof setTimeout>;
       return {
@@ -3021,6 +3021,54 @@ describe("Tasks board, desktop", () => {
     expect(readSidebarPreference().open).toBe(true);
   });
 
+  it.each(["ios", "android"])("%s keeps the board render stable during an inline sidebar drag within the same lanes", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    const handle = () => hostsById("sidebar-resize")[0]!;
+    const event = (pageX: number) => ({ nativeEvent: { pageX } });
+    act(() => {
+      handle().props.onStartShouldSetPanResponderCapture(event(700));
+      handle().props.onPanResponderGrant();
+    });
+    act(() => handle().props.onPanResponderMove(event(699)));
+    const board = hostsById("tasks-board-area")[0]!.props;
+    const rows = host.rowRenders;
+    const details = hostsById("details-sidebar")[0]!.props;
+    for (let x = 698; x >= 670; x--) {
+      act(() => handle().props.onPanResponderMove(event(x)));
+      expect(liveNumber(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).width)).toBe(380 + 700 - x);
+      expect(hostsById("tasks-board-area")[0]!.props).toBe(board);
+      expect(hostsById("details-sidebar")[0]!.props).toBe(details);
+      expect(host.rowRenders).toBe(rows);
+    }
+    // Crossing into another lane view still updates the board during the drag.
+    act(() => handle().props.onPanResponderMove(event(280)));
+    expect(liveNumber(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).width)).toBe(800);
+    expect(hostsById("tasks-board-area")[0]!.props).not.toBe(board);
+    act(() => handle().props.onPanResponderRelease(event(665)));
+    expect(readSidebarPreference().width).toBe(415);
+    expect(liveNumber(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).width)).toBe(415);
+  });
+
+  it.each(["ios", "android"])("%s animates the inline sidebar without animating layout width", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const timing = vi.spyOn(Animated, "timing");
+    act(() => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    const progress = timing.mock.calls.filter(([, config]) => config.toValue === 1 && config.duration === 240).at(-1)![0] as Animated.Value;
+    expect(timing).toHaveBeenCalledWith(progress, expect.objectContaining({ useNativeDriver: true }));
+    expect(StyleSheet.flatten(hostsById("sidebar-slot")[0]!.props.style).width).toBe(392);
+    const panel = hostsById("sidebar-inline")[0]!;
+    const motion = hostsById("sidebar-motion")[0]!;
+    expect(hostParentOf(panel)).toBe(motion);
+    expect(StyleSheet.flatten(panel.props.style)).not.toHaveProperty("opacity");
+    expect(StyleSheet.flatten(panel.props.style)).not.toHaveProperty("transform");
+    expect(StyleSheet.flatten(motion.props.style)).not.toHaveProperty("width");
+    toggleSidebarControl();
+    expect(timing).toHaveBeenCalledWith(progress, expect.objectContaining({ toValue: 0, duration: 180, useNativeDriver: true }));
+  });
+
   it.each([
     ["ios", 1100], ["ios", 1600], ["android", 1100], ["android", 1600],
   ] as const)("%s shows and resizes the inline details handle at %i pt", async (os, viewport) => {
@@ -3173,6 +3221,13 @@ describe("Tasks board, desktop", () => {
     toggleSidebarControl();
     const handle = () => hostsById("floating-sidebar-resize")[0]!;
     const width = () => liveNumber(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width);
+    const panel = hostsById("sidebar-floating")[0]!;
+    const motion = hostsById("floating-sidebar-motion")[0]!;
+    expect(hostParentOf(panel)).toBe(motion);
+    expect(motion.props.pointerEvents).toBe("box-none");
+    expect(StyleSheet.flatten(panel.props.style)).not.toHaveProperty("opacity");
+    expect(StyleSheet.flatten(panel.props.style)).not.toHaveProperty("transform");
+    expect(StyleSheet.flatten(motion.props.style)).not.toHaveProperty("width");
     const event = (pageX: number) => ({ nativeEvent: { pageX } });
     expect(handle().props.accessibilityValue.min).toBe(210);
     expect(handle().props.onMoveShouldSetPanResponder({}, { dx: 3, dy: 0 })).toBe(false);
