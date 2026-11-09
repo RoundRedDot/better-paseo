@@ -188,7 +188,7 @@ describe("name collation", () => {
 });
 
 describe("sort params and labels", () => {
-  it("round-trips every choice through the screen params and survives Clear all", () => {
+  it("round-trips every choice through the screen params and survives Clear filters", () => {
     for (const sort of SORT_CHOICES) {
       const params = { ...EMPTY_PARAMS, query: "x", sort };
       expect(decodeBoardParams(encodeBoardParams(params))).toEqual(params);

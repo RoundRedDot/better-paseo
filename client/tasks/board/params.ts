@@ -19,7 +19,7 @@ export interface BoardParams {
   labels: string[];
   hideSubtasks: boolean | null;
   doneWindow: DoneWindow | null;
-  /** One order for every lane; null keeps each lane's own (the spec's). Not a filter: "Clear all" keeps it. */
+  /** One order for every lane; null keeps each lane's own (the spec's). Not a filter: clearing filters keeps it. */
   sort: BoardSort | null;
 }
 

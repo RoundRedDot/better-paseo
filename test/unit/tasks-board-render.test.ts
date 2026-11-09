@@ -832,11 +832,11 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(textOf(summary)).toContain("Contains「status」");
     expect(textOf(summary)).toContain("api");
     expect(summary.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Labels")).toBeDefined();
-    expect(textOf(summary)).toContain("Clear all");
+    expect(textOf(summary)).toContain("Clear filters");
     const filterBar = hostsById("filter-bar")[0]!;
     expect(textOf(filterBar)).not.toContain("Contains");
     expect(textOf(filterBar)).not.toContain("api");
-    expect(textOf(filterBar)).not.toContain("Clear all");
+    expect(textOf(filterBar)).not.toContain("Clear filters");
   });
   it("drops its search and filters when the hidden-task dialog asks it to clear", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
@@ -1369,7 +1369,7 @@ describe("Tasks board, desktop", () => {
     expect(cards().map((card) => card.props.card.id)).toEqual(["sample-running"]);
     expect(lastBoardParams("host-1")).toMatchObject({ query: "ring", hideSubtasks: null });
     expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(true);
-    expect(textOf(renderer!.root)).toContain("Clear all");
+    expect(textOf(renderer!.root)).toContain("Clear filters");
   });
 
   it("falls back to the session's last filters when opened without params", () => {
@@ -3581,8 +3581,8 @@ describe("Tasks board, desktop", () => {
     expect(groups).toHaveLength(2);
     const filters = groups.find((child) => child !== end)!;
     expect(StyleSheet.flatten(filters.props.style)).toMatchObject({ flex: 1, minWidth: 240, flexWrap: "wrap" });
-    expect(textOf(filters)).not.toContain("Clear all");
-    expect(textOf(hostsById("desktop-toolbar")[0]!)).toContain("Clear all");
+    expect(textOf(filters)).not.toContain("Clear filters");
+    expect(textOf(hostsById("desktop-toolbar")[0]!)).toContain("Clear filters");
   });
 
   it("ends a long sort and every filter label in an ellipsis rather than overlap", () => {
@@ -3815,7 +3815,7 @@ describe("Tasks board, sorting", () => {
     expect(text).not.toContain("Hide subtasks");
     expect(text).not.toContain("Show subtasks");
     expect(text).not.toContain("7 days");
-    expect(text).toContain("Clear all");
+    expect(text).toContain("Clear filters");
 
     // The folded chip draws the agent icon and the count; the sentence is read out.
     const chip = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "chip-group-agent");
@@ -3834,12 +3834,12 @@ describe("Tasks board, sorting", () => {
     expect(summary.find((node) => (node.type as unknown) === "View" && node.props.accessibilityLabel === "Agent").findAll((node) => node.props.name === "Bot")).not.toHaveLength(0);
   });
 
-  it("leaves out Clear all while only the switches or the done window are set", () => {
+  it("leaves out Clear filters while only the switches or the done window are set", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false, { sub: "1", win: "7d" }));
     });
     layOut(1600);
-    expect(textOf(renderer!.root)).not.toContain("Clear all");
+    expect(textOf(renderer!.root)).not.toContain("Clear filters");
   });
 
   it("picks a sort from the dropdown, keeps it for the session, and counts the done lane plainly by default", () => {

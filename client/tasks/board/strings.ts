@@ -82,7 +82,7 @@ const en = {
   searchContains: "Contains",
   doneWindowLabel: "Done",
   clear: "Clear",
-  clearAll: "Clear all",
+  clearAll: "Clear filters",
   /** Several picks of one filter folded into one chip: "2 projects and 1 workspace selected". */
   selected: (parts: string[]) => `${parts.join(" and ")} selected`,
   selectedUnits: {
@@ -280,7 +280,7 @@ const zh: typeof en = {
   searchContains: "包含",
   doneWindowLabel: "已完成",
   clear: "清除",
-  clearAll: "清除全部",
+  clearAll: "清除筛选",
   selected: (parts) => `已选择 ${parts.join("和 ")}`,
   selectedUnits: {
     project: (count) => `${count} 个项目`,

@@ -59,7 +59,7 @@ export function hiddenExampleCard(language: "en" | "zh"): TaskCard {
 /**
  * Tasks the board's filters leave out of the sidebar counts. Each one is the
  * board's own card. `onClearFilters` adds the dialog's way back to a full
- * board: the board's own "Clear all" filters, without touching the subtask
+ * board: the board's own clear-filters action, without touching the subtask
  * switch. Omitted in the settings preview, whose example card is not on a board.
  */
 export function HiddenCount({ tasks, theme, language, fields, compact = false, hostId, onClearFilters, clearLabel = language === "zh" ? "清除筛选" : "Clear filters" }: { tasks: readonly TaskCard[]; theme: PluginTheme; language: "en" | "zh"; fields: CardSettings; compact?: boolean; hostId?: string; onClearFilters?(): void; clearLabel?: string }) {

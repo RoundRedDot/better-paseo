@@ -382,7 +382,7 @@ function groupLabel(kind: ChipGroupKind, chips: readonly ActiveChip[], strings: 
   return strings.selected([...(projects ? [units.project(projects)] : []), ...(workspaces ? [units.workspace(workspaces)] : [])]);
 }
 
-/** "Clear all": no selections, switches and window back to the settings. */
+/** "Clear filters": no selections, switches and window back to the settings. */
 export function clearedParams(params: BoardParams): BoardParams {
   return { ...params, query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: null, doneWindow: null };
 }
