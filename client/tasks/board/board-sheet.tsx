@@ -62,6 +62,8 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
   // Where the sheet is: sliding in or resting ("in"), sliding out ("leaving"), or slid out and waiting to go ("out").
   const phase = useRef<"entering" | "in" | "leaving" | "out">(props.open ? "entering" : "out");
   const slideRun = useRef<Animated.CompositeAnimation | null>(null);
+  // A first slide in waits for the frames that mount the details (`slideTo`'s callers).
+  const slideWait = useRef<number | null>(null);
   const heightRun = useRef<Animated.CompositeAnimation | null>(null);
   // A drag ends with a click on the handle it moved with: that click must not switch the height back.
   const dragged = useRef(false);
@@ -70,9 +72,15 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
   // A switch on its way, before the board hears of it.
   const heading = useRef<{ detent: SheetDetent; run: Animated.CompositeAnimation } | null>(null);
 
-  const motionNow = useRef({
+  const motionNow: {
+    slideTo(to: number, duration: number, done: () => void): void;
+    slideInAfterMount(done: () => void): void;
+    unwait(): void;
+    heightNow(): number;
+  } = useRef({
     /** Slide to `to` below the sheet's place, then `done`; a later slide stops this one. */
     slideTo(to: number, duration: number, done: () => void) {
+      motionNow.unwait();
       slideRun.current?.stop();
       if (reducedNow.current || duration === 0) {
         slideRun.current = null;
@@ -87,6 +95,26 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
         slideRun.current = null;
         if (finished) done();
       });
+    },
+    /**
+     * Slide in once the details are on screen. A native run's clock starts
+     * when it is started: started next to the commit that mounts the details,
+     * it spent its first ~95 ms behind that mount on an Android tablet and
+     * showed up three quarters of the way in. The second frame comes after
+     * the mount.
+     */
+    slideInAfterMount(done: () => void) {
+      motionNow.unwait();
+      slideWait.current = requestAnimationFrame(() => {
+        slideWait.current = requestAnimationFrame(() => {
+          slideWait.current = null;
+          motionNow.slideTo(0, 280, done);
+        });
+      });
+    },
+    unwait() {
+      if (slideWait.current !== null) cancelAnimationFrame(slideWait.current);
+      slideWait.current = null;
     },
     /** The height the sheet stands at now, a run on its way stopped where it is. */
     heightNow() {
@@ -128,17 +156,20 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
     }
     // Opened again on its way out (or after a drag closed it): it comes back from where it is, at its height.
     const back = phase.current === "leaving" || phase.current === "out";
-    if (back || (phase.current === "entering" && !slideRun.current)) {
+    if (back || (phase.current === "entering" && !slideRun.current && slideWait.current === null)) {
       phase.current = "entering";
       if (aimed.current !== target) {
         heightNow();
         height.setValue(target);
         aimed.current = target;
       }
-      slideTo(0, reduced ? 0 : back ? 240 : 280, () => {
+      const shown = () => {
         phase.current = "in";
         latest.current.onShown?.(true);
-      });
+      };
+      // Coming back, the details are mounted already.
+      if (back || reduced) slideTo(0, reduced ? 0 : 240, shown);
+      else motionNow.slideInAfterMount(shown);
       return;
     }
     if (aimed.current === target) return;
@@ -158,10 +189,11 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
     wasPresent.current = present;
   }, [present]);
   useEffect(() => () => {
+    motionNow.unwait();
     slideRun.current?.stop();
     heightRun.current?.stop();
     if (phase.current !== "out") latest.current.onShown?.(false);
-  }, []);
+  }, [motionNow]);
 
   const motion = useMemo(() => {
     const drop = () => {

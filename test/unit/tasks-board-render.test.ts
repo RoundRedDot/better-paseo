@@ -172,6 +172,11 @@ const DesktopFilterBar = (DesktopFilterBarMemo as unknown as { type: React.Compo
 const DesktopToolbar = (DesktopToolbarMemo as unknown as { type: React.ComponentType }).type;
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+// React Native's runtime has frame callbacks and Node does not: here a frame is a 16 ms timer, so fake timers drive it.
+Object.assign(globalThis, {
+  requestAnimationFrame: (callback: (time: number) => void) => setTimeout(() => callback(Date.now()), 16),
+  cancelAnimationFrame: (handle: ReturnType<typeof setTimeout>) => clearTimeout(handle),
+});
 
 const theme = {
   colors: {
@@ -310,6 +315,11 @@ function holdTimings() {
     run.done?.({ finished: true });
   });
   return { sheet, sheetValue, slide, finish, restore: () => spy.mockRestore() };
+}
+
+/** The two frames a first slide in waits for the details to mount (`BoardSheet`). */
+function mountFrames() {
+  act(() => { vi.advanceTimersByTime(32); });
 }
 
 /** The card ids a phone pager page draws. */
@@ -2743,6 +2753,7 @@ describe("Tasks board, desktop", () => {
     act(() => card.props.onSelect(card.props.card));
     expect(hostsById("board-sheet")).toHaveLength(1);
     expect(hostsById("sidebar-floating")).toHaveLength(0);
+    mountFrames();
     timings.finish(timings.slide().at(-1)!);
     const toggle = () => hostsById("detail-sheet-toggle")[0]!;
     expect(toggle().props.accessibilityLabel).toBe("Expand details");
@@ -2829,6 +2840,11 @@ describe("Tasks board, desktop", () => {
       // The sheet stands at its height from the start and slides in; the lanes make room once it is in.
       expect(timings.sheet()).toHaveLength(0);
       expect(height()).toBe(464);
+      // The slide starts two frames on, once the details are mounted: a native run started beside that mount lost its start behind it.
+      expect(timings.slide()).toHaveLength(0);
+      act(() => { vi.advanceTimersByTime(16); });
+      expect(timings.slide()).toHaveLength(0);
+      act(() => { vi.advanceTimersByTime(16); });
       // Off the JS thread where there is a native driver: the board's render for the selection cannot hold it.
       expect(timings.slide().at(-1)).toMatchObject({ to: 0, duration: 280, native: os !== "web" });
       expect(room()).toBe(8);
@@ -2911,6 +2927,7 @@ describe("Tasks board, desktop", () => {
 
       // A drag down from half slides it out from where the finger left it, then closes it.
       open();
+      mountFrames();
       timings.finish(timings.slide().at(-1)!);
       act(() => {
         handle().parent!.parent!.props.onStartShouldSetPanResponderCapture({ nativeEvent: { pageY: 300 } });
@@ -2926,7 +2943,20 @@ describe("Tasks board, desktop", () => {
       act(() => { vi.advanceTimersByTime(300); });
       open();
       expect(height()).toBe(464);
+      mountFrames();
       expect(timings.slide().at(-1)).toMatchObject({ to: 0, duration: 280 });
+
+      // Closed before its first slide starts: nothing slides in, and it slides out from where it waits.
+      const slides = timings.slide().length;
+      timings.finish(timings.slide().at(-1)!);
+      act(() => hostsById("detail-bar-close")[0]!.props.onPress());
+      timings.finish(timings.slide().at(-1)!);
+      open();
+      act(() => hostsById("detail-bar-close")[0]!.props.onPress());
+      mountFrames();
+      expect(timings.slide().slice(slides + 1).map((run) => run.to)).toEqual([464]);
+      timings.finish(timings.slide().at(-1)!);
+      expect(hostsById("board-sheet")).toHaveLength(0);
     } finally {
       timings.restore();
     }
@@ -2971,6 +3001,7 @@ describe("Tasks board, desktop", () => {
       act(() => { renderer = TestRenderer.create(screen(false)); });
       layOut(600);
       toggleSidebarControl();
+      mountFrames();
       timings.finish(timings.slide().at(-1)!);
       toggleSidebarControl();
       expect(hostsById("board-sheet")[0]!.props.pointerEvents).toBe("none");

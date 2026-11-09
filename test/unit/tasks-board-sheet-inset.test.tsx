@@ -9,6 +9,11 @@ import { StyleSheet } from "react-native";
 import { BoardSheet } from "../../client/tasks/board/board-sheet";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+// React Native's runtime has frame callbacks and Node does not: here a frame is a 16 ms timer, so fake timers drive it.
+Object.assign(globalThis, {
+  requestAnimationFrame: (callback: (time: number) => void) => setTimeout(() => callback(Date.now()), 16),
+  cancelAnimationFrame: (handle: ReturnType<typeof setTimeout>) => clearTimeout(handle),
+});
 
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111", foregroundMuted: "#777" } } as never;
 
