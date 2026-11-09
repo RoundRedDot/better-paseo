@@ -737,7 +737,7 @@ describe("StatusIcon", () => {
     const box = (kind: string) => hostByTestId(root, `status-${kind}`);
 
     const running = box("running");
-    const [track, arc, dot] = running.children as ReactTestInstance[];
+    const [track, arc, dot] = hostByTestId(running, "running-mark").children as ReactTestInstance[];
     expect(flat(track!.props.style)).toMatchObject({ width: 12, height: 12, borderWidth: 1.5, borderColor: "#268ae0", opacity: 0.3 });
     expect(running.findAll((node) => (node.type as unknown) === "Animated.View")).toHaveLength(1);
     expect(arc!.findAll((node) => (node.type as unknown) === "Animated.View")).toHaveLength(1);
@@ -772,10 +772,11 @@ describe("StatusIcon", () => {
       expect(style.opacity).toBeUndefined();
       expect(ring.children).toHaveLength(0);
       const running = hostByTestId(tree.root, "status-running");
-      const [track] = running.children as ReactTestInstance[];
+      const markContainer = hostByTestId(running, "running-mark");
+      const [track] = markContainer.children as ReactTestInstance[];
       expect(flat(track!.props.style)).toMatchObject({ width: style.width, borderWidth: style.borderWidth, opacity: 0.3 });
       // Running keeps its centre dot and arc; needs-input has neither.
-      expect(running.children.length).toBe(3);
+      expect(markContainer.children.length).toBe(3);
       expect(icons(hostByTestId(tree.root, "status-needs_input"))).toEqual([]);
       await act(async () => tree.unmount());
       renderer = null;
@@ -854,22 +855,24 @@ describe("StatusIcon", () => {
       const [running, still] = tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "status-running");
       // Track, platform spinner over it, centre dot.
       const isSpinner = (node: ReactTestInstance) => (node.type as unknown) === "ActivityIndicator";
-      const [track, , dot] = running!.children as ReactTestInstance[];
-      expect(running!.children).toHaveLength(3);
+      const markContainer = hostByTestId(running!, "running-mark");
+      const [track, , dot] = markContainer.children as ReactTestInstance[];
+      expect(flat(markContainer.props.style)).toMatchObject({ width: 12, height: 12, alignItems: "center", justifyContent: "center" });
+      expect(markContainer.children).toHaveLength(3);
       expect(flat(track!.props.style)).toMatchObject({ width: 12, opacity: 0.3 });
       const [spinner] = running!.findAll(isSpinner);
       expect(running!.findAll(isSpinner)).toHaveLength(1);
       expect(spinner!.props).toMatchObject({ size: 15, color: "#268ae0" });
-      expect(flat(spinner!.props.style)).toMatchObject({ position: "absolute" });
+      expect(flat(spinner!.props.style)).toMatchObject({ position: "absolute", left: -1.5, top: -1.5 });
       expect(flat(dot!.props.style)).toMatchObject({ width: 6, borderRadius: 3 });
       // The working button's spinner turns the same way, without the centre dot.
       const button = hostByTestId(tree.root, "button-spinner");
-      expect(button.children).toHaveLength(2);
+      expect(hostByTestId(button, "running-mark").children).toHaveLength(2);
       expect(button.findAll(isSpinner)).toHaveLength(1);
       // Not animating: the host's quarter, still, and no spinner.
       expect(still!.props.accessibilityLabel).toBe("still");
       expect(still!.findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(0);
-      const arc = (still!.children as ReactTestInstance[])[1]!;
+      const arc = (hostByTestId(still!, "running-mark").children as ReactTestInstance[])[1]!;
       expect(flat(arc.props.style)).toMatchObject({ borderColor: "transparent", borderTopColor: "#268ae0" });
       await act(async () => tree.unmount());
       renderer = null;
@@ -899,8 +902,9 @@ describe("StatusIcon", () => {
     const spinner = hostByTestId(tree.root, "button-spinner");
     expect(flat(spinner.props.style)).toMatchObject({ width: 13, height: 13 });
     // A hollow track and the turning quarter; no centre dot.
-    const [track, arc] = spinner.children as ReactTestInstance[];
-    expect(spinner.children).toHaveLength(2);
+    const markContainer = hostByTestId(spinner, "running-mark");
+    const [track, arc] = markContainer.children as ReactTestInstance[];
+    expect(markContainer.children).toHaveLength(2);
     const mark = statusMarkSize(13);
     expect(flat(track!.props.style)).toMatchObject({ width: mark, borderRadius: mark / 2, borderWidth: (1.5 * mark) / 12, borderColor: "#d93636", opacity: 0.3 });
     expect(flat(track!.props.style).backgroundColor).toBeUndefined();
@@ -2180,7 +2184,7 @@ describe("TaskCardView actions", () => {
     expect(stopping.props.accessibilityState).toEqual({ disabled: true, busy: true });
     expect(flat(stopping.props.style)).toMatchObject({ opacity: 0.6, backgroundColor: "transparent" });
     expect(icons(stopping)).not.toContain("Power");
-    expect(hostByTestId(tree.root, "task-card-stop-spinner").children).toHaveLength(2);
+    expect(hostByTestId(hostByTestId(tree.root, "task-card-stop-spinner"), "running-mark").children).toHaveLength(2);
     expect(stopping.findAll((node) => (node.type as unknown) === "ActivityIndicator")).toHaveLength(0);
   });
 

@@ -174,12 +174,10 @@ const RunningRing = memo(function RunningRing(props: {
   const scale = mark / 12;
   const stroke = 1.5 * scale;
   const dot = 6 * scale;
-  const width = box.width as number;
-  const height = box.height as number;
   const circle: ViewStyle = {
     position: "absolute",
-    left: (width - mark) / 2,
-    top: (height - mark) / 2,
+    left: 0,
+    top: 0,
     width: mark,
     height: mark,
     borderRadius: mark / 2,
@@ -188,15 +186,17 @@ const RunningRing = memo(function RunningRing(props: {
   const arc: ViewStyle = { ...circle, borderColor: "transparent", borderTopColor: color, opacity: HEAD_OPACITY };
   return (
     <View style={box} testID={props.testID ?? "status-running"} accessibilityLabel={props.accessibilityLabel}>
-      <View style={[circle, { borderColor: color, opacity: TRACK_OPACITY }]} />
-      {WEB ? (
-        <View ref={setWebNode as never} style={arc} />
-      ) : platformSpinner ? (
-        <ActivityIndicator size={mark + stroke * 2} color={color} style={{ position: "absolute" }} />
-      ) : (
-        <Animated.View style={[arc, active ? { transform: [{ rotate: sharedRotation() }] } : null]} />
-      )}
-      {props.dot === false ? null : <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: color }} />}
+      <View testID="running-mark" style={{ width: mark, height: mark, alignItems: "center", justifyContent: "center" }}>
+        <View style={[circle, { borderColor: color, opacity: TRACK_OPACITY }]} />
+        {WEB ? (
+          <View ref={setWebNode as never} style={arc} />
+        ) : platformSpinner ? (
+          <ActivityIndicator size={mark + stroke * 2} color={color} style={{ position: "absolute", left: -stroke, top: -stroke }} />
+        ) : (
+          <Animated.View style={[arc, active ? { transform: [{ rotate: sharedRotation() }] } : null]} />
+        )}
+        {props.dot === false ? null : <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: color }} />}
+      </View>
     </View>
   );
 });
