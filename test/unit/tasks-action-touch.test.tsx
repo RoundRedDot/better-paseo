@@ -326,6 +326,8 @@ describe("phone sheet action size", () => {
     { os: "web", sidebar: true, font: 12, height: 36, radius: 8, icon: 14 },
     { os: "web", sidebar: false, font: 12, height: 40, radius: 10, icon: 16 },
     { os: "ios", sidebar: true, font: 12, height: 36, radius: 8, icon: 14 },
+    { os: "android", sidebar: true, font: 12, height: 36, radius: 8, icon: 14 },
+    { os: "android", sidebar: false, font: 12, height: 40, radius: 10, icon: 16 },
   ])("sizes archive and open labels for $os sidebar=$sidebar", async ({ os, sidebar, font, height, radius, icon }) => {
     vi.stubGlobal("__rnMockOS", os);
     device.tablet = os === "ios";
@@ -336,6 +338,7 @@ describe("phone sheet action size", () => {
     expect(buttons).toHaveLength(2);
     for (const button of buttons) {
       expect(style(button, false)).toMatchObject({ height, borderRadius: radius });
+      if (os === "android" && button.props.testID === "detail-bar-open") expect(style(button, false).flexGrow).toBe(sidebar ? 0 : 1);
       expect(button.findAll((node) => (node.type as unknown) === "Icon").every((mark) => mark.props.size === icon)).toBe(true);
       const label = button.find((node) => (node.type as unknown) === "Text");
       expect(StyleSheet.flatten(label.props.style).fontSize).toBe(font);

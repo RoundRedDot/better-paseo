@@ -2207,8 +2207,9 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const { tokens } = props;
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
-  // Desktop steps down to the iPad bar. The phone keeps the taller thumb size.
-  const compact = (props.sidebar === true && Platform.OS === "web") || (Platform.OS === "ios" && Platform.isPad);
+  // Sidebars use compact controls; the phone keeps the taller thumb size.
+  const compact = (props.sidebar === true && Platform.OS !== "ios") || (Platform.OS === "ios" && Platform.isPad);
+  const grow = props.grow !== false && !(props.sidebar && Platform.OS === "android");
   const font = F.sm;
   const height = taskControlHeight(compact ? 36 : 40, scale);
   const iconSize = compact ? 14 : 16;
@@ -2223,7 +2224,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const disabled = props.busy || props.disabled;
   const hovered = hover && !disabled;
   // A bar button spans its share of the bar, wider than a finger; a square one is covered by it.
-  const liftAs = square || props.grow === false ? "control" : "row";
+  const liftAs = square || !grow ? "control" : "row";
   return (
     <ActionPressable lift={liftAs}
       accessibilityRole="button"
@@ -2236,7 +2237,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
       style={({ pressed }) => ({
         height,
         width: square ? height : undefined,
-        flexGrow: square || props.grow === false ? 0 : 1,
+        flexGrow: square || !grow ? 0 : 1,
         flexShrink: square ? 0 : 1,
         paddingHorizontal: square ? 0 : padding,
         borderRadius: compact ? 8 : 10,
