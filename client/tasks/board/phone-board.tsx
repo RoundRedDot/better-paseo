@@ -627,6 +627,7 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           compact
           tabs
           scrollHeader
+          indicatorOutside
           actions={false}
           clock={board.clock}
           onOpen={props.onOpen}

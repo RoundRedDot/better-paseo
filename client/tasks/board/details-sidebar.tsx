@@ -8,7 +8,7 @@ import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
 import { usePressCue } from "../cards/action-pressable";
-import { BrandMark, DETAIL_CARD, DetailActionBar, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
+import { BrandMark, DETAIL_CARD, DetailActionBar, DetailCard, detailGutter, detailScrollProps, outsideIndicator, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { activeStopChildren } from "../actions/stop-targets";
 import { SheetFoot, SheetScrollRoom } from "../sheet-motion";
@@ -149,12 +149,12 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
     setLayout((was) => was.short === short && was.wide === wide ? was : { short, wide });
   };
   if (short) {
-    const outsideIndicator = props.scrollAll === true && props.touch && Platform.OS === "ios";
+    const parked = outsideIndicator(props.scrollAll === true && props.touch === true);
     return (
       <View style={{ flex: 1, minHeight: 0 }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
         {/* Keyed by the card: a jump to the parent or back starts at the top. */}
         <SheetScrollRoom>
-          <ScrollView key={selection.id ?? ""} style={{ flex: 1, marginRight: outsideIndicator ? -12 : 0 }} contentContainerStyle={{ gap: DETAIL_CARD.gap, paddingRight: outsideIndicator ? 12 : 0 }} {...detailScrollProps("column")} testID="details-sidebar-scroll">
+          <ScrollView key={selection.id ?? ""} style={{ flex: 1, marginRight: parked?.marginRight ?? 0 }} contentContainerStyle={{ gap: DETAIL_CARD.gap, paddingRight: parked?.paddingRight ?? 0 }} {...detailScrollProps("column")} testID="details-sidebar-scroll">
             {content}
           </ScrollView>
         </SheetScrollRoom>

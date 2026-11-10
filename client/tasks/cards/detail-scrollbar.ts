@@ -22,6 +22,19 @@ export type DetailScrollbarKind = keyof typeof DETAIL_SCROLLBAR;
 export const detailGutter = (kind: DetailScrollbarKind): number => (Platform.OS === "web" ? DETAIL_SCROLLBAR[kind].gutter : 0);
 
 /**
+ * A native sheet's horizontal padding. The scroller borrows it with a matching
+ * negative margin so the platform indicator sits outside the card, and gives
+ * the same room back as content padding so the card keeps its width. Web keeps
+ * the gutter above instead.
+ */
+export const OUTSIDE_INDICATOR = 12;
+
+export function outsideIndicator(active: boolean): { marginRight: number; paddingRight: number } | null {
+  if (!active || Platform.OS === "web") return null;
+  return { marginRight: -OUTSIDE_INDICATOR, paddingRight: OUTSIDE_INDICATOR };
+}
+
+/**
  * A details scroller's indicator props: the styled scrollbar on web, the
  * platform's indicator elsewhere, kept off the card's rounded bottom corners.
  */

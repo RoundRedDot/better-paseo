@@ -74,7 +74,7 @@ import {
   type DetailSection,
 } from "./detail-model";
 import { Chip, ContextBar, SummaryTiles, TimelineChart, TokenBar, TurnHero, detailColors, statusColor } from "./detail-charts";
-import { detailGutter, detailScrollProps } from "./detail-scrollbar";
+import { detailGutter, detailScrollProps, outsideIndicator } from "./detail-scrollbar";
 import { sectionClosed, useSectionChoices, useSearchSectionChoices } from "./detail-collapse";
 import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
 import { tipProps } from "./card-hints";
@@ -175,6 +175,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   onSheetClose?(): void;
   onMenu?(point: { x: number; y: number }): void;
   sheetToggle?: { full: boolean; label: string; onPress(): void };
+  /** Park the native indicator in the sheet's existing horizontal padding. The phone sheet has that padding and no `sheetToggle`. */
+  indicatorOutside?: boolean;
   /** The card to go back to after a parent or subtask jump. */
   back?: { title: string; onPress(): void } | null;
   notice?: DetailNotice | null;
@@ -347,6 +349,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
         </View>
       </View>
     );
+    const parked = outsideIndicator(props.sheetToggle != null || props.indicatorOutside === true);
     return (
       <View testID={props.testID ?? "detail-cards"} style={[detailCardFrame(tokens), { flex: 1, minHeight: 0 }]}>
         {props.scrollHeader ? (
@@ -356,8 +359,8 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
           <SheetScrollView
             key={card.id}
             ref={tabScroll}
-            style={{ flex: 1, marginRight: Platform.OS === "ios" && props.sheetToggle ? -12 : 0 }}
-            contentContainerStyle={Platform.OS === "ios" && props.sheetToggle ? { paddingRight: 12 } : undefined}
+            style={{ flex: 1, marginRight: parked?.marginRight ?? 0 }}
+            contentContainerStyle={parked ? { paddingRight: parked.paddingRight } : undefined}
             stickyHeaderIndices={[1]}
             scrollEventThrottle={16}
             onLayout={(event) => noteViewport(event.nativeEvent.layout.height)}

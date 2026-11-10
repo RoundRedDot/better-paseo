@@ -2709,8 +2709,8 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("board-sheet")).toHaveLength(1);
     expect(StyleSheet.flatten(hostsById("board-sheet-content")[0]!.props.style).paddingHorizontal).toBe(12);
     const scroll = hostsById("detail-tab-short-scroll")[0]!;
-    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(os === "ios" ? -12 : 0);
-    expect(scroll.props.contentContainerStyle).toEqual(os === "ios" ? { paddingRight: 12 } : undefined);
+    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(-12);
+    expect(scroll.props.contentContainerStyle).toEqual({ paddingRight: 12 });
     expect(scroll.props.showsVerticalScrollIndicator).toBe(true);
     expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
     await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
@@ -2727,8 +2727,8 @@ describe("Tasks board, desktop", () => {
     expect(actions.at(-1)!.props.testID).toBe("detail-bar-close");
   });
 
-  it("places the iPad sheet's scroll indicator outside the unchanged card width", async () => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+  it.each(["ios", "android"])("places the %s sheet column's scroll indicator outside the unchanged card width", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(false)); });
     layOut(600);
     act(() => hostsById("sidebar-switch")[0]!.props.onPress());
@@ -7048,8 +7048,8 @@ describe("Tasks board, phone", () => {
     expect(detail.props).toMatchObject({ touch: true, tabs: true, scrollHeader: true, actions: false });
     const scroll = hostsById("detail-tab-short-scroll")[0]!;
     const bar = hostsById("detail-action-bar")[0]!;
-    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(0);
-    expect(scroll.props.contentContainerStyle).toBeUndefined();
+    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(os === "web" ? 0 : -12);
+    expect(scroll.props.contentContainerStyle).toEqual(os === "web" ? undefined : { paddingRight: 12 });
     expect(scroll.findAll((node) => node === bar)).toHaveLength(0);
     expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
     expect(hostsById("detail-prompt")).toHaveLength(1);
