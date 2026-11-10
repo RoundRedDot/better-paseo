@@ -3,6 +3,7 @@ import {
   Animated,
   Platform,
   Pressable,
+  RefreshControl,
   View,
   type FlatList as NativeFlatList,
   type ScrollView as NativeScrollView,
@@ -934,6 +935,11 @@ const PhoneLane = memo(function PhoneLane(props: {
   const endSpace = scrollActions ? LANE_END_SPACE_WITH_ACTIONS : LANE_END_SPACE;
   // A history lane with more pages ends at its loaded cards, and reaching them loads one more page as scrolling there does.
   const loadedEnd = isHistoryLane(lane.id) && (lane.hasMore || lane.loading);
+  const onRefresh = () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    void Promise.resolve().then(board.tasks.refresh).catch(() => "failed").finally(() => setRefreshing(false));
+  };
   return (
     <View style={{ flex: 1, minHeight: 0 }} onLayout={(event: LayoutChangeEvent) => {
       const height = event.nativeEvent.layout.height;
@@ -949,11 +955,15 @@ const PhoneLane = memo(function PhoneLane(props: {
       onScroll={(event) => updateEdges(event.nativeEvent.contentOffset.y, event.nativeEvent.contentSize.height, event.nativeEvent.layoutMeasurement.height)}
       scrollEventThrottle={16}
       refreshing={refreshing}
-      onRefresh={() => {
-        if (refreshing) return;
-        setRefreshing(true);
-        void Promise.resolve().then(board.tasks.refresh).catch(() => "failed").finally(() => setRefreshing(false));
-      }}
+      refreshControl={Platform.OS === "android" ? (
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          progressBackgroundColor={colors.surface1}
+          colors={[colors.foregroundMuted]}
+        />
+      ) : undefined}
+      onRefresh={onRefresh}
       alwaysBounceVertical
       style={covered ? { opacity: 0 } : undefined}
       viewabilityConfigCallbackPairs={seen.viewabilityConfigCallbackPairs}

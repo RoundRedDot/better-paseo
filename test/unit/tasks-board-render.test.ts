@@ -22,7 +22,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     const empty = props.ListEmptyComponent as React.ReactNode;
     return React.createElement(
       "FlatList",
-      { ref: props.ref, testID: props.testID, refreshing: props.refreshing, onRefresh: props.onRefresh, alwaysBounceVertical: props.alwaysBounceVertical, onContentSizeChange: props.onContentSizeChange, onScroll: props.onScroll, contentContainerStyle: props.contentContainerStyle, onScrollToIndexFailed: props.onScrollToIndexFailed, onEndReached: props.onEndReached, data: props.data, viewabilityConfigCallbackPairs: props.viewabilityConfigCallbackPairs },
+      { ref: props.ref, testID: props.testID, refreshing: props.refreshing, onRefresh: props.onRefresh, refreshControl: props.refreshControl, alwaysBounceVertical: props.alwaysBounceVertical, onContentSizeChange: props.onContentSizeChange, onScroll: props.onScroll, contentContainerStyle: props.contentContainerStyle, onScrollToIndexFailed: props.onScrollToIndexFailed, onEndReached: props.onEndReached, data: props.data, viewabilityConfigCallbackPairs: props.viewabilityConfigCallbackPairs },
       data.length
         ? data.map((item, index) => {
             host.rowRenders += 1;
@@ -7087,6 +7087,22 @@ describe("Tasks board, phone", () => {
     act(() => more.props.onPress());
     expect(hostsById("filter-sheet-refresh")).toHaveLength(0);
     expect(hostsById("filter-sheet-scroll")).toHaveLength(1);
+  });
+
+  it("uses Android theme colors for pull to refresh and follows theme changes", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+    const light = { colors: { ...(theme as unknown as { colors: Record<string, string> }).colors } };
+    const dark = { colors: { ...light.colors, surface1: "#242424", foregroundMuted: "#aaaaaa" } };
+    act(() => { renderer = TestRenderer.create(screen(true, {}, light)); });
+    const list = () => hostsById("phone-lane-needs_input")[0]!.find((node) => (node.type as unknown) === "FlatList");
+    const control = () => list().props.refreshControl.props;
+    expect(control()).toMatchObject({ progressBackgroundColor: light.colors.surface1, colors: [light.colors.foregroundMuted], refreshing: false });
+    act(() => renderer!.update(screen(true, {}, dark)));
+    expect(control()).toMatchObject({ progressBackgroundColor: "#242424", colors: ["#aaaaaa"] });
+    act(() => control().onRefresh());
+    expect(control().refreshing).toBe(true);
+    await act(async () => { await Promise.resolve(); });
+    expect(control().refreshing).toBe(false);
   });
 
   it("opens the filter sheet with the sort first from the header's sort pill, and with the switches first from the filters button", () => {

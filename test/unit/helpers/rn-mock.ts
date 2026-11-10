@@ -31,6 +31,7 @@ export const ScrollView = host("ScrollView");
 export const TextInput = host("TextInput");
 export const SafeAreaView = host("SafeAreaView");
 export const ActivityIndicator = host("ActivityIndicator");
+export const RefreshControl = host("RefreshControl");
 
 /** Its children while visible, as a host element in place. */
 export function Modal(props: Props) {
