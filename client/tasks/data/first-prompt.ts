@@ -28,6 +28,9 @@ const LOADING: FirstPrompt = { state: "loading" };
 
 interface Store {
   read(agentId: string): FirstPrompt;
+  /** Details keep the last empty result visible while a retry is in flight. */
+  readForDetails(agentId: string): FirstPrompt;
+  readRequestedForDetails(agentId: string): FirstPrompt;
   /** What `read` returns right after `request(agentId)`: the same object, without reading or changing anything. */
   readRequested(agentId: string): FirstPrompt;
   request(agentId: string, canRead?: () => boolean, owner?: object): Promise<void>;
@@ -40,6 +43,7 @@ interface Store {
 
 export function createFirstPromptStore(api: Api): Store {
   const prompts = new Map<string, FirstPrompt>();
+  const empty = new Map<string, FirstPrompt>();
   const listeners = new Set<() => void>();
   const pending = new Map<string, Promise<void>>();
   const owners = new Map<string, Map<object, () => boolean>>();
@@ -49,6 +53,8 @@ export function createFirstPromptStore(api: Api): Store {
   const starts = (agentId: string) => prompts.get(agentId)?.state !== "ready" && !pending.has(agentId);
   const set = (agentId: string, value: FirstPrompt) => {
     prompts.set(agentId, value);
+    if (value.state === "none") empty.set(agentId, value);
+    else if (value.state !== "loading") empty.delete(agentId);
     revision += 1;
     for (const listener of [...listeners]) listener();
   };
@@ -82,6 +88,15 @@ export function createFirstPromptStore(api: Api): Store {
   };
   return {
     read: (agentId) => prompts.get(agentId) ?? IDLE,
+    readForDetails: (agentId) => {
+      const value = prompts.get(agentId);
+      return value?.state === "loading" ? empty.get(agentId) ?? value : value ?? IDLE;
+    },
+    readRequestedForDetails: (agentId) => {
+      const value = prompts.get(agentId);
+      if (value?.state === "none" || value?.state === "loading" && empty.has(agentId)) return empty.get(agentId)!;
+      return starts(agentId) ? LOADING : value ?? IDLE;
+    },
     readRequested: (agentId) => (starts(agentId) ? LOADING : prompts.get(agentId) ?? IDLE),
     claim(agentId, owner, canRead) { owners.get(agentId)?.set(owner, canRead); },
     request(agentId, canRead, owner) {
@@ -105,6 +120,7 @@ export function createFirstPromptStore(api: Api): Store {
       for (const [id, held] of owners) if (held.delete(owner) && held.size === 0) {
         owners.delete(id);
         prompts.delete(id);
+        empty.delete(id);
         pending.delete(id);
         epochs.delete(id);
         changed = true;
@@ -155,7 +171,7 @@ export function useFirstPrompt(api: PaseoApi, agentId: string, auto: boolean): {
   useLayoutEffect(() => { if (auto) store.retain(agentId); }, [store, agentId, auto]);
   // Until this commit's request runs, an auto read shows what it will: no draw of the state it replaces at once.
   const asked = useRef<{ store: Store; agentId: string } | null>(null);
-  const snapshot = () => (auto && (asked.current?.store !== store || asked.current.agentId !== agentId) ? store.readRequested(agentId) : store.read(agentId));
+  const snapshot = () => (auto && (asked.current?.store !== store || asked.current.agentId !== agentId) ? store.readRequestedForDetails(agentId) : store.readForDetails(agentId));
   const prompt = useSyncExternalStore(store.subscribe, snapshot, snapshot);
   useLayoutEffect(() => {
     if (auto) store.request(agentId);

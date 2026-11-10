@@ -44,6 +44,24 @@ function mount(refetch: (id: string) => Promise<unknown>, initialCards: TaskCard
 }
 
 describe("first-message search", () => {
+  it("counts a shared details refresh as pending while keeping its cached empty result for details", async () => {
+    let finish!: (value: unknown) => void;
+    const read = vi.fn().mockResolvedValueOnce({ error: null, entries: [] }).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const task = makeCard("details-empty-refresh");
+    const mounted = mount(read, [task], "");
+    const store = firstPromptStoreFor(mounted.api as never);
+    await act(async () => { await store.request(task.id); });
+    let refresh!: Promise<void>;
+    act(() => { refresh = store.request(task.id); });
+    expect(store.readForDetails(task.id)).toEqual({ state: "none" });
+    mounted.update([task], "dragonfruit");
+    await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+    expect(mounted.current.coverage).toEqual({ pending: 1, loaded: 0 });
+    expect(read).toHaveBeenCalledTimes(2);
+    await act(async () => { finish(page("Dragonfruit")); await refresh; });
+    expect(mounted.current.coverage).toEqual({ pending: 0, loaded: 1 });
+    expect(mounted.shown()).toContain(task.id);
+  });
   it("keeps a cached prompt while another search still uses it", async () => {
     const read = vi.fn(async () => page("Dragonfruit"));
     const api = { agents: { ref: () => ({ timeline: { refetch: read } }) } } as never;

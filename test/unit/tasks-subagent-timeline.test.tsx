@@ -23,6 +23,30 @@ afterEach(() => {
 });
 
 describe("useSubagentTimeline", () => {
+  it("keeps empty subagent messages on return while refreshing them", async () => {
+    type Page = { rows: Array<{ type: string; text?: string }>; error: string | null };
+    let hold = false;
+    const pending: ((value: Page) => void)[] = [];
+    const loader = vi.fn(() => hold ? new Promise<Page>((resolve) => pending.push(resolve)) : Promise.resolve({ rows: [], error: null }));
+    setSubagentTimelineLoader(loader);
+    const seen: string[][] = [];
+    function Switch(props: { id: string }) {
+      const reads = useSubagentTimeline({ id: props.id, parentId: "parent-1", running: false, version: "done|1" }, true);
+      if (props.id === "cache-subagent-a") seen.push([reads.firstPrompt.prompt.state, reads.lastMessage.prompt.state]);
+      return null;
+    }
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(<Switch id="cache-subagent-a" />); });
+    await act(async () => renderer.update(<Switch id="cache-subagent-b" />));
+    hold = true;
+    seen.length = 0;
+    await act(async () => renderer.update(<Switch id="cache-subagent-a" />));
+    expect(seen.every((states) => states.every((state) => state === "none"))).toBe(true);
+    expect(pending).toHaveLength(2);
+    await act(async () => { for (const resolve of pending.splice(0)) resolve({ rows: [{ type: "user_message", text: "New prompt" }, { type: "assistant_message", text: "New reply" }], error: null }); });
+    expect(seen.at(-1)).toEqual(["ready", "ready"]);
+    act(() => renderer.unmount());
+  });
   it("reads the task from the head and the reply from the tail, naming the parent", async () => {
     const loader = vi.fn(async (input: { direction: "after" | "tail" }) =>
       input.direction === "after"

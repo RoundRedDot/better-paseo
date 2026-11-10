@@ -32,18 +32,19 @@ const LOADING: LastMessage = { state: "loading" };
 const SETTLED = new Set(["ready", "loading", "first"]);
 
 /** Whether a request for `version` asks nothing: that version's read is in flight or done. */
-function settledFor(entry: { version: string; value: Value } | undefined, version: string): boolean {
-  return entry !== undefined && entry.version === version && SETTLED.has(entry.value.state);
+function settledFor(entry: { version: string; value: Value; pending?: boolean } | undefined, version: string): boolean {
+  return entry !== undefined && entry.version === version && (entry.pending === true || SETTLED.has(entry.value.state));
 }
 
-/** What a read shows while it loads: an older reply stays up until the tail answers. */
+/** Keep a settled result visible while a newer read is in flight. */
 function shownWhileLoading<V extends Value>(value: V | undefined): V {
-  return value?.state === "ready" ? value : (LOADING as V);
+  return value?.state === "ready" || value?.state === "none" ? value : (LOADING as V);
 }
 
 interface Entry<V> {
   version: string;
   value: V;
+  pending: boolean;
   /** Bumped on each read, so a slower stale read cannot land over a newer one. */
   ticket: number;
 }
@@ -81,13 +82,13 @@ export function createLastMessageStore<V extends Value = LastMessage>(api: Api, 
       const known = entries.get(agentId);
       if (settledFor(known, version)) return;
       const ticket = ++tickets;
-      // A newer version keeps showing the older reply until the tail answers.
+      // A newer read keeps showing the settled result until the tail answers.
       const value = shownWhileLoading(known?.value);
-      entries.set(agentId, { version, value, ticket });
+      entries.set(agentId, { version, value, ticket, pending: true });
       if (value !== known?.value) notify();
       const land = (next: V) => {
         if (entries.get(agentId)?.ticket !== ticket) return;
-        entries.set(agentId, { version, value: next, ticket });
+        entries.set(agentId, { version, value: next, ticket, pending: false });
         notify();
       };
       readValue(api.agents.ref(agentId).timeline)

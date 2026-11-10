@@ -69,7 +69,7 @@ export function useSubagentTimeline(
 ): { firstPrompt: { prompt: FirstPrompt; load(): void }; lastMessage: { prompt: LastMessage; load(): void } } {
   const { id, parentId, running } = subagent;
   if (id && parentId) parents.set(id, parentId);
-  const prompt = useSyncExternalStore(prompts.subscribe, () => prompts.read(id), () => prompts.read(id));
+  const prompt = useSyncExternalStore(prompts.subscribe, () => prompts.readForDetails(id), () => prompts.readForDetails(id));
   useEffect(() => { if (auto && id) prompts.retain(id); }, [id, auto]);
   const message = useSyncExternalStore(messages.subscribe, () => messages.read(id), () => messages.read(id));
   const [tick, setTick] = useState(0);

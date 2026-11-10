@@ -117,6 +117,43 @@ function liveApi(pages: unknown[], ready = Promise.resolve()) {
 }
 
 describe("streaming last reply", () => {
+  it("shows a running parent's cached reply while reconnecting after visiting a child", async () => {
+    let finish!: (value: unknown) => void;
+    const live = liveApi([snapshot("Parent"), snapshot("Child"), new Promise((resolve) => { finish = resolve; })]);
+    const seen: Record<string, LastMessage[]> = {};
+    function Probe(props: { id: string }) {
+      const reply = useLastMessage(live.api as never, props.id, "v1", true, true).prompt;
+      (seen[props.id] ??= []).push(reply);
+      return null;
+    }
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(Probe, { id: "parent" })); });
+    await act(async () => renderer.update(React.createElement(Probe, { id: "child" })));
+    seen.parent = [];
+    await act(async () => renderer.update(React.createElement(Probe, { id: "parent" })));
+    expect(seen.parent!.length).toBeGreaterThan(0);
+    expect(seen.parent!.every((value) => value.state === "ready" && value.text === "Parent")).toBe(true);
+    expect(live.refetch).toHaveBeenCalledTimes(3);
+    await act(async () => { finish(snapshot("Parent updated", 1)); await flush(); });
+    expect(seen.parent!.at(-1)).toMatchObject({ state: "ready", text: "Parent updated" });
+    act(() => renderer.unmount());
+  });
+  it("keeps a cached empty result during a forced refresh and reports failures", async () => {
+    let answer!: (value: unknown) => void;
+    const empty = { ...snapshot("x"), entries: [] };
+    const live = liveApi([empty, new Promise((resolve) => { answer = resolve; })]);
+    const store = createLiveLastMessageStore(live.api as never);
+    const release = store.watch("a");
+    store.request("a", "v1");
+    await flush();
+    expect(store.read("a")).toEqual({ state: "none" });
+    store.request("a", "v1", true);
+    expect(store.read("a")).toEqual({ state: "none" });
+    answer({ ...empty, error: "offline" });
+    await flush();
+    expect(store.read("a")).toEqual({ state: "error" });
+    release();
+  });
   it("appends each chunk immediately, preserves whitespace, and ignores duplicate rows without refetching", async () => {
     const live = liveApi([snapshot("Hello ")]);
     const store = createLiveLastMessageStore(live.api as never);
@@ -317,6 +354,18 @@ async function expectRequestShows(make: (held: Held) => ReadStore, reach: (store
 }
 
 describe("last message, what a request shows at once", () => {
+  it.each(["versioned", "live"] as const)("deduplicates a %s empty result's in-flight refresh", async (kind) => {
+    const held = heldReads(true);
+    const store = kind === "live" ? createLiveLastMessageStore(held.api as never) : createLastMessageStore(held.api as never);
+    store.request("a", "v1");
+    await held.answer({ ...snapshot("x"), entries: [] });
+    store.request("a", "v1");
+    store.request("a", "v1");
+    expect(store.read("a")).toEqual({ state: "none" });
+    expect(held.refetch).toHaveBeenCalledTimes(2);
+    await held.answer(snapshot("New"));
+    expect(store.read("a")).toMatchObject({ state: "ready", text: "New" });
+  });
   for (const version of ["v1", "v2"]) {
     it.each(versionedStates)(`versioned store, %s, request ${version}`, async (_name, reach) => {
       await expectRequestShows((held) => createLastMessageStore(held.api as never), reach, version);

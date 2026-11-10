@@ -62,6 +62,46 @@ function card(id: string, closed: boolean): TaskCard {
 }
 
 describe("detail timeline reads", () => {
+  it("keeps cached empty messages visible on repeated parent and child visits while refreshing", async () => {
+    let hold = false;
+    type Page = Omit<typeof PAGE, "error"> & { error: string | null };
+    const pending: ((value: Page) => void)[] = [];
+    const empty = { ...PAGE, entries: [] };
+    const refetch = vi.fn(() => hold ? new Promise<Page>((resolve) => pending.push(resolve)) : Promise.resolve(empty));
+    const api = { agents: { ref: () => ({ timeline: { refetch, subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }) } }) } };
+    const board = { paseo: api, visible: true } as unknown as BoardController;
+    const seen: Record<string, string[][]> = {};
+    function Probe(props: { card: TaskCard }) {
+      const reads = useDetailReads(board, props.card);
+      (seen[props.card.id] ??= []).push([reads.firstPrompt!.prompt.state, reads.humanMessage!.prompt.state, reads.lastMessage!.prompt.state]);
+      return null;
+    }
+    const parent = card("cache-parent", false);
+    const child = card("cache-child", false);
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(<Probe card={parent} />); });
+    await act(async () => renderer.update(<Probe card={child} />));
+    expect(seen[parent.id]!.at(-1)).toEqual(["none", "none", "none"]);
+    expect(seen[child.id]!.at(-1)).toEqual(["none", "none", "none"]);
+    hold = true;
+    seen[parent.id] = [];
+    await act(async () => renderer.update(<Probe card={parent} />));
+    expect(seen[parent.id]!.every((states) => states.every((state) => state === "none"))).toBe(true);
+    expect(pending).toHaveLength(3);
+    await act(async () => { for (const resolve of pending.splice(0)) resolve(PAGE); });
+    expect(seen[parent.id]!.at(-1)).toEqual(["ready", "ready", "ready"]);
+    seen[child.id] = [];
+    await act(async () => renderer.update(<Probe card={child} />));
+    expect(seen[child.id]!.every((states) => states.every((state) => state === "none"))).toBe(true);
+    await act(async () => { for (const resolve of pending.splice(0)) resolve({ ...empty, error: "offline" }); });
+    expect(seen[child.id]!.at(-1)).toEqual(["error", "error", "error"]);
+    await act(async () => renderer.update(<Probe card={parent} />));
+    await act(async () => renderer.update(<Probe card={child} />));
+    expect(seen[child.id]!.at(-1)).toEqual(["loading", "loading", "loading"]);
+    await act(async () => { for (const resolve of pending.splice(0)) resolve(PAGE); });
+    expect(seen[child.id]!.at(-1)).toEqual(["ready", "ready", "ready"]);
+    act(() => renderer.unmount());
+  });
   it("loads the first prompt, last sent message and last reply when a closed card opens", async () => {
     const { refetch, api } = timeline();
     const board = { paseo: api, visible: true } as unknown as BoardController;

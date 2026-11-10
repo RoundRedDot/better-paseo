@@ -21,6 +21,18 @@ function fakeApi(pages: (Page | Error)[]) {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("first prompt", () => {
+  it("marks a search-owned refresh of an empty prompt as loading", async () => {
+    const held = heldApi();
+    const store = createFirstPromptStore(held.api as never);
+    const first = store.request("search-empty");
+    await held.answer({ error: null, entries: [] });
+    await first;
+    const next = store.request("search-empty", () => true, {});
+    expect(store.read("search-empty")).toEqual({ state: "loading" });
+    await held.answer(prompt("Fresh prompt"));
+    await next;
+    expect(store.read("search-empty")).toMatchObject({ state: "ready", text: "Fresh prompt" });
+  });
   it.each(["error", "none"] as const)("restores an existing details %s if a search read is interrupted", async (initial) => {
     let resolve!: (value: Page) => void;
     let calls = 0;
@@ -321,7 +333,7 @@ describe("useFirstPrompt", () => {
     expect(first.seen.at(-1)!.state).toBe(state);
     act(() => first.renderer.unmount());
     const { seen, renderer } = mount(held.api, true);
-    expect(seen.map((read) => read.state)).toEqual(["loading"]);
+    expect(seen.map((read) => read.state)).toEqual([state === "none" ? "none" : "loading"]);
     expect(held.refetch).toHaveBeenCalledTimes(2);
     // The answer replaces the loading state: the request already ran, so nothing projects it any more.
     await act(async () => held.answer(miss));
