@@ -441,7 +441,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
   const lift = surfaceLift(hovered, press.pressed, reduced, "control", press.input);
   const line = Platform.OS === "web" && !hovered ? "transparent" : colors.border;
   const background = colors.surface0;
-  const iconColor = props.on ? colors.foreground : colors.foregroundMuted;
+  const iconColor = colors.foreground;
   return (
     <Pressable
       accessibilityRole="switch"

@@ -4560,6 +4560,8 @@ describe("Tasks board, archived lane switch", () => {
     expect(textOf(toggle())).toBe("");
     expect(toggle().props).toMatchObject({ accessibilityRole: "switch", accessibilityLabel: "Show the archived lane", accessibilityState: { checked: false } });
     expect(slashed()).toBe(true);
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
+    expect(toggle().findByType(SlashMark).props.color).toBe("#1b1b1f");
     const outline = () => StyleSheet.flatten(toggle().props.style).borderColor;
     const offOutline = outline();
     expect(hostsById("lane-archived")).toHaveLength(0);
@@ -4574,6 +4576,7 @@ describe("Tasks board, archived lane switch", () => {
     // Drawn at once, before the record catches up.
     expect(toggle().props.accessibilityState).toEqual({ checked: true });
     expect(slashed()).toBe(false);
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
     // Only the icon changes: the outline stays.
     expect(outline()).toBe(offOutline);
     expect(hostsById("lane-archived")).toHaveLength(1);
@@ -5044,7 +5047,9 @@ describe("Tasks board, toolbar tips", () => {
     expect(tips()).toContain("Hide the archived lane (A)");
     expect(tips()).not.toContain("Show the archived lane (A)");
     const subtasks = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "subtasks-toggle")[0]!;
+    expect(subtasks.find((node) => (node.type as unknown) === "Icon").props).toMatchObject({ name: "Network", color: "#1b1b1f" });
     act(() => subtasks.props.onPress());
+    expect(hostsById("subtasks-toggle")[0]!.find((node) => (node.type as unknown) === "Icon").props).toMatchObject({ name: "ListTree", color: "#1b1b1f" });
     expect(tips()).toContain("Show subtasks (S)");
     expect(tips()).not.toContain("Hide subtasks (S)");
     // An open menu covers its button's tip.
@@ -5630,7 +5635,7 @@ describe("Tasks board, tablet filters", () => {
     expect(deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true });
     expect(hostsById("subtasks-toggle")[0]!.props.accessibilityState.selected).toBe(false);
     expect(StyleSheet.flatten(hostsById("subtasks-toggle")[0]!.props.style).backgroundColor).toBe("transparent");
-    expect(hostsById("subtasks-toggle")[0]!.find((n) => (n.type as unknown) === "Icon").props.color).toBe("#6b6b75");
+    expect(hostsById("subtasks-toggle")[0]!.find((n) => (n.type as unknown) === "Icon").props).toMatchObject({ name: "List", color: "#1b1b1f" });
     act(() => hostsById("toolbar-filters")[0]!.props.onPress());
     const sheet = hostsById("filter-sheet-scroll")[0]!;
     act(() => hostsById("filter-sheet-workspaces-toggle")[0]!.props.onPress());
@@ -6026,7 +6031,7 @@ describe("Tasks board, tablet filters", () => {
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("ListTree");
     expect(slashed()).toBe(false);
     expect(look().backgroundColor).toBe("#ffffff");
-    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#6b6b75");
+    expect(toggle().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
   });
 });
 
@@ -6283,7 +6288,7 @@ describe("Tasks board, phone", () => {
     expect(button().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
     await act(async () => button().props.onPress());
     expect(button().props.accessibilityState).toEqual({ selected: false });
-    expect(button().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#6b6b75");
+    expect(button().find((node) => (node.type as unknown) === "Icon").props).toMatchObject({ name: "List", color: "#1b1b1f" });
     expect(button().findAll((node) => (node.type as unknown) === "View" && StyleSheet.flatten(node.props.style)?.backgroundColor === "#e4e4e7")).toHaveLength(0);
     expect(deviceTasksStore().snapshot().values?.hideSubtasks).toBe(true);
     expect(lastBoardParams("host-1").hideSubtasks).toBeNull();
@@ -6836,10 +6841,12 @@ describe("Tasks board, phone", () => {
     const controls = hostParentOf(button())!.findAll((node) => (node.type as unknown) === "Pressable");
     expect(controls.slice(-2).map((node) => node.props.testID)).toEqual(["phone-archived", "phone-more"]);
     expect(button().props.accessibilityState).toEqual({ selected: false });
-    expect(button().findByType(SlashMark).props).toMatchObject({ color: "#6b6b75", gap: "#ffffff" });
+    expect(button().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
+    expect(button().findByType(SlashMark).props).toMatchObject({ color: "#1b1b1f", gap: "#ffffff" });
     await act(async () => button().props.onPress());
     expect(button().props.accessibilityState).toEqual({ selected: true });
     expect(button().findAllByType(SlashMark)).toHaveLength(0);
+    expect(button().find((node) => (node.type as unknown) === "Icon").props.color).toBe("#1b1b1f");
     expect(hostsById("phone-stat-archived")).toHaveLength(1);
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true });
     act(() => pressable("More").props.onPress());

@@ -745,7 +745,6 @@ export function RoundButton(props: {
   const size = props.size ?? 36;
   const pad = props.size === undefined ? 4 : 0;
   const icon = props.iconSize ?? Math.round(size / 2);
-  const toggleColor = props.selected ? colors.foreground : colors.foregroundMuted;
   const { hovered, hoverProps } = useHover();
   const press = usePressCue(hovered, !props.disabled);
   const lift = surfaceLift(hovered, press.pressed, undefined, "toolbar", press.input);
@@ -782,8 +781,8 @@ export function RoundButton(props: {
           justifyContent: "center",
         }}
       >
-        {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : <Icon name={props.icon} size={icon} color={props.toggle ? toggleColor : props.borderless && props.active ? colors.accent : colors.foreground} />}
-        {props.slashed ? <SlashMark size={icon} color={props.toggle ? toggleColor : colors.foreground} gap={colors.surface0} /> : null}
+        {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : <Icon name={props.icon} size={icon} color={props.borderless && props.active ? colors.accent : colors.foreground} />}
+        {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={colors.surface0} /> : null}
         <CornerBadge count={props.cornerBadge ?? 0} theme={props.theme} style={{ bottom: 0, right: 0 }} testID={props.testID ? `${props.testID}-count` : undefined} />
       </View>
       {props.badge ? (
