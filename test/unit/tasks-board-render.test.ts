@@ -244,6 +244,12 @@ function layOut(width: number) {
   }
 }
 
+/** A lane list's room past its last card: its padding and the bottom sheet's spacer in its footer. */
+function laneEnd(list: ReactTestInstance): number {
+  const spacer = list.findAll((node) => typeof node.type === "string" && typeof node.props.testID === "string" && node.props.testID.startsWith("lane-room-"))[0];
+  return StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom + (spacer ? StyleSheet.flatten(spacer.props.style).height as number : 0);
+}
+
 function finishSidebarCloseImmediately() {
   const timing = Animated.timing;
   vi.spyOn(Animated, "timing").mockImplementation((value, config) => (config.toValue === 0 || value === sheetSlide()) && (config.duration === 180 || config.duration === 200)
@@ -2761,14 +2767,14 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("details-sidebar-scroll")).toHaveLength(1);
   });
 
-  it("leaves a sheet's details alone while another agent updates, and draws them for their own", async () => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+  it.each([["android", 600, "sheet"], ["android", 900, "floating panel"], ["web", 900, "floating panel"], ["web", 2000, "inline sidebar"]] as const)("leaves the %s %s-wide board's details alone while another agent updates, and draws them for their own (%s)", async (os, width, _kind) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const running = (id: string, title: string, updatedAt: string) => makeAgent({ id, title, status: "running", workspaceId: "ws", updatedAt, lastUserMessageAt: updatedAt });
     const start = new Date(Date.now() - 60_000).toISOString();
     const fake = createFakePaseo({ agents: [running("open-card", "Open card", start), running("other-card", "Other card", start)] });
     host.liveTasks = fake.paseo;
     await act(async () => { renderer = TestRenderer.create(screen(false)); });
-    layOut(600);
+    layOut(width);
     await act(async () => { await vi.advanceTimersByTimeAsync(800); });
     const open = cards().find((node) => node.props.card.id === "open-card")!;
     await act(async () => open.props.onSelect(open.props.card));
@@ -2780,9 +2786,38 @@ describe("Tasks board, desktop", () => {
     await push(running("other-card", "Other card, renamed", new Date().toISOString()));
     expect(textOf(cards().find((node) => node.props.card.id === "other-card")!.findByProps({ testID: "task-card-title" }))).toContain("Other card, renamed");
     expect(hostsById("detail-cards")[0]!.props).toBe(drawn);
+    // The side panels' counts above the details still follow the lanes.
+    const stats = hostsById("sidebar-stats")[0];
+    const before = stats ? textOf(stats) : null;
+    await push(makeAgent({ id: "other-card", title: "Other card, renamed", status: "idle", workspaceId: "ws", updatedAt: new Date(Date.now() + 500).toISOString(), lastUserMessageAt: start, requiresAttention: true, attentionReason: "finished" }));
+    expect(hostsById("detail-cards")[0]!.props).toBe(drawn);
+    if (before !== null) expect(textOf(hostsById("sidebar-stats")[0]!)).not.toBe(before);
+    else expect(hostsById("sidebar-stats")).toHaveLength(0);
     await push(running("open-card", "Open card, renamed", new Date(Date.now() + 1000).toISOString()));
     expect(hostsById("detail-cards")[0]!.props).not.toBe(drawn);
     expect(textOf(hostsById("detail-title")[0]!)).toBe("Open card, renamed");
+  });
+
+  it.each(["ios", "android"])("lays out a %s sheet card's scroller without drawing the card again", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(600);
+    const card = cards().find((node) => node.props.card.id === "sample-running")!;
+    await act(async () => card.props.onSelect(card.props.card));
+    const drawn = hostsById("detail-cards")[0]!.props;
+    const page = () => StyleSheet.flatten(hostsById("detail-tab-messages-content")[0]!.props.style);
+    const bar = () => StyleSheet.flatten(hostsById("detail-action-bar")[0]!.props.style);
+    const scroll = hostsById("detail-tab-short-scroll")[0]!;
+    // The tabs' place, the scroller's height and its content's: the page fills what the tabs leave, the bar casts its edge.
+    await act(async () => hostsById("detail-tab-anchor")[0]!.props.onLayout({ nativeEvent: { layout: { x: 0, y: 150, width: 560, height: 46 } } }));
+    await act(async () => scroll.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 560, height: 300 } } }));
+    await act(async () => scroll.props.onContentSizeChange(560, 900));
+    expect(page().minHeight).toBe(254);
+    expect(bar().boxShadow).toBeTruthy();
+    // Scrolled past the tabs: they pin and cast their shadow.
+    await act(async () => scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 200 }, layoutMeasurement: { height: 300 }, contentSize: { height: 900 } } }));
+    expect(StyleSheet.flatten(hostsById("detail-tabs")[0]!.props.style).boxShadow).toBeTruthy();
+    expect(hostsById("detail-cards")[0]!.props).toBe(drawn);
   });
 
   it.each(["ios", "android"])("places the %s sheet column's scroll indicator outside the unchanged card width", async (os) => {
@@ -2842,17 +2877,20 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("detail-column-head")).toHaveLength(0);
     expect(hostsById("details-sidebar-scroll")).toHaveLength(1);
     const list = renderer!.root.findAll((node) => typeof node.props.renderItem === "function" && node.props.contentContainerStyle !== undefined)[0]!;
-    expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 464);
+    expect(laneEnd(list)).toBe(8 + 464);
     // The handle switches to full height and back.
     const handle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "board-sheet-handle");
     expect(handle().props.accessibilityLabel).toBe("Expand details");
+    // The lanes take the new room without drawing again: only the spacer at each list's end follows it.
+    const drawnList = list.props;
     act(() => handle().props.onPress());
-    expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 464);
+    expect(laneEnd(list)).toBe(8 + 464);
     mountFrames();
     timings.finish(timings.sheet().at(-1)!);
     expect(handle().props.accessibilityLabel).toBe("Collapse details");
     expect(toggle().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Minimize2");
-    expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 792);
+    expect(laneEnd(list)).toBe(8 + 792);
+    expect(list.props).toBe(drawnList);
     // A drag down on the handle takes it back to half, and the click the drag ends with does not switch it again.
     const strip = handle().parent!.parent!;
     // The drag counts from where the finger went down (pageY), not from the late grant.
@@ -2864,7 +2902,7 @@ describe("Tasks board, desktop", () => {
     act(() => handle().props.onPress());
     expect(timings.sheet().at(-1)).toMatchObject({ to: 328, duration: 240 });
     timings.finish(timings.sheet().at(-1)!);
-    expect(StyleSheet.flatten(list.props.contentContainerStyle).paddingBottom).toBe(8 + 464);
+    expect(laneEnd(list)).toBe(8 + 464);
     // A tap on the lanes' blank space puts it away.
     let blank = lanesScroll().parent!;
     while (!blank.props.onResponderGrant) blank = blank.parent!;
@@ -2895,7 +2933,7 @@ describe("Tasks board, desktop", () => {
       const toggle = () => hostsById("detail-sheet-toggle")[0]!;
       const handle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "board-sheet-handle");
       const label = () => toggle().props.accessibilityLabel;
-      const room = () => StyleSheet.flatten(renderer!.root.findAll((node) => typeof node.props.renderItem === "function" && node.props.contentContainerStyle !== undefined)[0]!.props.contentContainerStyle).paddingBottom;
+      const room = () => laneEnd(renderer!.root.findAll((node) => typeof node.props.renderItem === "function" && node.props.contentContainerStyle !== undefined)[0]!);
       const last = () => timings.sheet().at(-1)!;
       // The height it shows: laid out at its full 792, it stands this far down.
       const height = () => 792 - (timings.sheetValue() as unknown as { __value: number }).__value;
@@ -6308,6 +6346,35 @@ describe("Tasks board, phone", () => {
       expect(host.rowRenders).toBe(before);
       await close();
     }
+  });
+
+  it.each(["ios", "android"])("%s leaves the phone's open details alone for another agent's update and for its own scroller", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const running = (id: string, title: string, updatedAt: string) => makeAgent({ id, title, status: "running", workspaceId: "ws", updatedAt, lastUserMessageAt: updatedAt });
+    const start = new Date(Date.now() - 60_000).toISOString();
+    const fake = createFakePaseo({ agents: [running("open-card", "Open card", start), running("other-card", "Other card", start)] });
+    host.liveTasks = fake.paseo;
+    await act(async () => { renderer = TestRenderer.create(screen(true)); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    const find = (id: string) => cards().find((node) => node.props.card.id === id);
+    if (!find("open-card")) await act(async () => pressable("Running 2").props.onPress());
+    await act(async () => find("open-card")!.props.onSelect(find("open-card")!.props.card));
+    const drawn = hostsById("detail-cards")[0]!.props;
+    const push = async (agent: ReturnType<typeof makeAgent>) => {
+      await act(async () => { fake.pushAgentSnapshot(agent); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    };
+    await push(running("other-card", "Other card, renamed", new Date().toISOString()));
+    expect(hostsById("detail-cards")[0]!.props).toBe(drawn);
+    // Content runs under the pinned action bar: only the bar casts its edge.
+    const scroll = hostsById("detail-tab-short-scroll")[0]!;
+    await act(async () => scroll.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 300 } } }));
+    await act(async () => scroll.props.onContentSizeChange(360, 900));
+    expect(StyleSheet.flatten(hostsById("detail-action-bar")[0]!.props.style).boxShadow).toBeTruthy();
+    expect(hostsById("detail-cards")[0]!.props).toBe(drawn);
+    await push(running("open-card", "Open card, renamed", new Date(Date.now() + 1000).toISOString()));
+    expect(hostsById("detail-cards")[0]!.props).not.toBe(drawn);
+    expect(textOf(hostsById("detail-title")[0]!)).toBe("Open card, renamed");
   });
 
   it.each(["ios", "android", "web"])("%s still updates lane rows and open details when task data changes", async (os) => {

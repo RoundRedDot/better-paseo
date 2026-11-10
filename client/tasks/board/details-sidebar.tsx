@@ -59,34 +59,40 @@ export interface DetailsSidebarProps {
  * is chosen, or the chosen card's details as one card, its header pinned and
  * the sections under it scrolling.
  */
-export const DetailsSidebar = memo(DetailsSidebarView, sameDetailsProps);
-
-/** What each render drew from the board, for `sameDetailsProps` to compare the next board with. */
-const drawn = new WeakMap<DetailsSidebarProps, { card: TaskCard | undefined; backCard: TaskCard | undefined; shown: boolean; menu: boolean }>();
+export const DetailsSidebar = memo(DetailsSidebarView);
 
 /**
- * The board fields a card's details draw nothing from while the counts are
- * not shown (the sheet): the lanes, beyond whether the card is in them, the
- * counts and the store's snapshot. Every running agent's update changes them,
- * and drew the open card again each time, 25-60 ms on an Android foldable.
- * Any other field is compared, so one added later draws the details again
- * rather than leaving them stale.
+ * The board fields a card's details draw nothing from: the lanes, beyond
+ * whether the card is in them, the counts and the store's snapshot. Every
+ * running agent's update changes them, and drew the open card again each
+ * time, 25-60 ms on an Android foldable. Any other field is compared, so one
+ * added later draws the details again rather than leaving them stale.
  */
 const DETAILS_BLIND: ReadonlySet<string> = new Set(["lanes", "hidden", "hiddenSubtasks", "total", "tasks", "searchStatus"]);
 
-function sameDetailsProps(last: DetailsSidebarProps, next: DetailsSidebarProps): boolean {
-  const keys = Object.keys(next) as (keyof DetailsSidebarProps)[];
-  if (keys.length !== Object.keys(last).length || !keys.every((key) => key === "board" || last[key] === next[key])) return false;
-  if (last.board === next.board) return true;
-  const id = next.selection.id;
-  const was = drawn.get(last);
-  if (id === null || next.stats !== false || !was || was.menu) return false;
-  const board = next.board;
-  const backId = next.selection.back[next.selection.back.length - 1];
-  if (board.cardById(id) !== was.card || (backId ? board.cardById(backId) : undefined) !== was.backCard) return false;
-  if ((findCard(board.lanes, id) !== null) !== was.shown || board.tasks.ready !== last.board.tasks.ready) return false;
-  const fields = Object.keys(board) as (keyof BoardController)[];
-  return fields.length === Object.keys(last.board).length && fields.every((key) => DETAILS_BLIND.has(key) || last.board[key] === board[key]);
+/** The board as a card's details read it: equal but for `DETAILS_BLIND` (the caller compares the card itself). */
+export function sameDetailsBoard(last: BoardController, next: BoardController): boolean {
+  if (last === next) return true;
+  if (last.tasks.ready !== next.tasks.ready) return false;
+  const fields = Object.keys(next) as (keyof BoardController)[];
+  return fields.length === Object.keys(last).length && fields.every((key) => DETAILS_BLIND.has(key) || last[key] === next[key]);
+}
+
+/** The action bar's part of a card's details: what it can do now. */
+function detailActions(board: BoardController, card: TaskCard) {
+  const stopAvailable = !!board.callbacks.onStop && (card.stoppable || activeStopChildren(card).length > 0);
+  return {
+    card,
+    language: board.language,
+    strings: board.strings.sidebar,
+    onOpen: board.callbacks.onOpen,
+    stop: stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null,
+    permissionButtons: board.buttonsFor(card),
+    onPermission: (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button),
+    unarchive: board.unarchive.available ? board.unarchive : null,
+    archive: board.archive,
+    markRead: board.read.available ? board.read : null,
+  };
 }
 
 function DetailsSidebarView(props: DetailsSidebarProps) {
@@ -95,60 +101,16 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   // Pixel-by-pixel resizes only change the browser's layout, not this subtree.
   const [layout, setLayout] = useState({ short: false, wide: false });
   const [menu, setMenu] = useState<{ id: string; point: { x: number; y: number } } | null>(null);
+  const openMenu = useCallback((id: string, point: { x: number; y: number }) => setMenu({ id, point }), []);
   const card = selection.id ? board.cardById(selection.id) : undefined;
   useParentTitle(board, card);
   const shown = card && selection.id ? findCard(board.lanes, selection.id) !== null : false;
-  const strings = board.strings.sidebar;
-
-  let notice: DetailNotice | null = null;
-  if (card && !shown) {
-    notice = { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams((params) => ({ ...clearedParams(params), hideSubtasks: false })) } };
-  }
   const backId = selection.back[selection.back.length - 1];
   const backCard = backId ? board.cardById(backId) : undefined;
-  drawn.set(props, { card, backCard, shown, menu: menu !== null });
-
-  const jump = (agentId: string) => {
-    dispatch({ type: "jump", id: agentId });
-    props.onReveal(agentId);
-  };
-  const { firstPrompt, humanMessage, lastMessage, sessionTokens } = useDetailReads(board, card);
-  const stopAvailable = !!board.callbacks.onStop && !!card && (card.stoppable || activeStopChildren(card).length > 0);
-  const detailProps = card
-    ? {
-        card,
-        searchQuery: board.params.query,
-        theme,
-        language: board.language,
-        strings,
-        touch: props.touch,
-        clock: board.clock,
-        onClose: () => dispatch({ type: "clear" }),
-        onMenu: (point: { x: number; y: number }) => setMenu({ id: card.id, point }),
-        sheetToggle: props.sheetToggle,
-        onSheetClose: props.onSheetClose,
-        back: backId ? { title: backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null,
-        notice,
-        onOpen: board.callbacks.onOpen,
-        stop: stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null,
-        permissionButtons: board.buttonsFor(card),
-        onPermission: (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button),
-        onJump: jump,
-        onSubtaskMenu: (id: string, point: { x: number; y: number }) => setMenu({ id, point }),
-        titleUpdates: board.callbacks.titleUpdates,
-        firstPrompt,
-        sessionTokens,
-        humanMessage,
-        lastMessage,
-        unarchive: board.unarchive.available ? board.unarchive : null,
-        archive: board.archive,
-        markRead: board.read.available ? board.read : null,
-      }
-    : null;
 
   const showStats = props.stats !== false;
   // The counts' summary and the groups read the same options: built once here, and only while one of them is shown.
-  const optionsShown = showStats || detailProps === null;
+  const optionsShown = showStats || card === undefined;
   const showEmpty = board.showEmptyGroups;
   const options = useMemo(() => (optionsShown ? shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty) : null), [optionsShown, board.tasks, board.params, showEmpty]);
 
@@ -156,26 +118,44 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   // the header still: the fixed part left the sections a strip of 80. There
   // the whole column scrolls as one.
   // A wide sheet lays a card out in two columns that scroll on their own, so the header stays in view.
-  const tabs = props.tabs === true && detailProps !== null;
-  const columns = !tabs && props.scrollAll === true && detailProps !== null && layout.wide;
+  const tabs = props.tabs === true && card !== undefined;
+  const columns = !tabs && props.scrollAll === true && card !== undefined && layout.wide;
   const short = !tabs && !columns && (props.scrollAll === true || layout.short);
   const content = (
     <>
       {menu && board.cardById(menu.id) ? <SidebarCardMenu board={board} card={board.cardById(menu.id)!} theme={theme} point={menu.point} onClose={() => setMenu(null)} /> : null}
       {showStats ? <StatsCard board={board} options={options!} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} /> : null}
-      {detailProps ? (
-        <TaskDetailCards key={tabs ? card?.id : undefined} {...detailProps} actions={!tabs && props.onSheetClose ? false : undefined} scrollBody={!short && !columns && !tabs} columns={columns} tabs={tabs} scrollHeader={tabs && (props.touch || layout.short || props.scrollAll === true)} />
+      {card ? (
+        <SidebarDetails
+          board={board}
+          card={card}
+          shown={shown}
+          backId={backId}
+          backCard={backCard}
+          theme={theme}
+          dispatch={dispatch}
+          onReveal={props.onReveal}
+          onMenu={openMenu}
+          touch={props.touch}
+          sheetToggle={props.sheetToggle}
+          onSheetClose={props.onSheetClose}
+          actions={!tabs && props.onSheetClose ? false : undefined}
+          scrollBody={!short && !columns && !tabs}
+          columns={columns}
+          tabs={tabs}
+          scrollHeader={tabs && (props.touch || layout.short || props.scrollAll === true)}
+        />
       ) : (
         <GroupCard board={board} options={options!} theme={theme} tokens={tokens} touch={props.touch} />
       )}
     </>
   );
-  const sheetActions = !tabs && detailProps && props.onSheetClose ? <SheetFoot><DetailActionBar {...detailProps} sidebar onClose={props.onSheetClose} /></SheetFoot> : null;
+  const sheetActions = !tabs && card && props.onSheetClose ? <SheetFoot><DetailActionBar {...detailActions(board, card)} theme={theme} sidebar onClose={props.onSheetClose} /></SheetFoot> : null;
   // Whether the column's size can change what it draws. A touch card in tabs
   // (the tablet's sheet and floating panel) ignores it: there the layout that
   // follows a card's first frame only drew the whole card again, the same,
   // for 70 ms on an Android foldable, and the sheet waited for it to slide in.
-  const layoutUsed = detailProps ? (tabs ? !(props.touch || props.scrollAll === true) : true) : props.scrollAll !== true;
+  const layoutUsed = card ? (tabs ? !(props.touch || props.scrollAll === true) : true) : props.scrollAll !== true;
   const usedNow = useRef(layoutUsed);
   usedNow.current = layoutUsed;
   // The last size measured while it was not used; taken once it is.
@@ -212,6 +192,78 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
       {columns ? <SheetScrollRoom>{content}</SheetScrollRoom> : content}
       {sheetActions}
     </View>
+  );
+}
+
+interface SidebarDetailsProps {
+  board: BoardController;
+  card: TaskCard;
+  /** In the lanes the filters leave; a hidden card says so. */
+  shown: boolean;
+  backId: string | undefined;
+  backCard: TaskCard | undefined;
+  theme: PluginTheme;
+  dispatch(action: SelectionAction): void;
+  onReveal(agentId: string): void;
+  onMenu(id: string, point: { x: number; y: number }): void;
+  touch: boolean;
+  sheetToggle?: { full: boolean; label: string; onPress(): void };
+  onSheetClose?(): void;
+  actions: false | undefined;
+  scrollBody: boolean;
+  columns: boolean;
+  tabs: boolean;
+  scrollHeader: boolean;
+}
+
+/**
+ * The chosen card's details. The column around them draws again for every
+ * board change (its counts follow the lanes); the details only for their own
+ * card or what they read of the board (`sameDetailsBoard`), in the sheet and
+ * the side panels alike.
+ */
+const SidebarDetails = memo(SidebarDetailsView, (last: SidebarDetailsProps, next: SidebarDetailsProps) => {
+  const keys = Object.keys(next) as (keyof SidebarDetailsProps)[];
+  return keys.length === Object.keys(last).length && keys.every((key) => (key === "board" ? sameDetailsBoard(last.board, next.board) : last[key] === next[key]));
+});
+
+function SidebarDetailsView(props: SidebarDetailsProps) {
+  const { board, card, dispatch } = props;
+  const strings = board.strings.sidebar;
+  const notice: DetailNotice | null = props.shown
+    ? null
+    : { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams((params) => ({ ...clearedParams(params), hideSubtasks: false })) } };
+  const { firstPrompt, humanMessage, lastMessage, sessionTokens } = useDetailReads(board, card);
+  return (
+    <TaskDetailCards
+      key={props.tabs ? card.id : undefined}
+      {...detailActions(board, card)}
+      searchQuery={board.params.query}
+      theme={props.theme}
+      touch={props.touch}
+      clock={board.clock}
+      onClose={() => dispatch({ type: "clear" })}
+      onMenu={(point) => props.onMenu(card.id, point)}
+      sheetToggle={props.sheetToggle}
+      onSheetClose={props.onSheetClose}
+      back={props.backId ? { title: props.backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null}
+      notice={notice}
+      onJump={(agentId) => {
+        dispatch({ type: "jump", id: agentId });
+        props.onReveal(agentId);
+      }}
+      onSubtaskMenu={props.onMenu}
+      titleUpdates={board.callbacks.titleUpdates}
+      firstPrompt={firstPrompt}
+      sessionTokens={sessionTokens}
+      humanMessage={humanMessage}
+      lastMessage={lastMessage}
+      actions={props.actions}
+      scrollBody={props.scrollBody}
+      columns={props.columns}
+      tabs={props.tabs}
+      scrollHeader={props.scrollHeader}
+    />
   );
 }
 

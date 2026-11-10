@@ -154,6 +154,21 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
     },
   }).current;
 
+  if (props.open && !present) {
+    // Opening: the details mount in the same commit as the board's change
+    // for the card, not in a render of their own after it (between the two,
+    // a busy JS thread ran other work for up to 50 ms on an Android foldable).
+    // Mounted below its place at the height it opens to: the first frame
+    // shows nothing, the slide everything. The values are set before the
+    // sheet's views exist, so no frame shows it in place.
+    shift.setValue(target);
+    aimed.current = target;
+    laid.current = { area: props.area, target };
+    setHidden(target);
+    slide.setValue(reduced ? 0 : full - target);
+    phase.current = "entering";
+    setPresent(true);
+  }
   useEffect(() => {
     const { slideTo, shown } = motionNow;
     if (!props.open) {
@@ -172,17 +187,8 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
       });
       return;
     }
-    if (!present) {
-      // Mounted below its place at the height it opens to: the first frame shows nothing, the slide everything.
-      shift.setValue(target);
-      aimed.current = target;
-      laid.current = { area: props.area, target };
-      setHidden(target);
-      slide.setValue(reduced ? 0 : full - target);
-      phase.current = "entering";
-      setPresent(true);
-      return;
-    }
+    // Opening from nothing is handled in the render above, in the board's own commit.
+    if (!present) return;
     // Opened again on its way out (or after a drag closed it): it comes back from where it is, at its height.
     const back = phase.current === "leaving" || phase.current === "out";
     if (back || (phase.current === "entering" && !slideRun.current && slideWait.current === null)) {

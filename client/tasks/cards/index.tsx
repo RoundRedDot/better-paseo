@@ -20,7 +20,7 @@ export {
   type TaskCardViewProps,
 } from "./task-card";
 export { cardStart, cardTimer, formatEnded } from "./card-time";
-export { DETAIL_CARD, DetailActionBar, DetailCard, RoundIcon, TaskDetailCards, detailCardFrame, type DetailCardsStrings, type DetailNotice, type TaskDetailCardsProps } from "./detail-cards";
+export { DETAIL_CARD, DetailActionBar, DetailCard, EdgeActionBar, RoundIcon, TaskDetailCards, detailCardFrame, type DetailCardsStrings, type DetailNotice, type TaskDetailCardsProps } from "./detail-cards";
 export { DETAIL_SCROLLBAR, detailGutter, detailScrollProps, OUTSIDE_INDICATOR, outsideIndicator, type DetailScrollbarKind } from "./detail-scrollbar";
 export { SUBTASK_ROWS, branchHint, breakable, foldPath, pathLines, pathTokens } from "./details-format";
 export { buildTaskTokens, taskTokens, useTaskTokens, type TaskTokens } from "./tokens";
@@ -45,3 +45,4 @@ export { BrandMark, PiMark, brandTint } from "./brand-mark";
 export { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
 export { SubtaskRow, SubtaskMetadata, type SubtaskRowProps } from "./subtask-row";
 export { ProjectIcon, identityColor, projectIconRadius, projectInitial, projectViewKey } from "./project-icon";
+export { createDetailChrome } from "./detail-chrome";

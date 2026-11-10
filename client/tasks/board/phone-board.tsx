@@ -13,7 +13,7 @@ import { FlatList, Icon, Modal, ScrollView } from "@getpaseo/plugin/client/react
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, taskControlHeight } from "../typography";
-import { DetailActionBar, StatusIcon, TaskDetailCards, taskTokens, type CardCallbacks } from "../cards";
+import { EdgeActionBar, StatusIcon, TaskDetailCards, createDetailChrome, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
 import { ActionPressable } from "../cards/action-pressable";
 import { LANE_STATUS, isHistoryLane, turnRunning, type LaneId, type LaneModel, type TaskCard } from "../model";
@@ -34,7 +34,7 @@ import { SearchQueryChip } from "./filter-bar";
 import { PhoneSearch } from "./phone-search";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
-import { useDetailReads, useParentTitle } from "./details-sidebar";
+import { sameDetailsBoard, useDetailReads, useParentTitle } from "./details-sidebar";
 import { LANE_EMPTY_ICON, sortLabel } from "./strings";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
@@ -301,6 +301,17 @@ export function PhoneBoard(props: {
     [board, theme, callbacks],
   );
   const detailsCard = sheet?.kind === "details" ? board.cardById(sheet.id) : undefined;
+  // The details' neighbours in their lane, for the sheet's stepper: the body itself draws again only for its card.
+  const detailsList = detailsCard ? board.lanes[detailsCard.lane]?.cards ?? [] : [];
+  const detailsIndex = detailsCard ? detailsList.findIndex((item) => item.id === detailsCard.id) : -1;
+  const showDetails = useCallback((id: string) => setSheet({ kind: "details", id }), []);
+  const openFromDetails = useMemo(() => {
+    const onOpen = board.callbacks.onOpen;
+    return onOpen ? (agentId: string) => {
+      setSheet(null);
+      onOpen(agentId);
+    } : undefined;
+  }, [board.callbacks.onOpen]);
   const warning = taskTokens(theme).status.warning;
 
   return (
@@ -565,15 +576,12 @@ export function PhoneBoard(props: {
                 card={detailsCard}
                 board={board}
                 theme={theme}
-                onShow={(id) => setSheet({ kind: "details", id })}
-                onOpen={
-                  board.callbacks.onOpen
-                    ? (agentId) => {
-                        setSheet(null);
-                        board.callbacks.onOpen?.(agentId);
-                      }
-                    : undefined
-                }
+                index={detailsIndex}
+                count={detailsList.length}
+                previousId={detailsList[detailsIndex - 1]?.id ?? null}
+                nextId={detailsList[detailsIndex + 1]?.id ?? null}
+                onShow={showDetails}
+                onOpen={openFromDetails}
               />
             ) : null}
           </TasksTypography>
@@ -588,30 +596,49 @@ export function PhoneBoard(props: {
  * under a bar that steps to the previous and next card of the same lane. The
  * card scrolls; its actions stay pinned at the bottom, at thumb height.
  */
-function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme: PluginTheme; onShow(id: string): void; onOpen?(agentId: string): void }) {
-  const { card, board, theme } = props;
+interface DetailsSheetBodyProps {
+  card: TaskCard;
+  board: BoardController;
+  theme: PluginTheme;
+  /** The card's place in its lane and the lane's length, for the stepper; -1 when the filters leave it out. */
+  index: number;
+  count: number;
+  previousId: string | null;
+  nextId: string | null;
+  onShow(id: string): void;
+  onOpen?(agentId: string): void;
+}
+
+/** Every running agent's update changes the board; the body draws again only for its own card (`sameDetailsBoard`). */
+const DetailsSheetBody = memo(DetailsSheetBodyView, (last: DetailsSheetBodyProps, next: DetailsSheetBodyProps) => {
+  const keys = Object.keys(next) as (keyof DetailsSheetBodyProps)[];
+  return keys.length === Object.keys(last).length && keys.every((key) => key === "board" ? sameDetailsBoard(last.board, next.board) : last[key] === next[key]);
+});
+
+function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
+  const { card, board, theme, index } = props;
   const colors = theme.colors;
   useParentTitle(board, card);
   const { firstPrompt, humanMessage, lastMessage, sessionTokens } = useDetailReads(board, card);
-  const list = board.lanes[card.lane]?.cards ?? [];
-  const index = list.findIndex((item) => item.id === card.id);
   const step = (delta: number) => {
-    const next = list[index + delta];
-    if (next) props.onShow(next.id);
+    const next = delta < 0 ? props.previousId : props.nextId;
+    if (next) props.onShow(next);
   };
   const stopAvailable = !!board.callbacks.onStop && (card.stoppable || activeStopChildren(card).length > 0);
   const stop = stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null;
   const onPermission = (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button);
-  const [contentUnderBar, setContentUnderBar] = useState(false);
+  // Whether the card's content runs under the action bar: only the bar draws again when it changes.
+  const [edge] = useState(createDetailChrome);
+  const noteEdge = useCallback((under: boolean) => edge.set({ headerUnderBar: under }), [edge]);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
-      {index >= 0 && list.length > 1 ? (
+      {index >= 0 && props.count > 1 ? (
         <View style={{ minHeight: 40, paddingHorizontal: 12, flexDirection: "row", alignItems: "center" }} testID="sheet-stepper">
           <SheetStep icon="ChevronLeft" label={board.strings.sidebar.previous} disabled={index <= 0} onPress={() => step(-1)} theme={theme} />
           <Text style={{ flex: 1, textAlign: "center", fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
-            {`${board.strings.lanes[card.lane]} · ${index + 1} / ${list.length}`}
+            {`${board.strings.lanes[card.lane]} · ${index + 1} / ${props.count}`}
           </Text>
-          <SheetStep icon="ChevronRight" label={board.strings.sidebar.next} disabled={index >= list.length - 1} onPress={() => step(1)} theme={theme} />
+          <SheetStep icon="ChevronRight" label={board.strings.sidebar.next} disabled={index >= props.count - 1} onPress={() => step(1)} theme={theme} />
         </View>
       ) : null}
       {/* Keyed by the card: a jump to the parent or a step starts on its messages. */}
@@ -643,11 +670,12 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           unarchive={board.unarchive.available ? board.unarchive : null}
           archive={board.archive}
           markRead={board.read.available ? board.read : null}
-          onScrollEdge={setContentUnderBar}
+          onScrollEdge={noteEdge}
         />
       </View>
-      <DetailActionBar
-        contentUnder={contentUnderBar}
+      <EdgeActionBar
+        chrome={edge}
+        scrollHeader
         card={card}
         theme={theme}
         language={board.language}

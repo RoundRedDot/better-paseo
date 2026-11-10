@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
+import React, { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { Animated, PanResponder, Platform, Pressable, ScrollView, View, type GestureResponderEvent, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
 import { FlatList, Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
@@ -253,6 +253,9 @@ export function DesktopBoard(props: {
   // The lanes make room once the sheet has slid in and keep it until it has slid out: their render waits for the sheet to stand still.
   const [sheetShown, setSheetShown] = useState(false);
   const sheetRoom = mode === "sheet" && sheetShown ? sheetHeight(boardHeight, detent) : 0;
+  // The lanes read it from here: a new room once the sheet is in, out or at another height drew every lane again (50-95 ms on an Android foldable).
+  const [laneRoom] = useState(createLaneRoom);
+  useLayoutEffect(() => laneRoom.set(sheetRoom), [laneRoom, sheetRoom]);
   const panelWidth = tabletFloating
     ? tabletSidebarWidth(boardWidth, floatingDragWidth ?? preference.floatingWidth)
     : sidebarWidth(boardWidth, dragWidth ?? preference.width, narrow || floating ? "floating" : "inline");
@@ -784,7 +787,7 @@ export function DesktopBoard(props: {
                       currentId={open && selectedLane === id ? selection.id : null}
                       listRef={publishList[id]}
                       breathing={breathing}
-                      bottomRoom={sheetRoom}
+                      room={laneRoom}
                       onBlank={touch ? letGo : undefined}
                       flash={flash?.lane === id ? flash : null}
                       inView={wantedLanes.includes(`|${id}|`)}
@@ -1503,7 +1506,7 @@ interface DesktopLaneProps {
   listRef(list: NativeFlatList<TaskCard> | null): void;
   breathing: Animated.Value;
   /** The bottom sheet's height over the lanes: the list scrolls its last card above it. */
-  bottomRoom: number;
+  room: LaneRoom;
   /** Touch only: a tap on the header or under the cards lets go of the selection (see `letGo`). */
   onBlank?(): void;
   /** A stat pressed for this lane: its background flashes. */
@@ -1533,6 +1536,47 @@ function sameLaneBoard(last: BoardController, next: BoardController): boolean {
 function sameLaneProps(last: DesktopLaneProps, next: DesktopLaneProps): boolean {
   const keys = Object.keys(next) as (keyof DesktopLaneProps)[];
   return keys.length === Object.keys(last).length && keys.every((key) => (key === "board" ? sameLaneBoard(last.board, next.board) : last[key] === next[key]));
+}
+
+/** How far the bottom sheet stands over the lanes, for each lane's list end and new-cards pill. */
+export interface LaneRoom {
+  get(): number;
+  set(room: number): void;
+  subscribe(listener: () => void): () => void;
+}
+
+export function createLaneRoom(): LaneRoom {
+  let room = 0;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => room,
+    set(next) {
+      if (next === room) return;
+      room = next;
+      for (const listener of [...listeners]) listener();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+function useLaneRoom(room: LaneRoom): number {
+  return useSyncExternalStore(room.subscribe, room.get, room.get);
+}
+
+/** The end of a lane's list: room to scroll its last card above the sheet. */
+function LaneRoomSpacer(props: { room: LaneRoom; lane: LaneId }) {
+  const room = useLaneRoom(props.room);
+  return room > 0 ? <View testID={`lane-room-${props.lane}`} pointerEvents="none" style={{ height: room }} /> : null;
+}
+
+/** The new-cards pill, lifted above the sheet when it points down. */
+function RoomPill(props: React.ComponentProps<typeof NewCardsPill> & { room: LaneRoom; below: boolean }) {
+  const { room: store, below, ...pill } = props;
+  const room = useLaneRoom(store);
+  return <NewCardsPill {...pill} inset={pill.inset + (below ? room : 0)} />;
 }
 
 /** A lane draws again only when its own cards, its size or what its cards show changed, not when another lane did. */
@@ -1733,7 +1777,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
           extraData={extraData}
           renderItem={renderItem}
           ItemSeparatorComponent={Separator}
-          contentContainerStyle={{ ...LANE_PAD, paddingTop: Platform.OS === "web" ? 4 : 2, paddingBottom: 8 + props.bottomRoom, ...(props.onBlank ? { flexGrow: 1 } : null) }}
+          contentContainerStyle={{ ...LANE_PAD, paddingTop: Platform.OS === "web" ? 4 : 2, paddingBottom: 8, ...(props.onBlank ? { flexGrow: 1 } : null) }}
           initialNumToRender={8}
           maxToRenderPerBatch={LANE_BATCH}
           windowSize={7}
@@ -1773,15 +1817,18 @@ function DesktopLaneView(props: DesktopLaneProps) {
               ) : null}
               <LaneFilterHint board={board} lane={lane.id} count={props.hidden} theme={theme} />
               {props.onBlank ? <Pressable accessible={false} {...blankTap.pressIn} onPress={blankTap.tap(props.onBlank)} testID={`lane-blank-${lane.id}`} style={{ flexGrow: 1, minHeight: 48 }} /> : null}
+              <LaneRoomSpacer room={props.room} lane={lane.id} />
             </>
           }
         />
       )}
       {loadingFirst ? null : (
-        <NewCardsPill
+        <RoomPill
+          room={props.room}
           count={unseen.length}
           direction={pillDirection(lane.cards, unseen, seen.firstShown())}
-          inset={pillDirection(lane.cards, unseen, seen.firstShown()) === "up" ? taskControlHeight(40, scale) + 8 : 12 + props.bottomRoom}
+          inset={pillDirection(lane.cards, unseen, seen.firstShown()) === "up" ? taskControlHeight(40, scale) + 8 : 12}
+          below={pillDirection(lane.cards, unseen, seen.firstShown()) !== "up"}
           hue={laneHue(theme, lane.id)}
           theme={theme}
           strings={strings}

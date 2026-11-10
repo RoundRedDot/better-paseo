@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo, useEffect, useReducer, useRef, useState } from "react";
+import { createDetailChrome, useDetailChrome, type DetailChrome, type DetailChromeState } from "./detail-chrome";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
@@ -245,23 +246,17 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     { tab: "messages", infoVisited: false },
   );
   const tab = tabState.tab;
-  const [tabsPinned, setTabsPinned] = useState(false);
+  // What layout and scrolling decide (pinned tabs, edges, a page's least height): only the parts that show it draw again.
+  const [chrome] = useState(createDetailChrome);
   // Each fixed tab keeps its own scroller, so both edges follow the page on screen.
   const bodyEdges = useRef({ info: emptyScrollEdge(), messages: emptyScrollEdge() });
-  const [bodyScrolled, setBodyScrolled] = useState(false);
-  const [bodyUnderBar, setBodyUnderBar] = useState(false);
   const headerEdge = useRef(emptyScrollEdge());
-  const [headerUnderBar, setHeaderUnderBar] = useState(false);
   useEffect(() => {
-    setTabsPinned(false);
     bodyEdges.current = { info: emptyScrollEdge(), messages: emptyScrollEdge() };
     headerEdge.current = emptyScrollEdge();
-    setBodyScrolled(false);
-    setBodyUnderBar(false);
-    setHeaderUnderBar(false);
-  }, [card.id, props.scrollHeader]);
+    chrome.set({ tabsPinned: false, bodyScrolled: false, bodyUnderBar: false, headerUnderBar: false });
+  }, [chrome, card.id, props.scrollHeader]);
   const tabScroll = useRef<ScrollView>(null);
-  const [tabLayout, setTabLayout] = useState({ top: 0, height: 0, viewport: 0 });
   // Native scroll bookkeeping does not need to redraw the card on every frame.
   const tabOffsets = useRef({ info: 0, messages: 0, restoring: false });
   const query = props.searchQuery?.trim().toLowerCase() ?? "";
@@ -297,28 +292,32 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     const next = { ...bodyEdges.current[id], ...patch };
     bodyEdges.current[id] = next;
     if (id !== tab) return;
-    const scrolled = next.y > 0;
-    const under = contentUnderBar(next);
-    setBodyScrolled((current) => (current === scrolled ? current : scrolled));
-    setBodyUnderBar((current) => (current === under ? current : under));
+    chrome.set({ bodyScrolled: next.y > 0, bodyUnderBar: contentUnderBar(next) });
   };
   const noteHeaderEdge = (patch: Partial<ScrollEdge>) => {
     const next = { ...headerEdge.current, ...patch };
     headerEdge.current = next;
-    const under = contentUnderBar(next);
-    setHeaderUnderBar((current) => (current === under ? current : under));
+    chrome.set({ headerUnderBar: contentUnderBar(next) });
   };
-  // Sticky tabs cast this once they pin. Fixed tabs cast it once their page has scrolled under them.
-  const tabShadow = (props.scrollHeader ? tabsPinned : bodyScrolled) ? scrollEdgeShadow(tokens.isDark, "down") : undefined;
-  const underBar = props.tabs === true && (props.scrollHeader ? headerUnderBar : bodyUnderBar);
   // A sheet changing height resizes the scroller on every frame: its viewport (a page's least height) follows once it stands still.
   const noteViewport = useAfterSheetMotion((viewport: number) => {
-    setTabLayout((current) => current.viewport === viewport ? current : { ...current, viewport });
+    chrome.set({ viewport });
     noteHeaderEdge({ viewport });
   });
   const edgeListener = useRef(props.onScrollEdge);
   edgeListener.current = props.onScrollEdge;
-  useEffect(() => { edgeListener.current?.(underBar); }, [underBar]);
+  const tabs = props.tabs === true;
+  const scrollHeader = props.scrollHeader === true;
+  useEffect(() => {
+    let last = tabs && (scrollHeader ? chrome.get().headerUnderBar : chrome.get().bodyUnderBar);
+    edgeListener.current?.(last);
+    return chrome.subscribe(() => {
+      const next = tabs && (scrollHeader ? chrome.get().headerUnderBar : chrome.get().bodyUnderBar);
+      if (next === last) return;
+      last = next;
+      edgeListener.current?.(next);
+    });
+  }, [chrome, tabs, scrollHeader]);
   if (props.tabs) {
     const messages: DetailSection[] = order.filter((section) => section === "prompt" || section === "human" || section === "message");
     // Info mounts on its first visit, then stays. Mounted with the card, the
@@ -329,27 +328,22 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
       : [];
     const TabPages = props.touch ? React.Fragment : View;
     const tabBar = (
-      // Sticky headers replace their direct child's style; keep the row one level inside.
-      <View testID="detail-tab-anchor" style={tabShadow && !props.scrollHeader ? { position: "relative", zIndex: 1 } : undefined} onLayout={props.scrollHeader ? (event) => {
+      // Sticky headers replace their direct child's style and call its onLayout: both stay props of the anchor element.
+      <DetailTabBar chrome={chrome} scrollHeader={scrollHeader} tokens={tokens} onLayout={props.scrollHeader ? (event) => {
         const { y, height } = event.nativeEvent.layout;
-        setTabLayout((current) => current.top === y && current.height === height ? current : { ...current, top: y, height });
+        chrome.set({ tabTop: y, tabHeight: height });
       } : undefined}>
-        <View accessibilityRole="tablist" testID="detail-tabs" style={{ flexDirection: "row", paddingHorizontal: 10, paddingTop: props.scrollHeader ? 8 : 0, paddingBottom: 8, gap: 6, backgroundColor: tokens.card.background, boxShadow: tabShadow }}>
           {(["info", "messages"] as const).map((id) => (
             <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={`${id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}${(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}`} onPress={() => {
               if (id === tab) return;
               // Switching pages must not reveal a header the reader already scrolled past.
-              if (props.scrollHeader) tabOffsets.current[id] = Math.max(tabOffsets.current[id], Math.min(tabOffsets.current[tab], tabLayout.top));
+              if (props.scrollHeader) tabOffsets.current[id] = Math.max(tabOffsets.current[id], Math.min(tabOffsets.current[tab], chrome.get().tabTop));
               tabOffsets.current.restoring = props.scrollHeader === true;
-              if (!props.scrollHeader) {
-                setBodyScrolled(bodyEdges.current[id].y > 0);
-                setBodyUnderBar(contentUnderBar(bodyEdges.current[id]));
-              }
+              if (!props.scrollHeader) chrome.set({ bodyScrolled: bodyEdges.current[id].y > 0, bodyUnderBar: contentUnderBar(bodyEdges.current[id]) });
               selectTab(id);
             }} />
           ))}
-        </View>
-      </View>
+      </DetailTabBar>
     );
     const parked = outsideIndicator(props.sheetToggle != null || props.indicatorOutside === true);
     return (
@@ -377,7 +371,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
               });
               if (tabOffsets.current.restoring) return;
               tabOffsets.current[tab] = offset;
-              setTabsPinned(offset > 0 && offset >= tabLayout.top);
+              chrome.set({ tabsPinned: offset > 0 && offset >= chrome.get().tabTop });
             }}
             {...detailScrollProps("inset")}
             testID="detail-tab-short-scroll"
@@ -385,22 +379,23 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} gutter={gutter} hideStatus />
             {tabBar}
             {(["info", "messages"] as const).map((id) => (
-              <View
+              <DetailTabPage
                 key={id}
-                testID={`detail-tab-${id}-content`}
-                // Keep desktop panel measurements alive while clipping the inactive page out of the shared scroll range.
-                style={!props.touch && tab !== id ? { height: 0, minHeight: 0, overflow: "hidden", ...({ visibility: "hidden" } as object) } : { display: tab === id ? "flex" : "none", minHeight: Math.max(0, tabLayout.viewport - tabLayout.height) }}
+                id={id}
+                chrome={chrome}
+                active={tab === id}
+                touch={props.touch === true}
                 onLayout={() => {
                   if (tab !== id || !tabOffsets.current.restoring) return;
                   // Restore after the newly visible page has its native layout.
                   tabScroll.current?.scrollTo({ y: tabOffsets.current[id], animated: false });
-                  setTabsPinned(tabOffsets.current[id] > 0 && tabOffsets.current[id] >= tabLayout.top);
+                  chrome.set({ tabsPinned: tabOffsets.current[id] > 0 && tabOffsets.current[id] >= chrome.get().tabTop });
                   tabOffsets.current.restoring = false;
                 }}
               >
                 {(id === "info" ? info : messages).map((section, index) => sectionView(section, index > 0))}
                 {id === "messages" ? <PendingQuestions card={card} tokens={tokens} language={props.language} /> : null}
-              </View>
+              </DetailTabPage>
             ))}
           </SheetScrollView>
           </SheetScrollRoom>
@@ -426,7 +421,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
         )}
         {props.actions !== false ? (
           <SheetFoot card={{ background: tokens.card.background, border: tokens.card.border, radius: DETAIL_CARD.radius }}>
-            <View testID="detail-action-bar-frame" style={{ paddingBottom: props.touch && props.sheetToggle && Platform.OS === "android" ? 6 : 10 }}><DetailActionBar {...props} onClose={props.onSheetClose} sidebar smallTablet={!!(props.touch && props.sheetToggle && Platform.OS === "android")} contentUnder={underBar} /></View>
+            <View testID="detail-action-bar-frame" style={{ paddingBottom: props.touch && props.sheetToggle && Platform.OS === "android" ? 6 : 10 }}><EdgeActionBar {...props} chrome={chrome} scrollHeader={scrollHeader} onClose={props.onSheetClose} sidebar smallTablet={!!(props.touch && props.sheetToggle && Platform.OS === "android")} /></View>
           </SheetFoot>
         ) : null}
       </View>
@@ -468,6 +463,48 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
 }
 
 type ScrollEdge = { y: number; viewport: number; content: number };
+
+const tabsPinnedOf = (state: DetailChromeState) => state.tabsPinned;
+const bodyScrolledOf = (state: DetailChromeState) => state.bodyScrolled;
+const headerUnderBarOf = (state: DetailChromeState) => state.headerUnderBar;
+const bodyUnderBarOf = (state: DetailChromeState) => state.bodyUnderBar;
+const leastPageOf = (state: DetailChromeState) => Math.max(0, state.viewport - state.tabHeight);
+
+/** The tab row: sticky tabs cast their shadow once they pin, fixed tabs once their page has scrolled under them. */
+function DetailTabBar(props: { chrome: DetailChrome; scrollHeader: boolean; tokens: TaskTokens; style?: ViewStyle; onLayout?(event: LayoutChangeEvent): void; children: React.ReactNode }) {
+  const shadowed = useDetailChrome(props.chrome, props.scrollHeader ? tabsPinnedOf : bodyScrolledOf);
+  const tabShadow = shadowed ? scrollEdgeShadow(props.tokens.isDark, "down") : undefined;
+  return (
+    // Sticky headers replace their direct child's style; keep the row one level inside.
+    <View testID="detail-tab-anchor" style={props.style ?? (tabShadow && !props.scrollHeader ? { position: "relative", zIndex: 1 } : undefined)} onLayout={props.onLayout}>
+      <View accessibilityRole="tablist" testID="detail-tabs" style={{ flexDirection: "row", paddingHorizontal: 10, paddingTop: props.scrollHeader ? 8 : 0, paddingBottom: 8, gap: 6, backgroundColor: props.tokens.card.background, boxShadow: tabShadow }}>
+        {props.children}
+      </View>
+    </View>
+  );
+}
+
+/** A sticky-tab page: at least the scroller's height under the tabs, so switching pages does not jump. */
+function DetailTabPage(props: { id: "info" | "messages"; chrome: DetailChrome; active: boolean; touch: boolean; onLayout(): void; children: React.ReactNode }) {
+  const least = useDetailChrome(props.chrome, leastPageOf);
+  return (
+    <View
+      testID={`detail-tab-${props.id}-content`}
+      // Keep desktop panel measurements alive while clipping the inactive page out of the shared scroll range.
+      style={!props.touch && !props.active ? { height: 0, minHeight: 0, overflow: "hidden", ...({ visibility: "hidden" } as object) } : { display: props.active ? "flex" : "none", minHeight: least }}
+      onLayout={props.onLayout}
+    >
+      {props.children}
+    </View>
+  );
+}
+
+/** The card's action bar, casting its edge while content runs under it. */
+export function EdgeActionBar(props: React.ComponentProps<typeof DetailActionBar> & { chrome: DetailChrome; scrollHeader: boolean }) {
+  const { chrome, scrollHeader, ...bar } = props;
+  const under = useDetailChrome(chrome, scrollHeader ? headerUnderBarOf : bodyUnderBarOf);
+  return <DetailActionBar {...bar} contentUnder={under} />;
+}
 
 function PendingQuestions({ card, tokens, language }: { card: TaskCard; tokens: TaskTokens; language: TasksLanguage }) {
   const questions = card.lane === "needs_input" ? card.permission?.questions : undefined;
