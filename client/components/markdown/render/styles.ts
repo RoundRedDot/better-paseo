@@ -471,6 +471,7 @@ export function buildStyles(
       borderLeftWidth: 2,
       borderLeftColor: tokens.v2.border,
       paddingLeft: space.md,
+      marginVertical: space.xs,
       gap: space.xs,
     },
     // A quote is one step quieter than the prose, upright: an italic CJK face
