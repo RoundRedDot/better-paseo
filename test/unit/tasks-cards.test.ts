@@ -2217,7 +2217,8 @@ describe("TaskCardView actions", () => {
     await act(async () => allow.unmount());
     const question = { ...input, permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 } };
     const answer = await render(cardElement(question, { compact: true, onStop: () => {}, permissionButtons: permissionButtons(question.permission!, "zh") }));
-    expect(texts(hostByTestId(answer.root, "task-card-actions"))).toEqual(["去回答", "停止"]);
+    expect(texts(hostByTestId(answer.root, "task-card-actions"))).toEqual(["停止"]);
+    expect(texts(hostByTestId(answer.root, "task-card-question-actions"))).toEqual(["去回答"]);
     expect(flat(hostByTestId(answer.root, "task-card-stop").props.style)).toMatchObject({ flexGrow: 0 });
     await act(async () => {
       const row = hostByTestId(answer.root, "task-card-actions");
@@ -4974,7 +4975,7 @@ describe("responsive task actions", () => {
       ? cardElement(card, { compact: surface === "phone card", language: "zh", permissionButtons: buttons, onPermission, onOpen() {}, onStop() {} })
       : surface === "sidebar" ? React.createElement(TaskDetailCards, { ...shared, now: NOW, touch: true }) : React.createElement(DetailActionBar, shared);
     const tree = await render(element);
-    const rowId = { card: "task-card-answer-actions", "phone card": "task-card-actions", sidebar: "detail-permission-actions", sheet: "detail-action-bar" }[surface];
+    const rowId = { card: "task-card-answer-actions", "phone card": "task-card-question-actions", sidebar: "detail-permission-actions", sheet: "detail-action-bar" }[surface];
     const row = () => hostByTestId(tree.root, rowId);
     await act(async () => {
       row().props.onLayout({ nativeEvent: { layout: { width: 60 } } });

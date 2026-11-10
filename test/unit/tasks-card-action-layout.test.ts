@@ -106,6 +106,7 @@ function phoneCard(card: TaskCard, language: Language, overrides: Partial<TaskCa
 }
 
 const row = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-actions");
+const questionRow = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-actions");
 
 /** The labels drawn in the row itself; an open menu is a separate native layer. */
 function labelsOf(node: ReactTestInstance): ReactTestInstance[] {
@@ -186,8 +187,7 @@ async function settle(item: Case, language: Language, width: number, textScale: 
 }
 
 /** What runs out of the card or loses part of a label; empty when the row fits. */
-function overflows(frames: Map<ReactTestInstance, Frame>, textScale: number): string[] {
-  const bar = row();
+function overflows(frames: Map<ReactTestInstance, Frame>, textScale: number, bar = row()): string[] {
   const box = frames.get(bar)!;
   const problems: string[] = [];
   for (const item of hostChildren(bar)) {
@@ -221,9 +221,79 @@ describe("phone card action bar under native (Yoga) layout", () => {
       });
       const frames = await settleHostLayout(row, { width, textScale, wrapText: true });
       expect(overflows(frames, textScale)).toEqual([]);
-      expect(row().findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === (language === "zh" ? "查看问题" : "View questions"))).toHaveLength(1);
+      const answerFrames = await settleHostLayout(questionRow, { width, textScale, wrapText: true });
+      expect(overflows(answerFrames, textScale, questionRow())).toEqual([]);
+      expect(questionRow().findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === (language === "zh" ? "查看问题" : "View questions"))).toHaveLength(1);
     },
   );
+  it.each(["sidebar", "sheet"] as const)("places controls before the question on the %s and preserves each action", async (surface) => {
+    const card = choice()();
+    const onOpen = vi.fn();
+    const onClose = vi.fn();
+    const onStop = vi.fn();
+    const onPermission = vi.fn();
+    const buttons = permissionButtons(card.permission!, "zh", true);
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(TaskDetailCards, {
+        card, theme: THEME as never, language: "zh", strings: BOARD_STRINGS.zh.sidebar,
+        now: NOW, touch: true, tabs: true, actions: surface === "sheet" ? false : undefined,
+        questionActionsInHeader: surface === "sheet", onSheetClose: onClose,
+        stop: { phase: "idle", onPress: onStop }, onOpen, onPermission, permissionButtons: buttons,
+      }));
+    });
+    const nodes = renderer!.root.findAll((node) => typeof node.type === "string");
+    const controls = nodes.find((node) => node.props.testID === "detail-question-controls")!;
+    const question = nodes.find((node) => node.props.testID === "detail-permission")!;
+    expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(question));
+    expect(Object.assign({}, ...[nodes.find((node) => node.props.testID === "detail-question-section")!.props.style].flat(Infinity).filter(Boolean)).borderTopWidth).toBe(0.5);
+    expect(nodes.filter((node) => node.props.testID === "detail-action-bar")).toHaveLength(0);
+    await act(async () => {
+      controls.find((node) => node.props.testID === "detail-bar-stop").props.onPress();
+      controls.find((node) => node.props.testID === "detail-bar-open").props.onPress();
+      controls.find((node) => node.props.testID === "detail-bar-close").props.onPress();
+      question.find((node) => node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "允许").props.onPress();
+    });
+    expect(onStop).toHaveBeenCalledOnce();
+    expect(onOpen).toHaveBeenCalledWith(card.id);
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onPermission).toHaveBeenCalledWith(expect.objectContaining({ label: "允许" }));
+  });
+
+  it.each((["ios", "android"] as const).flatMap((os) => [300, 340].flatMap((width) => [1, 1.8].flatMap((scale) => (["zh", "en"] as const).map((language) => [os, width, scale, language] as const)))))
+  ("fits question controls on %s at %ipt, scale %f, %s", async (os, width, textScale, language) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const card = choice()();
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: React.createElement(DetailActionBar, {
+        card, theme: THEME as never, language, strings: BOARD_STRINGS[language].sidebar,
+        controlsOnly: true, stop: { phase: "idle", onPress() {} }, onOpen() {}, onClose() {},
+        permissionButtons: permissionButtons(card.permission!, language, true), onPermission() {},
+      }) }));
+    });
+    const controls = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-question-controls");
+    const frames = await settleHostLayout(controls, { width, textScale });
+    expect(overflows(frames, textScale, controls())).toEqual([]);
+    expect(hostChildren(controls())).toHaveLength(3);
+  });
+
+  it("does not reserve an empty controls row when only the question is actionable", async () => {
+    const card = { ...question(), stoppable: false };
+    await act(async () => { renderer = TestRenderer.create(phoneCard(card, "zh", { onOpen: undefined, onStop: undefined })); });
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-actions")).toHaveLength(0);
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-question-actions")).toHaveLength(1);
+  });
+
+  it("places the phone card controls above a half-point question divider", async () => {
+    const card = choice()();
+    await act(async () => { renderer = TestRenderer.create(phoneCard(card, "zh", { onOpen() {} })); });
+    const nodes = renderer!.root.findAll((node) => typeof node.type === "string");
+    const controls = nodes.find((node) => node.props.testID === "task-card-actions")!;
+    const question = nodes.find((node) => node.props.testID === "task-card-permission")!;
+    expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(question));
+    expect(Object.assign({}, ...[question.props.style].flat(Infinity).filter(Boolean)).borderTopWidth).toBe(0.5);
+    expect(question.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-question-actions")).toHaveLength(1);
+  });
+
   it.each([true, false].flatMap((compact) => ["允许", "拒绝"].map((answer) => [compact, answer] as const)))(
     "submits %s compact confirmation answer %s without opening the task tab",
     async (compact, answer) => {
@@ -255,10 +325,12 @@ describe("phone card action bar under native (Yoga) layout", () => {
     const item = CASES.find((entry) => entry.name === "the widest CJK options beside Stop and Open")!;
     const frames = await settle(item, language, 300, 1.8);
     expect(overflows(frames, 1.8)).toEqual([]);
-    const labels = labelsOf(row());
+    const answerFrames = await settleHostLayout(questionRow, { width: 300, textScale: 1.8, wrapText: true });
+    expect(overflows(answerFrames, 1.8, questionRow())).toEqual([]);
+    const labels = labelsOf(questionRow());
     expect(labels.map((text) => text.children.join(""))).toEqual([...WIDE_CJK]);
-    for (const text of labels) expect(frames.get(text)!.height).toBeGreaterThan(Math.ceil(13 * 1.25) * 1.5);
-    const answers = hostChildren(row()).slice(0, 2).map((node) => frames.get(node)!);
+    for (const text of labels) expect(answerFrames.get(text)!.height).toBeGreaterThan(Math.ceil(13 * 1.25) * 1.5);
+    const answers = hostChildren(questionRow()).slice(0, 2).map((node) => answerFrames.get(node)!);
     expect(answers[0]!.width).toBeCloseTo(answers[1]!.width, 0);
   });
 
@@ -323,8 +395,14 @@ describe("phone card action bar under native (Yoga) layout", () => {
           const frames = await settle(item, language, width, textScale);
           expect(overflows(frames, textScale)).toEqual([]);
           // At the default text size the labels all show on the reported phone's width and wider.
+          if (item.card().permission?.kind === "question") {
+            const answerFrames = await settleHostLayout(questionRow, { width, textScale, wrapText: item.wrap });
+            expect(overflows(answerFrames, textScale, questionRow())).toEqual([]);
+          }
           if (textScale === 1 && width >= 340) {
-            expect(labelsOf(row()).map((text) => text.children.join(""))).toEqual(item.expected[language]);
+            const shown = item.card().permission?.kind === "question" ? labelsOf(questionRow()) : labelsOf(row());
+            const expected = item.card().permission?.kind === "question" ? item.expected[language].filter((label) => label !== "停止" && label !== "Stop") : item.expected[language];
+            expect(shown.map((text) => text.children.join(""))).toEqual(expected);
           }
         },
       );

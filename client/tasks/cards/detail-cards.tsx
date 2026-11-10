@@ -177,6 +177,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   compact?: boolean;
   onClose?(): void;
   onSheetClose?(): void;
+  /** Put question controls beside the question instead of in the sheet footer. */
+  questionActionsInHeader?: boolean;
   onMenu?(point: { x: number; y: number }): void;
   sheetToggle?: { full: boolean; label: string; onPress(): void };
   /** Park the native indicator in the sheet's existing horizontal padding. The phone sheet has that padding and no `sheetToggle`. */
@@ -327,6 +329,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   });
   const edgeListener = useRef(props.onScrollEdge);
   edgeListener.current = props.onScrollEdge;
+  const questionInHeader = card.permission?.kind === "question" && !!props.onPermission && (props.permissionButtons?.length ?? 0) > 0 && (props.questionActionsInHeader === true || props.tabs === true && props.actions !== false);
   const tabs = props.tabs === true;
   const scrollHeader = props.scrollHeader === true;
   useEffect(() => {
@@ -403,7 +406,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             {...detailScrollProps("inset")}
             testID="detail-tab-short-scroll"
           >
-            <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} gutter={gutter} hideStatus />
+            <DetailHeader {...props} questionActionsInHeader={questionInHeader} actions={false} m={m} tokens={tokens} now={now} time={time} gutter={gutter} hideStatus />
             {tabBar}
             {(["info", "messages"] as const).map((id) => (
               <DetailTabPage
@@ -434,7 +437,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
           </>
         ) : (
           <>
-            <DetailHeader {...props} actions={false} m={m} tokens={tokens} now={now} time={time} />
+            <DetailHeader {...props} questionActionsInHeader={questionInHeader} actions={false} m={m} tokens={tokens} now={now} time={time} />
             {tabBar}
             <TabPages {...(!props.touch ? { style: { flex: 1, minHeight: 0 } } : {})}>
               <View style={props.touch ? { flex: 1, minHeight: 0, display: tab === "info" ? "flex" : "none" } : { position: "absolute", inset: 0, ...({ visibility: tab === "info" ? "visible" : "hidden" } as object) }}>
@@ -451,7 +454,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             </TabPages>
           </>
         )}
-        {props.actions !== false ? (
+        {props.actions !== false && !questionInHeader ? (
           <SheetFoot card={{ background: tokens.card.background, border: tokens.card.border, radius: DETAIL_CARD.radius }}>
             <View testID="detail-action-bar-frame" style={{ paddingBottom: props.touch && props.sheetToggle && Platform.OS === "android" ? 6 : 10 }}><EdgeActionBar {...props} chrome={chrome} scrollHeader={scrollHeader} onClose={props.onSheetClose} sidebar smallTablet={!!(props.touch && props.sheetToggle && Platform.OS === "android")} /></View>
           </SheetFoot>
@@ -663,6 +666,7 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
   const iconSize = props.compact ? 12 : 11;
   const chipHeight = props.compact ? TOUCH_CARD.chip : DETAIL_CARD.chip;
   const hero = detailHero(card);
+  const questionInHeader = props.questionActionsInHeader === true && card.permission?.kind === "question" && !!props.onPermission && (props.permissionButtons?.length ?? 0) > 0;
   const mode = card.modeLabel ? modeIcon(card.provider, card.modeLabel) : null;
   const stop = stopLabel(props);
   // An archived task can be brought back; one of an archived workspace has nothing of its own to unarchive.
@@ -899,9 +903,10 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
           {touch ? lead : null}
         </ActionRow>
       ) : null}
-      <View style={{ marginTop: 12 }}>
+      {questionInHeader ? <DetailActionBar {...props} controlsOnly onClose={props.onSheetClose} /> : null}
+      <View testID={card.permission?.kind === "question" ? "detail-question-section" : undefined} style={{ marginTop: 12, ...(card.permission?.kind === "question" ? { paddingTop: 12, borderTopWidth: 0.5, borderTopColor: tokens.border } : null) }}>
         {hero === "turn" ? <RunningTurn {...props} /> : null}
-        {hero === "permission" ? <PermissionBlock {...props} /> : null}
+        {hero === "permission" ? <PermissionBlock {...props} actions={questionInHeader ? true : props.actions} /> : null}
         {hero === "error" ? <ErrorBlock {...props} /> : null}
         {hero === "summary" ? <SummaryTiles tiles={summaryTiles(card, props.now, props.language)} tokens={tokens} touch={touch} /> : null}
       </View>
@@ -2199,6 +2204,7 @@ export function DetailActionBar(props: {
   flushBottom?: boolean;
   /** The page still runs under this bar, so it casts the same edge the tabs do. */
   contentUnder?: boolean;
+  controlsOnly?: boolean;
 }) {
   const { card } = props;
   const onOpen = opensInPaseo(card) ? props.onOpen : undefined;
@@ -2224,6 +2230,17 @@ export function DetailActionBar(props: {
   // Deny first, allow last: the main button sits under the thumb.
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
   const pairedOpen = !!props.onClose && (ownOpen || parentOpens) && !answer;
+  if (props.controlsOnly) {
+    const showOpen = !buttons.some((button) => button.kind === "open");
+    return (
+      <ActionRow testID="detail-question-controls" style={{ marginTop: 12, justifyContent: "flex-end" }}>
+        {stop && props.stop ? <BarButton tokens={tokens} sidebar={props.sidebar} icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"} look="danger" label={stop} busy={props.stop.phase === "stopping"} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" /> : null}
+        {showOpen && parentOpens ? <BarButton tokens={tokens} sidebar={props.sidebar} icon="CornerLeftUp" label={cardText.openParent} grow={false} onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" /> : null}
+        {showOpen && ownOpen ? <BarButton tokens={tokens} sidebar={props.sidebar} arrow label={openText} grow={false} onPress={open} testID="detail-bar-open" /> : null}
+        {props.onClose ? <BarButton tokens={tokens} sidebar={props.sidebar} icon="X" label={props.strings.close} grow={false} onPress={props.onClose} testID="detail-bar-close" /> : null}
+      </ActionRow>
+    );
+  }
   return (
     <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: 12, paddingTop: (props.smallTablet ? 6 : 10) + (Platform.OS === "web" ? 0 : 4), paddingBottom: Platform.OS === "web" || props.flushBottom ? 0 : 4, alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border, zIndex: props.contentUnder ? 1 : undefined, boxShadow: props.contentUnder ? scrollEdgeShadow(tokens.isDark, "up") : undefined, ...(props.onClose ? { flexWrap: "wrap", justifyContent: "flex-end" } : null) }}>
       {asking ? (

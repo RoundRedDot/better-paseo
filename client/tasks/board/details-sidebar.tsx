@@ -140,6 +140,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
           touch={props.touch}
           sheetToggle={props.sheetToggle}
           onSheetClose={props.onSheetClose}
+          questionActionsInHeader={!tabs && !!props.onSheetClose}
           actions={!tabs && props.onSheetClose ? false : undefined}
           scrollBody={!short && !columns && !tabs}
           columns={columns}
@@ -152,7 +153,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
       )}
     </>
   );
-  const sheetActions = !tabs && card && props.onSheetClose ? <SheetFoot><DetailActionBar {...detailActions(board, card)} theme={theme} sidebar onClose={props.onSheetClose} /></SheetFoot> : null;
+  const sheetActions = !tabs && card && props.onSheetClose && !(card.permission?.kind === "question" && board.buttonsFor(card).length > 0) ? <SheetFoot><DetailActionBar {...detailActions(board, card)} theme={theme} sidebar onClose={props.onSheetClose} /></SheetFoot> : null;
   // Whether the column's size can change what it draws. A touch card in tabs
   // (the tablet's sheet and floating panel) ignores it: there the layout that
   // follows a card's first frame only drew the whole card again, the same,
@@ -211,6 +212,7 @@ interface SidebarDetailsProps {
   touch: boolean;
   sheetToggle?: { full: boolean; label: string; onPress(): void };
   onSheetClose?(): void;
+  questionActionsInHeader?: boolean;
   actions: false | undefined;
   scrollBody: boolean;
   columns: boolean;
@@ -249,6 +251,7 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
       onMenu={(point) => props.onMenu(card.id, point)}
       sheetToggle={props.sheetToggle}
       onSheetClose={props.onSheetClose}
+      questionActionsInHeader={props.questionActionsInHeader}
       back={props.backId ? { title: props.backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null}
       notice={notice}
       onJump={(agentId) => {

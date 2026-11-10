@@ -683,6 +683,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           scrollHeader
           indicatorOutside
           actions={false}
+          questionActionsInHeader
           clock={board.clock}
           onOpen={props.onOpen}
           stop={stop}
@@ -701,7 +702,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           onScrollEdge={noteEdge}
         />
       </View>
-      <EdgeActionBar
+      {card.permission?.kind !== "question" || board.buttonsFor(card).length === 0 ? <EdgeActionBar
         chrome={edge}
         scrollHeader
         flushBottom={Platform.OS === "ios"}
@@ -717,7 +718,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
         archive={board.archive}
         markRead={board.read.available ? board.read : null}
         markUnread={board.unread ?? null}
-      />
+      /> : null}
     </View>
   );
 }
