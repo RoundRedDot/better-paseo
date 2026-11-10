@@ -136,9 +136,11 @@ export function layoutCeil(width: number): number {
 
 /**
  * Measure the untruncated label once per text/typography change, retaining it
- * while icon-only. `keep` marks the row's main answer, folded last.
+ * while icon-only. `keep` marks the row's main answer, folded last. A
+ * `labelOnly` button (a question's written option) has no icon to fold to and
+ * is never cut: the others fold first, then its label wraps onto more lines.
  */
-export function useActionFit(label: string, typography: string, iconWidth: number, chromeWidth: number, square = false, keep = false) {
+export function useActionFit(label: string, typography: string, iconWidth: number, chromeWidth: number, square = false, keep = false, labelOnly = false) {
   const context = useContext(ActionContext);
   const id = useId();
   const key = `${label}|${typography}`;
@@ -153,9 +155,9 @@ export function useActionFit(label: string, typography: string, iconWidth: numbe
   const register = context?.register;
   const index = context?.index ?? 0;
   useLayoutEffect(() => {
-    if (register && full !== null) return register({ id, index, full, icon: iconWidth, keep });
-  }, [register, id, index, full, iconWidth, keep]);
-  const iconOnly = square || (full !== null && context?.folded.has(id) === true);
+    if (register && full !== null) return register({ id, index, full, icon: labelOnly ? full : iconWidth, keep });
+  }, [register, id, index, full, iconWidth, keep, labelOnly]);
+  const iconOnly = square || (!labelOnly && full !== null && context?.folded.has(id) === true);
   const labelLayout = context ? (event: LayoutChangeEvent) => {
     const width = Math.max(layoutCeil(event.nativeEvent.layout.width), labelWidths.get(cacheKey) ?? 0);
     labelWidths.set(cacheKey, width);
@@ -167,6 +169,6 @@ export function useActionFit(label: string, typography: string, iconWidth: numbe
   } : undefined;
   const style: ViewStyle | undefined = context ? iconOnly
     ? { width: iconWidth, minWidth: iconWidth, flexGrow: 0, flexShrink: 0, paddingHorizontal: 0 }
-    : { minWidth: full ?? iconWidth, flexShrink: 0 } : undefined;
-  return { iconOnly, labelLayout, style, full, labelStyle: context ? { flexShrink: 0 as const } : undefined };
+    : labelOnly ? { minWidth: 0, flexShrink: 1 } : { minWidth: full ?? iconWidth, flexShrink: 0 } : undefined;
+  return { iconOnly, labelLayout, style, full, labelStyle: context ? { flexShrink: labelOnly ? 1 : 0 } : undefined };
 }

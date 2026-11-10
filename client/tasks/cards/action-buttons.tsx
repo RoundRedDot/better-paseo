@@ -36,6 +36,8 @@ export function CardButton(props: {
   arrow?: boolean;
   /** The parent card's hover-hint key while this action has no visible label. */
   hint?: string;
+  /** A question's written option: no icon, so its label never folds away. */
+  labelOnly?: boolean;
   onPress(): void;
   testID?: string;
 }) {
@@ -53,7 +55,7 @@ export function CardButton(props: {
   const baseHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : cardButtonHeight();
   const height = taskControlHeight(baseHeight, scale);
   const hasIcon = !!props.icon || props.busy || answer || props.arrow;
-  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, baseHeight, 2 * (compact ? 12 : 10) + (hasIcon ? size + 4 : 0) + 1, forcedSquare, kind === "primary");
+  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, baseHeight, 2 * (compact ? 12 : 10) + (hasIcon ? size + 4 : 0) + 1, forcedSquare, kind === "primary", props.labelOnly);
   const square = fit.iconOnly;
   return (
     <ActionPressable
@@ -67,7 +69,9 @@ export function CardButton(props: {
       testID={props.testID}
       style={({ pressed }) => ({
         // A phone's button grows with a large system font.
-        ...(compact ? { minHeight: COMPACT_CARD_BUTTON_HEIGHT, paddingVertical: 4, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height } : { height }),
+        ...(compact ? { minHeight: COMPACT_CARD_BUTTON_HEIGHT, paddingVertical: 4, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height }
+          // A written option may wrap, so it grows taller rather than wider.
+          : props.labelOnly ? { minHeight: height, paddingVertical: 4 } : { height }),
         ...(compact && props.hug ? { flexGrow: 0 } : null),
         ...(square ? { width: taskControlHeight(COMPACT_CARD_BUTTON_HEIGHT, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
         paddingHorizontal: square ? 0 : compact ? 12 : 10,
@@ -90,7 +94,7 @@ export function CardButton(props: {
         <Icon name={props.icon} size={size} color={color} />
       ) : null}
       {square ? null : (
-        <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
+        <Text onLayout={fit.labelLayout} numberOfLines={props.labelOnly ? undefined : 1} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
           {props.label}
         </Text>
       )}

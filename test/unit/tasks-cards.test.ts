@@ -4894,6 +4894,42 @@ describe("responsive task actions", () => {
     expect(icons(byLabel(row(), "Deny"))).toEqual(["X"]);
   });
 
+  // A question's options are its own words: no Check or X, never folded to an
+  // icon, in the request's order, each answering with its label as written.
+  it.each(["card", "phone card", "sidebar", "sheet"] as const)("keeps a question's written options whole and in order on the %s", async (surface) => {
+    const asking = previewSampleCards(NOW).find((item) => item.id === "sample-question")!;
+    const options = ["先不要改", "Go ahead"];
+    const card: TaskCard = { ...asking, permission: { ...asking.permission!, summary: "按上述方案执行吗？", questions: [{
+      id: "0", header: "Question 1", question: "按上述方案执行吗？", multiSelect: false, options: options.map((label) => ({ label })),
+    }] } };
+    const buttons = permissionButtons(card.permission!, "zh");
+    const pressed: string[] = [];
+    const onPermission = (...args: unknown[]) => { pressed.push((args.at(-1) as { answers?: Record<string, string> }).answers!["Question 1"]!); };
+    const shared = { card, theme: LIGHT, language: "zh" as const, strings: BOARD_STRINGS.zh.sidebar, permissionButtons: buttons, onPermission, onOpen() {}, stop: { phase: "idle" as const, onPress() {} } };
+    const element = surface === "card" || surface === "phone card"
+      ? cardElement(card, { compact: surface === "phone card", language: "zh", permissionButtons: buttons, onPermission, onOpen() {}, onStop() {} })
+      : surface === "sidebar" ? React.createElement(TaskDetailCards, { ...shared, now: NOW, touch: true }) : React.createElement(DetailActionBar, shared);
+    const tree = await render(element);
+    const rowId = { card: "task-card-answer-actions", "phone card": "task-card-actions", sidebar: "detail-permission-actions", sheet: "detail-action-bar" }[surface];
+    const row = () => hostByTestId(tree.root, rowId);
+    await act(async () => {
+      row().props.onLayout({ nativeEvent: { layout: { width: 60 } } });
+      for (const label of row().findAll((node) => (node.type as unknown) === "Text" && typeof node.props.onLayout === "function")) {
+        label.props.onLayout({ nativeEvent: { layout: { width: 80 } } });
+      }
+    });
+    const answers = row().findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && options.includes(node.props.accessibilityLabel));
+    expect(answers.map((node) => node.props.accessibilityLabel)).toEqual(options);
+    for (const [index, answer] of answers.entries()) {
+      expect(texts(answer)).toEqual([options[index]]);
+      expect(icons(answer)).toEqual([]);
+      await act(async () => answer.props.onPress());
+    }
+    expect(pressed).toEqual(options);
+    // A free-text answer still goes through the agent tab.
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === cardStrings("zh").openTab)).not.toHaveLength(0);
+  });
+
   it.each([false, true])("folds a child card's actions and restores them after resizing (compact=%s)", async (compact) => {
     const card = sample("sample-child-1");
     const onOpen = vi.fn();

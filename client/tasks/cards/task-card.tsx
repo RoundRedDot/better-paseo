@@ -2075,12 +2075,15 @@ export function ActionButton(props: {
   const { button } = props;
   const answer = button.kind === "open";
   const look = requestLook(button);
+  // A question's option is shown as written: no Check or X reads a meaning into it.
+  const option = !!button.answers;
   return (
     <CardButton
       label={answer ? button.label.replace(/\s*\u2197\s*$/, "") : button.label}
       accessibilityLabel={button.label}
       look={look}
-      icon={answer ? null : button.action.behavior === "allow" ? "Check" : "X"}
+      icon={answer || option ? null : button.action.behavior === "allow" ? "Check" : "X"}
+      labelOnly={option}
       tokens={props.tokens}
       compact={props.compact}
       disabled={props.disabled}

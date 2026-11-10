@@ -7,6 +7,7 @@ import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { fallbackLabelColor } from "../../client/tasks/label-colors";
+import { permissionButtons, respondToPermission } from "../../client/tasks/actions";
 import { cardStart, cardTimer, formatEnded } from "../../client/tasks/cards/card-time";
 import { at, createFakePaseo, makeAgent, makePlacement, makeWorkspace } from "./helpers/fake-paseo";
 import "./helpers/quiet-renderer";
@@ -692,6 +693,47 @@ function recentIso(ageMs: number) {
 }
 
 describe("Tasks data store", () => {
+  // The request in the 2026-11-10 report, exactly as the daemon's CodexAsyncQuestions
+  // hands it over: the model wrote only the title and option strings.
+  it.each([["允许", "拒绝"], ["Not yet", "Go ahead"]])("answers a Codex async question with options %j from the card", async (...labels) => {
+    const title = "是否允许按上述范围实施结构化快捷回答，包括普通二选一题也可能显示按钮？";
+    const fake = createFakePaseo({
+      agents: [activeAgent("asking", { provider: "codex", status: "running", pendingPermissions: [{
+        id: "permission-item-1", provider: "codex", name: "request_user_input_async", kind: "question", title: "Question",
+        input: { questions: [{ id: "0", header: "Question 1", question: title, options: labels.map((label) => ({ label })), isOther: true }] },
+      }] })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      const permission = mounted.current.byId.get("asking")!.permission!;
+      expect(permission).toMatchObject({ requestId: "permission-item-1", kind: "question", summary: title,
+        questions: [{ id: "0", header: "Question 1", question: title, multiSelect: false, options: labels.map((label) => ({ label })) }] });
+      const buttons = permissionButtons(permission, "zh");
+      expect(buttons.map((button) => [button.label, button.kind])).toEqual(labels.map((label) => [label, "respond"]));
+      await respondToPermission(fake.paseo, "asking", buttons[1]!, permission.requestId);
+      expect(fake.permissionResponses).toEqual([{ agentId: "asking", requestId: "permission-item-1",
+        response: { behavior: "allow", updatedInput: { answers: { "Question 1": labels[1] } } } }]);
+    } finally { mounted.unmount(); }
+  });
+
+  // Codex request_user_input (Plan mode) requires a description on each option, which a card cannot show.
+  it("leaves a Codex question whose options carry descriptions to the agent tab", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("asking", { provider: "codex", status: "running", pendingPermissions: [{
+        id: "permission-item-2", provider: "codex", name: "request_user_input", kind: "question", title: "Question",
+        input: { questions: [{ id: "plan_scope", header: "Scope", question: "Ship both fixes?", options: [
+          { label: "Both", description: "One release for the two fixes" }, { label: "First only", description: "Hold the second" },
+        ] }] },
+      }] })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(permissionButtons(mounted.current.byId.get("asking")!.permission!).map((button) => button.kind)).toEqual(["open"]);
+    } finally { mounted.unmount(); }
+  });
+
   it("retains the full pending Claude question and options for details", async () => {
     const fake = createFakePaseo({
       agents: [activeAgent("asking", { provider: "claude", status: "running", pendingPermissions: [{
