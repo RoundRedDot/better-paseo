@@ -116,8 +116,6 @@ export interface CardTokens {
   readHover: string;
   /** Its label and icon: the green, readable at 4.5:1 on the card and on the green wash. */
   readText: string;
-  /** Mark unread's frame: the running blue, so it is not another green button. */
-  unreadBorder: string;
   /** Archive: yellow, distinct from the warning orange. */
   archiveBorder: string;
   archiveHover: string;
@@ -260,7 +258,6 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     readBorder: mix(background, green, isDark ? 0.45 : 0.4),
     readHover,
     readText: readableOn(green, [background, readHover], fg),
-    unreadBorder: isDark ? STATUS_DARK.running : STATUS_LIGHT.running,
     archiveBorder: yellow,
     archiveHover,
     archiveText: readableOn(yellow, [background, archiveHover], fg),

@@ -677,7 +677,7 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
       disabled={!!taskOperationIssue(card, "unarchive")}
     />
   ) : null;
-  // Mark unread sits immediately left of Archive. The frame, label and dot share the running blue.
+  // Mark unread sits immediately left of Archive. The frame and label are the review lane's green; the dot is that lane's mark.
   const unreadButton = unread ? (
     <OutlineButton
       glyph={(color, size) => <UnreadIcon size={size} color={color} />}

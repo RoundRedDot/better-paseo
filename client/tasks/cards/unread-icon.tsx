@@ -1,19 +1,17 @@
 import React from "react";
 import { View } from "react-native";
+import { statusMarkSize } from "./status-icon";
 
 /**
- * Mark as unread. Reeder's unread mark is one filled circle, so this is that
- * disc and nothing else. Drawn from Views, like the status dot: the card
- * sandbox has no SVG. The button paints it in the running blue, the same blue
- * as its frame; a menu row paints it in the row's muted colour.
- *
- * Measured on a 24-unit box. The 14-unit disc is centred, so at 13px it reads
- * as a list bullet beside the label rather than a second outlined icon.
+ * Mark as unread. The review lane's unread mark: StatusIcon's filled dot,
+ * 6px at the 12px mark, scaled by `statusMarkSize`. Drawn from Views, like
+ * that dot: the card sandbox has no SVG. The button paints it in the lane's
+ * success green; a menu row paints it in the row's muted colour.
  */
 export function UnreadIcon(props: { size: number; color: string }) {
   const { size, color } = props;
-  const disc = (size * 14) / 24;
-  const inset = (size - disc) / 2;
+  const dot = (6 * statusMarkSize(size)) / 12;
+  const inset = (size - dot) / 2;
   return (
     <View testID="unread-icon" accessible={false} style={{ width: size, height: size }}>
       <View
@@ -21,9 +19,9 @@ export function UnreadIcon(props: { size: number; color: string }) {
           position: "absolute",
           left: inset,
           top: inset,
-          width: disc,
-          height: disc,
-          borderRadius: disc / 2,
+          width: dot,
+          height: dot,
+          borderRadius: dot / 2,
           backgroundColor: color,
         }}
       />

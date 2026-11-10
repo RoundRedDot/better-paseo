@@ -2103,9 +2103,9 @@ describe("TaskCardView actions", () => {
     const tree = await render(cardElement(done, { onOpen: vi.fn(), onArchive: vi.fn(), onUnread }));
     expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["标为未读", "归档", "打开"]);
     expect(hostByTestId(tree.root, "task-card-unread").findAll((node) => typeof node.type === "string" && node.props.testID === "unread-icon")).toHaveLength(1);
-    const green = taskTokens(LIGHT).card;
-    expect(flat(hostByTestId(tree.root, "task-card-unread").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: green.unreadBorder });
-    expect(hostByTestId(tree.root, "task-card-unread").findAll((node) => (node.type as unknown) === "Text")[0]!.props.style.color).toBe(green.unreadBorder);
+    const lane = taskTokens(LIGHT).status.success;
+    expect(flat(hostByTestId(tree.root, "task-card-unread").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: lane });
+    expect(hostByTestId(tree.root, "task-card-unread").findAll((node) => (node.type as unknown) === "Text")[0]!.props.style.color).toBe(lane);
     hostByTestId(tree.root, "task-card-unread").props.onPress();
     expect(onUnread).toHaveBeenCalledWith(done);
 
@@ -3409,7 +3409,7 @@ describe("TaskDetailCards", () => {
     expect(order).toEqual(["detail-open", "detail-unread", "detail-archive"]);
     expect(texts(hostByTestId(tree.root, "detail-unread"))).toEqual(["标为未读"]);
     expect(hostByTestId(tree.root, "detail-unread").findAll((node) => typeof node.type === "string" && node.props.testID === "unread-icon")).toHaveLength(1);
-    expect(flat(hostByTestId(tree.root, "detail-unread").props.style)).toMatchObject({ borderColor: taskTokens(LIGHT).card.unreadBorder });
+    expect(flat(hostByTestId(tree.root, "detail-unread").props.style)).toMatchObject({ borderColor: taskTokens(LIGHT).status.success });
     await act(async () => hostByTestId(tree.root, "detail-unread").props.onPress());
     expect(markUnread.press).toHaveBeenCalledWith(done);
 
