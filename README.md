@@ -47,6 +47,11 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 - **Block details.** Read any tool, thought, checklist or code block in a panel, step through the
   turn's blocks from its header, and follow a streaming block's tail. See
   [Block details](#block-details).
+- **Fold completed work (preview).** Enable **Auto-collapse completed work** in Settings to collect a
+  finished turn's thoughts and tool calls behind one expandable row, including failures. The
+  summary reports failed steps; replies and questions stay visible. This setting is off by default
+  and requires the proposed Paseo transformer identity API. Paseo 0.15.4 keeps all rows visible;
+  see [the compatibility note](docs/turn-work-compatibility.md).
 - **Block-by-block streaming replies.** Finished Markdown blocks are cached while growing code and
   tables are repaired.
 - **Tasks board.** Every agent on the host by state (waiting, running, to review, done and

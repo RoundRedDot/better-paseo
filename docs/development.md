@@ -32,6 +32,27 @@ better-paseo/
 
 ## Commands
 
+Completed work folding lives in `client/state/turn-work.ts` (canonical source identity and
+completed-turn membership), `client/state/turn-work-projection.ts` (agent-scoped groups and removal
+of collapsed host cells), and `client/components/turn-work.tsx` (the disclosure). It shares
+`turn-footers.ts`'s per-agent observation, page reader and recorded boundaries. Source records with
+ambiguous identities, partial history and failed reads remain visible. Thoughts and finished tools,
+including failures, fold; messages, checklists and interactive calls retain their own renderers.
+The opt-in `autoCollapseTurnWork` setting is stored in the host presentation record. A manual
+expansion uses the existing disclosure store and survives row remounts for the current client.
+The footer store publishes group snapshots directly; renderers never bind transform input objects
+or trigger projection from their mount lifecycle. Projection requires host-provided `agentId`,
+`sourceId` and `sourceCursor`. It matches the cursor's epoch and exact sequence to the canonical
+entry's epoch and `seqEnd`; content and timestamp alone are insufficient. Without that identity
+it returns the original transform result unchanged. Replacement
+IDs are left to Paseo, and summary data carries its counts even while history is unavailable.
+When all visible members unmount and the summary is offscreen, an admitted group retains only
+its existing event observation. It does not refetch in the background. A turn lifecycle event,
+replacement, reconnect, disabling the feature, or unloading the plugin releases that observation
+and restores the original rows. Admission shares the projection registry's capacity bound.
+This preview needs an upstream API change and does not fold on Paseo 0.15.4; see
+[compatibility and validation](turn-work-compatibility.md).
+
 ```bash
 npm install
 npm run typecheck

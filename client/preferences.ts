@@ -105,6 +105,8 @@ export interface EnhancerPreferences {
    */
   blockFontSize: number;
   toolDetail: ToolDetailPreference;
+  /** Fold completed turns' thoughts and successful tools behind one disclosure. */
+  autoCollapseTurnWork: boolean;
   pathDisplay: PathDisplayPreference;
   /** Show desktop hover previews for collapsed rows and file paths. */
   hoverPreview: boolean;
@@ -221,6 +223,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   codeFontSize: null,
   blockFontSize: BLOCK_FONT_SIZE_DEFAULT,
   toolDetail: "collapsed",
+  autoCollapseTurnWork: false,
   pathDisplay: "relative",
   hoverPreview: true,
   hoverDelaySeconds: HOVER_DELAY_DEFAULT,

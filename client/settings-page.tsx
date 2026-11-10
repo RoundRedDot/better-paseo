@@ -937,6 +937,19 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           }
           look={look}
         />
+        <SettingRow
+          title={t.autoCollapseTurnWorkTitle}
+          description={t.autoCollapseTurnWorkDescription}
+          control={
+            <Toggle
+              value={preferences.autoCollapseTurnWork}
+              onChange={(autoCollapseTurnWork) => updateEnhancerPreferences({ autoCollapseTurnWork })}
+              label={t.autoCollapseTurnWorkTitle}
+              look={look}
+            />
+          }
+          look={look}
+        />
       </Section>
 
       <Section title={t.sectionSpacing} look={look} hidden={!chat}>

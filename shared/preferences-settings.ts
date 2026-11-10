@@ -135,6 +135,7 @@ export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrate
     .transform(clampBlockFontSize)
     .catch(BLOCK_FONT_SIZE_DEFAULT),
   toolDetail: z.enum(TOOL_DETAILS).catch("collapsed"),
+  autoCollapseTurnWork: flag(false),
   pathDisplay: z.enum(PATH_DISPLAYS).catch("relative"),
   hoverPreview: flag(true),
   hoverDelaySeconds: z

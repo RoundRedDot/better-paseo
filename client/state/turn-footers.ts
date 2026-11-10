@@ -4,11 +4,22 @@ import { useRpc } from "@getpaseo/plugin/client";
 import { turnUsageRpc, type RecordedTurn } from "../../shared/turn-usage-rpc";
 import { createAgentTimelinePageReader, getAgentTimelinePageReader, type AgentTimelinePageReader } from "./agent-timeline-page-reader";
 import { completedTurnFooters, startsTurn, type CompletedTurnFooter, type Entry, type TurnMarks } from "./turn-duration";
+import { completedTurnWork, turnWorkCursorKey, turnWorkItemKey, type TurnWorkGroup } from "./turn-work";
+import { updateTurnWorkGroups } from "./turn-work-projection";
 
 type Timeline = Pick<PaseoAgentTimelineHandle, "refetch" | "subscribe">;
-interface Target { at: number; text: string }
+interface Target { at: number; text: string; workKey?: string }
 type Footers = Map<number, Map<string, CompletedTurnFooter>>;
 type Usage = NonNullable<CompletedTurnFooter["usage"]>;
+
+let keepWorkObservations = false;
+const dormantWorkObservers = new Set<() => void>();
+
+/** A folded, virtualized turn must not remove its own last event observer. */
+export function configureTurnWorkObservations(enabled: boolean): void {
+  keepWorkObservations = enabled;
+  if (!enabled) for (const release of [...dormantWorkObservers]) release();
+}
 
 /**
  * A recorded turn ends at most this far before its last timeline item and this
@@ -58,7 +69,8 @@ function turnMarks(turns: readonly RecordedTurn[], from: number): TurnMarks | un
  * prompt started and splits history reloaded without turn IDs.
  */
 export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (since: number) => Promise<RecordedTurn[]>,
-  pageReader: AgentTimelinePageReader = createAgentTimelinePageReader()) {
+  pageReader: AgentTimelinePageReader = createAgentTimelinePageReader(),
+  onWorkChange?: (work: ReadonlyMap<string, TurnWorkGroup>) => boolean | void) {
   const targets = new Set<Target>();
   const listeners = new Set<() => void>();
   const usageByTurn = new Map<string, Usage>();
@@ -67,6 +79,14 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
   let recordedSince = Infinity;
   let observers = 0;
   let footers: Footers = new Map();
+  let work = new Map<string, TurnWorkGroup>();
+  let workAdmitted = false;
+  const setWork = (next: Map<string, TurnWorkGroup>) => {
+    work = next;
+    // Production admission shares the projection registry's capacity bound.
+    // Standalone stores without a publisher still expose their work snapshot.
+    workAdmitted = onWorkChange?.(work) !== false && work.size > 0;
+  };
   let entries: Entry[] = [];
   /** The loaded entries begin at the agent's first item. */
   let fromStart = false;
@@ -76,6 +96,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
   let dirty = false;
   let pending: Promise<void> | null = null;
   const coverage = new WeakMap<Entry[], Map<number, Map<string, boolean>>>();
+  const workCoverage = new WeakMap<Entry[], Map<string, boolean>>();
   const publish = () => { for (const listener of listeners) listener(); };
   const get = (at: number, text: string) => footers.get(at)?.get(text) ?? null;
 
@@ -84,10 +105,13 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
     let indexed = coverage.get(items);
     if (!indexed) {
       indexed = new Map();
+      const workIndex = new Map<string, boolean>();
       let start = 0;
       for (let index = 0; index < items.length; index++) {
         if (index > 0 && startsTurn(items[index - 1]!, items[index]!)) start = index;
         const entry = items[index]!;
+        const workKey = turnWorkItemKey(entry.item, Date.parse(entry.timestamp));
+        if (workKey) workIndex.set(turnWorkCursorKey(workKey, entry.seqEnd), start > 0 || items[0]!.item.type === "user_message");
         if (entry.item.type !== "assistant_message") continue;
         const at = Date.parse(entry.timestamp);
         let texts = indexed.get(at);
@@ -97,10 +121,11 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
           start > 0 || items[0]!.item.type === "user_message");
       }
       coverage.set(items, indexed);
+      workCoverage.set(items, workIndex);
     }
     const lastAt = items.length ? Date.parse(items[items.length - 1]!.timestamp) : NaN;
     for (const target of targets) {
-      const complete = indexed.get(target.at)?.get(target.text);
+      const complete = target.workKey ? workCoverage.get(items)?.get(target.workKey) : indexed.get(target.at)?.get(target.text);
       if (complete === undefined) {
         // New replies in the active turn wait for its terminal event. They
         // must not fetch history again for each intermediate model message.
@@ -187,6 +212,21 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       at.set(footer.text, value);
     }
     footers = next;
+    const nextWork = [...targets].some((target) => target.workKey)
+      ? completedTurnWork(items, completed, epoch, { marks, fromStart }) : new Map<string, TurnWorkGroup>();
+    const reused = new Map<TurnWorkGroup, TurnWorkGroup>();
+    for (const [key, group] of nextWork) {
+      let value = reused.get(group);
+      if (!value) {
+        const previous = work.get(key);
+        value = previous?.epoch === group.epoch && previous.key === group.key && previous.anchor === group.anchor && previous.failed === group.failed &&
+          previous.members.length === group.members.length && previous.members.every((member, index) => member === group.members[index])
+          ? previous : group;
+        reused.set(group, value);
+      }
+      nextWork.set(key, value);
+    }
+    setWork(nextWork);
     publish();
     if (ticket === generation && !needsOlder(entries, fromStart)) dirty = false;
   }
@@ -203,6 +243,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
             if (ticket === generation) {
               entries = [];
               footers = new Map();
+              setWork(new Map());
               publish();
             }
           }
@@ -221,9 +262,28 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
   function connect() {
     if (unsubscribe) return;
     unsubscribe = pageReader.observe(source(), ({ event }) => {
+      // Offscreen groups retain only an event subscription, never a polling
+      // target. A lifecycle change makes them visible until observed again.
+      if (!targets.size && !observers && work.size && (event.type === "error" || event.type === "replacement" ||
+        event.type === "subscription_restored" || event.type === "turn_started" ||
+        event.type === "turn_completed" || event.type === "turn_failed" || event.type === "turn_canceled")) {
+        if (event.type === "replacement") usageByTurn.clear();
+        recordedStale = true;
+        releaseDormantWork();
+        return;
+      }
+      if (event.type === "error") {
+        generation++;
+        entries = [];
+        recordedStale = true;
+        setWork(new Map());
+        publish();
+        return;
+      }
       if (event.type === "replacement" || event.type === "subscription_restored") {
         entries = [];
         footers = new Map();
+        setWork(new Map());
         if (event.type === "replacement") usageByTurn.clear();
         recordedStale = true;
         publish();
@@ -243,6 +303,14 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
 
   function disconnect() {
     if (targets.size || observers) return;
+    // Unlike a renderer-null placeholder, source removal can unmount all
+    // visible members while their summary is outside the virtualized window.
+    // Keep the event observer until an authoritative change or feature cleanup.
+    if (keepWorkObservations && workAdmitted) {
+      dormantWorkObservers.add(releaseDormantWork);
+      return;
+    }
+    dormantWorkObservers.delete(releaseDormantWork);
     generation++;
     dirty = false;
     unsubscribe?.();
@@ -250,10 +318,18 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
     entries = [];
     fromStart = false;
     footers = new Map();
+    setWork(new Map());
+  }
+
+  function releaseDormantWork() {
+    dormantWorkObservers.delete(releaseDormantWork);
+    setWork(new Map());
+    disconnect();
   }
 
   return {
     get,
+    getWork: (key: string) => work.get(key) ?? null,
     refresh,
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -265,12 +341,14 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       if (targets.size) void refresh();
     },
     observe() {
+      dormantWorkObservers.delete(releaseDormantWork);
       observers++;
       connect();
       return () => { observers--; disconnect(); };
     },
-    retain(at: number, text: string) {
-      const target = { at, text };
+    retain(at: number, text: string, workKey?: string) {
+      dormantWorkObservers.delete(releaseDormantWork);
+      const target = { at, text, workKey };
       targets.add(target);
       connect();
       if (!entries.length || needsOlder(entries, fromStart)) void request();
@@ -284,20 +362,25 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
 
 const stores = new WeakMap<PaseoApi, Map<string, ReturnType<typeof createTurnFooterStore>>>();
 
-export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text: string, running: boolean | null,
-  observeOnly = false) {
+function useTurnStore(paseo: PaseoApi, agentId: string) {
   const turnUsage = useRpc(turnUsageRpc);
   const turnUsageRef = useRef(turnUsage);
   turnUsageRef.current = turnUsage;
-  const store = useMemo(() => {
+  return useMemo(() => {
     let agents = stores.get(paseo);
     if (!agents) stores.set(paseo, agents = new Map());
     let store = agents.get(agentId);
     if (!store) agents.set(agentId, store = createTurnFooterStore(() => paseo.agents.ref(agentId).timeline,
       async (since) => (await turnUsageRef.current({ agentId, since })).turns,
-      getAgentTimelinePageReader(paseo, agentId)));
+      getAgentTimelinePageReader(paseo, agentId),
+      (work) => updateTurnWorkGroups(agentId, work)));
     return store;
   }, [paseo, agentId]);
+}
+
+export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text: string, running: boolean | null,
+  observeOnly = false) {
+  const store = useTurnStore(paseo, agentId);
   const enabled = typeof running === "boolean";
   const targetAt = observeOnly ? 0 : at;
   const targetText = observeOnly ? "" : text;
@@ -307,5 +390,21 @@ export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text
   }, [store, enabled, targetAt, targetText, observeOnly]);
   const getSnapshot = useCallback(() => enabled && !observeOnly ? store.get(targetAt, targetText) : null,
     [store, enabled, observeOnly, targetAt, targetText]);
+  return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
+}
+
+/** Work rows share the footer's paging, turn boundaries and single observation. */
+export function useTurnWork(paseo: PaseoApi, agentId: string, key: string, at: number, running: boolean | null) {
+  const store = useTurnStore(paseo, agentId);
+  const enabled = typeof running === "boolean";
+  useLayoutEffect(() => { if (enabled) store.setRunning(running); }, [store, enabled, running]);
+  useLayoutEffect(() => {
+    if (!enabled) return;
+    const release = store.retain(at, "", key);
+    // A source row becomes a summary in the same commit. Keep its observation
+    // through that handoff, including when host Markdown owns the reply.
+    return () => { void Promise.resolve().then(release); };
+  }, [store, enabled, key, at]);
+  const getSnapshot = useCallback(() => enabled ? store.getWork(key) : null, [store, enabled, key]);
   return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
 }

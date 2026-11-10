@@ -1,0 +1,5 @@
+{
+  "id": "turn-work-fixture",
+  "name": "Turn work test fixture",
+  "requirements": { "paseo": ">=0.14.0" }
+}

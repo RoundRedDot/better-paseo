@@ -124,6 +124,8 @@ const en = {
   rowLabelsLabel: "Label",
   rowLabelsBoth: "Both",
   toolDetailTitle: "Open failed calls",
+  autoCollapseTurnWorkTitle: "Auto-collapse completed work",
+  autoCollapseTurnWorkDescription: "Fold finished thoughts and tools into one row with a failure count. Requires Paseo support for grouped plugin rows; unsupported versions keep the process visible.",
   toolDetailDescription: "On, a failed call opens to show its error. A call you opened or closed yourself keeps your choice.",
   pathsTitle: "File paths",
   pathsDescription:
@@ -336,6 +338,8 @@ const zh: SettingsStrings = {
   rowLabelsLabel: "名称",
   rowLabelsBoth: "两者",
   toolDetailTitle: "自动展开失败的调用",
+  autoCollapseTurnWorkTitle: "回合结束后自动折叠工作过程",
+  autoCollapseTurnWorkDescription: "回合结束后，将思考和工具调用收成可展开的一行，并标出失败数量。需要 Paseo 支持插件记录分组；不支持的版本会保持过程可见。",
   toolDetailDescription: "开启后，失败的调用会自动展开并显示错误；你手动展开或折叠过的调用保持原样。",
   pathsTitle: "文件路径",
   pathsDescription: "相对路径从工作区算起，worktree 的主仓库以名称显示。复制时总是得到绝对路径。",
