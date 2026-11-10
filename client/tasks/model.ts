@@ -59,6 +59,10 @@ export interface TaskLabel {
 }
 
 export interface TaskLocation {
+  /** The host whose daemon reported the task; null when unknown. */
+  hostId?: string | null;
+  /** The host's display name; null when unknown. */
+  hostLabel?: string | null;
   projectId: string | null;
   projectKey: string | null;
   projectName: string | null;
@@ -211,6 +215,10 @@ export interface TaskChild {
 
 export interface TaskCard {
   availability?: TaskAvailability;
+  /** The host whose daemon reported the task; absent when the board reads one host. */
+  hostId?: string;
+  /** The host's display name, for a board listing several hosts. */
+  hostLabel?: string;
   id: string;
   /** A new agent created by a Paseo schedule. */
   scheduled?: boolean;
@@ -317,6 +325,8 @@ export interface BoardFilters {
   workspaceIds: string[];
   providers: string[];
   labels: string[];
+  /** Empty means every host. */
+  hostIds: readonly string[];
   hideSubtasks: boolean;
 }
 
@@ -325,5 +335,6 @@ export const EMPTY_FILTERS: BoardFilters = {
   workspaceIds: [],
   providers: [],
   labels: [],
+  hostIds: [],
   hideSubtasks: false,
 };

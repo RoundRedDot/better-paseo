@@ -9,7 +9,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return { ScrollView: rn.ScrollView, TextInput: rn.TextInput, Icon: () => null };
 });
-vi.mock("@getpaseo/plugin/client", () => ({ usePaseo: () => ({}), useRpc: () => vi.fn() }));
+vi.mock("@getpaseo/plugin/client", () => ({ usePaseo: () => ({}), useRpc: () => vi.fn(), useHosts: () => [], getPaseoClient: () => ({}) }));
 // Each render of the sheet body draws its done-range segments once: counting them counts the body's renders.
 const sheetRenders = vi.hoisted(() => ({ count: 0 }));
 vi.mock("../../client/tasks/board/board-parts", async (importOriginal) => {
@@ -39,7 +39,7 @@ const theme = {
 };
 const board = {
   params: EMPTY_PARAMS, defaults: { hideSubtasks: false, doneWindow: "24h" }, strings: BOARD_STRINGS.en,
-  showEmptyGroups: false, total: 0, tasks: { requestProjectIcon() {} }, setParams() {},
+  showEmptyGroups: false, total: 0, hostId: "host-1", tasks: { requestProjectIcon() {}, lanes: {} }, setParams() {},
 } as unknown as BoardController;
 
 let renderer: TestRenderer.ReactTestRenderer | undefined;
@@ -170,7 +170,7 @@ describe("filter sheet groups", () => {
     });
     const toggle = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
     const choices = () => renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
-    expect(choices()).toHaveLength(2);
+    expect(choices()).toHaveLength(3);
     act(() => toggle("filter-sheet-agents-toggle").props.onPress());
     act(() => toggle("filter-sheet-labels-toggle").props.onPress());
     act(() => toggle("filter-sheet-agents-toggle").props.onPress());
@@ -179,10 +179,10 @@ describe("filter sheet groups", () => {
     expect(toggle("filter-sheet-agents-content").props.accessibilityElementsHidden).toBe(true);
     expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 0, duration: 140, useNativeDriver: false }));
     act(() => toggle("filter-sheet-labels-toggle").props.onPress());
-    expect(choices()).toHaveLength(2);
+    expect(choices()).toHaveLength(3);
     act(() => toggle("filter-sheet-agents-toggle").props.onPress());
     act(() => toggle("filter-sheet-labels-toggle").props.onPress());
-    expect(choices()).toHaveLength(2);
+    expect(choices()).toHaveLength(3);
     expect(choices().every((choice) => choice.props.accessibilityState.checked)).toBe(true);
     expect(setParams).not.toHaveBeenCalled();
     expect(timing).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ toValue: 1, duration: 180 }));

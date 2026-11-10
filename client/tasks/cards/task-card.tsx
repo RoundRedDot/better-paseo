@@ -43,6 +43,7 @@ import { buttonHue, cardButtonHeight, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_I
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu, openToolbarDetailsLayer } from "../../web";
 import { ArchivedTag, parentTag } from "./archived-tag";
+import { HostTag } from "./host-tag";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import type { CardFilterKind, CardFilterState } from "../board/filter-options";
 import { layoutMenu } from "../board/menu-model";
@@ -633,8 +634,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const [ringOpen, setRingOpen] = useState(false);
   // The warning corner's hint is open (hovered, focused or pinned): the card rises over the next one.
   const [cornerOpen, setCornerOpen] = useState(false);
-  // The meta row's widths while a context ring shares it: the row, its text, and the archived tag.
-  const [metaFit, setMetaFit] = useState({ row: 0, text: 0, tag: 0 });
+  // The meta row's widths while a context ring shares it: the row, its text, the host and archived tags.
+  const [metaFit, setMetaFit] = useState({ row: 0, text: 0, tag: 0, host: 0 });
   // Right click and tablet long press keep their window point.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | "touch" | null>(null);
   useLayoutEffect(
@@ -825,12 +826,18 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     ? [{ borderTopWidth: 0 }, buttonOutline(look.failedBorder, { right: null, bottom: null, left: null })]
     : null;
 
+  // A card from another host says which one, while the Host switch is on and the
+  // board knows its own host; this board's own cards need no tag.
+  const hostLabel =
+    fields.host && props.hostId !== undefined && card.hostLabel && card.hostId !== undefined && card.hostId !== null && card.hostId !== props.hostId
+      ? card.hostLabel
+      : null;
   const location = card.location;
   const metaParts: string[] = [];
   if (layout.project && location.projectName) metaParts.push(location.projectName);
   if (layout.workspace && location.workspaceName) metaParts.push(location.workspaceName);
   const metaText = query ? searchBreadcrumb(layout.project ? location.projectName ?? "" : "", layout.workspace ? location.workspaceName ?? "" : "", query, metaWidth ? Math.floor(metaWidth / (m.metaSize * scale * 0.65)) : 35) : metaParts.join(SEPARATOR);
-  const hasMeta = metaText !== "" || card.parent !== null;
+  const hasMeta = metaText !== "" || card.parent !== null || hostLabel !== null;
   const corner = cornerLayout(m, scale, borderWidth);
   const hit = issue ? warningHit(m, hasMeta ? m.metaLine : m.titleLine, scale) : null;
 
@@ -876,7 +883,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           setMetaFit((was) => (was[key] === width ? was : { ...was, [key]: width }));
         }
       : undefined;
-  const tagSpace = shownParentTag !== null ? metaFit.tag + ARCHIVED_TAG_GAP : 0;
+  const tagSpace = (shownParentTag !== null ? metaFit.tag + ARCHIVED_TAG_GAP : 0) + (hostLabel !== null ? metaFit.host + (metaText ? ARCHIVED_TAG_GAP : 0) : 0);
   const metaCut = clip && metaFit.row > 0 && metaFit.text + tagSpace >= metaFit.row - 0.5;
   const clipText = clip ? CLIP_TEXT : null;
   const metaRow = hasMeta ? (
@@ -943,6 +950,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           ) : null}
           {metaCut ? <EdgeFade color={background} /> : null}
         </View>
+        {hostLabel !== null ? (
+          <View style={{ marginLeft: metaText || parentLabel !== null ? ARCHIVED_TAG_GAP : 0, flexShrink: 0 }} onLayout={fit("host")}>
+            <HostTag tokens={tokens} label={hostLabel} testID="task-card-host" />
+          </View>
+        ) : null}
         {shownParentTag !== null ? (
           <View {...tipProps(shownParentTag.tip ?? pair(strings.details.parent, shownParentTag.label))} style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("tag")} testID="task-card-meta-parent-tag-tip">
             <ArchivedTag tokens={tokens} label={shownParentTag.label} icon={shownParentTag.icon} testID="task-card-meta-archived" />

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, View, type LayoutChangeEvent, type ScrollView as NativeScrollView } from "react-native";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
+import { useHosts, type PluginHostSummary } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
@@ -11,7 +12,7 @@ import { SwitchTrack } from "../../ui/switch-track";
 import { useSwitchSpace } from "../../ui/use-switch-space";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { easing } from "../../ui/tokens/motion";
-import { clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, toggleProject, type FilterOption, type FilterOptions } from "./filter-options";
+import { FILTER_ICONS, clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, toggleProject, type FilterOption, type FilterOptions } from "./filter-options";
 import { matchesSearch, searchWords } from "./search";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { detailScrollProps } from "../cards/detail-scrollbar";
@@ -22,6 +23,7 @@ import { sameSort, type BoardSort, type SortKey } from "./sort";
 import { sortOrderLabel } from "./strings";
 import type { BoardController } from "./use-board";
 import { tasksSettingsOpener } from "./enabled";
+import { DEFAULT_LOCAL_LABEL } from "../data/multi-host";
 
 /**
  * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
@@ -78,6 +80,22 @@ export function FilterSheetBody(props: {
   const projectsY = useRef(0);
   // The scroller's height.
   const [viewport, setViewport] = useState(0);
+  // Hosts come live from the app; until one is listed, the board's own host stands in.
+  const hosts = useHosts();
+  const hostRows: readonly PluginHostSummary[] = hosts.length
+    ? hosts
+    : [{ serverId: board.hostId, label: DEFAULT_LOCAL_LABEL, status: "online" }];
+  const hostCounts = new Map<string, number>();
+  for (const lane of Object.values(board.tasks.lanes)) {
+    for (const card of lane.cards) {
+      if (!card.hostId) continue;
+      hostCounts.set(card.hostId, (hostCounts.get(card.hostId) ?? 0) + 1);
+    }
+  }
+  // As the other options: hidden with no card on the board, unless it is picked and can be dropped.
+  const shownHosts = board.showEmptyGroups
+    ? hostRows
+    : hostRows.filter((host) => (hostCounts.get(host.serverId) ?? 0) > 0 || board.params.hostIds.includes(host.serverId));
   const groups = searchWorkspaceGroups(shown.workspaceGroups, query);
   const projects = shown.projects.filter((project) => matchesSearch([project.label, project.group.projectPath], searchWords(projectQuery)));
   // While searching, the workspaces fill the scroller at least, so their field
@@ -170,6 +188,27 @@ export function FilterSheetBody(props: {
                   leading={<BrandMark provider={agent.id} size={16} tokens={taskTokens(theme)} />}
                   hideCount
                   onPress={() => setParams((p) => ({ ...p, providers: toggleItem(p.providers, agent.id) }))}
+                />
+              ))}
+            </ChipWrap>
+          </CollapsibleGroup>
+          <CollapsibleGroup title={strings.filterHost} icon={FILTER_ICONS.host} theme={theme} testID="filter-sheet-hosts">
+            <ChipWrap>
+              <Chip
+                option={{ id: "all-hosts", label: strings.allHosts, count: 0, on: board.params.hostIds.length === 0 }}
+                theme={theme}
+                pill={props.phone}
+                hideCount
+                onPress={() => setParams((p) => ({ ...p, hostIds: [] }))}
+              />
+              {shownHosts.map((host) => (
+                <Chip
+                  key={host.serverId}
+                  option={{ id: host.serverId, label: host.label, count: hostCounts.get(host.serverId) ?? 0, on: board.params.hostIds.includes(host.serverId) }}
+                  theme={theme}
+                  pill={props.phone}
+                  leading={<HostStatusDot status={host.status} theme={theme} />}
+                  onPress={() => setParams((p) => ({ ...p, hostIds: toggleItem(p.hostIds, host.serverId) }))}
                 />
               ))}
             </ChipWrap>
@@ -380,6 +419,22 @@ function CollapsibleTitle(props: { text: string; icon: string; theme: PluginThem
       <Text style={{ flex: 1, fontSize: F.sm, fontWeight: "500", color: props.theme.colors.foregroundMuted }}>{props.text}</Text>
       <Icon name={props.open ? "ChevronUp" : "ChevronDown"} size={16} color={props.theme.colors.foregroundMuted} />
     </Pressable>
+  );
+}
+
+/** A host's reachability as a dot before its name: green online, muted otherwise. */
+function HostStatusDot(props: { status: PluginHostSummary["status"]; theme: PluginTheme }) {
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: props.status === "online" ? props.theme.colors.statusSuccess : props.theme.colors.foregroundMuted,
+      }}
+    />
   );
 }
 
