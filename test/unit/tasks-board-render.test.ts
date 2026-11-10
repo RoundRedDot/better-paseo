@@ -2846,6 +2846,9 @@ describe("Tasks board, desktop", () => {
     const card = cards().find((node) => node.props.card.id === "sample-running")!;
     act(() => card.props.onSelect(card.props.card));
     expect(hostsById("board-sheet")).toHaveLength(1);
+    // Laid out at full height, the sheet's own box spans nearly the whole board: only what it draws takes a touch, so the lanes above it still scroll.
+    expect(hostsById("board-sheet")[0]!.props.pointerEvents).toBe("box-none");
+    expect(hostsById("board-sheet-body")[0]!.props.pointerEvents ?? "auto").toBe("auto");
     expect(hostsById("sidebar-floating")).toHaveLength(0);
     mountFrames();
     timings.finish(timings.slide().at(-1)!);
@@ -2946,7 +2949,7 @@ describe("Tasks board, desktop", () => {
       expect(timings.slide()).toHaveLength(0);
       act(() => { vi.advanceTimersByTime(16); });
       // Off the JS thread where there is a native driver: the board's render for the selection cannot hold it.
-      expect(timings.slide().at(-1)).toMatchObject({ to: 0, duration: 280, native: os !== "web" });
+      expect(timings.slide().at(-1)).toMatchObject({ to: 0, duration: 240, native: os !== "web" });
       expect(room()).toBe(8);
       timings.finish(timings.slide().at(-1)!);
       expect(room()).toBe(8 + 464);
@@ -3054,7 +3057,7 @@ describe("Tasks board, desktop", () => {
       open();
       expect(height()).toBe(464);
       mountFrames();
-      expect(timings.slide().at(-1)).toMatchObject({ to: 0, duration: 280 });
+      expect(timings.slide().at(-1)).toMatchObject({ to: 0, duration: 240 });
 
       // Closed before its first slide starts: nothing slides in, and it slides out from where it waits.
       const slides = timings.slide().length;

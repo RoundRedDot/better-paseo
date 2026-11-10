@@ -39,6 +39,7 @@ import { previewSampleCards } from "../../client/tasks/sample-cards";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { TasksTypography, TasksTypographyScale, HOST_FONT } from "../../client/tasks/typography";
 import { variantMetrics } from "../../client/components/markdown/render/styles";
+import { measureHostTree } from "./helpers/yoga-host-layout";
 
 const NOW = Date.parse("2026-10-20T09:00:00Z");
 const THEME = { colors: {
@@ -78,6 +79,27 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it.each([
+    { os: "android", touch: true, scrollHeader: true, corner: "detail-sheet-toggle" },
+    { os: "ios", touch: true, scrollHeader: true, corner: "detail-sheet-toggle" },
+    { os: "web", touch: false, scrollHeader: false, corner: "detail-close" },
+  ] as const)("puts the $os corner control on the card corner's diagonal", async ({ os, touch, scrollHeader, corner }) => {
+    vi.stubGlobal("__rnMockOS", os);
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(false)} touch={touch} columns={false} tabs scrollHeader={scrollHeader} onMenu={() => {}} onClose={touch ? undefined : () => {}} sheetToggle={touch ? { full: false, label: "Expand", onPress() {} } : undefined} />);
+    });
+    const card = host(renderer!.root, "detail-cards");
+    const frames = measureHostTree(card, { width: 560 });
+    const box = frames.get(card)!;
+    const control = frames.get(host(renderer!.root, corner))!;
+    const right = box.left + box.width - (control.left + control.width / 2);
+    const top = control.top + control.height / 2 - box.top;
+    expect(Math.abs(right - top)).toBeLessThan(0.6);
+    // The menu beside it keeps its place against it.
+    const menu = frames.get(host(renderer!.root, "detail-menu"))!;
+    expect(menu.top + menu.height / 2).toBeCloseTo(control.top + control.height / 2, 1);
+    expect(control.left - (menu.left + menu.width)).toBeCloseTo(0, 1);
+  });
   it.each(["ios", "android", "web"].flatMap((os) => [false, true].map((sheet) => ({ os, sheet }))))("sizes detail action bar spacing for $os sheet=$sheet", async ({ os, sheet }) => {
     vi.stubGlobal("__rnMockOS", os);
     await act(async () => {

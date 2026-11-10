@@ -587,6 +587,13 @@ function DetailStatusRow(props: Inner & { fixed?: boolean }) {
   const controls = touch ? TASK_TOOLBAR_METRICS.touch : TASK_TOOLBAR_METRICS.desktop;
   const menuRef = useRef<View>(null);
   const cardText = cardStrings(props.language);
+  // The corner control (close, or the sheet's size switch) sits on the card
+  // corner's diagonal: its centre as far from the card's right edge as from
+  // its top. The row's padding put it 6 points further in than down on touch
+  // (28 against 22) and 4 on the desktop; the menu beside it moves with it.
+  const atCorner = props.fixed === true || (!props.back && !props.notice);
+  const rowCentre = props.fixed ? 8 + (m.round - 8) / 2 : 8 + m.round / 2;
+  const toCorner = atCorner ? Math.min(0, rowCentre - (m.padH + taskControlHeight(controls.button, scale) / 2)) : 0;
   return (
     <View testID="detail-status-row" style={[{ minHeight: m.round, flexDirection: "row", alignItems: "center", gap: 6 }, props.fixed ? { paddingHorizontal: m.padH, paddingTop: 8, backgroundColor: tokens.card.background, borderTopLeftRadius: DETAIL_CARD.radius, borderTopRightRadius: DETAIL_CARD.radius } : null]}>
       <StatusIcon kind={card.stoppedManually ? "stopped" : card.status} size={14} theme={props.theme} />
@@ -595,7 +602,7 @@ function DetailStatusRow(props: Inner & { fixed?: boolean }) {
       </Text>
       <StatusSub {...props} small={F.sm} />
       <View style={{ flex: 1 }} />
-      <View testID="detail-header-controls" style={{ flexDirection: "row", alignItems: "center", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
+      <View testID="detail-header-controls" style={{ flexDirection: "row", alignItems: "center", gap: TASK_TOOLBAR_METRICS.touch.gap, marginRight: toCorner }}>
         {props.onMenu ? <View ref={menuRef} collapsable={false}><RoundIcon icon="MoreVertical" label={props.language === "zh" ? "卡片菜单" : "Card menu"} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-menu" onPress={() => menuRef.current?.measureInWindow((x, y, width, height) => props.onMenu?.({ x: x + width, y: y + height }))} /></View> : null}
         {props.sheetToggle ? <RoundIcon icon={props.sheetToggle.full ? "Minimize2" : "Maximize2"} label={props.sheetToggle.label} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} testID="detail-sheet-toggle" onPress={props.sheetToggle.onPress} /> : null}
         {props.onClose && !props.onSheetClose ? <RoundIcon icon="X" label={props.strings.close} size={taskControlHeight(controls.button, scale)} iconSize={touch ? controls.icon : taskControlHeight(controls.icon, scale)} tokens={tokens} onPress={props.onClose} testID="detail-close" /> : null}

@@ -42,6 +42,9 @@ export interface BoardSheetHandle {
 
 const native = () => Platform.OS !== "web";
 
+/** A first slide in: as long as coming back on the way out, and the side panels' 240. */
+const SLIDE_IN_MS = 240;
+
 export const BoardSheet = forwardRef<BoardSheetHandle, {
   /** The lanes' area the sheet rises in. */
   area: number;
@@ -140,7 +143,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
       motionNow.unwait();
       slideWait.current = afterFrames(() => {
         slideWait.current = null;
-        motionNow.slideTo(0, 280, done);
+        motionNow.slideTo(0, SLIDE_IN_MS, done);
       });
     },
     unwait() {
@@ -205,7 +208,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
         latest.current.onShown?.(true);
       };
       // Coming back, the details are mounted already.
-      if (back || reduced) slideTo(0, reduced ? 0 : 240, done);
+      if (back || reduced) slideTo(0, reduced ? 0 : SLIDE_IN_MS, done);
       else motionNow.slideInAfterMount(done);
       return;
     }
@@ -362,7 +365,10 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
   return (
     <Animated.View
       testID="board-sheet"
-      pointerEvents={props.open ? "auto" : "none"}
+      // Laid out at its full height (`shift` moves it down), this view spans
+      // nearly the whole board: only what it draws takes a touch, so the lanes
+      // above a half sheet still scroll and take a tap.
+      pointerEvents={props.open ? "box-none" : "none"}
       style={{ position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 20, transform: [{ translateY: slide }] }}
     >
       <Animated.View
