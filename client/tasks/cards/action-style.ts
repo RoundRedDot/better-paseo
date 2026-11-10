@@ -36,9 +36,9 @@ export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archiv
  * deepens it while pressed, and grows. `hover` is the wash for an open stop
  * menu and for contrast, not a hover or press fill. Plain grey (Open tab),
  * Allow's accent, Stop and Deny's danger, "Answer"'s needs-input amber,
- * Archive's yellow, Mark read's unread green. Mark unread keeps that green
- * on its label, and takes the running blue for its frame and its dot. No
- * button fill is ever solid: an armed "Confirm stop" says so in words only.
+ * Archive's yellow, Mark read's unread green. Mark unread uses the running
+ * blue for its frame, label and dot. No button fill is ever solid: an armed
+ * "Confirm stop" says so in words only.
  */
 export function buttonHue(tokens: TaskTokens, look: CardButtonLook): { color: string; border: string; hover: string } {
   const card = tokens.card;
@@ -54,7 +54,7 @@ export function buttonHue(tokens: TaskTokens, look: CardButtonLook): { color: st
     case "read":
       return { color: card.readText, border: card.readBorder, hover: card.readHover };
     case "unread":
-      return { color: card.readText, border: card.unreadBorder, hover: card.readHover };
+      return { color: card.unreadBorder, border: card.unreadBorder, hover: card.readHover };
     default:
       return { color: tokens.foreground, border: card.buttonBorder, hover: card.controlHover };
   }

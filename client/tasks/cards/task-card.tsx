@@ -1292,7 +1292,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     <CardButton
       label={strings.markUnread}
       look="unread"
-      glyph={(_color, size) => <UnreadIcon size={size} color={tokens.card.unreadBorder} />}
+      glyph={(color, size) => <UnreadIcon size={size} color={color} />}
       busy={unreadPending}
       hint={hint("action-unread", () => strings.markUnread)}
       tokens={tokens}

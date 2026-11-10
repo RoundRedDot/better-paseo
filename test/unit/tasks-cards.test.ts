@@ -2105,7 +2105,7 @@ describe("TaskCardView actions", () => {
     expect(hostByTestId(tree.root, "task-card-unread").findAll((node) => typeof node.type === "string" && node.props.testID === "unread-icon")).toHaveLength(1);
     const green = taskTokens(LIGHT).card;
     expect(flat(hostByTestId(tree.root, "task-card-unread").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: green.unreadBorder });
-    expect(hostByTestId(tree.root, "task-card-unread").findAll((node) => (node.type as unknown) === "Text")[0]!.props.style.color).toBe(green.readText);
+    expect(hostByTestId(tree.root, "task-card-unread").findAll((node) => (node.type as unknown) === "Text")[0]!.props.style.color).toBe(green.unreadBorder);
     hostByTestId(tree.root, "task-card-unread").props.onPress();
     expect(onUnread).toHaveBeenCalledWith(done);
 
