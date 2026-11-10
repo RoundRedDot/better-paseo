@@ -37,7 +37,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   function Modal(props: Props) {
     return props.open ? React.createElement("Modal", { title: props.title }, props.children) : null;
   }
-  Modal.Content = (props: Props) => React.createElement("ModalContent", null, props.children);
+  Modal.Content = (props: Props) => React.createElement("ModalContent", { contentContainerStyle: props.contentContainerStyle }, props.children);
   return {
     Icon: (props: Props) => React.createElement("Icon", { name: props.name, icon: props.icon, size: props.size, color: props.color }),
     FlatList,
@@ -7254,6 +7254,8 @@ describe("Tasks board, phone", () => {
     await act(async () => cards()[0]!.props.onSelect(cards()[0]!.props.card));
     const detail = renderer!.root.findByType(TaskDetailCards);
     expect(detail.props).toMatchObject({ touch: true, tabs: true, scrollHeader: true, actions: false });
+    const content = renderer!.root.find((node) => (node.type as unknown) === "ModalContent");
+    expect(StyleSheet.flatten(content.props.contentContainerStyle).paddingBottom).toBe(os === "ios" ? 8 : 16);
     const scroll = hostsById("detail-tab-short-scroll")[0]!;
     const bar = hostsById("detail-action-bar")[0]!;
     expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(os === "web" ? 0 : -12);
