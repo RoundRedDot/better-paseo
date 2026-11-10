@@ -58,8 +58,9 @@ describe("parent origins", () => {
     env.fake.upsertAgent(child("sibling", "parent", { updatedAt: at(5), archivedAt: at(5), status: "closed" }));
     env.fake.upsertAgent(child("survivor", null, { updatedAt: at(5) }));
     await archiving;
-    await settle();
-    expect(await env.origins()).toEqual([{ agentId: "survivor", parentAgentId: "parent" }]);
+    await vi.waitFor(async () => {
+      expect(await env.origins()).toEqual([{ agentId: "survivor", parentAgentId: "parent" }]);
+    });
     // Kept in the file for the next process.
     expect(JSON.parse(await readFile(path, "utf8"))).toEqual({ origins: [{ agentId: "survivor", parentAgentId: "parent", archivedAt: at(5) }] });
   });
