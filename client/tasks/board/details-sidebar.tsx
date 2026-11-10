@@ -92,6 +92,7 @@ function detailActions(board: BoardController, card: TaskCard) {
     unarchive: board.unarchive.available ? board.unarchive : null,
     archive: board.archive,
     markRead: board.read.available ? board.read : null,
+    markUnread: board.unread ?? null,
   };
 }
 
@@ -283,6 +284,7 @@ function SidebarCardMenu(props: { board: BoardController; card: TaskCard; theme:
     children: canStop && card.stoppable ? children : 0,
     childrenOnly: !card.stoppable,
     read: !canStop && card.readable && callbacks.onRead && !board.read.pending(card.id) ? () => callbacks.onRead?.(card) : undefined,
+    unread: card.lane === "done" && !card.archived && !card.subagent && callbacks.onUnread && !board.unread?.pending(card.id) ? () => callbacks.onUnread?.(card) : undefined,
     unarchive: card.archived === "agent" && callbacks.onUnarchive ? () => callbacks.onUnarchive?.(card.id) : undefined,
     archive: card.lane === "done" && !card.archived && callbacks.onArchive && !board.archive.pending(card.id) ? () => callbacks.onArchive?.(card.id) : undefined,
     filters: callbacks.onFilter && callbacks.filterState ? { state: callbacks.filterState(card), select: (by) => callbacks.onFilter?.(card, by) } : undefined,

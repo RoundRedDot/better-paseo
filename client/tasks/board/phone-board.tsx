@@ -236,6 +236,7 @@ export function PhoneBoard(props: {
       onStop: base.onStop ? guard(base.onStop) : undefined,
       onCancelStop: base.onCancelStop,
       onRead: base.onRead ? guard(base.onRead) : undefined,
+      onUnread: base.onUnread ? guard(base.onUnread) : undefined,
       onUnarchive: base.onUnarchive ? guard(base.onUnarchive) : undefined,
       onArchive: base.onArchive ? guard(base.onArchive) : undefined,
       onFilter: base.onFilter,
@@ -670,6 +671,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           unarchive={board.unarchive.available ? board.unarchive : null}
           archive={board.archive}
           markRead={board.read.available ? board.read : null}
+          markUnread={board.unread ?? null}
           onScrollEdge={noteEdge}
         />
       </View>
@@ -687,6 +689,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
         unarchive={board.unarchive.available ? board.unarchive : null}
         archive={board.archive}
         markRead={board.read.available ? board.read : null}
+        markUnread={board.unread ?? null}
       />
     </View>
   );

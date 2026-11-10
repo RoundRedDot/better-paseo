@@ -67,6 +67,30 @@ export const tasksReadsRpc = defineRpc({
 });
 
 /**
+ * Marks done agents unread: clears their read mark and records an unread
+ * mark (`tasks.unreads`), so the board moves that card from done to review.
+ * When the connected daemon client can mark one agent unread, the server
+ * also asks it to; a host without that call still moves the card. Never
+ * rejects for a missing daemon method.
+ */
+export const tasksUnreadRpc = defineRpc({
+  name: "tasks.unread",
+  input: z.object({ agentIds: z.array(z.string().min(1)).min(1).max(50) }),
+  output: z.object({ ok: z.boolean(), error: z.string().nullable() }),
+});
+
+/**
+ * The agents marked unread through `tasks.unread`, with when. Kept like the
+ * reads: in a file, until Mark read, the agent's next turn, or archive, 30
+ * days at most. A mark older than the latest prompt does not move the card.
+ */
+export const tasksUnreadsRpc = defineRpc({
+  name: "tasks.unreads",
+  input: z.object({}),
+  output: z.object({ unreads: z.array(z.object({ agentId: z.string(), unreadAt: z.string() })) }),
+});
+
+/**
  * The agents stopped through `tasks.stop`, with when, newest last, so a board
  * opened later (another client, the app after a restart) can still say
  * "Stopped manually". The server keeps them in a file under its data

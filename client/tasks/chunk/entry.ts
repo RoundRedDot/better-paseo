@@ -1,7 +1,7 @@
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { lastTurnsRpc } from "../../../shared/turn-usage-rpc";
-import { tasksLabelsRpc, tasksParentOriginsRpc, tasksProjectIconsRpc, tasksReadsRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc } from "../../../shared/tasks-rpc";
-import { setLabelDefinitionsLoader, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader } from "../data";
+import { tasksLabelsRpc, tasksParentOriginsRpc, tasksProjectIconsRpc, tasksReadsRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnreadsRpc } from "../../../shared/tasks-rpc";
+import { setLabelDefinitionsLoader, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, setUnreadMarksLoader } from "../data";
 import { setSessionTokensLoader } from "../data/session-tokens";
 import { setSubagentTimelineLoader } from "../data/subagent-timeline";
 import { conversationSearchRpc } from "../../../shared/conversation-search";
@@ -30,6 +30,8 @@ export function startTasksData(client: PluginClientContext): () => void {
   setSubagentLoader((since) => client.rpc(tasksSubagentsRpc, since === undefined ? {} : { since }));
   // Cards marked read from a board, failures included: the server keeps the marks.
   setReadMarksLoader(() => client.rpc(tasksReadsRpc, {}).then((result) => result.reads));
+  // Cards marked unread from a board: the server keeps the marks, and a done card moves back to review.
+  setUnreadMarksLoader(() => client.rpc(tasksUnreadsRpc, {}).then((result) => result.unreads));
   // The parent whose archive detached a task, which the server infers as it follows the agents.
   setParentOriginsLoader((since) => client.rpc(tasksParentOriginsRpc, since === undefined ? {} : { since }));
   // Label colors as Paseo's sidebar draws them, for a host whose API lists no label definitions.
@@ -45,6 +47,7 @@ export function startTasksData(client: PluginClientContext): () => void {
     setLastTurnLoader(null);
     setSubagentLoader(null);
     setReadMarksLoader(null);
+    setUnreadMarksLoader(null);
     setParentOriginsLoader(null);
     setLabelDefinitionsLoader(null);
     setProjectIconsLoader(null);

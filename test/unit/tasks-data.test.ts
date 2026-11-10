@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -916,6 +916,46 @@ describe("Tasks data store", () => {
     expect(withReadMark(card, marked, marked + 1)).toMatchObject({ lane: "review", status: "failed", readable: true });
     expect(withReadMark(card, undefined, Number.NEGATIVE_INFINITY)).toMatchObject({ lane: "review", readable: true });
     expect(withReadMark({ ...card, lane: "running", status: "running" }, marked, 0).readable).toBeFalsy();
+  });
+
+  it("moves a done card back to review when marked unread since its prompt and since any read", () => {
+    const card = { ...sampleCards(Date.parse("2026-10-22T10:00:00.000Z")).find((sample) => sample.id === "sample-done")! };
+    const prompted = Date.parse(card.timing.lastUserMessageAt ?? "");
+    const unreadAt = prompted + 60_000;
+    expect(withUnreadMark(card, unreadAt, undefined)).toMatchObject({ lane: "review", status: "unread", readable: true });
+    // A read at the same moment or later keeps the card done.
+    expect(withUnreadMark(card, unreadAt, unreadAt)).toMatchObject({ lane: "done", status: "done" });
+    expect(withUnreadMark(card, unreadAt, unreadAt + 1)).toMatchObject({ lane: "done", status: "done" });
+    expect(withUnreadMark(card, unreadAt, unreadAt - 1)).toMatchObject({ lane: "review", status: "unread", readable: true });
+    // A mark from before this prompt, a review card, and an archived card stay put.
+    expect(withUnreadMark(card, prompted - 1, undefined)).toMatchObject({ lane: "done", status: "done" });
+    expect(withUnreadMark(card, undefined, undefined)).toBe(card);
+    expect(withUnreadMark({ ...card, lane: "review", status: "unread" }, unreadAt, undefined).lane).toBe("review");
+    expect(withUnreadMark({ ...card, archived: "agent" }, unreadAt, undefined).lane).toBe("done");
+  });
+
+  it("moves a done card to review once its unread mark loads", async () => {
+    const prompt = Date.now() - 10 * 60_000;
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const fake = createFakePaseo({
+      agents: [activeAgent("finished", { status: "closed", updatedAt: iso(prompt), lastUserMessageAt: iso(prompt) })],
+      workspaces: [workspace()],
+    });
+    const loader = vi.fn(async () => [{ agentId: "finished", unreadAt: iso(prompt + 30_000) }]);
+    setUnreadMarksLoader(loader);
+    const mounted = await mountTasks(fake, "all");
+    try {
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "done", status: "done" });
+      await act(async () => {
+        mounted.current.refreshUnreads();
+        for (let index = 0; index < 6; index += 1) await Promise.resolve();
+      });
+      expect(loader).toHaveBeenCalled();
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "review", status: "unread", readable: true });
+    } finally {
+      mounted.unmount();
+      setUnreadMarksLoader(null);
+    }
   });
 
   it.each(["feature/tasks", "feature-tasks"])("hides a workspace name that repeats branch %s", async (workspaceName) => {

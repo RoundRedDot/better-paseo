@@ -45,7 +45,7 @@ async function registerHandlers(host: HostAccess = noHost): Promise<Map<string, 
       handlers.set(contract.name, handler);
     },
   } as unknown as PluginServerContext;
-  registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")), undefined, host, createStopMarks(join(tempRoot, "tasks-reads.json")));
+  registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")), undefined, host, createStopMarks(join(tempRoot, "tasks-reads.json")), undefined, undefined, createStopMarks(join(tempRoot, "tasks-unreads.json")));
   return handlers;
 }
 
@@ -494,6 +494,69 @@ describe("Tasks server read RPC", () => {
   });
 });
 
+describe("Tasks server unread RPC", () => {
+  function daemonHost(extra: Record<string, unknown> = {}) {
+    const close = vi.fn(async () => {});
+    const clearAgentAttention = vi.fn(async () => {});
+    const fetchAgent = vi.fn(async () => ({ agent: { cwd: tempRoot, status: "idle" } }));
+    const connect = vi.fn(async () => ({ clearAgentAttention, fetchAgent, close, ...extra }) as unknown as Awaited<ReturnType<HostAccess["connect"]>>);
+    const host: HostAccess = { available: () => true, connect };
+    return { host, connect, close, clearAgentAttention };
+  }
+
+  it("clears the read mark, records the unread mark, and asks the daemon when it can", async () => {
+    const markAgentUnread = vi.fn(async () => {});
+    const { host, close } = daemonHost({ markAgentUnread });
+    const handlers = await registerHandlers(host);
+
+    await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-a"] })).resolves.toEqual({ ok: true, error: null });
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["agent-a", "agent-b"] })).resolves.toEqual({ ok: true, error: null });
+    const { reads } = await invoke<{ reads: Array<{ agentId: string }> }>(handlers, "tasks.reads", {});
+    const { unreads } = await invoke<{ unreads: Array<{ agentId: string; unreadAt: string }> }>(handlers, "tasks.unreads", {});
+    expect(reads).toEqual([]);
+    expect(unreads.map((mark) => mark.agentId)).toEqual(["agent-a", "agent-b"]);
+    expect(Number.isFinite(Date.parse(unreads[0]!.unreadAt))).toBe(true);
+    await vi.waitFor(() => expect(markAgentUnread.mock.calls).toEqual([["agent-a"], ["agent-b"]]));
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("still records the mark when the daemon has no per-agent method or the call throws", async () => {
+    const missing = daemonHost();
+    let handlers = await registerHandlers(missing.host);
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["agent-a"] })).resolves.toEqual({ ok: true, error: null });
+    await vi.waitFor(() => expect(missing.close).toHaveBeenCalled());
+    const listed = await invoke<{ unreads: Array<{ agentId: string }> }>(handlers, "tasks.unreads", {});
+    expect(listed.unreads.map((mark) => mark.agentId)).toEqual(["agent-a"]);
+
+    const markAgentUnread = vi.fn(async () => {
+      throw new Error("still running");
+    });
+    const refusing = daemonHost({ markAgentUnread });
+    handlers = await registerHandlers(refusing.host);
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["agent-b"] })).resolves.toEqual({ ok: true, error: null });
+    await vi.waitFor(() => expect(markAgentUnread).toHaveBeenCalledWith("agent-b"));
+    await vi.waitFor(() => expect(refusing.close).toHaveBeenCalled());
+    const after = await invoke<{ unreads: Array<{ agentId: string }> }>(handlers, "tasks.unreads", {});
+    // The new server loads the mark the first half already wrote, then adds its own.
+    expect(after.unreads.map((mark) => mark.agentId)).toEqual(["agent-a", "agent-b"]);
+  });
+
+  it("writes nothing for a bad id, and does not connect when the daemon is unavailable", async () => {
+    const { host, connect } = daemonHost();
+    let handlers = await registerHandlers(host);
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["bad/id"] })).resolves.toEqual({ ok: false, error: "Invalid agent ID." });
+    expect(connect).not.toHaveBeenCalled();
+    await expect(invoke(handlers, "tasks.unreads", {})).resolves.toEqual({ unreads: [] });
+
+    const probe = vi.fn(async () => null);
+    handlers = await registerHandlers({ available: () => false, connect: probe });
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["agent-a"] })).resolves.toEqual({ ok: true, error: null });
+    expect(probe).not.toHaveBeenCalled();
+    const { unreads } = await invoke<{ unreads: Array<{ agentId: string }> }>(handlers, "tasks.unreads", {});
+    expect(unreads.map((mark) => mark.agentId)).toEqual(["agent-a"]);
+  });
+});
+
 describe("Tasks server subagent timeline RPC", () => {
   it("preserves a provider subagent's message times while dropping unrelated fields, and closes the connection", async () => {
     const fetchProviderSubagentTimeline = vi.fn(async () => ({
@@ -563,7 +626,7 @@ describe("Tasks server parent origins", () => {
       archived: vi.fn(() => new Promise<void>(() => {})),
       read: vi.fn(async () => ({ version: "v2", origins: [{ agentId: "child", parentAgentId: "parent" }] })),
     };
-    registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")), undefined, noHost, createStopMarks(join(tempRoot, "tasks-reads.json")), undefined, watch);
+    registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")), undefined, noHost, createStopMarks(join(tempRoot, "tasks-reads.json")), undefined, watch, createStopMarks(join(tempRoot, "tasks-unreads.json")));
     const paseo = {} as PaseoApi;
     await hooks.get("agent.archived")!({ agent: { id: "parent" }, archivedAt: "2026-11-05T06:27:39.958Z" }, { paseo });
     expect(watch.archived).toHaveBeenCalledWith(paseo, "parent", "2026-11-05T06:27:39.958Z");

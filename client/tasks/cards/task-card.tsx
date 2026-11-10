@@ -26,6 +26,7 @@ import { THINKING_ICON } from "./mode-icons";
 import { subagentFacts } from "../subagent-type";
 import { identityColor, ProjectIcon, projectViewKey } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
+import { UnreadIcon } from "./unread-icon";
 import { TitleLoading } from "./title-loading";
 import { TitleUndo } from "./title-undo";
 import { useRevealedTitle } from "./title-reveal";
@@ -80,6 +81,8 @@ export interface CardCallbacks {
   onCancelStop?(agentId: string): void;
   /** Mark read, if the card is readable and the server reaches the daemon. */
   onRead?(card: TaskCard): void;
+  /** Mark unread, for a done card: it moves to review. */
+  onUnread?(card: TaskCard): void;
   /** Unarchive an archived task, if the daemon's CLI is reachable (as for Stop). */
   onUnarchive?(agentId: string): void;
   /** Archive a done task, as Paseo's own Archive does. */
@@ -123,6 +126,8 @@ export interface TaskCardViewProps extends CardCallbacks {
   stopPhase: StopPhase;
   /** A mark read is on its way: the button waits, disabled. */
   readPending?: boolean;
+  /** A mark unread is on its way: the button waits, disabled. */
+  unreadPending?: boolean;
   /** An unarchive is on its way: the button spins, and a second press does nothing. */
   unarchivePending?: boolean;
   /** An archive is on its way: the button spins, and a second press does nothing. */
@@ -571,7 +576,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A provider subagent's card is read-only: no Stop, Mark read or Archive. It
   // shows its details as any card; Open opens its parent's tab (the board's `onOpen`).
   const props = given.card.subagent
-    ? { ...given, onStop: undefined, onRead: undefined, onArchive: undefined, onUnarchive: undefined, onPermission: undefined }
+    ? { ...given, onStop: undefined, onRead: undefined, onUnread: undefined, onArchive: undefined, onUnarchive: undefined, onPermission: undefined }
     : opensInPaseo(given.card) ? given : { ...given, onOpen: undefined };
   const { card, fields, compact, theme } = props;
   const scale = useTasksFontScale();
@@ -694,6 +699,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const canRead = !canStop && card.readable === true && !!props.onRead;
   const readPending = props.readPending === true;
   const showRead = canRead && !compact && (TOUCH || hovered || readPending);
+  // Mark unread sits to the left of Archive. A done card is never also readable.
+  const canUnread = card.lane === "done" && !card.archived && !!props.onUnread;
+  const unreadPending = props.unreadPending === true;
+  const showUnread = canUnread && !compact && (TOUCH || hovered || unreadPending);
   // "Open tab" comes with them on a desktop card, or alone on one with neither;
   // a question's "Answer" already opens the tab.
   // A subtask's card adds "Open parent" before it, unless the parent is archived (Paseo would show another tab).
@@ -710,7 +719,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const canArchive = card.lane === "done" && !card.archived && !!props.onArchive;
   const archivePending = props.archivePending === true;
   const showArchive = canArchive && !compact && (TOUCH || hovered || archivePending);
-  const showControl = showStop || showRead || showOpen || showUnarchive || showArchive;
+  const showControl = showStop || showRead || showUnread || showOpen || showUnarchive || showArchive;
   const reducedMotion = useReducedMotion();
   const controlLeaving = useLeaving(showControl && !TOUCH, reducedMotion ? 0 : STOP_EXIT_MS);
   const read = {
@@ -1255,7 +1264,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A desktop card that can open, stop or be read keeps the footer even when
   // it has nothing else, so its buttons have a place to appear. A tablet's
   // buttons take a row of their own under it instead.
-  const stopSlot = (footStop || canRead || canOpen || canUnarchive || canArchive) && !compact && !TOUCH;
+  const stopSlot = (footStop || canRead || canUnread || canOpen || canUnarchive || canArchive) && !compact && !TOUCH;
   // The footer is as tall as the hover buttons on a desktop card that can
   // show them, hovered or not, so the button sits inside it with the card's
   // own gaps above and below instead of overhanging the pills, and hovering
@@ -1277,6 +1286,20 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       compact={onPhone}
       onPress={() => props.onUnarchive?.(card.id)}
       testID="task-card-unarchive"
+    />
+  );
+  const unreadButton = (onPhone: boolean, hug = false) => (
+    <CardButton
+      label={strings.markUnread}
+      look="unread"
+      glyph={(color, size) => <UnreadIcon size={size} color={color} />}
+      busy={unreadPending}
+      hint={hint("action-unread", () => strings.markUnread)}
+      tokens={tokens}
+      compact={onPhone}
+      hug={hug}
+      onPress={() => props.onUnread?.(card)}
+      testID="task-card-unread"
     />
   );
   const archiveButton = (onPhone: boolean, hug = false) => (
@@ -1311,6 +1334,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const footControls = (line: number) => (
     <ActionRow gap={GAP} style={{ justifyContent: "flex-end", marginVertical: (Math.round(line * scale) - taskControlHeight(buttonHeight, scale)) / 2 }}>
       {footStop ? <StopControl {...stop} compact={false} line={buttonHeight} menuLeft={canOpen} /> : canRead ? <ReadControl {...read} compact={false} line={buttonHeight} /> : null}
+      {canUnread ? unreadButton(false) : null}
       {canArchive ? archiveButton(false) : null}
       {canOpen && parentOpens ? openParentButton(false) : null}
       {canOpen && ownTab ? (
@@ -1529,7 +1553,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // Stop is as wide as its label beside a button that opens the tab ("Open tab" or "Answer").
   const stopHugs = (openTab && !openSquare) || buttons.some((button) => button.kind === "open");
   const actionBar =
-    compact && (openTab || buttons.length > 0 || canStop || canRead || canUnarchive || canArchive) ? (
+    compact && (openTab || buttons.length > 0 || canStop || canRead || canUnread || canUnarchive || canArchive) ? (
       // One row: no flexWrap, whose Yoga layout left a phantom second row's
       // height under the buttons on Android.
       <ActionRow style={{ marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
@@ -1546,6 +1570,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         ))}
         {canStop ? <StopControl {...stop} compact hug={stopHugs} line={buttonHeight} menuLeft={openTab && buttons.length === 0} /> : null}
         {canRead ? <ReadControl {...read} compact hug={openTab} line={buttonHeight} /> : null}
+        {canUnread ? unreadButton(true, openTab) : null}
         {canArchive ? archiveButton(true, openTab) : null}
         {/* Beside Allow and Deny, where Open tab is a square, there is no room for it; a subagent's, its only one, is the square. */}
         {openTab && parentOpens && (!openSquare || !ownTab) ? openParentButton(true, openSquare) : null}
@@ -1718,6 +1743,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             childrenOnly,
             stopAllLeading: <StopTreeGlyph tokens={tokens} color={tokens.danger} />,
             read: canRead && !readPending ? () => props.onRead?.(card) : undefined,
+            unread: canUnread && !unreadPending ? () => props.onUnread?.(card) : undefined,
             unarchive: canUnarchive ? () => props.onUnarchive?.(card.id) : undefined,
             archive: canArchive && !archivePending ? () => props.onArchive?.(card.id) : undefined,
             filters: props.onFilter && props.filterState ? { state: props.filterState(card), select: (by) => props.onFilter?.(card, by) } : undefined,

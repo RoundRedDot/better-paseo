@@ -6,7 +6,7 @@ import { TITLE_GENERATION_SETTINGS } from "../../../shared/title-generation";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
-import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl } from "../actions";
+import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, useUnreadControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl, type UnreadControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, setTasksArchivedLane, useTasks, withSubagentCards, type TasksHandle } from "../data";
 import { useSearchFirstPrompts, retrySearchPrompt, type SearchCoverageControl } from "../data/search-first-prompts";
@@ -104,6 +104,8 @@ export interface BoardController {
   visible: boolean;
   stop: StopControl;
   read: ReadControl;
+  /** Mark unread for a done task: its card, its menu and the details. */
+  unread: UnreadControl;
   /** Unarchive for an archived parent in the details. */
   unarchive: UnarchiveControl;
   /** Archive for a done task: its card, its menu and the details. */
@@ -346,8 +348,12 @@ export function useBoard(
   }, []);
   const stop = useStopControl({ cardById: (id) => byIdRef.current.get(id), isActive, toast });
   const isReadable = useCallback((agentId: string) => byIdRef.current.get(agentId)?.readable === true, []);
-  const afterRead = useCallback(() => latest.current.tasks.refreshReads(), []);
-  const read = useReadControl({ isReadable, onRead: afterRead, toast });
+  const afterMarks = useCallback(() => {
+    latest.current.tasks.refreshReads();
+    latest.current.tasks.refreshUnreads();
+  }, []);
+  const read = useReadControl({ isReadable, onRead: afterMarks, toast });
+  const unread = useUnreadControl({ onUnread: afterMarks, toast });
   const reconcileRead = read.reconcile;
   // Unarchive runs through the same CLI as Stop.
   const verifyUnarchive = useCallback((agentId: string) => latest.current.tasks.refreshParent(agentId), []);
@@ -432,8 +438,8 @@ export function useBoard(
   }, []);
 
   // Callbacks read the latest values through a ref, so the memoized cards see stable functions.
-  const latest = useRef({ props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search });
-  latest.current = { props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search };
+  const latest = useRef({ props, paseo, toast, stop, read, unread, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search });
+  latest.current = { props, paseo, toast, stop, read, unread, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search };
   const setFullConversationSearch = useCallback((on: boolean) => {
     setFullConversationSearchState(on);
     latest.current.toast.show(latest.current.strings.fullConversationToast(on));
@@ -517,6 +523,8 @@ export function useBoard(
       onCancelStop: (agentId) => latest.current.stop.cancel(agentId),
       // The server cannot reach the daemon itself: no Mark read either.
       onRead: readAvailable ? (card) => write(card.id, "read", () => latest.current.read.press(card)) : undefined,
+      // A file the plugin keeps: not gated on the daemon, and not a blocked write.
+      onUnread: (card) => latest.current.unread.press(card),
       onUnarchive: unarchiveAvailable ? (agentId) => write(agentId, "unarchive", () => latest.current.unarchive.press(agentId)) : undefined,
       onArchive: (agentId) => write(agentId, "archive", () => latest.current.archive.press(agentId)),
       onPermission: (card, button) => {
@@ -583,6 +591,7 @@ export function useBoard(
     visible,
     stop,
     read: guardedRead,
+    unread,
     unarchive: guardedUnarchive,
     archive: guardedArchive,
     callbacks,

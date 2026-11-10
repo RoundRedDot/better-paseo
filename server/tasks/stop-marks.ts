@@ -25,6 +25,11 @@ export function readMarksPath(): string {
   return join(pluginDataDir(), "tasks-reads.json");
 }
 
+/** The unread marks (`tasks.unreads`): the same record again, in a file of their own. */
+export function unreadMarksPath(): string {
+  return join(pluginDataDir(), "tasks-unreads.json");
+}
+
 /**
  * The agents stopped through `tasks.stop`, with when, oldest first. Kept in
  * memory and mirrored to one JSON file, so a daemon restart or a plugin

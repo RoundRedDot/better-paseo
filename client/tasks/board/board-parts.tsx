@@ -453,6 +453,7 @@ export function CardCell(props: CardCellProps) {
             permissionButtons={board.buttonsFor(card)}
             stopPhase={board.stop.phase(card.id)}
             readPending={board.read.pending(card.id)}
+            unreadPending={board.unread?.pending(card.id) ?? false}
             unarchivePending={board.unarchive.pending(card.id)}
             archivePending={board.archive.pending(card.id)}
             focused={props.focused ?? false}

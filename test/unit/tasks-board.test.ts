@@ -341,6 +341,7 @@ function handle(): TasksHandle {
     resolveParent() {},
     refreshParent: async () => false,
     refreshReads() {},
+    refreshUnreads() {},
     requestProjectIcon() {},
   };
 }

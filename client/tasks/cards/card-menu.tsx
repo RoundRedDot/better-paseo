@@ -2,7 +2,7 @@ import React, { useLayoutEffect, useRef, useState, type ReactNode } from "react"
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { Icon, Modal, copyText, useToast } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { CascadeMenu, type MenuSection } from "../board/menu";
+import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import { layoutMenu, MENU_EDGE } from "../board/menu-model";
 import { TaskText as Text, TasksTypography, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { openPointLayer } from "../../web";
@@ -17,6 +17,7 @@ import { taskOperationIssue } from "../availability";
 import { taskIssueText } from "./availability-tag";
 import type { TaskOperation } from "../../../shared/task-availability";
 import { CardMenuPopover } from "./card-menu-popover";
+import { UnreadIcon } from "./unread-icon";
 
 export const CARD_MENU_WIDTH = 280;
 
@@ -42,6 +43,10 @@ export interface CardMenuActions {
   /** "Stop with subtasks"'s mark, as the card's own stop menu draws it, in the danger colour. */
   stopAllLeading?: ReactNode;
   read?(): void;
+  /** A done task: Mark unread, to the left of Archive. */
+  unread?(): void;
+  /** The menu icon colour. The leading callback is handed the row's fill, not this. */
+  iconColor?: string;
   unarchive?(): void;
   /** A done task: Archive, as Paseo's own. */
   archive?(): void;
@@ -52,7 +57,7 @@ export interface CardMenuActions {
  * parent's, or shows the parent's card); copy its session ID, title,
  * workspace and project; filter the board to its agent, workspace or
  * project; then whatever the card can do right now (Stop, Mark read,
- * Unarchive, Archive). A copy whose value the card lacks is left out, so
+ * Mark unread, Unarchive, Archive). A copy whose value the card lacks is left out, so
  * is a write the task cannot take, and so is an empty group.
  */
 export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof cardStrings>, actions: CardMenuActions): MenuSection[] {
@@ -127,6 +132,8 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
             ]
           : []),
         ...(actions.read ? [{ key: "read", label: strings.markRead, icon: "CheckCheck", shortcut: "U", onSelect: actions.read }] : []),
+        // A static node: `leading`'s function is called with the row fill, which would paint this mark as a hole.
+        ...(actions.unread ? [{ key: "unread", label: strings.markUnread, shortcut: "N", leading: <UnreadIcon size={MENU.icon} color={actions.iconColor ?? "#737373"} />, onSelect: actions.unread }] : []),
         ...(actions.unarchive ? [{ key: "unarchive", label: strings.details.unarchive, icon: "ArchiveRestore", shortcut: "A", onSelect: actions.unarchive }] : []),
         ...(actions.archive ? [{ key: "archive", label: strings.details.archive, icon: "Archive", shortcut: "A", onSelect: actions.archive }] : []),
       ],
@@ -177,7 +184,7 @@ export function CardContextMenu(props: {
   const { point } = props;
   const copy = useMenuCopy();
   const [editing, setEditing] = useState(false);
-  const sections = cardMenuSections(props.card, props.strings, { ...props.actions, copy, rename: () => setEditing(true) });
+  const sections = cardMenuSections(props.card, props.strings, { ...props.actions, copy, rename: () => setEditing(true), iconColor: props.actions.iconColor ?? props.theme.colors.foregroundMuted });
   const scale = useTasksFontScale();
   const window = useWindowDimensions();
   const anchorRef = useRef<View>(null);

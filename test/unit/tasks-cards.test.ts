@@ -2097,6 +2097,30 @@ describe("TaskCardView actions", () => {
     expect(tree.root.findAll((node) => node.props.testID === "task-card-archive")).toHaveLength(0);
   });
 
+  it("puts Mark unread before Archive on a done task", async () => {
+    const onUnread = vi.fn();
+    const done = sample("sample-done");
+    const tree = await render(cardElement(done, { onOpen: vi.fn(), onArchive: vi.fn(), onUnread }));
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["标为未读", "归档", "打开"]);
+    expect(hostByTestId(tree.root, "task-card-unread").findAll((node) => typeof node.type === "string" && node.props.testID === "unread-icon")).toHaveLength(1);
+    const green = taskTokens(LIGHT).card;
+    expect(flat(hostByTestId(tree.root, "task-card-unread").props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: green.unreadBorder });
+    expect(hostByTestId(tree.root, "task-card-unread").findAll((node) => (node.type as unknown) === "Text")[0]!.props.style.color).toBe(green.readText);
+    hostByTestId(tree.root, "task-card-unread").props.onPress();
+    expect(onUnread).toHaveBeenCalledWith(done);
+
+    await act(async () => tree.update(cardElement(done, { compact: true, onOpen: vi.fn(), onArchive: vi.fn(), onUnread })));
+    expect(texts(hostByTestId(tree.root, "task-card-actions"))).toEqual(["标为未读", "归档", "打开"]);
+    expect(flat(hostByTestId(tree.root, "task-card-unread").props.style).flexGrow).toBe(0);
+
+    await act(async () => tree.update(cardElement(sample("sample-running"), { onUnread })));
+    expect(tree.root.findAll((node) => node.props.testID === "task-card-unread")).toHaveLength(0);
+    await act(async () => tree.update(cardElement({ ...done, lane: "archived", status: "archived", archived: "agent" }, { onUnread })));
+    expect(tree.root.findAll((node) => node.props.testID === "task-card-unread")).toHaveLength(0);
+    await act(async () => tree.update(cardElement({ ...done, subagent: { subtitle: "Explore" } }, { onUnread })));
+    expect(tree.root.findAll((node) => node.props.testID === "task-card-unread")).toHaveLength(0);
+  });
+
   it("puts Unarchive where Open was on an archived task, spinning while it runs", async () => {
     const onUnarchive = vi.fn();
     const archived = { ...sample("sample-done"), lane: "archived" as const, status: "archived" as const, archived: "agent" as const };
@@ -3376,6 +3400,25 @@ describe("TaskDetailCards", () => {
     expect(tree.root.findAll((node) => node.props.testID === "detail-archive")).toHaveLength(0);
   });
 
+  it("offers Mark unread immediately left of Archive in a done task's header", async () => {
+    const archive = { pending: vi.fn(() => false), press: vi.fn() };
+    const markUnread = { pending: vi.fn(() => false), press: vi.fn() };
+    const done = sample("sample-done");
+    const tree = await render(details(done, { onOpen: vi.fn(), archive, markUnread }));
+    const order = hostByTestId(tree.root, "detail-actions").findAll((node) => typeof node.type === "string" && typeof node.props.testID === "string" && /^detail-(open|unread|archive)$/.test(node.props.testID)).map((node) => node.props.testID);
+    expect(order).toEqual(["detail-open", "detail-unread", "detail-archive"]);
+    expect(texts(hostByTestId(tree.root, "detail-unread"))).toEqual(["标为未读"]);
+    expect(hostByTestId(tree.root, "detail-unread").findAll((node) => typeof node.type === "string" && node.props.testID === "unread-icon")).toHaveLength(1);
+    expect(flat(hostByTestId(tree.root, "detail-unread").props.style)).toMatchObject({ borderColor: taskTokens(LIGHT).card.unreadBorder });
+    await act(async () => hostByTestId(tree.root, "detail-unread").props.onPress());
+    expect(markUnread.press).toHaveBeenCalledWith(done);
+
+    await act(async () => tree.update(details(sample("sample-running"), { onOpen: vi.fn(), markUnread })));
+    expect(tree.root.findAll((node) => node.props.testID === "detail-unread")).toHaveLength(0);
+    await act(async () => tree.update(details({ ...done, subagent: { subtitle: "Explore" } }, { markUnread })));
+    expect(tree.root.findAll((node) => node.props.testID === "detail-unread")).toHaveLength(0);
+  });
+
   it("offers Unarchive in the header of an archived task, not of an archived workspace's", async () => {
     const archived = { ...sample("sample-done"), lane: "archived" as const, status: "archived" as const, archived: "agent" as const };
     const unarchive = { pending: vi.fn(() => false), press: vi.fn() };
@@ -4206,6 +4249,15 @@ describe("TaskDetailCards", () => {
     expect(flat(hostByTestId(done.root, "detail-bar-archive").props.style)).toMatchObject({ flexGrow: 0, backgroundColor: taskTokens(LIGHT).card.background, borderColor: taskTokens(LIGHT).card.archiveBorder });
     await act(async () => hostByTestId(done.root, "detail-bar-archive").props.onPress());
     expect(archive.press).toHaveBeenCalledWith("sample-done");
+    const markUnread = { pending: vi.fn(() => false), press: vi.fn() };
+    const marked = sample("sample-done");
+    await act(async () => done.update(bar(marked, { archive, markUnread })));
+    expect(texts(hostByTestId(done.root, "detail-action-bar"))).toEqual(["标为未读", "归档", "打开"]);
+    const columns = done.root.findAll((node) => typeof node.type === "string" && ["detail-bar-unread", "detail-bar-archive", "detail-bar-open"].includes(node.props.testID));
+    expect(columns.map((node) => node.props.testID)).toEqual(["detail-bar-unread", "detail-bar-archive", "detail-bar-open"]);
+    expect(hostByTestId(done.root, "detail-bar-unread").findAll((node) => typeof node.type === "string" && node.props.testID === "unread-icon")).toHaveLength(1);
+    await act(async () => hostByTestId(done.root, "detail-bar-unread").props.onPress());
+    expect(markUnread.press).toHaveBeenCalledWith(marked);
   });
 
   it.each(["zh", "en"] as const)("names children-only stops consistently in the details and phone bar in %s", async (language) => {

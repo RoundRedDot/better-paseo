@@ -23,6 +23,8 @@ export function CardButton(props: {
   accessibilityLabel?: string;
   look: CardButtonLook;
   icon?: string | null;
+  /** A drawn mark in place of a Lucide icon. Called with the button's colour and icon box. */
+  glyph?: (color: string, size: number) => React.ReactNode;
   tokens: TaskTokens;
   compact: boolean;
   /** Working: dimmed, a spinner in place of the icon, and no second press. */
@@ -54,7 +56,7 @@ export function CardButton(props: {
   const size = compact ? 14 : 13;
   const baseHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : cardButtonHeight();
   const height = taskControlHeight(baseHeight, scale);
-  const hasIcon = !!props.icon || props.busy || answer || props.arrow;
+  const hasIcon = !!props.icon || props.glyph !== undefined || props.busy || answer || props.arrow;
   const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, baseHeight, 2 * (compact ? 12 : 10) + (hasIcon ? size + 4 : 0) + 1, forcedSquare, kind === "primary", props.labelOnly);
   const square = fit.iconOnly;
   return (
@@ -90,6 +92,8 @@ export function CardButton(props: {
       {props.busy ? (
         // The running ring without its dot, in the icon's box so the button keeps its width.
         <SpinnerRing size={size} color={color} testID={props.testID ? `${props.testID}-spinner` : undefined} />
+      ) : props.glyph ? (
+        props.glyph(color, size)
       ) : props.icon ? (
         <Icon name={props.icon} size={size} color={color} />
       ) : null}

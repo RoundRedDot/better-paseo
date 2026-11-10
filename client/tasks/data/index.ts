@@ -112,6 +112,8 @@ export interface TasksHandle extends TasksSnapshot {
   refreshParent(agentId: string): Promise<boolean | null>;
   /** Read the server's read marks again, as after a Mark read. */
   refreshReads(): void;
+  /** Read the server's unread marks again, as after a Mark unread. */
+  refreshUnreads(): void;
   /** Fetch the icon for a visible card's project. */
   requestProjectIcon(projectId: string): void;
 }
@@ -430,6 +432,16 @@ export function setReadMarksLoader(next: ReadMarksLoader | null): void {
   readMarksLoader = next;
 }
 
+/** `tasks.unreads`: the agents marked unread from a board, with when. */
+export type UnreadMarksLoader = () => Promise<Array<{ agentId: string; unreadAt: string }>>;
+
+let unreadMarksLoader: UnreadMarksLoader | null = null;
+
+/** `contribute` sets the loader; the marks are read with the subagents and after a Mark unread. */
+export function setUnreadMarksLoader(next: UnreadMarksLoader | null): void {
+  unreadMarksLoader = next;
+}
+
 /** `tasks.parent-origins`: the parents whose archive detached a child, or null while `since` is still the server's version. */
 export type ParentOriginsLoader = (since?: string) => Promise<{ version: string; origins: ParentOrigin[] | null }>;
 
@@ -688,6 +700,19 @@ export function withReadMark(card: TaskCard, readAt: number | undefined, failedA
 }
 
 /**
+ * The card with its unread mark. A mark taken since the latest prompt, and
+ * since any read mark, moves a done card back to review. Archive and a
+ * running child still win, because they are applied after this. A review
+ * card is left as it is: clearing its read mark already put a failure back.
+ */
+export function withUnreadMark(card: TaskCard, unreadAt: number | undefined, readAt: number | undefined): TaskCard {
+  if (unreadAt === undefined || card.lane !== "done" || card.archived) return card;
+  if (unreadAt < epoch(card.timing.lastUserMessageAt)) return card;
+  if (readAt !== undefined && readAt >= unreadAt) return card;
+  return { ...card, lane: "review", status: "unread", readable: true };
+}
+
+/**
  * A finished parent whose subtasks still run or wait for input is not done:
  * it moves to the running lane with the running ring, so the board does not
  * read it as finished while its work goes on. Its own turn has ended
@@ -922,6 +947,7 @@ interface TaskStore {
   resolveParent(id: string): void;
   refreshParent(id: string): Promise<boolean | null>;
   refreshReads(): void;
+  refreshUnreads(): void;
   requestProjectIcon(projectId: string): void;
 }
 
@@ -992,6 +1018,8 @@ function createStore(api: PaseoApi): TaskStore {
   let subagentReading = false;
   /** The server's read marks (`tasks.reads`), as epoch ms by agent. */
   const readMarks = new Map<string, number>();
+  /** The server's unread marks (`tasks.unreads`), as epoch ms by agent. */
+  const unreadMarks = new Map<string, number>();
   /** Failed parents asked for by id, once per version of the list. */
   const subagentParentsAsked = new Set<string>();
   const subscriptions = new Map<string, StoreSubscription>();
@@ -1160,7 +1188,8 @@ function createStore(api: PaseoApi): TaskStore {
         ? isArchived(parentEntry.agent) ? "agent" : inArchivedWorkspace(parentAgentId) ? "workspace" : null
         : resolvedParents.get(parentAgentId)?.archived ? "agent" : null;
     const childIds = childrenByParent.get(id);
-    const next: TaskCard = withArchived(withActiveSubtasks(withReadMark(withSubagents({
+    const readAt = readMarks.get(id);
+    const next: TaskCard = withArchived(withActiveSubtasks(withUnreadMark(withReadMark(withSubagents({
       ...withTurnError(base, turnErrors.get(id)),
       usage: withRecordedCost(base.usage, turnCosts.get(id)),
       timing: withLastTurn({ ...base.timing, archivedAt }, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
@@ -1198,7 +1227,7 @@ function createStore(api: PaseoApi): TaskStore {
             .filter((child): child is TaskChild => child !== null)
             .sort((left, right) => compareText(left.title, right.title))
         : [],
-    }, subagentsByParent.get(id)), readMarks.get(id), latestFailure(id))), archivedKind);
+    }, subagentsByParent.get(id)), readAt, latestFailure(id)), unreadMarks.get(id), readAt)), archivedKind);
     const previous = cards.get(id);
     if (shallowCardEqual(previous, next)) return false;
     cards.set(id, next);
@@ -1822,6 +1851,7 @@ function createStore(api: PaseoApi): TaskStore {
     subagentReading = true;
     try {
       await readReads(run);
+      await readUnreads(run);
       await readOrigins(run);
       const result = await loader(subagentVersion);
       if (run !== generation) return;
@@ -1932,6 +1962,38 @@ function createStore(api: PaseoApi): TaskStore {
       });
     } catch {
       // An older server without `tasks.reads`, or a failed read: the marks stay as they were.
+    }
+  }
+
+  /** The server's unread marks; a changed one moves a done card back to review. */
+  async function readUnreads(run: number) {
+    const loader = unreadMarksLoader;
+    if (!loader) return;
+    try {
+      const marks = await loader();
+      if (run !== generation) return;
+      const next = new Map<string, number>();
+      for (const mark of marks) {
+        const at = Date.parse(mark.unreadAt);
+        if (Number.isFinite(at)) next.set(mark.agentId, at);
+      }
+      const changed = new Set<string>();
+      for (const [id, at] of next) if (unreadMarks.get(id) !== at) changed.add(id);
+      for (const id of unreadMarks.keys()) if (!next.has(id)) changed.add(id);
+      if (changed.size === 0) return;
+      unreadMarks.clear();
+      for (const [id, at] of next) unreadMarks.set(id, at);
+      batchUpdates(() => {
+        for (const id of changed) {
+          refreshFinalCard(id);
+          const parent = parentByChild.get(id);
+          if (parent) refreshFinalCard(parent);
+        }
+        syncSubagentParents();
+        notify();
+      });
+    } catch {
+      // An older server without `tasks.unreads`, or a failed read: the marks stay as they were.
     }
   }
 
@@ -2503,6 +2565,7 @@ function createStore(api: PaseoApi): TaskStore {
     serverOrigins.clear();
     originsVersion = undefined;
     readMarks.clear();
+    unreadMarks.clear();
     statusReady = false;
     attentionReady = false;
     workspacesReady = false;
@@ -2647,6 +2710,7 @@ function createStore(api: PaseoApi): TaskStore {
       resolveParent,
       refreshParent,
       refreshReads,
+      refreshUnreads,
       requestProjectIcon,
     };
     snapshotCaches.push({ key: cacheKey, snapshot });
@@ -2809,6 +2873,10 @@ function createStore(api: PaseoApi): TaskStore {
 
   function refreshReads(): void {
     void readReads(generation);
+  }
+
+  function refreshUnreads(): void {
+    void readUnreads(generation);
   }
 
   function refreshParent(id: string): Promise<boolean | null> {
@@ -3060,6 +3128,7 @@ function createStore(api: PaseoApi): TaskStore {
     resolveParent,
     refreshParent,
     refreshReads,
+    refreshUnreads,
     requestProjectIcon,
   };
   return store;

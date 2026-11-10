@@ -435,6 +435,12 @@ describe("details columns", () => {
     expect(onOpen).toHaveBeenCalledWith(card.id);
     await act(async () => host(root, "detail-tab-info").props.onPress());
     expect(host(root, "detail-action-bar")).toBe(bar);
+    const markUnread = { pending: () => false, press: vi.fn() };
+    await act(async () => { renderer!.update(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={onOpen} archive={archive} markUnread={markUnread} />); });
+    const withUnread = host(renderer!.root, "detail-action-bar").findAll((node) => typeof node.type === "string" && ["detail-bar-unread", "detail-bar-archive", "detail-bar-open"].includes(node.props.testID));
+    expect(withUnread.map((node) => node.props.testID)).toEqual(["detail-bar-unread", "detail-bar-archive", "detail-bar-open"]);
+    await act(async () => withUnread[0]!.props.onPress());
+    expect(markUnread.press).toHaveBeenCalledWith(card);
   });
   it("keeps permission and stop actions in the footer", async () => {
     const card = previewSampleCards(NOW).find((item) => item.id === "sample-input")!;

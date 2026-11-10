@@ -27,7 +27,7 @@ export function requestLook(button: PermissionButton): CardButtonLook {
   return "plain";
 }
 
-export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archive" | "read";
+export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archive" | "read" | "unread";
 
 /**
  * Every Tasks action button's colours, on the card, in the details sidebar
@@ -36,7 +36,8 @@ export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archiv
  * deepens it while pressed, and grows. `hover` is the wash for an open stop
  * menu and for contrast, not a hover or press fill. Plain grey (Open tab),
  * Allow's accent, Stop and Deny's danger, "Answer"'s needs-input amber,
- * Archive's yellow, Mark read's unread green. Nothing is ever solid: an armed
+ * Archive's yellow, Mark read's unread green. Mark unread keeps that green
+ * on its label and icon, and takes a blue frame. Nothing is ever solid: an armed
  * "Confirm stop" says so in words only.
  */
 export function buttonHue(tokens: TaskTokens, look: CardButtonLook): { color: string; border: string; hover: string } {
@@ -52,6 +53,8 @@ export function buttonHue(tokens: TaskTokens, look: CardButtonLook): { color: st
       return { color: card.archiveText, border: card.archiveBorder, hover: card.archiveHover };
     case "read":
       return { color: card.readText, border: card.readBorder, hover: card.readHover };
+    case "unread":
+      return { color: card.readText, border: card.unreadBorder, hover: card.readHover };
     default:
       return { color: tokens.foreground, border: card.buttonBorder, hover: card.controlHover };
   }

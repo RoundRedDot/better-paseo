@@ -117,6 +117,7 @@ describe("tasks stop marks", () => {
 
 describe("tasks stop marks on the server", () => {
   const readsPath = () => join(dir, "tasks-reads.json");
+  const unreadsPath = () => join(dir, "tasks-unreads.json");
 
   function setup() {
     const handlers = new Map<string, (input: unknown) => Promise<unknown>>();
@@ -127,10 +128,11 @@ describe("tasks stop marks on the server", () => {
       before() { return () => {}; },
       handle(contract: { name: string }, handler: (input: unknown) => Promise<unknown>) { handlers.set(contract.name, handler); },
     } as unknown as PluginServerContext;
-    registerTasksServer(server, createStopMarks(path, now), undefined, undefined, createStopMarks(readsPath(), now));
+    registerTasksServer(server, createStopMarks(path, now), undefined, undefined, createStopMarks(readsPath(), now), undefined, undefined, createStopMarks(unreadsPath(), now));
     return {
       stopped: async () => ((await handlers.get("tasks.stopped")!({})) as { stops: Array<{ agentId: string }> }).stops.map((stop) => stop.agentId),
       reads: async () => ((await handlers.get("tasks.reads")!({})) as { reads: Array<{ agentId: string }> }).reads.map((read) => read.agentId),
+      unreads: async () => ((await handlers.get("tasks.unreads")!({})) as { unreads: Array<{ agentId: string }> }).unreads.map((mark) => mark.agentId),
       event: async (name: string, id: string) => { await events.get(name)!({ agent: { id } }); },
     };
   }
@@ -160,5 +162,17 @@ describe("tasks stop marks on the server", () => {
     await server.event("agent.turn_started", "agent-a");
     await server.event("agent.archived", "agent-c");
     expect(await server.reads()).toEqual(["agent-b"]);
+  });
+
+  it("clears an unread mark the same way: the next turn or the archive", async () => {
+    const unreads = createStopMarks(unreadsPath(), now);
+    await unreads.mark("agent-a");
+    await unreads.mark("agent-b");
+    await unreads.mark("agent-c");
+    const server = setup();
+    expect(await server.unreads()).toEqual(["agent-a", "agent-b", "agent-c"]);
+    await server.event("agent.turn_started", "agent-a");
+    await server.event("agent.archived", "agent-c");
+    expect(await server.unreads()).toEqual(["agent-b"]);
   });
 });

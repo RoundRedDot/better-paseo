@@ -3,7 +3,7 @@ import { usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, Platform } from "react-native";
-import { tasksCapabilitiesRpc, tasksReadRpc, tasksStopRpc, tasksStoppedRpc, tasksUnarchiveRpc } from "../../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksReadRpc, tasksStopRpc, tasksStoppedRpc, tasksUnarchiveRpc, tasksUnreadRpc } from "../../../shared/tasks-rpc";
 import type { TaskCard, TaskPermission, TaskPermissionAction } from "../model";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { confirmDialog } from "../../components/confirm-dialog";
@@ -675,6 +675,83 @@ export function useReadControl(options: {
   const pending = useCallback((agentId: string) => pendingIds.has(agentId), [pendingIds]);
 
   return useMemo(() => ({ available, pending, press, reconcile }), [available, pending, press, reconcile]);
+}
+
+/** Mark unread for a done card, to the left of Archive. */
+export interface UnreadControl {
+  /** The request is out; the button waits and takes no second press. */
+  pending(agentId: string): boolean;
+  press(card: TaskCard): void;
+}
+
+/**
+ * One mark-unread controller for the whole board. The mark is a file the
+ * plugin keeps, so the button does not wait on the daemon: the RPC records
+ * it and the card leaves done. A failure is an error toast. There is no
+ * second check of the card.
+ */
+export function useUnreadControl(options: {
+  /** The server took the unread mark: the board reads its marks again. */
+  onUnread?: (agentId: string) => void;
+  toast?: Pick<ReturnType<typeof useToast>, "error">;
+}): UnreadControl {
+  const unreadRpc = useRpc(tasksUnreadRpc);
+  const hostToast = useToast();
+  const toast = options.toast ?? hostToast;
+  const language = useTasksLanguage();
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(() => new Set());
+  const pendingRef = useRef<ReadonlySet<string>>(pendingIds);
+  const mountedRef = useRef(false);
+  const latest = useRef({ unreadRpc, toast, language, onUnread: options.onUnread });
+  latest.current = { unreadRpc, toast, language, onUnread: options.onUnread };
+
+  const setPending = useCallback((agentId: string, pending: boolean) => {
+    if (pendingRef.current.has(agentId) === pending) return;
+    const next = new Set(pendingRef.current);
+    if (pending) next.add(agentId);
+    else next.delete(agentId);
+    pendingRef.current = next;
+    setPendingIds(next);
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const failed = useCallback((detail: string) => {
+    const zh = latest.current.language === "zh";
+    latest.current.toast.error(zh ? `标为未读失败：${detail}` : `Could not mark as unread: ${detail}`);
+  }, []);
+
+  const press = useCallback((card: TaskCard) => {
+    if (card.lane !== "done" || card.archived || card.subagent || pendingRef.current.has(card.id)) return;
+    const agentId = card.id;
+    setPending(agentId, true);
+    const timeoutMessage = latest.current.language === "zh" ? "请求没有响应。" : "The request did not answer.";
+    void withTimeout(Promise.resolve().then(() => latest.current.unreadRpc({ agentIds: [agentId] })), READ_RPC_TIMEOUT_MS, timeoutMessage)
+      .then((result) => {
+        if (!mountedRef.current) return;
+        if (!result.ok) {
+          failed(result.error ?? (latest.current.language === "zh" ? "未知错误。" : "Unknown error."));
+          setPending(agentId, false);
+          return;
+        }
+        latest.current.onUnread?.(agentId);
+        setPending(agentId, false);
+      })
+      .catch((error: unknown) => {
+        if (!mountedRef.current) return;
+        failed(shortError(error));
+        setPending(agentId, false);
+      });
+  }, [failed, setPending]);
+
+  const pending = useCallback((agentId: string) => pendingIds.has(agentId), [pendingIds]);
+
+  return useMemo(() => ({ pending, press }), [pending, press]);
 }
 
 /** Unarchive for an archived parent, shown in the details' parent row. */

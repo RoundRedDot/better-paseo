@@ -41,6 +41,7 @@ import { ArchivedTag, parentTag, type ParentTag } from "./archived-tag";
 import { useTime, type TimeSource } from "./clock";
 import { ProjectIcon } from "./project-icon";
 import { SpinnerRing, StatusIcon } from "./status-icon";
+import { UnreadIcon } from "./unread-icon";
 import { cardTimer } from "./card-time";
 import {
   branchHint,
@@ -204,6 +205,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   archive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   /** Mark read for a card in review, as on its card; absent where this host cannot. */
   markRead?: DetailRead | null;
+  /** Mark unread for a done card, to the left of Archive. */
+  markUnread?: DetailRead | null;
   /** The sections scroll under the fixed header (the sidebar); else the card grows with them (the sheet). */
   scrollBody?: boolean;
   /**
@@ -636,12 +639,13 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
   // An archived task can be brought back; one of an archived workspace has nothing of its own to unarchive.
   const unarchive = card.archived === "agent" ? props.unarchive ?? null : null;
   const archive = archivable(card) ? props.archive ?? null : null;
+  const unread = unreadable(card) ? props.markUnread ?? null : null;
   const read = readable(card, stop, props.markRead);
   // A provider subagent has no tab of its own (its Open would open the
   // parent's), so, as on its card, "Open parent" is its only open button.
   const parentOpens = !!props.onOpen && parentOpensInPaseo(card);
   const ownOpen = !!props.onOpen && !card.subagent;
-  const showActions = props.actions !== false && (ownOpen || parentOpens || !!stop || !!read || !!unarchive || !!archive);
+  const showActions = props.actions !== false && (ownOpen || parentOpens || !!stop || !!read || !!unread || !!unarchive || !!archive);
   // Open tab takes the row's room: first on desktop, last on touch, where the
   // phone's bar and the cards end with it too. Its label is the card's.
   const openButton = ownOpen ? (
@@ -671,6 +675,21 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
       onPress={() => unarchive.press(card.id)}
       testID="detail-unarchive"
       disabled={!!taskOperationIssue(card, "unarchive")}
+    />
+  ) : null;
+  // Mark unread sits immediately left of Archive. The frame is blue; the label and icon stay green.
+  const unreadButton = unread ? (
+    <OutlineButton
+      glyph={(color, size) => <UnreadIcon size={size} color={color} />}
+      look="unread"
+      label={cardText.markUnread}
+      busy={unread.pending(card.id)}
+      height={m.button}
+      font={m.font}
+      tokens={tokens}
+      grow={!openButton && !parentOpens}
+      onPress={() => unread.press(card)}
+      testID="detail-unread"
     />
   ) : null;
   // A done task's Archive sits beside Open tab.
@@ -845,6 +864,7 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
               disabled={!!taskOperationIssue(card, "read")}
             />
           ) : null}
+          {unreadButton}
           {archiveButton}
           {opens ? unarchiveButton : null}
           {touch ? lead : null}
@@ -2042,6 +2062,8 @@ function OpenHint(props: { tokens: TaskTokens; label: string }) {
 function OutlineButton(props: {
   /** Leads the label; Open tab has none, only its trailing ↗. */
   icon?: string;
+  /** A drawn mark in place of `icon`, in the button's colour and the icon's box. */
+  glyph?: (color: string, size: number) => React.ReactNode;
   label: string;
   /** The card button's colours (`buttonHue`); plain by default, its icon then muted. */
   look?: CardButtonLook;
@@ -2067,7 +2089,7 @@ function OutlineButton(props: {
   const iconColor = look === "plain" ? tokens.foregroundMuted : hue.color;
   const [hintWidth, setHintWidth] = useState(0);
   const gap = props.grow ? 8 : 6;
-  const leading = !!props.icon || props.busy;
+  const leading = !!props.icon || props.glyph !== undefined || props.busy;
   // A trailing icon has a flexible spacer before it; both gaps count even at zero spacer width.
   const pieces = 1 + Number(!!leading) + Number(!!props.hint) + 2 * Number(!!props.trailing);
   const chrome = 2 * (props.grow ? 10 : 12) + (leading ? 15 : 0) + (props.hint ? hintWidth : 0) + (props.trailing ? 14 : 0) + (pieces - 1) * gap + 1;
@@ -2103,6 +2125,8 @@ function OutlineButton(props: {
       {props.busy ? (
         // The running ring without its dot, in the icon's box so the button keeps its width.
         <SpinnerRing size={15} color={iconColor} testID={props.testID ? `${props.testID}-spinner` : undefined} />
+      ) : props.glyph ? (
+        props.glyph(iconColor, 15)
       ) : props.icon ? (
         <Icon name={props.icon} size={15} color={iconColor} />
       ) : null}
@@ -2140,6 +2164,7 @@ export function DetailActionBar(props: {
   unarchive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   archive?: { pending(agentId: string): boolean; press(agentId: string): void } | null;
   markRead?: DetailRead | null;
+  markUnread?: DetailRead | null;
   sidebar?: boolean;
   smallTablet?: boolean;
   /** The page still runs under this bar, so it casts the same edge the tabs do. */
@@ -2150,6 +2175,7 @@ export function DetailActionBar(props: {
   // An archived task's main button is Unarchive, in Open tab's place.
   const unarchive = card.archived === "agent" ? props.unarchive ?? null : null;
   const archive = archivable(card) ? props.archive ?? null : null;
+  const unread = unreadable(card) ? props.markUnread ?? null : null;
   const tokens = taskTokens(props.theme);
   const stop = stopLabel(props as TaskDetailCardsProps);
   const read = readable(card, stop, props.markRead);
@@ -2161,7 +2187,7 @@ export function DetailActionBar(props: {
   // a provider subagent's "Open parent" alone (its own tab is the parent's).
   const parentOpens = !!onOpen && parentOpensInPaseo(card);
   const ownOpen = !!onOpen && !card.subagent;
-  if (!ownOpen && !parentOpens && !stop && !read && !asking && !unarchive && !archive && !props.onClose) return null;
+  if (!ownOpen && !parentOpens && !stop && !read && !unread && !asking && !unarchive && !archive && !props.onClose) return null;
   const open = () => onOpen?.(card.id);
   const cardText = cardStrings(props.language);
   const openText = cardText.openTab;
@@ -2219,6 +2245,18 @@ export function DetailActionBar(props: {
               onPress={() => read.press(card)}
               testID="detail-bar-read"
               disabled={!!taskOperationIssue(card, "read")}
+            />
+          ) : null}
+          {unread ? (
+            <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar}
+              tokens={tokens}
+              glyph={(color, size) => <UnreadIcon size={size} color={color} />}
+              look="unread"
+              label={cardText.markUnread}
+              busy={unread.pending(card.id)}
+              grow={!ownOpen && !parentOpens}
+              onPress={() => unread.press(card)}
+              testID="detail-bar-unread"
             />
           ) : null}
           {archive ? (
@@ -2285,13 +2323,18 @@ function archivable(card: TaskCard): boolean {
   return card.lane === "done" && !card.archived;
 }
 
+/** A done task of our own, not a provider subagent: Mark unread is offered for it. */
+function unreadable(card: TaskCard): boolean {
+  return card.lane === "done" && !card.archived && !card.subagent;
+}
+
 /**
  * The bottom bar's button: the card button's outline (`buttonHue`) at thumb
  * size. The fill stays the card. Desktop hover deepens the shadow. A phone or iPad
  * deepens it while pressed, and grows. A busy one does neither.
  */
 /** `arrow` ends the button in a ↗ after its label (Open tab); a square shows only the arrow. */
-function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; keepLabel?: boolean; labelOnly?: boolean; label: string; sidebar?: boolean; smallTablet?: boolean; square?: boolean; grow?: boolean; width?: number; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
+function BarButton(props: { tokens: TaskTokens; icon?: string; glyph?: (color: string, size: number) => React.ReactNode; look?: CardButtonLook; keepLabel?: boolean; labelOnly?: boolean; label: string; sidebar?: boolean; smallTablet?: boolean; square?: boolean; grow?: boolean; width?: number; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
@@ -2307,7 +2350,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const hue = buttonHue(tokens, look);
   const text = hue.color;
   const iconColor = look === "plain" ? tokens.foregroundMuted : text;
-  const fit = useActionFit(props.label, `${scale}|${compact}|${font}|${useWindowDimensions().fontScale}`, squareWidth, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, props.keepLabel ?? look === "primary", props.labelOnly);
+  const fit = useActionFit(props.label, `${scale}|${compact}|${font}|${useWindowDimensions().fontScale}`, squareWidth, 2 * padding + ((props.icon || props.glyph !== undefined || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, props.keepLabel ?? look === "primary", props.labelOnly);
   const square = fit.iconOnly || (!props.labelOnly && props.width !== undefined && fit.full !== null && props.width < fit.full);
   const disabled = props.busy || props.disabled;
   const hovered = hover && !disabled;
@@ -2346,6 +2389,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
       {props.busy ? (
         // The running ring without its dot, in the icon's box so the button keeps its width.
         <SpinnerRing size={iconSize} color={iconColor} testID={props.testID ? `${props.testID}-spinner` : undefined} />
+      ) : props.glyph ? (
+        props.glyph(iconColor, iconSize)
       ) : props.icon ? (
         <Icon name={props.icon} size={iconSize} color={iconColor} />
       ) : null}

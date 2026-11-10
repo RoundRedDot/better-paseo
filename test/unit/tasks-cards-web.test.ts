@@ -577,6 +577,16 @@ describe("TaskCardView on web", () => {
     const running = await render(React.createElement(TaskCardView, props("sample-child-1", { onOpen, onArchive })));
     await act(async () => hovers.get("task-card-sample-child-1")!.enter());
     expect(running.root.findAll((node) => node.props.testID === "task-card-archive")).toHaveLength(0);
+
+    const onUnread = vi.fn();
+    const marked = await render(React.createElement(TaskCardView, props("sample-done", { onOpen, onArchive, onUnread })));
+    await act(async () => hovers.get("task-card-sample-done")!.enter());
+    const unreadOverlay = marked.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-archive-overlay");
+    const unreadButtons = unreadOverlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    expect(unreadButtons.map((node) => node.props.accessibilityLabel)).toEqual(["标为未读", "归档", "打开"]);
+    await act(async () => unreadButtons[0]!.props.onPress());
+    expect(onUnread).toHaveBeenCalledWith(expect.objectContaining({ id: "sample-done" }));
+    await act(async () => marked.unmount());
     await act(async () => running.unmount());
   });
 
@@ -871,6 +881,7 @@ describe("TaskCardView right-click menu", () => {
     const done = await render(React.createElement(TaskCardView, props("sample-done", { onArchive })));
     await act(async () => contextMenus.get("task-card-sample-done")!({ x: 0, y: 0 }, null));
     expect(rows(done.root).at(-1)).toBe("归档");
+    expect(rows(done.root)).not.toContain("标为未读");
     await choose(done.root, "归档");
     expect(onArchive).toHaveBeenCalledWith("sample-done");
     await act(async () => done.update(React.createElement(TaskCardView, props("sample-done", { onArchive, archivePending: true }))));
@@ -886,6 +897,15 @@ describe("TaskCardView right-click menu", () => {
     await act(async () => contextMenus.get("task-card-sample-archived")!({ x: 0, y: 0 }, null));
     expect(rows(archived.root)).not.toContain("归档");
     await act(async () => archived.unmount());
+
+    const onUnread = vi.fn();
+    const unread = await render(React.createElement(TaskCardView, props("sample-done", { onArchive: vi.fn(), onUnread })));
+    await act(async () => contextMenus.get("task-card-sample-done")!({ x: 0, y: 0 }, null));
+    const labels = rows(unread.root);
+    expect(labels.indexOf("归档") - labels.indexOf("标为未读")).toBe(1);
+    await choose(unread.root, "标为未读");
+    expect(onUnread).toHaveBeenCalledWith(expect.objectContaining({ id: "sample-done" }));
+    await act(async () => unread.unmount());
   });
 
   it("leaves a right click inside the open menu alone", async () => {

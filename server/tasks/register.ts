@@ -4,12 +4,12 @@ import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
 import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
-import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
+import { createStopMarks, readMarksPath, stopMarksPath, unreadMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
 import { iconThemeColor } from "./icon-color";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
 import { createParentOriginWatch, type ParentOriginWatch } from "./parent-origins";
-import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksParentOriginsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksParentOriginsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc, tasksUnreadRpc, tasksUnreadsRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
 import { registerTitleGeneration } from "./title-generation";
 import { tasksAvailabilityRpc } from "../../shared/task-availability";
@@ -324,6 +324,32 @@ async function markRead(host: HostDaemonAccess, agentIds: string[]): Promise<{ o
 }
 
 /**
+ * Asks the daemon to mark these agents unread when its client exposes
+ * `markAgentUnread`. The board's own mark already moved the card, so a
+ * missing method, a refused agent, or a daemon that cannot be reached
+ * changes nothing the caller sees. Not awaited by the RPC.
+ */
+async function markDaemonUnread(host: HostDaemonAccess, agentIds: string[]): Promise<void> {
+  if (!host.available()) return;
+  const daemon = await host.connect();
+  if (!daemon || typeof daemon.markAgentUnread !== "function") {
+    await daemon?.close().catch(() => {});
+    return;
+  }
+  try {
+    for (const agentId of agentIds) {
+      try {
+        await daemon.markAgentUnread(agentId);
+      } catch {
+        // One agent can refuse (still running, already unread). The card has moved.
+      }
+    }
+  } finally {
+    await daemon.close().catch(() => {});
+  }
+}
+
+/**
  * The Tasks board's settings record, stop, read, subagent and unarchive RPCs. The
  * stops `tasks.stopped` answers with, and the reads `tasks.reads` answers
  * with, live in files under the plugin's data directory, so they outlive a
@@ -341,6 +367,7 @@ export function registerTasksServer(
   reads = createStopMarks(readMarksPath()),
   tokens: SessionTokenReader = createSessionTokenReader(),
   parentOrigins: ParentOriginWatch = createParentOriginWatch(),
+  unreads = createStopMarks(unreadMarksPath()),
 ): void {
   server.registerSettings(TASKS_SETTINGS);
   const titleSettings = registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available, async (agentId) => {
@@ -360,7 +387,7 @@ export function registerTasksServer(
   server.on("agent.turn_started", async ({ agent }, context) => {
     void subagents.ensure(context?.paseo);
     void parentOrigins.ensure(context?.paseo);
-    await Promise.all([stops.clear(agent.id), reads.clear(agent.id)]);
+    await Promise.all([stops.clear(agent.id), reads.clear(agent.id), unreads.clear(agent.id)]);
   });
   // A session opened from storage replays its subagents without an update; read its list after.
   server.before("agent.session_open", ({ request }, context) => {
@@ -376,7 +403,7 @@ export function registerTasksServer(
     void parentOrigins.archived(context?.paseo, agent.id, archivedAt).catch((error: unknown) => {
       console.error(`[better-paseo] parent origins after archiving ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
     });
-    await Promise.all([stops.clear(agent.id), reads.clear(agent.id)]);
+    await Promise.all([stops.clear(agent.id), reads.clear(agent.id), unreads.clear(agent.id)]);
   });
   server.handle(tasksParentOriginsRpc, ({ since }, context) => parentOrigins.read(context?.paseo, since));
   server.handle(tasksStoppedRpc, async () => ({ stops: await stops.list() }));
@@ -390,9 +417,26 @@ export function registerTasksServer(
   server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCli()) !== null, read: host.available() }));
   server.handle(tasksReadRpc, async ({ agentIds }) => {
     const result = await markRead(host, agentIds);
-    if (result.ok) for (const agentId of agentIds) await reads.mark(agentId);
+    if (result.ok) {
+      for (const agentId of agentIds) {
+        await reads.mark(agentId);
+        await unreads.clear(agentId);
+      }
+    }
     return result;
   });
+  server.handle(tasksUnreadRpc, async ({ agentIds }) => {
+    if (!agentIds.every((agentId) => AGENT_ID_PATTERN.test(agentId))) return { ok: false, error: "Invalid agent ID." };
+    for (const agentId of agentIds) {
+      await reads.clear(agentId);
+      await unreads.mark(agentId);
+    }
+    void markDaemonUnread(host, agentIds).catch(() => {});
+    return { ok: true, error: null };
+  });
+  server.handle(tasksUnreadsRpc, async () => ({
+    unreads: (await unreads.list()).map(({ agentId, stoppedAt }) => ({ agentId, unreadAt: stoppedAt })),
+  }));
   server.handle(tasksLabelsRpc, async () => ({ labels: await readLabels(host) }));
   server.handle(tasksRenameRpc, async ({ agentId, title }, { paseo }) => {
     const issue = await taskUpdateIssue(await paseo.agents.ref(agentId).refresh(), paseo);
