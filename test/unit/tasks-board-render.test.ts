@@ -7255,9 +7255,10 @@ describe("Tasks board, phone", () => {
     const detail = renderer!.root.findByType(TaskDetailCards);
     expect(detail.props).toMatchObject({ touch: true, tabs: true, scrollHeader: true, actions: false });
     const content = renderer!.root.find((node) => (node.type as unknown) === "ModalContent");
-    expect(StyleSheet.flatten(content.props.contentContainerStyle).paddingBottom).toBe(os === "ios" ? 8 : 16);
+    expect(StyleSheet.flatten(content.props.contentContainerStyle).paddingBottom).toBe(os === "ios" ? 0 : 16);
     const scroll = hostsById("detail-tab-short-scroll")[0]!;
     const bar = hostsById("detail-action-bar")[0]!;
+    expect(StyleSheet.flatten(bar.props.style).paddingBottom).toBe(os === "android" ? 4 : 0);
     expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(os === "web" ? 0 : -12);
     expect(scroll.props.contentContainerStyle).toEqual(os === "web" ? undefined : { paddingRight: 12 });
     expect(scroll.findAll((node) => node === bar)).toHaveLength(0);

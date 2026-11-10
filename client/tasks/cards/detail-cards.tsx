@@ -2171,6 +2171,7 @@ export function DetailActionBar(props: {
   markUnread?: DetailRead | null;
   sidebar?: boolean;
   smallTablet?: boolean;
+  flushBottom?: boolean;
   /** The page still runs under this bar, so it casts the same edge the tabs do. */
   contentUnder?: boolean;
 }) {
@@ -2199,7 +2200,7 @@ export function DetailActionBar(props: {
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
   const pairedOpen = !!props.onClose && (ownOpen || parentOpens) && !answer;
   return (
-    <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: 12, paddingTop: (props.smallTablet ? 6 : 10) + (Platform.OS === "web" ? 0 : 4), paddingBottom: Platform.OS === "web" ? 0 : 4, alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border, zIndex: props.contentUnder ? 1 : undefined, boxShadow: props.contentUnder ? scrollEdgeShadow(tokens.isDark, "up") : undefined, ...(props.onClose ? { flexWrap: "wrap", justifyContent: "flex-end" } : null) }}>
+    <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: 12, paddingTop: (props.smallTablet ? 6 : 10) + (Platform.OS === "web" ? 0 : 4), paddingBottom: Platform.OS === "web" || props.flushBottom ? 0 : 4, alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border, zIndex: props.contentUnder ? 1 : undefined, boxShadow: props.contentUnder ? scrollEdgeShadow(tokens.isDark, "up") : undefined, ...(props.onClose ? { flexWrap: "wrap", justifyContent: "flex-end" } : null) }}>
       {asking ? (
         <>
           {ordered.map((button) => (

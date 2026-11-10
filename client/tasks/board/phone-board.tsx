@@ -578,7 +578,7 @@ export function PhoneBoard(props: {
         </Modal.Content>
       </Modal>
       <Modal title={strings.details} open={detailsCard !== undefined} onOpenChange={(open) => !open && setSheet(null)}>
-        <Modal.Content contentContainerStyle={Platform.OS === "ios" ? { ...SHEET_FILTER_BODY, paddingBottom: 8 } : SHEET_FILTER_BODY} scrollable={false}>
+        <Modal.Content contentContainerStyle={Platform.OS === "ios" ? { ...SHEET_FILTER_BODY, paddingBottom: 0 } : SHEET_FILTER_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
             {detailsCard ? (
               <DetailsSheetBody
@@ -695,6 +695,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
       <EdgeActionBar
         chrome={edge}
         scrollHeader
+        flushBottom={Platform.OS === "ios"}
         card={card}
         theme={theme}
         language={board.language}
