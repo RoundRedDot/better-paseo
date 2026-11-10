@@ -16,7 +16,7 @@ import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
 import { liftStyle, surfaceLift } from "../cards/surface-lift";
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, NewCardsDot, NewCardsPill, RollingCount, SkeletonCard, VerticalLabel, laneHue, useBreathing, useFreshIds, useTap } from "./board-parts";
-import { CollapsedArrivalHighlight, CollapsedArrivalMarker, createCollapsedArrivals, useCollapsedArrivals, type CollapsedArrivals } from "./collapsed-arrivals";
+import { CollapsedArrivalMarker, createCollapsedArrivals, useCollapsedArrivals, type CollapsedArrivals } from "./collapsed-arrivals";
 import { pillDirection, useSeenCards, useTrackNewCards, useUnseenCards } from "./new-cards";
 import { useFlash } from "./breathing";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type EmptyLanes, type FilterMenu } from "./filter-bar";
@@ -1713,8 +1713,6 @@ function DesktopLaneView(props: DesktopLaneProps) {
           boxShadow: surfaceLift(hovered, false).shadow ? taskTokens(theme).card.buttonShadowHover : undefined,
         })}
       >
-        <CollapsedArrivalHighlight ids={arrivalIds} hue={laneHue(theme, lane.id)} />
-        {arrivalIds.length > 0 ? <View pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: 3, backgroundColor: laneHue(theme, lane.id) }} /> : null}
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
         {ready ? <RollingCount value={count} scope={board.scope} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}

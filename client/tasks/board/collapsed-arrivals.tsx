@@ -5,7 +5,7 @@ import { TaskText as Text, HOST_FONT as F } from "../typography";
 import { LANE_ORDER, type LaneId, type LaneModel } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { mix } from "../../components/theme-tokens";
-import { MOTION, PANEL_RADIUS } from "./board-style";
+import { MOTION } from "./board-style";
 import { NEW_WINDOW_MS } from "./new-cards";
 
 const EMPTY: readonly string[] = [];
@@ -89,25 +89,4 @@ export function CollapsedArrivalMarker(props: { ids: readonly string[]; hue: str
       </Animated.View>
     </View>
   );
-}
-
-export function CollapsedArrivalHighlight(props: { ids: readonly string[]; hue: string }) {
-  const reduced = useReducedMotion();
-  const [pulse] = useState(() => new Animated.Value(0));
-  const key = props.ids.join("\u0000");
-  const previous = useRef<readonly string[]>([]);
-  useEffect(() => {
-    const added = props.ids.some((id) => !previous.current.includes(id));
-    previous.current = props.ids;
-    if (!added || reduced) return;
-    pulse.setValue(1);
-    const animation = Animated.timing(pulse, { toValue: 0, duration: 880, easing: MOTION.ease, useNativeDriver: nativeDriver });
-    animation.start();
-    return () => animation.stop();
-  }, [key, reduced, pulse]);
-  if (!props.ids.length) return null;
-  return <View pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, borderRadius: PANEL_RADIUS, overflow: "hidden" }}>
-    <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: props.hue, opacity: 0.08 }} />
-    <Animated.View style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, borderWidth: 2, borderRadius: PANEL_RADIUS, borderColor: props.hue, opacity: pulse }} />
-  </View>;
 }
