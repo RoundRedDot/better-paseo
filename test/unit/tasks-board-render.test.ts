@@ -2081,6 +2081,20 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it.each(["button", "Escape"] as const)("restores the parent page after a child with %s", async (back) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const browser = renderFocusBoard();
+    const parent = cards().find((node) => node.props.card.id === "sample-running")!;
+    await act(async () => parent.props.onSelect(parent.props.card));
+    await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
+    await act(async () => hostsById("detail-subtask-sample-child-1")[0]!.props.onPress());
+    expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
+    if (back === "button") await act(async () => hostsById("detail-back")[0]!.props.onPress());
+    else await act(async () => { browser.key("Escape"); });
+    expect(hostsById("detail-tab-info")[0]!.props.accessibilityState.selected).toBe(true);
+    expect(hostsById("detail-subtask-sample-child-1")).toHaveLength(1);
+  });
+
   it.each([560, 900])("mounts desktop Info once and retains local state and scroll bookkeeping at %i pt height", async (height) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const scrollTo = vi.fn();

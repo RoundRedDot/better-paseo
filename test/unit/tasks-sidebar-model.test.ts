@@ -111,34 +111,46 @@ describe("sidebar selection", () => {
   const run = (...actions: Parameters<typeof selectionReducer>[1][]) => actions.reduce(selectionReducer, NO_SELECTION);
 
   it("shows the clicked card, and keeps it on a second click", () => {
-    expect(run({ type: "click", id: "a" })).toEqual({ id: "a", back: [] });
+    expect(run({ type: "click", id: "a" })).toEqual({ id: "a", tab: "messages", back: [] });
     const once = run({ type: "click", id: "a" });
     expect(selectionReducer(once, { type: "click", id: "a" })).toBe(once);
-    expect(run({ type: "click", id: "a" }, { type: "click", id: "b" })).toEqual({ id: "b", back: [] });
+    expect(run({ type: "click", id: "a" }, { type: "click", id: "b" })).toEqual({ id: "b", tab: "messages", back: [] });
     expect(run({ type: "click", id: "a" }, { type: "clear" })).toBe(NO_SELECTION);
   });
 
   it("jumps to a parent or subtask and goes back through the earlier cards", () => {
     const jumped = run({ type: "click", id: "a" }, { type: "jump", id: "b" }, { type: "jump", id: "c" });
-    expect(jumped).toEqual({ id: "c", back: ["a", "b"] });
+    expect(jumped).toEqual({ id: "c", tab: "messages", back: [{ id: "a", tab: "messages" }, { id: "b", tab: "messages" }] });
     const once = selectionReducer(jumped, { type: "back" });
-    expect(once).toEqual({ id: "b", back: ["a"] });
-    expect(selectionReducer(selectionReducer(once, { type: "back" }), { type: "back" })).toEqual({ id: "a", back: [] });
+    expect(once).toEqual({ id: "b", tab: "messages", back: [{ id: "a", tab: "messages" }] });
+    expect(selectionReducer(selectionReducer(once, { type: "back" }), { type: "back" })).toEqual({ id: "a", tab: "messages", back: [] });
     // A click on a card starts over.
-    expect(selectionReducer(jumped, { type: "click", id: "c" })).toEqual({ id: "c", back: [] });
+    expect(selectionReducer(jumped, { type: "click", id: "c" })).toEqual({ id: "c", tab: "messages", back: [] });
+  });
+
+  it("restores each page when going back, including through Esc", () => {
+    let state = run({ type: "click", id: "a" }, { type: "tab", tab: "info" }, { type: "jump", id: "b" });
+    expect(state.tab).toBe("messages");
+    state = selectionReducer(state, { type: "jump", id: "c" });
+    state = selectionReducer(state, { type: "tab", tab: "info" });
+    state = selectionReducer(state, { type: "back" });
+    expect(state).toMatchObject({ id: "b", tab: "messages" });
+    expect(escapeStep(state, true)).toBe("back");
+    state = selectionReducer(state, { type: "back" });
+    expect(state).toMatchObject({ id: "a", tab: "info" });
   });
 
   it("keeps at most twenty cards to go back to", () => {
     let state: SidebarSelection = NO_SELECTION;
     for (let index = 0; index < 30; index++) state = selectionReducer(state, { type: "jump", id: `c${index}` });
     expect(state.back).toHaveLength(SIDEBAR.history);
-    expect(state.back[0]).toBe("c9");
+    expect(state.back[0]).toEqual({ id: "c9", tab: "messages" });
   });
 
   it("orders Esc: back, close the floating panel, let go of the card", () => {
-    expect(escapeStep({ id: "b", back: ["a"] }, true)).toBe("back");
-    expect(escapeStep({ id: "b", back: [] }, true)).toBe("close");
-    expect(escapeStep({ id: "b", back: [] }, false)).toBe("clear");
+    expect(escapeStep({ id: "b", tab: "messages", back: [{ id: "a", tab: "messages" }] }, true)).toBe("back");
+    expect(escapeStep({ id: "b", tab: "messages", back: [] }, true)).toBe("close");
+    expect(escapeStep({ id: "b", tab: "messages", back: [] }, false)).toBe("clear");
     expect(escapeStep(NO_SELECTION, false)).toBeNull();
   });
 });

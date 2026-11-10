@@ -144,7 +144,7 @@ describe("sidebar action tips", () => {
       tasks: { ready: true }, cardById: () => card, setParams, callbacks: {},
       stop: { phase: () => "idle" }, read: { available: false }, unarchive: { available: false }, archive: { pending: () => false }, buttonsFor: () => [],
     } as unknown as BoardController;
-    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: card.id, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={false} stats={false} />);
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: card.id, tab: "messages", back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={false} stats={false} />);
     const button = host(root, "detail-notice").find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
     await act(async () => button.props.onPress());
     expect(setParams).toHaveBeenCalledOnce();
@@ -241,7 +241,7 @@ describe("sidebar action tips", () => {
       callbacks: { onOpen, onReveal }, stop: { phase: () => "idle" }, read: { available: false, pending: () => false }, unarchive: { available: false }, archive: { pending: () => false },
       buttonsFor: () => [],
     } as unknown as BoardController;
-    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: parent.id, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={onReveal} touch={false} stats={false} />);
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: parent.id, tab: "messages", back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={onReveal} touch={false} stats={false} />);
     await act(async () => contextMenus.get(`detail-subtask-${child.id}`)!({ x: 20, y: 30 }));
     expect(root.findAll((node) => node.props.accessibilityLabel === cardStrings("en").copyTitle).length).toBeGreaterThan(0);
     expect(onReveal).not.toHaveBeenCalled();
@@ -265,7 +265,7 @@ describe("sidebar action tips", () => {
       },
       setParams: vi.fn(), callbacks: {}, cardById: () => undefined,
     } as unknown as BoardController;
-    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={touch} stats={false} />);
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, tab: "messages", back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={touch} stats={false} />);
     const rows = () => root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
     const expectLines = (row: ReactTestInstance, label: string, detail: string) => {
       const texts = row.findAll((node) => (node.type as unknown) === "Text");
@@ -306,7 +306,7 @@ describe("sidebar action tips", () => {
       },
       setParams: vi.fn(), callbacks: {}, cardById: () => undefined,
     } as unknown as BoardController;
-    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={touch} stats={false} />);
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, tab: "messages", back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={touch} stats={false} />);
     const input = () => host(root, "sidebar-groups-search-input");
     const rows = () => root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
     expect(host(root, "sidebar-groups-search").props.style).toMatchObject({ borderRadius: 999, height: touch ? 36 : 28, borderColor: THEME.colors.border });
@@ -426,7 +426,7 @@ describe("sidebar action tips", () => {
       tasks: { lanes, ready: true, workspaces: [], providers: [{ id: "claude", label: "Claude" }], labels: [], requestProjectIcon() {} },
       setParams: vi.fn(), callbacks: {}, cardById: () => undefined,
     } as unknown as BoardController;
-    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={false} />);
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, tab: "messages", back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={false} />);
     expectActionTips(root);
     for (const id of LANE_ORDER) expect(tip(host(root, `sidebar-stat-${id}`))).toBe(BOARD_STRINGS[language].lanes[id]);
     const tabs = root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "tab");

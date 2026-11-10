@@ -218,6 +218,9 @@ export interface TaskDetailCardsProps extends TimeSource {
   columns?: boolean;
   /** The sidebar separates task information and messages. */
   tabs?: boolean;
+  /** Restore the selected page when returning to this card. */
+  initialTab?: "info" | "messages";
+  onTabChange?(tab: "info" | "messages"): void;
   /** Touch and short sidebars scroll the header, with sticky tabs and fixed actions. */
   scrollHeader?: boolean;
   /** False when the actions live elsewhere (the phone's bar under the sheet). */
@@ -246,7 +249,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const choices = useSectionChoices();
   const [tabState, selectTab] = useReducer(
     (state: { tab: "info" | "messages"; infoVisited: boolean }, tab: "info" | "messages") => ({ tab, infoVisited: state.infoVisited || tab === "info" }),
-    { tab: "messages", infoVisited: false },
+    { tab: props.initialTab ?? "messages", infoVisited: props.initialTab === "info" },
   );
   const tab = tabState.tab;
   // What layout and scrolling decide (pinned tabs, edges, a page's least height): only the parts that show it draw again.
@@ -344,6 +347,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
               tabOffsets.current.restoring = props.scrollHeader === true;
               if (!props.scrollHeader) chrome.set({ bodyScrolled: bodyEdges.current[id].y > 0, bodyUnderBar: contentUnderBar(bodyEdges.current[id]) });
               selectTab(id);
+              props.onTabChange?.(id);
             }} />
           ))}
       </DetailTabBar>

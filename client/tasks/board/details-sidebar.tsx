@@ -106,7 +106,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   const card = selection.id ? board.cardById(selection.id) : undefined;
   useParentTitle(board, card);
   const shown = card && selection.id ? findCard(board.lanes, selection.id) !== null : false;
-  const backId = selection.back[selection.back.length - 1];
+  const backId = selection.back[selection.back.length - 1]?.id;
   const backCard = backId ? board.cardById(backId) : undefined;
 
   const showStats = props.stats !== false;
@@ -144,6 +144,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
           scrollBody={!short && !columns && !tabs}
           columns={columns}
           tabs={tabs}
+          tab={selection.tab}
           scrollHeader={tabs && (props.touch || layout.short || props.scrollAll === true)}
         />
       ) : (
@@ -214,6 +215,7 @@ interface SidebarDetailsProps {
   scrollBody: boolean;
   columns: boolean;
   tabs: boolean;
+  tab: SidebarSelection["tab"];
   scrollHeader: boolean;
 }
 
@@ -263,6 +265,8 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
       scrollBody={props.scrollBody}
       columns={props.columns}
       tabs={props.tabs}
+      initialTab={props.tab}
+      onTabChange={(tab) => dispatch({ type: "tab", tab })}
       scrollHeader={props.scrollHeader}
     />
   );
