@@ -432,8 +432,7 @@ export function DesktopBoard(props: {
     },
   };
 
-  // A click, tap or explicit keyboard preview puts a card in the sidebar.
-  // Moving keyboard focus alone does not change the details.
+  // A click, tap or keyboard preview puts a card in the sidebar.
   // Selecting a card brings a put-away sidebar up for the moment.
   const showCard = useCallback(
     (card: TaskCard, preview = false) => {
@@ -578,6 +577,10 @@ export function DesktopBoard(props: {
       event.preventDefault();
       if (result.focus && result.effect !== "search") focusTaskBoard(root);
       setFocus(result.focus);
+      if (now.open && now.selection.id && result.focus && result.effect === null && ["j", "k", "h", "l", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+        const card = now.board.lanes[result.focus.lane].cards[result.focus.index];
+        if (card) dispatch({ type: "click", id: card.id });
+      }
       if (result.effect === "search") {
         if (now.boardWidth < 960 * Math.max(1, scale)) setSearchOpen(true);
         if (searchRef.current) searchRef.current.focus();

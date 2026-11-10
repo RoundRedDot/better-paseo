@@ -3841,8 +3841,10 @@ describe("Tasks board, desktop", () => {
       key("l");
       const next = cards().find((card) => card.props.focused)!.props.card;
       expect(next.id).not.toBe(first.id);
+      expect(title()).toBe(next.title);
+      key("h");
       expect(title()).toBe(first.title);
-      key(" ");
+      key("l");
       expect(title()).toBe(next.title);
       expect(openAgent).not.toHaveBeenCalled();
       key("Enter");
@@ -3877,7 +3879,12 @@ describe("Tasks board, desktop", () => {
       expect(focused.props.card.id).not.toBe(selected.id);
       expect(doc.activeElement).toBe(root);
       expect(root.focus).toHaveBeenCalledWith({ preventScroll: true });
-      expect(cards().filter((card) => card.props.current).map((card) => card.props.card.id)).toEqual([selected.id]);
+      expect(cards().filter((card) => card.props.current).map((card) => card.props.card.id)).toEqual([focused.props.card.id]);
+      expect(textOf(hostsById("detail-title")[0]!)).toBe(focused.props.card.title);
+      key("k");
+      expect(textOf(hostsById("detail-title")[0]!)).toBe(selected.title);
+      key("j");
+      expect(textOf(hostsById("detail-title")[0]!)).toBe(focused.props.card.title);
       expect(board().props["aria-activedescendant"]).toBe(focused.props.focusId);
       expect(hostsById(`task-card-${focused.props.card.id}`)[0]!.props.nativeID).toBe(focused.props.focusId);
       // Tab hands focus to a card, clearing the old virtual ring.
