@@ -37,6 +37,7 @@ export interface MultiHostControls {
   resolveParent(agentId: string): void;
   refreshParent(agentId: string): Promise<boolean | null>;
   refreshReads(): void;
+  refreshUnreads(): void;
   requestProjectIcon(projectId: string): void;
 }
 
@@ -192,6 +193,7 @@ export function mergeTasksSnapshots(
     resolveParent: controls.resolveParent,
     refreshParent: controls.refreshParent,
     refreshReads: controls.refreshReads,
+    refreshUnreads: controls.refreshUnreads,
     requestProjectIcon: controls.requestProjectIcon,
   };
   mergeCache = { inputs: [...inputs], localId, controls, handle };
@@ -276,6 +278,9 @@ export function useMultiHostTasks(
     },
     refreshReads() {
       for (const { store } of stores) store.refreshReads();
+    },
+    refreshUnreads() {
+      for (const { store } of stores) store.refreshUnreads();
     },
     requestProjectIcon(projectId) {
       for (const { store } of stores) store.requestProjectIcon(projectId);

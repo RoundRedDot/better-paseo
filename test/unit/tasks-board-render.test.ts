@@ -134,27 +134,28 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
   };
 });
 
-// Counts the filter options built from outside the module (the sidebar, the
-// board's open filter panel); `readFilterOptions' own call is not counted.
-vi.mock("../../client/tasks/board/filter-options", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../client/tasks/board/filter-options")>();
-  return { ...actual, buildFilterOptions: vi.fn(actual.buildFilterOptions) };
-});
-
 // The board reads its cards through the multi-host aggregator; the samples above stand in for it.
 // A mock factory is hoisted, so the real module comes through `importOriginal` rather than a static import.
 vi.mock("../../client/tasks/data/multi-host", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../client/tasks/data/multi-host")>();
+  const data = await import("../../client/tasks/data");
   return {
     ...actual,
     useMultiHostTasks: ((paseo: unknown, hostId: string, options: Parameters<typeof actual.useMultiHostTasks>[2], selected?: readonly string[], beforeRelease?: (paseo: never) => void) => {
       // A live fake daemon (`host.liveTasks`) keeps the real store through the real aggregator.
       if (host.liveTasks) return actual.useMultiHostTasks(host.liveTasks as never, hostId, options, selected, beforeRelease as never);
-      const handle = host.boardHandle;
+      const handle = data.useTasks(paseo as never, options as never) ?? host.boardHandle;
       if (!handle) throw new Error("board handle not initialised");
       return handle;
     }) as typeof actual.useMultiHostTasks,
   };
+});
+
+// Counts the filter options built from outside the module (the sidebar, the
+// board's open filter panel); `readFilterOptions`' own call is not counted.
+vi.mock("../../client/tasks/board/filter-options", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../client/tasks/board/filter-options")>();
+  return { ...actual, buildFilterOptions: vi.fn(actual.buildFilterOptions) };
 });
 
 import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
@@ -456,6 +457,9 @@ beforeEach(() => {
   host.laneRowRenders = {};
   host.liveTasks = null;
   resetBoardSessions();
+  // The board keeps its last route in `sessionStorage` (a reload's filters);
+  // a run keeps that storage between tests, so each starts from no route.
+  if (typeof sessionStorage !== "undefined") sessionStorage.clear();
   resetNewCards();
   resetSidebarPreference();
   vi.useFakeTimers();

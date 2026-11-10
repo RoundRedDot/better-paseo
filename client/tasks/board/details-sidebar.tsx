@@ -538,6 +538,7 @@ function GroupCard(props: { board: BoardController; options: ShownFilterOptions;
   const [queries, setQueries] = useState<Record<GroupKind, string>>({ host: "", agent: "", project: "", workspace: "", label: "" });
   const [searchFocused, setSearchFocused] = useState(false);
   const query = queries[kind];
+  const showEmpty = board.showEmptyGroups;
   const rows = useMemo<GroupRow[]>(() => {
     const byCount = (a: { count: number }, b: { count: number }) => b.count - a.count;
     if (kind === "host") {
