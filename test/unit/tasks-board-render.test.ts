@@ -7279,6 +7279,54 @@ describe("Tasks board, phone", () => {
     expect(openAgent).not.toHaveBeenCalled();
   });
 
+  it.each(["ios", "android"])("returns through phone task details and restores each page on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const handle = (data as unknown as { __handle: { byId: Map<string, TaskCard> } }).__handle;
+    const saved = handle.byId;
+    const parent = saved.get("sample-running")!;
+    const child = saved.get("sample-child-1")!;
+    const grandchild = { ...child, id: "phone-grandchild", title: "Grandchild", children: [] };
+    handle.byId = new Map(saved).set(child.id, { ...child, children: [{ ...parent.children[1]!, id: grandchild.id, title: grandchild.title }] }).set(grandchild.id, grandchild);
+    try {
+      await act(async () => { renderer = TestRenderer.create(screen(true)); });
+      await act(async () => pressable("Running 2").props.onPress());
+      const card = cards().find((node) => node.props.card.id === parent.id)!;
+      await act(async () => card.props.onSelect(card.props.card));
+      expect(hostsById("detail-back")).toHaveLength(0);
+      await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
+      await act(async () => hostsById("detail-subtask-sample-child-1")[0]!.props.onPress());
+      expect(renderer!.root.findByType(TaskDetailCards).props.card.id).toBe(child.id);
+      expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
+      expect(hostsById("detail-back")[0]!.props.accessibilityLabel).toContain(parent.title);
+      await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
+      await act(async () => hostsById("detail-subtask-phone-grandchild")[0]!.props.onPress());
+      expect(renderer!.root.findByType(TaskDetailCards).props.card.id).toBe(grandchild.id);
+      await act(async () => hostsById("detail-back")[0]!.props.onPress());
+      expect(renderer!.root.findByType(TaskDetailCards).props.card.id).toBe(child.id);
+      expect(hostsById("detail-tab-info")[0]!.props.accessibilityState.selected).toBe(true);
+      await act(async () => hostsById("detail-back")[0]!.props.onPress());
+      expect(renderer!.root.findByType(TaskDetailCards).props.card.id).toBe(parent.id);
+      expect(hostsById("detail-tab-info")[0]!.props.accessibilityState.selected).toBe(true);
+      expect(hostsById("detail-back")).toHaveLength(0);
+
+      await act(async () => hostsById("detail-subtask-sample-child-1")[0]!.props.onPress());
+      await act(async () => renderer!.root.findAllByType(Modal).find((node) => node.props.open)!.props.onOpenChange(false));
+      await act(async () => card.props.onSelect(card.props.card));
+      expect(hostsById("detail-back")).toHaveLength(0);
+      expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
+
+      await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
+      await act(async () => hostsById("detail-subtask-sample-child-1")[0]!.props.onPress());
+      await act(async () => renderer!.root.findByType(TaskDetailCards).props.onJump(parent.id));
+      expect(hostsById("detail-back")).toHaveLength(1);
+      await act(async () => pressable("Next task").props.onPress());
+      expect(hostsById("detail-back")).toHaveLength(0);
+      expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
+    } finally {
+      handle.byId = saved;
+    }
+  });
+
   it("returns to messages when stepping to another phone task", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
@@ -7290,6 +7338,7 @@ describe("Tasks board, phone", () => {
     await act(async () => pressable("Next task").props.onPress());
     expect(renderer!.root.findByType(TaskDetailCards).props.card.id).not.toBe(card.props.card.id);
     expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
+    expect(hostsById("detail-back")).toHaveLength(0);
     expect(hostsById("detail-action-bar")).toHaveLength(1);
   });
 
