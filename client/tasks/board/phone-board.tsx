@@ -38,7 +38,8 @@ import { sameDetailsBoard, useDetailReads, useParentTitle } from "./details-side
 import { LANE_EMPTY_ICON, sortLabel } from "./strings";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
-import { NO_SELECTION, selectionReducer, type SelectionAction, type SidebarSelection } from "./sidebar-model";
+import { NO_SELECTION, SIDEBAR, selectionReducer, type SelectionAction, type SidebarSelection } from "./sidebar-model";
+import type { DetailScrollOffsets } from "../cards/detail-cards";
 
 const nativeDriver = Platform.OS !== "web";
 /** iOS and Android page the lanes natively; web swipes them with pointer events. */
@@ -59,7 +60,8 @@ const SHEET_BODY = { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap
 // The filters bound their own scroll so their button stays pinned (FilterSheetBody).
 const SHEET_FILTER_BODY = { ...SHEET_BODY, flex: 1, minHeight: 0 } as const;
 
-type Sheet = { kind: "filters"; focus?: "sort" } | { kind: "details"; selection: SidebarSelection } | null;
+type Sheet = { kind: "filters"; focus?: "sort" } | { kind: "details"; selection: SidebarSelection; scrollBack: DetailScrollOffsets[]; initialScroll?: DetailScrollOffsets } | null;
+type DetailNavigation = Exclude<SelectionAction, { type: "jump" }> | { type: "jump"; id: string; offsets: DetailScrollOffsets };
 
 /** The phone board (prototype 04): one lane at a time behind a tab bar, swiped or tapped. */
 export function PhoneBoard(props: {
@@ -244,7 +246,7 @@ export function PhoneBoard(props: {
       filterState: base.filterState,
       onPermission: guard(base.onPermission),
       // A tap shows the details sheet; the card's arrow still opens the tab.
-      onSelect: guard((card: TaskCard) => setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id }) })),
+      onSelect: guard((card: TaskCard) => setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id }), scrollBack: [] })),
       onLongPress: () => {
         if (swallowsTap(swipedAt.current, Date.now())) return false;
         // A long press: the finger is still down.
@@ -282,7 +284,7 @@ export function PhoneBoard(props: {
       );
     },
     details(card) {
-      setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id }) });
+      setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id }), scrollBack: [] });
     },
   };
 
@@ -309,10 +311,14 @@ export function PhoneBoard(props: {
   // The details' neighbours in their lane, for the sheet's stepper: the body itself draws again only for its card.
   const detailsList = detailsCard ? board.lanes[detailsCard.lane]?.cards ?? [] : [];
   const detailsIndex = detailsCard ? detailsList.findIndex((item) => item.id === detailsCard.id) : -1;
-  const showDetails = useCallback((id: string) => setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id }) }), []);
-  const navigateDetails = useCallback((action: SelectionAction) => setSheet((current) => {
+  const showDetails = useCallback((id: string) => setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id }), scrollBack: [] }), []);
+  const navigateDetails = useCallback((action: DetailNavigation) => setSheet((current) => {
     if (current?.kind !== "details") return current;
-    return { ...current, selection: selectionReducer(current.selection, action) };
+    const selection = selectionReducer(current.selection, action);
+    if (selection === current.selection) return current;
+    if (action.type === "jump") return { ...current, selection, scrollBack: [...current.scrollBack, action.offsets].slice(-SIDEBAR.history), initialScroll: undefined };
+    if (action.type === "back") return { ...current, selection, initialScroll: current.scrollBack[current.scrollBack.length - 1], scrollBack: current.scrollBack.slice(0, -1) };
+    return { ...current, selection };
   }), []);
   const openFromDetails = useMemo(() => {
     const onOpen = board.callbacks.onOpen;
@@ -591,6 +597,7 @@ export function PhoneBoard(props: {
                 nextId={detailsList[detailsIndex + 1]?.id ?? null}
                 onShow={showDetails}
                 selection={selection}
+                initialScroll={sheet?.kind === "details" ? sheet.initialScroll : undefined}
                 backTitle={backId ? backCard?.title ?? board.strings.back : undefined}
                 navigate={navigateDetails}
                 onOpen={openFromDetails}
@@ -619,8 +626,9 @@ interface DetailsSheetBodyProps {
   nextId: string | null;
   onShow(id: string): void;
   selection: SidebarSelection;
+  initialScroll?: DetailScrollOffsets;
   backTitle?: string;
-  navigate(action: SelectionAction): void;
+  navigate(action: DetailNavigation): void;
   onOpen?(agentId: string): void;
 }
 
@@ -669,6 +677,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           compact
           tabs
           initialTab={props.selection.tab}
+          initialScrollOffsets={props.initialScroll}
           onTabChange={(tab) => props.navigate({ type: "tab", tab })}
           back={props.backTitle ? { title: props.backTitle, onPress: () => props.navigate({ type: "back" }) } : null}
           scrollHeader
@@ -679,7 +688,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           stop={stop}
           permissionButtons={board.buttonsFor(card)}
           onPermission={onPermission}
-          onJump={(id) => props.navigate({ type: "jump", id })}
+          onJumpWithScroll={(id, offsets) => props.navigate({ type: "jump", id, offsets })}
           titleUpdates={board.callbacks.titleUpdates}
           firstPrompt={firstPrompt}
           humanMessage={humanMessage}

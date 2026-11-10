@@ -163,6 +163,8 @@ export interface DetailNotice {
   action?: { label: string; onPress(): void };
 }
 
+export type DetailScrollOffsets = { info: number; messages: number };
+
 export interface TaskDetailCardsProps extends TimeSource {
   searchQuery?: string;
   card: TaskCard;
@@ -189,6 +191,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   onPermission?(button: PermissionButton): void;
   /** A parent or subtask row: show that card. */
   onJump?(agentId: string): void;
+  /** A phone navigation captures both pages before the card unmounts. */
+  onJumpWithScroll?(agentId: string, offsets: DetailScrollOffsets): void;
   onSubtaskMenu?(agentId: string, point: { x: number; y: number }): void;
   titleUpdates?: TitleUpdateControl;
   /** The task's first prompt, read from its timeline; absent leaves the section out (the settings preview). */
@@ -220,6 +224,7 @@ export interface TaskDetailCardsProps extends TimeSource {
   tabs?: boolean;
   /** Restore the selected page when returning to this card. */
   initialTab?: "info" | "messages";
+  initialScrollOffsets?: DetailScrollOffsets;
   onTabChange?(tab: "info" | "messages"): void;
   /** Touch and short sidebars scroll the header, with sticky tabs and fixed actions. */
   scrollHeader?: boolean;
@@ -264,7 +269,16 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   }, [chrome, card.id, props.scrollHeader]);
   const tabScroll = useRef<ScrollView>(null);
   // Native scroll bookkeeping does not need to redraw the card on every frame.
-  const tabOffsets = useRef({ info: 0, messages: 0, restoring: false });
+  const tabOffsets = useRef({ info: props.initialScrollOffsets?.info ?? 0, messages: props.initialScrollOffsets?.messages ?? 0, restoring: false });
+  const initialRestore = useRef({ pending: !!props.initialScrollOffsets && props.initialScrollOffsets[tab] > 0, page: false, content: false });
+  const restoreInitial = () => {
+    const restore = initialRestore.current;
+    if (!restore.pending || !restore.page || !restore.content) return;
+    const offset = tabOffsets.current[tab];
+    tabScroll.current?.scrollTo({ y: offset, animated: false });
+    chrome.set({ tabsPinned: offset > 0 && offset >= chrome.get().tabTop });
+    restore.pending = false;
+  };
   const query = props.searchQuery?.trim().toLowerCase() ?? "";
   const prompt = props.firstPrompt?.prompt;
   const metadataHits = taskSearchHits(card, query, { title: true, project: true, workspace: true, branch: true, folder: true, path: true, modelPill: true, model: true, pullRequest: true, labels: card.labels.length, labelLimit: Infinity });
@@ -286,6 +300,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
       closed={searchChoices.closed(section, sectionClosed(choices, section, closed.includes(section)))}
       onToggleSection={(closed) => searchChoices.toggle(section, closed)}
       {...props}
+      onJump={props.onJumpWithScroll ? (id) => props.onJumpWithScroll?.(id, { info: tabOffsets.current.info, messages: tabOffsets.current.messages }) : props.onJump}
       m={m}
       tokens={tokens}
       now={now}
@@ -342,6 +357,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
           {(["info", "messages"] as const).map((id) => (
             <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={`${id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}${(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}`} onPress={() => {
               if (id === tab) return;
+              initialRestore.current.pending = false;
               // Switching pages must not reveal a header the reader already scrolled past.
               if (props.scrollHeader) tabOffsets.current[id] = Math.max(tabOffsets.current[id], Math.min(tabOffsets.current[tab], chrome.get().tabTop));
               tabOffsets.current.restoring = props.scrollHeader === true;
@@ -367,7 +383,11 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             stickyHeaderIndices={[1]}
             scrollEventThrottle={16}
             onLayout={(event) => noteViewport(event.nativeEvent.layout.height)}
-            onContentSizeChange={(_width, height) => noteHeaderEdge({ content: height })}
+            onContentSizeChange={(_width, height) => {
+              noteHeaderEdge({ content: height });
+              if (height > 0) initialRestore.current.content = true;
+              restoreInitial();
+            }}
             onScroll={(event) => {
               const native = event.nativeEvent;
               const offset = Math.max(0, native.contentOffset.y);
@@ -376,7 +396,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
                 ...(native.layoutMeasurement ? { viewport: native.layoutMeasurement.height } : null),
                 ...(native.contentSize ? { content: native.contentSize.height } : null),
               });
-              if (tabOffsets.current.restoring) return;
+              if (tabOffsets.current.restoring || initialRestore.current.pending) return;
               tabOffsets.current[tab] = offset;
               chrome.set({ tabsPinned: offset > 0 && offset >= chrome.get().tabTop });
             }}
@@ -393,6 +413,11 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
                 active={tab === id}
                 touch={props.touch === true}
                 onLayout={() => {
+                  if (tab === id && initialRestore.current.pending) {
+                    initialRestore.current.page = true;
+                    restoreInitial();
+                    return;
+                  }
                   if (tab !== id || !tabOffsets.current.restoring) return;
                   // Restore after the newly visible page has its native layout.
                   tabScroll.current?.scrollTo({ y: tabOffsets.current[id], animated: false });
