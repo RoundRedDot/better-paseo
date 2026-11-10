@@ -1076,7 +1076,9 @@ apply to all three.
   the width without changing the sidebar's remembered open preference; double click restores
   380. Keep this handle available after dismissing and reopening the same card's details.
 - The board sheet has a 58% half detent; full height leaves 8 of the lanes showing; radius 16 on
-  top, a 36 × 5 handle.
+  top, a 36 × 5 handle. Its bottom pad is 4. On Android that pad is the window's system bottom
+  inset (navigation or gesture bar) when the inset is larger, read from the safe-area module.
+  iOS, including iPad, stays at 4.
 - On a phone or tablet sheet, on iOS and Android, place the vertical scroll indicator outside the cards.
   Keep the cards' existing width and alignment; moving the indicator must not narrow the cards or
   add space between them and the sheet edge. Check the placement while scrolling.

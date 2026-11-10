@@ -3040,7 +3040,7 @@ describe("Tasks board, desktop", () => {
       // Inside a tablet's card the foot paints the card's bottom edge; on the web its bar sits on the sheet.
       const painted = foot[0]!.findAll((node) => typeof node.type === "string" && node.props.pointerEvents === "none" && StyleSheet.flatten(node.props.style)?.position === "absolute");
       expect(painted.map((node) => StyleSheet.flatten(node.props.style).borderBottomLeftRadius ?? null)).toEqual(os === "web" ? [null] : [null, 12]);
-      expect(StyleSheet.flatten(painted[0]!.props.style).bottom).toBe(os === "web" ? -4 : -(StyleSheet.hairlineWidth + (os === "android" ? 20 : 4)));
+      expect(StyleSheet.flatten(painted[0]!.props.style).bottom).toBe(os === "web" ? -4 : -(StyleSheet.hairlineWidth + (os === "android" ? 24 : 4)));
       const room = hostsById("sheet-scroll-room");
       expect(room).toHaveLength(1);
       expect(StyleSheet.flatten(room[0]!.props.style).marginBottom).toBe(328);

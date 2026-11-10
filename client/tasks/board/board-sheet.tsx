@@ -6,6 +6,7 @@ import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { menuChrome } from "./menu-model";
 import { sheetHeight, sheetRelease, type SheetDetent } from "./sidebar-model";
 import { createSheetMotion, SheetFrameContext, SheetMotionContext, type SheetFrame } from "../sheet-motion";
+import { androidContentBottomPad } from "../../details/shell/safe-area";
 
 /** The strip the sheet is dragged by: its whole width, with the grabber in the middle. */
 const HANDLE = 16;
@@ -347,7 +348,8 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
 
   const palette = boardPalette(props.theme);
   const chrome = menuChrome(props.theme);
-  const pad = Platform.OS === "android" ? 20 : 4;
+  // Android draws under the navigation bar. The pad is that bar, measured from the system; iOS keeps the sheet's own 4.
+  const pad = Platform.OS === "android" ? androidContentBottomPad() : 4;
   const frame = useMemo<SheetFrame>(() => ({ hidden, foot, panel: palette.panel, pad }), [hidden, foot, palette.panel, pad]);
   const isFull = props.detent === "full";
   if (!present) return null;

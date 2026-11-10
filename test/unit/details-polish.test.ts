@@ -1,5 +1,5 @@
 import { createElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
@@ -9,7 +9,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
     copyText: vi.fn(async () => {}), useToast: () => ({ show: vi.fn(), error: vi.fn() }), useRevealedText: (text: string) => text };
 });
-import { ANDROID_NAV_FALLBACK, androidBottomInset } from "../../client/details/shell/safe-area";
+import { ANDROID_NAV_FALLBACK, androidBottomInset, androidContentBottomPad } from "../../client/details/shell/safe-area";
+import { TurboModuleRegistry } from "react-native";
 import { RowMenu } from "../../client/details/row-menu";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { Dimensions } from "./helpers/rn-mock";
@@ -36,6 +37,43 @@ describe("Android bottom inset", () => {
   it("falls back to the gesture bar when an edge-to-edge window leaves nothing out", () => {
     expect(androidBottomInset(844, 844, 844, 24)).toBe(ANDROID_NAV_FALLBACK);
     expect(ANDROID_NAV_FALLBACK).toBe(24);
+  });
+});
+
+describe("Android sheet pad from the system inset", () => {
+  const originalGet = TurboModuleRegistry.get;
+  afterEach(() => {
+    TurboModuleRegistry.get = originalGet;
+    delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+  });
+
+  function os(name: string) {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = name;
+  }
+
+  function inset(bottom: number | null) {
+    TurboModuleRegistry.get = ((moduleName: string) => {
+      if (moduleName !== "RNCSafeAreaContext" || bottom === null) return null;
+      return { getConstants: () => ({ initialWindowMetrics: { insets: { bottom } } }) };
+    }) as typeof TurboModuleRegistry.get;
+  }
+
+  it("uses the measured navigation bar on Android and keeps at least the design pad", () => {
+    os("android");
+    inset(48);
+    expect(androidContentBottomPad()).toBe(48);
+    inset(0);
+    expect(androidContentBottomPad()).toBe(4);
+    inset(null);
+    expect(androidContentBottomPad()).toBe(ANDROID_NAV_FALLBACK);
+  });
+
+  it("leaves iOS and web on the design pad", () => {
+    inset(34);
+    os("ios");
+    expect(androidContentBottomPad()).toBe(4);
+    os("web");
+    expect(androidContentBottomPad()).toBe(4);
   });
 });
 
