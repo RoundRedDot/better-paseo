@@ -32,7 +32,7 @@ export function createQuestionDialogStore() {
     open(card: TaskCard) {
       if (!card.permission || state?.pending) return;
       const key = questionRequestKey(card);
-      if (state?.key === key) return;
+      if (state?.key === key || submitted.has(key)) return;
       publish({ agentId: card.id, key, permission: card.permission, draft: drafts.get(key) ?? EMPTY_QUESTION_DRAFT,
         pending: false, submitted: submitted.has(key), error: null });
     },
@@ -50,7 +50,7 @@ export function createQuestionDialogStore() {
         await send(current);
         submitted.add(current.key);
         drafts.delete(current.key);
-        if (state?.key === current.key) publish({ ...state, pending: false, submitted: true });
+        if (state?.key === current.key) publish(null);
       } catch (error) {
         if (state?.key === current.key) publish({ ...state, pending: false, error: error instanceof Error ? error.message : String(error) });
       }

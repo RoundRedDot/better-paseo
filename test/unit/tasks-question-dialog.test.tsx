@@ -87,14 +87,19 @@ describe("task question dialog", () => {
       expect(scroll.props.keyboardShouldPersistTaps).toBe("handled");
     }
   });
-  it("submits rejection as an allow answer through the SDK, and prevents resubmission before snapshots catch up", async () => {
+  it("closes after submitting an answer and prevents resubmission before snapshots catch up", async () => {
     const { store, fake } = await mount();
     await act(async () => host("task-question-option-0-1").props.onPress());
     await act(async () => host("task-question-submit").props.onPress());
     expect(fake.permissionResponses).toEqual([{ agentId: "asking", requestId: "original-request", response: { behavior: "allow", updatedInput: { answers: { "Original header": "Reject" } } } }]);
-    expect(store.get()?.submitted).toBe(true);
-    await act(async () => { store.close(); store.open(card()); });
-    expect(store.get()?.submitted).toBe(true);
+    expect(store.get()).toBeNull();
+    expect(tree!.root.findAllByType("HostModal" as never)).toHaveLength(0);
+    await act(async () => { store.open(card()); });
+    expect(store.get()).toBeNull();
+    expect(fake.permissionResponses).toHaveLength(1);
+    const replacement = { ...card(), permission: { ...card().permission!, requestId: "new-request" } };
+    await act(async () => { store.open(replacement); });
+    expect(store.get()?.permission.requestId).toBe("new-request");
   });
   it("keeps custom drafts on close and remount, without dismissing the permission", async () => {
     const { store, fake } = await mount();
@@ -114,6 +119,7 @@ describe("task question dialog", () => {
     expect(send).toHaveBeenCalledTimes(1);
     expect(host("task-question-input-0").props.editable).toBe(false);
     await act(async () => { reject(new Error("offline")); await Promise.resolve(); });
+    expect(store.get()).not.toBeNull();
     expect(store.get()?.draft.texts[0]).toBe("Retry me");
     expect(JSON.stringify(tree!.toJSON())).toContain("offline");
     await act(async () => host("task-question-submit").props.onPress());
