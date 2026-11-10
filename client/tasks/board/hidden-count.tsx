@@ -92,7 +92,6 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
   </>;
   const touch = Platform.OS !== "web";
   const scale = useTasksFontScale();
-  const warning = taskTokens(theme).status.warning;
   const anchor = useRef<View>(null);
   useLayoutEffect(() => {
     if (Platform.OS !== "web") return;
@@ -111,7 +110,7 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
         {compact && onClearFilters ? <ScrollView testID="hidden-tasks-scroll" style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, gap: 16 }}>{body}</ScrollView> : body}
         {onClearFilters ? <View testID="hidden-tasks-actions" style={touch ? { paddingTop: 12, paddingHorizontal: 16, borderTopWidth: 1, borderTopColor: theme.colors.border, flexDirection: "row" } : { flexDirection: "row", justifyContent: "flex-end" }}>
           <Pressable testID="hidden-tasks-clear-filters" accessibilityRole="button" accessibilityLabel={clearLabel} onPress={() => { setOpen(false); onClearFilters(); }} style={touch ? { flex: 1, minHeight: taskControlHeight(44, scale), paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 22, borderWidth: 1, borderColor: theme.colors.border } : { minHeight: taskControlHeight(32, scale), paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: theme.colors.accent }}>
-            <Text style={{ fontSize: HOST_FONT.base, lineHeight: HOST_LINE.base, color: touch ? warning : theme.colors.accentForeground }}>{clearLabel}</Text>
+            <Text style={{ fontSize: HOST_FONT.base, lineHeight: HOST_LINE.base, color: touch ? theme.colors.foreground : theme.colors.accentForeground }}>{clearLabel}</Text>
           </Pressable>
         </View> : null}
       </Modal.Content>
