@@ -7331,13 +7331,13 @@ describe("Tasks board, phone lane swipe and the host's pans", () => {
 });
 
 describe("Tasks sidebar entry", () => {
-  function entry(screenId: string | null, openScreen = vi.fn()) {
+  function entry(screenId: string | null, openScreen = vi.fn(), compact = false) {
     act(() => {
       renderer = TestRenderer.create(
         React.createElement(TasksSidebarEntry, {
           theme,
           host: { id: "host-1", label: "Local" },
-          layout: { compact: false, platform: "web" },
+          layout: { compact, platform: "web" },
           currentScreen: screenId ? { screenId, params: {} } : null,
           openScreen,
           openPopover: vi.fn(),
@@ -7420,14 +7420,16 @@ describe("Tasks sidebar entry", () => {
     expect(modal.findAll((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.id}`)).toHaveLength(1);
     expect(modal.findAll((node) => node.props.testID === "agent-pill-thinking").map((node) => textOf(node))).toContain(card.thinkingLabel);
     expect(modal.findAllByType(ProviderLogo).length).toBeGreaterThan(0);
+    // A tablet or desktop row is not the phone sheet: the host sizes the dialog, so the list is not given its own scroller.
+    expect(modal.findAllByProps({ testID: "hidden-tasks-scroll" })).toHaveLength(0);
   });
 
-  it("keeps the native hidden-task action outside the scrolling list", () => {
+  it("keeps the phone hidden-task action outside the scrolling list", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     const card = (data as unknown as { __handle: { lanes: { running: { cards: TaskCard[] } } } }).__handle.lanes.running.cards[0]!;
     host.settings = { ...DEFAULT_TASKS_SETTINGS, sidebar: { count: "all" } };
     host.counts = { needsInput: 0, running: 0, review: 0, done: 0, hidden: [card] };
-    const row = entry(null);
+    const row = entry(null, vi.fn(), true);
     act(() => row.findAll((node) => node.props.testID === "hidden-tasks-count")[0]!.props.onPress());
     const scroll = renderer!.root.findByProps({ testID: "hidden-tasks-scroll" });
     expect(textOf(scroll)).toContain(card.title);
