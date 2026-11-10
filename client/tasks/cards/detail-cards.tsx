@@ -677,10 +677,10 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
       disabled={!!taskOperationIssue(card, "unarchive")}
     />
   ) : null;
-  // Mark unread sits immediately left of Archive. The frame is blue; the label and icon stay green.
+  // Mark unread sits immediately left of Archive. The frame and the dot are blue; the label stays green.
   const unreadButton = unread ? (
     <OutlineButton
-      glyph={(color, size) => <UnreadIcon size={size} color={color} />}
+      glyph={(_color, size) => <UnreadIcon size={size} color={tokens.card.unreadBorder} />}
       look="unread"
       label={cardText.markUnread}
       busy={unread.pending(card.id)}
@@ -2250,7 +2250,7 @@ export function DetailActionBar(props: {
           {unread ? (
             <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar}
               tokens={tokens}
-              glyph={(color, size) => <UnreadIcon size={size} color={color} />}
+              glyph={(_color, size) => <UnreadIcon size={size} color={tokens.card.unreadBorder} />}
               look="unread"
               label={cardText.markUnread}
               busy={unread.pending(card.id)}
