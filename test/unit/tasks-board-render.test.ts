@@ -8,7 +8,7 @@ import * as todoSummary from "../../client/tasks/data/todo-summary";
 vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   const AppState = { currentState: "active", addEventListener: () => ({ remove() {} }) };
-  return { ...rn, AppState, default: { ...rn.default, AppState } };
+  return { ...rn, AppState, findNodeHandle: (node: { nativeTag?: number } | null) => node?.nativeTag ?? null, default: { ...rn.default, AppState } };
 });
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -5437,6 +5437,28 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
 describe("Tasks board, tablet filters", () => {
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+  });
+
+  it.each(["ios", "android"].flatMap((os) => [800, 1200].map((width) => ({ os, width }))))("blurs only the focused tablet search on $os at $width", ({ os, width }) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const input = { nativeTag: 101, isFocused: vi.fn(() => true), blur: vi.fn() };
+    act(() => { renderer = TestRenderer.create(screen(false), {
+      createNodeMock: (element) => element.type === "TextInput" && (element.props as { accessibilityLabel?: string }).accessibilityLabel === BOARD_STRINGS.en.search ? input : null,
+    }); });
+    layOut(width);
+    if (hostsById("tablet-search-toggle").length) act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
+    const root = renderer!.root.find((node) => typeof node.type === "string" && typeof node.props.onStartShouldSetResponderCapture === "function");
+    expect(root.props.onStartShouldSetResponderCapture({ nativeEvent: { target: "101" } })).toBe(false);
+    expect(input.blur).not.toHaveBeenCalled();
+    for (const target of [102, 103, 104]) {
+      expect(root.props.onStartShouldSetResponderCapture({ nativeEvent: { target } })).toBe(false);
+    }
+    expect(input.blur).toHaveBeenCalledTimes(3);
+    act(() => hostsById("subtasks-toggle")[0]!.props.onPress());
+    expect(hostsById("subtasks-toggle")[0]!.props.accessibilityState.selected).toBe(false);
+    input.isFocused.mockReturnValue(false);
+    root.props.onStartShouldSetResponderCapture({ nativeEvent: { target: 105 } });
+    expect(input.blur).toHaveBeenCalledTimes(3);
   });
 
   it.each(["web", "ios", "android"])("matches the panel direction across sizes and resize boundaries on %s", (os) => {
