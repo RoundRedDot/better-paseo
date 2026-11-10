@@ -815,7 +815,7 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
       </View>
       <AvailabilityTag issue={card.availability?.issue} language={props.language} tokens={tokens} theme={props.theme} compact={touch} />
       {showActions ? (
-        <ActionRow style={{ marginTop: 12, ...(touch && Platform.OS !== "web" ? { paddingVertical: 4, paddingHorizontal: 4, alignItems: "center" } : null) }} testID="detail-actions">
+        <ActionRow style={{ marginTop: 12, ...(touch && Platform.OS !== "web" ? { paddingVertical: 4, alignItems: "center" } : null) }} testID="detail-actions">
           {touch ? null : lead}
           {stop && props.stop ? (
             <OutlineButton
@@ -942,7 +942,7 @@ function PermissionBlock(props: Inner) {
       ) : null}
       {buttons.length > 0 ? (
         <View testID="detail-permission-buttons" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
-          <ActionRow style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0, ...(props.touch && Platform.OS !== "web" ? { paddingVertical: 4, paddingHorizontal: 4, alignItems: "center" } : null) }} testID="detail-permission-actions">
+          <ActionRow style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0, ...(props.touch && Platform.OS !== "web" ? { paddingVertical: 4, alignItems: "center" } : null) }} testID="detail-permission-actions">
             {buttons.map((button) => (
               <RequestButton key={button.key} button={button} tokens={tokens} disabled={button.kind !== "open" && !!taskOperationIssue(card, "permission")} height={props.touch ? 36 : 34} onPress={() => props.onPermission?.(button)} />
             ))}
@@ -2258,11 +2258,11 @@ function SheetOpenClose(props: { tokens: TaskTokens; sidebar?: boolean; smallTab
   const minimum = taskControlHeight(Platform.OS === "web" ? 34 : 36, scale);
   const inset = Platform.OS === "web" ? 0 : 4;
   const [width, setWidth] = useState(0);
-  const available = Math.max(0, width - 8 - inset * 2);
+  const available = Math.max(0, width - 8);
   const closeWidth = width > 0 ? Math.max(minimum, available / 4) : undefined;
   const openWidth = closeWidth === undefined ? undefined : available - closeWidth;
   return (
-    <View testID="detail-open-close" onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", flexBasis: 0, flexGrow: 1, flexShrink: 1, minWidth: minimum * 2 + 8 + inset * 2, padding: inset, gap: 8 }}>
+    <View testID="detail-open-close" onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexDirection: "row", flexBasis: 0, flexGrow: 1, flexShrink: 1, minWidth: minimum * 2 + 8, paddingVertical: inset, gap: 8 }}>
       <BarButton tokens={props.tokens} sidebar={props.sidebar} smallTablet={props.smallTablet} look="primary" keepLabel={false} icon={props.parent ? "CornerLeftUp" : undefined} arrow={!props.parent} label={props.openLabel} width={openWidth} onPress={props.onOpen} testID={props.parent ? "detail-bar-open-parent" : "detail-bar-open"} />
       <BarButton tokens={props.tokens} sidebar={props.sidebar} smallTablet={props.smallTablet} icon="X" label={props.closeLabel} width={closeWidth} onPress={props.onClose} testID="detail-bar-close" />
     </View>

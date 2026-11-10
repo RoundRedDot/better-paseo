@@ -344,7 +344,9 @@ describe("phone card action bar under native (Yoga) layout", () => {
       expect(items.at(-1)!.props.testID).toBe("detail-bar-close");
       const close = frames.get(items.at(-1)!)!;
       const open = frames.get(items.find((node) => node.props.testID === "detail-bar-open")!)!;
-      expect(close.left + close.width).toBeCloseTo(box.left + box.width - 16, 0);
+      expect(close.left + close.width).toBeCloseTo(box.left + box.width - 12, 0);
+      const stop = items.find((node) => node.props.testID === "detail-bar-stop");
+      if (id === "sample-running" && width === 500 && textScale === 1 && stop) expect(frames.get(stop)!.left - box.left).toBeCloseTo(box.left + box.width - close.left - close.width, 0);
       if (close.width > Math.round(36 * textScale) + 1) expect(open.width / close.width).toBeCloseTo(3, 1);
       for (const item of items) {
         const frame = frames.get(item)!;
