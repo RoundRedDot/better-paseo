@@ -16,6 +16,7 @@ import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
 import { liftStyle, surfaceLift } from "../cards/surface-lift";
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, NewCardsDot, NewCardsPill, RollingCount, SkeletonCard, VerticalLabel, laneHue, useBreathing, useFreshIds, useTap } from "./board-parts";
+import { CollapsedArrivalHighlight, CollapsedArrivalMarker, createCollapsedArrivals, useCollapsedArrivals, type CollapsedArrivals } from "./collapsed-arrivals";
 import { pillDirection, useSeenCards, useTrackNewCards, useUnseenCards } from "./new-cards";
 import { useFlash } from "./breathing";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type EmptyLanes, type FilterMenu } from "./filter-bar";
@@ -643,6 +644,10 @@ export function DesktopBoard(props: {
   // Filters, sort and search are the user's: lanes that change with them take their new order at once.
   const motion = useLaneMotion(shownLanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: true, churnLimit: LANE_CHURN_LIMIT });
   useTrackNewCards(board.hostId, shownLanes, tasks.ready);
+  const [arrivals] = useState(createCollapsedArrivals);
+  useEffect(() => {
+    arrivals.track(shownLanes, collapsed, board.scope, tasks.ready);
+  }, [arrivals, shownLanes, collapsed, board.scope, tasks.ready]);
   const renderCopy = useCallback(
     (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact={false} fresh={false} copy callbacks={callbacks} />,
     [board, theme, callbacks],
@@ -777,6 +782,7 @@ export function DesktopBoard(props: {
                     {/* On touch the gap between two lanes is a blank to tap too, inside the scroll row. */}
                     {touch && index > 0 ? <LaneGap onPress={letGo} /> : null}
                     <DesktopLane
+                      arrivals={arrivals}
                       lane={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.last : shownLanes[id]}
                       width={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.width : layout.laneWidth}
                       collapsed={collapsedState.includes(id)}
@@ -1491,6 +1497,7 @@ const LANE_FLASH = {
 } as const;
 
 interface DesktopLaneProps {
+  arrivals: CollapsedArrivals;
   lane: LaneModel;
   width: number;
   collapsed: boolean;
@@ -1622,6 +1629,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
   }, [delayFill, fill.hideSubtasks]);
   // New tasks: seen once on screen; until then the list's pill, or the collapsed lane's dot, says so.
   const unseen = useUnseenCards(board.hostId, lane.id);
+  const arrivalIds = useCollapsedArrivals(props.arrivals, lane.id);
   const seen = useSeenCards(board.hostId, lane.id, board.visible && props.inView && !props.collapsed);
   const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
   const pillRef = useRef<View | null>(null);
@@ -1692,7 +1700,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
         ref={pillRef}
         lift={false}
         accessibilityRole="button"
-        accessibilityLabel={`${strings.expand}: ${name}`}
+        accessibilityLabel={`${strings.expand}: ${name}${arrivalIds.length ? `, ${strings.newTasks(arrivalIds.length)}` : ""}`}
         {...collapseTap.pressIn}
         onPress={collapseTap.tap(props.onToggle)}
         style={(hovered, pressed) => ({
@@ -1705,10 +1713,13 @@ function DesktopLaneView(props: DesktopLaneProps) {
           boxShadow: surfaceLift(hovered, false).shadow ? taskTokens(theme).card.buttonShadowHover : undefined,
         })}
       >
+        <CollapsedArrivalHighlight ids={arrivalIds} hue={laneHue(theme, lane.id)} />
+        {arrivalIds.length > 0 ? <View pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: 3, backgroundColor: laneHue(theme, lane.id) }} /> : null}
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
         {ready ? <RollingCount value={count} scope={board.scope} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
-        <NewCardsDot on={unseen.length > 0} hue={laneHue(theme, lane.id)} testID={`lane-new-dot-${lane.id}`} />
+        <NewCardsDot on={unseen.length > 0 && arrivalIds.length === 0} hue={laneHue(theme, lane.id)} testID={`lane-new-dot-${lane.id}`} />
+        <CollapsedArrivalMarker ids={arrivalIds} hue={laneHue(theme, lane.id)} theme={theme} lane={lane.id} />
       </HoverPressable>,
     );
   }

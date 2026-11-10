@@ -7850,6 +7850,21 @@ describe("Tasks board, new tasks", () => {
     expect(hostsById("phone-new-dot-review")).toHaveLength(0);
   });
 
+  it("marks a collapsed lane when an existing card moves into it, then clears on expansion", async () => {
+    const { push } = await mount(false, "web");
+    act(() => hostsById("lane-header-review")[0]!.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === BOARD_STRINGS.en.collapse)[0]!.props.onPress());
+    layOut(2400);
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    const old = new Date(Date.now() - 120000).toISOString();
+    await push(makeAgent({ id: "a", title: "Task a", workspaceId: "ws", status: "idle", requiresAttention: true, attentionReason: "finished", createdAt: old, updatedAt: new Date(Date.now() + 1000).toISOString(), lastUserMessageAt: old }));
+    expect(hostsById("lane-new-count-review")).toHaveLength(1);
+    expect(textOf(hostsById("lane-new-count-review")[0]!)).toBe("+1");
+    const strip = renderer!.root.findAll((node) => node.props.accessibilityRole === "button" && typeof node.props.accessibilityLabel === "string" && node.props.accessibilityLabel.startsWith(`${BOARD_STRINGS.en.expand}: Review`))[0]!;
+    act(() => strip.props.onPress());
+    await act(async () => { await vi.advanceTimersByTimeAsync(400); });
+    expect(hostsById("lane-new-count-review")).toHaveLength(0);
+  });
+
   it("on the desktop floats a pill over the lane, and marks a collapsed lane", async () => {
     const { push, scrollToIndex } = await mount(false, "web");
     onScreen("running", ["a", "b"]);
