@@ -16,7 +16,7 @@ import { HOST_FONT, TaskText as Text, TasksTypography } from "../typography";
 import { useTasksLanguage } from "../i18n";
 import { useTasksSettings } from "./enabled";
 import { sidebarCountParts, sidebarCountText, type SidebarCountPart } from "./navigation";
-import { encodeBoardParams, lastBoardParams, rememberBoardParams, requestBoardClear, resolveBoardParams, subscribeBoardParams } from "./params";
+import { encodeBoardParams, lastBoardParams, rememberBoardParams, rememberBoardRoute, requestBoardClear, resolveBoardParams, subscribeBoardParams } from "./params";
 import { useBoardIntent } from "./prefetch";
 import { BOARD_STRINGS } from "./strings";
 import { loadMark } from "../../debug/load-marks";
@@ -136,7 +136,12 @@ function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: 
             // take new props, so it applies the request itself.
             rememberBoardParams(props.host.id, cleared);
             requestBoardClear(props.host.id);
-            if (props.currentScreen?.screenId !== SCREEN_ID) props.openScreen({ screenId: SCREEN_ID, params: encodeBoardParams(cleared) });
+            if (props.currentScreen?.screenId !== SCREEN_ID) {
+              const route = encodeBoardParams(cleared);
+              // A newly mounted board restores this route before reading the session.
+              rememberBoardRoute(props.host.id, route, cleared);
+              props.openScreen({ screenId: SCREEN_ID, params: route });
+            }
           }} /> : null}
           <View accessible accessibilityLabel={sidebarCountText(parts, language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             {parts.map((part) => <SidebarCountIndicator key={part.lane} part={part} theme={props.theme} language={language} color={part.lane === "needs_input" ? warning : colors.foregroundMuted} />)}

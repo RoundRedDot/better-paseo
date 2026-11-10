@@ -143,7 +143,7 @@ import { CardCell, RollingCount, RollingTotal, SlashMark, WindowSegments } from 
 import { createLaneMotionStore, LaneMotionLayer, LaneMotionProvider } from "../../client/tasks/board/lane-motion";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
-import { boardClearCount, lastBoardParams, rememberBoardParams, rememberCollapsed, rememberedCollapsed, requestBoardClear, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
+import { boardClearCount, encodeBoardParams, lastBoardParams, rememberBoardParams, rememberBoardRoute, rememberCollapsed, rememberedCollapsed, requestBoardClear, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import { TabletToolbar } from "../../client/tasks/board/tablet-toolbar";
 import { DesktopFilterBar as DesktopFilterBarMemo, DesktopToolbar as DesktopToolbarMemo } from "../../client/tasks/board/filter-bar";
 import { LaneWidthMark } from "../../client/tasks/board/lane-width-mark";
@@ -7606,6 +7606,35 @@ describe("Tasks sidebar entry", () => {
     // The subtask switch is the device's own preference and stays out of the cleared route.
     expect(params.params).toEqual({});
     expect(boardClearCount("host-1")).toBe(1);
+  });
+
+  it.each([null, { key: "title", direction: "asc" }] as const)("clears cached filters before mounting a closed board (sort=%j)", (sort) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const storage = new Map<string, string>();
+    vi.stubGlobal("sessionStorage", { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
+    try {
+      const card = (data as unknown as { __handle: { lanes: { running: { cards: TaskCard[] } } } }).__handle.lanes.running.cards[0]!;
+      host.settings = { ...DEFAULT_TASKS_SETTINGS, sidebar: { count: "all" } };
+      host.counts = { needsInput: 0, running: 0, review: 0, done: 0, hidden: [card] };
+      const filtered: BoardParams = { ...EMPTY_PARAMS, query: "deploy", workspaceIds: ["other-workspace"], providers: ["codex"], labels: ["frontend"], doneWindow: "7d", sort };
+      // A previous board edited the route that clearing will open again.
+      rememberBoardRoute("host-1", encodeBoardParams({ ...EMPTY_PARAMS, sort }), filtered);
+      rememberBoardParams("host-1", filtered);
+      const openScreen = vi.fn();
+      const row = entry(null, openScreen);
+      act(() => row.findAll((node) => node.props.testID === "hidden-tasks-count")[0]!.props.onPress());
+      act(() => renderer!.root.findAll((node) => node.props.testID === "hidden-tasks-clear-filters" && (node.type as unknown) === "Pressable")[0]!.props.onPress());
+      expect(openScreen).toHaveBeenCalledOnce();
+      const route = openScreen.mock.calls[0]![0] as { params: Record<string, string> };
+      act(() => renderer!.unmount());
+      act(() => { renderer = TestRenderer.create(screen(false, route.params)); });
+      layOut(1600);
+      expect(lastBoardParams("host-1")).toEqual({ ...EMPTY_PARAMS, sort });
+      expect(hostsById("desktop-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("");
+      expect(hostsById("desktop-toolbar-search-summary")).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("asks an open board to clear instead of opening the route again", () => {
