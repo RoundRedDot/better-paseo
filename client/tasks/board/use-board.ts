@@ -38,6 +38,9 @@ import { useTaskAvailability } from "../availability";
 import { useSearchHistory } from "./search-history";
 import { taskIssueText } from "../cards/availability-tag";
 import type { TaskOperation } from "../../../shared/task-availability";
+import { questionDialogStore, questionRequestKey, type QuestionDialogStore, type QuestionDialogState } from "../actions/question-dialog";
+import { questionAnswers, questionDraftSupported, questionFormSupported } from "../question-form";
+import { questionAnswerPending } from "../actions";
 
 /** What both layouts share: settings, data after the filters, the clock, and the card callbacks. */
 export interface BoardController {
@@ -111,6 +114,8 @@ export interface BoardController {
   /** Archive for a done task: its card, its menu and the details. */
   archive: ArchiveControl;
   callbacks: CardCallbacks;
+  questionDialog: QuestionDialogStore;
+  submitQuestions(state: QuestionDialogState): Promise<void>;
   buttonsFor(card: TaskCard): PermissionButton[];
   /** Fetch a rendered card's project icon; undefined when the field is off. */
   requestIcon: ((projectId: string) => void) | undefined;
@@ -150,7 +155,7 @@ function buttonsIn(card: TaskCard, language: TasksLanguage): PermissionButton[] 
   if (!permission) return NO_BUTTONS;
   let entry = buttonCache.get(permission);
   if (entry?.language !== language) {
-    entry = { language, buttons: permissionButtons(permission, language) };
+    entry = { language, buttons: permissionButtons(permission, language, true) };
     buttonCache.set(permission, entry);
   }
   return entry.buttons;
@@ -495,6 +500,23 @@ export function useBoard(
   const requestProjectIcon = useCallback((projectId: string) => latest.current.tasks.requestProjectIcon(projectId), []);
   const buttonsFor = useCallback((card: TaskCard) => buttonsIn(card, language), [language]);
   const hasNavigation = props.navigation !== undefined;
+  const questionDialog = questionDialogStore(paseo);
+  const submitQuestions = useCallback(async (state: QuestionDialogState) => {
+    const current = latest.current;
+    const issue = await current.availability.check(state.agentId, "permission");
+    if (issue) throw new Error(taskIssueText(issue, current.language));
+    const updated = latest.current.tasks.byId.get(state.agentId);
+    if (latest.current.paseo !== current.paseo || !updated || questionRequestKey(updated) !== state.key) {
+      throw new Error(current.language === "zh" ? "问题已变更或关闭，请重新查看。" : "The question changed or closed. Please view it again.");
+    }
+    const questions = state.permission.questions;
+    if (!questionFormSupported(questions, updated.provider, state.permission.name)) throw new Error("This question cannot be represented by the host form protocol.");
+    if (!questionDraftSupported(questions!, state.draft, updated.provider, state.permission.name)) throw new Error(current.language === "zh" ? "Codex 同步多选的自定义回答不能包含逗号：宿主会将其拆分。" : "Custom answers to Codex synchronous multi-select questions cannot contain commas: the host splits them.");
+    const answers = questionAnswers(questions!, state.draft);
+    if (!answers) throw new Error(current.language === "zh" ? "请完成所有问题。" : "Please answer every question.");
+    if (questionAnswerPending(current.paseo, state.agentId, state.permission.requestId)) throw new Error(current.language === "zh" ? "此问题正在提交回答。" : "An answer to this question is already being submitted.");
+    await respondToPermission(current.paseo, state.agentId, { key: "form", label: "", variant: "secondary", kind: "respond", action: { behavior: "allow", id: null }, answers }, state.permission.requestId);
+  }, []);
   const stopAvailable = stop.available;
   const readAvailable = read.available;
   const unarchiveAvailable = unarchive.available;
@@ -528,6 +550,11 @@ export function useBoard(
       onUnarchive: unarchiveAvailable ? (agentId) => write(agentId, "unarchive", () => latest.current.unarchive.press(agentId)) : undefined,
       onArchive: (agentId) => write(agentId, "archive", () => latest.current.archive.press(agentId)),
       onPermission: (card, button) => {
+        if (button.kind === "question") {
+          const current = cardById(card.id);
+          if (current) questionDialog.open(current);
+          return;
+        }
         if (button.kind === "open") {
           open(card.id);
           return;
@@ -544,7 +571,7 @@ export function useBoard(
       onFilter: (card, by) => setParams((current) => filterToCard(current, card, latest.current.tasks.workspaces, by)),
       filterState: (card) => cardFilterState(paramsRef.current, card, latest.current.tasks.workspaces),
     }),
-    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates, write, cardById, conversations.status],
+    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates, write, cardById, conversations.status, questionDialog],
   );
 
   const guardedRead = useMemo(() => ({ ...read, press: (card: TaskCard) => write(card.id, "read", () => read.press(card)) }), [read, write]);
@@ -595,6 +622,8 @@ export function useBoard(
     unarchive: guardedUnarchive,
     archive: guardedArchive,
     callbacks,
+    questionDialog,
+    submitQuestions,
     buttonsFor,
     requestIcon: fields.projectIcon ? requestProjectIcon : undefined,
     highlighted,

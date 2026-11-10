@@ -16,6 +16,7 @@ import { boardIsCompact } from "./navigation";
 import { PhoneBoard } from "./phone-board";
 import { BOARD_STRINGS } from "./strings";
 import { useBoard, type BoardLayoutHandlers } from "./use-board";
+import { TaskQuestionDialog } from "../cards/question-dialog";
 
 /**
  * The Tasks board (`addScreen` id `tasks`): the lanes side by side, scrolling
@@ -73,6 +74,7 @@ function BoardContent(props: PluginScreenProps) {
         <SearchCoverageProvider cancelled={board.searchCancelled} setCancelled={board.setSearchCancelled} cancelText={board.strings.cancelSearch} resumeText={board.strings.resumeSearch} stoppedText={board.strings.searchStopped} status={board.searchStatus} historyLoading={board.searchHistoryLoading} historyError={board.tasks.historyError} retryHistory={board.tasks.clearHistoryError} historyLoadingText={board.strings.historyLoading} historyFailedText={board.strings.historyFailed} query={board.params.query} strings={board.fullConversationSearch ? board.strings.conversationSearchCoverage : board.strings.searchCoverage} fullConversation={board.fullConversationSearch} onFullConversationChange={board.setFullConversationSearch} fullConversationLabel={board.strings.fullConversationSearch} fullConversationShortLabel={board.strings.fullConversationShort} fullConversationHint={board.strings.fullConversationHint(board.fullConversationSearch)}>
           <MenuBoundsContext.Provider value={rootRef}>
             {layout}
+            <TaskQuestionDialog store={board.questionDialog} cardById={board.cardById} submit={board.submitQuestions} theme={props.theme} language={board.language} />
           </MenuBoundsContext.Provider>
         </SearchCoverageProvider>
       </View>

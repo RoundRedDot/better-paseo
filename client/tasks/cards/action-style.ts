@@ -22,6 +22,7 @@ export const webTransition = (Platform.OS === "web"
  */
 export function requestLook(button: PermissionButton): CardButtonLook {
   if (button.kind === "open") return "answer";
+  if (button.kind === "question") return "plain";
   if (button.variant === "primary") return "primary";
   if (button.variant === "danger" || button.action.behavior === "deny") return "danger";
   return "plain";

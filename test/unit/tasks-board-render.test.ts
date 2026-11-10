@@ -166,6 +166,7 @@ import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderF
 // (tasks-board-enabled.test.ts covers the board off).
 const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: true, board: { ...STOCK_SETTINGS.board, showArchived: false } };
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { questionDialogStore } from "../../client/tasks/actions/question-dialog";
 
 // The bars are memoized: a rendered instance's type is the component inside the memo.
 const DesktopFilterBar = (DesktopFilterBarMemo as unknown as { type: React.ComponentType }).type;
@@ -458,6 +459,49 @@ describe("plan subscription", () => {
     host.settings = { ...DEFAULT_TASKS_SETTINGS, card: { ...DEFAULT_TASKS_SETTINGS.card, plan: true, subtasks: false } };
     act(() => renderer!.update(screen(false)));
     expect(todo.mock.calls.some((call) => call[2] === true)).toBe(true);
+  });
+});
+
+describe("card question dialog integration", () => {
+  it.each([false, true].flatMap((phone) => [false, true].map((stale) => [phone, stale] as const)))("opens from the board card without navigation and rejects stale submissions (phone=%s, stale=%s)", async (phone, stale) => {
+    const handle = (data as unknown as { __handle: data.TasksHandle }).__handle;
+    const saved = { lanes: handle.lanes, byId: handle.byId };
+    const original = handle.lanes.needs_input.cards[0]!;
+    const card: TaskCard = { ...original, id: `dialog-integration-${phone}-${stale}`, permission: {
+      requestId: `request-${phone}`, kind: "question", name: "request_user_input_async", title: "Question", summary: "Confirm?", actions: [], remaining: 0,
+      questions: [{ header: "Question 1", question: "Confirm?", multiSelect: false, options: [{ label: "Keep" }, { label: "Reject" }], allowOther: true }],
+    } };
+    handle.lanes = { ...handle.lanes, needs_input: { ...handle.lanes.needs_input, cards: [card] } };
+    handle.byId = new Map(handle.byId).set(card.id, card);
+    const respond = vi.fn(async () => {});
+    const ref = vi.spyOn(paseo.agents, "ref").mockReturnValue({ respondToPermission: respond, timeline: { refetch: async () => ({ entries: [] }), subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }) } } as never);
+    try {
+      await act(async () => { renderer = TestRenderer.create(screen(phone)); });
+      layOut(phone ? 390 : 1600);
+      const view = renderer!.root.findAllByType(TaskCardView).find((node) => node.props.card.id === card.id)!;
+      const button = view.props.permissionButtons.find((button: { kind: string }) => button.kind === "question");
+      expect(button.label).toBe("View questions");
+      expect(view.props.permissionButtons.filter((button: { kind: string }) => button.kind === "respond")).toHaveLength(2);
+      await act(async () => view.props.onPermission(card, button));
+      expect(hostsById("task-question-dialog")).toHaveLength(1);
+      await act(async () => hostsById("task-question-option-0-1")[0]!.props.onPress());
+      if (stale) {
+        const replacement = { ...card, permission: { ...card.permission!, requestId: "replacement" } };
+        handle.byId = new Map(handle.byId).set(card.id, replacement);
+        handle.lanes = { ...handle.lanes, needs_input: { ...handle.lanes.needs_input, cards: [replacement] } };
+        await act(async () => renderer!.update(screen(phone)));
+        expect(hostsById("task-question-submit")[0]!.props.disabled).toBe(true);
+      }
+      await act(async () => hostsById("task-question-submit")[0]!.props.onPress());
+      if (stale) expect(respond).not.toHaveBeenCalled();
+      else expect(respond).toHaveBeenCalledExactlyOnceWith({ requestId: `request-${phone}`, response: { behavior: "allow", updatedInput: { answers: { "Question 1": "Reject" } } } });
+      expect(openAgent).not.toHaveBeenCalled();
+    } finally {
+      act(() => questionDialogStore(paseo as never).close());
+      ref.mockRestore();
+      handle.lanes = saved.lanes;
+      handle.byId = saved.byId;
+    }
   });
 });
 

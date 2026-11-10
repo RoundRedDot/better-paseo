@@ -212,6 +212,18 @@ function overflows(frames: Map<ReactTestInstance, Frame>, textScale: number): st
 }
 
 describe("phone card action bar under native (Yoga) layout", () => {
+  it.each(WIDTHS.flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).map((language) => [width, scale, language] as const))))(
+    "fits quick answers, View questions, Stop and Open at %ipt, scale %f, %s",
+    async (width, textScale, language) => {
+      const card = choice()();
+      await act(async () => {
+        renderer = TestRenderer.create(phoneCard(card, language, { permissionButtons: permissionButtons(card.permission!, language, true), onOpen() {} }));
+      });
+      const frames = await settleHostLayout(row, { width, textScale, wrapText: true });
+      expect(overflows(frames, textScale)).toEqual([]);
+      expect(row().findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === (language === "zh" ? "查看问题" : "View questions"))).toHaveLength(1);
+    },
+  );
   it.each([true, false].flatMap((compact) => ["允许", "拒绝"].map((answer) => [compact, answer] as const)))(
     "submits %s compact confirmation answer %s without opening the task tab",
     async (compact, answer) => {
@@ -425,7 +437,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
         renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: React.createElement(DetailActionBar, {
           card, theme: THEME as never, language: "zh", strings: BOARD_STRINGS.zh.sidebar,
           sidebar: true, smallTablet: true, onOpen() {}, ...(closes ? { onClose() {} } : null), onPermission() {},
-          stop: { phase: "idle", onPress() {} }, permissionButtons: permissionButtons(card.permission!, "zh"),
+          stop: { phase: "idle", onPress() {} }, permissionButtons: permissionButtons(card.permission!, "zh", true),
         }) }));
       });
       const bar = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-action-bar");

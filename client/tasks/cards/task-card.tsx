@@ -1485,7 +1485,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                   button={button}
                   tokens={tokens}
                   compact={false}
-                  disabled={button.kind !== "open" && !!taskOperationIssue(card, "permission")}
+                  disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}
                   hint={hint(`action-permission-${button.key}`, () => button.label)}
                   onPress={() => props.onPermission?.(card, button)}
                 />
@@ -1563,7 +1563,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             button={button}
             tokens={tokens}
             compact
-            disabled={button.kind !== "open" && !!taskOperationIssue(card, "permission")}
+            disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}
             hint={hint(`action-permission-${button.key}`, () => button.label)}
             onPress={() => props.onPermission?.(card, button)}
           />
@@ -2099,7 +2099,7 @@ export function ActionButton(props: {
   onPress(): void;
 }) {
   const { button } = props;
-  const answer = button.kind === "open";
+  const answer = button.kind === "open" || button.kind === "question";
   const look = requestLook(button);
   // A question's option is shown as written: no Check or X reads a meaning into it.
   const option = !!button.answers;
@@ -2108,7 +2108,7 @@ export function ActionButton(props: {
       label={answer ? button.label.replace(/\s*\u2197\s*$/, "") : button.label}
       accessibilityLabel={button.label}
       look={look}
-      icon={answer || option ? null : button.action.behavior === "allow" ? "Check" : "X"}
+      icon={button.kind === "question" ? "MessageCircleQuestion" : answer || option ? null : button.action.behavior === "allow" ? "Check" : "X"}
       labelOnly={option}
       tokens={props.tokens}
       compact={props.compact}

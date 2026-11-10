@@ -3,6 +3,14 @@ import type { StatusKind, WorkspaceKind } from "../model";
 
 /** The cards' own words; Chinese follows the prototype. */
 const en = {
+  questions: {
+    title: "Answer questions", single: "Select one", multiple: "Select multiple", text: "Your answer", other: "Other answer",
+    optional: "Optional; you may submit an empty answer", submit: "Submit answers", close: "Close", sent: "Answer submitted",
+    changed: "This request changed or closed. Close this dialog and view the current question.",
+    unsupported: "This request cannot be answered reliably through the host form protocol. No answer will be submitted here.",
+    codexComma: "Codex synchronous multi-select answers cannot contain commas: the host would split your custom answer.",
+    failed: (error: string) => `Could not send answer: ${error}`,
+  },
   searchHits: {
     fields: { title: "Title", prompt: "First message", conversation: "Conversation", pr: "PR", label: "Label", branch: "Branch", folder: "Folder", project: "Project", workspace: "Workspace", path: "Path", model: "Model ID", id: "Task ID" },
     viewAll: (count: number) => `View all ${count} matches`,
@@ -251,6 +259,14 @@ const en = {
 type CardStrings = typeof en;
 
 const zh: CardStrings = {
+  questions: {
+    title: "回答问题", single: "单选", multiple: "多选", text: "填写回答", other: "其他回答",
+    optional: "此项可选，可以提交空答案", submit: "提交回答", close: "关闭", sent: "回答已提交",
+    changed: "问题已变更或关闭，请关闭弹窗后重新查看当前问题。",
+    unsupported: "宿主表单协议无法可靠表达此请求，当前弹窗不会提交答案。",
+    codexComma: "Codex 同步多选的自定义回答不能包含逗号，宿主会将回答拆分。",
+    failed: (error) => `发送回答失败：${error}`,
+  },
   searchHits: {
     fields: { title: "标题", prompt: "首条消息", conversation: "会话内容", pr: "PR", label: "标签", branch: "分支", folder: "文件夹", project: "项目", workspace: "工作区", path: "路径", model: "模型 ID", id: "任务 ID" },
     viewAll: (count) => `查看全部 ${count} 处命中`,

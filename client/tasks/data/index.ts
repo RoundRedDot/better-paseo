@@ -18,8 +18,7 @@ import type { ParentOrigin, ProviderSubagent } from "../../../shared/tasks-rpc";
 import { footerModel } from "../../state/footer-model";
 import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
-import { classifyTool } from "../../tools/classify";
-import { readUserQuestions } from "../../tools/user-questions";
+import { parseTaskQuestions } from "../question-form";
 import { classifyAgent } from "../agent-state-bucket";
 import { resolveTasksLanguage } from "../i18n";
 import { fallbackLabelColor } from "../label-colors";
@@ -863,7 +862,7 @@ function buildBaseCard(
             : "other",
           title: permission.title ?? permission.name,
           summary: firstPermissionSummary(permission),
-          ...(permission.kind === "question" ? { questions: readUserQuestions(classifyTool({ name: permission.name, status: "running", detail: { type: "unknown", input: permission.input } }))?.questions } : {}),
+          ...(permission.kind === "question" ? { name: permission.name, questions: parseTaskQuestions(permission.input) } : {}),
           actions: (permission.actions ?? []).map((action) => ({
             id: action.id,
             label: action.label,

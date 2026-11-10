@@ -964,7 +964,7 @@ function PermissionBlock(props: Inner) {
         <View testID="detail-permission-buttons" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
           <ActionRow style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0, ...(props.touch && Platform.OS !== "web" ? { paddingVertical: 4, alignItems: "center" } : null) }} testID="detail-permission-actions">
             {buttons.map((button) => (
-              <RequestButton key={button.key} button={button} tokens={tokens} disabled={button.kind !== "open" && !!taskOperationIssue(card, "permission")} height={props.touch ? 36 : 34} onPress={() => props.onPermission?.(button)} />
+              <RequestButton key={button.key} button={button} tokens={tokens} disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")} height={props.touch ? 36 : 34} onPress={() => props.onPermission?.(button)} />
             ))}
           </ActionRow>
           {waited !== null ? (
@@ -991,7 +991,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
   // A question's option is shown as written: no Check or X reads a meaning into it, and its label never folds.
   const option = !!button.answers;
   const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + (option ? 0 : 13 + 4) + 1, false, requestLook(button) === "primary", option);
-  const icon = option ? null : button.kind === "open" ? "ArrowUpRight" : button.action.behavior === "allow" ? "Check" : "X";
+  const icon = option ? null : button.kind === "question" ? "MessageCircleQuestion" : button.kind === "open" ? "ArrowUpRight" : button.action.behavior === "allow" ? "Check" : "X";
   return (
     <Pressable
       accessibilityRole="button"
@@ -2181,7 +2181,7 @@ export function DetailActionBar(props: {
   const read = readable(card, stop, props.markRead);
   const buttons = card.lane === "needs_input" && props.onPermission ? (props.permissionButtons ?? []) : [];
   const respond = buttons.filter((button) => button.kind === "respond");
-  const answer = buttons.find((button) => button.kind === "open");
+  const answer = buttons.find((button) => button.kind !== "respond");
   const asking = respond.length > 0 || !!answer;
   // The card's buttons, in its words and looks: "Open parent" then "Open tab",
   // a provider subagent's "Open parent" alone (its own tab is the parent's).
@@ -2211,7 +2211,7 @@ export function DetailActionBar(props: {
             />
           ))}
           {/* "Answer" already opens the tab, so, as on the card, Open tab is the square beside Allow and Deny only. */}
-          {answer ? <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} label={answer.label} arrow look="answer" onPress={() => props.onPermission?.(answer)} /> : null}
+          {answer ? <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} label={answer.label} icon={answer.kind === "question" ? "MessageCircleQuestion" : undefined} arrow={answer.kind === "open"} look={requestLook(answer)} onPress={() => props.onPermission?.(answer)} /> : null}
           {stop && props.stop ? (
             <BarButton smallTablet={props.smallTablet} sidebar={props.sidebar} tokens={tokens} icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"} look="danger" label={stop} busy={props.stop.phase === "stopping"} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" />
           ) : null}

@@ -14,7 +14,7 @@ export interface PermissionButton {
   key: string;
   label: string;
   variant: "primary" | "secondary" | "danger";
-  kind: "respond" | "open";
+  kind: "respond" | "open" | "question";
   /** The action to send for `respond`; the deny placeholder is ignored for `open`. */
   action: TaskPermissionAction | { behavior: "allow" | "deny"; id: null };
   /**
@@ -70,8 +70,12 @@ function quickAnswers(permission: TaskPermission): PermissionButton[] | null {
 }
 
 /** Buttons for the first pending request. Only a simple single-choice question is answered inline. */
-export function permissionButtons(permission: TaskPermission, language: TasksLanguage = "en"): PermissionButton[] {
+export function permissionButtons(permission: TaskPermission, language: TasksLanguage = "en", dialog = false): PermissionButton[] {
   const answers = quickAnswers(permission);
+  if (dialog && permission.kind === "question") return [...(answers ?? []), {
+    key: "question", label: language === "zh" ? "查看问题" : "View questions", variant: "secondary", kind: "question",
+    action: { behavior: "allow", id: null },
+  }];
   if (answers) return answers;
 
   if (permission.kind === "question" || permission.kind === "other") {
@@ -114,6 +118,10 @@ export function permissionButtons(permission: TaskPermission, language: TasksLan
 
 // The same request may be pressed from its card and details before the daemon answers.
 const pendingQuestionAnswers = new WeakMap<PaseoApi, Set<string>>();
+
+export function questionAnswerPending(paseo: PaseoApi, agentId: string, requestId: string): boolean {
+  return pendingQuestionAnswers.get(paseo)?.has(JSON.stringify([agentId, requestId])) === true;
+}
 
 /** Answer the card's first request. Resolves when the daemon accepted it. */
 export async function respondToPermission(
