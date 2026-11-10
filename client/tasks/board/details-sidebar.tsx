@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
@@ -59,7 +59,35 @@ export interface DetailsSidebarProps {
  * is chosen, or the chosen card's details as one card, its header pinned and
  * the sections under it scrolling.
  */
-export const DetailsSidebar = memo(DetailsSidebarView);
+export const DetailsSidebar = memo(DetailsSidebarView, sameDetailsProps);
+
+/** What each render drew from the board, for `sameDetailsProps` to compare the next board with. */
+const drawn = new WeakMap<DetailsSidebarProps, { card: TaskCard | undefined; backCard: TaskCard | undefined; shown: boolean; menu: boolean }>();
+
+/**
+ * The board fields a card's details draw nothing from while the counts are
+ * not shown (the sheet): the lanes, beyond whether the card is in them, the
+ * counts and the store's snapshot. Every running agent's update changes them,
+ * and drew the open card again each time, 25-60 ms on an Android foldable.
+ * Any other field is compared, so one added later draws the details again
+ * rather than leaving them stale.
+ */
+const DETAILS_BLIND: ReadonlySet<string> = new Set(["lanes", "hidden", "hiddenSubtasks", "total", "tasks", "searchStatus"]);
+
+function sameDetailsProps(last: DetailsSidebarProps, next: DetailsSidebarProps): boolean {
+  const keys = Object.keys(next) as (keyof DetailsSidebarProps)[];
+  if (keys.length !== Object.keys(last).length || !keys.every((key) => key === "board" || last[key] === next[key])) return false;
+  if (last.board === next.board) return true;
+  const id = next.selection.id;
+  const was = drawn.get(last);
+  if (id === null || next.stats !== false || !was || was.menu) return false;
+  const board = next.board;
+  const backId = next.selection.back[next.selection.back.length - 1];
+  if (board.cardById(id) !== was.card || (backId ? board.cardById(backId) : undefined) !== was.backCard) return false;
+  if ((findCard(board.lanes, id) !== null) !== was.shown || board.tasks.ready !== last.board.tasks.ready) return false;
+  const fields = Object.keys(board) as (keyof BoardController)[];
+  return fields.length === Object.keys(last.board).length && fields.every((key) => DETAILS_BLIND.has(key) || last.board[key] === board[key]);
+}
 
 function DetailsSidebarView(props: DetailsSidebarProps) {
   const { board, theme, selection, dispatch } = props;
@@ -78,6 +106,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   }
   const backId = selection.back[selection.back.length - 1];
   const backCard = backId ? board.cardById(backId) : undefined;
+  drawn.set(props, { card, backCard, shown, menu: menu !== null });
 
   const jump = (agentId: string) => {
     dispatch({ type: "jump", id: agentId });
@@ -142,11 +171,26 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
     </>
   );
   const sheetActions = !tabs && detailProps && props.onSheetClose ? <SheetFoot><DetailActionBar {...detailProps} sidebar onClose={props.onSheetClose} /></SheetFoot> : null;
+  // Whether the column's size can change what it draws. A touch card in tabs
+  // (the tablet's sheet and floating panel) ignores it: there the layout that
+  // follows a card's first frame only drew the whole card again, the same,
+  // for 70 ms on an Android foldable, and the sheet waited for it to slide in.
+  const layoutUsed = detailProps ? (tabs ? !(props.touch || props.scrollAll === true) : true) : props.scrollAll !== true;
+  const usedNow = useRef(layoutUsed);
+  usedNow.current = layoutUsed;
+  // The last size measured while it was not used; taken once it is.
+  const measured = useRef(layout);
+  useLayoutEffect(() => {
+    if (!layoutUsed) return;
+    const next = measured.current;
+    setLayout((was) => was.short === next.short && was.wide === next.wide ? was : next);
+  }, [layoutUsed]);
   const onLayout = (event: { nativeEvent: { layout: { width: number; height: number } } }) => {
     const height = Math.round(event.nativeEvent.layout.height);
     const short = height > 0 && height < SHORT_COLUMN;
     const wide = Math.round(event.nativeEvent.layout.width) >= SHEET_COLUMNS;
-    setLayout((was) => was.short === short && was.wide === wide ? was : { short, wide });
+    measured.current = { short, wide };
+    if (usedNow.current) setLayout((was) => was.short === short && was.wide === wide ? was : { short, wide });
   };
   if (short) {
     const parked = outsideIndicator(props.scrollAll === true && props.touch === true);

@@ -2089,12 +2089,17 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("detail-location")[0]).not.toBe(info);
   });
 
-  it.each([["ios", false], ["android", false], ["ios", true], ["android", true], ["web", true]] as const)("keeps both Info and Messages mounted on %s touch layouts (phone=%s)", async (os, phone) => {
+  it.each([["ios", false], ["android", false], ["ios", true], ["android", true], ["web", true]] as const)("mounts Info on its first visit and keeps it on %s touch layouts (phone=%s)", async (os, phone) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(phone)); });
     if (!phone) layOut(1400);
     await act(async () => cards()[0]!.props.onSelect(cards()[0]!.props.card));
     expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
+    expect(hostsById("detail-location")).toHaveLength(0);
+    expect(hostsById("detail-prompt")).toHaveLength(1);
+    await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
+    expect(hostsById("detail-location")).toHaveLength(1);
+    await act(async () => hostsById("detail-tab-messages")[0]!.props.onPress());
     expect(hostsById("detail-location")).toHaveLength(1);
     expect(hostsById("detail-prompt")).toHaveLength(1);
     const hidden = hostsById("detail-tab-info-content")[0];
@@ -2725,6 +2730,59 @@ describe("Tasks board, desktop", () => {
     const bar = hostsById("detail-action-bar")[0]!;
     const actions = bar.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
     expect(actions.at(-1)!.props.testID).toBe("detail-bar-close");
+  });
+
+  it.each(["ios", "android"])("does not draw a %s touch card's details again for the column's first layout", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(600);
+    const card = cards().find((node) => node.props.card.id === "sample-running")!;
+    await act(async () => card.props.onSelect(card.props.card));
+    const drawn = hostsById("detail-cards")[0]!.props;
+    // A foldable's sheet: short and narrow, and a tablet's: tall and wide. Neither changes a card in tabs.
+    for (const layout of [{ width: 560, height: 420 }, { width: 900, height: 700 }]) {
+      await act(async () => hostsById("details-sidebar")[0]!.props.onLayout({ nativeEvent: { layout } }));
+      expect(hostsById("detail-cards")[0]!.props).toBe(drawn);
+    }
+  });
+
+  it.each(["ios", "android"])("takes the %s column's height once a closed card leaves the floating panel to the groups", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(900);
+    act(() => hostsById("sidebar-switch")[0]!.props.onPress());
+    const card = cards().find((node) => node.props.card.id === "sample-running")!;
+    await act(async () => card.props.onSelect(card.props.card));
+    await act(async () => hostsById("details-sidebar")[0]!.props.onLayout({ nativeEvent: { layout: { width: 380, height: 560 } } }));
+    expect(hostsById("details-sidebar-scroll")).toHaveLength(0);
+    // The groups scroll as one in a short column: the height measured under the card holds for them.
+    await act(async () => hostsById("detail-close")[0]!.props.onPress());
+    expect(hostsById("detail-cards")).toHaveLength(0);
+    expect(hostsById("details-sidebar-scroll")).toHaveLength(1);
+  });
+
+  it("leaves a sheet's details alone while another agent updates, and draws them for their own", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+    const running = (id: string, title: string, updatedAt: string) => makeAgent({ id, title, status: "running", workspaceId: "ws", updatedAt, lastUserMessageAt: updatedAt });
+    const start = new Date(Date.now() - 60_000).toISOString();
+    const fake = createFakePaseo({ agents: [running("open-card", "Open card", start), running("other-card", "Other card", start)] });
+    host.liveTasks = fake.paseo;
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(600);
+    await act(async () => { await vi.advanceTimersByTimeAsync(800); });
+    const open = cards().find((node) => node.props.card.id === "open-card")!;
+    await act(async () => open.props.onSelect(open.props.card));
+    const drawn = hostsById("detail-cards")[0]!.props;
+    const push = async (agent: ReturnType<typeof makeAgent>) => {
+      await act(async () => { fake.pushAgentSnapshot(agent); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+    };
+    await push(running("other-card", "Other card, renamed", new Date().toISOString()));
+    expect(textOf(cards().find((node) => node.props.card.id === "other-card")!.findByProps({ testID: "task-card-title" }))).toContain("Other card, renamed");
+    expect(hostsById("detail-cards")[0]!.props).toBe(drawn);
+    await push(running("open-card", "Open card, renamed", new Date(Date.now() + 1000).toISOString()));
+    expect(hostsById("detail-cards")[0]!.props).not.toBe(drawn);
+    expect(textOf(hostsById("detail-title")[0]!)).toBe("Open card, renamed");
   });
 
   it.each(["ios", "android"])("places the %s sheet column's scroll indicator outside the unchanged card width", async (os) => {

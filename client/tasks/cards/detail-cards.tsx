@@ -321,8 +321,10 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   useEffect(() => { edgeListener.current?.(underBar); }, [underBar]);
   if (props.tabs) {
     const messages: DetailSection[] = order.filter((section) => section === "prompt" || section === "human" || section === "message");
-    // Touch keeps both pages ready; desktop mounts Info once on its first visit, then retains it.
-    const info: DetailSection[] = props.touch || tabState.infoVisited
+    // Info mounts on its first visit, then stays. Mounted with the card, the
+    // hidden page took about a third of a touch card's render on an Android
+    // foldable, at its opening and at every board update after it.
+    const info: DetailSection[] = tabState.infoVisited
       ? (["properties", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section))
       : [];
     const TabPages = props.touch ? React.Fragment : View;

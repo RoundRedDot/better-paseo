@@ -376,7 +376,8 @@ describe("details columns", () => {
     const root = renderer!.root;
     const info = host(root, "detail-tab-info-scroll");
     const messages = host(root, "detail-tab-messages-scroll");
-    expect(order(info)).toEqual(["detail-location", "detail-subtasks", "detail-usage", "detail-activity"]);
+    // Info mounts on its first visit, on touch too: the card opens with Messages alone.
+    expect(order(info)).toEqual([]);
     expect(order(messages)).toEqual(["detail-prompt", "detail-message"]);
     expect(host(root, "detail-tab-messages").props.accessibilityState.selected).toBe(true);
     expect(StyleSheet.flatten(host(root, "detail-tab-messages").props.style)).toMatchObject({ borderRadius: 999, backgroundColor: taskTokens(THEME).surface2 });
@@ -385,6 +386,10 @@ describe("details columns", () => {
     await act(async () => host(root, "detail-tab-info").props.onPress());
     expect(host(root, "detail-tab-info").props.accessibilityState.selected).toBe(true);
     expect(host(root, "detail-tab-info-scroll")).toBe(info);
+    expect(order(info)).toEqual(["detail-location", "detail-subtasks", "detail-usage", "detail-activity"]);
+    // Once visited, Info stays mounted behind Messages.
+    await act(async () => host(root, "detail-tab-messages").props.onPress());
+    expect(order(info)).toEqual(["detail-location", "detail-subtasks", "detail-usage", "detail-activity"]);
   });
   it("shows expanded sections and keeps archive before open in the shared footer", async () => {
     const card = previewSampleCards(NOW).find((item) => item.id === "sample-done")!;
@@ -397,6 +402,7 @@ describe("details columns", () => {
     expect(buttons.map((node) => node.props.testID)).toEqual(["detail-bar-archive", "detail-bar-open"]);
     expect(StyleSheet.flatten(buttons[0]!.props.style).borderColor).toBe(taskTokens(THEME).card.archiveBorder);
     expect(host(root, "detail-header").findAll((node) => node.props.testID === "detail-actions")).toHaveLength(0);
+    await act(async () => host(root, "detail-tab-info").props.onPress());
     for (const id of ["detail-prompt", "detail-message", "detail-location", "detail-usage", "detail-activity"]) {
       const heading = host(root, id).find((node) => typeof node.type === "string" && typeof node.props.accessibilityState?.expanded === "boolean");
       expect(heading.props.accessibilityState.expanded).toBe(true);
@@ -463,6 +469,7 @@ describe("details columns", () => {
   it("keeps usage above activity and both expanded for failed tasks", async () => {
     const card = previewSampleCards(NOW).find((item) => item.id === "sample-failed")!;
     await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs />); });
+    await act(async () => host(renderer!.root, "detail-tab-info").props.onPress());
     const info = host(renderer!.root, "detail-tab-info-scroll");
     expect(order(info)).toEqual(["detail-location", "detail-usage", "detail-activity"]);
     expect(host(info, "detail-usage").find((node) => typeof node.type === "string" && typeof node.props.accessibilityState?.expanded === "boolean").props.accessibilityState.expanded).toBe(true);

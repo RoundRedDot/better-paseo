@@ -652,6 +652,16 @@ export function DesktopBoard(props: {
     setMenu(null);
     setFiltersOpen(true);
   }, []);
+  // Kept across the board's renders: the details are memoized and draw again only for what they show.
+  const sheetToggle = useMemo(() => ({
+    full: detent === "full",
+    label: detent === "full" ? strings.sidebar.sheetShrink : strings.sidebar.sheetGrow,
+    onPress: () => sheetRef.current?.toggle(),
+  }), [detent, strings.sidebar.sheetShrink, strings.sidebar.sheetGrow]);
+  const closeSheet = useCallback(() => {
+    dispatch({ type: "clear" });
+    setShown(null);
+  }, []);
   const sidebar = (
     <DetailsSidebar
       board={board}
@@ -664,8 +674,8 @@ export function DesktopBoard(props: {
       stats={!(inSheet && selection.id !== null)}
       scrollAll={inSheet}
       tabs={!inSheet || touch}
-      sheetToggle={inSheet ? { full: detent === "full", label: detent === "full" ? strings.sidebar.sheetShrink : strings.sidebar.sheetGrow, onPress: () => sheetRef.current?.toggle() } : undefined}
-      onSheetClose={inSheet ? () => { dispatch({ type: "clear" }); setShown(null); } : undefined}
+      sheetToggle={inSheet ? sheetToggle : undefined}
+      onSheetClose={inSheet ? closeSheet : undefined}
     />
   );
   const activeCardId = focus ? `task-card-${lanes[focus.lane].cards[focus.index]!.id}` : undefined;
@@ -801,10 +811,7 @@ export function DesktopBoard(props: {
             detent={detent}
             onDetent={setDetent}
             onShown={setSheetShown}
-            onClose={() => {
-              dispatch({ type: "clear" });
-              setShown(null);
-            }}
+            onClose={closeSheet}
             theme={theme}
             labels={{ grow: strings.sidebar.sheetGrow, shrink: strings.sidebar.sheetShrink }}
           >
