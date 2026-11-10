@@ -156,20 +156,15 @@ describe("iOS single Markdown block selection", () => {
 });
 
 describe("Markdown quote controls", () => {
-  it.each(["web", "ios", "android"])("copies and folds a quote on %s", async (platform) => {
+  it.each(["web", "ios", "android"])("copies a quote without a fold control on %s", async (platform) => {
     os.__rnMockOS = platform;
     render("> 请读取 `path/to/file.md`\n>\n> **第二段**");
     const button = (label: string) => renderer!.root.find((node) =>
       String(node.type) === "Pressable" && node.props.accessibilityLabel === label);
     await act(async () => button("Copy quote").props.onPress());
     expect(copy).toHaveBeenCalledWith("请读取 path/to/file.md\n\n第二段", { feedback: "icon", label: "Copy quote" });
-    act(() => button("Collapse quote").props.onPress());
-    const summary = renderer!.root.find((node) => String(node.type) === "Text" && node.props.numberOfLines === 1 &&
-      node.props.children === "请读取 path/to/file.md 第二段");
-    expect(summary).toBeDefined();
-    act(() => button("Expand quote").props.onPress());
-    expect(renderer!.root.findAll((node) => node === summary)).toHaveLength(0);
-    expect(button("Collapse quote")).toBeDefined();
+    expect(renderer!.root.findAll((node) => String(node.type) === "Pressable" &&
+      ["Collapse quote", "Expand quote"].includes(node.props.accessibilityLabel))).toHaveLength(0);
   });
   it("copies code and table content inside a quote", () => {
     expect(blockSelectionText(Lexer.lex("> ```\n> code\n> ```\n>\n> | A | B |\n> | - | - |\n> | 1 | 2 |")))
