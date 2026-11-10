@@ -148,10 +148,9 @@ export function resolveBoardParams(params: BoardParams, defaults: BoardDefaults)
 }
 
 /**
- * The filter badge on the phone More button, the tablet Filters button, and
- * the desktop sheet's Filters button: one per selected workspace, agent,
- * label and host, and one for a search. The done window and subtask
- * visibility have their own controls and do not contribute.
+ * The filters' badge: one per selected workspace, agent, label and host, and
+ * one for a search. The done window and subtask visibility have their own
+ * controls and do not contribute.
  */
 export function activeFilterCount(params: BoardParams, defaults: BoardDefaults): number {
   const { filters } = resolveBoardParams(params, defaults);
