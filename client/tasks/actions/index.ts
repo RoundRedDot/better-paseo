@@ -17,13 +17,63 @@ export interface PermissionButton {
   kind: "respond" | "open";
   /** The action to send for `respond`; the deny placeholder is ignored for `open`. */
   action: TaskPermissionAction | { behavior: "allow" | "deny"; id: null };
+  /**
+   * A question option answered as written: the host form's submission, keyed by
+   * the request's own header. Its label is the option's text, never a meaning.
+   */
+  answers?: Record<string, string>;
 }
 
 /** Paseo sends a plan's buttons in English; these are the labels it uses. */
 const ACTION_ZH: Record<string, string> = { Reject: "拒绝", Dismiss: "拒绝", Implement: "实施" };
 
-/** Buttons for the first pending request. Questions and other requests open the agent tab. */
+/**
+ * The widest option a card answers inline, in columns: a CJK, full-width or
+ * astral character counts two. Options never fold or cut: Stop and Open fold
+ * first, then a label wraps, so this only keeps a short answer short; longer
+ * options read better in the agent tab (test/unit/tasks-card-action-layout).
+ */
+export const QUICK_ANSWER_COLUMNS = 24;
+
+function columns(label: string): number {
+  let width = 0;
+  for (const char of label) {
+    width += char.length > 1 || /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/.test(char) ? 2 : 1;
+  }
+  return width;
+}
+
+/**
+ * A question the card can answer with its options as they are written, by its
+ * shape alone: one single-choice question with a header to key the answer, two
+ * distinct short one-line options and nothing the card cannot show (an
+ * option's description or preview). Wording is never read, so any language
+ * or phrasing qualifies, and so does an ordinary two-way choice; free text
+ * still goes through the agent tab.
+ */
+function quickAnswers(permission: TaskPermission): PermissionButton[] | null {
+  if (permission.kind !== "question" || permission.questions?.length !== 1) return null;
+  const question = permission.questions[0]!;
+  const header = question.header;
+  const labels = question.options.map((option) => option.label);
+  if (!header || question.multiSelect || labels.length !== 2 || labels[0] === labels[1]) return null;
+  if (question.options.some((option) => option.description || option.preview)) return null;
+  if (labels.some((label) => /[\r\n]/.test(label) || columns(label) > QUICK_ANSWER_COLUMNS)) return null;
+  return labels.map((label, index) => ({
+    key: `answer-${index}`,
+    label,
+    variant: "secondary",
+    kind: "respond",
+    action: { behavior: "allow", id: null },
+    answers: { [header]: label },
+  }));
+}
+
+/** Buttons for the first pending request. Only a simple single-choice question is answered inline. */
 export function permissionButtons(permission: TaskPermission, language: TasksLanguage = "en"): PermissionButton[] {
+  const answers = quickAnswers(permission);
+  if (answers) return answers;
+
   if (permission.kind === "question" || permission.kind === "other") {
     return [{
       key: "open",
@@ -62,6 +112,9 @@ export function permissionButtons(permission: TaskPermission, language: TasksLan
   ];
 }
 
+// The same request may be pressed from its card and details before the daemon answers.
+const pendingQuestionAnswers = new WeakMap<PaseoApi, Set<string>>();
+
 /** Answer the card's first request. Resolves when the daemon accepted it. */
 export async function respondToPermission(
   paseo: PaseoApi,
@@ -71,6 +124,19 @@ export async function respondToPermission(
 ): Promise<void> {
   if (button.kind !== "respond") {
     throw new Error("This permission request must be answered in the agent tab.");
+  }
+
+  if (button.answers) {
+    let pending = pendingQuestionAnswers.get(paseo);
+    if (!pending) pendingQuestionAnswers.set(paseo, pending = new Set());
+    const key = JSON.stringify([agentId, requestId]);
+    if (pending.has(key)) return;
+    pending.add(key);
+    // Both options submit an answer. behavior: "deny" would dismiss the question instead.
+    await paseo.agents.ref(agentId).respondToPermission({
+      requestId, response: { behavior: "allow", updatedInput: { answers: button.answers } },
+    }).finally(() => pending.delete(key));
+    return;
   }
 
   const { action } = button;

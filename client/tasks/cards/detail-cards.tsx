@@ -968,8 +968,10 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
   const hue = buttonHue(tokens, requestLook(button));
   const scale = useTasksFontScale();
   const height = taskControlHeight(props.height, scale);
-  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + 13 + 4 + 1, false, requestLook(button) === "primary");
-  const icon = button.kind === "open" ? "ArrowUpRight" : button.action.behavior === "allow" ? "Check" : "X";
+  // A question's option is shown as written: no Check or X reads a meaning into it, and its label never folds.
+  const option = !!button.answers;
+  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + (option ? 0 : 13 + 4) + 1, false, requestLook(button) === "primary", option);
+  const icon = option ? null : button.kind === "open" ? "ArrowUpRight" : button.action.behavior === "allow" ? "Check" : "X";
   return (
     <Pressable
       accessibilityRole="button"
@@ -983,7 +985,8 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
       style={({ pressed }) => {
         const lift = surfaceLift(hovered && !props.disabled, pressed && !props.disabled);
         return {
-          height,
+          // A written option may wrap, so it grows taller rather than wider.
+          ...(option ? { minHeight: height, paddingVertical: 4 } : { height }),
           flexDirection: "row" as const,
           gap: 4,
           paddingHorizontal: 14,
@@ -998,8 +1001,8 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
         };
       }}
     >
-      <Icon name={icon} size={13} color={hue.color} />
-      {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: F.sm, fontWeight: "500", color: hue.color }}>
+      {icon ? <Icon name={icon} size={13} color={hue.color} /> : null}
+      {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={option ? undefined : 1} style={{ flexShrink: option ? 1 : 0, ...(option ? { textAlign: "center" as const } : null), fontSize: F.sm, fontWeight: "500", color: hue.color }}>
         {button.label}
       </Text>}
     </Pressable>
@@ -2174,7 +2177,8 @@ export function DetailActionBar(props: {
               key={button.key}
               tokens={tokens}
               label={button.label}
-              icon={button.action.behavior === "allow" ? "Check" : "X"}
+              icon={button.answers ? undefined : button.action.behavior === "allow" ? "Check" : "X"}
+              labelOnly={!!button.answers}
               look={requestLook(button)}
               disabled={!!taskOperationIssue(card, "permission")}
               onPress={() => props.onPermission?.(button)}
@@ -2287,7 +2291,7 @@ function archivable(card: TaskCard): boolean {
  * deepens it while pressed, and grows. A busy one does neither.
  */
 /** `arrow` ends the button in a ↗ after its label (Open tab); a square shows only the arrow. */
-function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; keepLabel?: boolean; label: string; sidebar?: boolean; smallTablet?: boolean; square?: boolean; grow?: boolean; width?: number; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
+function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButtonLook; keepLabel?: boolean; labelOnly?: boolean; label: string; sidebar?: boolean; smallTablet?: boolean; square?: boolean; grow?: boolean; width?: number; busy?: boolean; disabled?: boolean; arrow?: boolean; onPress(): void; testID?: string }) {
   const { tokens } = props;
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
@@ -2303,8 +2307,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
   const hue = buttonHue(tokens, look);
   const text = hue.color;
   const iconColor = look === "plain" ? tokens.foregroundMuted : text;
-  const fit = useActionFit(props.label, `${scale}|${compact}|${font}|${useWindowDimensions().fontScale}`, squareWidth, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, props.keepLabel ?? look === "primary");
-  const square = fit.iconOnly || (props.width !== undefined && fit.full !== null && props.width < fit.full);
+  const fit = useActionFit(props.label, `${scale}|${compact}|${font}|${useWindowDimensions().fontScale}`, squareWidth, 2 * padding + ((props.icon || props.busy) ? iconSize + gap : 0) + (props.arrow ? iconSize + gap : 0) + 1, props.square, props.keepLabel ?? look === "primary", props.labelOnly);
+  const square = fit.iconOnly || (!props.labelOnly && props.width !== undefined && fit.full !== null && props.width < fit.full);
   const disabled = props.busy || props.disabled;
   const hovered = hover && !disabled;
   // A bar button spans its share of the bar, wider than a finger; a square one is covered by it.
@@ -2320,7 +2324,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
       {...hoverProps}
       testID={props.testID}
       style={({ pressed }) => ({
-        height,
+        // A written option may wrap, so it grows taller rather than wider.
+        ...(props.labelOnly ? { minHeight: height, paddingVertical: 4 } : { height }),
         width: square ? squareWidth : undefined,
         flexGrow: square || props.grow === false ? 0 : 1,
         flexShrink: square ? 0 : 1,
@@ -2345,7 +2350,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; look?: CardButton
         <Icon name={props.icon} size={iconSize} color={iconColor} />
       ) : null}
       {square ? null : (
-        <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, fontSize: font, fontWeight: "600", color: text }}>
+        <Text onLayout={fit.labelLayout} numberOfLines={props.labelOnly ? undefined : 1} style={{ flexShrink: props.labelOnly ? 1 : 0, ...(props.labelOnly ? { textAlign: "center" as const } : null), fontSize: font, fontWeight: "600", color: text }}>
           {props.label}
         </Text>
       )}
