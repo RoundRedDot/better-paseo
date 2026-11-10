@@ -87,6 +87,44 @@ describe("task question dialog", () => {
       expect(scroll.props.keyboardShouldPersistTaps).toBe("handled");
     }
   });
+  it.each(["web", "ios", "android"])("cycles through unanswered questions and submits only after all are answered on %s", async (platform) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    const current = card({ questions: [question, { ...question, header: "Second", question: "Second question", options: [] }] });
+    const { store, fake } = await mount(current);
+    expect(JSON.stringify(tree!.toJSON())).toContain("下一个");
+    await act(async () => host("task-question-submit").props.onPress());
+    expect(host("task-question-input-1").props.value).toBe("");
+    await act(async () => host("task-question-input-1").props.onChangeText("Second answer"));
+    await act(async () => host("task-question-submit").props.onPress());
+    expect(host("task-question-option-0-1")).toBeDefined();
+    expect(store.get()?.draft.texts[1]).toBe("Second answer");
+    await act(async () => host("task-question-option-0-1").props.onPress());
+    expect(JSON.stringify(tree!.toJSON())).toContain("提交答案");
+    await act(async () => host("task-question-submit").props.onPress());
+    expect(fake.permissionResponses).toEqual([{ agentId: "asking", requestId: "original-request", response: { behavior: "allow", updatedInput: { answers: { "Original header": "Reject", Second: "Second answer" } } } }]);
+  });
+  it("shows the compact pager above the task card and keeps question drafts while paging", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    const current = card({ questions: [question, { ...question, header: "Second" }] });
+    const store = createQuestionDialogStore();
+    await act(async () => { store.open(current); tree = TestRenderer.create(<TaskQuestionDialog store={store} cardById={() => current} submit={async () => {}} theme={theme} language="zh" compact />); });
+    expect(host("task-question-pager")).toBeDefined();
+    await act(async () => host("task-question-input-0").props.onChangeText("First"));
+    const next = tree!.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "下一个");
+    await act(async () => next.props.onPress());
+    expect(host("task-question-input-1")).toBeDefined();
+    await act(async () => host("task-question-tab-0").props.onPress());
+    expect(host("task-question-input-0").props.value).toBe("First");
+  });
+  it("opens the task from the context without showing the session ID", async () => {
+    const current = card();
+    const store = createQuestionDialogStore();
+    const onOpen = vi.fn();
+    await act(async () => { store.open(current); tree = TestRenderer.create(<TaskQuestionDialog store={store} cardById={() => current} submit={async () => {}} theme={theme} language="zh" onOpen={onOpen} />); });
+    expect(JSON.stringify(tree!.toJSON())).not.toContain(current.id);
+    await act(async () => host("task-question-open").props.onPress());
+    expect(onOpen).toHaveBeenCalledWith(current.id);
+  });
   it("closes after submitting an answer and prevents resubmission before snapshots catch up", async () => {
     const { store, fake } = await mount();
     await act(async () => host("task-question-option-0-1").props.onPress());

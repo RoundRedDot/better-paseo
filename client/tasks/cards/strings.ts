@@ -4,6 +4,7 @@ import type { StatusKind, WorkspaceKind } from "../model";
 /** The cards' own words; Chinese follows the prototype. */
 const en = {
   questions: {
+    question: (n: number) => `Question ${n}`, answered: (n: number, total: number) => `Answered ${n} / ${total}`, next: "Next", previous: "Previous question",
     title: "Answer questions", single: "Select one", multiple: "Select multiple", text: "Your answer", other: "Other answer",
     optional: "Optional; you may submit an empty answer", submit: "Submit answers", close: "Close", sent: "Answer submitted",
     changed: "This request changed or closed. Close this dialog and view the current question.",
@@ -260,8 +261,9 @@ type CardStrings = typeof en;
 
 const zh: CardStrings = {
   questions: {
+    question: (n) => `问题 ${n}`, answered: (n, total) => `已回答 ${n} / ${total}`, next: "下一个", previous: "上一个问题",
     title: "回答问题", single: "单选", multiple: "多选", text: "填写回答", other: "其他回答",
-    optional: "此项可选，可以提交空答案", submit: "提交回答", close: "关闭", sent: "回答已提交",
+    optional: "此项可选，可以提交空答案", submit: "提交答案", close: "关闭", sent: "回答已提交",
     changed: "问题已变更或关闭，请关闭弹窗后重新查看当前问题。",
     unsupported: "宿主表单协议无法可靠表达此请求，当前弹窗不会提交答案。",
     codexComma: "Codex 同步多选的自定义回答不能包含逗号，宿主会将回答拆分。",

@@ -710,7 +710,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A provider subagent has no tab of its own: its Open would open the parent's, so "Open parent" is its only one.
   const ownTab = !card.subagent;
   const canOpen = !compact && !!props.onOpen && (ownTab || parentOpens) && !(layout.permission && props.permissionButtons.some((button) => button.kind === "open"));
-  const showOpen = canOpen && (TOUCH || hovered || showStop || showRead);
+  const questionAnswerRow = layout.permission && props.permissionButtons.some((button) => button.kind === "question");
+  const showOpen = canOpen && !questionAnswerRow && (TOUCH || hovered || showStop || showRead);
   // An archived task has Unarchive where Open tab was: Paseo opens it only once it is back.
   const canUnarchive = card.archived === "agent" && !!props.onUnarchive;
   const unarchivePending = props.unarchivePending === true;
@@ -1337,7 +1338,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       {canUnread ? unreadButton(false) : null}
       {canArchive ? archiveButton(false) : null}
       {canOpen && parentOpens ? openParentButton(false) : null}
-      {canOpen && ownTab ? (
+      {canOpen && ownTab && !questionAnswerRow ? (
         <CardButton
           label={strings.openTab}
           look="plain"
@@ -1490,6 +1491,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                   onPress={() => props.onPermission?.(card, button)}
                 />
               ))}
+              {questionAnswerRow && canOpen && ownTab ? <CardButton label={strings.openTab} look="plain" arrow tokens={tokens} compact={false} onPress={() => props.onOpen?.(card.id)} testID="task-card-open-question" /> : null}
             </ActionRow>
             {footerContent ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginLeft: "auto" }} testID="task-card-footer">

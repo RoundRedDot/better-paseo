@@ -2166,6 +2166,18 @@ describe("TaskCardView actions", () => {
     expect(texts(tree.root)).not.toContain("打开");
   });
 
+  it("keeps Open visible next to the question dialog button without hover", async () => {
+    const input = sample("sample-input");
+    const card = { ...input, permission: { requestId: "q", kind: "question" as const, title: "Question", summary: null, actions: [], remaining: 0 } };
+    const onOpen = vi.fn();
+    const tree = await render(cardElement(card, { onOpen, permissionButtons: permissionButtons(card.permission, "zh", true) }));
+    const row = hostByTestId(tree.root, "task-card-answer-actions");
+    expect(texts(row)).toContain("查看问题");
+    expect(texts(row)).toContain("打开");
+    await act(async () => hostByTestId(tree.root, "task-card-open-question").props.onPress());
+    expect(onOpen).toHaveBeenCalledWith(card.id);
+  });
+
   it("ends a phone card's action bar with Open, its arrow after the label", async () => {
     const onOpen = vi.fn();
     const running = await render(cardElement(sample("sample-running"), { compact: true, onOpen, onStop: () => {} }));
