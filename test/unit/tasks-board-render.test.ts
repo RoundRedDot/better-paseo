@@ -7570,8 +7570,11 @@ describe("Tasks sidebar entry", () => {
     expect(modal.findAll((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.id}`)).toHaveLength(1);
     expect(modal.findAll((node) => node.props.testID === "agent-pill-thinking").map((node) => textOf(node))).toContain(card.thinkingLabel);
     expect(modal.findAllByType(ProviderLogo).length).toBeGreaterThan(0);
-    // A tablet or desktop row is not the phone sheet: the host sizes the dialog, so the list is not given its own scroller.
-    expect(modal.findAllByProps({ testID: "hidden-tasks-scroll" })).toHaveLength(0);
+    const scroll = modal.findByProps({ testID: "hidden-tasks-scroll" });
+    expect(textOf(scroll)).toContain(card.title);
+    expect(scroll.findAllByProps({ testID: "hidden-tasks-actions" })).toHaveLength(0);
+    expect(modal.findByType(Modal.Content).props.scrollable).toBe(false);
+    expect(modal.findAllByProps({ testID: "hidden-tasks-clear-filters" }).length).toBeGreaterThan(0);
   });
 
   it("keeps the phone hidden-task action outside the scrolling list", () => {
