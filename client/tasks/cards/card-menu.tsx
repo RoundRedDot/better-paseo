@@ -103,7 +103,7 @@ export function cardMenuSections(card: TaskCard, strings: ReturnType<typeof card
     {
       key: "filter",
       items: filterItems.length
-        ? [{ key: "filter", label: strings.filter, icon: "ListFilter", shortcut: "F", submenu: [{ key: "filter", items: filterItems }] }]
+        ? [{ key: "filter", label: strings.filter, icon: "Filter", shortcut: "F", submenu: [{ key: "filter", items: filterItems }] }]
         : [],
     },
     {

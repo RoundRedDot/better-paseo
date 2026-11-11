@@ -2627,7 +2627,7 @@ describe("TaskCardView actions", () => {
       filters: { state: { agent: true, workspace: false, project: false }, select },
     });
     const filter = sections.find((section) => section.key === "filter")!.items[0]!;
-    expect(filter).toMatchObject({ label: "筛选", icon: "ListFilter" });
+    expect(filter).toMatchObject({ label: "筛选", icon: "Filter" });
     const rows = filter.submenu![0]!.items;
     // Agent, project, then workspace: from the widest scope to the narrowest.
     expect(rows.map((item) => [item.label, item.detail, item.checked])).toEqual([

@@ -81,7 +81,7 @@ export function TabletToolbar(props: {
     ...sortMenuSections(board.params.sort, strings, (sort) => board.setParams((p) => ({ ...p, sort }))),
   ] : [
     { key: "layout", items: [
-      ...(!separateFilters ? [{ key: "filters", label: strings.filters, icon: "ListFilter", onSelect: () => { close(); props.onFilters(); } }] : []),
+      ...(!separateFilters ? [{ key: "filters", label: strings.filters, icon: "Filter", onSelect: () => { close(); props.onFilters(); } }] : []),
       { key: "sort", label: strings.sort, icon: "ArrowUpDown", hint: "›", keepOpen: true, onSelect: () => openPage("sort") },
       { key: "width", label: strings.laneWidth.label, icon: "Columns3", submenu: laneWidthMenuSections(board.laneWidth, theme, strings, board.setLaneWidth) },
     ] },
