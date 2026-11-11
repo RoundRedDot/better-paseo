@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { z } from "zod";
-import type { PaseoAgentListOptions, PaseoApi } from "@getpaseo/client";
+import type { PaseoAgentListOptions, PaseoApi } from "../paseo-types";
 import type { ParentOrigin } from "../../shared/tasks-rpc";
 import { pluginDataDir } from "../plugin-data";
 

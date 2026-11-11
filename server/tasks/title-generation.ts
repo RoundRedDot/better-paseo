@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
+import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from "../paseo-types";
 import type { PluginLifecycleEvents, PluginServerContext, PluginSettings } from "@getpaseo/plugin/server";
 import { z } from "zod";
 import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, TITLE_HELPER_LABEL, TITLE_HELPER_PURPOSE, titleGenerationSettingsSchema, titleLanguageRpc, titleModelsRpc, titleUndoRpc, titleUpdateRpc, type TitleUpdateState } from "../../shared/title-generation";

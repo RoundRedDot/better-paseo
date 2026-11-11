@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
-import type { PaseoAgentRefetchResult, PaseoApi, PaseoProviderModelsResult, PaseoWorkspace } from "@getpaseo/client";
+import type { PaseoAgentRefetchResult, PaseoApi, PaseoProviderModelsResult, PaseoWorkspace } from "../paseo-types";
 import type { PluginSettings } from "@getpaseo/plugin/server";
 import { type TaskAvailability, type TaskIssue, unavailableTask } from "../../shared/task-availability";
 import { titleGenerationSettingsSchema } from "../../shared/title-generation";

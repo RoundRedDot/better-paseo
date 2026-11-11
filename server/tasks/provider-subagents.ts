@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import type { PaseoApi } from "@getpaseo/client";
+import type { PaseoApi } from "../paseo-types";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 
 /** A provider subagent as the daemon sends it (`ProviderSubagentDescriptorPayload`). */
