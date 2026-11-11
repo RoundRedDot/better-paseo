@@ -94,17 +94,23 @@ describe("task question dialog", () => {
     await act(async () => host("task-question-option-0-0").props.onPress());
     expect(store.get()?.draft.selections[0]).toEqual([0]);
   });
-  it.each(["web", "ios", "android"])("renders full content and context with separately scrollable mobile actions on %s", async (platform) => {
+  it.each(["web", "ios", "android"])("renders full content and context with separately scrollable content and fixed actions on %s", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     await mount();
     const rendered = JSON.stringify(tree!.toJSON());
     for (const text of [question.question, question.options[0]!.description, question.options[0]!.preview, "Task context"]) expect(rendered).toContain(JSON.stringify(text).slice(1, -1));
     expect(host("task-question-submit").props.disabled).toBe(true);
-    if (platform !== "web") {
-      const scroll = tree!.root.findByType("ScrollView" as never);
-      expect(scroll.findAll((node) => node === host("task-question-actions"))).toHaveLength(0);
-      expect(scroll.props.keyboardShouldPersistTaps).toBe("handled");
-    }
+    const modal = tree!.root.findByType("ModalContent" as never);
+    expect(modal.props.scrollable).toBe(false);
+    const scroll = tree!.root.findAllByType("ScrollView" as never).find((node) => node.props.keyboardShouldPersistTaps === "handled")!;
+    expect(scroll.findAll((node) => node === host("task-question-actions"))).toHaveLength(0);
+    expect(scroll.findAll((node) => node === host("task-question-field"))).toHaveLength(1);
+  });
+  it("places the answer count before the cancel and next buttons", async () => {
+    await mount(card({ questions: [question, { ...question, header: "Second" }] }));
+    const actions = host("task-question-actions");
+    const children = actions.children.filter((child) => typeof child !== "string");
+    expect(children.map((child) => child.props.testID)).toEqual(["task-question-answer-count", "task-question-close", "task-question-submit"]);
   });
   it.each(["web", "ios", "android"])("cycles through unanswered questions and submits only after all are answered on %s", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;

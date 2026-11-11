@@ -1,5 +1,5 @@
 import React, { useState, useSyncExternalStore } from "react";
-import { ActivityIndicator, Platform, Pressable, View } from "react-native";
+import { ActivityIndicator, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import { questionRequestKey, type QuestionDialogState, type QuestionDialogStore } from "../actions/question-dialog";
@@ -35,7 +35,6 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
   const words = cardStrings(props.language).questions;
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
-  const mobile = Platform.OS !== "web";
   const questions = state.permission.questions;
   const stale = !props.card || questionRequestKey(props.card) !== state.key;
   const supported = questionFormSupported(questions, props.card?.provider ?? "", state.permission.name);
@@ -51,12 +50,11 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
   const branch = branchPillColors(tokens);
   const prose = { fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground };
   const meta = { fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: colors.foregroundMuted };
-  const Body = mobile ? ScrollView : View;
   return <Modal title={words.title} open onOpenChange={(open) => { if (!open) props.store.close(); }}>
-    <Modal.Content scrollable={!mobile} contentContainerStyle={mobile ? { flex: 1, minHeight: 0, padding: 0, gap: 0 } : undefined}>
+    <Modal.Content scrollable={false} contentContainerStyle={{ flex: 1, minHeight: 0, padding: 0, gap: 0 }}>
       <TasksTypography theme={props.theme}>
-        <View testID="task-question-dialog" style={mobile ? { flex: 1, minHeight: 0 } : { gap: 16 }}>
-          <Body {...(mobile ? { style: { flex: 1, minHeight: 0 }, contentContainerStyle: { padding: 16, gap: 20 }, keyboardShouldPersistTaps: "handled" as const } : { style: { gap: 20 } })}>
+        <View testID="task-question-dialog" style={{ flex: 1, minHeight: 0 }}>
+          <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 16, gap: 20 }} keyboardShouldPersistTaps="handled">
             {multiple && props.compact ? <View testID="task-question-pager" style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 }}>
               <Pressable accessibilityRole="button" accessibilityLabel={words.previous} disabled={index === 0} onPress={() => setIndex(index - 1)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", opacity: index === 0 ? 0.4 : 1 }}><Icon name="ChevronLeft" size={18} color={colors.foregroundMuted} /></Pressable>
               <Text style={[meta, { textAlign: "center" }]}>{words.answered(answered.filter(Boolean).length, answered.length)}</Text>
@@ -108,13 +106,13 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
             {!draftSupported ? <Text accessibilityRole="alert" style={[meta, { color: colors.statusWarning }]}>{words.codexComma}</Text> : null}
             {state.error ? <Text accessibilityRole="alert" style={[meta, { color: colors.statusDanger }]}>{words.failed(state.error)}</Text> : null}
             {state.submitted ? <Text accessibilityLiveRegion="polite" style={prose}>{words.sent}</Text> : null}
-          </Body>
-          <View testID="task-question-actions" style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, ...(mobile ? { padding: 16, borderTopWidth: 1, borderTopColor: colors.border } : {}) }}>
+          </ScrollView>
+          <View testID="task-question-actions" style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+            {multiple && !props.compact ? <Text testID="task-question-answer-count" style={[meta, { alignSelf: "center", marginRight: "auto" }]}>{words.answered(answered.filter(Boolean).length, answered.length)}</Text> : null}
             <Pressable testID="task-question-close" accessibilityRole="button" disabled={state.pending} onPress={props.store.close}
               style={{ flexGrow: 1, flexBasis: 0, minWidth: 100, minHeight: taskControlHeight(44, scale), padding: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface2 }}>
               <Text style={prose}>{state.submitted ? words.close : cardStrings(props.language).cancelTitle}</Text>
             </Pressable>
-            {multiple && !props.compact ? <Text style={[meta, { alignSelf: "center", marginRight: "auto" }]}>{words.answered(answered.filter(Boolean).length, answered.length)}</Text> : null}
             {!state.submitted ? <Pressable testID="task-question-submit" accessibilityRole="button" accessibilityState={{ disabled: !(canSubmit || canAdvance), busy: state.pending }} disabled={!(canSubmit || canAdvance)}
               onPress={() => { if (canAdvance) { const next = answered.findIndex((value, i) => i > index && !value); setIndex(next < 0 ? answered.findIndex((value) => !value) : next); return; } void props.store.submit(props.submit); }}
               style={{ flexGrow: 1, flexBasis: 0, minWidth: 100, minHeight: taskControlHeight(44, scale), padding: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent, opacity: canSubmit || canAdvance ? 1 : 0.5 }}>
