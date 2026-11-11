@@ -138,7 +138,7 @@ export function layoutCeil(width: number): number {
  * Measure the untruncated label once per text/typography change, retaining it
  * while icon-only. `keep` marks the row's main answer, folded last. A
  * `labelOnly` button (a question's written option) has no icon to fold to and
- * is never cut: the others fold first, then its label wraps onto more lines.
+ * stays visible: the others fold first, then its label can shrink if needed.
  */
 export function useActionFit(label: string, typography: string, iconWidth: number, chromeWidth: number, square = false, keep = false, labelOnly = false) {
   const context = useContext(ActionContext);

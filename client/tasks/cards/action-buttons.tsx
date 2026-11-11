@@ -72,8 +72,7 @@ export function CardButton(props: {
       style={({ pressed }) => ({
         // A phone's button grows with a large system font.
         ...(compact ? { minHeight: COMPACT_CARD_BUTTON_HEIGHT, paddingVertical: 4, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height }
-          // A written option may wrap, so it grows taller rather than wider.
-          : props.labelOnly ? { minHeight: height, paddingVertical: 4 } : { height }),
+          : { height }),
         ...(compact && props.hug ? { flexGrow: 0 } : null),
         ...(square ? { width: taskControlHeight(COMPACT_CARD_BUTTON_HEIGHT, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
         paddingHorizontal: square ? 0 : compact ? 12 : 10,
@@ -98,7 +97,7 @@ export function CardButton(props: {
         <Icon name={props.icon} size={size} color={color} />
       ) : null}
       {square ? null : (
-        <Text onLayout={fit.labelLayout} numberOfLines={props.labelOnly ? undefined : 1} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
+        <Text onLayout={fit.labelLayout} numberOfLines={1} ellipsizeMode={props.labelOnly ? "tail" : undefined} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
           {props.label}
         </Text>
       )}

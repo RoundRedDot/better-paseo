@@ -5020,6 +5020,7 @@ describe("responsive task actions", () => {
     expect(answers.map((node) => node.props.accessibilityLabel)).toEqual(options);
     for (const [index, answer] of answers.entries()) {
       expect(texts(answer)).toEqual([options[index]]);
+      if (surface === "card" || surface === "phone card") expect(answer.find((node) => (node.type as unknown) === "Text").props).toMatchObject({ numberOfLines: 1, ellipsizeMode: "tail" });
       expect(icons(answer)).toEqual([]);
       await act(async () => answer.props.onPress());
     }

@@ -203,7 +203,7 @@ function overflows(frames: Map<ReactTestInstance, Frame>, textScale: number, bar
       const words = text.children.join("");
       // A drawn label is whole and within its own button; one that may wrap counts its lines.
       const lines = text.props.numberOfLines === undefined ? Math.round(textFrame.height / Math.ceil(fontSize * 1.25)) : 1;
-      if (textFrame.width * lines < estimateTextWidth(words, fontSize) * textScale - 0.5) problems.push(`"${words}" cut to ${textFrame.width} x ${lines}`);
+      if (text.props.ellipsizeMode !== "tail" && textFrame.width * lines < estimateTextWidth(words, fontSize) * textScale - 0.5) problems.push(`"${words}" cut to ${textFrame.width} x ${lines}`);
       if (textFrame.left + textFrame.width > frame.left + frame.width + 0.5) problems.push(`"${words}" ends past ${name}`);
       if (textFrame.top + textFrame.height > frame.top + frame.height + 0.5) problems.push(`"${words}" ends below ${name}`);
     }
@@ -338,7 +338,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
     },
   );
 
-  it.each(["zh", "en"] as const)("wraps the widest written options on a 300pt card at text scale 1.8 in %s, folding Stop and Open first", async (language) => {
+  it.each(["zh", "en"] as const)("truncates the widest written options on a 300pt card at text scale 1.8 in %s, folding Stop and Open first", async (language) => {
     const item = CASES.find((entry) => entry.name === "the widest CJK options beside Stop and Open")!;
     const frames = await settle(item, language, 300, 1.8);
     expect(overflows(frames, 1.8)).toEqual([]);
@@ -346,7 +346,11 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(overflows(answerFrames, 1.8, questionRow())).toEqual([]);
     const labels = labelsOf(questionRow());
     expect(labels.map((text) => text.children.join(""))).toEqual([...WIDE_CJK]);
-    for (const text of labels) expect(answerFrames.get(text)!.height).toBeGreaterThan(Math.ceil(13 * 1.25) * 1.5);
+    for (const text of labels) {
+      expect(text.props).toMatchObject({ numberOfLines: 1, ellipsizeMode: "tail" });
+      expect(answerFrames.get(text)!.height).toBeLessThan(20);
+      expect(answerFrames.get(text)!.width).toBeLessThan(estimateTextWidth(text.children.join(""), 12) * 1.8);
+    }
     const answers = hostChildren(questionRow()).slice(0, 2).map((node) => answerFrames.get(node)!);
     expect(answers[0]!.width).toBeCloseTo(answers[1]!.width, 0);
   });
