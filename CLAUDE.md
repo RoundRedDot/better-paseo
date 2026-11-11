@@ -1,5 +1,9 @@
 @AGENTS.md
 
+## 宿主能力缺口
+
+Better Paseo 所需能力如果受宿主 APP 限制而无法实现，改为准备宿主 PR；提交 PR 前必须向用户说明改动并取得确认。不自行修改或部署已安装的宿主 APP。
+
 ## 事件回调：`nativeEvent` 只在回调里同步读
 
 RN 0.86 的 Fabric 渲染器仍然复用事件对象：回调一返回，`event.nativeEvent` 就被置成 `null`（`ReactFabric-prod.js` 的 `destructor`）。事件只要在回调结束后才被读取，就会抛 `Cannot read property 'layout' of null`。如果读取发生在 setState 的 updater 里，这个错误会在渲染阶段抛出。宿主错误边界接住后，整个任务页都会变成「Plugin failed」。updater 只有在组件已有排队更新时才推迟执行，所以这个错误是偶发的，而且只出现在真机上；网页端、浏览器和测试渲染器都不会清空事件，复现不了。2026-11-06 至 11-09，折叠屏上先后出现过两次：详情折叠区测高度，和「打开 / 关闭」按钮组测宽度（`201c2135`）。
