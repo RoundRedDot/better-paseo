@@ -52,7 +52,7 @@ async function registerHandlers(host: HostAccess = noHost): Promise<Map<string, 
 async function invoke<T>(handlers: Map<string, Handler>, name: string, input: unknown, context?: PaseoApi): Promise<T> {
   const handler = handlers.get(name);
   if (!handler) throw new Error(`Missing test handler: ${name}`);
-  const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: tempRoot, workspaceId: "workspace-a" } }) }) }, workspaces: { ref: () => ({ refresh: async () => ({ id: "workspace-a" }) }) } } as unknown as PaseoApi;
+  const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: tempRoot, workspaceId: "workspace-a", status: "running", pendingPermissions: [] } }) }) }, workspaces: { ref: () => ({ refresh: async () => ({ id: "workspace-a" }) }) } } as unknown as PaseoApi;
   return await handler(input, { paseo: context ?? paseo }) as T;
 }
 
@@ -103,6 +103,41 @@ afterEach(async () => {
 });
 
 describe("Tasks server stop RPC", () => {
+  it("dismisses idle Codex async questions without starting a new turn", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    const respondToPermission = vi.fn(async () => {});
+    const paseo = { agents: { ref: () => ({
+      refresh: async () => ({ agent: { status: "idle", pendingPermissions: [
+        { id: "question", provider: "codex", name: "request_user_input_async" },
+        { id: "other", provider: "codex", name: "other" },
+      ] } }),
+      respondToPermission,
+    }) } } as unknown as PaseoApi;
+    const handlers = await registerHandlers();
+    await expect(invoke(handlers, "tasks.stop", { agentIds: ["agent-a"] }, paseo)).resolves.toEqual({ results: [{ agentId: "agent-a", ok: true, error: null }] });
+    expect(respondToPermission).toHaveBeenCalledExactlyOnceWith({ requestId: "question", response: { behavior: "deny", message: "Interrupted" } });
+    expect(execCommand).not.toHaveBeenCalled();
+  });
+
+  it("reports a dismissal failure without recording a stop", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    const paseo = { agents: { ref: () => ({
+      refresh: async () => ({ agent: { status: "idle", pendingPermissions: [{ id: "question", provider: "codex", name: "request_user_input_async" }] } }),
+      respondToPermission: async () => { throw new Error("Question is no longer pending"); },
+    }) } } as unknown as PaseoApi;
+    const handlers = await registerHandlers();
+    await expect(invoke(handlers, "tasks.stop", { agentIds: ["agent-a"] }, paseo)).resolves.toEqual({ results: [{ agentId: "agent-a", ok: false, error: "Question is no longer pending" }] });
+    await expect(invoke(handlers, "tasks.stopped", {})).resolves.toEqual({ stops: [] });
+  });
+
+  it("reports a no-op when the agent stops before the CLI acts", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    execCommand.mockResolvedValue({ stdout: JSON.stringify({ stoppedCount: 0, agentIds: [] }), stderr: "" });
+    const handlers = await registerHandlers();
+    await expect(invoke(handlers, "tasks.stop", { agentIds: ["agent-a"] })).resolves.toEqual({ results: [{ agentId: "agent-a", ok: false, error: "Paseo CLI did not stop the agent." }] });
+    await expect(invoke(handlers, "tasks.stopped", {})).resolves.toEqual({ stops: [] });
+  });
+
   it("prefers an executable PASEO_CLI, reports capability, and passes the host environment", async () => {
     const configured = await executable(tempRoot, "configured paseo");
     const pathCandidate = await executable(join(tempRoot, "bin"));
@@ -223,7 +258,7 @@ describe("Tasks server stop RPC", () => {
       if (agentId === "agent-exit") throw Object.assign(new Error("failed"), { code: 7 });
       if (agentId === "agent-timeout") throw Object.assign(new Error("timed out"), { code: "ETIMEDOUT" });
       if (agentId === "agent-json") return { stdout: "not json", stderr: "" };
-      return { stdout: validJson, stderr: "" };
+      return { stdout: JSON.stringify({ stoppedCount: 1, agentIds: [agentId] }), stderr: "" };
     });
     const handlers = await registerHandlers();
 
@@ -252,7 +287,7 @@ describe("Tasks server stopped record", () => {
   it("remembers successful stops with their time, newest last, and forgets nothing it did not stop", async () => {
     process.env.PASEO_CLI = await executable(tempRoot);
     execCommand.mockImplementation(async (_cli: string, args: string[]) =>
-      args[2] === "agent-bad" ? Promise.reject(Object.assign(new Error("boom"), { code: 1 })) : { stdout: validJson, stderr: "" });
+      args[2] === "agent-bad" ? Promise.reject(Object.assign(new Error("boom"), { code: 1 })) : { stdout: JSON.stringify({ stoppedCount: 1, agentIds: [args[2]] }), stderr: "" });
     const handlers = await registerHandlers();
     await expect(invoke(handlers, "tasks.stopped", {})).resolves.toEqual({ stops: [] });
     await invoke(handlers, "tasks.stop", { agentIds: ["agent-a", "agent-bad", "agent-b"] });

@@ -3,6 +3,7 @@ import { access, readFile, realpath, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
 import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
+import type { PaseoApi } from "../paseo-types";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
 import { createStopMarks, readMarksPath, stopMarksPath, unreadMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
@@ -148,8 +149,25 @@ function cliErrorMessage(error: unknown, doing = "stopping", verb = "stop"): str
   return `Paseo CLI failed to ${verb} the agent.`;
 }
 
-async function stopAgent(cli: CliCommand, agentId: string): Promise<{ ok: boolean; error: string | null }> {
+async function stopAgent(cli: CliCommand, agentId: string, paseo: PaseoApi): Promise<{ ok: boolean; error: string | null }> {
   if (!AGENT_ID_PATTERN.test(agentId)) return { ok: false, error: "Invalid agent ID." };
+
+  const agent = paseo.agents.ref(agentId);
+  try {
+    const snapshot = await agent.refresh();
+    if (!snapshot) return { ok: false, error: "Agent not found." };
+    if (snapshot.agent.status === "idle") {
+      const questions = snapshot.agent.pendingPermissions.filter((request) =>
+        request.provider === "codex" && request.name === "request_user_input_async");
+      if (questions.length === 0) return { ok: false, error: "Agent is not running and has no pending async questions." };
+      for (const question of questions) {
+        await agent.respondToPermission({ requestId: question.id, response: { behavior: "deny", message: "Interrupted" } });
+      }
+      return { ok: true, error: null };
+    }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 
   try {
     const { stdout } = await runCli(cli, ["agent", "stop", agentId, "--json"], STOP_TIMEOUT_MS);
@@ -161,6 +179,7 @@ async function stopAgent(cli: CliCommand, agentId: string): Promise<{ ok: boolea
       return { ok: false, error: "Paseo CLI returned invalid JSON." };
     }
     if (!isCliStopOutput(output)) return { ok: false, error: "Paseo CLI returned an unexpected response." };
+    if (output.stoppedCount !== 1 || !output.agentIds.includes(agentId)) return { ok: false, error: "Paseo CLI did not stop the agent." };
     return { ok: true, error: null };
   } catch (error) {
     return { ok: false, error: cliErrorMessage(error) };
@@ -447,7 +466,7 @@ export function registerTasksServer(
   server.handle(tasksReadsRpc, async () => ({
     reads: (await reads.list()).map(({ agentId, stoppedAt }) => ({ agentId, readAt: stoppedAt })),
   }));
-  server.handle(tasksStopRpc, async ({ agentIds }) => {
+  server.handle(tasksStopRpc, async ({ agentIds }, { paseo }) => {
     const cli = await resolveCli();
     const results: Array<{ agentId: string; ok: boolean; error: string | null }> = [];
 
@@ -457,7 +476,7 @@ export function registerTasksServer(
         continue;
       }
 
-      const result = await stopAgent(cli, agentId);
+      const result = await stopAgent(cli, agentId, paseo);
       if (result.ok) await stops.mark(agentId);
       results.push({ agentId, ...result });
     }
