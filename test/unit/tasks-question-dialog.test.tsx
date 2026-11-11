@@ -111,6 +111,8 @@ describe("task question dialog", () => {
     const actions = host("task-question-actions");
     const children = actions.children.filter((child) => typeof child !== "string");
     expect(children.map((child) => child.props.testID)).toEqual(["task-question-answer-count", "task-question-close", "task-question-submit"]);
+    expect(host("task-question-close").props.style).toMatchObject({ marginLeft: "auto", minWidth: 100 });
+    expect(host("task-question-submit").props.style.flexGrow).toBeUndefined();
   });
   it.each(["web", "ios", "android"])("cycles through unanswered questions and submits only after all are answered on %s", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
