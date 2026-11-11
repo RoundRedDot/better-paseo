@@ -77,6 +77,8 @@ const en = {
   workspace: "Workspace",
   agent: "Agent",
   labels: "Labels",
+  /** The host filter: shown while the board has more than one Paseo host. */
+  host: "Host",
   /** The applied filter's chip. */
   hideSubtasks: "Hide subtasks",
   /** The board's switch: on shows every subtask. */
@@ -93,6 +95,7 @@ const en = {
     workspace: (count: number) => `${count} ${count === 1 ? "workspace" : "workspaces"}`,
     label: (count: number) => `${count} ${count === 1 ? "label" : "labels"}`,
     agent: (count: number) => `${count} ${count === 1 ? "Agent" : "Agents"}`,
+    host: (count: number) => `${count} ${count === 1 ? "host" : "hosts"}`,
   },
   keys: { move: "Move", lane: "Lane", open: "Open", space: "Space", preview: "Preview", search: "Search" },
   collapse: "Collapse lane",
@@ -161,6 +164,7 @@ const en = {
     workspace: "Filter by workspace",
     agent: "Filter by Agent",
     labels: "Filter by label",
+    host: "Filter by host",
     hideSubtasks: "Hide subtasks",
     doneWindow: "How far back Done and Archived reach",
     hideArchived: "Hide the archived lane",
@@ -280,6 +284,7 @@ const zh: typeof en = {
   workspace: "工作区",
   agent: "Agent",
   labels: "标签",
+  host: "主机",
   hideSubtasks: "隐藏子任务",
   showSubtasks: "显示子任务",
   showSubtasksHint: "关闭时，运行中、待输入和失败的子任务仍会显示，父任务在同一泳道时除外",
@@ -293,6 +298,7 @@ const zh: typeof en = {
     workspace: (count) => `${count} 个工作区`,
     label: (count) => `${count} 个标签`,
     agent: (count) => `${count} 个 Agent`,
+    host: (count) => `${count} 台主机`,
   },
   keys: { move: "移动", lane: "换列", open: "打开", space: "空格", preview: "预览", search: "搜索" },
   collapse: "折叠此列",
@@ -348,6 +354,7 @@ const zh: typeof en = {
     workspace: "按工作区筛选",
     agent: "按 Agent 筛选",
     labels: "按标签筛选",
+    host: "按主机筛选",
     hideSubtasks: "隐藏子任务",
     doneWindow: "已完成和已归档泳道显示多久以内的任务",
     hideArchived: "隐藏已归档泳道",

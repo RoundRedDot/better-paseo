@@ -12,7 +12,7 @@ import { FILTER_ICONS, activeChips, clearedParams, emptyGroupsIcon, groupChips, 
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { activeFilterCount, resolveBoardParams, toggleItem } from "./params";
 import { sortLabel } from "./strings";
-import { PROJECT_MENU_WIDTH, agentMenuSections, chipGroupMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
+import { PROJECT_MENU_WIDTH, agentMenuSections, chipGroupMenuSections, hostMenuSections, labelMenuSections, laneWidthMenuSections, projectMenuSections, sortMenuSections, workspaceMenuSections } from "./board-menus";
 import { CascadeMenu, MenuBoundsContext } from "./menu";
 import { MENU_EDGE, menuWidth, type MenuSection } from "./menu-model";
 import { LABEL_GAP, nextBarLayout, type BarBoxes, type BarLayout, type Box } from "./label-fit";
@@ -32,7 +32,7 @@ import { useTasksLanguage } from "../i18n";
 import { TASK_TOOLBAR_METRICS } from "../toolbar-metrics";
 import { LANES } from "./navigation";
 
-export type FilterMenu = "project" | "workspace" | "agent" | "label" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
+export type FilterMenu = "project" | "workspace" | "agent" | "label" | "host" | "sort" | "laneWidth" | `chips:${ChipGroupKind}`;
 
 /** Toolbar labels follow the host base size on every platform. */
 const toolbarFontSize = () => F.base;
@@ -564,6 +564,7 @@ function DesktopFilterBarView(props: {
     workspace: strings.workspace + count(params.workspaceIds),
     agent: strings.agent + count(params.providers),
     label: strings.labels + count(params.labels),
+    host: strings.host + count(params.hosts ?? []),
     sort: params.sort ? sortLabel(params.sort, strings) : strings.sort,
     laneWidth: strings.laneWidth.names[board.laneWidth],
   };
@@ -573,6 +574,7 @@ function DesktopFilterBarView(props: {
     words.label,
     words.project,
     words.workspace,
+    ...(shown.hosts?.length ? [words.host] : []),
     { text: words.sort, maxWidth: SORT_LABEL_MAX_WIDTH },
   ], !tablet, strings.laneWidth.label);
   const compact = tablet || fit.compact;
@@ -679,6 +681,20 @@ function DesktopFilterBarView(props: {
               onClose={() => setMenu(null)}
             />
           </MenuButton>
+          {/* Only while the board shows more than one Paseo host. */}
+          {shown.hosts?.length ? (
+            <MenuButton icon={FILTER_ICONS.host} label={words.host} compact={compact} tip={tip(words.host, strings.tips.host)} open={menu === "host"} onPress={() => toggle("host")} theme={theme}>
+              <CascadeMenu
+                sections={hostMenuSections(shown, strings, (id) => setParams((p) => ({ ...p, hosts: toggleItem(p.hosts ?? [], id) })))}
+                theme={theme}
+                width={menuWidth(220, scale, window.width - MENU_EDGE * 2)}
+                top={toolbarButtonSize(scale) + 6}
+                align="left"
+                onClose={() => setMenu(null)}
+                testID="host-filter-menu"
+              />
+            </MenuButton>
+          ) : null}
         </View>
       </View>
       <View testID="filter-bar-end" pointerEvents="box-none" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>

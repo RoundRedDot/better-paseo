@@ -151,6 +151,13 @@ export function agentMenuSections(options: ShownFilterOptions, theme: PluginThem
   return [{ key: "agents", items: options.agents.map((agent) => optionItem(agent, toggle, { leading: <BrandMark provider={agent.id} size={16} tokens={tokens} /> })) }];
 }
 
+/** The host filter's menu: every configured host, offline ones too, each with the cards it has on the board. */
+export function hostMenuSections(options: ShownFilterOptions, strings: BoardStrings, toggle: (id: string) => void): MenuSection[] {
+  const hosts = options.hosts ?? [];
+  if (hosts.length === 0) return emptySection(strings.noOptions);
+  return [{ key: "hosts", items: hosts.map((host) => optionItem(host, toggle, { icon: FILTER_ICONS.host })) }];
+}
+
 export function labelMenuSections(options: ShownFilterOptions, theme: PluginTheme, strings: BoardStrings, toggle: (id: string) => void): MenuSection[] {
   if (options.labels.length === 0) return emptySection(strings.noOptions);
   return [

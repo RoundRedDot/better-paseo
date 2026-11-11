@@ -29,8 +29,10 @@ import { cardStrings } from "../cards/strings";
 import { parentOpensInPaseo } from "../model";
 import { useTitleUpdateState } from "../actions/title-update";
 
-type GroupKind = (typeof FILTER_GROUP_ORDER)[number];
+type GroupKind = (typeof FILTER_GROUP_ORDER)[number] | "host";
 const GROUP_KINDS: readonly GroupKind[] = FILTER_GROUP_ORDER;
+/** With more than one Paseo host, a fifth tab lists them. */
+const HOST_GROUP_KINDS: readonly GroupKind[] = [...GROUP_KINDS, "host"];
 
 export interface DetailsSidebarProps {
   board: BoardController;
@@ -530,10 +532,14 @@ function GroupCard(props: { board: BoardController; options: ShownFilterOptions;
   const reportFit = useCallback((id: GroupKind, key: string, fits: boolean) => {
     setLabelFits((previous) => previous[id]?.key === key && previous[id]?.fits === fits ? previous : { ...previous, [id]: { key, fits } });
   }, []);
-  // All four labels appear together, only after every current measurement fits.
-  const showLabels = GROUP_KINDS.every((id) => labelFits[id]?.key === `${strings.groups[id]}|${scale}` && labelFits[id]?.fits);
-  const [kind, setKind] = useState<GroupKind>("agent");
-  const [queries, setQueries] = useState<Record<GroupKind, string>>({ agent: "", project: "", workspace: "", label: "" });
+  const kinds = options.hosts?.length ? HOST_GROUP_KINDS : GROUP_KINDS;
+  const labels = useMemo(() => ({ ...strings.groups, host: board.strings.host }), [strings.groups, board.strings.host]);
+  // All the labels appear together, only after every current measurement fits.
+  const showLabels = kinds.every((id) => labelFits[id]?.key === `${labels[id]}|${scale}` && labelFits[id]?.fits);
+  const [chosen, setKind] = useState<GroupKind>("agent");
+  // The host tab leaves with the second host; its choice falls back to the first tab.
+  const kind = kinds.includes(chosen) ? chosen : "agent";
+  const [queries, setQueries] = useState<Record<GroupKind, string>>({ agent: "", project: "", workspace: "", label: "", host: "" });
   const [searchFocused, setSearchFocused] = useState(false);
   const query = queries[kind];
   const rows = useMemo<GroupRow[]>(() => {
@@ -546,6 +552,13 @@ function GroupCard(props: { board: BoardController; options: ShownFilterOptions;
           lead: <BrandMark provider={option.id} size={16} tokens={tokens} />,
           toggle: () => board.setParams((params) => ({ ...params, providers: toggleItem(params.providers, option.id) })),
         }));
+    }
+    if (kind === "host") {
+      return (options.hosts ?? []).map((option) => ({
+        ...pick(option),
+        lead: <Icon name={FILTER_ICONS.host} size={16} color={tokens.foregroundMuted} />,
+        toggle: () => board.setParams((params) => ({ ...params, hosts: toggleItem(params.hosts ?? [], option.id) })),
+      }));
     }
     if (kind === "label") {
       return [...options.labels]
@@ -585,7 +598,7 @@ function GroupCard(props: { board: BoardController; options: ShownFilterOptions;
 
   return (
     <DetailCard tokens={tokens} style={{ flexShrink: 1, minHeight: 0, paddingTop: 12, paddingBottom: 8 }} testID="sidebar-groups">
-      <SegmentRow labels={strings.groups} kind={kind} onKind={setKind} showLabels={showLabels} onFit={reportFit} tokens={tokens} touch={props.touch} />
+      <SegmentRow kinds={kinds} labels={labels} kind={kind} onKind={setKind} showLabels={showLabels} onFit={reportFit} tokens={tokens} touch={props.touch} />
       <View style={{ paddingHorizontal: 10, paddingBottom: 8 }}>
         <View testID="sidebar-groups-search" style={{ height: taskControlHeight(props.touch ? 36 : 28, scale), flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: searchFocused ? props.theme.colors.foregroundMuted : props.theme.colors.border }}>
           <Icon name="Search" size={13} color={tokens.foregroundMuted} />
@@ -597,7 +610,7 @@ function GroupCard(props: { board: BoardController; options: ShownFilterOptions;
             onBlur={() => setSearchFocused(false)}
             placeholder={board.strings.menuSearch.placeholder}
             placeholderTextColor={tokens.foregroundMuted}
-            accessibilityLabel={`${board.strings.searchButton} ${strings.groups[kind]}`}
+            accessibilityLabel={`${board.strings.searchButton} ${labels[kind]}`}
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
@@ -638,11 +651,12 @@ const SEGMENT_GAP = 6;
 const SEGMENT_ROW_PAD = 10;
 
 /**
- * The group tabs' row. It alone is measured: the four tabs share it equally
+ * The group tabs' row. It alone is measured: the tabs (four, five with several hosts) share it equally
  * (`flexBasis` 0), so a resize lays out one node instead of four, and only
  * this row and its tabs draw again, not the group list under it.
  */
 function SegmentRow(props: {
+  kinds: readonly GroupKind[];
   labels: Record<GroupKind, string>;
   kind: GroupKind;
   onKind(kind: GroupKind): void;
@@ -652,14 +666,15 @@ function SegmentRow(props: {
   touch: boolean;
 }) {
   const [rowWidth, setRowWidth] = useState<number | null>(null);
-  const width = rowWidth === null ? null : (rowWidth - 2 * SEGMENT_ROW_PAD - SEGMENT_GAP * (GROUP_KINDS.length - 1)) / GROUP_KINDS.length;
+  const count = props.kinds.length;
+  const width = rowWidth === null ? null : (rowWidth - 2 * SEGMENT_ROW_PAD - SEGMENT_GAP * (count - 1)) / count;
   return (
     <View
       testID="sidebar-group-tabs"
       onLayout={(event) => setRowWidth(event.nativeEvent.layout.width)}
       style={{ flexDirection: "row", gap: SEGMENT_GAP, paddingHorizontal: SEGMENT_ROW_PAD, paddingBottom: 10 }}
     >
-      {GROUP_KINDS.map((id) => (
+      {props.kinds.map((id) => (
         <Segment key={id} id={id} icon={FILTER_ICONS[id]} label={props.labels[id]} width={width} showLabel={props.showLabels} onFit={props.onFit} on={props.kind === id} tokens={props.tokens} touch={props.touch} onPress={() => props.onKind(id)} />
       ))}
     </View>

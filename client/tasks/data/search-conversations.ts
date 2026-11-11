@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import type { PaseoApi } from "@getpaseo/client";
 import type { ConversationCursor, ConversationSearchInput, ConversationSearchPage } from "../../../shared/conversation-search";
-import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../model";
+import { LANE_ORDER, remoteCard, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { taskSearchText } from "./search";
 import type { SearchCoverageControl, SearchPrompt } from "./search-first-prompts";
 
@@ -46,7 +46,8 @@ export function createConversationSearch(load: Loader): SearchCoverageControl & 
   };
   const eligible = (card: TaskCard) => {
     const owner = card.subagent ? cards.get(card.parent?.id ?? "") : card;
-    return !card.closed && owner !== undefined && !owner.closed && !owner.availability?.blocked.read && !card.availability?.blocked.read;
+    // This plugin's server searches its own host's conversations only.
+    return !remoteCard(card) && !card.closed && owner !== undefined && !owner.closed && !owner.availability?.blocked.read && !card.availability?.blocked.read;
   };
   const pump = () => {
     while (query && !paused && inflight.size < 2 && queue.size) {

@@ -27,6 +27,8 @@ export interface FilterOptions {
   }[];
   agents: FilterOption[];
   labels: FilterOption[];
+  /** Every configured host, the board's own first, while there are several (`TasksHandle.hosts`); absent with one. */
+  hosts?: FilterOption[];
 }
 
 let lastOptions: { tasks: TasksHandle; params: BoardParams; options: FilterOptions } | null = null;
@@ -45,6 +47,7 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
   const byWorkspace = new Map<string, number>();
   const byProvider = new Map<string, number>();
   const byLabel = new Map<string, number>();
+  const byHost = new Map<string, number>();
   const lanes = filterLanes(withSubagentCards(tasks.lanes), { ...EMPTY_FILTERS, hideSubtasks: params.hideSubtasks ?? false });
   for (const lane of LANE_ORDER) {
     for (const card of lanes[lane].cards) {
@@ -52,6 +55,7 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
       if (workspaceId) byWorkspace.set(workspaceId, (byWorkspace.get(workspaceId) ?? 0) + 1);
       byProvider.set(card.provider, (byProvider.get(card.provider) ?? 0) + 1);
       for (const label of card.labels) byLabel.set(label.name, (byLabel.get(label.name) ?? 0) + 1);
+      if (card.host) byHost.set(card.host.id, (byHost.get(card.host.id) ?? 0) + 1);
     }
   }
 
@@ -100,7 +104,16 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
   }));
   for (const name of params.labels) if (!labels.some((label) => label.id === name)) labels.push({ id: name, label: name, color: fallbackLabelColor(name), count: 0, on: true });
 
-  return { workspaceGroups: [...groups.values()], agents, labels };
+  const pickedHosts = params.hosts ?? [];
+  const hosts: FilterOption[] = (tasks.hosts ?? []).map((host) => ({
+    id: host.id,
+    label: host.label,
+    count: byHost.get(host.id) ?? 0,
+    on: pickedHosts.includes(host.id),
+  }));
+  if (hosts.length) for (const id of pickedHosts) if (!hosts.some((host) => host.id === id)) hosts.push({ id, label: id, count: 0, on: true });
+
+  return { workspaceGroups: [...groups.values()], agents, labels, ...(hosts.length ? { hosts } : {}) };
 }
 
 /** A project as one filter option: on while every one of its workspaces is picked. */
@@ -160,6 +173,8 @@ export interface ShownFilterOptions {
   projects: ProjectOption[];
   agents: FilterOption[];
   labels: FilterOption[];
+  /** Every host, offline ones included, whatever `showEmpty` says: a host is a choice even while its cards are away. */
+  hosts?: FilterOption[];
 }
 
 /**
@@ -170,7 +185,7 @@ export interface ShownFilterOptions {
  */
 export function shownFilterOptions(options: FilterOptions, showEmpty: boolean): ShownFilterOptions {
   const projects = projectOptions(options);
-  if (showEmpty) return { workspaceGroups: options.workspaceGroups, projects, agents: options.agents, labels: options.labels };
+  if (showEmpty) return { workspaceGroups: options.workspaceGroups, projects, agents: options.agents, labels: options.labels, hosts: options.hosts };
   const busy = (option: FilterOption) => option.count > 0 || option.on;
   return {
     workspaceGroups: options.workspaceGroups.flatMap((group) => {
@@ -180,6 +195,7 @@ export function shownFilterOptions(options: FilterOptions, showEmpty: boolean): 
     projects: projects.filter(busy),
     agents: options.agents.filter(busy),
     labels: options.labels.filter(busy),
+    hosts: options.hosts,
   };
 }
 
@@ -213,10 +229,10 @@ export interface ActiveChip {
   color?: string | null;
 }
 
-export type ChipGroupKind = "workspace" | "label" | "agent";
+export type ChipGroupKind = "workspace" | "label" | "agent" | "host";
 
 /** What a filter picks, as the folded chips and the sidebar's groups count it. */
-export type FilterUnit = "agent" | "project" | "workspace" | "label";
+export type FilterUnit = "agent" | "project" | "workspace" | "label" | "host";
 
 /**
  * Agent, Labels, Project, Workspace. The filter bar, the sidebar's tabs,
@@ -231,6 +247,7 @@ export const FILTER_ICONS: Readonly<Record<FilterUnit, string>> = {
   project: "FolderKanban",
   workspace: "FolderGit2",
   label: "Tag",
+  host: "Server",
 };
 
 /**
@@ -273,6 +290,14 @@ export function activeChips(params: BoardParams, defaults: BoardDefaults, option
       value: name(options.agents, id),
       group: "agent" as const,
       clear: (p: BoardParams) => ({ ...p, providers: toggleItem(p.providers, id) }),
+    })),
+    // Only while the board shows several hosts; a pick left from then is ignored by a one-host board.
+    ...(options.hosts?.length ? params.hosts ?? [] : []).map((id) => ({
+      key: `host:${id}`,
+      kind: strings.host,
+      value: name(options.hosts ?? [], id),
+      group: "host" as const,
+      clear: (p: BoardParams) => ({ ...p, hosts: toggleItem(p.hosts ?? [], id) }),
     })),
   ];
   if (params.hideSubtasks ?? defaults.hideSubtasks) chips.push({ key: "sub", kind: "", value: strings.hideSubtasks, clear: (p) => ({ ...p, hideSubtasks: false }) });
@@ -384,6 +409,7 @@ function groupLabel(kind: ChipGroupKind, chips: readonly ActiveChip[], strings: 
   const units = strings.selectedUnits;
   if (kind === "label") return strings.selected([units.label(chips.length)]);
   if (kind === "agent") return strings.selected([units.agent(chips.length)]);
+  if (kind === "host") return strings.selected([units.host(chips.length)]);
   const projects = chips.filter((chip) => chip.unit === "project").length;
   const workspaces = chips.length - projects;
   return strings.selected([...(projects ? [units.project(projects)] : []), ...(workspaces ? [units.workspace(workspaces)] : [])]);
@@ -391,7 +417,8 @@ function groupLabel(kind: ChipGroupKind, chips: readonly ActiveChip[], strings: 
 
 /** "Clear filters": no selections, switches and window back to the settings. */
 export function clearedParams(params: BoardParams): BoardParams {
-  return { ...params, query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: null, doneWindow: null };
+  const { hosts: _hosts, ...rest } = params;
+  return { ...rest, query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: null, doneWindow: null };
 }
 
 /** What a card's menu can filter the board to: its agent, its workspace or its project. */

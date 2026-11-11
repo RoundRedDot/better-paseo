@@ -13,7 +13,7 @@ import { duration, PREVIEW_REVEAL } from "../../ui/tokens/motion";
 import type { PermissionButton, StopPhase } from "../actions";
 import { activeStopChildren } from "../actions/stop-targets";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
-import { opensInPaseo, parentOpensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
+import { opensInPaseo, parentOpensInPaseo, remoteCard, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
 import { cardErrorReset, contextRatio, formatCardError, tildePath } from "./format";
 import { errorAction } from "./error-action";
 import { cardStart, cardTimer, cardWaitLength, startHint, timerHint, waitedHint, waitedLabel } from "./card-time";
@@ -575,9 +575,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // An archived task has no Open, here or on its subtasks: Paseo would show another tab.
   // A provider subagent's card is read-only: no Stop, Mark read or Archive. It
   // shows its details as any card; Open opens its parent's tab (the board's `onOpen`).
-  const props = given.card.subagent
-    ? { ...given, onStop: undefined, onRead: undefined, onUnread: undefined, onArchive: undefined, onUnarchive: undefined, onPermission: undefined }
-    : opensInPaseo(given.card) ? given : { ...given, onOpen: undefined };
+  // Another host's card leaves out what this plugin's server does for its own
+  // host's agents: Stop, Mark read and unread, Unarchive and titles.
+  const own = remoteCard(given.card) ? { ...given, onStop: undefined, onRead: undefined, onUnread: undefined, onUnarchive: undefined, titleUpdates: undefined } : given;
+  const props = own.card.subagent
+    ? { ...own, onStop: undefined, onRead: undefined, onUnread: undefined, onArchive: undefined, onUnarchive: undefined, onPermission: undefined }
+    : opensInPaseo(own.card) ? own : { ...own, onOpen: undefined };
   const { card, fields, compact, theme } = props;
   const scale = useTasksFontScale();
   const tokens = taskTokens(theme);
@@ -1027,6 +1030,21 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // Its type as the timeline's icon (`subagentFacts`); the hint keeps the whole line.
   const subagent = card.subagent ? subagentFacts(card.subagent.subtitle, card.subagent.type) : null;
   const facts = subagent?.full ?? null;
+  // Another Paseo host's card names its host first, as Paseo's sidebar does; whatever the card's fields say.
+  const host = card.host?.remote ? card.host : null;
+  if (host) {
+    pills.push(
+      <Pill
+        key="host"
+        {...pill}
+        testID="pill-host"
+        solid={neutralPillColors(tokens, muted)}
+        icon="Server"
+        label={host.label}
+        hint={hint("host", () => pair(strings.hint.host, host.label))}
+      />,
+    );
+  }
   if (layout.modelPill) {
     // A subagent whose line names its model or effort draws it as an agent's, model and effort, without the tokens;
     // with no model named (inherited) the agent's name stands in, as on any card without one.

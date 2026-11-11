@@ -11,7 +11,7 @@ import { SwitchTrack } from "../../ui/switch-track";
 import { useSwitchSpace } from "../../ui/use-switch-space";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { easing } from "../../ui/tokens/motion";
-import { clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, toggleProject, type FilterOption, type FilterOptions } from "./filter-options";
+import { FILTER_ICONS, clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, toggleProject, type FilterOption, type FilterOptions } from "./filter-options";
 import { matchesSearch, searchWords } from "./search";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { detailScrollProps } from "../cards/detail-scrollbar";
@@ -189,6 +189,16 @@ export function FilterSheetBody(props: {
               ))}
             </ChipWrap>
           </CollapsibleGroup>
+          {/* Only while the board shows more than one Paseo host. */}
+          {shown.hosts?.length ? (
+            <CollapsibleGroup title={strings.host} icon={FILTER_ICONS.host} theme={theme} testID="filter-sheet-hosts">
+              <ChipWrap>
+                {shown.hosts.map((host) => (
+                  <Chip key={host.id} option={host} theme={theme} pill={props.phone} hideCount onPress={() => setParams((p) => ({ ...p, hosts: toggleItem(p.hosts ?? [], host.id) }))} />
+                ))}
+              </ChipWrap>
+            </CollapsibleGroup>
+          ) : null}
         </View>
         <View testID="filter-sheet-project-header" style={{ paddingHorizontal: 16, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
           <CollapsibleTitle text={strings.project} icon="FolderKanban" theme={theme} open={projectsOpen} onPress={() => { setProjectSearching(false); setProjectsOpen((value) => !value); }} testID="filter-sheet-projects-toggle" />

@@ -101,6 +101,8 @@ const en = {
     workspace: "Workspace",
     status: "Status",
     stopped: "stopped manually",
+    /** Another Paseo host's card: its host badge. */
+    host: "Host",
     model: "Model",
     thinking: "Thinking",
     branch: "Branch",
@@ -355,6 +357,7 @@ const zh: CardStrings = {
     workspace: "工作区",
     status: "状态",
     stopped: "已手动停止",
+    host: "主机",
     model: "模型",
     thinking: "思考强度",
     branch: "分支",

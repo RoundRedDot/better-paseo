@@ -86,6 +86,12 @@ export interface TasksSnapshot {
   /** False until the first active snapshot arrives. */
   ready: boolean;
   error: string | null;
+  /**
+   * Every host Paseo has configured, this one first, while there is more
+   * than one (`data/hosts.ts`): the host filter's options, offline ones
+   * included. Absent on a one-host board.
+   */
+  hosts?: { id: string; label: string }[];
 }
 
 /** How a refresh ended: every list read again, one failing, or the board closed or another read took over. */
@@ -564,7 +570,7 @@ function archivedOrderAt(card: TaskCard): string {
 }
 
 /** A lane's default order: waiting and running oldest first, the rest newest first. Archived is by archive time. */
-function laneCompare(lane: LaneId): (left: TaskCard, right: TaskCard) => number {
+export function laneCompare(lane: LaneId): (left: TaskCard, right: TaskCard) => number {
   if (lane === "needs_input") return (left, right) => timestamp(left.timing.attentionAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.attentionAt, Number.POSITIVE_INFINITY);
   if (lane === "running") return (left, right) => timestamp(left.timing.turnStartedAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.turnStartedAt, Number.POSITIVE_INFINITY);
   if (lane === "review") return (left, right) => timestamp(right.timing.attentionAt ?? right.timing.updatedAt, Number.NEGATIVE_INFINITY) - timestamp(left.timing.attentionAt ?? left.timing.updatedAt, Number.NEGATIVE_INFINITY);
@@ -967,7 +973,14 @@ const stores = new WeakMap<PaseoApi, TaskStore>();
 /** Stores with a warm hold, so turning the board off can drop them all. */
 const heldStores = new Set<TaskStore>();
 
-function createStore(api: PaseoApi): TaskStore {
+function createStore(api: PaseoApi, remote = false): TaskStore {
+  /**
+   * The plugin server's loaders answer for this host's agents only. Another
+   * host's store (`remote`, read through that host's own API) asks them
+   * nothing: its cards go without recorded turns, provider subagents, read
+   * marks, parent origins, and the server's labels and icons.
+   */
+  const serverLoader = <Loader>(loader: Loader | null): Loader | null => (remote ? null : loader);
   const listeners = new Set<() => void>();
   const entries = new Map<string, AgentEntry>();
   const sourceMembers = new Map<string, Set<string>>();
@@ -1772,7 +1785,7 @@ function createStore(api: PaseoApi): TaskStore {
    * a tick so one snapshot's agents go together.
    */
   function requestLastTurnFor(agent: PaseoAgent) {
-    if (!lastTurnLoader || boardConsumers === 0) return;
+    if (!serverLoader(lastTurnLoader) || boardConsumers === 0) return;
     const prompt = agent.lastUserMessageAt ?? "";
     const working = agent.status === "running";
     const known = lastTurns.get(agent.id);
@@ -1794,7 +1807,7 @@ function createStore(api: PaseoApi): TaskStore {
    * `turns.last` waits for a record still being written.
    */
   function askAfterTurnEnd(agentId: string) {
-    if (!lastTurnLoader || boardConsumers === 0) return;
+    if (!serverLoader(lastTurnLoader) || boardConsumers === 0) return;
     const run = generation;
     setTimeout(() => {
       if (run !== generation || !entries.has(agentId)) return;
@@ -1804,7 +1817,7 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function flushLastTurns(run: number) {
-    const loader = lastTurnLoader;
+    const loader = serverLoader(lastTurnLoader);
     const ids = [...lastTurnQueue];
     lastTurnQueue = new Set();
     if (!loader) return;
@@ -1848,7 +1861,7 @@ function createStore(api: PaseoApi): TaskStore {
    */
   let subagentDueAt = Number.POSITIVE_INFINITY;
   function scheduleSubagents(delay: number) {
-    if (!subagentLoader || consumers === 0) return;
+    if (!serverLoader(subagentLoader) || consumers === 0) return;
     const due = Date.now() + delay;
     if (subagentTimer !== null && subagentDueAt <= due) return;
     if (subagentTimer !== null) clearTimeout(subagentTimer);
@@ -1862,7 +1875,7 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   async function readSubagents(run: number) {
-    const loader = subagentLoader;
+    const loader = serverLoader(subagentLoader);
     if (!loader || subagentReading) return;
     subagentReading = true;
     try {
@@ -1921,7 +1934,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   /** The server's inferred origins; a changed one relinks its card to the parent it names. */
   async function readOrigins(run: number) {
-    const loader = parentOriginsLoader;
+    const loader = serverLoader(parentOriginsLoader);
     if (!loader) return;
     try {
       const result = await loader(originsVersion);
@@ -1951,7 +1964,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   /** The server's read marks; a changed one moves its card (and lets a failed parent go). */
   async function readReads(run: number) {
-    const loader = readMarksLoader;
+    const loader = serverLoader(readMarksLoader);
     if (!loader) return;
     try {
       const marks = await loader();
@@ -1983,7 +1996,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   /** The server's unread marks; a changed one moves a done card back to review. */
   async function readUnreads(run: number) {
-    const loader = unreadMarksLoader;
+    const loader = serverLoader(unreadMarksLoader);
     if (!loader) return;
     try {
       const marks = await loader();
@@ -2264,7 +2277,7 @@ function createStore(api: PaseoApi): TaskStore {
    * shows on the next board. Without either, labels keep stand-in colors.
    */
   async function readLabelDefinitions(run: Run) {
-    const loader = labelDefinitionsLoader;
+    const loader = serverLoader(labelDefinitionsLoader);
     if (!loader) return;
     try {
       const labels = await loader();
@@ -2968,7 +2981,7 @@ function createStore(api: PaseoApi): TaskStore {
           const settle = (icons: Map<string, ProjectIconData | null>) => {
             for (const [id, waiting] of batch) for (const done of waiting) done(icons.get(id) ?? null);
           };
-          const loader = projectIconsLoader;
+          const loader = serverLoader(projectIconsLoader);
           if (!loader) return settle(new Map());
           // A server that cannot read the icons leaves the generated ones: an icon is not worth a board error.
           loader([...batch.keys()]).then(
@@ -2983,7 +2996,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   function requestProjectIcon(projectId: string) {
     const iconApi = api.projects as PaseoApi["projects"] & OptionalProjectIconsApi;
-    if (typeof iconApi.icon !== "function" && !projectIconsLoader) return;
+    if (typeof iconApi.icon !== "function" && !serverLoader(projectIconsLoader)) return;
     const revision = projects.get(projectId)?.projectIconRevision ?? null;
     const cached = projectIcons.get(projectId);
     if (cached?.revision === revision) return;
@@ -3194,13 +3207,33 @@ function createStore(api: PaseoApi): TaskStore {
   return store;
 }
 
-function getStore(api: PaseoApi): TaskStore {
+function getStore(api: PaseoApi, remote = false): TaskStore {
   let store = stores.get(api);
   if (!store) {
-    store = createStore(api);
+    store = createStore(api, remote);
     stores.set(api, store);
   }
   return store;
+}
+
+/**
+ * Another host's board data, read through that host's own API
+ * (`getPaseoClient`): the same lists and lanes as `useTasks`, without what
+ * this plugin's server adds. `data/hosts.ts` subscribes to one per online
+ * host and merges them into the board's.
+ */
+export function subscribeRemoteTasks(api: PaseoApi, listener: () => void, includeDone: boolean): () => void {
+  return getStore(api, true).subscribe(listener, { board: true, done: includeDone });
+}
+
+/** The snapshot `subscribeRemoteTasks` follows. */
+export function remoteTasksSnapshot(api: PaseoApi, options: TasksOptions): TasksHandle {
+  return getStore(api, true).getSnapshot(options);
+}
+
+/** `setTasksArchivedLane` for another host's store. */
+export function setRemoteArchivedLane(api: PaseoApi, on: boolean): void {
+  getStore(api, true).setArchivedLane(on);
 }
 
 /**
@@ -3308,7 +3341,8 @@ export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilt
     return matchesTaskSearch(card, query, firstMessages?.get(card.id)) &&
       (filters.workspaceIds.length === 0 || (card.location.workspaceId !== null && filters.workspaceIds.includes(card.location.workspaceId))) &&
       (filters.providers.length === 0 || filters.providers.includes(card.provider)) &&
-      (filters.labels.length === 0 || card.labels.some((label) => filters.labels.includes(label.name)));
+      (filters.labels.length === 0 || card.labels.some((label) => filters.labels.includes(label.name))) &&
+      (!filters.hosts?.length || !card.host || filters.hosts.includes(card.host.id));
   };
   const byId = new Map<string, TaskCard>();
   if (filters.hideSubtasks) for (const id of LANE_ORDER) for (const card of lanes[id].cards) byId.set(card.id, card);
