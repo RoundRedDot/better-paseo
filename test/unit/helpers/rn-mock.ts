@@ -84,6 +84,9 @@ export const Platform = {
   get OS() {
     return os();
   },
+  get isPad() {
+    return (globalThis as { __rnMockIsPad?: boolean }).__rnMockIsPad ?? false;
+  },
   select<T>(choices: Record<string, T>): T | undefined {
     const key = os();
     if (key in choices) return choices[key];

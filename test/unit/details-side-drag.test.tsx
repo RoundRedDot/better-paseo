@@ -6,7 +6,7 @@ import "./helpers/quiet-renderer";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 import { StyleSheet } from "react-native";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
-import { SidePanel, resetSideWidth } from "../../client/details/shell/side-panel";
+import { SidePanel, resetSideWidth, sideWidth } from "../../client/details/shell/side-panel";
 
 // The details side panel's edge drag on desktop web: a move writes the width
 // to the page at most once a frame, and the panel renders once, on release.
@@ -29,6 +29,7 @@ afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+  delete (globalThis as { __rnMockIsPad?: boolean }).__rnMockIsPad;
 });
 
 it("writes a dragged width to the page once a frame and renders the panel once, on release", () => {
@@ -64,6 +65,15 @@ it("writes a dragged width to the page once a frame and renders the panel once, 
   const drawnWidth = () => StyleSheet.flatten(renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-side").props.style).width;
   const start = drawnWidth();
   expect(start).toBe(576);
+  const edge = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-side-edge");
+  const line = () => StyleSheet.flatten(renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-side-hover-line").props.style);
+  expect(line().opacity).toBe(0);
+  expect(StyleSheet.flatten(edge.props.style).cursor).toBe("col-resize");
+  expect(renderer!.root.findAll((node) => node.props.testID === "details-side-grabber")).toHaveLength(0);
+  act(() => edge.props.onPointerEnter());
+  expect(line().opacity).toBe(0.9);
+  act(() => edge.props.onPointerLeave());
+  expect(line().opacity).toBe(0);
   const before = renders;
   const event = (clientX: number) => ({ button: 0, clientX, preventDefault() {} });
   act(() => edgeListeners.get("pointerdown")!(event(1000)));
@@ -101,6 +111,48 @@ it("writes a dragged width to the page once a frame and renders the panel once, 
   act(() => docListeners.get("pointermove")!(event(2000)));
   act(() => docListeners.get("pointerup")!(event(2000)));
   expect(drawnWidth()).toBe(360);
+});
+
+it("shows a native iPad grabber and commits a bounded width only on release", () => {
+  (globalThis as { __rnMockOS?: string; __rnMockIsPad?: boolean }).__rnMockOS = "ios";
+  (globalThis as { __rnMockIsPad?: boolean }).__rnMockIsPad = true;
+  const onResizeStart = vi.fn();
+  const panel = <SidePanel tokens={tokens} stage={{ width: 1200, height: 800 }} insets={{ top: 0, bottom: 0 }}
+    reduced entrance="none" leaving={false} onExited={() => {}} wide={false} resizable onResizeStart={onResizeStart} onOutside={() => {}}><div /></SidePanel>;
+  act(() => { renderer = TestRenderer.create(panel); });
+  const edge = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-side-native-edge");
+  const width = () => {
+    const value = StyleSheet.flatten(renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-side").props.style).width;
+    return typeof value === "number" ? value : (value as { __value: number }).__value;
+  };
+  const event = (pageX: number) => ({ nativeEvent: { pageX } });
+  expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "details-side-grabber")).toHaveLength(1);
+  expect(width()).toBe(432);
+  act(() => { edge().props.onStartShouldSetPanResponderCapture(event(800)); edge().props.onPanResponderGrant(); });
+  act(() => edge().props.onPanResponderMove(event(600)));
+  expect(width()).toBe(632);
+  expect(onResizeStart).not.toHaveBeenCalled();
+  act(() => edge().props.onPanResponderTerminate());
+  expect(width()).toBe(432);
+  expect(onResizeStart).not.toHaveBeenCalled();
+  act(() => { edge().props.onStartShouldSetPanResponderCapture(event(800)); edge().props.onPanResponderGrant(); });
+  act(() => edge().props.onPanResponderMove(event(0)));
+  expect(width()).toBe(720);
+  act(() => edge().props.onPanResponderRelease(event(0)));
+  expect(width()).toBe(720);
+  expect(onResizeStart).toHaveBeenCalledOnce();
+  act(() => renderer!.update(<React.Fragment key="again">{panel}</React.Fragment>));
+  expect(width()).toBe(720);
+  act(() => { edge().props.onStartShouldSetPanResponderCapture(event(800)); edge().props.onPanResponderGrant(); });
+  act(() => edge().props.onPanResponderRelease(event(1600)));
+  expect(width()).toBe(360);
+});
+
+it("keeps landscape phone sizing while allowing an iPad in a short window to resize", () => {
+  (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+  expect(sideWidth({ width: 1200, height: 400 }, false)).toBe(400);
+  (globalThis as { __rnMockIsPad?: boolean }).__rnMockIsPad = true;
+  expect(sideWidth({ width: 1200, height: 400 }, false)).toBe(432);
 });
 
 it("starts dragging from the visible expanded width and leaves expanded mode", () => {

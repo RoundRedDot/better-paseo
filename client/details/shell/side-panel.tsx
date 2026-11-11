@@ -7,8 +7,8 @@
  * writes the width to the page, at most once a frame; the panel renders
  * once, on release, so the details do not draw again on every move.
  */
-import React, { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Animated, Platform, StyleSheet, View, type ViewStyle } from "react-native";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Animated, PanResponder, Platform, StyleSheet, View, type GestureResponderEvent, type ViewStyle } from "react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { sidePanelWidth } from "../layout-model";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
@@ -19,6 +19,7 @@ import type { Entrance } from "./bottom-panel";
 import type { Insets } from "./safe-area";
 import { keepOffWindowDrag } from "./web-layer";
 import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
+import { holdHostGestures } from "../../ui/hold-host-gestures";
 
 export const SIDE = {
   /** A phone in landscape (height under 500). */
@@ -33,7 +34,7 @@ let sessionWidth: number | null = null;
 
 /** The design width starts in the empty gutter; a dragged width may cover the timeline. */
 export function sideWidth(stage: { width: number; height: number; sideSpace?: number }, wide: boolean): number {
-  if (stage.height < 500 && stage.sideSpace === undefined) return Math.min(SIDE.phone, stage.width);
+  if (stage.height < 500 && stage.sideSpace === undefined && !(Platform.OS === "ios" && Platform.isPad)) return Math.min(SIDE.phone, stage.width);
   const base = sessionWidth === null
     ? Math.min(stage.sideSpace ?? stage.width, Math.round(sidePanelWidth(stage.width)))
     : Math.min(stage.width, Math.round(Math.max(SIDE.min, Math.min(stage.width * SIDE.max, sessionWidth))));
@@ -56,7 +57,7 @@ export function SidePanel(props: {
   onExited(): void;
   /** The full-screen toggle: a wider panel. */
   wide: boolean;
-  /** Desktop web: the left edge drags the width. */
+  /** Desktop web or iPad: the left edge drags the width. */
   resizable: boolean;
   onResizeStart?(): void;
   onOutside(): void;
@@ -68,7 +69,9 @@ export function SidePanel(props: {
   latest.current = props;
   const [, setDragged] = useState(0);
   const [edgeHovered, setEdgeHovered] = useState(false);
+  const [nativeDragging, setNativeDragging] = useState(false);
   const width = sideWidth(props.stage, props.wide);
+  const liveWidth = useRef(new Animated.Value(width)).current;
   const moves = props.entrance === "slide" && !reduced;
   const shift = useRef(new Animated.Value(moves ? Platform.OS === "web" ? DESKTOP_OVERLAY.shift : DETAILS_MOTION.sideShift : 0)).current;
   const opacity = useRef(new Animated.Value(props.entrance === "none" || Platform.OS === "web" && reduced ? 1 : Platform.OS === "web" && moves ? DESKTOP_OVERLAY.opacity : 0)).current;
@@ -118,6 +121,44 @@ export function SidePanel(props: {
   useLayoutEffect(() => keepOffWindowDrag(panel.current), []);
 
   const edge = useRef<View>(null);
+  const releaseGestures = useRef<(() => void) | null>(null);
+  useEffect(() => () => releaseGestures.current?.(), []);
+  const pan = useMemo(() => {
+    let touchX = 0;
+    let startWidth = 0;
+    let moved = false;
+    const widthAt = (event: GestureResponderEvent) => Math.round(Math.max(SIDE.min, Math.min(latest.current.stage.width * SIDE.max, startWidth + touchX - event.nativeEvent.pageX)));
+    const release = () => {
+      releaseGestures.current?.();
+      releaseGestures.current = null;
+      setNativeDragging(false);
+    };
+    return PanResponder.create({
+      onStartShouldSetPanResponderCapture: (event) => { touchX = event.nativeEvent.pageX; return false; },
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        startWidth = sideWidth(latest.current.stage, latest.current.wide);
+        moved = false;
+        liveWidth.setValue(startWidth);
+        releaseGestures.current = holdHostGestures(edge.current);
+        setNativeDragging(true);
+      },
+      onPanResponderMove: (event) => {
+        if (event.nativeEvent.pageX === touchX && !moved) return;
+        moved = true;
+        liveWidth.setValue(widthAt(event));
+      },
+      onPanResponderRelease: (event) => {
+        if (moved || event.nativeEvent.pageX !== touchX) {
+          sessionWidth = widthAt(event);
+          latest.current.onResizeStart?.();
+        }
+        release();
+      },
+      onPanResponderTerminate: release,
+    });
+  }, [liveWidth]);
   useLayoutEffect(() => {
     if (!props.resizable || Platform.OS !== "web") return;
     const node = panel.current as unknown as HTMLElement | null;
@@ -141,7 +182,7 @@ export function SidePanel(props: {
           styles.panel,
           {
             top: props.insets.top,
-            width,
+            width: nativeDragging ? liveWidth : width,
             backgroundColor: tokens.surface0,
             borderLeftColor: palette.border,
             opacity,
@@ -160,7 +201,12 @@ export function SidePanel(props: {
             onPointerLeave={() => setEdgeHovered(false)}
             style={[styles.edge, styles.edgeCursor]}
           >
-            <View pointerEvents="none" style={[styles.edgeIndicator, { backgroundColor: tokens.foregroundMuted, opacity: edgeHovered ? 0.9 : 0.45 }]} />
+            <View pointerEvents="none" testID="details-side-hover-line" style={[styles.hoverLine, { backgroundColor: tokens.foregroundMuted, opacity: edgeHovered ? 0.9 : 0 }]} />
+          </View>
+        ) : props.resizable && Platform.OS === "ios" && Platform.isPad ? (
+          <View ref={edge} collapsable={false} {...pan.panHandlers} testID="details-side-native-edge"
+            accessibilityRole="adjustable" accessibilityLabel={toolbarLabel("Resize details panel", language)} style={styles.edge}>
+            <View pointerEvents="none" testID="details-side-grabber" style={[styles.edgeIndicator, { backgroundColor: tokens.foregroundMuted }]} />
           </View>
         ) : null}
       </Animated.View>
@@ -238,5 +284,6 @@ const styles = StyleSheet.create({
   content: { flex: 1, minHeight: 0 },
   edge: { position: "absolute", left: 0, top: 0, bottom: 0, width: SIDE.edge },
   edgeIndicator: { position: "absolute", left: 4, top: "50%", marginTop: -18, width: 3, height: 36, borderRadius: 2 },
+  hoverLine: { position: "absolute", left: 0, top: 0, bottom: 0, width: 2 },
   edgeCursor: { cursor: "col-resize", touchAction: "none" } as unknown as ViewStyle,
 });

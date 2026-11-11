@@ -376,6 +376,7 @@ afterEach(() => {
   act(() => mounted.splice(0).forEach((renderer) => renderer.unmount()));
   delete (globalThis as { document?: unknown }).document;
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+  delete (globalThis as { __rnMockIsPad?: boolean }).__rnMockIsPad;
   vi.useRealTimers();
 });
 
@@ -423,6 +424,22 @@ describe("DetailsHostSlot", () => {
 });
 
 describe("form", () => {
+  it("exposes the resize handle on an iPad side panel but not on an iPhone", () => {
+    (globalThis as { __rnMockIsPad?: boolean }).__rnMockIsPad = true;
+    screen.width = 1194;
+    screen.height = 834;
+    const renderer = render(slot());
+    open("a");
+    expect(byTestId(renderer, "details-side-native-edge")).not.toBeNull();
+    act(() => renderer.unmount());
+    (globalThis as { __rnMockIsPad?: boolean }).__rnMockIsPad = false;
+    screen.width = 844;
+    screen.height = 390;
+    const phone = render(slot());
+    open("a");
+    expect(byTestId(phone, "details-side")).not.toBeNull();
+    expect(byTestId(phone, "details-side-native-edge")).toBeNull();
+  });
   it.each([1280, 1400, 1560, 1799, 1800, 1920])("uses only measured empty space for a side panel at %i px", async (width) => {
     webDesktop();
     screen.width = width;
