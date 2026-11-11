@@ -61,7 +61,7 @@ interface Store<V extends Value = LastMessage> {
 const readLastReply: TimelineRead = (timeline) =>
   timeline.refetch({ direction: "tail", projection: "projected", limit: TAIL_LIMIT }).then((page) => {
     if (page.error) return { state: "error" };
-    return lastReplyMessage(page.entries) ?? { state: "none" };
+    return lastReplyMessage(page.entries, page.epoch) ?? { state: "none" };
   });
 
 /** A value read off a timeline once per version; `readValue` is the latest reply unless given another. */
@@ -105,12 +105,12 @@ export function createLastMessageStore<V extends Value = LastMessage>(api: Api, 
 }
 
 /** The last nonempty assistant message and its own timestamp among a timeline's tail rows. */
-export function lastReplyMessage(entries: readonly { timestamp?: string; item: { type: string; text?: string } }[]): Extract<LastMessage, { state: "ready" }> | null {
+export function lastReplyMessage(entries: readonly { timestamp?: string; seqStart?: number; item: { type: string; text?: string } }[], epoch?: string): Extract<LastMessage, { state: "ready" }> | null {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const { item, timestamp } = entries[index]!;
+    const { item, timestamp, seqStart } = entries[index]!;
     if (item.type !== "assistant_message") continue;
     const text = item.text?.trim();
-    if (text && !isAssistantPlaceholder(text)) return { state: "ready", text, timestamp };
+    if (text && !isAssistantPlaceholder(text)) return { state: "ready", text, timestamp, ...(epoch !== undefined && seqStart !== undefined ? { position: { epoch, seq: seqStart } } : {}) };
   }
   return null;
 }
@@ -125,7 +125,7 @@ export function lastMessageVersion(card: { lane: LaneId; waitingOnSubtasks?: boo
 
 type LiveApi = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "refetch" | "subscribe"> } } };
 type Stream = { seq?: number; epoch?: string; timestamp: string; event: Extract<PaseoAgentTimelineEvent["event"], { type: "timeline" }> };
-type Tail = { type: string; seqEnd: number; turnId?: string; messageId?: string };
+type Tail = { type: string; seqStart: number; seqEnd: number; turnId?: string; messageId?: string };
 
 interface LiveEntry {
   value: LastMessage;
@@ -164,12 +164,13 @@ export function createLiveLastMessageStore(api: LiveApi) {
     const append = event.item.type === "assistant_message" && entry.tail?.type === "assistant_message" &&
       entry.tail.seqEnd + 1 === update.seq && entry.tail.turnId === event.turnId &&
       (event.item.messageId === undefined || event.item.messageId === entry.tail.messageId);
+    const seqStart = append ? entry.tail!.seqStart : update.seq;
     if (event.item.type === "assistant_message") {
       entry.raw = append ? entry.raw + event.item.text : event.item.text;
       const text = entry.raw.trim();
-      if (text && !isAssistantPlaceholder(text)) entry.value = { state: "ready", text, timestamp: update.timestamp };
+      if (text && !isAssistantPlaceholder(text)) entry.value = { state: "ready", text, timestamp: update.timestamp, position: { epoch: update.epoch, seq: seqStart } };
     }
-    entry.tail = { type: event.item.type, seqEnd: update.seq, turnId: event.turnId,
+    entry.tail = { type: event.item.type, seqStart, seqEnd: update.seq, turnId: event.turnId,
       messageId: event.item.type === "assistant_message" ? append ? entry.tail?.messageId : event.item.messageId : undefined };
     entry.cursor = { epoch: update.epoch, seq: update.seq };
     return true;
@@ -191,10 +192,10 @@ export function createLiveLastMessageStore(api: LiveApi) {
         notify();
         return;
       }
-      entry.value = lastReplyMessage(page.entries) ?? { state: "none" };
+      entry.value = lastReplyMessage(page.entries, page.epoch) ?? { state: "none" };
       const tail = page.entries.at(-1);
       entry.raw = tail?.item.type === "assistant_message" ? tail.item.text : "";
-      entry.tail = tail ? { type: tail.item.type, seqEnd: tail.seqEnd, turnId: tail.turnId, messageId: tail.item.type === "assistant_message" ? tail.item.messageId : undefined } : null;
+      entry.tail = tail ? { type: tail.item.type, seqStart: tail.seqStart, seqEnd: tail.seqEnd, turnId: tail.turnId, messageId: tail.item.type === "assistant_message" ? tail.item.messageId : undefined } : null;
       entry.cursor = { epoch: page.epoch, seq: page.endCursor?.seq ?? page.window.nextSeq - 1 };
       const pending = entry.buffered;
       entry.buffered = [];

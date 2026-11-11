@@ -18,7 +18,7 @@ export type LastHumanMessage = FirstPrompt | { state: "first" };
 
 type Api = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "refetch"> } } };
 type Cursor = NonNullable<Parameters<PaseoAgentTimelineHandle["refetch"]>[0]>["cursor"];
-type Row = { timestamp?: string; item: { type: string; text?: string } };
+type Row = { timestamp?: string; seqStart?: number; item: { type: string; text?: string } };
 
 /** The rows read per page. */
 const PAGE_LIMIT = 40;
@@ -38,14 +38,14 @@ function humanText(text: string | undefined): string | null {
 }
 
 /** The last message a person sent among a page's rows, oldest first. */
-export function lastHumanMessage(entries: readonly Row[]): HumanMatch | null {
+export function lastHumanMessage(entries: readonly Row[], epoch?: string): HumanMatch | null {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const { item, timestamp } = entries[index]!;
+    const { item, timestamp, seqStart } = entries[index]!;
     if (item.type !== "user_message") continue;
     const text = humanText(item.text);
     if (!text) continue;
     const earliest = !entries.slice(0, index).some((entry) => entry.item.type === "user_message");
-    return { message: { state: "ready", text, timestamp }, earliest };
+    return { message: { state: "ready", text, timestamp, ...(epoch !== undefined && seqStart !== undefined ? { position: { epoch, seq: seqStart } } : {}) }, earliest };
   }
   return null;
 }
@@ -57,7 +57,7 @@ const readLastHuman: TimelineRead<LastHumanMessage> = async (timeline) => {
       direction: cursor ? "before" : "tail", projection: "projected", limit: PAGE_LIMIT, ...(cursor ? { cursor } : {}),
     });
     if (page.error || page.reset && cursor) return { state: "error" };
-    const found = lastHumanMessage(page.entries);
+    const found = lastHumanMessage(page.entries, page.epoch);
     if (found) return found.earliest && !page.hasOlder ? { state: "first" } : found.message;
     const next = page.startCursor;
     if (!page.hasOlder || !next) return { state: "none" };

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useEffect, useReducer, useRef, useState } from "react";
+import React, { useCallback, useMemo, useEffect, useLayoutEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { createDetailChrome, useDetailChrome, type DetailChrome, type DetailChromeState } from "./detail-chrome";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -66,6 +66,7 @@ import {
   contextView,
   detailHero,
   detailSections,
+  replyBeforeHuman,
   errorLines,
   formatSpan,
   formatTurnClock,
@@ -239,6 +240,21 @@ export interface TaskDetailCardsProps extends TimeSource {
 
 const MINUTE = 60_000;
 
+/** Retain the last established order while independent reads have incomparable positions. */
+function createMessageOrder() {
+  let value: { id: string; replyFirst: boolean } | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); },
+    set(id: string, replyFirst: boolean) {
+      if (value?.id === id && value.replyFirst === replyFirst) return;
+      value = { id, replyFirst };
+      for (const listener of listeners) listener();
+    },
+  };
+}
+
 /** The details card: the header and the lead block, then the sections. */
 export function TaskDetailCards(given: TaskDetailCardsProps) {
   // An archived task has no Open, here or on its subtasks: Paseo would show another tab.
@@ -288,7 +304,16 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   if (metadataHits.some((hit) => hit.field !== "title" && hit.field !== "label")) matching.push("properties");
   if (prompt?.state === "ready" && searchRanges(prompt.text, query).length) matching.push("prompt");
   const searchChoices = useSearchSectionChoices(card.id, query, matching);
-  const { order, closed } = detailSections(card, !!props.firstPrompt, !!props.lastMessage, !!props.humanMessage);
+  const [messageOrder] = useState(createMessageOrder);
+  const previousOrder = useSyncExternalStore(messageOrder.subscribe, messageOrder.get, messageOrder.get);
+  const comparison = replyBeforeHuman(props.humanMessage?.prompt, props.lastMessage?.prompt);
+  const replyFirst = comparison ?? (previousOrder?.id === card.id && previousOrder.replyFirst);
+  useLayoutEffect(() => {
+    if (comparison !== null) messageOrder.set(card.id, comparison);
+  }, [messageOrder, card.id, comparison]);
+  const replyStreaming = turnRunning(card) && (props.lastMessage?.prompt.state !== "ready" || !props.humanMessage || comparison === false);
+  const waitingAfterHuman = turnRunning(card) && comparison === true;
+  const { order, closed } = detailSections(card, !!props.firstPrompt, !!props.lastMessage, !!props.humanMessage, replyFirst);
   // Two columns: properties precede subtasks under the header; the other sections sit on the right.
   const leftSections: DetailSection[] = props.columns ? order.filter((section) => section === "properties" || section === "subtasks") : [];
   const rightOrder = order.filter((section) => !leftSections.includes(section));
@@ -298,6 +323,8 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     <Section
       key={section}
       section={section}
+      replyStreaming={replyStreaming}
+      waitingAfterHuman={waitingAfterHuman}
       divider={divider}
       closed={searchChoices.closed(section, sectionClosed(choices, section, closed.includes(section)))}
       onToggleSection={(closed) => searchChoices.toggle(section, closed)}
@@ -1114,7 +1141,7 @@ function ErrorBlock(props: Inner) {
 
 // ---- Sections --------------------------------------------------------------
 
-function Section(props: Inner & { section: DetailSection; closed: boolean; divider: boolean; onToggleSection(closed: boolean): void }) {
+function Section(props: Inner & { section: DetailSection; replyStreaming: boolean; waitingAfterHuman: boolean; closed: boolean; divider: boolean; onToggleSection(closed: boolean): void }) {
   const { card, m, tokens, section, gutter = 0 } = props;
   const words = cardStrings(props.language).details;
   const reducedMotion = useReducedMotion();
@@ -1178,9 +1205,9 @@ function Section(props: Inner & { section: DetailSection; closed: boolean; divid
           {section === "prompt" ? (
           <TimelineTextBody {...props} read={props.firstPrompt} id="detail-prompt" none={words.promptNone} error={words.promptError} copyLabel={words.copyPrompt} copyToast="Copy prompt" />
         ) : section === "human" ? (
-          <TimelineTextBody {...props} read={props.humanMessage} id="detail-human" none={words.humanNone} error={words.humanError} copyLabel={words.copyHuman} copyToast="Copy sent message" />
+          <TimelineTextBody {...props} read={props.humanMessage} id="detail-human" none={words.humanNone} error={words.humanError} copyLabel={words.copyHuman} copyToast="Copy sent message" waitingAfter={props.waitingAfterHuman} />
         ) : section === "message" ? (
-          <TimelineTextBody {...props} read={props.lastMessage} id="detail-message" none={words.messageNone} error={words.messageError} copyLabel={words.copyMessage} copyToast="Copy message" flash />
+          <TimelineTextBody {...props} read={props.lastMessage} id="detail-message" none={words.messageNone} error={words.messageError} copyLabel={words.copyMessage} copyToast="Copy message" streaming={props.replyStreaming} flash />
           ) : section === "properties" ? (
             <Properties {...props} />
           ) : section === "subtasks" ? (
@@ -1773,6 +1800,8 @@ function TimelineTextBody(props: Inner & {
   copyToast: string;
   /** The text box's fill flashes once each time the card's text changes (the latest reply moving). */
   flash?: boolean;
+  streaming?: boolean;
+  waitingAfter?: boolean;
 }) {
   const { tokens, id } = props;
   const words = cardStrings(props.language).details;
@@ -1785,7 +1814,7 @@ function TimelineTextBody(props: Inner & {
   const adjustment = useTasksFontAdjustment();
   const first = props.read;
   const breathing = useBreathing(first?.prompt.state === "loading");
-  const streaming = id === "detail-message" && turnRunning(props.card);
+  const streaming = props.streaming === true;
   const changes = useTextChanges(props.card.id, props.flash === true && !streaming && first?.prompt.state === "ready" ? first.prompt.text : null);
   const flashOpacity = useFlash(changes, 0, 1);
   // A file link opens in its default app (a folder in Finder) on the daemon's
@@ -1856,6 +1885,7 @@ function TimelineTextBody(props: Inner & {
         </FoldedText>
       </View>
       {streaming ? <ReplyLoading tokens={tokens} language={props.language} /> : null}
+      {props.waitingAfter ? <ReplyLoading tokens={tokens} language={props.language} waiting id="detail-human-working" /> : null}
     </View>
   );
 }
@@ -1945,7 +1975,7 @@ const REPLY_LOADER_FRAMES = [
   [0, 0.34, 0, 0.56, 1, 0.78], [0, 0, 1, 0.34, 0.78, 0.56],
 ] as const;
 
-function ReplyLoading(props: { tokens: TaskTokens; language: TasksLanguage; waiting?: boolean }) {
+function ReplyLoading(props: { tokens: TaskTokens; language: TasksLanguage; waiting?: boolean; id?: string }) {
   const reduced = useReducedMotion();
   const [step, setStep] = useState(() => Math.floor((Date.now() % 950) * 6 / 950));
   useEffect(() => {
@@ -1955,7 +1985,7 @@ function ReplyLoading(props: { tokens: TaskTokens; language: TasksLanguage; wait
   }, [reduced]);
   const label = props.language === "zh" ? (props.waiting ? "等待输出" : "正在回复") : (props.waiting ? "Waiting for reply" : "Replying");
   return (
-    <View testID="detail-message-working" accessibilityRole="progressbar" accessibilityLabel={label} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: props.waiting ? 6 : 0, paddingTop: 8 }}>
+    <View testID={props.id ?? "detail-message-working"} accessibilityRole="progressbar" accessibilityLabel={label} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: props.waiting ? 6 : 0, paddingTop: 8 }}>
       <View style={{ width: 14, height: 14, alignItems: "center", justifyContent: "center" }}><View testID="detail-message-working-grid" style={{ width: 26 / 3, height: 14, flexDirection: "row", flexWrap: "wrap", columnGap: 2, rowGap: 2 }}>
         {REPLY_LOADER_FRAMES[reduced ? 0 : step]!.map((opacity, index) => <View key={index} style={{ width: 10 / 3, height: 10 / 3, borderRadius: 2, backgroundColor: props.tokens.foreground, opacity }} />)}
       </View></View>

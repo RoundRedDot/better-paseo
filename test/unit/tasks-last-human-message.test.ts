@@ -38,6 +38,11 @@ describe("last human message", () => {
     expect(lastHumanMessage([reply("Done"), tool])).toBeNull();
   });
 
+  it("returns the sequence of the last human message", () => {
+    expect(lastHumanMessage([{ seqStart: 7, timestamp: "2026-10-25T09:00:00Z", item: { type: "user_message", text: "Retry" } }], "e")?.message)
+      .toMatchObject({ position: { epoch: "e", seq: 7 } });
+  });
+
   it("pages back from the tail until it finds one", async () => {
     const at = "2026-10-25T09:00:00Z";
     const { api, refetch } = fakeApi([page([tool, tool, reply("Working")], 80), page([user("Fix it"), reply("Done"), user("Retry", at), tool], 40)]);

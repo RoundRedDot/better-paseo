@@ -26,9 +26,9 @@ import type { TaskCard } from "../../client/tasks/model";
 const PAGE = {
   error: null,
   entries: [
-    { timestamp: "2026-10-25T08:13:00Z", seqEnd: 1, item: { type: "user_message", text: "First prompt" } },
-    { timestamp: "2026-10-25T09:00:00Z", seqEnd: 2, item: { type: "user_message", text: "Last sent" } },
-    { timestamp: "2026-10-25T09:01:00Z", seqEnd: 3, item: { type: "assistant_message", text: "Last reply" } },
+    { timestamp: "2026-10-25T08:13:00Z", seqStart: 1, seqEnd: 1, item: { type: "user_message", text: "First prompt" } },
+    { timestamp: "2026-10-25T09:00:00Z", seqStart: 2, seqEnd: 2, item: { type: "user_message", text: "Last sent" } },
+    { timestamp: "2026-10-25T09:01:00Z", seqStart: 3, seqEnd: 3, item: { type: "assistant_message", text: "Last reply" } },
   ],
   hasNewer: false,
   hasOlder: false,
@@ -115,13 +115,32 @@ describe("detail timeline reads", () => {
     expect(refetch).not.toHaveBeenCalled();
 
     await act(async () => { renderer.update(<Probe card={card("closed-1", true)} />); });
-    expect(refetch.mock.calls.map(([options]) => options.direction)).toEqual(["after", "tail", "tail"]);
+    expect(refetch.mock.calls.map(([options]) => options.direction)).toEqual(["after", "tail", "tail", "tail"]);
     expect(reads!.firstPrompt?.prompt).toEqual({ state: "ready", text: "First prompt", timestamp: "2026-10-25T08:13:00Z" });
-    expect(reads!.humanMessage?.prompt).toEqual({ state: "ready", text: "Last sent", timestamp: "2026-10-25T09:00:00Z" });
-    expect(reads!.lastMessage?.prompt).toEqual({ state: "ready", text: "Last reply", timestamp: "2026-10-25T09:01:00Z" });
+    expect(reads!.humanMessage?.prompt).toEqual({ state: "ready", text: "Last sent", timestamp: "2026-10-25T09:00:00Z", position: { epoch: "history", seq: 2 } });
+    expect(reads!.lastMessage?.prompt).toEqual({ state: "ready", text: "Last reply", timestamp: "2026-10-25T09:01:00Z", position: { epoch: "history", seq: 3 } });
 
     await act(async () => { renderer.update(<Probe card={undefined} />); });
-    expect(refetch).toHaveBeenCalledTimes(3);
+    expect(refetch).toHaveBeenCalledTimes(4);
+    act(() => renderer.unmount());
+  });
+
+  it("re-reads the sent message when the reply moves to another epoch", async () => {
+    let epoch = "history";
+    const refetch = vi.fn(async () => ({ ...PAGE, epoch, endCursor: { epoch, seq: 3 } }));
+    const api = { agents: { ref: () => ({ timeline: { refetch, subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }) } }) } };
+    const board = { paseo: api, visible: true } as unknown as BoardController;
+    let reads: ReturnType<typeof useDetailReads> | null = null;
+    function Probe(props: { card: TaskCard }) { reads = useDetailReads(board, props.card); return null; }
+    const first = card("epoch-change", false);
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(<Probe card={first} />); });
+    expect(reads!.humanMessage?.prompt).toMatchObject({ position: { epoch: "history", seq: 2 } });
+    epoch = "new-history";
+    const updated = { ...first, timing: { ...first.timing, updatedAt: "2026-10-25T09:02:00Z" } };
+    await act(async () => { renderer.update(<Probe card={updated} />); });
+    expect(reads!.humanMessage?.prompt).toMatchObject({ position: { epoch: "new-history", seq: 2 } });
+    expect(reads!.lastMessage?.prompt).toMatchObject({ position: { epoch: "new-history", seq: 3 } });
     act(() => renderer.unmount());
   });
 
@@ -155,7 +174,7 @@ describe("detail timeline reads", () => {
     }
     let renderer!: ReactTestRenderer;
     await act(async () => { renderer = TestRenderer.create(<Probe />); });
-    expect(refetch.mock.calls.map(([options]) => options.direction)).toEqual(["after", "tail", "tail"]);
+    expect(refetch.mock.calls.map(([options]) => options.direction)).toEqual(["after", "tail", "tail", "tail"]);
     act(() => renderer.unmount());
   });
 });

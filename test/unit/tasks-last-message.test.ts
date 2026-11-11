@@ -34,6 +34,11 @@ describe("last message", () => {
     expect(lastReplyMessage([{ item: { type: "user_message", text: "Fix it" } }])).toBeNull();
   });
 
+  it("retains the original sequence for a projected reply", () => {
+    expect(lastReplyMessage([{ seqStart: 4, timestamp: "2026-10-25T08:00:00Z", item: { type: "assistant_message", text: "Done" } }], "e"))
+      .toMatchObject({ position: { epoch: "e", seq: 4 } });
+  });
+
   it("reads the tail once per version and keeps the older reply while a newer one loads", async () => {
     const firstAt = "2026-10-25T08:15:00Z";
     const secondAt = "2026-10-25T08:17:00Z";
@@ -154,6 +159,24 @@ describe("streaming last reply", () => {
     expect(store.read("a")).toEqual({ state: "error" });
     release();
   });
+  it("keeps the reply start through chunks and advances only for real new text", async () => {
+    const initial = snapshot("Old", 2);
+    Object.assign(initial.entries[0]!, { seqStart: 1 });
+    const live = liveApi([initial]);
+    const store = createLiveLastMessageStore(live.api as never);
+    const release = store.watch("a");
+    store.request("a", "v1");
+    await flush();
+    expect(store.read("a")).toMatchObject({ position: { epoch: "e1", seq: 1 } });
+    live.emit(3, " more");
+    expect(store.read("a")).toMatchObject({ text: "Old more", position: { epoch: "e1", seq: 1 } });
+    live.emit(4, ".", { messageId: "m2" });
+    expect(store.read("a")).toMatchObject({ text: "Old more", position: { epoch: "e1", seq: 1 } });
+    live.emit(5, "New", { messageId: "m2" });
+    expect(store.read("a")).toMatchObject({ position: { epoch: "e1", seq: 4 } });
+    release();
+  });
+
   it("appends each chunk immediately, preserves whitespace, and ignores duplicate rows without refetching", async () => {
     const live = liveApi([snapshot("Hello ")]);
     const store = createLiveLastMessageStore(live.api as never);

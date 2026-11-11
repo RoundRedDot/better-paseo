@@ -469,14 +469,14 @@ describe("details columns", () => {
     const reply = "Live reply. ".repeat(80);
     let emit: (event: unknown) => void = () => {};
     const refetch = vi.fn(async () => ({
-      error: null, epoch: "epoch", entries: [{ timestamp: "2026-10-20T09:00:00Z", seqEnd: 0, turnId: "turn", item: { type: "assistant_message", text: reply, messageId: "message" } }],
-      endCursor: { epoch: "epoch", seq: 0 }, window: { nextSeq: 1 },
+      error: null, epoch: "epoch", entries: [{ timestamp: "2026-10-20T09:00:00Z", seqStart: 1, seqEnd: 1, turnId: "turn", item: { type: "assistant_message", text: reply, messageId: "message" } }],
+      endCursor: { epoch: "epoch", seq: 1 }, window: { nextSeq: 2 },
     }));
     const subscribe = (handler: (event: unknown) => void) => { emit = handler; return Object.assign(() => {}, { ready: Promise.resolve() }); };
     const api = { agents: { ref: () => ({ timeline: { refetch, subscribe } }) } };
     function LiveDetails() {
       const lastMessage = useLastMessage(api as never, "running", "v1", true, true);
-      return <TaskDetailCards {...props(false)} columns={false} tabs firstPrompt={{ prompt: { state: "ready", text: first }, load() {} }} humanMessage={{ prompt: { state: "ready", text: human }, load() {} }} lastMessage={lastMessage} />;
+      return <TaskDetailCards {...props(false)} columns={false} tabs firstPrompt={{ prompt: { state: "ready", text: first }, load() {} }} humanMessage={{ prompt: { state: "ready", text: human, position: { epoch: "epoch", seq: 0 } }, load() {} }} lastMessage={lastMessage} />;
     }
     await act(async () => { renderer = TestRenderer.create(<LiveDetails />); });
     expect(host(renderer!.root, "detail-prompt-text").props.style).toMatchObject({ overflow: "hidden" });
@@ -487,7 +487,7 @@ describe("details columns", () => {
     }
     const markdown = () => host(renderer!.root, "detail-message-text").findByType(MarkdownView);
     expect(markdown().props).toMatchObject({ text: reply.trim(), streaming: true });
-    await act(async () => emit({ epoch: "epoch", seq: 1, timestamp: "2026-10-20T09:00:01Z", event: { type: "timeline", turnId: "turn", item: { type: "assistant_message", text: "More output", messageId: "message" } } }));
+    await act(async () => emit({ epoch: "epoch", seq: 2, timestamp: "2026-10-20T09:00:01Z", event: { type: "timeline", turnId: "turn", item: { type: "assistant_message", text: "More output", messageId: "message" } } }));
     expect(markdown().props.text).toBe(`${reply}More output`);
     expect(host(renderer!.root, "detail-message-text").props.style).toBeNull();
     expect(refetch).toHaveBeenCalledOnce();

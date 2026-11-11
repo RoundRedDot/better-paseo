@@ -13,7 +13,7 @@ import type { PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 export type FirstPrompt =
   | { state: "idle" }
   | { state: "loading" }
-  | { state: "ready"; text: string; timestamp?: string }
+  | { state: "ready"; text: string; timestamp?: string; position?: { epoch: string; seq: number } }
   /** The timeline's head holds no prompt (or the daemon dropped it). */
   | { state: "none" }
   | { state: "error"; unavailable?: true };

@@ -1,3 +1,5 @@
+import type { FirstPrompt } from "../data/first-prompt";
+import type { LastHumanMessage } from "../data/last-human-message";
 import type { TasksLanguage } from "../i18n";
 import { turnRunning, type StatusKind, type TaskCard } from "../model";
 import { contextRatio, formatCost, formatDuration, formatRelative, formatTokens, since } from "./format";
@@ -29,7 +31,7 @@ export function detailHero(card: TaskCard): DetailHero {
  * last message a person sent and the agent's latest reply when the details
  * can read them.
  */
-export function detailSections(card: TaskCard, prompt = false, message = false, human = false): { order: DetailSection[]; closed: DetailSection[] } {
+export function detailSections(card: TaskCard, prompt = false, message = false, human = false, replyFirst = false): { order: DetailSection[]; closed: DetailSection[] } {
   const hero = detailHero(card);
   let order: DetailSection[];
   if (hero === "turn") order = ["subtasks", "usage", "activity"];
@@ -39,10 +41,20 @@ export function detailSections(card: TaskCard, prompt = false, message = false, 
   if (card.children.length === 0) order = order.filter((section) => section !== "subtasks");
   // A provider subagent's card carries no usage or activity of its own.
   if (card.subagent) order = [];
-  if (message) order = ["message", ...order];
-  if (human) order = ["human", ...order];
+  if (replyFirst && human && message) order = ["message", "human", ...order];
+  else {
+    if (message) order = ["message", ...order];
+    if (human) order = ["human", ...order];
+  }
   if (prompt) order = ["prompt", ...order];
   return { order: ["properties", ...order], closed: [] };
+}
+
+/** Compare positions only within the same timeline epoch. */
+export function replyBeforeHuman(human: LastHumanMessage | undefined, reply: FirstPrompt | undefined): boolean | null {
+  if (human?.state !== "ready" || reply?.state !== "ready") return null;
+  if (!human.position || !reply.position || human.position.epoch !== reply.position.epoch || human.position.seq === reply.position.seq) return null;
+  return reply.position.seq < human.position.seq;
 }
 
 /** The colour each status draws with in the charts: the board's status band, done in grey. */

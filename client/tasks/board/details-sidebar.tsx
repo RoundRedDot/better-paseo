@@ -314,9 +314,10 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
   const agent = card && !card.subagent ? card : undefined;
   const shown = agent !== undefined;
   const firstPrompt = useFirstPrompt(board.paseo, agent?.id ?? "", shown);
-  const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? lastHumanMessageVersion(agent) : "", shown);
   const live = board.visible && agent !== undefined && turnRunning(agent) && agent.closed !== true;
   const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", shown, live);
+  const replyEpoch = lastMessage.prompt.state === "ready" ? lastMessage.prompt.position?.epoch : undefined;
+  const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? `${lastHumanMessageVersion(agent)}|${replyEpoch ?? ""}` : "", shown);
   const sessionTokens = useSessionTokens(agent?.id ?? "", agent !== undefined && turnRunning(agent) && agent.closed !== true);
   const subagentReads = useSubagentTimeline(
     {

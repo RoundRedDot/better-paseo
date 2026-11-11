@@ -4152,6 +4152,31 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-human"))).toEqual(["最后发送消息", "对话记录里没有找到发送的消息"]);
   });
 
+  it.each([{ tabs: true }, { columns: true }, {}])("orders replies and sent messages during a running turn: %o", async (layout) => {
+    const load = vi.fn();
+    const firstPrompt = { prompt: { state: "ready" as const, text: "First" }, load };
+    const humanMessage = { prompt: { state: "ready" as const, text: "Retry", position: { epoch: "e", seq: 8 } }, load };
+    const reply = (epoch: string, seq: number) => ({ prompt: { state: "ready" as const, text: seq < 8 ? "Old reply" : "New reply", position: { epoch, seq } }, load });
+    const ids = ["detail-prompt", "detail-human", "detail-message"];
+    const shown = (tree: Awaited<ReturnType<typeof render>>) => tree.root.findAll((node) => typeof node.type === "string" && ids.includes(node.props.testID)).map((node) => node.props.testID);
+    const props = { ...layout, firstPrompt, humanMessage, lastMessage: reply("e", 5) };
+    const tree = await render(details(sample("sample-running"), props, "en"));
+    expect(shown(tree)).toEqual(["detail-prompt", "detail-message", "detail-human"]);
+    expect(hostByTestId(tree.root, "detail-human-working").props.accessibilityLabel).toBe("Waiting for reply");
+    expect(tree.root.findAll((node) => node.props.testID === "detail-message-working")).toHaveLength(0);
+    await act(async () => hostByTestId(tree.root, "detail-message-heading").props.onPress());
+    expect(hostByTestId(tree.root, "detail-message-heading").props.accessibilityState.expanded).toBe(false);
+    await act(async () => tree.update(details(sample("sample-running"), { ...props, lastMessage: reply("other", 10) }, "en")));
+    expect(shown(tree)).toEqual(["detail-prompt", "detail-message", "detail-human"]);
+    expect(tree.root.findAll((node) => node.props.testID === "detail-message-working")).toHaveLength(0);
+    await act(async () => tree.update(details(sample("sample-running"), { ...props, lastMessage: reply("e", 10) }, "en")));
+    expect(shown(tree)).toEqual(ids);
+    expect(hostByTestId(tree.root, "detail-message-heading").props.accessibilityState.expanded).toBe(false);
+    await act(async () => hostByTestId(tree.root, "detail-message-heading").props.onPress());
+    expect(hostByTestId(tree.root, "detail-message-working").props.accessibilityLabel).toBe("Replying");
+    expect(tree.root.findAll((node) => node.props.testID === "detail-human-working")).toHaveLength(0);
+  });
+
   it("leads with the error when a card failed, and with a grey line after a manual stop", async () => {
     const failed = await render(details(sample("sample-failed"), {}, "en"));
     expect(texts(hostByTestId(failed.root, "detail-error"))).toEqual(["Run failed", "Provider exited with code 1: rate limit reached"]);

@@ -5,6 +5,7 @@ import {
   contextView,
   detailHero,
   detailSections,
+  replyBeforeHuman,
   formatShare,
   formatSpan,
   formatTurnClock,
@@ -46,6 +47,16 @@ describe("details card model", () => {
     // A provider subagent's card has no usage or activity of its own.
     const subagent = { ...sample("sample-running"), children: [], subagent: { subtitle: null } };
     expect(detailSections(subagent, true, true).order).toEqual(["properties", "prompt", "message"]);
+  });
+
+  it("compares timeline positions only within the same epoch", () => {
+    const human = { state: "ready" as const, text: "sent", timestamp: "2026-10-25T09:00:00Z", position: { epoch: "e", seq: 8 } };
+    const reply = { state: "ready" as const, text: "reply", timestamp: "2026-10-25T10:00:00Z", position: { epoch: "e", seq: 5 } };
+    expect(replyBeforeHuman(human, reply)).toBe(true);
+    expect(replyBeforeHuman(human, { ...reply, position: { epoch: "e", seq: 9 } })).toBe(false);
+    expect(replyBeforeHuman(human, { ...reply, position: { epoch: "other", seq: 9 } })).toBeNull();
+    expect(replyBeforeHuman(human, { ...reply, position: undefined })).toBeNull();
+    expect(detailSections(sample("sample-running"), true, true, true, true).order.slice(1, 4)).toEqual(["prompt", "message", "human"]);
   });
 
   it("splits Codex's cached input out of its input, and leaves Claude's as reported", () => {
