@@ -94,7 +94,7 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
   if (!active || (!visible && !present) || !context) return null;
   const strings = context.strings;
   const colors = props.theme.colors;
-  const danger = taskTokens(props.theme).isDark ? "#F85149" : "#CF222E";
+  const danger = taskTokens(props.theme).danger;
   const toggle = () => { cancel(); setOpen((value) => !value); };
   const textStyle = { fontSize: 13, lineHeight: 18, color: colors.foregroundMuted, fontVariant: ["tabular-nums" as const] };
   const loadedLift = surfaceLift(hovered, loadedPress.pressed, reduced, "control", loadedPress.input);

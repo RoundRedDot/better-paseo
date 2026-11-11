@@ -13,7 +13,7 @@ import { CascadeMenu, type MenuSection } from "./menu";
 import { menuChrome, menuWidth } from "./menu-model";
 import { activeFilterCount, resolveBoardParams } from "./params";
 import type { BoardController } from "./use-board";
-import { FullConversationSwitch, SearchCancelToggle, SearchInput, SearchStatusMark } from "./search-loading";
+import { FullConversationSwitch, SearchCancelToggle, SearchInput, SearchStatusMark, useSearchStatusText } from "./search-loading";
 import { SearchCoverageItems } from "./search-coverage";
 import { PanelMark, SearchQueryChip } from "./filter-bar";
 import { TASK_TOOLBAR_METRICS } from "../toolbar-metrics";
@@ -101,9 +101,10 @@ export function TabletToolbar(props: {
     ...level.map((section) => ({ ...section, items: section.items.map((item) => item.submenu ? { ...item, submenu: undefined, hint: "›", keepOpen: true, onSelect: () => setTrail([...trail, item.key]) } : item) })),
   ];
   const compactLabels = compact ? undefined : { stopped: strings.searchStoppedShort, failed: strings.historyFailedShort };
+  const editSearch = () => { props.filters?.onClose(); setPage(null); setSearchOpen(true); };
   const querySummary = (
     <View testID="tablet-search-summary" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 }}>
-      <SearchQueryChip board={board} theme={theme} lead={narrowSummary ? <SearchStatusMark theme={theme} /> : undefined} onEdit={() => { props.filters?.onClose(); setPage(null); setSearchOpen(true); }} />
+      {narrowSummary ? <StatusQueryChip board={board} theme={theme} onEdit={editSearch} /> : <SearchQueryChip board={board} theme={theme} onEdit={editSearch} />}
       {!narrowSummary ? <>
         <SearchCoverageItems theme={theme} compact compactLabels={compactLabels} />
         <SearchCancelToggle theme={theme} iconSize={16} />
@@ -187,6 +188,15 @@ export function TabletToolbar(props: {
       ) : null}
     </>
   );
+}
+
+/**
+ * The narrow pill shows its search state only as a mark, so its edit button
+ * also speaks that state. Kept apart so count updates re-render the pill alone.
+ */
+function StatusQueryChip(props: { board: BoardController; theme: PluginTheme; onEdit(): void }) {
+  const hint = useSearchStatusText();
+  return <SearchQueryChip board={props.board} theme={props.theme} lead={<SearchStatusMark theme={props.theme} />} editHint={hint} onEdit={props.onEdit} />;
 }
 
 function ToolbarButton(props: { icon: string | React.ReactElement; label: string; theme: PluginTheme; onPress(): void; testID: string; selected?: boolean; toggle?: boolean; hideSelectedBackground?: boolean; expanded?: boolean; badge?: number; badgeTestID?: string; slashed?: boolean; size?: number }) {

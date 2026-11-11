@@ -17,6 +17,8 @@ import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import type { BoardController } from "../../client/tasks/board/use-board";
 import { TasksTypographyScale } from "../../client/tasks/typography";
+import { taskTokens } from "../../client/tasks/cards/tokens";
+import { SearchCoverageItems } from "../../client/tasks/board/search-coverage";
 import { measureHostTree, type Frame } from "./helpers/yoga-host-layout";
 
 const theme = { colors: { foreground: "#222222", foregroundMuted: "#777777", surface0: "#ffffff", surface1: "#eeeeee", surface2: "#dddddd", border: "#cccccc", accent: "#2563eb", accentForeground: "#ffffff", statusSuccess: "#198754", statusWarning: "#a36a00", statusDanger: "#d92d20" } };
@@ -26,7 +28,7 @@ afterEach(() => { act(() => renderer?.unmount()); vi.useRealTimers(); delete (gl
 const hosts = (id: string) => renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === id);
 const text = (node: ReactTestInstance): string => node.children.map((child) => typeof child === "string" ? child : text(child)).join("");
 
-function mount(width: number, scale = 1, language: "en" | "zh" = "en") {
+function mount(width: number, scale = 1, language: "en" | "zh" = "en", palette: typeof theme = theme) {
   let cancelled = false;
   let historyError: string | null = null;
   let fullConversation = false;
@@ -44,7 +46,7 @@ function mount(width: number, scale = 1, language: "en" | "zh" = "en") {
     cancelled={cancelled} setCancelled={(value) => { cancelled = value; render(); }} cancelText="Stop search" resumeText="Resume search" stoppedText="Search stopped; results incomplete"
     historyError={historyError} historyFailedText={BOARD_STRINGS[language].historyFailed} retryHistory={retry}
     fullConversation={fullConversation} fullConversationLabel="Full conversation" onFullConversationChange={(value) => { fullConversation = value; render(); }}>
-    <View testID="fixture"><TabletToolbar board={board} theme={theme} width={width} laneWidth={300} searchRef={null} onFilters={() => {}} sidebar={{ open: false, sheet: false, onToggle() {} }} emptyLanes={{ collapsed: false, disabled: false, onToggle() {} }} /></View>
+    <View testID="fixture"><TabletToolbar board={board} theme={palette} width={width} laneWidth={300} searchRef={null} onFilters={() => {}} sidebar={{ open: false, sheet: false, onToggle() {} }} emptyLanes={{ collapsed: false, disabled: false, onToggle() {} }} /></View>
   </SearchCoverageProvider></TasksTypographyScale>;
   act(() => { renderer = TestRenderer.create(view()); });
   return { board, retry,
@@ -234,4 +236,49 @@ it.each((["ios", "android"] as const).flatMap((os) => (["loading", "stopped", "f
   expect(hosts("tablet-toolbar-search")).toHaveLength(1);
   if (state === "failed") expect(hosts("search-history-failure")).toHaveLength(1);
   else expect(hosts("search-cancel-toggle")).toHaveLength(1);
+});
+
+it.each((["ios", "android"] as const).flatMap((os) => (["en", "zh"] as const).map((language) => [os, language] as const)))("%s narrow query in %s speaks the state its mark shows", (os, language) => {
+  (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+  const fixture = mount(408, 1, language);
+  const hint = () => hosts("search-query-edit")[0]!.props.accessibilityHint;
+  expect(hint()).toBe(BOARD_STRINGS[language].searchCoverage.started);
+  fixture.state("stopped");
+  expect(hint()).toBe("Search stopped; results incomplete");
+  fixture.state("failed");
+  expect(hint()).toBe(BOARD_STRINGS[language].historyFailed);
+  fixture.state("stopped+failed");
+  expect(hint()).toBe(BOARD_STRINGS[language].historyFailed);
+  act(() => fixture.retry());
+  expect(hint()).toBe("Search stopped; results incomplete");
+  fixture.state("failed");
+  act(() => fixture.retry());
+  fixture.complete();
+  expect(hosts("search-query-chip")).toHaveLength(1);
+  expect(hint()).toBeUndefined();
+});
+
+it("leaves the wider pill's edit button without a state hint; the count, retry and short words carry it", () => {
+  const fixture = mount(802);
+  expect(hosts("search-query-edit")[0]!.props.accessibilityHint).toBeUndefined();
+  fixture.state("failed");
+  expect(hosts("search-query-edit")[0]!.props.accessibilityHint).toBeUndefined();
+  expect(hosts("search-history-failure")).toHaveLength(1);
+});
+
+const dark = { colors: { ...theme.colors, foreground: "#e6edf3", foregroundMuted: "#8b949e", surface0: "#0d1117", surface1: "#161b22", surface2: "#21262d", border: "#30363d", statusDanger: "#f85149" } };
+it.each([["light", theme], ["dark", dark]] as const)("paints the %s failure marks with the theme's danger token", (_name, palette) => {
+  const danger = taskTokens(palette).danger;
+  const fixture = mount(802, 1, "en", palette);
+  fixture.state("failed");
+  const retry = hosts("search-history-failure")[0]!.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+  expect(retry.findByProps({ name: "RotateCw" }).props.color).toBe(danger);
+  const counts = { loaded: 52, pending: 0 };
+  const status: SearchCoverageControl = { read: () => counts, subscribe: () => () => {}, prompt: () => ({ state: "idle" }) };
+  act(() => renderer.update(<SearchCoverageProvider status={status} query="skill" strings={BOARD_STRINGS.en.searchCoverage}
+    historyError="offline" historyFailedText={BOARD_STRINGS.en.historyFailed} retryHistory={() => {}}><SearchCoverageItems theme={palette} /></SearchCoverageProvider>));
+  expect(hosts("search-history-failure")[0]!.findByProps({ name: "CircleAlert" }).props.color).toBe(danger);
+  act(() => renderer.unmount());
+  mount(408, 1, "en", palette).state("failed");
+  expect(hosts("search-query-chip")[0]!.findByProps({ name: "CircleAlert" }).props.color).toBe(danger);
 });

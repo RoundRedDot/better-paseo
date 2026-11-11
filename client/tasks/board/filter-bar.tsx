@@ -891,7 +891,7 @@ function useLabelFit(dropped: readonly DroppedWord[], enabled: boolean, laneWidt
  * label's is its own solid tag in its colour. The rest ("Title has", "Done")
  * keep the muted word.
  */
-function Chip(props: { chip: ActiveChip; onClear(): void; clearLabel: string; theme: PluginTheme; onEdit?: { label: string; press(): void }; lead?: ReactNode }) {
+function Chip(props: { chip: ActiveChip; onClear(): void; clearLabel: string; theme: PluginTheme; onEdit?: { label: string; hint?: string; press(): void }; lead?: ReactNode }) {
   const { chip, theme } = props;
   const colors = theme.colors;
   const scale = useTasksFontScale();
@@ -899,7 +899,7 @@ function Chip(props: { chip: ActiveChip; onClear(): void; clearLabel: string; th
   if (chip.key === "q") return (
     <View testID="search-query-chip" style={{ height: taskControlHeight(Platform.OS === "web" ? 24 : 36, scale), maxWidth: "100%", flexShrink: 1, flexDirection: "row", alignItems: "center", gap: 4, paddingLeft: 9, paddingRight: 4 }}>
       <View pointerEvents="none" testID="search-query-chip-fill" style={{ position: "absolute", left: 0, right: 0, height: taskControlHeight(24, scale), borderRadius: taskControlHeight(12, scale), backgroundColor: taskTokens(theme).card.pillFill, borderWidth: HAIRLINE, borderColor: taskTokens(theme).card.pillBorder }} />
-      {props.onEdit ? <HoverPressable accessibilityRole="button" accessibilityLabel={props.onEdit.label} onPress={props.onEdit.press} testID="search-query-edit" style={() => ({ minWidth: 0, flexShrink: 1, height: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 })}>
+      {props.onEdit ? <HoverPressable accessibilityRole="button" accessibilityLabel={props.onEdit.label} accessibilityHint={props.onEdit.hint} onPress={props.onEdit.press} testID="search-query-edit" style={() => ({ minWidth: 0, flexShrink: 1, height: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 })}>
         {props.lead}
         <Text numberOfLines={1} style={{ fontSize: F.sm, color: colors.foregroundMuted, maxWidth: 220, flexShrink: 1 }}>{chip.value}</Text>
       </HoverPressable> : <Text numberOfLines={1} style={{ fontSize: F.sm, color: colors.foregroundMuted, maxWidth: 220, flexShrink: 1 }}>{chip.value}</Text>}
@@ -1076,7 +1076,7 @@ function MenuButton(props: { icon: string | React.ReactElement; label: string; c
 
 
 /** The removable query shown only while its search field is hidden. */
-export function SearchQueryChip({ board, theme, onEdit, lead }: { board: BoardController; theme: PluginTheme; onEdit?(): void; lead?: ReactNode }) {
+export function SearchQueryChip({ board, theme, onEdit, editHint, lead }: { board: BoardController; theme: PluginTheme; onEdit?(): void; editHint?: string; lead?: ReactNode }) {
   if (!board.params.query.trim()) return null;
-  return <Chip chip={{ key: "q", kind: board.strings.searchContains, value: `「${board.params.query.trim()}」`, clear: (params) => ({ ...params, query: "" }) }} onClear={() => board.setParams((params) => ({ ...params, query: "" }))} clearLabel={`${board.strings.clear} ${board.params.query.trim()}`} theme={theme} lead={lead} onEdit={onEdit ? { label: `${board.strings.editSearch}: ${board.params.query.trim()}`, press: onEdit } : undefined} />;
+  return <Chip chip={{ key: "q", kind: board.strings.searchContains, value: `「${board.params.query.trim()}」`, clear: (params) => ({ ...params, query: "" }) }} onClear={() => board.setParams((params) => ({ ...params, query: "" }))} clearLabel={`${board.strings.clear} ${board.params.query.trim()}`} theme={theme} lead={lead} onEdit={onEdit ? { label: `${board.strings.editSearch}: ${board.params.query.trim()}`, hint: editHint, press: onEdit } : undefined} />;
 }

@@ -156,14 +156,30 @@ function SearchAnnouncement() {
   return <Text testID="search-announcement" accessibilityLiveRegion="polite" role="status" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}>{context?.query.trim() ? announcement : ""}</Text>;
 }
 
+/** The one state a collapsed query shows; the mark and its spoken hint both read it. */
+function useSearchStatus() {
+  const { context, counts } = useSearchCoverage();
+  if (!context?.query.trim()) return { context, state: null };
+  const state = context.historyError ? "failed" as const : context.cancelled ? "stopped" as const : counts.pending || context.historyLoading ? "loading" as const : null;
+  return { context, state };
+}
+
 /** A narrow tablet keeps its search state visible inside the editable query. */
 export function SearchStatusMark({ theme }: { theme: PluginTheme }) {
-  const { context, counts } = useSearchCoverage();
-  if (!context?.query.trim()) return null;
-  if (context.historyError) return <Icon name="CircleAlert" size={14} color={taskTokens(theme).danger} />;
-  if (context.cancelled) return <Icon name="Pause" size={14} color={theme.colors.foregroundMuted} />;
-  if (counts.pending || context.historyLoading) return <SearchSpinner size={14} color={theme.colors.foregroundMuted} />;
+  const { state } = useSearchStatus();
+  if (state === "failed") return <Icon name="CircleAlert" size={14} color={taskTokens(theme).danger} />;
+  if (state === "stopped") return <Icon name="Pause" size={14} color={theme.colors.foregroundMuted} />;
+  if (state === "loading") return <SearchSpinner size={14} color={theme.colors.foregroundMuted} />;
   return null;
+}
+
+/** What `SearchStatusMark` shows, worded as the live region words it. */
+export function useSearchStatusText(): string | undefined {
+  const { context, state } = useSearchStatus();
+  if (!context || !state) return undefined;
+  if (state === "failed") return context.historyFailedText ?? context.historyError ?? undefined;
+  if (state === "stopped") return context.stoppedText;
+  return context.historyLoading ? context.historyLoadingText ?? context.strings.started : context.strings.started;
 }
 
 /** Shared by the search field and the tablet's collapsed query. */
