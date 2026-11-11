@@ -17,7 +17,7 @@ const lanes = (cards: TaskCard[]) => Object.fromEntries(["needs_input", "running
 beforeEach(() => { motion.reduced = false; });
 
 describe("collapsed lane arrivals", () => {
-  it.each([[1, 18, 1], [10, 24, 10], [100, 30, "99+"]] as const)("keeps %i arrivals in a circle", (count, diameter, label) => {
+  it.each([[1, 22, 1], [10, 26, 10], [100, 32, "99+"]] as const)("keeps %i arrivals in a circle", (count, diameter, label) => {
     const theme = { colors: { foreground: "#111111", surface0: "#ffffff" } } as never;
     const ids = Array.from({ length: count }, (_, index) => String(index));
     let renderer!: TestRenderer.ReactTestRenderer;
@@ -62,6 +62,8 @@ describe("collapsed lane arrivals", () => {
     const marker = renderer.root.findByProps({ testID: "lane-new-marker-review" });
     const animated = marker.findByType(Animated.View);
     expect(animated.props.style.opacity).toBe(call[0]);
+    expect(animated.props.style).toMatchObject({ width: 22, height: 22, borderRadius: 11 });
+    expect(renderer.root.findByProps({ testID: "lane-new-count-review" }).props.style.fontSize).toBe(12);
     const interpolate = vi.spyOn(call[0] as Animated.Value, "interpolate");
     expect(renderer.root.findByProps({ testID: "lane-new-count-review" }).props.children).toEqual(["+", 1]);
     act(() => renderer.update(<CollapsedArrivalMarker ids={["a", "b"]} hue="#228844" lane="review" theme={theme} />));
