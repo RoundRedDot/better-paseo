@@ -192,10 +192,11 @@ export function openOptionExpansion(labelNode: unknown, panelNode: unknown, redu
 
 
 /** Keep interactive toolbar details above timeline stacking contexts without moving their React tree. */
-export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "above" | "below"): () => void {
+export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "above" | "below", matchBounds?: unknown): () => void {
   if (Platform.OS !== "web") return () => {};
   const panel = node as HTMLElement | null;
   const trigger = anchor as HTMLElement | null;
+  const bounds = matchBounds as HTMLElement | null | undefined;
   if (!panel || !trigger) return () => {};
   const view = panel.ownerDocument.defaultView!;
   const originalStyle = panel.style.cssText;
@@ -210,6 +211,8 @@ export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "a
   panel.showPopover();
   const position = () => {
     const rect = trigger.getBoundingClientRect();
+    const matched = bounds?.getBoundingClientRect();
+    if (matched) panel.style.width = `${matched.width}px`;
     const { width, height } = panel.getBoundingClientRect();
     const above = rect.top - height;
     const below = rect.bottom;
@@ -218,13 +221,14 @@ export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "a
     const top = side === "above"
       ? (fitsAbove || !fitsBelow ? above : below)
       : (fitsBelow || !fitsAbove ? below : above);
-    panel.style.left = `${Math.max(8, Math.min(rect.left + offset, view.innerWidth - width - 8))}px`;
+    panel.style.left = `${Math.max(8, Math.min(matched ? matched.left : rect.left + offset, view.innerWidth - width - 8))}px`;
     panel.style.top = `${Math.max(8, Math.min(top, view.innerHeight - height - 8))}px`;
   };
   position();
   const observer = new view.ResizeObserver(position);
   observer.observe(panel);
   observer.observe(trigger);
+  if (bounds) observer.observe(bounds);
   view.addEventListener("resize", position);
   return () => {
     observer.disconnect();

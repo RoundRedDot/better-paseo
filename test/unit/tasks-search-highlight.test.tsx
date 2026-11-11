@@ -236,12 +236,29 @@ describe("card search rendering", () => {
       vi.advanceTimersByTime(1);
     });
     expect(host(root, "task-search-popover").props.accessibilityLabel).toBe("搜索命中");
-    expect(host(root, "task-search-popover-layer").props.style).toMatchObject({ left: "50%", marginLeft: -168, width: 336 });
+    expect(host(root, "task-search-popover-layer").props.style).toMatchObject({ left: 0, width: "100%" });
     await act(async () => summary.props.onHoverOut());
     await act(async () => {
       vi.advanceTimersByTime(150);
     });
+    expect(host(root, "task-search-popover-layer").props.pointerEvents).toBe("none");
+    await act(async () => { vi.advanceTimersByTime(139); });
+    expect(host(root, "task-search-popover")).toBeTruthy();
+    await act(async () => { vi.advanceTimersByTime(1); });
     expect(root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-search-popover")).toHaveLength(0);
+  });
+  it("keeps the popover mounted when reopened during its exit", async () => {
+    vi.useFakeTimers();
+    pointer.touch = false;
+    const root = await mount(<TaskCardView {...props} searchQuery="sche" />);
+    const trigger = host(root, "task-search-summary-trigger");
+    const press = () => trigger.props.onPress({ stopPropagation() {} });
+    await act(async () => press());
+    await act(async () => press());
+    await act(async () => { vi.advanceTimersByTime(70); });
+    await act(async () => press());
+    await act(async () => { vi.advanceTimersByTime(140); });
+    expect(host(root, "task-search-popover-layer").props.pointerEvents).toBe("auto");
   });
   it("uses exact light/dark colors and preserves blue only for branch hits", () => {
     const light = highlightText("Schedule", "sche", false) as React.ReactElement[];

@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, ScrollView, View, type LayoutChangeEvent, type TextLayoutEvent } from "react-native";
+import { Animated, Platform, Pressable, ScrollView, View, type LayoutChangeEvent, type TextLayoutEvent } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -7,6 +7,7 @@ import { TaskText as Text, TASK_MONO, useTasksFontScale } from "../typography";
 import { orderedSearchHits, searchRanges, type SearchField, type SearchHit } from "../data/search-hits";
 import { useHover } from "../../ui/use-hover";
 import { useInputCapabilities } from "../../ui/use-input-capabilities";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { SelectableSpan } from "../../ui/prose-text";
 import { openToolbarDetailsLayer } from "../../web";
 import { cardStrings } from "./strings";
@@ -137,6 +138,10 @@ export function SearchHitSummary(props: {
   const input = useInputCapabilities();
   const touch = props.phone || input.touch;
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const progress = useRef(new Animated.Value(0)).current;
+  const reducedMotion = useReducedMotion();
+  const visible = !touch && (open || mounted);
   const anchor = useRef<View>(null);
   const panel = useRef<View>(null);
   const { hovered, hoverProps } = useHover(anchor);
@@ -152,6 +157,23 @@ export function SearchHitSummary(props: {
   }, [hovered, touch]);
   const { onOpenChange } = props;
   useEffect(() => {
+    if (touch) return;
+    if (open) setMounted(true);
+    if (reducedMotion) {
+      progress.setValue(open ? 1 : 0);
+      if (!open) setMounted(false);
+      return;
+    }
+    const duration = open ? 180 : 140;
+    const animation = Animated.timing(progress, { toValue: open ? 1 : 0, duration, useNativeDriver: Platform.OS !== "web", isInteraction: false });
+    animation.start();
+    const timeout = open ? null : setTimeout(() => setMounted(false), duration);
+    return () => {
+      animation.stop();
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [open, touch, reducedMotion, progress]);
+  useEffect(() => {
     onOpenChange(open);
     return () => onOpenChange(false);
   }, [open, onOpenChange]);
@@ -160,12 +182,13 @@ export function SearchHitSummary(props: {
     return cancel;
   }, [props.query]);
   useLayoutEffect(() => {
-    if (!open || touch || Platform.OS !== "web") return;
-    const release = openToolbarDetailsLayer(panel.current, anchor.current, "below");
+    if (!visible || Platform.OS !== "web") return;
+    const anchorElement = anchor.current as unknown as HTMLElement | null;
+    const release = openToolbarDetailsLayer(panel.current, anchor.current, "below", anchorElement?.closest("[data-bctaskcard]"));
     const element = panel.current as unknown as HTMLElement | null;
     element?.querySelector<HTMLElement>('[role="listitem"]')?.focus({ preventScroll: true });
     return release;
-  }, [open, touch]);
+  }, [visible]);
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     const element = anchor.current as unknown as HTMLElement | null;
@@ -203,7 +226,7 @@ export function SearchHitSummary(props: {
       key={`${hit.field}-${index}`}
       role={full ? "listitem" : undefined}
       {...(full && Platform.OS === "web" ? { tabIndex: -1 } : {})}
-      style={full ? { paddingVertical: 6, paddingHorizontal: 8, gap: 3, ...(Platform.OS === "web" ? { outlineWidth: 0.5, outlineColor: tokens.isDark ? "#777777" : "#B0B0B0" } : null) } : { flexDirection: "row", alignItems: "center", gap: 6 }}
+      style={full ? { paddingVertical: touch ? 6 : 4, paddingHorizontal: touch ? 8 : 6, gap: 3, ...(Platform.OS === "web" ? { outlineWidth: 0.5, outlineColor: tokens.isDark ? "#777777" : "#B0B0B0" } : null) } : { flexDirection: "row", alignItems: "center", gap: 6 }}
     >
       {full ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -334,16 +357,16 @@ export function SearchHitSummary(props: {
         {shown.map((hit, index) => row(hit, index, false))}
       </Pressable>
       {open && touch ? <View testID="task-search-expanded">{all}</View> : null}
-      {open && !touch ? (
-        <View ref={panel} collapsable={false} testID="task-search-popover-layer" style={{ position: "absolute", top: "100%", left: "50%", marginLeft: -168, paddingTop: 8, width: 336 }}>
-          <View
+      {visible ? (
+        <View ref={panel} collapsable={false} pointerEvents={open ? "auto" : "none"} testID="task-search-popover-layer" style={{ position: "absolute", top: "100%", left: 0, paddingTop: 8, width: "100%" }}>
+          <Animated.View
             role="dialog"
             accessibilityLabel={strings.dialog}
             testID="task-search-popover"
-            style={{ ...panelChrome(props.theme), borderRadius: 10, padding: 6 }}
+            style={{ ...panelChrome(props.theme), boxShadow: tokens.isDark ? "0px 8px 28px rgba(0, 0, 0, 0.55), 0px 2px 8px rgba(0, 0, 0, 0.3)" : "0px 8px 28px rgba(0, 0, 0, 0.18), 0px 2px 8px rgba(0, 0, 0, 0.1)", borderRadius: 10, padding: 4, opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}
           >
             <ScrollView style={{ maxHeight: 400 }}>{all}</ScrollView>
-          </View>
+          </Animated.View>
         </View>
       ) : null}
     </Pressable>
