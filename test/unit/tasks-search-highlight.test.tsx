@@ -237,7 +237,12 @@ describe("card search rendering", () => {
     });
     expect(host(root, "task-search-popover").props.accessibilityLabel).toBe("搜索命中");
     expect(text(host(root, "task-search-popover-header"))).toContain("处命中scheEsc");
-    const rows = host(root, "task-search-popover").findAll((node) => typeof node.type === "string" && node.props.role === "listitem");
+    const content = host(root, "task-search-popover-content");
+    const layout = JSON.stringify(tree!.toJSON());
+    expect(layout.indexOf('"task-search-popover-header"')).toBeLessThan(layout.indexOf('"task-search-popover-content"'));
+    expect(layout.indexOf('"task-search-popover-content"')).toBeLessThan(layout.indexOf('"task-search-popover-footer"'));
+    expect(content.findAll((node) => node.props.testID === "task-search-popover-header" || node.props.testID === "task-search-popover-footer")).toHaveLength(0);
+    const rows = content.findAll((node) => typeof node.type === "string" && node.props.role === "listitem");
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((row) => row.props.style.outlineWidth === undefined)).toBe(true);
     expect(host(root, "task-search-popover-layer").props.style).toMatchObject({ left: 0, width: "100%" });

@@ -226,7 +226,7 @@ export function SearchHitSummary(props: {
       key={`${hit.field}-${index}`}
       role={full ? "listitem" : undefined}
       {...(full && Platform.OS === "web" ? { tabIndex: -1 } : {})}
-      style={full ? { paddingVertical: touch ? 6 : 9, paddingHorizontal: touch ? 8 : 17, gap: 3 } : { flexDirection: "row", alignItems: "center", gap: 6 }}
+      style={full ? { paddingVertical: touch ? 6 : 4, paddingHorizontal: touch ? 8 : 17, gap: 3 } : { flexDirection: "row", alignItems: "center", gap: 6 }}
     >
       {full ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -271,9 +271,8 @@ export function SearchHitSummary(props: {
       ) : null}
     </View>
   );
-  const all = (
-    <>
-      <View testID="task-search-popover-header" style={{ flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: touch ? 8 : 17, paddingVertical: touch ? 8 : 13, ...(touch ? {} : { backgroundColor: tokens.surface1, borderBottomWidth: 1, borderBottomColor: tokens.border }) }}>
+  const header = (
+      <View testID="task-search-popover-header" style={{ flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: touch ? 8 : 17, paddingVertical: touch ? 8 : 6, ...(touch ? {} : { backgroundColor: tokens.surface1, borderBottomWidth: 1, borderBottomColor: tokens.border }) }}>
         <Text style={{ fontSize: 12, lineHeight: 18, color: tokens.foreground, fontWeight: "600" }}>
           {touch ? strings.count(props.hits.length, props.query) : strings.countOnly(props.hits.length)}
         </Text>
@@ -290,7 +289,10 @@ export function SearchHitSummary(props: {
           <Text style={{ fontSize: 12, color: tokens.foregroundMuted, ...(touch ? {} : { borderWidth: 1, borderColor: tokens.border, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }) }}>{touch ? strings.close : "Esc"}</Text>
         </Pressable>
       </View>
-      <View accessibilityRole="list" style={touch ? undefined : { paddingTop: 7 }}>{orderedSearchHits(props.hits).map((hit, index) => row(hit, index, true))}</View>
+  );
+  const body = (
+    <>
+      <View accessibilityRole="list" style={touch ? undefined : { paddingVertical: 4 }}>{orderedSearchHits(props.hits).map((hit, index) => row(hit, index, true))}</View>
       {props.promptNote ? (
         <View style={{ flexDirection: "row", alignItems: "center", padding: 8, gap: 8 }}>
           <Text style={{ flex: 1, fontSize: 12, color: tokens.foregroundMuted }}>{props.promptNote}</Text>
@@ -307,14 +309,18 @@ export function SearchHitSummary(props: {
           ) : null}
         </View>
       ) : null}
+    </>
+  );
+  const footer = (
       <Text
+        testID="task-search-popover-footer"
         style={{
           borderTopWidth: 1,
           borderTopColor: tokens.border,
-          marginTop: 4,
+          marginTop: touch ? 4 : 0,
           marginHorizontal: touch ? 0 : 17,
           paddingHorizontal: touch ? 8 : 0,
-          paddingVertical: touch ? 8 : 12,
+          paddingVertical: touch ? 8 : 6,
           fontSize: 12,
           lineHeight: 18,
           color: tokens.foregroundMuted,
@@ -322,7 +328,6 @@ export function SearchHitSummary(props: {
       >
         {strings.detailHint}
       </Text>
-    </>
   );
   return (
     <Pressable
@@ -360,7 +365,7 @@ export function SearchHitSummary(props: {
       >
         {shown.map((hit, index) => row(hit, index, false))}
       </Pressable>
-      {open && touch ? <View testID="task-search-expanded">{all}</View> : null}
+      {open && touch ? <View testID="task-search-expanded">{header}{body}{footer}</View> : null}
       {visible ? (
         <View ref={panel} collapsable={false} pointerEvents={open ? "auto" : "none"} testID="task-search-popover-layer" style={{ position: "absolute", top: "100%", left: 0, paddingTop: 8, width: "100%" }}>
           <Animated.View
@@ -369,7 +374,11 @@ export function SearchHitSummary(props: {
             testID="task-search-popover"
             style={{ ...panelChrome(props.theme), borderWidth: 1, borderColor: tokens.borderStrong, borderRadius: 10, marginHorizontal: 7, boxShadow: tokens.isDark ? "0px 18px 38px rgba(0, 0, 0, 0.48), 0px 4px 12px rgba(0, 0, 0, 0.28)" : "0px 18px 38px rgba(32, 38, 52, 0.20), 0px 4px 12px rgba(32, 38, 52, 0.11)", opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}
           >
-            <ScrollView style={{ maxHeight: 400, borderRadius: 9 }}>{all}</ScrollView>
+            <View style={{ maxHeight: 400, borderRadius: 9, overflow: "hidden" }}>
+              {header}
+              <ScrollView testID="task-search-popover-content" style={{ flexShrink: 1 }}>{body}</ScrollView>
+              {footer}
+            </View>
           </Animated.View>
         </View>
       ) : null}
