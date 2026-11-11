@@ -1416,8 +1416,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         ) : null}
       </>
     ) : null;
-  // A question's wait sits at the right end of its divider, so the answer
-  // buttons below have the whole row.
+  // A question's wait shares the divider label, leaving the answer row clear.
   const dividerFoot = questionSection && !minimalSummary ? footerContent : null;
   const footer =
     footerContent && !answerRow && !dividerFoot ? (
@@ -1478,14 +1477,16 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           // As much room above and below the divider as any block keeps around its rule (the block's gap adds 8 below).
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: m.rowGap - 8 }} testID="task-card-question-divider">
             <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />
-            {/* On a narrow card at a large text size the label gives way, not the wait. */}
-            <Text numberOfLines={1} ellipsizeMode="tail" style={[text(11, 16, tokens.status.warning, "600"), { flexShrink: 1 }]}>{strings.awaitingAnswer}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
+              <Text numberOfLines={1} ellipsizeMode="tail" style={[text(11, 16, tokens.status.warning, "600"), { flexShrink: 1 }]}>{strings.awaitingAnswer}</Text>
+              {dividerWait ? <Text style={text(11, 16, tokens.status.warning)}>·</Text> : null}
+              {dividerFoot ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, flexShrink: 0, paddingRight: 1 }} testID="task-card-footer">
+                  {dividerFoot}
+                </View>
+              ) : null}
+            </View>
             <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />
-            {dividerFoot ? (
-              <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, flexShrink: 0 }} testID="task-card-footer">
-                {dividerFoot}
-              </View>
-            ) : null}
           </View>
         ) : null}
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>

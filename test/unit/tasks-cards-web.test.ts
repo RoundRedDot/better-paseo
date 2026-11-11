@@ -1214,7 +1214,7 @@ describe("TaskCardView hover hints", () => {
         });
       });
       const divider = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider");
-      expect(texts(divider)).toEqual(["待回答", "4m"]);
+      expect(texts(divider)).toEqual(["待回答", "·", "4m"]);
       await act(async () => listeners.get("pointerover")!({ pointerType: "mouse", target: mark("timer", { left: 300, top: 200, width: 40, height: 18 }) }));
       await act(async () => { vi.advanceTimersByTime(400); });
       const hint = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-hint");
