@@ -1,5 +1,5 @@
-import React, { useState, useSyncExternalStore } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import React, { useState, useSyncExternalStore, type ComponentProps, type ComponentType } from "react";
+import { ActivityIndicator, Platform, Pressable, View, type TextStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import { questionRequestKey, type QuestionDialogState, type QuestionDialogStore } from "../actions/question-dialog";
@@ -12,6 +12,9 @@ import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { BrandMark, branchPillColors, neutralPillColors } from "./brand-mark";
 import { taskTokens } from "./tokens";
+
+// The host SDK gains desktopSizing with the content-sized modal implementation.
+const ContentSizedModal = Modal.Content as ComponentType<ComponentProps<typeof Modal.Content> & { desktopSizing: "content" }>;
 
 export function TaskQuestionDialog(props: {
   store: QuestionDialogStore;
@@ -51,10 +54,10 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
   const prose = { fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground };
   const meta = { fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: colors.foregroundMuted };
   return <Modal title={words.title} open onOpenChange={(open) => { if (!open) props.store.close(); }}>
-    <Modal.Content scrollable={false} contentContainerStyle={{ flex: 1, minHeight: 0, padding: 0, gap: 0 }}>
+    <ContentSizedModal scrollable={false} desktopSizing="content" contentContainerStyle={{ ...(props.compact ? { flex: 1 } : { flexShrink: 1 }), minHeight: 0, padding: 0, gap: 0 }}>
       <TasksTypography theme={props.theme}>
-        <View testID="task-question-dialog" style={{ flex: 1, minHeight: 0 }}>
-          <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 16, gap: 20 }} keyboardShouldPersistTaps="handled">
+        <View testID="task-question-dialog" style={{ ...(props.compact ? { flex: 1 } : { flexShrink: 1 }), minHeight: 0 }}>
+          <ScrollView style={{ ...(props.compact ? { flex: 1 } : { flexShrink: 1 }), minHeight: 0 }} contentContainerStyle={{ padding: 16, gap: 20 }} keyboardShouldPersistTaps="handled">
             {multiple && props.compact ? <View testID="task-question-pager" style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 }}>
               <Pressable accessibilityRole="button" accessibilityLabel={words.previous} disabled={index === 0} onPress={() => setIndex(index - 1)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", opacity: index === 0 ? 0.4 : 1 }}><Icon name="ChevronLeft" size={18} color={colors.foregroundMuted} /></Pressable>
               <Text style={[meta, { textAlign: "center" }]}>{words.answered(answered.filter(Boolean).length, answered.length)}</Text>
@@ -98,7 +101,8 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
                 autoCorrect={!q.isSecret} autoCapitalize="none"
                 onChangeText={(value) => props.store.change({ texts: { ...state.draft.texts, [index]: value }, selections: q.multiSelect ? state.draft.selections : { ...state.draft.selections, [index]: [] } })}
                 style={{ minHeight: taskControlHeight(44, scale), borderWidth: 1, borderRadius: 8, borderColor: colors.border, backgroundColor: colors.surface0, color: colors.foreground,
-                  fontSize: Math.round(F.base * scale), lineHeight: Math.round(HOST_LINE.base * scale), padding: 12, textAlignVertical: "top" }} /> : null}
+                  fontSize: Math.round(F.base * scale), lineHeight: Math.round(HOST_LINE.base * scale), padding: 12, textAlignVertical: "top",
+                  ...(Platform.OS === "web" && !q.isSecret ? { resize: "vertical" } as TextStyle : {}) }} /> : null}
               {q.allowEmpty && q.options.length === 0 ? <Text style={meta}>{words.optional}</Text> : null}
             </View>)}
             {!questions ? <Text selectable style={prose}>{state.permission.summary ?? state.permission.title}</Text> : null}
@@ -121,7 +125,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
           </View>
         </View>
       </TasksTypography>
-    </Modal.Content>
+    </ContentSizedModal>
   </Modal>;
 }
 

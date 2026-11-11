@@ -102,9 +102,20 @@ describe("task question dialog", () => {
     expect(host("task-question-submit").props.disabled).toBe(true);
     const modal = tree!.root.findByType("ModalContent" as never);
     expect(modal.props.scrollable).toBe(false);
+    expect(modal.props.desktopSizing).toBe("content");
     const scroll = tree!.root.findAllByType("ScrollView" as never).find((node) => node.props.keyboardShouldPersistTaps === "handled")!;
     expect(scroll.findAll((node) => node === host("task-question-actions"))).toHaveLength(0);
     expect(scroll.findAll((node) => node === host("task-question-field"))).toHaveLength(1);
+  });
+  it("uses a shrinkable desktop body for short and long questions and allows resizing multiline answers", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const mounted = await mount();
+    const scroll = () => tree!.root.findAllByType("ScrollView" as never).find((node) => node.props.keyboardShouldPersistTaps === "handled")!;
+    expect(scroll().props.style).toMatchObject({ flexShrink: 1, minHeight: 0 });
+    expect(host("task-question-input-0").props.style.resize).toBe("vertical");
+    await mounted.update(card({ questions: [{ ...question, question: "Long question ".repeat(400) }] }));
+    expect(scroll().findAll((node) => node === host("task-question-actions"))).toHaveLength(0);
+    expect(scroll().props.style).toMatchObject({ flexShrink: 1, minHeight: 0 });
   });
   it("places the answer count before the cancel and next buttons", async () => {
     await mount(card({ questions: [question, { ...question, header: "Second" }] }));
