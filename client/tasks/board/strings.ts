@@ -42,6 +42,8 @@ const en = {
   cancelSearch: "Stop search",
   resumeSearch: "Resume search",
   searchStopped: "Search stopped; results are incomplete",
+  searchStoppedShort: "Stopped",
+  historyFailedShort: "Load failed",
   fullConversationSearch: "Full search",
   fullConversationShort: "Full",
   fullConversationHint: (on: boolean): string => on
@@ -70,6 +72,7 @@ const en = {
     complete: (loaded: number) => `Search complete, ${loaded} first messages loaded.`,
   },
   searchButton: "Search",
+  editSearch: "Edit search",
   project: "Project",
   workspace: "Workspace",
   agent: "Agent",
@@ -243,6 +246,8 @@ const zh: typeof en = {
   cancelSearch: "停止搜索",
   resumeSearch: "继续搜索",
   searchStopped: "搜索已停止，结果不完整",
+  searchStoppedShort: "已停止",
+  historyFailedShort: "加载失败",
   fullConversationSearch: "全文搜索",
   fullConversationShort: "全文",
   fullConversationHint: (on) => on
@@ -270,6 +275,7 @@ const zh: typeof en = {
     complete: (loaded) => `搜索完成，已加载 ${loaded} 个任务的首条消息。`,
   },
   searchButton: "搜索",
+  editSearch: "编辑搜索",
   project: "项目",
   workspace: "工作区",
   agent: "Agent",

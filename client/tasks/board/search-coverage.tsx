@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Animated, Modal, Platform, Pressable, View, useWindowDimensions } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { TaskText as Text } from "../typography";
+import { TaskText as Text, taskControlHeight, useTasksFontScale } from "../typography";
 import { panelChrome } from "../cards/panel";
 import { taskTokens } from "../cards/tokens";
 import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
@@ -22,15 +22,19 @@ import { SearchSpinner, useSearchCoverage } from "./search-loading";
  * While the desktop search field is on screen the count sits inside it as the
  * `badge` part — a bare number beside the spinner, no repeated "loaded"
  * wording — and only the stopped/failed notices keep their place in the
- * toolbar as the `notice` part. Hidden fields, phone and tablet use `all`.
+ * toolbar as the `notice` part. Tablet summaries use compact counts and
+ * retry targets; the resume button carries the stopped-state explanation.
  */
-export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean; part?: "all" | "badge" | "notice" }) {
+export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean; part?: "all" | "badge" | "notice"; compact?: boolean; compactLabels?: { stopped: string; failed: string } }) {
+  const scale = useTasksFontScale();
+  const target = taskControlHeight(32, scale);
   const part = props.part ?? "all";
+  const badge = part === "badge" || props.compact;
   const showsBadge = part !== "notice";
   const showsNotice = part !== "badge";
   const { context, counts: currentCounts } = useSearchCoverage();
   const active = Boolean(context?.query.trim());
-  const visible = active && Boolean((showsNotice && (context?.cancelled || context?.historyError)) || (showsBadge && currentCounts.pending));
+  const visible = active && Boolean((showsNotice && (((!props.compact || props.compactLabels) && context?.cancelled) || context?.historyError)) || (showsBadge && currentCounts.pending && (!props.compact || !context?.cancelled)));
   const lastCounts = useRef(currentCounts);
   if (visible) lastCounts.current = currentCounts;
   const counts = visible ? currentCounts : lastCounts.current;
@@ -107,17 +111,17 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
       </View>
     </View>
   </View>;
-  return <Animated.View testID={part === "notice" ? "search-coverage-notices" : "search-coverage-items"} ref={anchor} collapsable={false} {...(Platform.OS === "web" ? {} : hoverProps)} style={{ flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: 1, height: props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 32] }) : 28, opacity, zIndex: open ? 40 : 1 }}>
-    {showsNotice && context.cancelled ? <Text testID="search-stopped" style={textStyle}>{context.stoppedText}</Text> : null}
-    {showsNotice && context.historyError ? <View testID="search-history-failure" style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8 }}>
-      <Icon name="CircleAlert" size={15} color={danger} />
-      <Text style={textStyle}>{context.historyFailedText}</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel={strings.retry} hitSlop={props.phone ? { top: 6, bottom: 6, left: 6, right: 6 } : undefined} onPress={context.retryHistory} style={{ minHeight: props.phone ? 32 : 24, justifyContent: "center" }}><Text style={textStyle}>{strings.retry}</Text></Pressable>
+  return <Animated.View testID={part === "notice" ? "search-coverage-notices" : "search-coverage-items"} ref={anchor} collapsable={false} {...(Platform.OS === "web" ? {} : hoverProps)} style={{ flexDirection: "row", alignItems: "center", gap: 2, minWidth: 0, flexShrink: props.compact ? 0 : 1, height: props.compact ? target : props.phone ? height.interpolate({ inputRange: [0, 1], outputRange: [0, 32] }) : 28, opacity, zIndex: open ? 40 : 1 }}>
+    {showsNotice && context.cancelled && (!props.compact || props.compactLabels) ? <Text testID="search-stopped" numberOfLines={1} style={[textStyle, { flexShrink: 0 }]}>{props.compact ? props.compactLabels?.stopped : context.stoppedText}</Text> : null}
+    {showsNotice && context.historyError ? <View testID="search-history-failure" style={{ flexDirection: "row", alignItems: "center", gap: props.compact ? 0 : 6, paddingHorizontal: props.compact ? 0 : 8 }}>
+      {props.compact ? null : <Icon name="CircleAlert" size={15} color={danger} />}
+      {!props.compact || props.compactLabels ? <Text numberOfLines={1} style={[textStyle, { flexShrink: 0 }]}>{props.compact ? props.compactLabels?.failed : context.historyFailedText}</Text> : null}
+      <Pressable accessibilityRole="button" accessibilityLabel={strings.retry} accessibilityHint={props.compact ? context.historyFailedText : undefined} hitSlop={props.phone ? { top: 6, bottom: 6, left: 6, right: 6 } : undefined} onPress={context.retryHistory} style={{ minWidth: props.compact ? target : undefined, minHeight: props.compact ? target : props.phone ? 32 : 24, alignItems: "center", justifyContent: "center" }}>{props.compact ? <Icon name="RotateCw" size={14} color={danger} /> : <Text style={textStyle}>{strings.retry}</Text>}</Pressable>
     </View> : null}
-    {showsBadge && counts.pending ? <Pressable testID="search-coverage-loaded" accessibilityRole="button" accessibilityLabel={strings.loaded(counts.loaded)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={loadedPress.guard(toggle)} onPressIn={loadedPress.onPressIn} onPressOut={loadedPress.onPressOut} onTouchStart={loadedPress.onTouchStart} onTouchMove={loadedPress.onTouchMove} onTouchEnd={loadedPress.onTouchEnd} onTouchCancel={loadedPress.onTouchCancel} style={{ flexDirection: "row", alignItems: "center", gap: part === "badge" ? 5 : 6, paddingHorizontal: part === "badge" ? 2 : 8, height: part === "badge" ? 24 : "100%", borderRadius: part === "badge" ? 5 : 7, overflow: "hidden", backgroundColor: open ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), loadedLift), ...scaleStyle(loadedLift.scale) }}>
+    {showsBadge && counts.pending && (!props.compact || !context.cancelled) ? <Pressable testID="search-coverage-loaded" accessibilityRole="button" accessibilityLabel={strings.loaded(counts.loaded)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={loadedPress.guard(toggle)} onPressIn={loadedPress.onPressIn} onPressOut={loadedPress.onPressOut} onTouchStart={loadedPress.onTouchStart} onTouchMove={loadedPress.onTouchMove} onTouchEnd={loadedPress.onTouchEnd} onTouchCancel={loadedPress.onTouchCancel} style={{ flexDirection: "row", alignItems: "center", gap: badge ? 5 : 6, paddingHorizontal: badge ? 2 : 8, height: props.compact ? target : badge ? 24 : "100%", borderRadius: badge ? 5 : 7, overflow: "hidden", backgroundColor: open ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), loadedLift), ...scaleStyle(loadedLift.scale) }}>
       <SearchSpinner size={13} color={colors.foregroundMuted} />
-      <Text numberOfLines={1} style={part === "badge" ? { ...textStyle, fontSize: 12, flexShrink: 1 } : textStyle}>{part === "badge" ? String(counts.loaded) : strings.loaded(counts.loaded)}</Text>
-      <Icon name="Info" size={part === "badge" ? 13 : 14} color={colors.foregroundMuted} />
+      <Text numberOfLines={1} style={badge ? { ...textStyle, fontSize: 12, flexShrink: 1 } : textStyle}>{badge ? String(counts.loaded) : strings.loaded(counts.loaded)}</Text>
+      <Icon name="Info" size={badge ? 13 : 14} color={colors.foregroundMuted} />
     </Pressable> : null}
     {showsBadge && open && Platform.OS === "web" ? <View ref={panel} collapsable={false} style={{ position: "absolute", left: 0, top: "100%", paddingTop: 6, width: Math.min(props.phone ? 340 : 320, window.width - 16) }}>{explanation}</View> : null}
     {showsBadge && open && Platform.OS !== "web" ? <Modal transparent visible onRequestClose={() => setOpen(false)} animationType="none"><Pressable testID="search-coverage-backdrop" accessibilityLabel={strings.close} onPress={() => setOpen(false)} style={{ flex: 1 }}><Pressable onPress={(event) => event.stopPropagation()} style={{ position: "absolute", ...position, width: Math.min(props.phone ? 340 : 320, window.width - 16) }}>{explanation}</Pressable></Pressable></Modal> : null}

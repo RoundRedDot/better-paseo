@@ -13,7 +13,7 @@ import { CascadeMenu, type MenuSection } from "./menu";
 import { menuChrome, menuWidth } from "./menu-model";
 import { activeFilterCount, resolveBoardParams } from "./params";
 import type { BoardController } from "./use-board";
-import { FullConversationSwitch, SearchInput } from "./search-loading";
+import { FullConversationSwitch, SearchCancelToggle, SearchInput, SearchStatusMark } from "./search-loading";
 import { SearchCoverageItems } from "./search-coverage";
 import { PanelMark, SearchQueryChip } from "./filter-bar";
 import { TASK_TOOLBAR_METRICS } from "../toolbar-metrics";
@@ -51,7 +51,10 @@ export function TabletToolbar(props: {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const searching = Boolean(board.params.query.trim());
-  const expandedSearch = searchOpen && !inlineSearch;
+  const searchInToolbar = inlineSearch || (searchOpen && props.width >= 700 * Math.max(1, scale));
+  const expandedSearch = searchOpen && !searchInToolbar;
+  const fieldVisible = searchInToolbar || expandedSearch;
+  const narrowSummary = props.width < 480 * Math.max(1, scale);
   const [toolbarWidth, setToolbarWidth] = useState<number | null>(null);
   const [actionLayout, setActionLayout] = useState<LayoutRectangle | null>(null);
   const [viewLayout, setViewLayout] = useState<LayoutRectangle | null>(null);
@@ -97,10 +100,20 @@ export function TabletToolbar(props: {
     ...(trail.length ? [{ key: "back", items: [{ key: "back", label: strings.back, icon: "ChevronLeft", keepOpen: true, onSelect: () => setTrail(trail.slice(0, -1)) }] }] : []),
     ...level.map((section) => ({ ...section, items: section.items.map((item) => item.submenu ? { ...item, submenu: undefined, hint: "›", keepOpen: true, onSelect: () => setTrail([...trail, item.key]) } : item) })),
   ];
+  const compactLabels = compact ? undefined : { stopped: strings.searchStoppedShort, failed: strings.historyFailedShort };
+  const querySummary = (
+    <View testID="tablet-search-summary" style={{ flex: 1, flexBasis: 0, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <SearchQueryChip board={board} theme={theme} lead={narrowSummary ? <SearchStatusMark theme={theme} /> : undefined} onEdit={() => { props.filters?.onClose(); setPage(null); setSearchOpen(true); }} />
+      {!narrowSummary ? <>
+        <SearchCoverageItems theme={theme} compact compactLabels={compactLabels} />
+        <SearchCancelToggle theme={theme} iconSize={16} />
+      </> : null}
+    </View>
+  );
   const search = (
-    <View testID="tablet-toolbar-search-group" style={{ minWidth: 0, maxWidth: "100%", flexShrink: inlineSearch ? 0 : 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
-    <View testID="tablet-toolbar-search" style={{ width: inlineSearch ? props.laneWidth : 320, flexShrink: 1, minWidth: 0, height: height - 8, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
-      <SearchInput theme={theme} hideSearchIcon={!inlineSearch} staticIcon={inlineSearch} iconSize={16} iconColor={colors.foregroundMuted}
+    <View testID="tablet-toolbar-search-group" style={{ minWidth: 0, maxWidth: "100%", flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", gap: 8 }}>
+    <View testID="tablet-toolbar-search" style={{ ...(inlineSearch ? { width: props.laneWidth, flexShrink: 1 } : { flex: 1, flexBasis: 0 }), minWidth: 0, height: height - 8, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
+      <SearchInput theme={theme} staticIcon iconSize={16} iconColor={colors.foregroundMuted}
         ref={props.searchRef}
         value={board.params.query}
         onChangeText={(query) => board.setParams((p) => ({ ...p, query }))}
@@ -113,11 +126,15 @@ export function TabletToolbar(props: {
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
+        onSubmitEditing={() => setSearchOpen(false)}
+        beforeCancel={<SearchCoverageItems theme={theme} part="badge" />}
         style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.sm * scale), color: colors.foreground }}
       />
       {board.params.query ? <ToolbarButton icon="X" label={strings.menuSearch.clear} theme={theme} onPress={() => board.setParams((p) => ({ ...p, query: "" }))} testID="tablet-search-clear" /> : null}
     </View>
     <FullConversationSwitch theme={theme} iconSize={18} />
+    {searchInToolbar && !inlineSearch ? <ToolbarButton icon="X" label={strings.closeMenu} theme={theme} onPress={() => setSearchOpen(false)} testID="tablet-search-close" /> : null}
+    <SearchCoverageItems theme={theme} part="notice" compact compactLabels={compactLabels} />
     </View>
   );
   return (
@@ -125,11 +142,12 @@ export function TabletToolbar(props: {
       {page || props.filters || (searchOpen && !inlineSearch && !board.params.query) ? <Pressable accessibilityLabel={strings.closeMenu} testID="tablet-toolbar-backdrop" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, zIndex: page || props.filters ? 20 : 9 }} /> : null}
       <View pointerEvents="box-none" testID="tablet-toolbar" onLayout={(event) => setToolbarWidth(event.nativeEvent.layout.width)} style={{ height, flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: LANES.edge, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border, zIndex: 10 }}>
         {/* Match both side slots' minimums: native flex otherwise shifts the title towards the search. */}
-        <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: inlineSearch && searching ? 160 : compact && centered ? minimumActionsWidth : 0, marginLeft: inlineSearch ? 0 : -8, marginRight: inlineSearch ? 0 : 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
-          {inlineSearch ? search : <ToolbarButton icon="Search" label={strings.searchButton} selected={searchOpen || !!board.params.query} hideSelectedBackground theme={theme} testID="tablet-search-toggle" onPress={() => { props.filters?.onClose(); setPage(null); setSearchOpen(!searchOpen); }} />}
+        <View testID="tablet-toolbar-start" style={{ flex: 1, flexBasis: 0, minWidth: !searching && !searchInToolbar && compact && centered ? minimumActionsWidth : 0, marginLeft: searchInToolbar || (searching && !fieldVisible && narrowSummary) ? 0 : -8, marginRight: searchInToolbar ? 0 : 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {searchInToolbar ? search : <>
+            {!(searching && !fieldVisible && narrowSummary) ? <ToolbarButton icon="Search" label={strings.searchButton} selected={searchOpen || searching} hideSelectedBackground theme={theme} testID="tablet-search-toggle" onPress={() => { props.filters?.onClose(); setPage(null); setSearchOpen(!searchOpen); }} /> : null}
+            {!fieldVisible ? querySummary : null}
+          </>}
         </View>
-        {expandedSearch ? null : <SearchQueryChip board={board} theme={theme} />}
-        <SearchCoverageItems theme={theme} />
         <View accessible pointerEvents="none" accessibilityLabel={strings.total(board.total)} testID="tablet-toolbar-total" style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
           <View testID="tablet-total-slot" style={{ flexShrink: 0, alignItems: "center", justifyContent: "center" }}>
             {/* Reserve the complete localised phrase, so count changes never move the search. */}
@@ -139,7 +157,7 @@ export function TabletToolbar(props: {
             </View>
           </View>
         </View>
-        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: searching || !centered ? 0 : 1, flexBasis: searching || !centered ? "auto" : 0, minWidth: compact && centered ? minimumActionsWidth : 0, marginLeft: 6, marginRight: -6, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
+        <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: searching || searchInToolbar || !centered ? 0 : 1, flexBasis: searching || searchInToolbar || !centered ? "auto" : 0, minWidth: compact && centered ? minimumActionsWidth : 0, marginLeft: 6, marginRight: -6, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
         <ToolbarButton icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} toggle badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => { closeEmptySearch(); board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })); }} />
         {separateFilters ? <View testID="tablet-filter-anchor" onLayout={(event) => setFilterLayout(event.nativeEvent.layout)}><ToolbarButton icon="Filter" label={strings.filters} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /></View> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>

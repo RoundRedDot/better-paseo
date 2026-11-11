@@ -2,7 +2,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import "./helpers/quiet-renderer";
-import { measureHostTree } from "./helpers/yoga-host-layout";
+import { hostChildren, measureHostTree } from "./helpers/yoga-host-layout";
 import * as todoSummary from "../../client/tasks/data/todo-summary";
 
 vi.mock("react-native", async () => {
@@ -524,10 +524,10 @@ describe("search coverage render isolation", () => {
       let request!: Promise<void>;
       act(() => { request = firstPromptStoreFor(paseo as never).request(task.id); });
       expect(host.rowRenders).toBe(before);
-      expect(textOf(hostsById("search-coverage-loaded")[0]!)).toBe(BOARD_STRINGS.en.searchCoverage.loaded(0));
+      expect(textOf(hostsById("search-coverage-loaded")[0]!)).toBe(phone ? BOARD_STRINGS.en.searchCoverage.loaded(0) : "0");
       await act(async () => { finish(); await request; });
       // A failed read is neither counted nor offered a retry; the notice keeps its loaded-count wording.
-      expect(textOf(hostsById("search-coverage-loaded")[0]!)).toBe(BOARD_STRINGS.en.searchCoverage.loaded(0));
+      expect(textOf(hostsById("search-coverage-loaded")[0]!)).toBe(phone ? BOARD_STRINGS.en.searchCoverage.loaded(0) : "0");
       expect(hostsById("search-coverage-failure")).toHaveLength(0);
       expect(hostsById("search-coverage-retry")).toHaveLength(0);
       if (phone) {
@@ -618,7 +618,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false, { q: "status" })); });
     layOut(800);
-    expect(textOf(hostsById("desktop-toolbar-search-summary")[0]!)).toContain("Contains「status」");
+    expect(textOf(hostsById("desktop-toolbar-search-summary")[0]!)).toContain("「status」");
     act(() => hostsById("desktop-search-toggle")[0]!.props.onPress());
     expect(hostsById("desktop-toolbar-search")).toHaveLength(1);
     const summary = hostsById("desktop-toolbar-search-summary")[0]!;
@@ -626,7 +626,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(textOf(summary)).not.toContain("status");
     expect(textOf(summary)).toContain("Clear filters");
     act(() => hostsById("desktop-search-toggle")[0]!.props.onPress());
-    expect(textOf(hostsById("desktop-toolbar-search-summary")[0]!)).toContain("Contains「status」");
+    expect(textOf(hostsById("desktop-toolbar-search-summary")[0]!)).toContain("「status」");
   });
 
   it("puts the loaded count inside the desktop search field instead of a query chip", async () => {
@@ -778,15 +778,15 @@ describe("Tasks search coverage and centred toolbar", () => {
       expect(StyleSheet.flatten(hostsById("lane-surface-running")[0]!.props.style).width).toBe(expected);
       const row = hostsById(`${prefix}-search-row`)[0]!;
       const field = hostsById(`${prefix}-toolbar-search`)[0]!;
-      expect(StyleSheet.flatten(field.props.style).width).toBe(320);
+      expect(StyleSheet.flatten(field.props.style)).toMatchObject(os === "web" ? { width: 320 } : { flex: 1, flexBasis: 0 });
       const frame = measureHostTree(row, { width: 600 }).get(field)!;
-      expect(frame.width).toBe(320);
+      expect(frame.width).toBe(os === "web" ? 320 : 480);
       expect(frame.left).toBe(lanesScroll().props.contentContainerStyle.paddingLeft);
     }
     layOut(480);
     const field = hostsById(`${prefix}-toolbar-search`)[0]!;
-    expect(StyleSheet.flatten(field.props.style).width).toBe(320);
-    expect(measureHostTree(hostsById(`${prefix}-search-row`)[0]!, { width: 480 }).get(field)!.width).toBe(320);
+    expect(StyleSheet.flatten(field.props.style)).toMatchObject(os === "web" ? { width: 320 } : { flex: 1, flexBasis: 0 });
+    expect(measureHostTree(hostsById(`${prefix}-search-row`)[0]!, { width: 480 }).get(field)!.width).toBe(os === "web" ? 320 : 360);
   });
 
   it.each(["web", "ios", "android"].flatMap((os) => (["en", "zh"] as const).map((language) => ({ os, language }))))("sizes $os/$language search with the lanes across layouts and filter measurements", ({ os, language }) => {
@@ -829,7 +829,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(hostsById(`${prefix}-toolbar-total`)).toHaveLength(1);
     expect(hostsById(`${prefix}-toolbar-end`)[0]!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(actions);
     const frames = measureHostTree(row, { width });
-    expect(frames.get(field)!.width).toBeLessThanOrEqual(320);
+    expect(frames.get(field)!.width).toBeLessThanOrEqual(os === "web" ? 320 : width - 48);
     expect(frames.get(field)!.width).toBeGreaterThan(100);
     for (const node of [field, hostsById("search-full-conversation-toggle")[0]!, hostsById(`${prefix}-search-close`)[0]!]) {
       const frame = frames.get(node)!;
@@ -840,7 +840,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     act(() => hostsById(`${prefix}-search-close`)[0]!.props.onPress());
     expect(hostsById(`${prefix}-toolbar-search`)).toHaveLength(0);
     expect(lastBoardParams("host-1").query).toBe("needle");
-    act(() => hostsById(`${prefix}-search-toggle`)[0]!.props.onPress());
+    act(() => (hostsById(`${prefix}-search-toggle`)[0] ?? hostsById("search-query-edit")[0])!.props.onPress());
     expect(hostsById(`${prefix}-toolbar-search`)[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("needle");
   });
 
@@ -5414,8 +5414,8 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostsById("tablet-search-toggle")).toHaveLength(1);
     expect(style(hostsById("tablet-search-toggle")[0]!).backgroundColor).toBe("transparent");
     expect(hostsById("tablet-toolbar-start")[0]!.children.map((node) => typeof node === "string" ? node : node.props.testID)).toEqual(["tablet-search-toggle"]);
-    expect(search().findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "Search")).toHaveLength(0);
-    expect(style(search())).toMatchObject({ height: Math.round(40 * base / 14) - 8, width: 320, flexShrink: 1, minWidth: 0 });
+    expect(search().findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "Search")).toHaveLength(1);
+    expect(style(search())).toMatchObject({ height: Math.round(40 * base / 14) - 8, flex: 1, flexBasis: 0, minWidth: 0 });
     expect(style(search()).position).toBeUndefined();
     expect(hostsById("tablet-toolbar-total")).toHaveLength(1);
     expect(style(hostsById("tablet-toolbar-start")[0]!).minWidth).toBe(style(end()).minWidth);
@@ -5451,7 +5451,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
   it.each([["ios", 600], ["ios", 800], ["android", 600], ["android", 800]] as const)("%s at %i keeps the search compact and dismisses only an empty query", (os, width) => {
     mount(os, width);
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
-    expect(style(hostsById("tablet-toolbar-search")[0]!).width).toBe(320);
+    expect(style(hostsById("tablet-toolbar-search")[0]!)).toMatchObject({ flex: 1, flexBasis: 0 });
     expect(hostsById("tablet-toolbar-backdrop")).toHaveLength(1);
     expect(style(hostsById("tablet-toolbar-backdrop")[0]!).zIndex).toBeLessThan(style(bar()).zIndex);
     act(() => hostsById("search-full-conversation-toggle")[0]!.props.onPress());
@@ -8181,4 +8181,20 @@ describe("Tasks sidebar filter options", () => {
     expect(await during(() => renderer!.update(screen(false)))).toBe(0);
     useTasks.mockRestore();
   });
+});
+
+it.each(["ios", "android"])("%s phone board keeps the real search summary row at its previous height", async (os) => {
+  (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+  await act(async () => { renderer = TestRenderer.create(screen(true, { q: "needle" }, { ...(theme as object), typography: { fontSize: { ui: 14 } } })); });
+  act(() => { vi.advanceTimersByTime(200); });
+  expect(hostsById("phone-search-reveal")).toHaveLength(1);
+  const summary = hostsById("phone-search-summary")[0]!;
+  const chip = hostsById("search-query-chip")[0]!;
+  expect(summary.findAll((node) => node === chip)).toHaveLength(1);
+  const frames = measureHostTree(summary, { width: 390 });
+  expect(summary.props.contentContainerStyle).toMatchObject({ flexDirection: "row", alignItems: "center" });
+  // rn-mock omits ScrollView's native content view. Its actual row height is
+  // the tallest rendered child, rather than the mock's default column sum.
+  expect(Math.max(...hostChildren(summary).map((child) => frames.get(child)!.height))).toBe(36);
+  expect(frames.get(chip)!.height).toBe(36);
 });
