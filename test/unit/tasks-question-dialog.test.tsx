@@ -75,6 +75,25 @@ describe("task question dialog", () => {
     await act(async () => { store.open(current); tree = TestRenderer.create(render()); });
     return { store, fake, update: async (next: TaskCard) => { current = next; await act(async () => tree!.update(render())); } };
   }
+  it.each(["web", "ios", "android"])("expands long previews without selecting the option on %s", async (platform) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    const preview = "First\nSecond\nThird\nFourth\nFifth\nLast";
+    const current = card({ questions: [{ ...question, options: [{ label: "Long", description: "", preview }, { label: "Short", description: "", preview: "Short preview" }] }] });
+    const { store } = await mount(current);
+    const stopPropagation = vi.fn();
+    const previewText = () => tree!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-question-preview")[0]!;
+    expect(tree!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-question-preview-toggle")).toHaveLength(1);
+    expect(previewText().props.numberOfLines).toBe(4);
+    await act(async () => host("task-question-preview-toggle").props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(store.get()?.draft.selections).toEqual({});
+    expect(previewText().props.numberOfLines).toBeUndefined();
+    expect(JSON.stringify(tree!.toJSON())).toContain("Last");
+    await act(async () => host("task-question-preview-toggle").props.onPress({ stopPropagation }));
+    expect(previewText().props.numberOfLines).toBe(4);
+    await act(async () => host("task-question-option-0-0").props.onPress());
+    expect(store.get()?.draft.selections[0]).toEqual([0]);
+  });
   it.each(["web", "ios", "android"])("renders full content and context with separately scrollable mobile actions on %s", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     await mount();

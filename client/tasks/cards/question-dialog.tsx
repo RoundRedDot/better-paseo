@@ -91,7 +91,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
                   <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
                     <Text style={prose}>{option.label}</Text>
                     {option.description ? <Text style={meta}>{option.description}</Text> : null}
-                    {option.preview ? <Text style={prose}>{option.preview}</Text> : null}
+                    {option.preview ? <QuestionPreview text={option.preview} language={props.language} color={colors.foreground} accent={colors.accent} /> : null}
                   </View>
                 </Pressable>;
               })}
@@ -125,4 +125,17 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
       </TasksTypography>
     </Modal.Content>
   </Modal>;
+}
+
+function QuestionPreview({ text, language, color, accent }: { text: string; language: TasksLanguage; color: string; accent: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const long = text.length > 240 || text.split("\n").length > 4;
+  const words = cardStrings(language).questions;
+  return <View style={{ gap: 4 }}>
+    <Text testID="task-question-preview" numberOfLines={long && !expanded ? 4 : undefined} style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color }}>{text}</Text>
+    {long ? <Pressable testID="task-question-preview-toggle" accessibilityRole="button" accessibilityState={{ expanded }}
+      onPress={(event) => { event.stopPropagation(); setExpanded(!expanded); }} style={{ alignSelf: "flex-start", paddingVertical: 4 }}>
+      <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: accent }}>{expanded ? words.collapsePreview : words.expandPreview}</Text>
+    </Pressable> : null}
+  </View>;
 }
