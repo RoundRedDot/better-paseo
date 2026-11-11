@@ -1,6 +1,6 @@
 /**
  * The details toolbar's copy buttons: as many as fit side by side, the rest
- * in a "⋯" menu (docs/prototypes/block-details-sheet.md, "复制按钮"). The
+ * in a "⋯" menu (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md, "复制按钮"). The
  * order is the content's, its first copy the main one, so the fold starts at
  * the last and the first always stays. An empty copy, or one with the label or
  * text of an earlier one, is not offered at all.

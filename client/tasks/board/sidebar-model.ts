@@ -6,7 +6,7 @@ import { Platform } from "react-native";
  * and floating over its right side on a narrow one. A board narrower still
  * (a tablet or foldable with the host's sidebar open) has no room beside its
  * lanes at all: there the details rise from the bottom as a sheet
- * (`docs/prototypes/task-board-pad.md`).
+ * (`https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/task-board-pad.md`).
  */
 export const SIDEBAR = {
   /** The width it opens at, and where a double click on its edge puts it back. */

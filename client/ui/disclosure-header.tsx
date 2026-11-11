@@ -57,7 +57,7 @@ export const DISCLOSURE_HEADER = {
 } as const;
 
 /**
- * How loud a row is (docs/prototypes/quiet-tool-rows.md). `quiet` is a call
+ * How loud a row is (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/quiet-tool-rows.md). `quiet` is a call
  * that has finished: it sits one step behind the prose. `active` is one still
  * running, its target halfway back to `foreground`. `loud` is a row that waits
  * for the reader (an open question) and is never dimmed.

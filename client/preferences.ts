@@ -118,7 +118,7 @@ export interface EnhancerPreferences {
    */
   detailsFontSize: number;
   /**
-   * Tap a row to open its details in a drawer or panel (docs/prototypes/block-details-sheet.md).
+   * Tap a row to open its details in a drawer or panel (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md).
    * On by default; off brings back the long-press preview and tap-to-expand.
    */
   blockDetails: boolean;

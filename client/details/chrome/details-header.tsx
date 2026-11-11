@@ -1,5 +1,5 @@
 /**
- * The details panel's header (docs/prototypes/block-details-sheet.md, "头部";
+ * The details panel's header (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md, "头部";
  * table 5.2): the block's icon in a 28 tile, its full title and a subtitle of
  * status, duration and place, then ‹ › × at the right. 52 tall on touch, 44
  * with a pointer. The shell's header handlers ride on it: a vertical drag

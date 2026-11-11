@@ -1,7 +1,7 @@
 /**
  * Shared types for block details: tap a timeline row to read it in a bottom
  * drawer, a floating bottom panel or a right-hand panel, chosen by window width
- * (docs/prototypes/block-details-sheet.md). Every slice of the feature builds on
+ * (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md). Every slice of the feature builds on
  * these; change them only together with their users.
  */
 import { createContext, type ReactNode } from "react";

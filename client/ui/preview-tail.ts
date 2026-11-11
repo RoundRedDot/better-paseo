@@ -15,7 +15,7 @@ export const PREVIEW_FOLLOW_SLACK = 24;
  * How far from the end a follow lets go (`leave`) and how close a scroll back
  * has to come before it follows again (`resume`). The hover panel uses one
  * slack for both; the details panel's gap between them keeps a slow drag near
- * the end from flickering between the two (docs/prototypes/block-details-sheet.md).
+ * the end from flickering between the two (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md).
  */
 export interface PreviewFollowBand {
   leave: number;

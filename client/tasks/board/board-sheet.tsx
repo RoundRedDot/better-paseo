@@ -13,7 +13,7 @@ const HANDLE = 16;
 
 /**
  * The details of a board too narrow to float them beside its lanes
- * (`docs/prototypes/task-board-pad.md`): a sheet over the lanes' lower part,
+ * (`https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/task-board-pad.md`): a sheet over the lanes' lower part,
  * not modal and without a scrim, so the lanes above it still scroll and take
  * a click. Half height leaves the lanes' top in view; full leaves a strip.
  * Only the handle drags it (the content scrolls); a tap on the handle

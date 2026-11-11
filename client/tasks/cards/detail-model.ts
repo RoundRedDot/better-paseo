@@ -8,7 +8,7 @@ import { cardStrings } from "./strings";
 /**
  * What the details card (`detail-cards.tsx`) shows, as pure functions for the
  * tests: which block leads, the order of the sections, and the numbers behind
- * the charts. Spec: `docs/prototypes/task-details-rich.md`.
+ * the charts. Spec: `https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/task-details-rich.md`.
  */
 
 const MINUTE = 60_000;

@@ -1,7 +1,7 @@
 /**
  * The details panel's follow of a streaming body: it lets go past 48 from the
  * end and follows again within 8, and says when it does, so the panel can
- * offer "Back to latest" (docs/prototypes/block-details-sheet.md). The hover
+ * offer "Back to latest" (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md). The hover
  * panel's single slack is `HOVER_FOLLOW`, the default.
  */
 import { describe, expect, it } from "vitest";

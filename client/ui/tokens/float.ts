@@ -1,5 +1,5 @@
 /**
- * The floating controls' one family (docs/prototypes/table-copy-menu.md): the
+ * The floating controls' one family (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/table-copy-menu.md): the
  * table's copy menu and the selection bar share the frame, the items, the
  * shadow and the motion, so they read as the same piece of UI; the edge,
  * shadow and corner radius are also the hover preview panel's.

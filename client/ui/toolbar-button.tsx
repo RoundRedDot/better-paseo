@@ -45,7 +45,7 @@ export const ToolbarHoverColorContext = createContext<string | null>(null);
 /**
  * The size of a toolbar's buttons and their icons. The hover panel's are 24
  * with a 14 icon; the details panel's header and toolbar set 36 on touch and
- * 28 with a pointer (docs/prototypes/block-details-sheet.md, table 5.2).
+ * 28 with a pointer (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md, table 5.2).
  */
 export interface ToolbarMetrics {
   button: number;

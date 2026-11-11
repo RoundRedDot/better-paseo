@@ -89,7 +89,7 @@ import { TASK_TOOLBAR_METRICS } from "../toolbar-metrics";
 
 /**
  * The details as one raised card, after Linear's issue panel
- * (`docs/prototypes/task-details-rich.md`): the header (status, title, the
+ * (`https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/task-details-rich.md`): the header (status, title, the
  * agent's chips and labels, the actions), then the block the card needs
  * first (the running turn, the permission request, the error, or a summary),
  * then collapsible sections: the first prompt, the last message a person sent, the latest reply, properties, subtasks, usage and activity, in an
@@ -1285,7 +1285,7 @@ function SectionChevron(props: { closed: boolean; color: string }) {
 }
 
 /**
- * The properties (`docs/prototypes/task-details-properties.md`): one row per
+ * The properties (`https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/task-details-properties.md`): one row per
  * field, icon 16 · value · trailing 16, no label column until the card is
  * wide (≥ 448, gone under 440). Every state the old badges carried is a
  * muted note line under the value; values wrap to a few lines instead of

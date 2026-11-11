@@ -32,7 +32,7 @@ import { liftStyle, scaleStyle, surfaceLift } from "./surface-lift";
 import { usePressCue } from "./action-pressable";
 
 /**
- * The details card's charts (`docs/prototypes/task-details-rich.md`, board 6),
+ * The details card's charts (`https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/task-details-rich.md`, board 6),
  * every one drawn with Views: the plugin sandbox has no SVG. Tooltips show on
  * hover with a pointer and on a tap with touch, where a tap elsewhere or 3 s
  * hides them.
