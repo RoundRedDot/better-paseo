@@ -1,6 +1,7 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act } from "react-test-renderer";
+import type { PluginTheme } from "@getpaseo/plugin";
 import type { LaneId, LaneModel, TaskCard } from "../../client/tasks/model";
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
@@ -10,11 +11,12 @@ import { Animated } from "react-native";
 import { CollapsedArrivalMarker, createCollapsedArrivals } from "../../client/tasks/board/collapsed-arrivals";
 import { TasksTypographyScale } from "../../client/tasks/typography";
 import { taskTokens } from "../../client/tasks/cards/tokens";
+import { withAlpha } from "../../client/components/theme-tokens";
 
 const now = Date.parse("2026-11-10T12:00:00Z");
 const card = (id: string, lane: LaneId, age = 0) => ({ id, lane, timing: { createdAt: new Date(now - age).toISOString() } }) as TaskCard;
 const lanes = (cards: TaskCard[]) => Object.fromEntries(["needs_input", "running", "review", "done", "archived"].map((lane) => [lane, { cards: cards.filter((item) => item.lane === lane) }])) as Record<LaneId, LaneModel>;
-const theme = { colors: { surface0: "#ffffff", surface1: "#fafafa", surface2: "#f4f4f5", border: "#e4e4e7", foreground: "#09090b", foregroundMuted: "#71717a", accent: "#2563eb", accentForeground: "#ffffff", statusSuccess: "#16a34a", statusWarning: "#d97706", statusDanger: "#dc2626" } } as never;
+const theme = { colors: { surface0: "#ffffff", surface1: "#fafafa", surface2: "#f4f4f5", border: "#e4e4e7", foreground: "#09090b", foregroundMuted: "#71717a", accent: "#2563eb", accentForeground: "#ffffff", statusSuccess: "#16a34a", statusWarning: "#d97706", statusDanger: "#dc2626" } } as PluginTheme;
 
 beforeEach(() => { motion.reduced = false; });
 
@@ -29,13 +31,24 @@ describe("collapsed lane arrivals", () => {
     act(() => renderer.unmount());
   });
 
-  it.each(["needs_input", "running", "review", "done", "archived"] as const)("uses the %s status icon color", (lane) => {
+  it.each(["needs_input", "running", "review", "done", "archived"] as const)("uses a soft %s status color", (lane) => {
     const tokens = taskTokens(theme);
     const colors = { needs_input: tokens.status.warning, running: tokens.status.running, review: tokens.status.success, done: tokens.status.success, archived: tokens.foregroundMuted };
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => { renderer = TestRenderer.create(<CollapsedArrivalMarker ids={["a"]} lane={lane} theme={theme} />); });
     const marker = renderer.root.findByProps({ testID: `lane-new-marker-${lane}` }).findByType(Animated.View);
-    expect(marker.props.style.backgroundColor).toBe(colors[lane]);
+    expect(marker.props.style.backgroundColor).toBe(withAlpha(colors[lane], 0.2));
+    expect(renderer.root.findByProps({ testID: `lane-new-count-${lane}` }).props.style.color).toBe(theme.colors.foreground);
+    act(() => renderer.unmount());
+  });
+
+  it("keeps the count readable on a dark theme", () => {
+    const darkTheme = { colors: { ...theme.colors, surface0: "#18181b", foreground: "#fafafa" } } as typeof theme;
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<CollapsedArrivalMarker ids={["a"]} lane="review" theme={darkTheme} />); });
+    const marker = renderer.root.findByProps({ testID: "lane-new-marker-review" }).findByType(Animated.View);
+    expect(marker.props.style.backgroundColor).toBe(withAlpha(taskTokens(darkTheme).status.success, 0.25));
+    expect(renderer.root.findByProps({ testID: "lane-new-count-review" }).props.style.color).toBe(darkTheme.colors.foreground);
     act(() => renderer.unmount());
   });
 

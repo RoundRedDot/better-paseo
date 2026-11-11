@@ -5,6 +5,7 @@ import { TaskText as Text, HOST_FONT as F, useTasksFontScale } from "../typograp
 import { LANE_ORDER, type LaneId, type LaneModel } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { taskTokens } from "../cards/tokens";
+import { withAlpha } from "../../components/theme-tokens";
 import { cubicBezier } from "./board-style";
 import { NEW_WINDOW_MS } from "./new-cards";
 
@@ -85,7 +86,7 @@ export function CollapsedArrivalMarker(props: { ids: readonly string[]; theme: P
   const background = props.lane === "needs_input" ? tokens.status.warning : props.lane === "running" ? tokens.status.running : props.lane === "archived" ? tokens.foregroundMuted : tokens.status.success;
   return (
     <View pointerEvents="none" testID={`lane-new-marker-${props.lane}`} style={{ alignItems: "center", justifyContent: "center" }}>
-      <Animated.View style={{ opacity: scale, transform: [{ scale: scale.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) }], width: diameter, height: diameter, borderRadius: diameter / 2, alignItems: "center", justifyContent: "center", backgroundColor: background }}>
+      <Animated.View style={{ opacity: scale, transform: [{ scale: scale.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) }], width: diameter, height: diameter, borderRadius: diameter / 2, alignItems: "center", justifyContent: "center", backgroundColor: withAlpha(background, tokens.isDark ? 0.25 : 0.2) }}>
         <Text testID={`lane-new-count-${props.lane}`} numberOfLines={1} style={{ color: props.theme.colors.foreground, fontSize: F.sm, fontVariant: ["tabular-nums"] }}>+{props.ids.length > 99 ? "99+" : props.ids.length}</Text>
       </Animated.View>
     </View>

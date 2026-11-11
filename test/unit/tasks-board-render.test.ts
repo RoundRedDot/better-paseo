@@ -1517,6 +1517,8 @@ describe("Tasks board, desktop", () => {
   });
 
   it("uses host UI typography directly without reading persisted appearance", () => {
+    // Language can read the same key; select it explicitly to isolate appearance.
+    updateEnhancerPreferences({ language: "en" });
     const getItem = vi.fn(() => JSON.stringify({ uiBaseFontSize: 10 }));
     vi.stubGlobal("localStorage", { getItem });
     try {
