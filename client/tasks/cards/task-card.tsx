@@ -1464,9 +1464,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const permissionSummary = permission ? summaryBeyondTitle(permission.title, permission.summary) : null;
   const permissionBlock =
     layout.permission && permission ? (
-      <View style={[block, questionSection ? { borderTopWidth: 0, paddingTop: 0 } : null, { gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
+      <View style={[block, questionSection ? { borderTopWidth: 0, paddingTop: 0, marginTop: 4 } : null, { gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
         {questionSection ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }} testID="task-card-question-divider">
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: -4 }} testID="task-card-question-divider">
             <View style={{ width: 22, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.25) }} />
             <Text style={text(11, 16, tokens.status.warning, "600")}>{strings.awaitingAnswer}</Text>
             <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />
