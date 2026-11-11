@@ -73,6 +73,7 @@ import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { previewSampleCards as sampleCards } from "../../client/tasks/sample-cards";
 import type { PermissionButton } from "../../client/tasks/actions";
+import { permissionButtons } from "../../client/tasks/actions";
 import type { TaskCard } from "../../client/tasks/model";
 import { DetailActionBar, TaskCardView, TaskDetailCards, taskTokens, type TaskCardViewProps } from "../../client/tasks/cards";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -167,6 +168,27 @@ async function render(element: React.ReactElement) {
 }
 
 describe("TaskCardView on web", () => {
+  it("keeps question answers below the divider and the open action above it", async () => {
+    const card = sampleCards(NOW).find((item) => item.id === "sample-question")!;
+    const onOpen = vi.fn();
+    const renderer = await render(React.createElement(TaskCardView, props(card.id, {
+      card, onOpen, permissionButtons: permissionButtons(card.permission!, "zh", true),
+    })));
+    const nodes = renderer.root.findAll((node) => typeof node.type === "string");
+    const controls = nodes.find((node) => node.props.testID === "task-card-control-row")!;
+    const question = nodes.find((node) => node.props.testID === "task-card-permission")!;
+    const answers = nodes.find((node) => node.props.testID === "task-card-answer-actions")!;
+    expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(question));
+    expect(Object.assign({}, ...[question.props.style].flat(Infinity).filter(Boolean)).borderTopWidth).toBe(0.5);
+    expect(answers.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab")).toHaveLength(0);
+    const open = controls.find((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab");
+    await act(async () => open.props.onPress());
+    expect(onOpen).toHaveBeenCalledWith(card.id);
+    await act(async () => hovers.get(`task-card-${card.id}`)!.enter());
+    expect(renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab")).toHaveLength(1);
+    await act(async () => renderer.unmount());
+  });
+
   it("shows a keyboard focus outline on the plan and subtask buttons", async () => {
     const todo = { completed: 0, total: 1, items: [{ text: "Task", completed: false }] };
     const renderer = await render(React.createElement(TaskCardView, props("sample-running", { todo })));

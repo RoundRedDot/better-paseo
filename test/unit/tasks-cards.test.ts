@@ -2173,8 +2173,13 @@ describe("TaskCardView actions", () => {
     const tree = await render(cardElement(card, { onOpen, permissionButtons: permissionButtons(card.permission, "zh", true) }));
     const row = hostByTestId(tree.root, "task-card-answer-actions");
     expect(texts(row)).toContain("查看问题");
-    expect(texts(row)).toContain("打开");
-    await act(async () => hostByTestId(tree.root, "task-card-open-question").props.onPress());
+    expect(texts(row)).not.toContain("打开");
+    const controls = hostByTestId(tree.root, "task-card-control-row");
+    expect(texts(controls)).toContain("打开");
+    const question = hostByTestId(tree.root, "task-card-permission");
+    expect(flat(question.props.style).borderTopWidth).toBe(0.5);
+    expect(rows(tree.root, card.id).indexOf("task-card-control-row")).toBeLessThan(rows(tree.root, card.id).indexOf("task-card-permission"));
+    await act(async () => hostByTestId(controls, "task-card-open-tab").props.onPress());
     expect(onOpen).toHaveBeenCalledWith(card.id);
   });
 

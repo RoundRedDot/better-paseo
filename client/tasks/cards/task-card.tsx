@@ -710,8 +710,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A provider subagent has no tab of its own: its Open would open the parent's, so "Open parent" is its only one.
   const ownTab = !card.subagent;
   const canOpen = !compact && !!props.onOpen && (ownTab || parentOpens) && !(layout.permission && props.permissionButtons.some((button) => button.kind === "open"));
+  const questionSection = layout.permission && card.permission?.kind === "question";
   const questionAnswerRow = layout.permission && props.permissionButtons.some((button) => button.kind === "question");
-  const showOpen = canOpen && !questionAnswerRow && (TOUCH || hovered || showStop || showRead);
+  const showOpen = canOpen && (questionAnswerRow || TOUCH || hovered || showStop || showRead);
   // An archived task has Unarchive where Open tab was: Paseo opens it only once it is back.
   const canUnarchive = card.archived === "agent" && !!props.onUnarchive;
   const unarchivePending = props.unarchivePending === true;
@@ -1338,7 +1339,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       {canUnread ? unreadButton(false) : null}
       {canArchive ? archiveButton(false) : null}
       {canOpen && parentOpens ? openParentButton(false) : null}
-      {canOpen && ownTab && !questionAnswerRow ? (
+      {canOpen && ownTab ? (
         <CardButton
           label={strings.openTab}
           look="plain"
@@ -1383,7 +1384,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           </View>
         ) : null}
         {promptNote ? <Text numberOfLines={1} testID="task-search-prompt-note" style={{ flexShrink: 1, fontSize: 12, lineHeight: m.footLine, color: muted }}>{promptNote}</Text> : null}
-        {(showControl || controlLeaving) && !TOUCH ? (
+        {(showControl || controlLeaving) && !TOUCH && !questionSection ? (
           // On web the buttons appear on hover, so they float over the ring (the card's
           // fill behind it hides what it covers) instead of taking room from the
           // row: hovering must not move anything. Native shows it all the time, in flow.
@@ -1421,8 +1422,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // ran off a narrow lane's card. Stop's menu opens downwards over the blocks
   // below, so the row is raised.
   const controlRow =
-    showControl && TOUCH ? (
-      <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: answerRow ? 0 : m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-control-row">
+    showControl && (TOUCH || questionSection) ? (
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: answerRow && !questionSection ? 0 : m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-control-row">
         {footControls(buttonHeight)}
       </View>
     ) : null;
@@ -1460,11 +1461,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
 
   const permission = card.permission;
   const asksQuestion = permission?.kind === "question" || permission?.kind === "other";
-  const compactQuestion = compact && permission?.kind === "question" && layout.permission;
+  const compactQuestion = compact && questionSection;
   const permissionSummary = permission ? summaryBeyondTitle(permission.title, permission.summary) : null;
   const permissionBlock =
     layout.permission && permission ? (
-      <View style={[block, compactQuestion ? { borderTopWidth: 0.5 } : null, { gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
+      <View style={[block, questionSection ? { borderTopWidth: 0.5 } : null, { gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
           <View style={iconCell}>
             <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
@@ -1502,7 +1503,6 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                   onPress={() => props.onPermission?.(card, button)}
                 />
               ))}
-              {questionAnswerRow && canOpen && ownTab ? <CardButton label={strings.openTab} look="plain" arrow tokens={tokens} compact={false} onPress={() => props.onOpen?.(card.id)} testID="task-card-open-question" /> : null}
             </ActionRow>
             {footerContent ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginLeft: "auto" }} testID="task-card-footer">
@@ -1511,7 +1511,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             ) : null}
           </View>
         ) : null}
-        {answerRow ? controlRow : null}
+        {answerRow && !questionSection ? controlRow : null}
       </View>
     ) : null;
 
@@ -1647,7 +1647,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const footRow = minimalSummary ? <View style={{ marginTop: m.rowGap, minHeight: footHeight, zIndex: footerZ, flexDirection: "row", alignItems: "center" }}><SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal rowHeight={footHeight} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPrompt.unavailable && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} />{footerContent}</View> : footer;
   // Below the title, in order. Each starts `m.rowGap` under the row above it,
   // except the search summary's 6 pt rule (`SearchHitSummary`).
-  const tailList = [pillRow, footRow, answerRow ? null : controlRow, compactQuestion ? actionBar : null, permissionBlock, failure, todoList, subtaskList, compactQuestion ? null : actionBar, hiddenHitsRow];
+  const tailList = [pillRow, footRow, answerRow && !questionSection ? null : controlRow, compactQuestion ? actionBar : null, permissionBlock, failure, todoList, subtaskList, compactQuestion ? null : actionBar, hiddenHitsRow];
   const firstTail = tailList.find((row) => row !== null);
   // A ticket with nothing below its title: an empty stub, one row gap tall,
   // takes the first row's place, so the notches, the rule and the tail's
@@ -1657,7 +1657,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     <>
       {pillRow}
       {footRow}
-      {answerRow ? null : controlRow}
+      {answerRow && !questionSection ? null : controlRow}
       {compactQuestion ? actionBar : null}
       {permissionBlock}
       {failure}
