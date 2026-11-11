@@ -1185,7 +1185,7 @@ function Section(props: Inner & { section: DetailSection; replyStreaming: boolea
         {messageSection ? (
           <Pressable {...ROW_ROLE} accessibilityLabel={props.closed ? words.expand(title) : words.collapse(title)} {...tipProps(props.closed ? words.expand(title) : words.collapse(title))} accessibilityState={{ expanded: !props.closed }} onPress={toggle} testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
             <View style={{ width: 23, height: 24, paddingLeft: 5, alignItems: "flex-start", justifyContent: "center" }}>
-              <Icon name={section === "message" ? "MessageSquareText" : "MessageCircle"} size={14} color={tokens.foregroundMuted} />
+              <Icon name={section === "message" ? "MessageSquareText" : section === "human" ? "Send" : "MessageCircle"} size={14} color={tokens.foregroundMuted} />
             </View>
             <Text style={{ flex: 1, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
             {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
