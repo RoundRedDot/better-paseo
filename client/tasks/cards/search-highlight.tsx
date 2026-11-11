@@ -363,7 +363,7 @@ export function SearchHitSummary(props: {
             role="dialog"
             accessibilityLabel={strings.dialog}
             testID="task-search-popover"
-            style={{ ...panelChrome(props.theme), boxShadow: tokens.isDark ? "0px 8px 28px rgba(0, 0, 0, 0.55), 0px 2px 8px rgba(0, 0, 0, 0.3)" : "0px 8px 28px rgba(0, 0, 0, 0.18), 0px 2px 8px rgba(0, 0, 0, 0.1)", borderRadius: 10, padding: 4, opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}
+            style={{ ...panelChrome(props.theme), borderWidth: 1, borderColor: tokens.borderStrong, borderRadius: 10, padding: 4, opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}
           >
             <ScrollView style={{ maxHeight: 400 }}>{all}</ScrollView>
           </Animated.View>
