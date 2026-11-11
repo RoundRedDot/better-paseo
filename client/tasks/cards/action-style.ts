@@ -17,12 +17,12 @@ export const webTransition = (Platform.OS === "web"
 
 /**
  * A permission button's look, wherever it is drawn: "Answer" in the
- * needs-input amber, Allow in the accent, and Deny, which pairs with Allow, in
+ * needs-input amber, View questions and Allow in the accent, and Deny in
  * the Stop button's danger; any other answer plain.
  */
 export function requestLook(button: PermissionButton): CardButtonLook {
   if (button.kind === "open") return "answer";
-  if (button.kind === "question") return "plain";
+  if (button.kind === "question") return "primary";
   if (button.variant === "primary") return "primary";
   if (button.variant === "danger" || button.action.behavior === "deny") return "danger";
   return "plain";

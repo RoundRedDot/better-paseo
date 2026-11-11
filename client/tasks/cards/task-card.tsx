@@ -1378,10 +1378,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               testID="task-card-timer"
               {...hintProps(hint("timer", () => (dividerWait ? waitedHint : timerHint)(card, props.now ?? Date.now(), language)))}
             >
-              {timer.tone === "warning" ? <Icon name="Clock" size={m.icon} color={timerColor} /> : null}
+              {timer.tone === "warning" ? <Icon name="Clock" size={dividerWait ? m.icon - 2 : m.icon} color={timerColor} /> : null}
               {started ? <Icon name="Hourglass" size={m.icon} color={timerColor} /> : null}
               {dividerWait ? (
-                <WaitText card={card} language={language} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, timerColor), tabular]} />
+                <WaitText card={card} language={language} now={props.now} clock={props.clock} style={[text(11, m.footLine, timerColor), tabular]} />
               ) : (
                 <TimerText card={card} language={language} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, timerColor), tabular]} />
               )}
@@ -1477,7 +1477,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {questionSection ? (
           // As much room above and below the divider as any block keeps around its rule (the block's gap adds 8 below).
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: m.rowGap - 8 }} testID="task-card-question-divider">
-            <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
+            <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />
             {/* On a narrow card at a large text size the label gives way, not the wait. */}
             <Text numberOfLines={1} ellipsizeMode="tail" style={[text(11, 16, tokens.status.warning, "600"), { flexShrink: 1 }]}>{strings.awaitingAnswer}</Text>
             <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />

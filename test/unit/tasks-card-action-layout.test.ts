@@ -312,7 +312,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
   });
 
   it.each([true, false].flatMap((compact) => WIDTHS.flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).map((language) => [compact, width, scale, language] as const)))))
-  ("keeps the question divider's label at the left and its wait at the right (compact %s) at %ipt, scale %f, %s", async (compact, width, textScale, language) => {
+  ("centers the question divider's label between its lines and keeps the wait at the right (compact %s) at %ipt, scale %f, %s", async (compact, width, textScale, language) => {
     const card = choice()();
     await act(async () => {
       renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: phoneCard(card, language, {
@@ -327,7 +327,8 @@ describe("phone card action bar under native (Yoga) layout", () => {
     const label = labelsOf(divider()).find((node) => node.children.join("") === (language === "zh" ? "待回答" : "Awaiting answer"))!;
     const wait = parts.at(-1)!;
     expect(wait.props.testID).toBe("task-card-footer");
-    // The icon starts the divider; the wait ends it, flush with the row's right edge.
+    // The lines have equal widths; the wait ends flush with the row's right edge.
+    expect(frames.get(parts[0]!)!.width).toBeCloseTo(frames.get(parts[2]!)!.width, 0);
     expect(frames.get(parts[0]!)!.left).toBeCloseTo(box.left, 0);
     expect(frames.get(label)!.left).toBeLessThan(frames.get(wait)!.left);
     expect(frames.get(wait)!.left + frames.get(wait)!.width).toBeCloseTo(box.left + box.width, 0);

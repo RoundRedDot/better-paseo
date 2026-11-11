@@ -1527,6 +1527,20 @@ describe("TaskCardView rows", () => {
     }
   });
 
+  it("uses the theme accent for the question dialog button", async () => {
+    for (const theme of [LIGHT, DARK]) {
+      const tokens = buildTaskTokens(theme.colors);
+      const card = { ...sample("sample-input"), permission: { requestId: "q", kind: "question" as const, title: "Question", summary: null, actions: [], remaining: 0 } };
+      const tree = await render(cardElement(card, { theme, permissionButtons: permissionButtons(card.permission, "zh", true) }));
+      const button = byLabel(tree.root, "查看问题");
+      expect(flat(button.props.style)).toMatchObject({ backgroundColor: "transparent", borderColor: tokens.card.primaryBorder });
+      expect(button.findByType("Icon" as never).props.color).toBe(tokens.card.primaryText);
+      expect(flat(button.find((node) => (node.type as unknown) === "Text").props.style).color).toBe(tokens.card.primaryText);
+      await act(async () => tree.unmount());
+      renderer = null;
+    }
+  });
+
   it("sizes Stop and Mark read like the answer button beside them", async () => {
     const box = (style: unknown) => {
       const flatStyle = flat(style);
@@ -2177,12 +2191,14 @@ describe("TaskCardView actions", () => {
     const controls = hostByTestId(tree.root, "task-card-control-row");
     expect(texts(controls)).toContain("打开");
     const question = hostByTestId(tree.root, "task-card-permission");
-    // The divider reads label and icon at its left end, the wait at its right; the answer buttons keep their whole row.
+    // The divider centers the label between its lines and keeps the wait at its right.
     const divider = hostByTestId(question, "task-card-question-divider");
     expect(texts(divider)).toEqual(["待回答", "4m"]);
-    expect(icons(divider)).toEqual(["MessageCircleQuestion", "Clock"]);
+    expect(icons(divider)).toEqual(["Clock"]);
+    expect(divider.findByType("Icon" as never).props.size).toBe(10);
+    const waitText = divider.find((node) => typeof node.type === "string" && node.props.accessibilityLabel?.startsWith("已等待"));
+    expect(flat(waitText.props.style).fontSize).toBe(11);
     const dividerParts = divider.children.filter((child): child is ReactTestInstance => typeof child !== "string");
-    expect(icons(dividerParts[0]!)).toEqual(["MessageCircleQuestion"]);
     expect(dividerParts.at(-1)!.props.testID).toBe("task-card-footer");
     expect(hostByTestId(question, "task-card-answer-row").findAll((node) => node.props.testID === "task-card-footer")).toHaveLength(0);
     const title = question.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2 && texts(node).includes("Question"));
