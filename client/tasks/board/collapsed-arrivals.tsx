@@ -5,11 +5,12 @@ import { TaskText as Text, HOST_FONT as F } from "../typography";
 import { LANE_ORDER, type LaneId, type LaneModel } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { mix } from "../../components/theme-tokens";
-import { MOTION } from "./board-style";
+import { cubicBezier } from "./board-style";
 import { NEW_WINDOW_MS } from "./new-cards";
 
 const EMPTY: readonly string[] = [];
 const nativeDriver = Platform.OS !== "web";
+const markerEase = cubicBezier(0.2, 0.7, 0.2, 1);
 
 type Lanes = Record<LaneId, LaneModel>;
 
@@ -62,29 +63,25 @@ export function useCollapsedArrivals(store: CollapsedArrivals, lane: LaneId): re
   return useSyncExternalStore(store.subscribe, read, read);
 }
 
-/** Static marker remains until the lane is opened; each arrival gives one brief pulse. */
+/** The marker fades and grows into view, then remains until the lane is opened. */
 export function CollapsedArrivalMarker(props: { ids: readonly string[]; hue: string; theme: PluginTheme; lane: LaneId }) {
   const reduced = useReducedMotion();
-  const [pulse] = useState(() => new Animated.Value(0));
+  const [scale] = useState(() => new Animated.Value(1));
   const key = props.ids.join("\u0000");
   const previous = useRef<readonly string[]>([]);
   useEffect(() => {
-    const added = props.ids.some((id) => !previous.current.includes(id));
+    const appearing = previous.current.length === 0 && props.ids.length > 0;
     previous.current = props.ids;
-    if (!added || reduced) return;
-    pulse.setValue(0);
-    const animation = Animated.sequence([
-      Animated.timing(pulse, { toValue: 1, duration: 180, easing: MOTION.ease, useNativeDriver: nativeDriver }),
-      Animated.timing(pulse, { toValue: 0, duration: 700, easing: MOTION.ease, useNativeDriver: nativeDriver }),
-    ]);
+    if (reduced || !appearing) { scale.setValue(1); return; }
+    scale.setValue(0);
+    const animation = Animated.timing(scale, { toValue: 1, duration: 300, easing: markerEase, useNativeDriver: nativeDriver });
     animation.start();
     return () => animation.stop();
-  }, [key, reduced, pulse]);
+  }, [key, reduced, scale]);
   if (!props.ids.length) return null;
   return (
     <View pointerEvents="none" testID={`lane-new-marker-${props.lane}`} style={{ alignItems: "center", justifyContent: "center" }}>
-      <Animated.View style={{ position: "absolute", width: 30, height: 24, borderRadius: 12, borderWidth: 2, borderColor: props.hue, opacity: pulse, transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1.6, 1] }) }] }} />
-      <Animated.View style={{ transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] }) }], minWidth: 26, maxWidth: 38, height: 22, paddingHorizontal: 4, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: mix(props.theme.colors.surface0, props.hue, 0.18), borderWidth: 1, borderColor: props.hue }}>
+      <Animated.View style={{ opacity: scale, transform: [{ scale: scale.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) }], minWidth: 26, maxWidth: 38, height: 22, paddingHorizontal: 4, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: mix(props.theme.colors.surface0, props.hue, 0.18), borderWidth: 1, borderColor: props.hue }}>
         <Text testID={`lane-new-count-${props.lane}`} numberOfLines={1} style={{ color: props.theme.colors.foreground, fontSize: F.sm, fontWeight: "700", fontVariant: ["tabular-nums"] }}>+{props.ids.length > 99 ? "99+" : props.ids.length}</Text>
       </Animated.View>
     </View>

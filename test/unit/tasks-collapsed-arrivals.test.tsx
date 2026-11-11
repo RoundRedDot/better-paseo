@@ -38,22 +38,34 @@ describe("collapsed lane arrivals", () => {
     expect(store.get("review")).toEqual([]);
   });
 
-  it("plays a pulse when arrivals change and keeps the count static with reduced motion", () => {
-    const sequence = vi.spyOn(Animated, "sequence");
+  it("fades and grows the marker only when it appears and keeps it static with reduced motion", () => {
+    const timing = vi.spyOn(Animated, "timing");
     const theme = { colors: { foreground: "#111111", surface0: "#ffffff" } } as never;
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => { renderer = TestRenderer.create(<CollapsedArrivalMarker ids={["a"]} hue="#228844" lane="review" theme={theme} />); });
-    expect(sequence).toHaveBeenCalledTimes(1);
+    expect(timing).toHaveBeenCalledTimes(1);
+    const call = timing.mock.calls[0]!;
+    expect(call[1]).toMatchObject({ toValue: 1, duration: 300 });
+    expect(renderer.root.findByProps({ testID: "lane-new-marker-review" }).children).toHaveLength(1);
+    const marker = renderer.root.findByProps({ testID: "lane-new-marker-review" });
+    const animated = marker.findByType(Animated.View);
+    expect(animated.props.style.opacity).toBe(call[0]);
+    const interpolate = vi.spyOn(call[0] as Animated.Value, "interpolate");
     expect(renderer.root.findByProps({ testID: "lane-new-count-review" }).props.children).toEqual(["+", 1]);
     act(() => renderer.update(<CollapsedArrivalMarker ids={["a", "b"]} hue="#228844" lane="review" theme={theme} />));
-    expect(sequence).toHaveBeenCalledTimes(2);
+    expect(interpolate).toHaveBeenCalledWith({ inputRange: [0, 1], outputRange: [0.45, 1] });
+    expect(timing).toHaveBeenCalledTimes(1);
     act(() => renderer.update(<CollapsedArrivalMarker ids={["b"]} hue="#228844" lane="review" theme={theme} />));
-    expect(sequence).toHaveBeenCalledTimes(2);
+    expect(timing).toHaveBeenCalledTimes(1);
     motion.reduced = true;
     act(() => renderer.update(<CollapsedArrivalMarker ids={["a", "b", "c"]} hue="#228844" lane="review" theme={theme} />));
-    expect(sequence).toHaveBeenCalledTimes(2);
+    expect(timing).toHaveBeenCalledTimes(1);
     expect(renderer.root.findByProps({ testID: "lane-new-count-review" }).props.children).toEqual(["+", 3]);
+    act(() => renderer.update(<CollapsedArrivalMarker ids={[]} hue="#228844" lane="review" theme={theme} />));
+    motion.reduced = false;
+    act(() => renderer.update(<CollapsedArrivalMarker ids={["d"]} hue="#228844" lane="review" theme={theme} />));
+    expect(timing).toHaveBeenCalledTimes(2);
     act(() => renderer.unmount());
-    sequence.mockRestore();
+    timing.mockRestore();
   });
 });
