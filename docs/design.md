@@ -155,7 +155,7 @@ rule: put its movement behind `motionDuration` and keep at most a short fade.
   and 36 on native; tablet toolbar buttons and detail header menu/close buttons are 32 on touch,
   with 28 targets for the detail header on desktop. Detail rows, headings and buttons are 32,
   44 on touch; chips 22, 28;
-  sidebar group rows 36, 44; card buttons 28, at least 32 on a phone; copy buttons 24 with a 32
+  sidebar group rows 36, 44; card buttons 26 on desktop web, 28 on native tablets, at least 32 on a phone; copy buttons 24 with a 32
   hit area. A long press is 450 ms on a card and 500 ms on a chat row.
 
 ## Icons
@@ -486,7 +486,7 @@ control row is rounded at 6. An icon in a pill or row is the size of the Lucide 
 | Phone filter sheet chip | `filter-sheet.tsx` | 32 | 4 | none; `accentSoft` when on | 14 | `base` |
 | Menu row | `menu.tsx`, `MENU` | 32 | 6 | none; `chrome.hover` hovered | 16 | `base` |
 | Sidebar group row | `details-sidebar.tsx` | 36 (44 touch) | 6 | none; `surface2` when on | 16 in a 20 slot | `base`, count `sm` |
-| Card button | `CardButton` in `action-buttons.tsx` | 28 (at least 32 phone) | 6 (7 phone) | none; shadow per [Lift](#lift) | 13 (14 phone) | `sm`, weight 500 |
+| Card button | `CardButton` in `action-buttons.tsx` | 26 desktop web, 28 native tablet (at least 32 phone) | 6 (7 phone) | none; shadow per [Lift](#lift) | 13 (14 phone) | `sm`, weight 500 |
 
 All heights grow with the host's interface text size through `taskControlHeight`.
 
@@ -624,7 +624,7 @@ Default. Wide stays at 300 pt when the board is below 632 pt; wider boards retai
 existing preset ranges.
 
 An icon-only button keeps its outline, colour, height, action and full accessibility label.
-Its width is its base target height (28/32 pt on cards, 48 pt in the sheet bar); its height
+Its width is its base target height (26 desktop web, 28 native tablet, 32 phone on cards; 48 pt in the sheet bar); its height
 still grows with large type. A split Stop button additionally reserves its menu segment.
 Keep confirmation (`OctagonAlert`), working spinner and disabled semantics in icon-only mode.
 A spinner replaces the action icon, so a folded working button never draws a second arrow.
