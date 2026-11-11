@@ -2498,6 +2498,7 @@ describe("Tasks board, desktop", () => {
     if (os === "ios") toggleSidebarControl();
     const layout = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } }));
     const tabs = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "tab");
+    expect(tabs().map((tab) => tab.props.accessibilityLabel)).toEqual((["agent", "label", "project", "workspace"] as const).map((kind) => BOARD_STRINGS[language].sidebar.groups[kind]));
     const labels = () => hostsById("sidebar-group-tab-label");
     const measureTab = (tab: ReactTestInstance, width: number) => layout(tab.find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure"), width);
     // The tabs share their row equally, so it alone is laid out: four tabs `width` wide.
@@ -4236,7 +4237,7 @@ describe("Tasks board, desktop", () => {
     const controls = () => view("filter-bar-controls");
     const group = () => hostParentOf(controls())!;
     const words = () => controls().findAll((node) => (node.type as unknown) === "Text").map(textOf);
-    expect(words()).toEqual(["Agent", "Project", "Workspace", "Labels"]);
+    expect(words()).toEqual(["Agent", "Labels", "Project", "Workspace"]);
     const dividers = () => ["board-switches-divider", "lane-width-divider", "done-window-divider"].flatMap(hostsById);
     expect(dividers()).toHaveLength(3);
 
@@ -4248,7 +4249,7 @@ describe("Tasks board, desktop", () => {
     expect(dividers()).toHaveLength(0);
     expect(view("filter-bar-end").findAll((node) => (node.type as unknown) === "Text" && textOf(node) === "Sort")).toHaveLength(0);
     const named = (bar: ReactTestInstance) => bar.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.accessibilityLabel);
-    expect(named(controls())).toEqual(["Agent", "Project", "Workspace", "Labels"]);
+    expect(named(controls())).toEqual(["Agent", "Labels", "Project", "Workspace"]);
     expect(named(view("filter-bar-end"))).toContain("Sort");
 
     // Restoring five labels also restores each chevron and rectangular padding: 5 * (40 + 27) = 335.
@@ -4256,7 +4257,7 @@ describe("Tasks board, desktop", () => {
     expect(hidden.props["aria-hidden"]).toBe(true);
     expect(StyleSheet.flatten(hidden.props.style)).toMatchObject({ position: "absolute", opacity: 0 });
     const dropped = hidden.findAll((node) => (node.type as unknown) === "Text");
-    expect(dropped.map(textOf)).toEqual(["Agent", "Project", "Workspace", "Labels", "Sort"]);
+    expect(dropped.map(textOf)).toEqual(["Agent", "Labels", "Project", "Workspace", "Sort"]);
     lay(controls(), { width: 300 });
     lay(view("filter-bar-end"), { width: 300 });
     for (const text of dropped) act(() => text.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 40, height: 18 } } }));
@@ -7152,9 +7153,10 @@ describe("Tasks board, phone", () => {
     expect(at(BOARD_STRINGS.en.emptyGroups.row)).toBeGreaterThanOrEqual(0);
     expect(at(BOARD_STRINGS.en.emptyGroups.row)).toBeLessThan(at("Time range"));
     expect(at("Time range")).toBeLessThan(at("Agent"));
-    expect(at("Agent")).toBeLessThan(at("Workspace"));
-    expect(at("Workspace")).toBeLessThan(at("Labels"));
-    expect(at("Labels")).toBeLessThan(at("Sort"));
+    expect(at("Agent")).toBeLessThan(at("Labels"));
+    expect(at("Labels")).toBeLessThan(at("Project"));
+    expect(at("Project")).toBeLessThan(at("Workspace"));
+    expect(at("Workspace")).toBeLessThan(at("Sort"));
     const range = () => hostsById("filter-sheet-range-toggle")[0]!;
     expect(range().props.accessibilityState.expanded).toBe(true);
     expect(hostsById("filter-sheet-range-content")[0]!.props.accessibilityElementsHidden).toBe(false);

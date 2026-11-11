@@ -173,7 +173,7 @@ export const tasksSettingsSchema = z.object({
       showArchived: flag(true),
       /**
        * The filter menus, the filter sheet and the sidebar's groups list
-       * every agent, project, workspace and label Paseo has, a count of 0
+       * every agent, label, project and workspace Paseo has, a count of 0
        * where the board has none. Done and archived cards count. Off, they
        * list only those with a card (or picked). On by default.
        */

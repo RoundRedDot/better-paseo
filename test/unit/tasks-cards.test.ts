@@ -2629,7 +2629,7 @@ describe("TaskCardView actions", () => {
     const filter = sections.find((section) => section.key === "filter")!.items[0]!;
     expect(filter).toMatchObject({ label: "筛选", icon: "Filter" });
     const rows = filter.submenu![0]!.items;
-    // Agent, project, then workspace: from the widest scope to the narrowest.
+    // Agent, project, then workspace. A card has no single label, so Labels is not a row.
     expect(rows.map((item) => [item.label, item.detail, item.checked])).toEqual([
       ["只看此 Agent", card.providerLabel, true],
       ["只看此项目", card.location.projectName, false],

@@ -570,9 +570,9 @@ function DesktopFilterBarView(props: {
   // Every word the buttons drop when icon-only: the toggles' only while they show.
   const fit = useLabelFit([
     words.agent,
+    words.label,
     words.project,
     words.workspace,
-    words.label,
     { text: words.sort, maxWidth: SORT_LABEL_MAX_WIDTH },
   ], !tablet, strings.laneWidth.label);
   const compact = tablet || fit.compact;
@@ -647,6 +647,16 @@ function DesktopFilterBarView(props: {
               onClose={() => setMenu(null)}
             />
           </MenuButton>
+          <MenuButton icon={FILTER_ICONS.label} label={words.label} compact={compact} tip={tip(words.label, strings.tips.labels)} open={menu === "label"} onPress={() => toggle("label")} theme={theme}>
+            <CascadeMenu
+              sections={labelMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
+              theme={theme}
+              width={menuWidth(200, scale, window.width - MENU_EDGE * 2)}
+              top={toolbarButtonSize(scale) + 6}
+              align="left"
+              onClose={() => setMenu(null)}
+            />
+          </MenuButton>
           <MenuButton icon={FILTER_ICONS.project} label={words.project} compact={compact} tip={tip(words.project, strings.tips.project)} open={menu === "project"} onPress={() => toggle("project")} theme={theme}>
             <CascadeMenu
               sections={withEmptyGroups(projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project))))}
@@ -666,16 +676,6 @@ function DesktopFilterBarView(props: {
               top={toolbarButtonSize(scale) + 6}
               align="left"
               search={strings.menuSearch}
-              onClose={() => setMenu(null)}
-            />
-          </MenuButton>
-          <MenuButton icon={FILTER_ICONS.label} label={words.label} compact={compact} tip={tip(words.label, strings.tips.labels)} open={menu === "label"} onPress={() => toggle("label")} theme={theme}>
-            <CascadeMenu
-              sections={labelMenuSections(shown, theme, strings, (id) => setParams((p) => ({ ...p, labels: toggleItem(p.labels, id) })))}
-              theme={theme}
-              width={menuWidth(200, scale, window.width - MENU_EDGE * 2)}
-              top={toolbarButtonSize(scale) + 6}
-              align="left"
               onClose={() => setMenu(null)}
             />
           </MenuButton>

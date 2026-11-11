@@ -17,7 +17,7 @@ import { lastHumanMessageVersion, useLastHumanMessage } from "../data/last-human
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { useSessionTokens } from "../data/session-tokens";
 import { useSubagentTimeline } from "../data/subagent-timeline";
-import { FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption, type ShownFilterOptions } from "./filter-options";
+import { FILTER_GROUP_ORDER, FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption, type ShownFilterOptions } from "./filter-options";
 import { RollingCount, RollingTotal } from "./board-parts";
 import { useRequestProjectIcons } from "./project-icons";
 import { toggleItem } from "./params";
@@ -29,8 +29,8 @@ import { cardStrings } from "../cards/strings";
 import { parentOpensInPaseo } from "../model";
 import { useTitleUpdateState } from "../actions/title-update";
 
-type GroupKind = "agent" | "project" | "workspace" | "label";
-const GROUP_KINDS: readonly GroupKind[] = ["agent", "project", "workspace", "label"];
+type GroupKind = (typeof FILTER_GROUP_ORDER)[number];
+const GROUP_KINDS: readonly GroupKind[] = FILTER_GROUP_ORDER;
 
 export interface DetailsSidebarProps {
   board: BoardController;
@@ -516,7 +516,7 @@ interface GroupRow {
 }
 
 /**
- * With no card chosen: Agent, Project, Workspace and Label counts (every
+ * With no card chosen: Agent, Label, Project and Workspace counts (every
  * loaded card, including done and archived), a row a filter; those at 0 too
  * while `board.showEmptyGroups` is on.
  */

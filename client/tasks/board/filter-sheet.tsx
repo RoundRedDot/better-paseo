@@ -27,7 +27,7 @@ import { tasksSettingsOpener } from "./enabled";
  * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
  * sheet as a bounded body (`Modal.Content scrollable={false}`): the options
  * scroll, Reset and "Show N tasks" stay pinned under them. The short
- * filters follow the desktop order; workspaces sit under a search field. With `board.showEmptyGroups` off, only the options with a
+ * filters follow the desktop order (Agent, Labels, Project, Workspace); workspaces sit under a search field. With `board.showEmptyGroups` off, only the options with a
  * card on the board, including done and archived, or that are picked, are listed.
  */
 export function FilterSheetBody(props: {
@@ -174,6 +174,21 @@ export function FilterSheetBody(props: {
               ))}
             </ChipWrap>
           </CollapsibleGroup>
+          <CollapsibleGroup title={strings.labels} icon="Tag" theme={theme} testID="filter-sheet-labels">
+            {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+            <ChipWrap>
+              {shown.labels.map((label) => (
+                <Chip
+                  key={label.id}
+                  option={label}
+                  theme={theme}
+                  pill={props.phone}
+                  leading={<TagMark size={14} color={label.color ?? colors.foregroundMuted} hole={label.on ? taskTokens(theme).accentSoft : colors.surface0} />}
+                  onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
+                />
+              ))}
+            </ChipWrap>
+          </CollapsibleGroup>
         </View>
         <View testID="filter-sheet-project-header" style={{ paddingHorizontal: 16, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
           <CollapsibleTitle text={strings.project} icon="FolderKanban" theme={theme} open={projectsOpen} onPress={() => { setProjectSearching(false); setProjectsOpen((value) => !value); }} testID="filter-sheet-projects-toggle" />
@@ -227,21 +242,6 @@ export function FilterSheetBody(props: {
         {/* End the workspace sticky header before the following groups. */}
         <View />
         <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-          <CollapsibleGroup title={strings.labels} icon="Tag" theme={theme} testID="filter-sheet-labels">
-            {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-            <ChipWrap>
-              {shown.labels.map((label) => (
-                <Chip
-                  key={label.id}
-                  option={label}
-                  theme={theme}
-                  pill={props.phone}
-                  leading={<TagMark size={14} color={label.color ?? colors.foregroundMuted} hole={label.on ? taskTokens(theme).accentSoft : colors.surface0} />}
-                  onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
-                />
-              ))}
-            </ChipWrap>
-          </CollapsibleGroup>
           {!props.phone && !props.tablet && !props.laneWidth ? range : null}
           {sortFirst || props.tablet ? null : sort}
         </View>

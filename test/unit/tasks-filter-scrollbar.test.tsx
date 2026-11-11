@@ -238,7 +238,7 @@ describe("project filter", () => {
     });
     const find = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
     const order = renderer!.root.findAll((node) => typeof node.type === "string" && ["filter-sheet-agents-toggle", "filter-sheet-projects-toggle", "filter-sheet-workspaces-toggle", "filter-sheet-labels-toggle"].includes(node.props.testID)).map((node) => node.props.testID);
-    expect(order).toEqual(["filter-sheet-agents-toggle", "filter-sheet-projects-toggle", "filter-sheet-workspaces-toggle", "filter-sheet-labels-toggle"]);
+    expect(order).toEqual(["filter-sheet-agents-toggle", "filter-sheet-labels-toggle", "filter-sheet-projects-toggle", "filter-sheet-workspaces-toggle"]);
     expect(find("filter-sheet-projects-toggle").props.accessibilityLabel).toBe("项目");
     act(() => find("filter-sheet-projects-toggle").props.onPress());
     const input = find("filter-sheet-project-header").find((node) => typeof node.type === "string" && node.props.accessibilityLabel === BOARD_STRINGS.zh.sheetSearch);

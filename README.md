@@ -914,7 +914,7 @@ subscription, and the board's code is not fetched. Its options are listed under
 
 ### Filters, sort and keys
 
-- Filter by project, workspace, agent and label. The project and workspace menus have a search
+- Filter by agent, label, project and workspace. The project and workspace menus have a search
   field, each project shows its folder under its name, and picking a project picks all its
   workspaces. The search box matches titles and project, workspace and branch names. Several picks
   of one filter fold into one chip ("2 projects and 1 workspace selected") led by the filter's
@@ -938,7 +938,7 @@ subscription, and the board's code is not fetched. Its options are listed under
 
 A click or tap on a card opens it in the details. With no card chosen, the sidebar shows the lanes'
 counts after the filters, with the filters summed up beside the total, and groups the board by
-agent, project, workspace and label with their counts; a click on a group filters by it.
+agent, label, project and workspace with their counts; a click on a group filters by it.
 
 The header carries the status, title, model, thinking level, mode and labels, and the actions:
 Open (or Open to answer for a question, first on desktop and last on touch), Stop, and Archive or
@@ -1074,7 +1074,7 @@ agent API is required.
 | Board | Done lane window | Last 24 hours | Last 24 hours, last 7 days or all, for Done and Archived. The board's own window control changes only that board. |
 | Board | Lane width | Default | Narrow (260–280pt), Default (300–340pt) or Wide (340–400pt) on desktop, web and tablets, the same choice as the board's lane width menu; a board too narrow for them scrolls the lanes sideways. Phones show one lane at a time and hide this option. |
 | Board | Show subtasks | On | Off, subtasks fold into their parent's card; running, waiting and failed ones keep their own card unless the parent's card is in the same lane. The toolbar switch changes only that board. |
-| Board | Show groups with no tasks | On | The filters and the sidebar list every agent, project, workspace and label in Paseo, with 0 where the board has none, including Done and Archived. Also a switch on the toolbar. |
+| Board | Show groups with no tasks | On | The filters and the sidebar list every agent, label, project and workspace in Paseo, with 0 where the board has none, including Done and Archived. Also a switch on the toolbar. |
 | Sidebar | Sidebar entry count | Waiting · Running · Review | Or Waiting only, or hidden. |
 | Phone | Use minimal cards on phones | Off | On, phones draw the Minimal card whatever the density. |
 | Reset | Restore the Tasks defaults | — | Puts every Tasks option back; the board stays on or off. Asks for confirmation. |
