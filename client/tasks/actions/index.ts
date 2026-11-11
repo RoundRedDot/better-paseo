@@ -731,7 +731,7 @@ export function useUnreadControl(options: {
 
   const failed = useCallback((detail: string) => {
     const zh = latest.current.language === "zh";
-    latest.current.toast.error(zh ? `标为未读失败：${detail}` : `Could not mark as unread: ${detail}`);
+    latest.current.toast.error(zh ? `保持未读失败：${detail}` : `Could not keep unread: ${detail}`);
   }, []);
 
   const press = useCallback((card: TaskCard) => {
