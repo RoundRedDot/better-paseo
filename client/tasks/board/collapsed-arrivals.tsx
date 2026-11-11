@@ -4,7 +4,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, useTasksFontScale } from "../typography";
 import { LANE_ORDER, type LaneId, type LaneModel } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { mix } from "../../components/theme-tokens";
+import { taskTokens } from "../cards/tokens";
 import { cubicBezier } from "./board-style";
 import { NEW_WINDOW_MS } from "./new-cards";
 
@@ -64,7 +64,7 @@ export function useCollapsedArrivals(store: CollapsedArrivals, lane: LaneId): re
 }
 
 /** The marker fades and grows into view, then remains until the lane is opened. */
-export function CollapsedArrivalMarker(props: { ids: readonly string[]; hue: string; theme: PluginTheme; lane: LaneId }) {
+export function CollapsedArrivalMarker(props: { ids: readonly string[]; theme: PluginTheme; lane: LaneId }) {
   const reduced = useReducedMotion();
   const fontScale = useTasksFontScale();
   const [scale] = useState(() => new Animated.Value(1));
@@ -81,9 +81,11 @@ export function CollapsedArrivalMarker(props: { ids: readonly string[]; hue: str
   }, [key, reduced, scale]);
   if (!props.ids.length) return null;
   const diameter = Math.round((props.ids.length > 99 ? 32 : props.ids.length > 9 ? 26 : 22) * Math.max(1, fontScale));
+  const tokens = taskTokens(props.theme);
+  const background = props.lane === "needs_input" ? tokens.status.warning : props.lane === "running" ? tokens.status.running : props.lane === "archived" ? tokens.foregroundMuted : tokens.status.success;
   return (
     <View pointerEvents="none" testID={`lane-new-marker-${props.lane}`} style={{ alignItems: "center", justifyContent: "center" }}>
-      <Animated.View style={{ opacity: scale, transform: [{ scale: scale.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) }], width: diameter, height: diameter, borderRadius: diameter / 2, alignItems: "center", justifyContent: "center", backgroundColor: mix(props.theme.colors.surface0, props.hue, 0.18) }}>
+      <Animated.View style={{ opacity: scale, transform: [{ scale: scale.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] }) }], width: diameter, height: diameter, borderRadius: diameter / 2, alignItems: "center", justifyContent: "center", backgroundColor: background }}>
         <Text testID={`lane-new-count-${props.lane}`} numberOfLines={1} style={{ color: props.theme.colors.foreground, fontSize: F.sm, fontVariant: ["tabular-nums"] }}>+{props.ids.length > 99 ? "99+" : props.ids.length}</Text>
       </Animated.View>
     </View>

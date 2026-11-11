@@ -1720,7 +1720,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
         {ready ? <RollingCount value={count} scope={board.scope} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
         <NewCardsDot on={unseen.length > 0 && arrivalIds.length === 0} hue={laneHue(theme, lane.id)} testID={`lane-new-dot-${lane.id}`} />
-        <CollapsedArrivalMarker ids={arrivalIds} hue={laneHue(theme, lane.id)} theme={theme} lane={lane.id} />
+        <CollapsedArrivalMarker ids={arrivalIds} theme={theme} lane={lane.id} />
       </HoverPressable>,
     );
   }
