@@ -2178,6 +2178,9 @@ describe("TaskCardView actions", () => {
     expect(texts(controls)).toContain("打开");
     const question = hostByTestId(tree.root, "task-card-permission");
     expect(texts(hostByTestId(question, "task-card-question-divider"))).toEqual(["待回答"]);
+    expect(icons(hostByTestId(question, "task-card-question-divider"))).toEqual(["MessageCircleQuestion"]);
+    const title = question.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2 && texts(node).includes("Question"));
+    expect(icons(title.parent!)).toEqual([]);
     expect(rows(tree.root, card.id).indexOf("task-card-control-row")).toBeLessThan(rows(tree.root, card.id).indexOf("task-card-permission"));
     await act(async () => hostByTestId(controls, "task-card-open-tab").props.onPress());
     expect(onOpen).toHaveBeenCalledWith(card.id);

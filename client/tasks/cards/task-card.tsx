@@ -1468,14 +1468,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {questionSection ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: -4 }} testID="task-card-question-divider">
             <View style={{ width: 22, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.25) }} />
+            <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
             <Text style={text(11, 16, tokens.status.warning, "600")}>{strings.awaitingAnswer}</Text>
             <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />
           </View>
         ) : null}
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
-          <View style={iconCell}>
+          {!questionSection ? <View style={iconCell}>
             <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
-          </View>
+          </View> : null}
           <Text numberOfLines={2} {...hintProps(asksQuestion ? hint("permission-question", () => [permission.title, permissionSummary].filter(Boolean).join(" · ")) : undefined)} style={[text(asksQuestion ? F.base : m.blockSize, asksQuestion ? HOST_LINE.base : m.blockLine, tokens.foreground), { flex: 1 }]}>
             <Text style={{ fontWeight: asksQuestion ? "500" : "600" }}>{permission.title}</Text>
             {permissionSummary ? <Text style={{ color: muted }}> · </Text> : null}
