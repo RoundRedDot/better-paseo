@@ -8,6 +8,7 @@ const motion = vi.hoisted(() => ({ reduced: false }));
 vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced }));
 import { Animated } from "react-native";
 import { CollapsedArrivalMarker, createCollapsedArrivals } from "../../client/tasks/board/collapsed-arrivals";
+import { TasksTypographyScale } from "../../client/tasks/typography";
 
 const now = Date.parse("2026-11-10T12:00:00Z");
 const card = (id: string, lane: LaneId, age = 0) => ({ id, lane, timing: { createdAt: new Date(now - age).toISOString() } }) as TaskCard;
@@ -16,6 +17,17 @@ const lanes = (cards: TaskCard[]) => Object.fromEntries(["needs_input", "running
 beforeEach(() => { motion.reduced = false; });
 
 describe("collapsed lane arrivals", () => {
+  it.each([[1, 18, 1], [10, 24, 10], [100, 30, "99+"]] as const)("keeps %i arrivals in a circle", (count, diameter, label) => {
+    const theme = { colors: { foreground: "#111111", surface0: "#ffffff" } } as never;
+    const ids = Array.from({ length: count }, (_, index) => String(index));
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<TasksTypographyScale factor={1.5}><CollapsedArrivalMarker ids={ids} hue="#228844" lane="review" theme={theme} /></TasksTypographyScale>); });
+    const marker = renderer.root.findByProps({ testID: "lane-new-marker-review" }).findByType(Animated.View);
+    expect(marker.props.style).toMatchObject({ width: diameter * 1.5, height: diameter * 1.5, borderRadius: diameter * 0.75 });
+    expect(renderer.root.findByProps({ testID: "lane-new-count-review" }).props.children).toEqual(["+", label]);
+    act(() => renderer.unmount());
+  });
+
   it("counts cards moving into a folded lane and fresh tasks, even if another leaves in the same update", () => {
     const store = createCollapsedArrivals();
     const a = card("a", "running", 100000);
