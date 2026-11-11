@@ -79,6 +79,16 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it.each([["zh", "基本信息", "消息"], ["en", "Info", "Messages"]] as const)("keeps %s tab labels unchanged when search matches both pages", async (language, info, messages) => {
+    const base = props(false);
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...base} card={{ ...base.card, location: { ...base.card.location, branch: "needle" } }} language={language} columns={false} tabs searchQuery="needle" firstPrompt={{ prompt: { state: "ready", text: "needle" }, load() {} }} />);
+    });
+    for (const [id, label] of [["info", info], ["messages", messages]]) {
+      const text = host(renderer!.root, `detail-tab-${id}`).find((node) => (node.type as unknown) === "Text");
+      expect(text.props.children).toBe(label);
+    }
+  });
   it.each([
     { os: "android", touch: true, scrollHeader: true, corner: "detail-sheet-toggle" },
     { os: "ios", touch: true, scrollHeader: true, corner: "detail-sheet-toggle" },

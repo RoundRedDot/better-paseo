@@ -385,7 +385,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
         chrome.set({ tabTop: y, tabHeight: height });
       } : undefined}>
           {(["info", "messages"] as const).map((id) => (
-            <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={`${id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")}${(id === "messages" && matching.includes("prompt")) || (id === "info" && matching.includes("properties")) ? " ·" : ""}`} onPress={() => {
+            <DetailTab key={id} id={id} selected={tab === id} tokens={tokens} touch={props.touch === true} label={id === "info" ? (props.language === "zh" ? "基本信息" : "Info") : (props.language === "zh" ? "消息" : "Messages")} onPress={() => {
               if (id === tab) return;
               initialRestore.current.pending = false;
               // Switching pages must not reveal a header the reader already scrolled past.
