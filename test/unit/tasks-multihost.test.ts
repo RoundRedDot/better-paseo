@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PaseoApi } from "@getpaseo/client";
-import { filterLanes, remoteTasksSnapshot, setLastTurnLoader, setReadMarksLoader, setSubagentLoader, subscribeRemoteTasks, type TasksHandle } from "../../client/tasks/data";
+import { filterLanes, remoteTasksSnapshot, setLastTurnLoader, setReadMarksLoader, setSubagentLoader, subscribeRemoteTasks, withSubagentCards, type TasksHandle } from "../../client/tasks/data";
 import { awayNotice, boardHosts, hostMethods, mergeHostTasks, readHostApis, useMergedTasks, routedPaseo, scopedId, stampCard, unscopeId, type BoardHosts, type HostSummary, type RemoteTasks } from "../../client/tasks/data/hosts";
 import { EMPTY_FILTERS, LANE_ORDER, remoteCard, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -281,6 +281,25 @@ describe("host filter", () => {
     expect(ids({ ...EMPTY_FILTERS, hosts: [OWN.id] })).toEqual(["local"]);
     // A card without a host (one host on the board) is never left out by a stale pick.
     expect(filterLanes(own.lanes, { ...EMPTY_FILTERS, hosts: ["srv-remote"] }).running.cards.map((item) => item.id)).toEqual(["local"]);
+  });
+
+  it("keeps a provider subagent's card with its parent's host, and counts each host as its lanes show", () => {
+    const parent = running("local-parent", 1);
+    const sub = { id: "local-sub", title: "Explore", status: "running" as const, kind: "provider" as const, subagentType: "Explore", lane: "running" as const, timing: parent.timing };
+    const own = handle([{ ...parent, children: [sub] }]);
+    const remote = handle([running("remote", 2)]);
+    const hosts = twoHosts();
+    const merged = mergeHostTasks(own, hosts, [{ host: hosts.remotes[0]!, tasks: remote }]);
+    const lanes = withSubagentCards(merged.tasks.lanes);
+    expect(lanes.running.cards.find((item) => item.id === "local-sub")?.host).toEqual({ ...OWN, remote: false });
+    const shown = (hostIds: string[]) => LANE_ORDER.flatMap((lane) => filterLanes(lanes, { ...EMPTY_FILTERS, hosts: hostIds })[lane].cards.map((item) => item.id)).sort();
+    expect(shown(["srv-remote"])).toEqual(["remote"]);
+    expect(shown([OWN.id])).toEqual(["local-parent", "local-sub"]);
+    // Each host's chip counts what picking it shows.
+    const options = buildFilterOptions(merged.tasks, EMPTY_PARAMS);
+    for (const option of options.hosts!) expect(option.count).toBe(shown([option.id]).length);
+    // One host: the subagent card has no host, as before.
+    expect(withSubagentCards(own.lanes).running.cards.find((item) => item.id === "local-sub")).not.toHaveProperty("host");
   });
 
   it("lists every host with its cards, as a chip and in the params", () => {

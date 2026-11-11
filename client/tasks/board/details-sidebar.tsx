@@ -9,7 +9,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
 import { usePressCue } from "../cards/action-pressable";
 import { BrandMark, DETAIL_CARD, DetailActionBar, DetailCard, detailGutter, detailScrollProps, outsideIndicator, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
-import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
+import { LANE_STATUS, remoteCard, turnRunning, type LaneId, type TaskCard } from "../model";
 import { activeStopChildren } from "../actions/stop-targets";
 import { SheetFoot, SheetScrollRoom } from "../sheet-motion";
 import { useFirstPrompt } from "../data/first-prompt";
@@ -322,7 +322,8 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
   const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", shown, live);
   const replyEpoch = lastMessage.prompt.state === "ready" ? lastMessage.prompt.position?.epoch : undefined;
   const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? `${lastHumanMessageVersion(agent)}|${replyEpoch ?? ""}` : "", shown);
-  const sessionTokens = useSessionTokens(agent?.id ?? "", agent !== undefined && turnRunning(agent) && agent.closed !== true);
+  // The token count asks this plugin's server, which knows only its own host's agents.
+  const sessionTokens = useSessionTokens(agent?.id ?? "", agent !== undefined && !remoteCard(agent) && turnRunning(agent) && agent.closed !== true);
   const subagentReads = useSubagentTimeline(
     {
       id: subagent?.id ?? "",

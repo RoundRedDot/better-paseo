@@ -1843,6 +1843,8 @@ function TimelineTextBody(props: Inner & {
       .catch((error: unknown) => fail(error instanceof Error ? error.message : String(error)));
   }, []);
   const renderText = useMemo(() => query ? (text: string) => highlightText(text, query, tokens.isDark) : undefined, [query, tokens.isDark]);
+  // Revealing opens the path on this plugin's host: another host's file is not there, so its links copy the path.
+  const remote = remoteCard(props.card);
   if (!first) return null;
   const font = Math.round(prose.typography.content.size * 0.9 * adjustment);
   const line = variantMetrics(preferences.markdownVariant, font, props.touch === true).bodyLineHeight;
@@ -1889,7 +1891,7 @@ function TimelineTextBody(props: Inner & {
           onToggle={() => query ? setSearchFold({ query, closed: expanded }) : setOpen((was) => !was)}
         >
           <HoverPreviewContext.Provider value>
-            <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />
+            <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={remote ? undefined : onRevealPath} />
           </HoverPreviewContext.Provider>
         </FoldedText>
       </View>

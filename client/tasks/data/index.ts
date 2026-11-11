@@ -631,6 +631,8 @@ function subagentCardsOf(parent: TaskCard): TaskCard[] {
         openTab: false,
         stoppable: false,
         subagent: { subtitle: child.subtitle ?? null, type: child.subagentType ?? null },
+        // Its parent's host, so the host filter keeps or leaves out both together.
+        ...(parent.host ? { host: parent.host } : {}),
       };
     });
   subagentCardCache.set(parent, out);

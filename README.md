@@ -1175,6 +1175,7 @@ Archive needs no workaround: it uses the plugin API.
 | Cannot | Instead | Waiting on |
 | --- | --- | --- |
 | Stop, Mark as read, Mark unread, Unarchive or retitle another host's card. These go through the plugin's server, which reaches only its own daemon, and the API a plugin borrows for another host has no call to clear an agent's attention. | The buttons are left out on another host's card. Opening it in Paseo marks it read there, as the sidebar does. | not proposed upstream yet |
+| Open a file link, or read the live token count, in another host's card details. Revealing a file and reading a session's tokens go through the plugin's server, which would open or read a same-named path or agent on its own machine. | A file link in another host's card copies its path instead, and the details leave out the live token count. | not proposed upstream yet |
 | Open an archived task's tab. A plugin cannot pin the tab it opens, so Paseo drops an archived agent's tab and shows another of that workspace. | An archived task shows **Unarchive** where Open was; once it is back, Open works. Tasks of an archived workspace keep Open. | [#6382](https://github.com/getpaseo/paseo/pull/6382), open draft |
 
 ### Everywhere
