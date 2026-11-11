@@ -184,7 +184,7 @@ export function SidePanel(props: {
             top: props.insets.top,
             width: nativeDragging ? liveWidth : width,
             backgroundColor: tokens.surface0,
-            borderLeftColor: palette.border,
+            borderLeftColor: edgeHovered ? tokens.foregroundMuted : palette.border,
             opacity,
             transform: [{ translateX: shift }],
           },
@@ -200,9 +200,7 @@ export function SidePanel(props: {
             onPointerEnter={() => setEdgeHovered(true)}
             onPointerLeave={() => setEdgeHovered(false)}
             style={[styles.edge, styles.edgeCursor]}
-          >
-            <View pointerEvents="none" testID="details-side-hover-line" style={[styles.hoverLine, { backgroundColor: tokens.foregroundMuted, opacity: edgeHovered ? 0.9 : 0 }]} />
-          </View>
+          />
         ) : props.resizable && Platform.OS === "ios" && Platform.isPad ? (
           <View ref={edge} collapsable={false} {...pan.panHandlers} testID="details-side-native-edge"
             accessibilityRole="adjustable" accessibilityLabel={toolbarLabel("Resize details panel", language)} style={styles.edge}>
@@ -284,6 +282,5 @@ const styles = StyleSheet.create({
   content: { flex: 1, minHeight: 0 },
   edge: { position: "absolute", left: 0, top: 0, bottom: 0, width: SIDE.edge },
   edgeIndicator: { position: "absolute", left: 4, top: "50%", marginTop: -18, width: 3, height: 36, borderRadius: 2 },
-  hoverLine: { position: "absolute", left: 0, top: 0, bottom: 0, width: 2 },
   edgeCursor: { cursor: "col-resize", touchAction: "none" } as unknown as ViewStyle,
 });
