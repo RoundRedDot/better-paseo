@@ -2179,7 +2179,7 @@ describe("TaskCardView actions", () => {
     const question = hostByTestId(tree.root, "task-card-permission");
     // The divider reads label and icon at its left end, the wait at its right; the answer buttons keep their whole row.
     const divider = hostByTestId(question, "task-card-question-divider");
-    expect(texts(divider)).toEqual(["待回答", "等待 4m"]);
+    expect(texts(divider)).toEqual(["待回答", "4m"]);
     expect(icons(divider)).toEqual(["MessageCircleQuestion", "Clock"]);
     const dividerParts = divider.children.filter((child): child is ReactTestInstance => typeof child !== "string");
     expect(icons(dividerParts[0]!)).toEqual(["MessageCircleQuestion"]);

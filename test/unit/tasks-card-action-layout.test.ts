@@ -331,7 +331,27 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(frames.get(parts[0]!)!.left).toBeCloseTo(box.left, 0);
     expect(frames.get(label)!.left).toBeLessThan(frames.get(wait)!.left);
     expect(frames.get(wait)!.left + frames.get(wait)!.width).toBeCloseTo(box.left + box.width, 0);
-    expect(labelsOf(wait).map((node) => node.children.join("")).join("")).toMatch(language === "zh" ? /^等待 / : /^Waiting /);
+    // Only the clock and the length: the hover hint and a screen reader say it waits.
+    const waitText = labelsOf(wait);
+    expect(waitText.map((node) => node.children.join("")).join("")).toMatch(/^\d+(s|m|h)( \d+m)?$/);
+    expect(waitText[0]!.props.accessibilityLabel).toMatch(language === "zh" ? /^已等待 / : /^Waiting for /);
+  });
+
+  it.each([true, false].flatMap((compact) => (["zh", "en"] as const).map((language) => [compact, language] as const)))
+  ("keeps a block's row gap above and below the question divider (compact %s, %s)", async (compact, language) => {
+    const card = choice()();
+    await act(async () => {
+      renderer = TestRenderer.create(phoneCard(card, language, { compact, onOpen() {}, permissionButtons: permissionButtons(card.permission!, language, true) }));
+    });
+    const byId = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    const frames = await settleHostLayout(() => byId(`task-card-${card.id}`), { width: 340, textScale: 1 });
+    const above = frames.get(byId(compact ? "task-card-actions" : "task-card-control-row"))!;
+    const divider = frames.get(byId("task-card-question-divider"))!;
+    const question = byId("task-card-permission");
+    const title = frames.get(question.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2))!;
+    const gap = compact ? 12 : 10;
+    expect(divider.top - (above.top + above.height)).toBeCloseTo(gap, 0);
+    expect(title.top - (divider.top + divider.height)).toBeCloseTo(gap, 0);
   });
 
   it.each([true, false].flatMap((compact) => ["允许", "拒绝"].map((answer) => [compact, answer] as const)))(

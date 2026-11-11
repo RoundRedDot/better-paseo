@@ -41,6 +41,16 @@ function coarse(ms: number): string {
   return rest > 0 ? `${Math.floor(minutes / 60)}h ${rest}m` : `${Math.floor(minutes / 60)}h`;
 }
 
+/** A request's wait alone, where a clock icon already says it waits: "4m". */
+export function formatWaitLength(ms: number): string {
+  return coarse(ms);
+}
+
+/** A request's wait as a hover hint reads it: "已等待 4m" / "Waiting for 4m". */
+export function formatWaited(ms: number, language: TasksLanguage): string {
+  return language === "zh" ? `已等待 ${coarse(ms)}` : `Waiting for ${coarse(ms)}`;
+}
+
 /** How long a request has waited: "等待 4m" / "Waiting 4m". */
 export function formatWait(ms: number, language: TasksLanguage): string {
   return language === "zh" ? `等待 ${coarse(ms)}` : `Waiting ${coarse(ms)}`;

@@ -16,7 +16,7 @@ import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { opensInPaseo, parentOpensInPaseo, turnRunning, type StatusKind, type TaskCard, type TaskChild } from "../model";
 import { cardErrorReset, contextRatio, formatCardError, tildePath } from "./format";
 import { errorAction } from "./error-action";
-import { cardStart, cardTimer, startHint, timerHint } from "./card-time";
+import { cardStart, cardTimer, cardWaitLength, startHint, timerHint, waitedHint, waitedLabel } from "./card-time";
 import { CardHints, hintProps, tipProps, type CardHintTexts } from "./card-hints";
 import { useTime, type TaskClock, type TimeSource } from "./clock";
 import { ContextRing, contextRingTone, formatSessionCost, formatTokenCount } from "./context-ring";
@@ -1354,6 +1354,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     </ActionRow>
   );
   if (parentStop) hint("stop-options", () => strings.stopOptions);
+  // On a question's divider the clock says it waits: the wait shows its length alone, the hover hint says the rest.
+  const dividerWait = questionSection && !minimalSummary && timer?.tone === "warning";
   const footerContent =
     timer || stopSlot || promptNote ? (
       <>
@@ -1374,11 +1376,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             <View
               style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
               testID="task-card-timer"
-              {...hintProps(hint("timer", () => timerHint(card, props.now ?? Date.now(), language)))}
+              {...hintProps(hint("timer", () => (dividerWait ? waitedHint : timerHint)(card, props.now ?? Date.now(), language)))}
             >
               {timer.tone === "warning" ? <Icon name="Clock" size={m.icon} color={timerColor} /> : null}
               {started ? <Icon name="Hourglass" size={m.icon} color={timerColor} /> : null}
-              <TimerText card={card} language={language} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, timerColor), tabular]} />
+              {dividerWait ? (
+                <WaitText card={card} language={language} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, timerColor), tabular]} />
+              ) : (
+                <TimerText card={card} language={language} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, timerColor), tabular]} />
+              )}
             </View>
           </View>
         ) : null}
@@ -1467,9 +1473,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const permissionSummary = permission ? summaryBeyondTitle(permission.title, permission.summary) : null;
   const permissionBlock =
     layout.permission && permission ? (
-      <View style={[block, questionSection ? { borderTopWidth: 0, paddingTop: 0, marginTop: 4 } : null, { gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
+      <View style={[block, questionSection ? { borderTopWidth: 0, paddingTop: 0, marginTop: m.rowGap } : null, { gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
         {questionSection ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: -4 }} testID="task-card-question-divider">
+          // As much room above and below the divider as any block keeps around its rule (the block's gap adds 8 below).
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: m.rowGap - 8 }} testID="task-card-question-divider">
             <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
             {/* On a narrow card at a large text size the label gives way, not the wait. */}
             <Text numberOfLines={1} ellipsizeMode="tail" style={[text(11, 16, tokens.status.warning, "600"), { flexShrink: 1 }]}>{strings.awaitingAnswer}</Text>
@@ -2509,6 +2516,14 @@ function TimerText(props: TimeSource & { card: TaskCard; language: TasksLanguage
   const { card, language } = props;
   const value = useTime(props, (now) => cardTimer(card, now, language)?.text ?? "");
   return <Text style={props.style}>{value}</Text>;
+}
+
+/** A question divider's wait, its length alone ("21m"); a screen reader hears "已等待 21m". */
+function WaitText(props: TimeSource & { card: TaskCard; language: TasksLanguage; style: StyleProp<TextStyle> }) {
+  const { card, language } = props;
+  const value = useTime(props, (now) => cardWaitLength(card, now));
+  const label = useTime(props, (now) => waitedLabel(card, now, language) ?? "");
+  return <Text accessibilityLabel={label || undefined} style={props.style}>{value}</Text>;
 }
 
 /** The running turn's start; it follows the clock only to add the date after midnight. */

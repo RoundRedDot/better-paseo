@@ -85,6 +85,7 @@ import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { previewSampleCards as sampleCards } from "../../client/tasks/sample-cards";
 import type { PermissionButton } from "../../client/tasks/actions";
 import { permissionButtons } from "../../client/tasks/actions";
+import { formatFooterStamp } from "../../client/ui/time";
 import type { TaskCard } from "../../client/tasks/model";
 import { DetailActionBar, TaskCardView, TaskDetailCards, taskTokens, type TaskCardViewProps } from "../../client/tasks/cards";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -1192,6 +1193,34 @@ describe("TaskCardView hover hints", () => {
       expect(await show("thinking", { left: 112, top: 140, width: 40, height: 20 })).toBe("思考强度：Medium");
       await act(async () => renderer.unmount());
       expect(listeners.size).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("draws a question divider's wait as clock and length, the hover saying how long it has waited", async () => {
+    vi.useFakeTimers();
+    try {
+      const { card: host, listeners } = fakeCard("task-card-sample-input");
+      const input = props("sample-input").card;
+      const card = { ...input, permission: { requestId: "q", kind: "question" as const, title: "Question", summary: null, actions: [], remaining: 0 } };
+      let renderer!: TestRenderer.ReactTestRenderer;
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TaskCardView, props(card.id, { card, permissionButtons: permissionButtons(card.permission, "zh", true) })), {
+          createNodeMock: (node) => {
+            const nodeProps = node.props as Record<string, unknown>;
+            return nodeProps.testID === "task-card-sample-input" ? host : { props: nodeProps };
+          },
+        });
+      });
+      const divider = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider");
+      expect(texts(divider)).toEqual(["待回答", "4m"]);
+      await act(async () => listeners.get("pointerover")!({ pointerType: "mouse", target: mark("timer", { left: 300, top: 200, width: 40, height: 18 }) }));
+      await act(async () => { vi.advanceTimersByTime(400); });
+      const hint = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-hint");
+      const started = formatFooterStamp(new Date(Date.parse(card.timing.attentionAt ?? card.timing.turnStartedAt!)), new Date(NOW));
+      expect(texts(hint).join("")).toBe(`开始等待：${started}\n已等待 4m`);
+      await act(async () => renderer.unmount());
     } finally {
       vi.useRealTimers();
     }
