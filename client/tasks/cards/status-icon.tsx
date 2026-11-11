@@ -5,6 +5,7 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { probeAnimationLoop } from "../../debug/perf";
 import { steppedEasing } from "../../ui/tokens/motion";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { withAlpha } from "../../components/theme-tokens";
 import type { StatusKind } from "../model";
 import { taskTokens } from "./tokens";
 
@@ -36,7 +37,7 @@ export function statusMarkSize(box: number): number {
 }
 
 export interface StatusIconProps {
-  /** A status, or "stopped" for a card stopped from the board: a solid square. */
+  /** A status, or "stopped" for a card stopped from the board. */
   kind: StatusKind | "stopped";
   /** Box width; the ring and dots scale from Paseo's sidebar geometry. Default 16. */
   size?: number;
@@ -218,6 +219,16 @@ export const SpinnerRing = memo(function SpinnerRing(props: { size: number; colo
   return <RunningRing box={box} mark={statusMarkSize(props.size)} color={props.color} animated dot={false} testID={props.testID ?? "spinner-ring"} />;
 });
 
+export function StoppedMark(props: { size: number; color: string }) {
+  const circle = props.size * 20 / 24;
+  const square = props.size * 7 / 24;
+  return (
+    <View testID="stopped-mark" style={{ width: circle, height: circle, borderRadius: circle / 2, backgroundColor: withAlpha(props.color, 0.16), alignItems: "center", justifyContent: "center" }}>
+      <View testID="stopped-mark-square" style={{ width: square, height: square, borderRadius: props.size * 1.3 / 24, backgroundColor: props.color }} />
+    </View>
+  );
+}
+
 /** Paseo's sidebar status indicator. All running rings turn in phase (900 ms per turn, in 12 steps on iOS; the platform spinner on Android). */
 export const StatusIcon = memo(function StatusIcon(props: StatusIconProps) {
   const size = props.size ?? 16;
@@ -264,12 +275,9 @@ export const StatusIcon = memo(function StatusIcon(props: StatusIconProps) {
   }
 
   if (props.kind === "stopped") {
-    // Stopped is the stop pill's solid square (an approved deviation from
-    // the prototype), muted: a stop is not a failure.
-    const side = mark * 0.75;
     return (
       <View style={box} testID="status-stopped" {...a11y}>
-        <View style={{ width: side, height: side, borderRadius: 2 * scale, backgroundColor: tokens.foregroundMuted }} />
+        <StoppedMark size={size} color={tokens.foregroundMuted} />
       </View>
     );
   }

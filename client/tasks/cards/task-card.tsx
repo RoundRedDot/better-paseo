@@ -25,7 +25,7 @@ import { agentPillColors, BrandMark, branchPillColors, neutralPillColors, type A
 import { THINKING_ICON } from "./mode-icons";
 import { subagentFacts } from "../subagent-type";
 import { identityColor, ProjectIcon, projectViewKey } from "./project-icon";
-import { SpinnerRing, StatusIcon } from "./status-icon";
+import { SpinnerRing, StatusIcon, StoppedMark } from "./status-icon";
 import { UnreadIcon } from "./unread-icon";
 import { TitleLoading } from "./title-loading";
 import { TitleUndo } from "./title-undo";
@@ -1452,8 +1452,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     >
       <View style={iconCell}>
         {card.stoppedManually && !failed ? (
-          // Stopped: the stop pill's solid square, not Lucide's hollow one.
-          <View style={{ width: m.icon - 4, height: m.icon - 4, borderRadius: 2, backgroundColor: muted }} testID="task-card-reason-stopped" />
+          <StoppedMark size={m.iconBox} color={muted} />
         ) : (
           <Icon name="CircleX" size={m.icon} color={failureColor} />
         )}
