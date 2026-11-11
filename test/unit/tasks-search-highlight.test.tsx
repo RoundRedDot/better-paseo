@@ -236,6 +236,10 @@ describe("card search rendering", () => {
       vi.advanceTimersByTime(1);
     });
     expect(host(root, "task-search-popover").props.accessibilityLabel).toBe("搜索命中");
+    expect(text(host(root, "task-search-popover-header"))).toContain("处命中scheEsc");
+    const rows = host(root, "task-search-popover").findAll((node) => typeof node.type === "string" && node.props.role === "listitem");
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row) => row.props.style.outlineWidth === undefined)).toBe(true);
     expect(host(root, "task-search-popover-layer").props.style).toMatchObject({ left: 0, width: "100%" });
     await act(async () => summary.props.onHoverOut());
     await act(async () => {

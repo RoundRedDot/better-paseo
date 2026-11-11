@@ -226,7 +226,7 @@ export function SearchHitSummary(props: {
       key={`${hit.field}-${index}`}
       role={full ? "listitem" : undefined}
       {...(full && Platform.OS === "web" ? { tabIndex: -1 } : {})}
-      style={full ? { paddingVertical: touch ? 6 : 4, paddingHorizontal: touch ? 8 : 6, gap: 3, ...(Platform.OS === "web" ? { outlineWidth: 0.5, outlineColor: tokens.isDark ? "#777777" : "#B0B0B0" } : null) } : { flexDirection: "row", alignItems: "center", gap: 6 }}
+      style={full ? { paddingVertical: touch ? 6 : 9, paddingHorizontal: touch ? 8 : 17, gap: 3 } : { flexDirection: "row", alignItems: "center", gap: 6 }}
     >
       {full ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -273,22 +273,24 @@ export function SearchHitSummary(props: {
   );
   const all = (
     <>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", padding: 8 }}>
+      <View testID="task-search-popover-header" style={{ flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: touch ? 8 : 17, paddingVertical: touch ? 8 : 13, ...(touch ? {} : { backgroundColor: tokens.surface1, borderBottomWidth: 1, borderBottomColor: tokens.border }) }}>
         <Text style={{ fontSize: 12, lineHeight: 18, color: tokens.foreground, fontWeight: "600" }}>
-          {strings.count(props.hits.length, props.query)}
+          {touch ? strings.count(props.hits.length, props.query) : strings.countOnly(props.hits.length)}
         </Text>
+        {!touch ? <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 11, color: tokens.isDark ? "#FBEFC6" : "#695327", backgroundColor: tokens.isDark ? "#5A4A17" : "#FFF3CE", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 }}>{props.query}</Text> : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={strings.close}
+          style={{ marginLeft: "auto" }}
           onPress={(event) => {
             event.stopPropagation();
             setOpen(false);
           }}
         >
-          <Text style={{ fontSize: 12, color: tokens.foregroundMuted }}>{touch ? strings.close : "Esc"}</Text>
+          <Text style={{ fontSize: 12, color: tokens.foregroundMuted, ...(touch ? {} : { borderWidth: 1, borderColor: tokens.border, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }) }}>{touch ? strings.close : "Esc"}</Text>
         </Pressable>
       </View>
-      <View accessibilityRole="list">{orderedSearchHits(props.hits).map((hit, index) => row(hit, index, true))}</View>
+      <View accessibilityRole="list" style={touch ? undefined : { paddingTop: 7 }}>{orderedSearchHits(props.hits).map((hit, index) => row(hit, index, true))}</View>
       {props.promptNote ? (
         <View style={{ flexDirection: "row", alignItems: "center", padding: 8, gap: 8 }}>
           <Text style={{ flex: 1, fontSize: 12, color: tokens.foregroundMuted }}>{props.promptNote}</Text>
@@ -308,9 +310,11 @@ export function SearchHitSummary(props: {
       <Text
         style={{
           borderTopWidth: 1,
-          borderTopColor: tokens.card.border,
+          borderTopColor: tokens.border,
           marginTop: 4,
-          padding: 8,
+          marginHorizontal: touch ? 0 : 17,
+          paddingHorizontal: touch ? 8 : 0,
+          paddingVertical: touch ? 8 : 12,
           fontSize: 12,
           lineHeight: 18,
           color: tokens.foregroundMuted,
@@ -363,9 +367,9 @@ export function SearchHitSummary(props: {
             role="dialog"
             accessibilityLabel={strings.dialog}
             testID="task-search-popover"
-            style={{ ...panelChrome(props.theme), borderWidth: 1, borderColor: tokens.borderStrong, borderRadius: 10, padding: 4, opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}
+            style={{ ...panelChrome(props.theme), borderWidth: 1, borderColor: tokens.borderStrong, borderRadius: 10, marginHorizontal: 7, boxShadow: tokens.isDark ? "0px 18px 38px rgba(0, 0, 0, 0.48), 0px 4px 12px rgba(0, 0, 0, 0.28)" : "0px 18px 38px rgba(32, 38, 52, 0.20), 0px 4px 12px rgba(32, 38, 52, 0.11)", opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}
           >
-            <ScrollView style={{ maxHeight: 400 }}>{all}</ScrollView>
+            <ScrollView style={{ maxHeight: 400, borderRadius: 9 }}>{all}</ScrollView>
           </Animated.View>
         </View>
       ) : null}
