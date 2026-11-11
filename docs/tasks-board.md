@@ -431,3 +431,21 @@ agent 分几路请求，避免一次拉全 340 个 agent 的完整快照；works
 - [x] 「按 tab 过滤」的含义：按「只看开着 tab 的 agent」实现，任一客户端的 label `paseo.open-agent-tab.<clientId>` 为 `true` 即算开着。Paseo 只给子 agent 打这个标记，所以对普通 agent 基本不起作用，过滤项上有提示。后来去掉了这个过滤：它对普通 agent 不起作用。这个标记现在只用在详情头部：tab 已开着时，按钮带「已打开」提示（按钮文字后来与卡片统一为「打开」）。
 - [x] 「待查看」要不要单独成列：单独成列，跑完未看的和失败的都在这一列。
 - [x] 已完成列默认的时间窗口：做成设置项 `board.doneWindow`，默认 24 小时。
+
+## Desktop responsive sections
+
+Desktop and web boards default to adaptive layout; the switch at the start of the filter bar's
+right controls also offers the original column layout for users who prefer lanes. Native surfaces keep their current mode.
+Adaptive sections use the width available beside the inline details panel. Empty status
+sections share a wrapping row; populated sections use only as many card slots as they need,
+up to the columns that fit the selected card width and font scale. A single task occupies one
+card slot rather than a full-width grid with empty columns. Narrow windows fall back to one
+card per row. The board scrolls vertically, so Archived remains reachable without a horizontal
+scroll. Each section measures its list content and shrinks to that height; only long lists reach the
+maximum viewport height and scroll internally. Sections sharing a row stretch to the tallest
+section; cards in each list row also stretch to the tallest card, without fixing heights across
+rows. Empty sections shrink to their message, and folded sections become a single horizontal header. Lists retain virtualization and pagination.
+Changing column count remounts that section's list (required by FlatList); its scroll position
+resets, while task data and the details selection remain. Cross-lane flight animations are disabled
+for this flow layout. Keyboard and sidebar lane navigation scroll to the section vertically.
+Native tablet lanes and the phone's lane tabs retain their existing layout.

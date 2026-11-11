@@ -23,7 +23,7 @@ import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type EmptyLanes,
 import { TabletToolbar } from "./tablet-toolbar";
 import { buildFilterOptions } from "./filter-options";
 import { SWITCH_MS } from "../../ui/switch-track";
-import { LANES, boardKeyReducer, clampFocus, boardLaneLayout, type BoardFocus, type LaneShape } from "./navigation";
+import { LANES, boardKeyReducer, clampFocus, boardLaneLayout, flowLaneLayout, type BoardFocus, type LaneShape } from "./navigation";
 import { menuChrome } from "./menu-model";
 import { DetailsSidebar } from "./details-sidebar";
 import { BoardTips } from "../cards/card-hints";
@@ -126,8 +126,9 @@ function onScrollbar(target: unknown, pageX: number, pageY: number): boolean {
   );
 }
 
-/** The desktop board (prototype 01): the bars, then four lanes (five with archived) that scroll sideways when they do not fit, and the details sidebar. */
+/** Desktop/web uses wrapping sections and card grids; native tablets retain swipeable lanes. */
 export function DesktopBoard(props: {
+  initialLayout?: "flow" | "lanes";
   screen: PluginScreenProps;
   board: BoardController;
   rootRef: RefObject<View | null>;
@@ -211,6 +212,10 @@ export function DesktopBoard(props: {
   const searchRef = useRef<NativeTextInput>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const rowRef = useRef<ScrollView | null>(null);
+  const sectionY = useRef<Partial<Record<LaneId, number>>>({});
+  const [webFlow, setWebFlow] = useState(props.initialLayout !== "lanes");
+  const flow = Platform.OS === "web" && webFlow;
+  const positionCallbacks = useMemo(() => Object.fromEntries(LANE_ORDER.map((id) => [id, (y: number) => { sectionY.current[id] = y; }])) as Record<LaneId, (y: number) => void>, []);
 
   // The sidebar: open and width as the user left them, inline on a wide
   // board. A narrow board has no room to keep it beside the lanes, so it
@@ -285,13 +290,14 @@ export function DesktopBoard(props: {
   }, [sheetGone]);
 
   const scrollTo = useCallback((lane: LaneId, index: number, viewPosition = 0.3) => {
+    if (flow) rowRef.current?.scrollTo({ y: sectionY.current[lane] ?? 0, animated: false });
     const list = listRefs.current[lane];
     try {
       list?.scrollToIndex({ index, viewPosition, animated: true });
     } catch {
       // Not laid out yet; `onScrollToIndexFailed` retries.
     }
-  }, []);
+  }, [flow]);
   const focusLane = focus?.lane ?? null;
   const focusIndex = focus?.index ?? -1;
   useEffect(() => {
@@ -309,8 +315,8 @@ export function DesktopBoard(props: {
   }, [selectedGone]);
 
   const floatWidth = touch ? tabletSidebarWidth(boardWidth, preference.floatingWidth) : sidebarWidth(boardWidth, preference.width, "floating");
-  const latest = useRef({ board, live, emptyLanesSwitch, focus, shapes, menu, searchExpanded, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed });
-  latest.current = { board, live, emptyLanesSwitch, focus, shapes, menu, searchExpanded, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed };
+  const latest = useRef({ flow, board, live, emptyLanesSwitch, focus, shapes, menu, searchExpanded, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed });
+  latest.current = { flow, board, live, emptyLanesSwitch, focus, shapes, menu, searchExpanded, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed };
   const sheetMode = mode === "sheet";
   const sheetModeRef = useRef(sheetMode);
   sheetModeRef.current = sheetMode;
@@ -377,6 +383,10 @@ export function DesktopBoard(props: {
   // `laneWidth` is the lanes' width once a lane about to open has opened. True when the row scrolls.
   const uncover = useCallback((lane: LaneId, cover: number, laneWidth = latest.current.laneWidth) => {
     const now = latest.current;
+    if (now.flow) {
+      rowRef.current?.scrollTo({ y: sectionY.current[lane] ?? 0, animated: false });
+      return false;
+    }
     const order = now.board.laneOrder;
     const index = order.indexOf(lane);
     const left = LANES.edge + order.slice(0, index).reduce((sum, id) => sum + (now.collapsed.includes(id) ? LANES.collapsed : laneWidth) + LANES.gap, 0);
@@ -645,7 +655,7 @@ export function DesktopBoard(props: {
   // The live lookup can advance before the deferred lanes on screen do.
   const selectedLane = selection.id === null ? null : findCard(shownLanes, selection.id)?.lane;
   // Filters, sort and search are the user's: lanes that change with them take their new order at once.
-  const motion = useLaneMotion(shownLanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: true, churnLimit: LANE_CHURN_LIMIT });
+  const motion = useLaneMotion(shownLanes, { enabled: !flow && board.visible && tasks.ready && !reduced, scope: board.scope, flights: true, churnLimit: LANE_CHURN_LIMIT });
   useTrackNewCards(board.hostId, shownLanes, tasks.ready);
   const [arrivals] = useState(createCollapsedArrivals);
   useEffect(() => {
@@ -703,6 +713,20 @@ export function DesktopBoard(props: {
     />
   ) : null;
 
+  const layoutControl = useMemo(() => (
+    <HoverPressable
+      testID="tasks-flow-switch"
+      accessibilityRole="switch"
+      accessibilityState={{ checked: flow }}
+      accessibilityLabel={board.language === "zh" ? "自适应布局" : "Adaptive layout"}
+      onPress={() => setWebFlow((value) => !value)}
+      style={(hovered) => ({ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingVertical: 4, flexShrink: 0, borderRadius: 6, backgroundColor: hovered ? colors.surface2 : colors.surface1 })}
+    >
+      <Icon name={flow ? "LayoutGrid" : "Columns3"} size={14} color={colors.foregroundMuted} />
+      {boardWidth < 960 ? null : <Text numberOfLines={1} style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{board.language === "zh" ? (flow ? "自适应布局" : "分栏布局") : (flow ? "Adaptive layout" : "Column layout")}</Text>}
+    </HoverPressable>
+  ), [flow, boardWidth < 960, board.language, colors]);
+
   return (
     <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }} {...claimKeys(rootRef, () => setFocus(null), activeCardId)}
       onStartShouldSetResponderCapture={touch ? (event) => {
@@ -720,6 +744,7 @@ export function DesktopBoard(props: {
         sidebar={sidebarToggle}
         emptyLanes={emptyLanesSwitch}
       /> : <DesktopToolbar
+        layoutSwitch={sheetMode || !options ? layoutControl : undefined}
         board={live}
         theme={theme}
         searchRef={searchRef}
@@ -737,6 +762,7 @@ export function DesktopBoard(props: {
       />}
       {touch || sheetMode || !options ? null : (
         <DesktopFilterBar
+          layoutSwitch={layoutControl}
           board={live}
           theme={theme}
           options={options}
@@ -767,27 +793,33 @@ export function DesktopBoard(props: {
             {boardWidth > 0 ? (
               <ScrollView
                 ref={rowRef}
-                horizontal
+                horizontal={!flow}
+                testID="tasks-lane-flow"
                 onScroll={(event) => {
+                  if (flow) return;
                   rowScrollX.current = event.nativeEvent.contentOffset.x;
                   const now = lanesInViewRef.current;
                   const next = lanesInView(now.order, now.collapsed, now.laneWidth, rowScrollX.current, now.viewWidth);
                   if (next !== inView) setInView(next);
                 }}
                 scrollEventThrottle={32}
-                scrollEnabled={layout.scroll || coverRoom > 0}
-                showsHorizontalScrollIndicator={layout.scroll || coverRoom > 0}
+                scrollEnabled={flow || layout.scroll || coverRoom > 0}
+                showsHorizontalScrollIndicator={!flow && (layout.scroll || coverRoom > 0)}
                 style={{ flex: 1 }}
-                contentContainerStyle={{ width: layout.contentWidth + coverRoom, gap: touch ? 0 : LANES.gap, paddingLeft: LANES.edge, paddingRight: LANES.edge + coverRoom, paddingTop: 4, paddingBottom: 12 }}
+                contentContainerStyle={flow ? { flexDirection: "row", flexWrap: "wrap", alignItems: "stretch", gap: 12, paddingHorizontal: LANES.edge, paddingTop: 4, paddingBottom: 12 } : { width: layout.contentWidth + coverRoom, gap: touch ? 0 : LANES.gap, paddingLeft: LANES.edge, paddingRight: LANES.edge + coverRoom, paddingTop: 4, paddingBottom: 12 }}
               >
                 {archivedSwitch.drawn.map((id, index) => (
                   <React.Fragment key={id}>
                     {/* On touch the gap between two lanes is a blank to tap too, inside the scroll row. */}
                     {touch && index > 0 ? <LaneGap onPress={letGo} /> : null}
                     <DesktopLane
+                      flow={flow}
+                      columns={flow ? flowLaneLayout(lanesWidth, board.laneWidth, shownLanes[id].cards.length, scale).columns : 1}
+                      maxBodyHeight={flow ? Math.max(240, Math.min(560, boardHeight * 0.75)) : undefined}
+                      onPosition={flow ? positionCallbacks[id] : undefined}
                       arrivals={arrivals}
                       lane={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.last : shownLanes[id]}
-                      width={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.width : layout.laneWidth}
+                      width={flow ? flowLaneLayout(lanesWidth, board.laneWidth, shownLanes[id].cards.length, scale).width : id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.width : layout.laneWidth}
                       collapsed={collapsedState.includes(id)}
                       sizing={`${sizing}|${collapsedState.includes(id)}`}
                       enter={id === "archived" && archivedSwitch.phase === "enter"}
@@ -803,7 +835,7 @@ export function DesktopBoard(props: {
                       room={laneRoom}
                       onBlank={touch ? letGo : undefined}
                       flash={flash?.lane === id ? flash : null}
-                      inView={wantedLanes.includes(`|${id}|`)}
+                      inView={flow || wantedLanes.includes(`|${id}|`)}
                       hidden={board.hidden[id]}
                     />
                   </React.Fragment>
@@ -1500,6 +1532,10 @@ const LANE_FLASH = {
 } as const;
 
 interface DesktopLaneProps {
+  flow?: boolean;
+  columns?: number;
+  maxBodyHeight?: number;
+  onPosition?(y: number): void;
   arrivals: CollapsedArrivals;
   lane: LaneModel;
   width: number;
@@ -1599,6 +1635,7 @@ const DesktopLane = memo(DesktopLaneView, sameLaneProps);
 function DesktopLaneView(props: DesktopLaneProps) {
   const { lane, board, theme } = props;
   const [refreshing, setRefreshing] = useState(false);
+  const [contentHeight, setContentHeight] = useState<number | null>(null);
   const scale = useTasksFontScale();
   const colors = theme.colors;
   const flashOpacity = useFlash(props.flash?.key ?? 0, props.flash?.delay ?? 0);
@@ -1655,20 +1692,25 @@ function DesktopLaneView(props: DesktopLaneProps) {
   const { focusIndex, currentId, callbacks } = props;
   const { highlighted, stop, read, fields } = board;
   const extraData = useMemo(() => ({ focusIndex, highlighted, stop, read, fields, currentId }), [focusIndex, highlighted, stop, read, fields, currentId]);
+  const columns = props.columns ?? 1;
+  const cardWidth = Math.max(1, (props.width - 18 - (columns - 1) * 12) / columns);
   const renderItem = useCallback(
     ({ item, index }: { item: TaskCard; index: number }) => (
-      <CardCell
-        board={board}
-        card={item}
-        theme={theme}
-        compact={false}
-        focused={focusIndex === index}
-        current={currentId === item.id}
-        fresh={isFresh(item.id)}
-        callbacks={callbacks}
-      />
+      <View style={props.flow ? { width: cardWidth } : undefined}>
+        <CardCell
+          board={board}
+          card={item}
+          theme={theme}
+          compact={false}
+          stretch={props.flow}
+          focused={focusIndex === index}
+          current={currentId === item.id}
+          fresh={isFresh(item.id)}
+          callbacks={callbacks}
+        />
+      </View>
     ),
-    [board, theme, focusIndex, currentId, isFresh, callbacks],
+    [board, theme, focusIndex, currentId, isFresh, callbacks, props.flow, cardWidth],
   );
 
   // Taps that a quick swipe starting on them must not fire (see `useTap`).
@@ -1676,21 +1718,27 @@ function DesktopLaneView(props: DesktopLaneProps) {
   const collapseTap = useTap();
   const blankTap = useTap();
   const drawn = useDrawnOnce(props.inView);
-  const shown = props.collapsed ? LANES.collapsed : props.width;
+  const shown = props.collapsed && !props.flow ? LANES.collapsed : props.width;
+  const headerHeight = taskControlHeight(40, scale);
+  // Measure the list itself: one short card must never reserve a viewport of empty space.
+  // A bounded list still virtualizes large lanes; only its viewport shrinks to its content.
+  const bodyHeight = Math.min(props.maxBodyHeight ?? 560, contentHeight ?? (count > 0 ? Math.ceil(count / columns) * 200 : 140));
+  const flowHeight = props.flow ? (props.collapsed ? headerHeight : headerHeight + bodyHeight) : undefined;
   const resized = useLaneWidth(shown, props.sizing);
   const slide = useLaneSlide(props.enter ? "enter" : props.leaving ? "leave" : null, shown + LANES.gap);
   // The lane's clip eases to its width; the strip or list inside it has its own at once.
   const clip = (content: React.ReactNode) => (
     <Animated.View
       testID={`lane-${lane.id}`}
+      onLayout={props.onPosition ? (event) => props.onPosition?.(event.nativeEvent.layout.y) : undefined}
       pointerEvents={props.leaving ? "none" : "auto"}
       aria-hidden={props.leaving}
       accessibilityElementsHidden={props.leaving}
       importantForAccessibility={props.leaving ? "no-hide-descendants" : "auto"}
-      style={{ width: resized.width, flexShrink: 0, minHeight: 0, borderRadius: PANEL_RADIUS, overflow: "hidden" }}
+      style={{ width: props.flow ? shown : resized.width, height: props.flow && props.collapsed ? flowHeight : undefined, alignSelf: props.flow && props.collapsed ? "flex-start" : undefined, flexShrink: 0, minHeight: flowHeight ?? 0, borderRadius: PANEL_RADIUS, overflow: "hidden" }}
     >
       <Animated.View testID={`lane-surface-${lane.id}`} style={{ width: shown, flex: 1, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden", transform: [{ translateX: slide }] }}>
-        <LaneSwap key={props.collapsed ? "strip" : "list"} fade={resized.moving} width={shown}>
+        <LaneSwap key={props.collapsed ? "strip" : "list"} fade={!props.flow && resized.moving} width={shown}>
           {content}
         </LaneSwap>
       </Animated.View>
@@ -1707,7 +1755,10 @@ function DesktopLaneView(props: DesktopLaneProps) {
         {...collapseTap.pressIn}
         onPress={collapseTap.tap(props.onToggle)}
         style={(hovered, pressed) => ({
-          width: LANES.collapsed,
+          width: props.flow ? props.width : LANES.collapsed,
+          flexDirection: props.flow ? "row" : "column",
+          height: props.flow ? headerHeight : undefined,
+          paddingHorizontal: props.flow ? 14 : undefined,
           alignItems: "center",
           gap: 10,
           paddingVertical: 11,
@@ -1717,7 +1768,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
         })}
       >
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
-        <VerticalLabel text={name} color={colors.foreground} language={board.language} />
+        {props.flow ? <Text style={{ fontSize: titleSize, color: colors.foreground }}>{name}</Text> : <VerticalLabel text={name} color={colors.foreground} language={board.language} />}
         {ready ? <RollingCount value={count} scope={board.scope} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
         <NewCardsDot on={unseen.length > 0 && arrivalIds.length === 0} hue={laneHue(theme, lane.id)} testID={`lane-new-dot-${lane.id}`} />
         <CollapsedArrivalMarker ids={arrivalIds} hue={laneHue(theme, lane.id)} theme={theme} lane={lane.id} />
@@ -1727,7 +1778,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
 
   const loadingFirst = !ready || !drawn || (lane.initialLoading && count === 0);
   return clip(
-    <View style={{ width: props.width, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
+    <View style={{ width: props.width, flex: props.flow ? 1 : undefined, minHeight: 0, borderRadius: PANEL_RADIUS, backgroundColor: palette.panel, overflow: "hidden" }}>
       {/* Under the header and the cards: only the lane's own fill flashes. */}
       <Animated.View pointerEvents="none" testID={`lane-flash-${lane.id}`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: colors.accent, opacity: flashOpacity }} />
       <Pressable
@@ -1775,6 +1826,11 @@ function DesktopLaneView(props: DesktopLaneProps) {
         </View>
       ) : (
         <FlatList<TaskCard>
+          key={`columns-${columns}`}
+          onContentSizeChange={props.flow ? (_width, height) => setContentHeight(Math.ceil(height)) : undefined}
+          scrollEnabled={props.flow ? contentHeight !== null && contentHeight > bodyHeight : undefined}
+          numColumns={columns}
+          columnWrapperStyle={columns > 1 ? { gap: 12, alignItems: "stretch" } : undefined}
           {...laneScrollProps}
           {...(Platform.OS === "ios" ? {
             refreshing,
@@ -1821,7 +1877,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
               title={strings.laneEmpty[lane.id]}
               hint={strings.laneEmptyHint[lane.id]}
               narrow
-              style={{ marginTop: 36 }}
+              style={{ marginTop: props.flow ? 4 : 36, ...(props.flow ? { paddingVertical: 16 } : null) }}
             />
           }
           ListFooterComponentStyle={props.onBlank ? { flexGrow: 1 } : undefined}

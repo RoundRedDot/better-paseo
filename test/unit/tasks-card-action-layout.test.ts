@@ -46,7 +46,7 @@ import { taskTokens } from "../../client/tasks/cards/tokens";
 import { createTitleUpdateControl } from "../../client/tasks/actions/title-update";
 import { TasksTypographyScale } from "../../client/tasks/typography";
 import { cardStrings } from "../../client/tasks/cards/strings";
-import { estimateTextWidth, hostChildren, settleHostLayout, type Frame } from "./helpers/yoga-host-layout";
+import { estimateTextWidth, hostChildren, settleHostLayout, measureHostTree, type Frame } from "./helpers/yoga-host-layout";
 import { resetActionWidths } from "../../client/tasks/cards/action-row";
 import { DetailActionBar, TaskDetailCards } from "../../client/tasks/cards/detail-cards";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -611,4 +611,22 @@ describe("phone card action bar under native (Yoga) layout", () => {
     await act(async () => { renderer = TestRenderer.create(phoneCard({ ...card, id: "another-running" }, "en", { onOpen: () => {} })); });
     expect(widths()).toEqual(settled);
   });
+});
+
+
+it("aligns different card heights within each adaptive grid row without growing the next row", async () => {
+  const View = (await import("react-native")).View;
+  const base = sample("sample-done");
+  const card = (id: string, title: string) => React.createElement(View, { key: id, style: { width: 280 } },
+    phoneCard({ ...base, id, title }, "zh", { compact: false, stretch: true, titleLines: null }));
+  await act(async () => { renderer = TestRenderer.create(React.createElement(View, null,
+    React.createElement(View, { style: { flexDirection: "row", alignItems: "stretch", gap: 12 } },
+      card("long-grid", "很长的任务标题".repeat(12)), card("short-grid", "继续")),
+    React.createElement(View, { style: { flexDirection: "row", alignItems: "stretch" } }, card("next-grid", "下一行")))); });
+  const root = renderer!.root.find((node) => typeof node.type === "string");
+  const frames = measureHostTree(root, { width: 600, wrapText: true });
+  const frame = (id: string) => frames.get(renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${id}`))!;
+  expect(frame("long-grid").height).toBeGreaterThan(0);
+  expect(frame("short-grid").height).toBe(frame("long-grid").height);
+  expect(frame("next-grid").height).toBeLessThan(frame("long-grid").height);
 });

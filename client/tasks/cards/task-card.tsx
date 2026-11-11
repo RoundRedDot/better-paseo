@@ -104,6 +104,8 @@ export interface CardCallbacks {
 }
 
 export interface TaskCardViewProps extends CardCallbacks {
+  /** Fill the tallest card in this grid row, while retaining the natural content height. */
+  stretch?: boolean;
   card: TaskCard;
   todo?: TodoSummary | null;
   todoExpanded?: boolean;
@@ -1703,7 +1705,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         delayLongPress={LONG_PRESS_MS}
         ref={rootRef}
         {...(WEB ? null : hoverProps)}
-        style={rootStyle}
+        style={props.stretch ? [rootStyle, { flexGrow: 1 }] : rootStyle}
         testID={`task-card-${card.id}`}
       >
         {scheduled ? (

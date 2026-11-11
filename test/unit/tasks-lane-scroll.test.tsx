@@ -2,6 +2,7 @@ import React from "react";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "./helpers/quiet-renderer";
+import { measureHostTree } from "./helpers/yoga-host-layout";
 
 const draws = vi.hoisted(() => new Map<unknown, number>());
 vi.mock("react-native", () => import("./helpers/rn-mock"));
@@ -18,7 +19,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     },
   };
 });
-vi.mock("../../client/tasks/board/filter-bar", async (importOriginal) => ({ ...await importOriginal<object>(), DesktopToolbar: () => null, DesktopFilterBar: () => null }));
+vi.mock("../../client/tasks/board/filter-bar", async (importOriginal) => ({ ...await importOriginal<object>(), DesktopToolbar: (props: { layoutSwitch?: React.ReactNode }) => props.layoutSwitch ?? null, DesktopFilterBar: (props: { layoutSwitch?: React.ReactNode }) => props.layoutSwitch ?? null }));
 vi.mock("../../client/tasks/board/tablet-toolbar", () => ({ TabletToolbar: () => null }));
 vi.mock("../../client/tasks/board/details-sidebar", () => ({ DetailsSidebar: () => null }));
 vi.mock("../../client/tasks/cards/card-hints", () => ({ BoardTips: () => null, tipProps: () => ({}) }));
@@ -55,7 +56,7 @@ afterEach(() => {
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
 });
 
-async function mount(os: "android" | "ios" | "web" = "android") {
+async function mount(os: "android" | "ios" | "web" = "android", width = 3000) {
   (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
   const fake = createFakePaseo({ agents: Array.from({ length: 40 }, (_, index) => makeAgent({ id: `scroll-${index}` })) });
   let toggle!: () => void;
@@ -80,7 +81,7 @@ async function mount(os: "android" | "ios" | "web" = "android") {
   await act(async () => { renderer = TestRenderer.create(<Harness />); });
   act(() => {
     renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "tasks-board-area")
-      .props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 3000, height: 800 } } });
+      .props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 800 } } });
   });
   return { toggle: () => act(toggle), fake };
 }
@@ -156,4 +157,87 @@ describe("tablet lane fill scheduling", () => {
     act(() => { vi.advanceTimersByTime(fillMs - 1); });
     expect(list("done").props.updateCellsBatchingPeriod).toBeUndefined();
   });
+});
+
+
+describe("desktop responsive board", () => {
+  it("wraps status sections and reflows a virtualized card grid on resize", async () => {
+    await mount("web", 1200);
+    act(() => { vi.advanceTimersByTime(1000); });
+    const flow = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "tasks-lane-flow");
+    expect(flow.props.horizontal).toBe(false);
+    expect(flow.props.contentContainerStyle.flexWrap).toBe("wrap");
+    expect(list("done").props.numColumns).toBeGreaterThan(1);
+    expect(list("running").props.numColumns).toBe(1);
+    expect(list("done").props.data).toHaveLength(40);
+    const area = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "tasks-board-area");
+    act(() => area.props.onLayout({ nativeEvent: { layout: { width: 400, height: 600 } } }));
+    expect(list("done").props.numColumns).toBe(1);
+    expect(list("done").props.data).toHaveLength(40);
+    expect(list("done").props.onEndReached).toEqual(expect.any(Function));
+    expect(list("done").props.windowSize).toBe(7);
+  });
+
+  it("lets desktop users switch back to columns and return to adaptive cards", async () => {
+    await mount("web", 1200);
+    act(() => { vi.advanceTimersByTime(1000); });
+    const toggle = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "tasks-flow-switch");
+    expect(toggle().props.accessibilityState.checked).toBe(true);
+    act(() => toggle().props.onPress());
+    expect(toggle().props.accessibilityState.checked).toBe(false);
+    expect(list("done").props.numColumns).toBe(1);
+    act(() => toggle().props.onPress());
+    expect(toggle().props.accessibilityState.checked).toBe(true);
+    expect(list("done").props.numColumns).toBeGreaterThan(1);
+  });
+
+  it("shrinks sections to measured content and bounds long lists", async () => {
+    await mount("web", 1200);
+    act(() => { vi.advanceTimersByTime(1000); });
+    const section = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "Animated.View" && node.props.testID === `lane-${id}`);
+    // A short visible row, even after a large history list was displayed.
+    act(() => list("done").props.onContentSizeChange(1100, 195));
+    expect(section("done").props.style.minHeight).toBe(235);
+    expect(list("done").props.scrollEnabled).toBe(false);
+    act(() => list("done").props.onContentSizeChange(1100, 4000));
+    expect(section("done").props.style.minHeight).toBe(600);
+    expect(list("done").props.scrollEnabled).toBe(true);
+    act(() => list("done").props.onContentSizeChange(1100, 140));
+    expect(section("done").props.style.minHeight).toBe(180);
+    // Empty sections take the height of their empty message, not a fixed 220px block.
+    act(() => list("running").props.onContentSizeChange(350, 90));
+    expect(section("running").props.style.minHeight).toBe(130);
+    const fold = renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "lane-header-done")
+      .findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "button")[0]!;
+    act(() => fold.props.onPress());
+    expect(section("done").props.style.minHeight).toBe(40);
+  });
+
+  it("keeps native tablets in horizontal lanes", async () => {
+    await mount("android", 800);
+    act(() => { vi.advanceTimersByTime(1000); });
+    const flow = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "tasks-lane-flow");
+    expect(flow.props.horizontal).toBe(true);
+    expect(list("done").props.numColumns).toBe(1);
+  });
+});
+
+
+it("stretches status sections to the tallest content in each wrapping row", async () => {
+  await mount("web", 1200);
+  act(() => { vi.advanceTimersByTime(1000); });
+  act(() => {
+    list("needs_input").props.onContentSizeChange(300, 110);
+    list("running").props.onContentSizeChange(300, 160);
+    list("review").props.onContentSizeChange(300, 125);
+  });
+  const flow = renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "tasks-lane-flow");
+  const sections = ["needs_input", "running", "review"].map((id) => renderer!.root.find((node) => (node.type as unknown) === "Animated.View" && node.props.testID === `lane-${id}`));
+  // Lay out the actual measured section styles with Yoga, including the real wrapping container.
+  let layout!: ReturnType<typeof TestRenderer.create>;
+  act(() => { layout = TestRenderer.create(React.createElement("View", { style: flow.props.contentContainerStyle }, sections.map((node, index) => React.createElement("View", { key: index, style: node.props.style })))); });
+  const frames = measureHostTree(layout.root, { width: 1200 });
+  const boxes = layout.root.children.map((node) => frames.get(node as ReactTestInstance)!);
+  expect(boxes.map((box) => box.height)).toEqual([200, 200, 200]);
+  act(() => layout.unmount());
 });
