@@ -3576,7 +3576,7 @@ describe("TaskDetailCards", () => {
     expect(texts(hostByTestId(tree.root, "detail-summary"))).toEqual(["18m", "Last turn", "$1.84", "Total", "316k", "Token"]);
   });
 
-  it("draws the usage strip as one baseline row: number then caption, wide captions and hairlines from 480, wrapping only below 300", async () => {
+  it("wraps usage clusters when they exceed the strip, with wide captions and hairlines from 480", async () => {
     const tokens = taskTokens(LIGHT);
     const colors = detailColors(tokens);
     const tree = await render(details(sample("sample-done"), {}, "en"));
@@ -3585,7 +3585,7 @@ describe("TaskDetailCards", () => {
     // Until it is measured: the short captions, packed to the start, no hairline.
     const short = hostByTestId(tree.root, "detail-summary");
     expect(texts(short)).toEqual(["18m", "Last turn", "$1.84", "Total", "316k", "Token"]);
-    expect(flat(short.props.style)).toMatchObject({ flexDirection: "row", alignItems: "baseline", flexWrap: "nowrap", justifyContent: "flex-start", borderWidth: 1, borderColor: tokens.border, borderRadius: 10, backgroundColor: colors.sunk, paddingVertical: 7, paddingHorizontal: 12 });
+    expect(flat(short.props.style)).toMatchObject({ flexDirection: "row", alignItems: "baseline", flexWrap: "wrap", justifyContent: "flex-start", borderWidth: 1, borderColor: tokens.border, borderRadius: 10, backgroundColor: colors.sunk, paddingVertical: 7, paddingHorizontal: 12 });
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-summary-rule")).toHaveLength(0);
     expect(icons(short)).toEqual([]);
     const clusters = ["turn", "cost", "tokens"].map((key) => hostByTestId(short, `detail-summary-${key}`));
@@ -3621,7 +3621,7 @@ describe("TaskDetailCards", () => {
       const node = wide.findAll((node) => String(node.type) === "Text" && node.props.children === value)[0]!;
       expect(flat(node.props.style).fontFamily).toBe(TASK_MONO);
     }
-    expect(flat(wide.props.style).justifyContent).toBe("space-between");
+    expect(flat(wide.props.style)).toMatchObject({ justifyContent: "space-between", flexWrap: "wrap", rowGap: 4 });
     // The strip's flex children are the three clusters and nothing else.
     expect(wide.children.filter((child): child is ReactTestInstance => typeof child !== "string").map((child) => child.props.testID)).toEqual([
       "detail-summary-turn",
@@ -3644,7 +3644,7 @@ describe("TaskDetailCards", () => {
       await measure(width);
       const strip = hostByTestId(tree.root, "detail-summary");
       expect(texts(strip)).toEqual(["18m", "Last turn", "$1.84", "Total", "316k", "Token"]);
-      expect(flat(strip.props.style)).toMatchObject({ flexWrap: "nowrap", justifyContent: "flex-start" });
+      expect(flat(strip.props.style)).toMatchObject({ flexWrap: "wrap", justifyContent: "flex-start" });
       expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-summary-rule")).toHaveLength(0);
       expect(flat(hostByTestId(strip, "detail-summary-turn").props.style).marginRight).toBe(14);
       expect(flat(hostByTestId(strip, "detail-summary-tokens").props.style).marginRight).toBe(0);

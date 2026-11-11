@@ -491,7 +491,6 @@ export function SummaryTiles(props: { tiles: SummaryReadout[]; tokens: TaskToken
   const colors = detailColors(tokens);
   const [width, onLayout] = useWidth();
   const wide = width >= 480;
-  const wrap = width > 0 && width < 300;
   return (
     <View
       testID="detail-summary"
@@ -499,9 +498,9 @@ export function SummaryTiles(props: { tiles: SummaryReadout[]; tokens: TaskToken
       style={{
         flexDirection: "row",
         alignItems: "baseline",
-        flexWrap: wrap ? "wrap" : "nowrap",
+        flexWrap: "wrap",
         // Wrapped rows space by row only; a wrapped cluster keeps its own line.
-        rowGap: wrap ? 4 : 0,
+        rowGap: 4,
         columnGap: 0,
         justifyContent: wide ? "space-between" : "flex-start",
         borderWidth: 1,
@@ -524,6 +523,7 @@ export function SummaryTiles(props: { tiles: SummaryReadout[]; tokens: TaskToken
             alignItems: "baseline",
             gap: 6,
             flexShrink: 0,
+            maxWidth: "100%",
             marginRight: wide || index === props.tiles.length - 1 ? 0 : 14,
           }}
         >
@@ -538,7 +538,7 @@ export function SummaryTiles(props: { tiles: SummaryReadout[]; tokens: TaskToken
           >
             {tile.value ?? "—"}
           </Text>
-          <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }}>
+          <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted, flexShrink: 1 }}>
             {monoFigures(wide ? tile.wide : tile.short)}
           </Text>
           {/* The rule belongs to the cluster it follows, so space-between divides clusters, not rules. */}
