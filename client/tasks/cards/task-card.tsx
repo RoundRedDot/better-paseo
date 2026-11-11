@@ -1410,8 +1410,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         ) : null}
       </>
     ) : null;
+  // A question's wait sits at the right end of its divider, so the answer
+  // buttons below have the whole row.
+  const dividerFoot = questionSection && !minimalSummary ? footerContent : null;
   const footer =
-    footerContent && !answerRow ? (
+    footerContent && !answerRow && !dividerFoot ? (
       <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginTop: m.rowGap, zIndex: footerZ }} testID="task-card-footer">
         {footerContent}
       </View>
@@ -1467,10 +1470,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       <View style={[block, questionSection ? { borderTopWidth: 0, paddingTop: 0, marginTop: 4 } : null, { gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
         {questionSection ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: -4 }} testID="task-card-question-divider">
-            <View style={{ width: 22, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.25) }} />
             <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
-            <Text style={text(11, 16, tokens.status.warning, "600")}>{strings.awaitingAnswer}</Text>
+            {/* On a narrow card at a large text size the label gives way, not the wait. */}
+            <Text numberOfLines={1} ellipsizeMode="tail" style={[text(11, 16, tokens.status.warning, "600"), { flexShrink: 1 }]}>{strings.awaitingAnswer}</Text>
             <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />
+            {dividerFoot ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, flexShrink: 0 }} testID="task-card-footer">
+                {dividerFoot}
+              </View>
+            ) : null}
           </View>
         ) : null}
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
@@ -1511,7 +1519,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                 />
               ))}
             </ActionRow>
-            {footerContent ? (
+            {footerContent && !dividerFoot ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginLeft: "auto" }} testID="task-card-footer">
                 {footerContent}
               </View>

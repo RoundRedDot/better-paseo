@@ -2177,8 +2177,14 @@ describe("TaskCardView actions", () => {
     const controls = hostByTestId(tree.root, "task-card-control-row");
     expect(texts(controls)).toContain("打开");
     const question = hostByTestId(tree.root, "task-card-permission");
-    expect(texts(hostByTestId(question, "task-card-question-divider"))).toEqual(["待回答"]);
-    expect(icons(hostByTestId(question, "task-card-question-divider"))).toEqual(["MessageCircleQuestion"]);
+    // The divider reads label and icon at its left end, the wait at its right; the answer buttons keep their whole row.
+    const divider = hostByTestId(question, "task-card-question-divider");
+    expect(texts(divider)).toEqual(["待回答", "等待 4m"]);
+    expect(icons(divider)).toEqual(["MessageCircleQuestion", "Clock"]);
+    const dividerParts = divider.children.filter((child): child is ReactTestInstance => typeof child !== "string");
+    expect(icons(dividerParts[0]!)).toEqual(["MessageCircleQuestion"]);
+    expect(dividerParts.at(-1)!.props.testID).toBe("task-card-footer");
+    expect(hostByTestId(question, "task-card-answer-row").findAll((node) => node.props.testID === "task-card-footer")).toHaveLength(0);
     const title = question.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2 && texts(node).includes("Question"));
     expect(icons(title.parent!)).toEqual([]);
     expect(rows(tree.root, card.id).indexOf("task-card-control-row")).toBeLessThan(rows(tree.root, card.id).indexOf("task-card-permission"));

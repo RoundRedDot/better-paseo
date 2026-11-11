@@ -311,6 +311,29 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(controls().findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab")).toHaveLength(1);
   });
 
+  it.each([true, false].flatMap((compact) => WIDTHS.flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).map((language) => [compact, width, scale, language] as const)))))
+  ("keeps the question divider's label at the left and its wait at the right (compact %s) at %ipt, scale %f, %s", async (compact, width, textScale, language) => {
+    const card = choice()();
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: phoneCard(card, language, {
+        compact, onOpen() {}, permissionButtons: permissionButtons(card.permission!, language, true),
+      }) }));
+    });
+    const divider = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider");
+    const frames = await settleHostLayout(divider, { width, textScale });
+    expect(overflows(frames, textScale, divider())).toEqual([]);
+    const parts = hostChildren(divider());
+    const box = frames.get(divider())!;
+    const label = labelsOf(divider()).find((node) => node.children.join("") === (language === "zh" ? "待回答" : "Awaiting answer"))!;
+    const wait = parts.at(-1)!;
+    expect(wait.props.testID).toBe("task-card-footer");
+    // The icon starts the divider; the wait ends it, flush with the row's right edge.
+    expect(frames.get(parts[0]!)!.left).toBeCloseTo(box.left, 0);
+    expect(frames.get(label)!.left).toBeLessThan(frames.get(wait)!.left);
+    expect(frames.get(wait)!.left + frames.get(wait)!.width).toBeCloseTo(box.left + box.width, 0);
+    expect(labelsOf(wait).map((node) => node.children.join("")).join("")).toMatch(language === "zh" ? /^等待 / : /^Waiting /);
+  });
+
   it.each([true, false].flatMap((compact) => ["允许", "拒绝"].map((answer) => [compact, answer] as const)))(
     "submits %s compact confirmation answer %s without opening the task tab",
     async (compact, answer) => {
