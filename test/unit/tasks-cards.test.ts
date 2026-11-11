@@ -2177,7 +2177,7 @@ describe("TaskCardView actions", () => {
     const controls = hostByTestId(tree.root, "task-card-control-row");
     expect(texts(controls)).toContain("打开");
     const question = hostByTestId(tree.root, "task-card-permission");
-    expect(flat(question.props.style).borderTopWidth).toBe(0.5);
+    expect(texts(hostByTestId(question, "task-card-question-divider"))).toEqual(["待回答"]);
     expect(rows(tree.root, card.id).indexOf("task-card-control-row")).toBeLessThan(rows(tree.root, card.id).indexOf("task-card-permission"));
     await act(async () => hostByTestId(controls, "task-card-open-tab").props.onPress());
     expect(onOpen).toHaveBeenCalledWith(card.id);

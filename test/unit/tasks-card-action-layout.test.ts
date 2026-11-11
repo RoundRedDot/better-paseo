@@ -283,15 +283,32 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-question-actions")).toHaveLength(1);
   });
 
-  it("places the phone card controls above a half-point question divider", async () => {
+  it.each(["zh", "en"] as const)("places phone controls above the labelled question divider in %s", async (language) => {
     const card = choice()();
-    await act(async () => { renderer = TestRenderer.create(phoneCard(card, "zh", { onOpen() {} })); });
+    await act(async () => { renderer = TestRenderer.create(phoneCard(card, language, { onOpen() {} })); });
     const nodes = renderer!.root.findAll((node) => typeof node.type === "string");
     const controls = nodes.find((node) => node.props.testID === "task-card-actions")!;
     const question = nodes.find((node) => node.props.testID === "task-card-permission")!;
     expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(question));
-    expect(Object.assign({}, ...[question.props.style].flat(Infinity).filter(Boolean)).borderTopWidth).toBe(0.5);
+    const divider = question.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider");
+    expect(labelsOf(divider).map((node) => node.children.join(""))).toContain(language === "zh" ? "待回答" : "Awaiting answer");
     expect(question.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-question-actions")).toHaveLength(1);
+  });
+
+  it.each((["ios", "android"] as const).flatMap((os) => [300, 340].flatMap((width) => [1, 1.8].flatMap((scale) => (["zh", "en"] as const).map((language) => [os, width, scale, language] as const)))))
+  ("fits the non-compact question controls on %s at %ipt, scale %f, %s", async (os, width, textScale, language) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const card = choice()();
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: phoneCard(card, language, {
+        compact: false, onOpen() {}, permissionButtons: permissionButtons(card.permission!, language, true),
+      }) }));
+    });
+    const controls = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-control-row");
+    const frames = await settleHostLayout(controls, { width, textScale });
+    expect(overflows(frames, textScale, controls())).toEqual([]);
+    expect(controls().findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toHaveLength(1);
+    expect(controls().findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab")).toHaveLength(1);
   });
 
   it.each([true, false].flatMap((compact) => ["允许", "拒绝"].map((answer) => [compact, answer] as const)))(

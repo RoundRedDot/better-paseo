@@ -171,17 +171,25 @@ describe("TaskCardView on web", () => {
   it("keeps question answers below the divider and the open action above it", async () => {
     const card = sampleCards(NOW).find((item) => item.id === "sample-question")!;
     const onOpen = vi.fn();
-    const renderer = await render(React.createElement(TaskCardView, props(card.id, {
-      card, onOpen, permissionButtons: permissionButtons(card.permission!, "zh", true),
-    })));
+    const onStop = vi.fn();
+    const element = (stopPhase: TaskCardViewProps["stopPhase"]) => React.createElement(TaskCardView, props(card.id, {
+      card, onOpen, onStop, stopPhase, permissionButtons: permissionButtons(card.permission!, "zh", true),
+    }));
+    const renderer = await render(element("idle"));
     const nodes = renderer.root.findAll((node) => typeof node.type === "string");
     const controls = nodes.find((node) => node.props.testID === "task-card-control-row")!;
     const question = nodes.find((node) => node.props.testID === "task-card-permission")!;
     const answers = nodes.find((node) => node.props.testID === "task-card-answer-actions")!;
     expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(question));
-    expect(Object.assign({}, ...[question.props.style].flat(Infinity).filter(Boolean)).borderTopWidth).toBe(0.5);
+    const divider = question.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider");
+    expect(texts(divider)).toContain("待回答");
     expect(answers.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab")).toHaveLength(0);
     const open = controls.find((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab");
+    const stop = controls.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止");
+    await act(async () => stop.props.onPress());
+    expect(onStop).toHaveBeenCalledWith(card, { withChildren: false });
+    await act(async () => renderer.update(element("confirming")));
+    expect(renderer.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认停止")).toHaveLength(1);
     await act(async () => open.props.onPress());
     expect(onOpen).toHaveBeenCalledWith(card.id);
     await act(async () => hovers.get(`task-card-${card.id}`)!.enter());

@@ -690,10 +690,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const canStop = (card.stoppable || activeChildren > 0) && !!props.onStop;
   const childrenOnly = !card.stoppable;
   const parentStop = canStop && !childrenOnly && activeChildren > 0;
-  // A waiting card's hover buttons share the row with its answer buttons, so
-  // Stop stays in the menu and the sidebar there and Open tab floats alone.
-  const footStop = canStop && (TOUCH || card.lane !== "needs_input");
-  const showStop = footStop && !compact && (TOUCH || hovered || props.stopPhase !== "idle" || menuOpen);
+  const questionSection = layout.permission && card.permission?.kind === "question";
+  // Question controls have their own row; other waiting requests keep Stop in the menu.
+  const footStop = canStop && (TOUCH || questionSection || card.lane !== "needs_input");
+  const showStop = footStop && !compact && (TOUCH || questionSection || hovered || props.stopPhase !== "idle" || menuOpen);
   // Mark read takes Stop's place: a card is never both (Stop needs a running
   // or waiting agent, Mark read one in review).
   const canRead = !canStop && card.readable === true && !!props.onRead;
@@ -710,7 +710,6 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A provider subagent has no tab of its own: its Open would open the parent's, so "Open parent" is its only one.
   const ownTab = !card.subagent;
   const canOpen = !compact && !!props.onOpen && (ownTab || parentOpens) && !(layout.permission && props.permissionButtons.some((button) => button.kind === "open"));
-  const questionSection = layout.permission && card.permission?.kind === "question";
   const questionAnswerRow = layout.permission && props.permissionButtons.some((button) => button.kind === "question");
   const showOpen = canOpen && (questionAnswerRow || TOUCH || hovered || showStop || showRead);
   // An archived task has Unarchive where Open tab was: Paseo opens it only once it is back.
@@ -1465,7 +1464,14 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const permissionSummary = permission ? summaryBeyondTitle(permission.title, permission.summary) : null;
   const permissionBlock =
     layout.permission && permission ? (
-      <View style={[block, questionSection ? { borderTopWidth: 0.5 } : null, { gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
+      <View style={[block, questionSection ? { borderTopWidth: 0, paddingTop: 0 } : null, { gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
+        {questionSection ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }} testID="task-card-question-divider">
+            <View style={{ width: 22, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.25) }} />
+            <Text style={text(11, 16, tokens.status.warning, "600")}>{strings.awaitingAnswer}</Text>
+            <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />
+          </View>
+        ) : null}
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
           <View style={iconCell}>
             <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
