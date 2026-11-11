@@ -142,6 +142,54 @@ export function openPointLayer(node: unknown, point: { x: number; y: number }, c
   };
 }
 
+/** The text box keeps its intrinsic scroll width even when CSS ellipsizes it. */
+export function optionTextClipped(node: unknown): boolean {
+  if (Platform.OS !== "web") return false;
+  const text = node as HTMLElement | null;
+  return !!text && text.scrollWidth > text.clientWidth;
+}
+
+/** Lift a question option above the lane, without moving the button's layout slot. */
+export function openOptionExpansion(labelNode: unknown, panelNode: unknown, reduced: boolean) {
+  const label = labelNode as HTMLElement;
+  const panel = panelNode as HTMLElement;
+  const button = label.parentElement!;
+  const view = panel.ownerDocument.defaultView!;
+  let frame = 0;
+  let expanded = false;
+  panel.setAttribute("popover", "manual");
+  Object.assign(panel.style, {
+    position: "fixed", inset: "auto", margin: "0", boxSizing: "border-box",
+    maxWidth: "none", maxHeight: "none", overflow: "hidden", opacity: "1",
+    transition: reduced ? "none" : "width 160ms ease-out, left 160ms ease-out",
+  });
+  const position = () => {
+    const box = button.getBoundingClientRect();
+    const width = expanded ? Math.min(label.scrollWidth + box.width - label.clientWidth + 1, view.innerWidth - 16) : box.width;
+    const left = expanded ? Math.max(8, Math.min(box.left, view.innerWidth - width - 8)) : box.left;
+    Object.assign(panel.style, { width: `${width}px`, height: `${box.height}px`, left: `${left}px`, top: `${box.top}px` });
+  };
+  panel.showPopover();
+  position();
+  // Commit the starting width before the next frame changes it.
+  panel.getBoundingClientRect();
+  view.addEventListener("resize", position);
+  view.addEventListener("scroll", position, true);
+  return {
+    setExpanded(value: boolean) {
+      view.cancelAnimationFrame(frame);
+      expanded = value;
+      frame = view.requestAnimationFrame(position);
+    },
+    close() {
+      view.cancelAnimationFrame(frame);
+      view.removeEventListener("resize", position);
+      view.removeEventListener("scroll", position, true);
+      panel.hidePopover();
+    },
+  };
+}
+
 
 /** Keep interactive toolbar details above timeline stacking contexts without moving their React tree. */
 export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "above" | "below"): () => void {

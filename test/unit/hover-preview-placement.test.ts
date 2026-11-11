@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { bindPreviewPointer, dropSelectionIn, linesFit, openPreviewLayer, openToolbarDetailsLayer, PREVIEW_GROW, scrollsWithin } from "../../client/web";
+import { bindPreviewPointer, dropSelectionIn, linesFit, openOptionExpansion, optionTextClipped, openPreviewLayer, openToolbarDetailsLayer, PREVIEW_GROW, scrollsWithin } from "../../client/web";
 import { DESKTOP_OVERLAY } from "../../client/ui/tokens/motion";
 
 /** The system's reduce-motion setting and the anchor row's top, for the next `layer`. */
@@ -16,6 +16,39 @@ afterEach(() => {
 
 /** A node under the panel, in the timeline. */
 const OUTSIDE = { nodeType: 1 };
+
+describe("question option expansion", () => {
+  it.each([false, true])("animates from the option bounds and respects the viewport (reduced motion: %s)", (reduced) => {
+    let frame: () => void = () => {};
+    let resize: () => void = () => {};
+    const view = {
+      innerWidth: 400,
+      addEventListener: vi.fn((name: string, callback: () => void) => { if (name === "resize") resize = callback; }),
+      removeEventListener: vi.fn(),
+      requestAnimationFrame: vi.fn((callback: () => void) => { frame = callback; return 1; }),
+      cancelAnimationFrame: vi.fn(),
+    };
+    const label = { clientWidth: 80, scrollWidth: 200, parentElement: { getBoundingClientRect: () => ({ left: 270, top: 80, width: 100, height: 26 }) } };
+    const panel = { ownerDocument: { defaultView: view }, style: {} as Record<string, string>, setAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(), getBoundingClientRect: vi.fn() };
+    expect(optionTextClipped(label)).toBe(true);
+    const layer = openOptionExpansion(label, panel, reduced);
+    expect(panel.style).toMatchObject({ width: "100px", left: "270px", top: "80px", height: "26px", transition: reduced ? "none" : "width 160ms ease-out, left 160ms ease-out" });
+    layer.setExpanded(true);
+    frame();
+    expect(panel.style).toMatchObject({ width: "221px", left: "171px" });
+    view.innerWidth = 300;
+    resize();
+    expect(panel.style.left).toBe("71px");
+    layer.setExpanded(false);
+    frame();
+    expect(panel.style.width).toBe("100px");
+    layer.close();
+    expect(panel.hidePopover).toHaveBeenCalledOnce();
+    expect(view.removeEventListener).toHaveBeenCalledTimes(2);
+    label.clientWidth = 200;
+    expect(optionTextClipped(label)).toBe(false);
+  });
+});
 
 describe("toolbar layer window edges", () => {
   it.each([

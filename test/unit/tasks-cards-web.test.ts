@@ -35,10 +35,21 @@ const hovers = vi.hoisted(() => new Map<string, { enter(): void; leave(): void }
 const contextMenus = vi.hoisted(() => new Map<string, (point: { x: number; y: number }, target: unknown) => void>());
 const copies = vi.hoisted(() => [] as string[]);
 const openDetailsLayer = vi.hoisted(() => vi.fn(() => () => {}));
+const optionExpansion = vi.hoisted(() => ({
+  clipped: false,
+  setExpanded: vi.fn(),
+  close: vi.fn(),
+  open: vi.fn(),
+}));
 
 vi.mock("../../client/web", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   openToolbarDetailsLayer: openDetailsLayer,
+  optionTextClipped: () => optionExpansion.clipped,
+  openOptionExpansion: (...args: unknown[]) => {
+    optionExpansion.open(...args);
+    return { setExpanded: optionExpansion.setExpanded, close: optionExpansion.close };
+  },
   bindContextMenu: (node: { props?: Record<string, unknown> } | null, open: (point: { x: number; y: number }, target: unknown) => void) => {
     const key = String(node?.props?.testID ?? "?");
     contextMenus.set(key, open);
@@ -1242,6 +1253,42 @@ describe("card action leaf migration", () => {
     transitionDuration: "120ms",
     transitionTimingFunction: "ease-out",
   };
+
+  it("expands only a clipped option on hover and closes after the return animation", async () => {
+    vi.useFakeTimers();
+    optionExpansion.open.mockClear();
+    optionExpansion.setExpanded.mockClear();
+    optionExpansion.close.mockClear();
+    const press = vi.fn();
+    try {
+      const renderer = await render(React.createElement(ActionRow, {
+        testID: "option-row",
+        children: React.createElement(CardButton, { tokens: taskTokens(THEME), compact: false, label: "A long option", labelOnly: true, look: "plain", onPress: press, testID: "option" }),
+      }));
+      const button = () => host(renderer.root, "option");
+      optionExpansion.clipped = false;
+      await act(async () => button().props.onHoverIn({}));
+      expect(optionExpansion.open).not.toHaveBeenCalled();
+      await act(async () => button().props.onHoverOut({}));
+      optionExpansion.clipped = true;
+      await act(async () => button().props.onHoverIn({}));
+      expect(optionExpansion.open).toHaveBeenCalledOnce();
+      expect(optionExpansion.setExpanded).toHaveBeenLastCalledWith(true);
+      expect(button().findAll((node) => typeof node.type === "string" && node.props["aria-hidden"] === true)).toHaveLength(1);
+      await act(async () => button().props.onPress({ nativeEvent: { detail: 0 } }));
+      expect(press).toHaveBeenCalledOnce();
+      await act(async () => button().props.onHoverOut({}));
+      expect(optionExpansion.setExpanded).toHaveBeenLastCalledWith(false);
+      expect(optionExpansion.close).not.toHaveBeenCalled();
+      await act(async () => { vi.advanceTimersByTime(180); });
+      expect(optionExpansion.close).toHaveBeenCalledOnce();
+      expect(button().findAll((node) => typeof node.type === "string" && node.props["aria-hidden"] === true)).toHaveLength(0);
+      await act(async () => renderer.unmount());
+    } finally {
+      optionExpansion.clipped = false;
+      vi.useRealTimers();
+    }
+  });
 
   it.each([1, 1.5])("preserves card targets and web transitions at font scale %s", async (factor) => {
     for (const compact of [false, true]) {

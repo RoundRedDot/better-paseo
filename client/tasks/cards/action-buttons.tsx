@@ -1,8 +1,10 @@
-import React from "react";
-import { View, useWindowDimensions } from "react-native";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Platform, View, useWindowDimensions } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_FONT as F, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { openOptionExpansion, optionTextClipped } from "../../web";
 import { useActionFit } from "./action-row";
 import { ActionPressable } from "./action-pressable";
 import { liftedButtonOutline, surfaceLift } from "./surface-lift";
@@ -47,6 +49,24 @@ export function CardButton(props: {
   const forcedSquare = compact && props.square === true;
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
+  const reduced = useReducedMotion();
+  const labelRef = useRef<React.ElementRef<typeof Text>>(null);
+  const panelRef = useRef<View>(null);
+  const expansion = useRef<ReturnType<typeof openOptionExpansion> | null>(null);
+  const [showExpansion, setShowExpansion] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  useLayoutEffect(() => {
+    if (!showExpansion) return;
+    const layer = openOptionExpansion(labelRef.current, panelRef.current, reduced);
+    expansion.current = layer;
+    return () => { expansion.current = null; layer.close(); };
+  }, [showExpansion, reduced]);
+  useLayoutEffect(() => { expansion.current?.setExpanded(expanded); }, [expanded, showExpansion]);
+  useEffect(() => {
+    if (!showExpansion || expanded) return;
+    const timer = setTimeout(() => setShowExpansion(false), reduced ? 0 : 180);
+    return () => clearTimeout(timer);
+  }, [expanded, reduced, showExpansion]);
   const disabled = props.busy || props.disabled;
   const hovered = hover && !disabled;
   const answer = kind === "answer";
@@ -66,7 +86,14 @@ export function CardButton(props: {
       accessibilityState={disabled ? { disabled: true, busy: props.busy === true } : undefined}
       disabled={disabled}
       onPress={props.onPress}
-      {...hoverProps}
+      onHoverIn={() => {
+        hoverProps.onHoverIn();
+        if (props.labelOnly && !disabled && optionTextClipped(labelRef.current)) {
+          setShowExpansion(true);
+          setExpanded(true);
+        }
+      }}
+      onHoverOut={() => { hoverProps.onHoverOut(); setExpanded(false); }}
       {...hintProps(square ? props.hint : undefined)}
       testID={props.testID}
       style={({ pressed }) => ({
@@ -97,10 +124,15 @@ export function CardButton(props: {
         <Icon name={props.icon} size={size} color={color} />
       ) : null}
       {square ? null : (
-        <Text onLayout={fit.labelLayout} numberOfLines={1} ellipsizeMode={props.labelOnly ? "tail" : undefined} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
+        <Text ref={labelRef} onLayout={fit.labelLayout} numberOfLines={1} ellipsizeMode={props.labelOnly ? "tail" : undefined} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
           {props.label}
         </Text>
       )}
+      {Platform.OS === "web" && showExpansion ? (
+        <View ref={panelRef} aria-hidden style={{ position: "absolute", opacity: 0, flexDirection: "row", alignItems: "center", justifyContent: "center", paddingHorizontal: compact ? 12 : 10, borderRadius: compact ? 7 : 6, backgroundColor: tokens.card.background, ...liftedButtonOutline(tokens, border, kind === "plain", surfaceLift(true, false)) }}>
+          <Text numberOfLines={1} style={{ flexShrink: 0, fontSize: F.sm, fontWeight: "500", color }}>{props.label}</Text>
+        </View>
+      ) : null}
       {/* The one arrow: a label that still ends in its own is trimmed by the caller. */}
       {(answer || props.arrow) && !(square && props.busy) ? (
         <View style={square ? undefined : { marginLeft: -arrowInset(size), width: size * 18 / 24 }}>
