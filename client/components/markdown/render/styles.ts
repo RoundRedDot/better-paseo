@@ -424,10 +424,10 @@ export function buildStyles(
     indent2: { marginLeft: metrics.indentStep * 2 },
     indent3: { marginLeft: metrics.indentStep * 3 },
     markerBullet: {
-      width: metrics.markerWidth + (web ? -6 : MOBILE_BULLET_GAP),
+      width: metrics.markerWidth - 6,
       flexShrink: 0,
       fontFamily: bodyFont,
-      fontSize: web ? metrics.bodySize : Math.round(metrics.bodySize * 0.75),
+      fontSize: web ? metrics.bodySize : Math.round(metrics.bodySize * 0.75) - (variant === "document" ? 1 : 0),
       lineHeight: metrics.bodyLineHeight,
       color: tokens.foregroundMuted,
       ...unselectable,

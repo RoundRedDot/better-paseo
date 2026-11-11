@@ -65,7 +65,7 @@ describe("iOS single Markdown block selection", () => {
   it("keeps a small unordered marker within the existing list column", () => {
     render("- 第一项内容换行时与正文对齐\n- Second item");
     const style = native()[0]!.props.markdownStyle.list;
-    expect(style.bulletSize).toBe(4);
+    expect(style.bulletSize).toBe(3);
     expect(style.markerMinWidth + style.gapWidth).toBe(22);
     render("1. Ordered item");
     const ordered = native()[0]!.props.markdownStyle.list;
@@ -173,6 +173,22 @@ describe("Markdown quote controls", () => {
 });
 
 describe("mobile nested list markers", () => {
+  it.each(["ios", "android"] as const)("makes document bullets slightly smaller on %s", (platform) => {
+    os.__rnMockOS = platform;
+    const mobileTokens = { ...tokens, platform };
+    const size = (variant: "document" | "compact") => {
+      act(() => {
+        const element = React.createElement(MarkdownView, {
+          text: "- First\n  - Nested", tokens: mobileTokens, variant, compact: true,
+        });
+        if (renderer) renderer.update(element);
+        else renderer = TestRenderer.create(element);
+      });
+      const marker = renderer!.root.find((node) => String(node.type) === "Text" && node.props.children === "•");
+      return StyleSheet.flatten(marker.props.style).fontSize;
+    };
+    expect(size("document")).toBe(size("compact") - 1);
+  });
   it.each(["ios", "android"] as const)("keeps nesting and marker columns on %s while streaming and settled", (platform) => {
     os.__rnMockOS = platform;
     const mobileTokens = { ...tokens, platform };
@@ -195,7 +211,7 @@ describe("mobile nested list markers", () => {
       })).toEqual([0, 20, 40, 0]);
       for (const marker of markers) {
         const style = StyleSheet.flatten(marker.props.style);
-        expect(style.width).toBe(22);
+        expect(style.width).toBe(14);
         expect(style.fontSize).toBeLessThan(tokens.typography.content.size);
       }
       expect(renderer!.root.findAll((node) => String(node.type) === "Text" && node.props.children === "1.")).toHaveLength(1);
