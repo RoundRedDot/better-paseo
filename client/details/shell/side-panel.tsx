@@ -1,8 +1,8 @@
 /**
  * The right-hand details panel (design boards 2c and 3, table 5.2):
  * clamp(0.36W, 420, 640) wide (400 in a phone's landscape), full height
- * under the status bar, a 1px left border, no handle and no dim. Its full
- * screen is a wider panel. On desktop web an 8 wide zone on its left edge
+ * under the status bar, a 1px left border and no dim. Its full
+ * screen is a wider panel. On desktop web a zone on its left edge
  * drags its width between 360 and 0.6W, kept for the session. A drag frame
  * writes the width to the page, at most once a frame; the panel renders
  * once, on release, so the details do not draw again on every move.
@@ -25,19 +25,20 @@ export const SIDE = {
   phone: 400,
   min: 360,
   max: 0.6,
-  edge: 8,
+  edge: 12,
 } as const;
 
 // The width the reader dragged the panel to, for the rest of the session.
 let sessionWidth: number | null = null;
 
-/** The saved or design width, wider at full screen; desktop web stays inside the empty gutter. */
+/** The design width starts in the empty gutter; a dragged width may cover the timeline. */
 export function sideWidth(stage: { width: number; height: number; sideSpace?: number }, wide: boolean): number {
   if (stage.height < 500 && stage.sideSpace === undefined) return Math.min(SIDE.phone, stage.width);
   const base = sessionWidth === null
-    ? Math.round(sidePanelWidth(stage.width))
-    : Math.round(Math.max(SIDE.min, Math.min(stage.width * SIDE.max, sessionWidth)));
-  return Math.min(stage.sideSpace ?? stage.width, wide ? Math.max(base, Math.round(stage.width * SIDE.max)) : base);
+    ? Math.min(stage.sideSpace ?? stage.width, Math.round(sidePanelWidth(stage.width)))
+    : Math.min(stage.width, Math.round(Math.max(SIDE.min, Math.min(stage.width * SIDE.max, sessionWidth))));
+  const expanded = Math.min(stage.sideSpace ?? stage.width, Math.round(stage.width * SIDE.max));
+  return wide ? Math.max(base, expanded) : base;
 }
 
 /** Tests only. */
@@ -57,6 +58,7 @@ export function SidePanel(props: {
   wide: boolean;
   /** Desktop web: the left edge drags the width. */
   resizable: boolean;
+  onResizeStart?(): void;
   onOutside(): void;
   children: ReactNode;
 }) {
@@ -65,6 +67,7 @@ export function SidePanel(props: {
   const latest = useRef(props);
   latest.current = props;
   const [, setDragged] = useState(0);
+  const [edgeHovered, setEdgeHovered] = useState(false);
   const width = sideWidth(props.stage, props.wide);
   const moves = props.entrance === "slide" && !reduced;
   const shift = useRef(new Animated.Value(moves ? Platform.OS === "web" ? DESKTOP_OVERLAY.shift : DETAILS_MOTION.sideShift : 0)).current;
@@ -119,9 +122,9 @@ export function SidePanel(props: {
     if (!props.resizable || Platform.OS !== "web") return;
     const node = panel.current as unknown as HTMLElement | null;
     const rerender = () => setDragged((count) => count + 1);
-    return bindEdgeDrag(edge.current, () => sideWidth(latest.current.stage, false), (next) => {
+    return bindEdgeDrag(edge.current, () => sideWidth(latest.current.stage, latest.current.wide), () => latest.current.onResizeStart?.(), (next) => {
       sessionWidth = Math.round(Math.max(SIDE.min, Math.min(latest.current.stage.width * SIDE.max, next)));
-      if (node?.style) node.style.width = `${sideWidth(latest.current.stage, latest.current.wide)}px`;
+      if (node?.style) node.style.width = `${sideWidth(latest.current.stage, false)}px`;
       else rerender();
     }, rerender);
   }, [props.resizable]);
@@ -153,8 +156,12 @@ export function SidePanel(props: {
             testID="details-side-edge"
             accessibilityRole="adjustable"
             accessibilityLabel={toolbarLabel("Resize details panel", language)}
+            onPointerEnter={() => setEdgeHovered(true)}
+            onPointerLeave={() => setEdgeHovered(false)}
             style={[styles.edge, styles.edgeCursor]}
-          />
+          >
+            <View pointerEvents="none" style={[styles.edgeIndicator, { backgroundColor: tokens.foregroundMuted, opacity: edgeHovered ? 0.9 : 0.45 }]} />
+          </View>
         ) : null}
       </Animated.View>
     </>
@@ -166,7 +173,7 @@ export function SidePanel(props: {
  * written at most once a frame (`write`); `release` follows the last one.
  * Web only.
  */
-function bindEdgeDrag(node: unknown, read: () => number, write: (width: number) => void, release: () => void): () => void {
+function bindEdgeDrag(node: unknown, read: () => number, begin: () => void, write: (width: number) => void, release: () => void): () => void {
   const element = node as HTMLElement | null;
   if (!element || typeof element.addEventListener !== "function") return () => {};
   const doc = element.ownerDocument;
@@ -174,6 +181,7 @@ function bindEdgeDrag(node: unknown, read: () => number, write: (width: number) 
   let start: { x: number; width: number } | null = null;
   let pending: number | null = null;
   let frame = 0;
+  let moved = false;
   const flush = () => {
     frame = 0;
     if (pending === null) return;
@@ -184,6 +192,11 @@ function bindEdgeDrag(node: unknown, read: () => number, write: (width: number) 
   const move = (event: PointerEvent) => {
     if (!start) return;
     event.preventDefault();
+    if (!moved && event.clientX !== start.x) {
+      moved = true;
+      begin();
+    }
+    if (!moved) return;
     pending = start.width + (start.x - event.clientX);
     if (!view?.requestAnimationFrame) flush();
     else if (!frame) frame = view.requestAnimationFrame(flush);
@@ -201,6 +214,7 @@ function bindEdgeDrag(node: unknown, read: () => number, write: (width: number) 
   const down = (event: PointerEvent) => {
     if (event.button !== 0) return;
     event.preventDefault();
+    moved = false;
     start = { x: event.clientX, width: read() };
     doc.addEventListener("pointermove", move);
     doc.addEventListener("pointerup", end);
@@ -223,5 +237,6 @@ const styles = StyleSheet.create({
   panel: { position: "absolute", right: 0, bottom: 0, borderLeftWidth: 1, overflow: "hidden" },
   content: { flex: 1, minHeight: 0 },
   edge: { position: "absolute", left: 0, top: 0, bottom: 0, width: SIDE.edge },
+  edgeIndicator: { position: "absolute", left: 4, top: "50%", marginTop: -18, width: 3, height: 36, borderRadius: 2 },
   edgeCursor: { cursor: "col-resize", touchAction: "none" } as unknown as ViewStyle,
 });

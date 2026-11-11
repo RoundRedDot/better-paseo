@@ -463,6 +463,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
       onExited={onExited}
       wide={fullscreen}
       resizable={pointer && Platform.OS === "web"}
+      onResizeStart={() => { if (fullscreen) detailsApi.setFullscreen(agentId, false); }}
       onOutside={close}
     >
       {content}
