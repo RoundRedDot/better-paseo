@@ -40,6 +40,7 @@ export const TooltipAlignContext = createContext<TooltipAlign>("center");
  * next row; `auto` opens it above unless the list's top edge leaves no room.
  */
 export const TooltipSideContext = createContext<"below" | "auto">("below");
+export const ToolbarHoverColorContext = createContext<string | null>(null);
 
 /**
  * The size of a toolbar's buttons and their icons. The hover panel's are 24
@@ -165,6 +166,7 @@ export function ToolbarItem({
   const sideMode = useContext(TooltipSideContext);
   const metrics = useContext(ToolbarMetricsContext);
   const sized = metrics.button !== TOOLBAR_METRICS.button;
+  const hoverColor = useContext(ToolbarHoverColorContext) ?? tokens.v2.surface2;
   const anchorRef = useRef<View>(null);
   const detailsRef = useRef<View>(null);
   const [side, setSide] = useState<TooltipPlacement>("below");
@@ -261,8 +263,8 @@ export function ToolbarItem({
           outlined && { borderColor: tokens.v2.border },
           buttonStyle,
           disabled && styles.disabled,
-          onPress && !disabled && hovered && { backgroundColor: tokens.v2.surface2 },
-          onPress && !disabled && pressed && { backgroundColor: tokens.v2.surface2 },
+          onPress && !disabled && hovered && { backgroundColor: hoverColor },
+          onPress && !disabled && pressed && { backgroundColor: hoverColor },
           pressedStyle?.({ pressed }),
         ]}
       >
