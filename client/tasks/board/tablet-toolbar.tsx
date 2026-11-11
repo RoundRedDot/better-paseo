@@ -1,5 +1,5 @@
-import React, { useState, type ReactNode, type Ref } from "react";
-import { Pressable, View, type LayoutRectangle, type TextInput as NativeTextInput } from "react-native";
+import React, { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { Animated, Platform, Pressable, View, type LayoutRectangle, type TextInput as NativeTextInput } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, useTasksFontScale, taskControlHeight } from "../typography";
@@ -7,7 +7,8 @@ import { tipProps } from "../cards/card-hints";
 import { taskTokens } from "../cards/tokens";
 import { liftStyle, surfaceLift } from "../cards/surface-lift";
 import { CornerBadge, HoverPressable, RollingTotal, SlashMark } from "./board-parts";
-import { HAIRLINE } from "./board-style";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { HAIRLINE, MOTION } from "./board-style";
 import { laneWidthMenuSections, sortMenuSections } from "./board-menus";
 import { CascadeMenu, type MenuSection } from "./menu";
 import { menuChrome, menuWidth } from "./menu-model";
@@ -51,9 +52,6 @@ export function TabletToolbar(props: {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const searching = Boolean(board.params.query.trim());
-  const searchInToolbar = inlineSearch || (searchOpen && props.width >= 700 * Math.max(1, scale));
-  const expandedSearch = searchOpen && !searchInToolbar;
-  const fieldVisible = searchInToolbar || expandedSearch;
   const narrowSummary = props.width < 480 * Math.max(1, scale);
   const [toolbarWidth, setToolbarWidth] = useState<number | null>(null);
   const [actionLayout, setActionLayout] = useState<LayoutRectangle | null>(null);
@@ -62,6 +60,11 @@ export function TabletToolbar(props: {
   const actionWidth = actionLayout?.width ?? 0;
   // Keep the subtask shortcut visible alongside filters and view on narrow boards.
   const minimumActionsWidth = 4 * target;
+  // The count gives its slot to search. Reserve room for editing and its inline controls.
+  const minimumSearchWidth = taskControlHeight(searching ? 320 : 200, scale);
+  const searchInToolbar = inlineSearch || (searchOpen && props.width >= minimumActionsWidth + minimumSearchWidth + 2 * LANES.edge + 18);
+  const expandedSearch = searchOpen && !searchInToolbar;
+  const fieldVisible = searchInToolbar || expandedSearch;
   // Narrow split views cannot fit a centered count between two equally wide slots.
   const centered = props.width >= 2 * minimumActionsWidth + taskControlHeight(120, scale);
   const separateFilters = compact || actionWidth === 0 || actionWidth >= 2 * target;
@@ -112,7 +115,7 @@ export function TabletToolbar(props: {
     </View>
   );
   const search = (
-    <View testID="tablet-toolbar-search-group" style={{ minWidth: 0, maxWidth: "100%", flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", gap: 8 }}>
+    <TabletSearchReveal persistent={inlineSearch}>
     <View testID="tablet-toolbar-search" style={{ ...(inlineSearch ? { width: props.laneWidth, flexShrink: 1 } : { flex: 1, flexBasis: 0 }), minWidth: 0, height: height - 8, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, borderRadius: 7, borderWidth: HAIRLINE, borderColor: searchFocused ? colors.foregroundMuted : colors.border, backgroundColor: colors.surface0 }}>
       <SearchInput theme={theme} staticIcon iconSize={16} iconColor={colors.foregroundMuted}
         ref={props.searchRef}
@@ -136,7 +139,7 @@ export function TabletToolbar(props: {
     <FullConversationSwitch theme={theme} iconSize={18} />
     {searchInToolbar && !inlineSearch ? <ToolbarButton icon="X" label={strings.closeMenu} theme={theme} onPress={() => setSearchOpen(false)} testID="tablet-search-close" /> : null}
     <SearchCoverageItems theme={theme} part="notice" compact compactLabels={compactLabels} />
-    </View>
+    </TabletSearchReveal>
   );
   return (
     <>
@@ -149,7 +152,7 @@ export function TabletToolbar(props: {
             {!fieldVisible ? querySummary : null}
           </>}
         </View>
-        <View accessible pointerEvents="none" accessibilityLabel={strings.total(board.total)} testID="tablet-toolbar-total" style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        {!fieldVisible ? <View accessible pointerEvents="none" accessibilityLabel={strings.total(board.total)} testID="tablet-toolbar-total" style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
           <View testID="tablet-total-slot" style={{ flexShrink: 0, alignItems: "center", justifyContent: "center" }}>
             {/* Reserve the complete localised phrase, so count changes never move the search. */}
             <Text testID="tablet-total-reserve" accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" numberOfLines={1} style={[textStyle, { opacity: 0 }]}>{strings.total(Number("8".repeat(Math.max(3, String(board.total).length))))}</Text>
@@ -157,7 +160,7 @@ export function TabletToolbar(props: {
               <RollingTotal board={board} style={textStyle} />
             </View>
           </View>
-        </View>
+        </View> : null}
         <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: searching || searchInToolbar || !centered ? 0 : 1, flexBasis: searching || searchInToolbar || !centered ? "auto" : 0, minWidth: compact && centered ? minimumActionsWidth : 0, marginLeft: 6, marginRight: -6, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
         <ToolbarButton icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} toggle badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => { closeEmptySearch(); board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })); }} />
         {separateFilters ? <View testID="tablet-filter-anchor" onLayout={(event) => setFilterLayout(event.nativeEvent.layout)}><ToolbarButton icon="Filter" label={strings.filters} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /></View> : null}
@@ -188,6 +191,31 @@ export function TabletToolbar(props: {
       ) : null}
     </>
   );
+}
+
+/** Animate each opened search field without replaying on typing or coverage updates. */
+function TabletSearchReveal(props: { persistent: boolean; children: ReactNode }) {
+  const reduced = useReducedMotion();
+  const immediate = reduced || props.persistent;
+  const progress = useRef(new Animated.Value(immediate ? 1 : 0)).current;
+  useEffect(() => {
+    if (immediate) {
+      progress.setValue(1);
+      return;
+    }
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: 180,
+      easing: MOTION.ease,
+      useNativeDriver: Platform.OS !== "web",
+      isInteraction: false,
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [immediate, progress]);
+  return <Animated.View testID="tablet-toolbar-search-group" style={{ minWidth: 0, maxWidth: "100%", flex: 1, flexBasis: 0, flexDirection: "row", alignItems: "center", gap: 8, opacity: immediate ? 1 : progress, transform: immediate ? undefined : [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}>
+    {props.children}
+  </Animated.View>;
 }
 
 /**

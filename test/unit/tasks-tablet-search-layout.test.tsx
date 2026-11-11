@@ -7,8 +7,9 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: (props: Record<string, unknown>) => React.createElement("Icon", props), TextInput: rn.TextInput, ScrollView: rn.ScrollView };
 });
-vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => true, getReducedMotion: () => true }));
-import { AccessibilityInfo, View } from "react-native";
+const motion = vi.hoisted(() => ({ reduced: true }));
+vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced, getReducedMotion: () => motion.reduced }));
+import { AccessibilityInfo, Animated, View } from "react-native";
 import { SearchQueryChip } from "../../client/tasks/board/filter-bar";
 import { TabletToolbar } from "../../client/tasks/board/tablet-toolbar";
 import { SearchCoverageProvider } from "../../client/tasks/board/search-loading";
@@ -23,7 +24,7 @@ import { measureHostTree, type Frame } from "./helpers/yoga-host-layout";
 
 const theme = { colors: { foreground: "#222222", foregroundMuted: "#777777", surface0: "#ffffff", surface1: "#eeeeee", surface2: "#dddddd", border: "#cccccc", accent: "#2563eb", accentForeground: "#ffffff", statusSuccess: "#198754", statusWarning: "#a36a00", statusDanger: "#d92d20" } };
 let renderer: TestRenderer.ReactTestRenderer;
-beforeEach(() => { vi.useFakeTimers(); Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, __rnMockOS: "ios" }); });
+beforeEach(() => { motion.reduced = true; vi.useFakeTimers(); Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, __rnMockOS: "ios" }); });
 afterEach(() => { act(() => renderer?.unmount()); vi.useRealTimers(); delete (globalThis as { __rnMockOS?: string }).__rnMockOS; });
 const hosts = (id: string) => renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === id);
 const text = (node: ReactTestInstance): string => node.children.map((child) => typeof child === "string" ? child : text(child)).join("");
@@ -36,7 +37,7 @@ function mount(width: number, scale = 1, language: "en" | "zh" = "en", palette: 
   const status: SearchCoverageControl = { read: () => counts, subscribe: () => () => {}, prompt: () => ({ state: "idle" }) };
   // This fixture supplies only the controller fields consumed by the toolbar.
   const board = {
-    params: { ...EMPTY_PARAMS, query: "a long search query skill 搜索关键词" }, defaults: { hideSubtasks: true, doneWindow: "7d" }, strings: BOARD_STRINGS[language], total: 29, hiddenSubtasks: 0, laneWidth: "standard", showArchived: false,
+    params: { ...EMPTY_PARAMS, query: "a-long-search-query-skill-搜索关键词" }, defaults: { hideSubtasks: true, doneWindow: "7d" }, strings: BOARD_STRINGS[language], total: 29, tasks: { ready: false }, hiddenSubtasks: 0, laneWidth: "standard", showArchived: false,
     setParams(update: (params: BoardParams) => BoardParams) { board.params = update(board.params); render(); },
     setLaneWidth() {}, setShowArchived() {},
   } as unknown as BoardController;
@@ -69,7 +70,7 @@ it.each((["ios", "android"] as const).flatMap((os) => [408, 574, 802, 1024].flat
     const check = () => {
       const frames = layout();
       const bar = frames.get(hosts("tablet-toolbar")[0]!)!;
-      for (const id of ["tablet-toolbar-total", "subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"]) inside(frames.get(hosts(id)[0]!)!, bar);
+      for (const id of ["tablet-toolbar-total", "subtasks-toggle", "toolbar-filters", "tablet-view", "sidebar-switch"]) for (const host of hosts(id)) inside(frames.get(host)!, bar);
       const field = hosts("tablet-toolbar-search")[0];
       const chip = hosts("search-query-chip")[0];
       expect(Boolean(field)).not.toBe(Boolean(chip));
@@ -169,7 +170,7 @@ it.each((["ios", "android"] as const).flatMap((os) => [744, 820].flatMap((width)
   "%s collapsed long query at %i/%s keeps %s controls separate from each other and the count", (os, width, language, state) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const fixture = mount(width, 1, language);
-    act(() => fixture.board.setParams((params) => ({ ...params, query: "A deliberately long query to force ellipsis while paused or failed 搜索关键词" })));
+    act(() => fixture.board.setParams((params) => ({ ...params, query: "A-deliberately-long-query-to-force-ellipsis-while-paused-or-failed-搜索关键词" })));
     fixture.state(state);
     expect(hosts("tablet-toolbar-search")).toHaveLength(0);
     expect(hosts("tablet-search-summary-row")).toHaveLength(0);
@@ -281,4 +282,108 @@ it.each([["light", theme], ["dark", dark]] as const)("paints the %s failure mark
   act(() => renderer.unmount());
   mount(408, 1, "en", palette).state("failed");
   expect(hosts("search-query-chip")[0]!.findByProps({ name: "CircleAlert" }).props.color).toBe(danger);
+});
+
+
+it.each([408, 820])("reveals the search field at %i without replaying while typing and stops on close", (width) => {
+  motion.reduced = false;
+  const timing = vi.spyOn(Animated, "timing");
+  const stop = vi.fn();
+  const start = vi.fn();
+  timing.mockImplementation(() => ({ start, stop, reset() {} }));
+  try {
+    const fixture = mount(width);
+    act(() => hosts("search-query-edit")[0]!.props.onPress());
+    const group = hosts("tablet-toolbar-search-group")[0]!;
+    const progress = group.props.style.opacity;
+    const revealCalls = () => timing.mock.calls.filter(([value]) => value === progress);
+    expect(progress.__value).toBe(0);
+    expect(revealCalls()).toHaveLength(1);
+    expect(revealCalls()[0]![1]).toMatchObject({ toValue: 1, duration: 180, useNativeDriver: true, isInteraction: false });
+    expect(start).toHaveBeenCalled();
+    act(() => fixture.board.setParams((params) => ({ ...params, query: "updated query" })));
+    fixture.complete();
+    expect(hosts("tablet-toolbar-search-group")[0]!.props.style.opacity).toBe(progress);
+    expect(revealCalls()).toHaveLength(1);
+    stop.mockClear();
+    act(() => hosts("tablet-search-close")[0]!.props.onPress());
+    expect(hosts("tablet-toolbar-search-group")).toHaveLength(0);
+    expect(stop).toHaveBeenCalled();
+    act(() => hosts("search-query-edit")[0]!.props.onPress());
+    expect(hosts("tablet-toolbar-search-group")[0]!.props.style.opacity).not.toBe(progress);
+  } finally { timing.mockRestore(); }
+});
+
+it.each([[408, true], [820, true], [1024, false]] as const)("shows search immediately at %i with reduced motion %s or a persistent field", (width, reduced) => {
+  motion.reduced = reduced;
+  const timing = vi.spyOn(Animated, "timing");
+  try {
+    mount(width);
+    if (width < 960) act(() => hosts("search-query-edit")[0]!.props.onPress());
+    const style = hosts("tablet-toolbar-search-group")[0]!.props.style;
+    expect(style.opacity).toBe(1);
+    expect(style.transform).toBeUndefined();
+    expect(timing.mock.calls.filter(([, config]) => config.duration === 180)).toHaveLength(0);
+  } finally { timing.mockRestore(); }
+});
+
+
+it.each([408, 574, 680, 820])("uses the task count slot for search at %i and adds a row only when it cannot fit", (width) => {
+  const fixture = mount(width);
+  act(() => hosts("search-query-edit")[0]!.props.onPress());
+  expect(hosts("tablet-toolbar-total")).toHaveLength(0);
+  expect(hosts("tablet-search-row")).toHaveLength(width < 490 ? 1 : 0);
+  checkControls(width);
+  act(() => hosts("tablet-search-close")[0]!.props.onPress());
+  expect(hosts("tablet-toolbar-total")).toHaveLength(1);
+  act(() => fixture.board.setParams((params) => ({ ...params, query: "" })));
+  act(() => hosts("tablet-search-toggle")[0]!.props.onPress());
+  expect(hosts("tablet-toolbar-total")).toHaveLength(0);
+  expect(hosts("tablet-search-row")).toHaveLength(0);
+  checkControls(width);
+});
+
+
+it.each(["ios", "android", "web"] as const)("%s renders whitespace-separated terms and removes just the selected occurrence", (os) => {
+  (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+  const fixture = mount(574);
+  act(() => fixture.board.setParams((params) => ({ ...params, query: "  skill   Codex\t中文 skill  " })));
+  expect(hosts("search-query-chip").map(text)).toEqual(["「skill」", "「Codex」", "「中文」", "「skill」"]);
+  const row = hosts("search-query-chips")[0]!;
+  expect(row.props.horizontal).toBe(true);
+  const remove = (index: number) => {
+    const chip = hosts("search-query-chip")[index]!;
+    act(() => chip.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.testID !== "search-query-edit").props.onPress());
+  };
+  remove(3);
+  expect(fixture.board.params.query).toBe("skill Codex 中文");
+  remove(1);
+  expect(fixture.board.params.query).toBe("skill 中文");
+  remove(0);
+  expect(fixture.board.params.query).toBe("中文");
+  expect(hosts("search-query-chip").map(text)).toEqual(["「中文」"]);
+  expect(hosts("search-query-chips")).toHaveLength(0);
+  remove(0);
+  expect(fixture.board.params.query).toBe("");
+  expect(hosts("search-query-chip")).toHaveLength(0);
+});
+
+it("edits all search terms together from any pill and keeps the status mark on only the first", () => {
+  const fixture = mount(408);
+  act(() => fixture.board.setParams((params) => ({ ...params, query: "skill codex 中文" })));
+  fixture.state("failed");
+  expect(hosts("search-query-chip")).toHaveLength(3);
+  expect(renderer.root.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "CircleAlert")).toHaveLength(1);
+  act(() => hosts("search-query-edit")[1]!.props.onPress());
+  const input = hosts("tablet-toolbar-search")[0]!.find((node) => (node.type as unknown) === "TextInput");
+  expect(input.props.value).toBe("skill codex 中文");
+  expect(hosts("search-query-chip")).toHaveLength(0);
+});
+
+it.each([574, 680, 820].flatMap((width) => [1, 1.5].flatMap((scale) => (["en", "zh"] as const).map((language) => [width, scale, language] as const))))("keeps simultaneous stop and failure controls bounded at %i/%f/%s", (width, scale, language) => {
+  const fixture = mount(width, scale, language);
+  fixture.state("stopped+failed");
+  act(() => hosts("search-query-edit")[0]!.props.onPress());
+  expect(hosts("tablet-toolbar-total")).toHaveLength(0);
+  checkControls(width);
 });

@@ -533,7 +533,8 @@ describe("search coverage render isolation", () => {
       if (phone) {
         const summary = hostsById("phone-search-summary")[0]!;
         expect(summary.props.horizontal).toBe(true);
-        expect(textOf(summary)).toContain("coverage probe");
+        expect(hostsById("search-query-chip").map(textOf)).toEqual(["「coverage」", "「probe」"]);
+        expect(hostsById("search-query-chips")[0]!.type).toBe("View");
       }
       expect(host.rowRenders).toBe(before);
       expect(hostsById("tasks-search-coverage")).toHaveLength(0);
@@ -768,11 +769,11 @@ describe("Tasks search coverage and centred toolbar", () => {
 
   it.each(["web", "ios", "android"])("keeps %s separate-row search independent of lane width", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
-    act(() => { renderer = TestRenderer.create(screen(false, {}, { ...(theme as object), typography: { fontSize: { ui: 21 } } })); });
+    act(() => { renderer = TestRenderer.create(screen(false, { q: "needle" }, { ...(theme as object), typography: { fontSize: { ui: 21 } } })); });
     layOut(600);
     const prefix = os === "web" ? "desktop" : "tablet";
     const controller = () => renderer!.root.findByType(os === "web" ? DesktopToolbar : TabletToolbar).props.board;
-    act(() => hostsById(`${prefix}-search-toggle`)[0]!.props.onPress());
+    act(() => (hostsById(`${prefix}-search-toggle`)[0] ?? hostsById("search-query-edit")[0])!.props.onPress());
     for (const [size, expected] of [["narrow", 244], ["default", 284], ["wide", 300]] as const) {
       await act(async () => { controller().setLaneWidth(size); });
       expect(StyleSheet.flatten(hostsById("lane-surface-running")[0]!.props.style).width).toBe(expected);
@@ -802,7 +803,8 @@ describe("Tasks search coverage and centred toolbar", () => {
       const frames = measureHostTree(bar, { width });
       expect(frames.get(field)!.width).toBeCloseTo(expected, 0);
       const group = frames.get(hostsById(`${prefix}-toolbar-search-group`)[0]!)!;
-      expect(group.left + group.width).toBeLessThanOrEqual(frames.get(hostsById(`${prefix}-toolbar-total`)[0]!)!.left);
+      expect(group.left + group.width).toBeLessThanOrEqual(frames.get(hostsById(`${prefix}-toolbar-${os === "web" ? "total" : "end"}`)[0]!)!.left);
+      expect(hostsById(`${prefix}-toolbar-total`)).toHaveLength(os === "web" ? 1 : 0);
       expect(hostsById(`${prefix}-search-toggle`)).toHaveLength(0);
       expect(hostsById(`${prefix}-search-row`)).toHaveLength(0);
     }
@@ -821,14 +823,15 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(hostsById(`${prefix}-toolbar-search`)).toHaveLength(0);
     const actions = hostsById(`${prefix}-toolbar-end`)[0]!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID);
     act(() => hostsById(`${prefix}-search-toggle`)[0]!.props.onPress());
-    const row = hostsById(`${prefix}-search-row`)[0]!;
+    const row = hostsById(`${prefix}-search-row`)[0];
+    const container = row ?? hostsById(`${prefix}-toolbar`)[0]!;
     const field = hostsById(`${prefix}-toolbar-search`)[0]!;
-    expect(hostParentOf(hostsById(`${prefix}-toolbar-search-group`)[0]!)).toBe(row);
+    expect(hostParentOf(hostsById(`${prefix}-toolbar-search-group`)[0]!)).toBe(row ?? hostsById(`${prefix}-toolbar-start`)[0]);
     const input = field.find((node) => (node.type as unknown) === "TextInput");
     expect(input.props.autoFocus).toBe(true);
-    expect(hostsById(`${prefix}-toolbar-total`)).toHaveLength(1);
+    expect(hostsById(`${prefix}-toolbar-total`)).toHaveLength(os === "web" ? 1 : 0);
     expect(hostsById(`${prefix}-toolbar-end`)[0]!.findAll((node) => (node.type as unknown) === "Pressable").map((node) => node.props.testID)).toEqual(actions);
-    const frames = measureHostTree(row, { width });
+    const frames = measureHostTree(container, { width });
     expect(frames.get(field)!.width).toBeLessThanOrEqual(os === "web" ? 320 : width - 48);
     expect(frames.get(field)!.width).toBeGreaterThan(100);
     for (const node of [field, hostsById("search-full-conversation-toggle")[0]!, hostsById(`${prefix}-search-close`)[0]!]) {
@@ -857,7 +860,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(hostsById(`${prefix}-search-toggle`)).toHaveLength(0);
     expect(hostsById(`${prefix}-toolbar-search`)[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("needle");
     act(() => renderer!.update(screen(false, {}, boardTheme(21))));
-    expect(hostsById(`${prefix}-search-row`)).toHaveLength(os === "web" ? 0 : 1);
+    expect(hostsById(`${prefix}-search-row`)).toHaveLength(0);
     expect(hostsById(`${prefix}-toolbar-search`)[0]!.find((node) => (node.type as unknown) === "TextInput").props.value).toBe("needle");
     act(() => hostsById(`${prefix}-search-${os === "web" ? "toggle" : "close"}`)[0]!.props.onPress());
     layOut(1600);
@@ -5402,7 +5405,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostsById("tablet-view-overlay")).toHaveLength(0);
   });
 
-  it.each([["android", 480, 14], ["ios", 600, 21]] as const)("%s at %i pt/UI%i opens search below the toolbar with autofocus, clear and dismissal", (os, width, base) => {
+  it.each([["android", 320, 14], ["ios", 480, 21]] as const)("%s at %i pt/UI%i opens search below the toolbar with autofocus, clear and dismissal", (os, width, base) => {
     mount(os, width, base);
     const height = style(bar()).height;
     act(() => hostsById("tablet-search-toggle")[0]!.props.onPress());
@@ -5417,9 +5420,9 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(search().findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "Search")).toHaveLength(1);
     expect(style(search())).toMatchObject({ height: Math.round(40 * base / 14) - 8, flex: 1, flexBasis: 0, minWidth: 0 });
     expect(style(search()).position).toBeUndefined();
-    expect(hostsById("tablet-toolbar-total")).toHaveLength(1);
+    expect(hostsById("tablet-toolbar-total")).toHaveLength(0);
     expect(style(hostsById("tablet-toolbar-start")[0]!).minWidth).toBe(style(end()).minWidth);
-    expect(style(end())).toMatchObject({ flex: 1, flexBasis: 0 });
+    expect(style(end())).toMatchObject({ flex: 0, flexBasis: "auto" });
     expect(hostsById("toolbar-filters")).toHaveLength(1);
     expect(hostsById("tablet-view")).toHaveLength(1);
     const input = () => search().find((node) => (node.type as unknown) === "TextInput");
@@ -5766,7 +5769,7 @@ describe("Tasks board, tablet filters", () => {
   it.each(["en", "zh"] as const)("reserves a complete centred count across count changes in %s", (language) => {
     updateEnhancerPreferences({ language });
     act(() => { renderer = TestRenderer.create(screen(false)); });
-    layOut(1000);
+    layOut(800);
     const props = renderer!.root.findByType(TabletToolbar).props as React.ComponentProps<typeof TabletToolbar>;
     let slotStyle: unknown;
     let searchStyle: unknown;
@@ -5944,7 +5947,7 @@ describe("Tasks board, tablet filters", () => {
     for (const id of ["tablet-toolbar", "tablet-toolbar-end"]) {
       expect(hostsById(id)[0]!.props.pointerEvents).toBe("box-none");
     }
-    expect(hostsById("tablet-toolbar-total")[0]!.props.pointerEvents).toBe("none");
+    expect(hostsById("tablet-toolbar-total")).toHaveLength(hostsById("tablet-toolbar-search").length ? 0 : 1);
     act(() => hostsById("tablet-toolbar-backdrop")[0]!.props.onPress());
     expect(hostsById(panel)).toHaveLength(0);
     expect(hostsById("tablet-toolbar-backdrop")).toHaveLength(0);
@@ -8183,9 +8186,9 @@ describe("Tasks sidebar filter options", () => {
   });
 });
 
-it.each(["ios", "android"])("%s phone board keeps the real search summary row at its previous height", async (os) => {
+it.each((["ios", "android"] as const).flatMap((os) => ["needle", "needle 中文"].map((query) => [os, query] as const)))("%s phone board keeps the real search summary height for %s", async (os, query) => {
   (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
-  await act(async () => { renderer = TestRenderer.create(screen(true, { q: "needle" }, { ...(theme as object), typography: { fontSize: { ui: 14 } } })); });
+  await act(async () => { renderer = TestRenderer.create(screen(true, { q: query }, { ...(theme as object), typography: { fontSize: { ui: 14 } } })); });
   act(() => { vi.advanceTimersByTime(200); });
   expect(hostsById("phone-search-reveal")).toHaveLength(1);
   const summary = hostsById("phone-search-summary")[0]!;

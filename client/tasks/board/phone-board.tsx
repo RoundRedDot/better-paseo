@@ -413,7 +413,7 @@ export function PhoneBoard(props: {
         theme={theme}
       />
       {board.params.query.trim() ? <ScrollView testID="phone-search-summary" horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <SearchQueryChip board={board} theme={theme} />
+        <SearchQueryChip board={board} theme={theme} scrollable={false} />
         <SearchCoverageItems theme={theme} phone />
       </ScrollView> : null}
       <View
