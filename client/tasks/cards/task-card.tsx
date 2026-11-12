@@ -1492,7 +1492,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           {!questionSection ? <View style={iconCell}>
             <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
           </View> : null}
-          <Text numberOfLines={2} {...hintProps(asksQuestion ? hint("permission-question", () => [permission.title, permissionSummary].filter(Boolean).join(" · ")) : undefined)} style={[text(asksQuestion ? F.base : m.blockSize, asksQuestion ? HOST_LINE.base : m.blockLine, tokens.foreground), { flex: 1 }]}>
+          <Text numberOfLines={2} {...hintProps(asksQuestion ? hint("permission-question", () => [permission.title, permissionSummary].filter(Boolean).join(" · ")) : undefined)} style={[text(asksQuestion ? F.base : m.blockSize, asksQuestion ? HOST_LINE.base : m.blockLine, tokens.foreground), questionSection ? { fontSize: m.titleSize, lineHeight: m.titleLine } : null, { flex: 1 }]}>
             <Text style={{ fontWeight: asksQuestion ? "500" : "600" }}>{permission.title}</Text>
             {permissionSummary ? <Text style={{ color: muted }}> · </Text> : null}
             {permissionSummary}

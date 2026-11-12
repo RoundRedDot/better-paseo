@@ -1680,13 +1680,14 @@ describe("TaskCardView rows", () => {
     expect(all.some((text) => text.includes(" · npm run"))).toBe(false);
   });
 
-  it("renders pending questions at the next font size", async () => {
+  it.each([false, true])("matches pending question typography to the card title (compact: %s)", async (compact) => {
     const base = sample("sample-input");
     const card: TaskCard = { ...base, permission: { ...base.permission!, kind: "question", title: "A long question", summary: "More details" } };
-    const tree = await render(cardElement(card));
+    const tree = await render(cardElement(card, { compact }));
     const question = tree.root.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2 && texts(node).includes("A long question · More details"));
+    const title = hostByTestId(tree.root, "task-card-title");
     expect(question.props.numberOfLines).toBe(2);
-    expect(flat(question.props.style)).toMatchObject({ fontSize: 14, lineHeight: 20 });
+    expect(flat(question.props.style)).toMatchObject({ fontSize: flat(title.props.style).fontSize, lineHeight: flat(title.props.style).lineHeight });
   });
 });
 
