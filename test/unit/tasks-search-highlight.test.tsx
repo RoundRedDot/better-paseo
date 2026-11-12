@@ -256,6 +256,15 @@ describe("card search rendering", () => {
     await act(async () => { vi.advanceTimersByTime(1); });
     expect(root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-search-popover")).toHaveLength(0);
   });
+  it("hides the host focus outline on web search result rows", async () => {
+    vi.stubGlobal("__rnMockOS", "web");
+    pointer.touch = false;
+    const root = await mount(<TaskCardView {...props} searchQuery="sche" />);
+    await act(async () => host(root, "task-search-summary-trigger").props.onPress({ stopPropagation() {} }));
+    const rows = host(root, "task-search-popover-content").findAll((node) => typeof node.type === "string" && node.props.role === "listitem");
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row) => row.props.tabIndex === -1 && row.props.style.outlineStyle === "none")).toBe(true);
+  });
   it("keeps the popover mounted when reopened during its exit", async () => {
     vi.useFakeTimers();
     pointer.touch = false;

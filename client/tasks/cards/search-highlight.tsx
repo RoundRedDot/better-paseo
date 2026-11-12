@@ -226,7 +226,7 @@ export function SearchHitSummary(props: {
       key={`${hit.field}-${index}`}
       role={full ? "listitem" : undefined}
       {...(full && Platform.OS === "web" ? { tabIndex: -1 } : {})}
-      style={full ? { paddingVertical: touch ? 6 : 4, paddingHorizontal: touch ? 8 : 17, gap: 3 } : { flexDirection: "row", alignItems: "center", gap: 6 }}
+      style={full ? { paddingVertical: touch ? 6 : 4, paddingHorizontal: touch ? 8 : 17, gap: 3, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}) } : { flexDirection: "row", alignItems: "center", gap: 6 }}
     >
       {full ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
