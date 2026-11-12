@@ -88,6 +88,8 @@ function detailActions(board: BoardController, card: TaskCard) {
     onOpen: board.callbacks.onOpen,
     stop: stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null,
     permissionButtons: board.buttonsFor(card),
+    submitQuestions: board.submitQuestions,
+    questionDialog: board.questionDialog,
     onPermission: (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button),
     unarchive: board.unarchive.available ? board.unarchive : null,
     archive: board.archive,

@@ -29,7 +29,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     Modal: Object.assign((props: { children?: React.ReactNode }) => React.createElement("HostModal", props, props.children),
       { Content: (props: { children?: React.ReactNode }) => { modalRenders.count++; return React.createElement("ModalContent", props, props.children); } }) };
 });
-import { TaskQuestionDialog } from "../../client/tasks/cards/question-dialog";
+import { TaskInlineQuestions, TaskQuestionDialog } from "../../client/tasks/cards/question-dialog";
 import { createQuestionDialogStore, questionDialogStore } from "../../client/tasks/actions/question-dialog";
 import { parseTaskQuestions, questionAnswers, questionDraftSupported, questionFormSupported, EMPTY_QUESTION_DRAFT } from "../../client/tasks/question-form";
 import { permissionButtons, respondToPermission } from "../../client/tasks/actions";
@@ -307,5 +307,58 @@ describe("task question dialog", () => {
     const first = createFakePaseo().paseo;
     expect(questionDialogStore(first)).toBe(questionDialogStore(first));
     expect(questionDialogStore(first)).not.toBe(questionDialogStore(createFakePaseo().paseo));
+  });
+});
+
+
+describe("inline task questions", () => {
+  it("shares drafts with the dialog and submits multi-select and text answers", async () => {
+    const current = card({ questions: [{ ...question, multiSelect: true }, { ...question, header: "Second", options: [] }] });
+    const store = createQuestionDialogStore();
+    const send = vi.fn(async (_state: import("../../client/tasks/actions/question-dialog").QuestionDialogState) => {});
+    const unsubscribe = store.subscribe(() => {});
+    await act(async () => { tree = TestRenderer.create(<TaskInlineQuestions source={store} card={current} submit={send} theme={theme} language="zh" />); });
+    expect(tree!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-question-context")).toHaveLength(0);
+    await act(async () => host("task-question-option-0-0").props.onPress());
+    await act(async () => host("task-question-option-0-1").props.onPress());
+    await act(async () => host("task-question-input-0").props.onChangeText("Extra"));
+    await act(async () => store.open(current));
+    expect(store.get()?.draft.selections[0]).toEqual([0, 1]);
+    expect(store.get()?.draft.texts[0]).toBe("Extra");
+    await act(async () => host("task-question-tab-1").props.onPress());
+    await act(async () => host("task-question-input-1").props.onChangeText("Hello"));
+    expect(store.get()?.draft.texts[1]).toBe("Hello");
+    await act(async () => host("task-question-submit").props.onPress());
+    expect(questionAnswers(send.mock.calls[0]![0].permission.questions!, send.mock.calls[0]![0].draft)).toEqual({ "Original header": "Keep, unchanged, Reject, Extra", Second: "Hello" });
+    expect(store.get()).toBeNull();
+    unsubscribe();
+  });
+  it("blocks a second surface while an answer is being submitted", async () => {
+    const current = card();
+    const store = createQuestionDialogStore();
+    let finish!: () => void;
+    const waiting = new Promise<void>((resolve) => { finish = resolve; });
+    await act(async () => { store.open(current); });
+    const sending = store.submit(() => waiting);
+    await act(async () => { tree = TestRenderer.create(<TaskInlineQuestions source={store} card={current} submit={async () => {}} theme={theme} language="zh" />); });
+    expect(host("task-question-option-0-0").props.disabled).toBe(true);
+    await act(async () => { finish(); await sending; });
+    expect(tree!.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-question-submit")).toHaveLength(0);
+  });
+  it("displays submission errors, resets drafts, and replaces a changed request", async () => {
+    const first = card();
+    const store = createQuestionDialogStore();
+    const send = vi.fn(async () => { throw new Error("offline"); });
+    const render = (current: TaskCard) => <TaskInlineQuestions source={store} card={current} submit={send} theme={theme} language="zh" />;
+    await act(async () => { tree = TestRenderer.create(render(first)); });
+    await act(async () => host("task-question-option-0-1").props.onPress());
+    await act(async () => host("task-question-submit").props.onPress());
+    expect(JSON.stringify(tree!.toJSON())).toContain("offline");
+    await act(async () => host("task-question-close").props.onPress());
+    expect(host("task-question-submit").props.disabled).toBe(true);
+    const next = { ...first, permission: { ...first.permission!, requestId: "new-request" } };
+    await act(async () => tree!.update(render(next)));
+    expect(host("task-question-submit").props.disabled).toBe(true);
+    expect(JSON.stringify(tree!.toJSON())).not.toContain("offline");
   });
 });

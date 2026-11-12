@@ -85,6 +85,8 @@ import { AvailabilityTag } from "./availability-tag";
 import { highlightText } from "./search-highlight";
 import { detailSearchHits, searchRanges, taskSearchHits } from "../data/search-hits";
 import { taskOperationIssue } from "../availability";
+import { TaskInlineQuestions } from "./question-dialog";
+import type { QuestionDialogState, QuestionDialogStore } from "../actions/question-dialog";
 import { TASK_TOOLBAR_METRICS } from "../toolbar-metrics";
 
 /**
@@ -192,6 +194,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   stop?: { phase: StopPhase; onPress(): void } | null;
   permissionButtons?: PermissionButton[];
   onPermission?(button: PermissionButton): void;
+  submitQuestions?(state: QuestionDialogState): Promise<void>;
+  questionDialog?: QuestionDialogStore;
   /** A parent or subtask row: show that card. */
   onJump?(agentId: string): void;
   /** A phone navigation captures both pages before the card unmounts. */
@@ -456,7 +460,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
                 }}
               >
                 {(id === "info" ? info : messages).map((section, index) => sectionView(section, index > 0))}
-                {id === "messages" ? <PendingQuestions card={card} tokens={tokens} language={props.language} /> : null}
+                {id === "messages" ? <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} /> : null}
               </DetailTabPage>
             ))}
           </SheetScrollView>
@@ -475,7 +479,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
               <View style={props.touch ? { flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" } : { position: "absolute", inset: 0, ...({ visibility: tab === "messages" ? "visible" : "hidden" } as object) }}>
                 <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("messages", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("messages", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("messages", { content: height })} testID="detail-tab-messages-scroll">
                   {messages.map((section, index) => sectionView(section, index > 0))}
-                  <PendingQuestions card={card} tokens={tokens} language={props.language} />
+                  <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} />
                 </ScrollView>
               </View>
             </TabPages>
@@ -503,7 +507,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
         <View style={{ flex: 1, minWidth: 0 }}>
           <ScrollView key={`${card.id}-sections`} style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 2, paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-column-sections">
             {rightOrder.map((section, index) => sectionView(section, index > 0))}
-            <PendingQuestions card={card} tokens={tokens} language={props.language} />
+            <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} />
           </ScrollView>
         </View>
       </View>
@@ -515,10 +519,10 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
       {props.scrollBody ? (
         <ScrollView key={card.id} style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-body-scroll">
           {sections}
-          <PendingQuestions card={card} tokens={tokens} language={props.language} />
+          <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} />
         </ScrollView>
       ) : (
-        <View style={{ paddingBottom: 4 }}>{sections}<PendingQuestions card={card} tokens={tokens} language={props.language} /></View>
+        <View style={{ paddingBottom: 4 }}>{sections}<PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} /></View>
       )}
     </View>
   );
@@ -568,9 +572,13 @@ export function EdgeActionBar(props: React.ComponentProps<typeof DetailActionBar
   return <DetailActionBar {...bar} contentUnder={under} />;
 }
 
-function PendingQuestions({ card, tokens, language }: { card: TaskCard; tokens: TaskTokens; language: TasksLanguage }) {
+function PendingQuestions({ card, tokens, language, theme, compact, submit, source }: { card: TaskCard; tokens: TaskTokens; language: TasksLanguage; theme: PluginTheme; compact?: boolean; submit?: (state: QuestionDialogState) => Promise<void>; source?: QuestionDialogStore }) {
   const questions = card.lane === "needs_input" ? card.permission?.questions : undefined;
   if (!questions?.length) return null;
+  if (submit && source) return <View testID="detail-pending-questions" style={{ paddingTop: 12 }}>
+    <Text style={{ paddingHorizontal: 12, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }}>{language === "zh" ? "待回答问题" : "Questions awaiting an answer"}</Text>
+    <TaskInlineQuestions card={card} source={source} submit={submit} theme={theme} language={language} compact={compact} />
+  </View>;
   return <View testID="detail-pending-questions" style={{ paddingHorizontal: 12, paddingVertical: 12, gap: 12 }}>
     <Text style={{ fontSize: F.sm, fontWeight: "600", color: tokens.foreground }}>{language === "zh" ? "待回答问题" : "Questions awaiting an answer"}</Text>
     {questions.map((question, index) => <View key={index} testID="detail-pending-question" style={{ gap: 16, padding: 12, borderWidth: 1, borderColor: tokens.border, borderRadius: 8, backgroundColor: tokens.surface1 }}>

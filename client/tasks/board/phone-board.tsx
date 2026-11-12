@@ -688,6 +688,8 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           clock={board.clock}
           onOpen={props.onOpen}
           stop={stop}
+          questionDialog={board.questionDialog}
+          submitQuestions={board.submitQuestions}
           permissionButtons={board.buttonsFor(card)}
           onPermission={onPermission}
           onJumpWithScroll={(id, offsets) => props.navigate({ type: "jump", id, offsets })}
