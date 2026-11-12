@@ -63,6 +63,7 @@ const MCP_SERVICE_ICONS: readonly (readonly [RegExp, string])[] = [
   [/airtable/, "brand:airtable"],
   // Browsers and devices. Playwright and Puppeteer keep their own marks above.
   [/pinky/, "brand:pinky"],
+  [/agentdevice/, "Smartphone"],
   [/chrome/, "brand:chrome"],
   [/iossimulator|simulator|simctl|servesim|^mobile/, "Smartphone"],
   [/xcode/, "brand:apple"],
@@ -85,6 +86,8 @@ const MCP_SERVICE_ICONS: readonly (readonly [RegExp, string])[] = [
   [/youtube/, "brand:youtube"],
   [/openai/, "brand:openai"],
   [/^paseo/, "brand:Paseo"],
+  [/serena/, "ScanSearch"],
+  [/graphiti/, "Network"],
   [/context7/, "LibraryBig"],
   [/sequentialthinking/, "Lightbulb"],
   [/^(mcpserver)?time(mcp|server)?$/, "Clock"],
