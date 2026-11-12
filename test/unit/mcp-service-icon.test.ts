@@ -62,8 +62,8 @@ describe("mcpServiceIcon", () => {
     ["mcp__serena__replace_symbol_body", "ScanSearch"],
     ["mcp__graphiti__search_nodes", "Network"],
     ["mcp__mcp-graphiti__add_memory", "Network"],
-    ["mcp__pinky__phone_tap", "brand:pinky"],
-    ["mcp__plugin_pinky_pinky__phone_screenshot", "brand:pinky"],
+    ["mcp__pinky__phone_tap", "brand:pinky-outline"],
+    ["mcp__plugin_pinky_pinky__phone_screenshot", "brand:pinky-outline"],
     ["mcp__chrome-devtools__take_screenshot", "brand:chrome"],
     ["mcp__claude-in-chrome__navigate", "brand:chrome"],
     ["mcp__plugin_playwright_playwright__browser_click", "brand:playwright"],
@@ -111,7 +111,7 @@ describe("mcpServiceIcon", () => {
 
   it("only draws marks the daemon serves, tinted like the other row icons", () => {
     for (const name of ["linear", "sentry", "figma", "notion", "google-calendar", "gmail", "google-drive", "slack", "feishu", "gitlab", "postgresql", "brave",
-      "puppeteer", "playwright", "pinky", "perplexity", "aws", "google-maps", "jira", "confluence", "jenkins", "gitee",
+      "puppeteer", "playwright", "pinky-outline", "perplexity", "aws", "google-maps", "jira", "confluence", "jenkins", "gitee",
       "bitbucket", "circleci", "ansible", "sonarqube", "grafana", "prometheus", "elastic", "postman", "redis", "kafka",
       "trello", "asana", "dingtalk", "wecom", "teams", "discord", "telegram", "zapier", "airtable", "cypress", "storybook", "chrome", "vite", "nextjs", "nuxt",
       "react-native", "angular", "astro", "svelte", "vue", "tailwind", "firebase", "stripe", "django", "laravel", "youtube", "eslint",

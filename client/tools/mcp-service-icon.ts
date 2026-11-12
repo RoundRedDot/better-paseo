@@ -62,7 +62,7 @@ const MCP_SERVICE_ICONS: readonly (readonly [RegExp, string])[] = [
   [/zapier/, "brand:zapier"],
   [/airtable/, "brand:airtable"],
   // Browsers and devices. Playwright and Puppeteer keep their own marks above.
-  [/pinky/, "brand:pinky"],
+  [/pinky/, "brand:pinky-outline"],
   [/agentdevice/, "Smartphone"],
   [/chrome/, "brand:chrome"],
   [/iossimulator|simulator|simctl|servesim|^mobile/, "Smartphone"],
