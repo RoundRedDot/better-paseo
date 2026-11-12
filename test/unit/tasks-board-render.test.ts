@@ -143,7 +143,7 @@ import { CardCell, RollingCount, RollingTotal, SlashMark, WindowSegments } from 
 import { createLaneMotionStore, LaneMotionLayer, LaneMotionProvider } from "../../client/tasks/board/lane-motion";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
-import { boardClearCount, encodeBoardParams, lastBoardParams, rememberBoardParams, rememberBoardRoute, rememberCollapsed, rememberedCollapsed, requestBoardClear, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
+import { boardClearCount, consumeBoardOpen, encodeBoardParams, lastBoardParams, rememberBoardParams, rememberBoardRoute, rememberCollapsed, rememberedCollapsed, requestBoardClear, requestBoardOpen, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import { TabletToolbar } from "../../client/tasks/board/tablet-toolbar";
 import { DesktopFilterBar as DesktopFilterBarMemo, DesktopToolbar as DesktopToolbarMemo } from "../../client/tasks/board/filter-bar";
 import { LaneWidthMark } from "../../client/tasks/board/lane-width-mark";
@@ -7736,6 +7736,42 @@ describe("Tasks sidebar entry", () => {
     expect(openScreen).not.toHaveBeenCalled();
     expect(renderer!.root.findAllByProps({ testID: "task-question-dialog" }).length).toBeGreaterThan(0);
     expect(textOf(renderer!.root)).toContain("Choose");
+  });
+
+  it.each([false, true])("opens the question's agent via the board only once (provider subagent: %s)", (subagent) => {
+    const sample = (data as unknown as { __handle: { lanes: { needs_input: { cards: TaskCard[] } } } }).__handle.lanes.needs_input.cards[0]!;
+    const card = { ...sample, id: "question-agent", ...(subagent ? { subagent: { subtitle: null }, parent: { id: "parent-agent", title: "Parent", missing: false, archived: false } } : {}), permission: { requestId: "q1", kind: "question" as const, name: "AskUserQuestion", title: "Question", summary: "Choose", actions: [], remaining: 0, questions: [{ header: "One", question: "Choose", options: [{ label: "Yes" }], multiSelect: false, allowOther: false, allowEmpty: false }] } };
+    host.counts = { needsInput: 1, running: 0, review: 0, done: 0, questions: [card] };
+    const openScreen = vi.fn();
+    const row = entry(null, openScreen, true);
+    act(() => row.findByProps({ testID: "sidebar-open-questions" }).props.onPress({ stopPropagation() {} }));
+    act(() => renderer!.root.findByProps({ testID: "task-question-open" }).props.onPress());
+    expect(renderer!.root.findAllByProps({ testID: "task-question-dialog" })).toHaveLength(0);
+    const route = openScreen.mock.calls[0]![0] as { screenId: string; params: Record<string, string> };
+    expect(route.screenId).toBe("tasks");
+    act(() => { renderer!.unmount(); renderer = TestRenderer.create(screen(true, route.params)); });
+    expect(openAgent).toHaveBeenCalledExactlyOnceWith({ agentId: subagent ? "parent-agent" : "question-agent" });
+    act(() => { renderer!.unmount(); renderer = TestRenderer.create(screen(true, route.params)); });
+    expect(openAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps open requests scoped to their host and ignores replaced routes", () => {
+    const old = requestBoardOpen("host-1", "first");
+    const next = requestBoardOpen("host-1", "second");
+    const other = requestBoardOpen("host-2", "third");
+    expect(consumeBoardOpen("host-1", old)).toBeUndefined();
+    expect(consumeBoardOpen("host-2", next)).toBeUndefined();
+    expect(consumeBoardOpen("host-1", next)).toBe("second");
+    expect(consumeBoardOpen("host-1", next)).toBeUndefined();
+    expect(consumeBoardOpen("host-2", other)).toBe("third");
+  });
+
+  it("reports when the board's client cannot navigate", () => {
+    const token = requestBoardOpen("host-1", "question-agent");
+    act(() => { renderer = TestRenderer.create(React.createElement(TasksBoardScreen, { theme, host: { id: "host-1", label: "Local" }, layout: { compact: true, platform: "ios" }, params: { openRequest: token } })); });
+    expect(host.toast).toHaveBeenCalledWith("Cannot open task: navigation is unavailable in this client");
+    expect(openAgent).not.toHaveBeenCalled();
+    expect(consumeBoardOpen("host-1", token)).toBeUndefined();
   });
 
   it("draws needs input, running and review in that order with their lane icons", () => {

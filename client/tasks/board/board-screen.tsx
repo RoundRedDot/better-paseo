@@ -1,8 +1,8 @@
-import React, { useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import { TasksTypography, HOST_FONT as F, HOST_LINE } from "../typography";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import { useDeviceTasksPreferences } from "../device-preferences";
 import { useTasksLanguage } from "../i18n";
 import { pluginRoot } from "../../components/focus-ring";
@@ -17,6 +17,7 @@ import { PhoneBoard } from "./phone-board";
 import { BOARD_STRINGS } from "./strings";
 import { useBoard, type BoardLayoutHandlers } from "./use-board";
 import { TaskQuestionDialog } from "../cards/question-dialog";
+import { consumeBoardOpen } from "./params";
 
 /**
  * The Tasks board (`addScreen` id `tasks`): the lanes side by side, scrolling
@@ -33,6 +34,19 @@ import { TaskQuestionDialog } from "../cards/question-dialog";
  * without one (or after it failed) it reads the settings itself.
  */
 export function TasksBoardScreen(props: PluginScreenProps) {
+  const toast = useToast();
+  const language = useTasksLanguage();
+  const navigation = props.navigation;
+  const token = props.params.openRequest;
+  useEffect(() => {
+    const agentId = consumeBoardOpen(props.host.id, token);
+    if (!agentId) return;
+    if (!navigation) {
+      toast.error(language === "zh" ? "无法打开任务：当前客户端不支持导航" : "Cannot open task: navigation is unavailable in this client");
+      return;
+    }
+    navigation.openAgent({ agentId });
+  }, [props.host.id, token, navigation, toast, language]);
   const store = useTasksEnabledStore();
   // Off, as the startup read or the settings page said: say so, and read nothing more.
   if (store.enabled === false) return <BoardOff {...props} />;

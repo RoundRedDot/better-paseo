@@ -16,7 +16,7 @@ import { HOST_FONT, TaskText as Text, TasksTypography } from "../typography";
 import { useTasksLanguage } from "../i18n";
 import { useTasksSettings } from "./enabled";
 import { sidebarCountParts, sidebarCountText, type SidebarCountPart } from "./navigation";
-import { encodeBoardParams, lastBoardParams, rememberBoardParams, rememberBoardRoute, requestBoardClear, resolveBoardParams, subscribeBoardParams } from "./params";
+import { encodeBoardParams, lastBoardParams, rememberBoardParams, rememberBoardRoute, requestBoardClear, requestBoardOpen, resolveBoardParams, subscribeBoardParams } from "./params";
 import { useBoardIntent } from "./prefetch";
 import { BOARD_STRINGS } from "./strings";
 import { loadMark } from "../../debug/load-marks";
@@ -168,7 +168,12 @@ function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: 
         </View>
       </TasksTypography>
     ) : undefined;
-  return <><TasksRow {...props} trailing={trailing} /><TaskQuestionDialog store={dialog} cardById={(id) => latestCards.current.find((card) => card.id === id)} submit={submit} cards={cards} compact={props.layout.compact} theme={props.theme} language={language} /></>;
+  return <><TasksRow {...props} trailing={trailing} /><TaskQuestionDialog store={dialog} cardById={(id) => latestCards.current.find((card) => card.id === id)} submit={submit} cards={cards} compact={props.layout.compact} theme={props.theme} language={language} onOpen={(id) => {
+    const card = latestCards.current.find((item) => item.id === id);
+    const token = requestBoardOpen(props.host.id, card?.subagent ? card.parent?.id ?? id : id);
+    dialog.close();
+    props.openScreen({ screenId: SCREEN_ID, params: { ...encodeBoardParams(lastBoardParams(props.host.id)), openRequest: token } });
+  }} /></>;
 }
 
 function SidebarCountIndicator({ part, theme, language, color }: { part: SidebarCountPart; theme: PluginSidebarItemProps["theme"]; language: "en" | "zh"; color: string }) {

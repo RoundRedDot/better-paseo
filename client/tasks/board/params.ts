@@ -217,6 +217,24 @@ export function rememberBoardParams(hostId: string, params: BoardParams): void {
 
 const clearRequests = new Map<string, number>();
 
+// A route can be restored long after a tap. Keep the target in memory and
+// consume it only when the matching route reaches the board on the same host.
+const openRequests = new Map<string, { token: string; agentId: string }>();
+let nextOpenRequest = 0;
+
+export function requestBoardOpen(hostId: string, agentId: string): string {
+  const token = `${Date.now()}-${++nextOpenRequest}`;
+  openRequests.set(hostId, { token, agentId });
+  return token;
+}
+
+export function consumeBoardOpen(hostId: string, token: string | undefined): string | undefined {
+  const request = openRequests.get(hostId);
+  if (!request || request.token !== token) return undefined;
+  openRequests.delete(hostId);
+  return request.agentId;
+}
+
 /**
  * The sidebar's hidden-task dialog asks the open board to drop its search and
  * filters. A screen's props cannot change while it is open, and cleared params
@@ -268,6 +286,7 @@ export function resetBoardSessions(): void {
   sessions.clear();
   paramsListeners.clear();
   clearRequests.clear();
+  openRequests.clear();
   lastHost = null;
   forgetCarried();
 }
