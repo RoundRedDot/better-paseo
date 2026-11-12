@@ -22,6 +22,7 @@ vi.mock("../../client/components/markdown/markdown-view", () => ({
 import { TaskCardView, sameCardProps, type TaskCardViewProps } from "../../client/tasks/cards/task-card";
 import { TaskDetailCards } from "../../client/tasks/cards/detail-cards";
 import { highlightText } from "../../client/tasks/cards/search-highlight";
+import * as web from "../../client/web";
 import { resetSectionChoices, setSectionClosed } from "../../client/tasks/cards/detail-collapse";
 import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -89,6 +90,7 @@ afterEach(async () => {
   tree = undefined;
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   resetSectionChoices();
   iconCalls.length = 0;
   pointer.touch = true;
@@ -236,6 +238,7 @@ describe("card search rendering", () => {
       vi.advanceTimersByTime(1);
     });
     expect(host(root, "task-search-popover").props.accessibilityLabel).toBe("搜索命中");
+    expect(host(root, "task-search-popover-arrow").props.style).toMatchObject({ top: -6, borderTopWidth: 1, borderLeftWidth: 1, backgroundColor: theme.colors.surface1 });
     expect(text(host(root, "task-search-popover-header"))).toContain("处命中scheEsc");
     const content = host(root, "task-search-popover-content");
     const layout = JSON.stringify(tree!.toJSON());
@@ -264,6 +267,18 @@ describe("card search rendering", () => {
     const rows = host(root, "task-search-popover-content").findAll((node) => typeof node.type === "string" && node.props.role === "listitem");
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((row) => row.props.tabIndex === -1 && row.props.style.outlineStyle === "none")).toBe(true);
+  });
+  it("moves the arrow to the bottom when the web layer flips above the card", async () => {
+    vi.stubGlobal("__rnMockOS", "web");
+    pointer.touch = false;
+    vi.spyOn(web, "openToolbarDetailsLayer").mockImplementation((_panel, _anchor, _side, _bounds, onPlacement) => {
+      onPlacement?.("above");
+      return () => {};
+    });
+    const root = await mount(<TaskCardView {...props} searchQuery="sche" />);
+    await act(async () => host(root, "task-search-summary-trigger").props.onPress({ stopPropagation() {} }));
+    expect(host(root, "task-search-popover-arrow").props.style).toMatchObject({ bottom: -6, borderBottomWidth: 1, borderRightWidth: 1 });
+    expect(host(root, "task-search-popover-layer").props.style).toMatchObject({ paddingTop: 0, paddingBottom: 8 });
   });
   it("keeps the popover mounted when reopened during its exit", async () => {
     vi.useFakeTimers();

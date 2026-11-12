@@ -192,7 +192,7 @@ export function openOptionExpansion(labelNode: unknown, panelNode: unknown, redu
 
 
 /** Keep interactive toolbar details above timeline stacking contexts without moving their React tree. */
-export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "above" | "below", matchBounds?: unknown): () => void {
+export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "above" | "below", matchBounds?: unknown, onPlacement?: (placement: "above" | "below") => void): () => void {
   if (Platform.OS !== "web") return () => {};
   const panel = node as HTMLElement | null;
   const trigger = anchor as HTMLElement | null;
@@ -218,11 +218,13 @@ export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "a
     const below = rect.bottom;
     const fitsAbove = above >= 8;
     const fitsBelow = below + height <= view.innerHeight - 8;
-    const top = side === "above"
-      ? (fitsAbove || !fitsBelow ? above : below)
-      : (fitsBelow || !fitsAbove ? below : above);
+    const placement = side === "above"
+      ? (fitsAbove || !fitsBelow ? "above" : "below")
+      : (fitsBelow || !fitsAbove ? "below" : "above");
+    const top = placement === "above" ? above : below;
     panel.style.left = `${Math.max(8, Math.min(matched ? matched.left : rect.left + offset, view.innerWidth - width - 8))}px`;
     panel.style.top = `${Math.max(8, Math.min(top, view.innerHeight - height - 8))}px`;
+    onPlacement?.(placement);
   };
   position();
   const observer = new view.ResizeObserver(position);

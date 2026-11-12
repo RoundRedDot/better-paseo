@@ -139,6 +139,7 @@ export function SearchHitSummary(props: {
   const touch = props.phone || input.touch;
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [placement, setPlacement] = useState<"above" | "below">("below");
   const progress = useRef(new Animated.Value(0)).current;
   const reducedMotion = useReducedMotion();
   const visible = !touch && (open || mounted);
@@ -184,7 +185,7 @@ export function SearchHitSummary(props: {
   useLayoutEffect(() => {
     if (!visible || Platform.OS !== "web") return;
     const anchorElement = anchor.current as unknown as HTMLElement | null;
-    const release = openToolbarDetailsLayer(panel.current, anchor.current, "below", anchorElement?.closest("[data-bctaskcard]"));
+    const release = openToolbarDetailsLayer(panel.current, anchor.current, "below", anchorElement?.closest("[data-bctaskcard]"), setPlacement);
     const element = panel.current as unknown as HTMLElement | null;
     element?.querySelector<HTMLElement>('[role="listitem"]')?.focus({ preventScroll: true });
     return release;
@@ -367,13 +368,14 @@ export function SearchHitSummary(props: {
       </Pressable>
       {open && touch ? <View testID="task-search-expanded">{header}{body}{footer}</View> : null}
       {visible ? (
-        <View ref={panel} collapsable={false} pointerEvents={open ? "auto" : "none"} testID="task-search-popover-layer" style={{ position: "absolute", top: "100%", left: 0, paddingTop: 8, width: "100%" }}>
+        <View ref={panel} collapsable={false} pointerEvents={open ? "auto" : "none"} testID="task-search-popover-layer" style={{ position: "absolute", top: "100%", left: 0, paddingTop: placement === "below" ? 8 : 0, paddingBottom: placement === "above" ? 8 : 0, width: "100%" }}>
           <Animated.View
             role="dialog"
             accessibilityLabel={strings.dialog}
             testID="task-search-popover"
-            style={{ ...panelChrome(props.theme), borderWidth: 1, borderColor: tokens.borderStrong, borderRadius: 10, marginHorizontal: 7, boxShadow: tokens.isDark ? "0px 18px 38px rgba(0, 0, 0, 0.48), 0px 4px 12px rgba(0, 0, 0, 0.28)" : "0px 18px 38px rgba(32, 38, 52, 0.20), 0px 4px 12px rgba(32, 38, 52, 0.11)", opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}
+            style={{ ...panelChrome(props.theme), borderWidth: 1, borderColor: tokens.borderStrong, borderRadius: 10, marginHorizontal: 7, boxShadow: tokens.isDark ? "0px 20px 42px rgba(0, 0, 0, 0.60), 0px 6px 16px rgba(0, 0, 0, 0.38)" : "0px 20px 42px rgba(32, 38, 52, 0.30), 0px 6px 16px rgba(32, 38, 52, 0.18)", opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}
           >
+            <View pointerEvents="none" testID="task-search-popover-arrow" style={{ position: "absolute", left: 24, ...(placement === "below" ? { top: -6, borderTopWidth: 1, borderLeftWidth: 1, backgroundColor: tokens.surface1 } : { bottom: -6, borderBottomWidth: 1, borderRightWidth: 1, backgroundColor: panelChrome(props.theme).backgroundColor }), width: 10, height: 10, borderColor: tokens.borderStrong, transform: [{ rotate: "45deg" }] }} />
             <View style={{ maxHeight: 400, borderRadius: 9, overflow: "hidden" }}>
               {header}
               <ScrollView testID="task-search-popover-content" style={{ flexShrink: 1 }}>{body}</ScrollView>

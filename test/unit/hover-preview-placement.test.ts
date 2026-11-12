@@ -90,6 +90,31 @@ describe("toolbar layer window edges", () => {
     expect(panel.style.top).toBe(expectedTop);
     release();
   });
+  it("reports placement changes when the window no longer fits below the anchor", () => {
+    let reposition!: () => void;
+    let top = 100;
+    const view = { innerWidth: 800, innerHeight: 600, addEventListener: vi.fn(), removeEventListener: vi.fn(), ResizeObserver: class {
+      constructor(callback: () => void) { reposition = callback; }
+      observe() {}
+      disconnect() {}
+    } };
+    const panel = { ownerDocument: { defaultView: view }, style: {} as Record<string, string>, getAttribute: () => null,
+      setAttribute: vi.fn(), removeAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(), matches: () => true,
+      getBoundingClientRect: () => ({ left: 0, width: 300, height: 100 }) };
+    const anchor = { getBoundingClientRect: () => ({ left: 0, top, bottom: top + 40 }) };
+    const onPlacement = vi.fn();
+    const release = openToolbarDetailsLayer(panel, anchor, "below", undefined, onPlacement);
+    expect(onPlacement).toHaveBeenLastCalledWith("below");
+    top = 570;
+    reposition();
+    expect(panel.style.top).toBe("470px");
+    expect(onPlacement).toHaveBeenLastCalledWith("above");
+    top = 0;
+    reposition();
+    expect(panel.style.top).toBe("40px");
+    expect(onPlacement).toHaveBeenLastCalledWith("below");
+    release();
+  });
 });
 
 function listener(target: { addEventListener: { mock: { calls: unknown[][] } } }, name: string) {
