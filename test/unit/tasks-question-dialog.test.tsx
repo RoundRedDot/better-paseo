@@ -89,6 +89,23 @@ describe("task question dialog", () => {
     await act(async () => host("task-question-submit").props.onPress());
     expect(fake.permissionResponses[0]?.response).toEqual({ behavior: "allow", updatedInput: { answers: { "Original header": "你好" } } });
   });
+  it.each(["web", "ios", "android"])("highlights only the focused answer input on %s", async (platform) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    await mount(card({ questions: [question, { ...question, header: "Second" }] }));
+    const input = () => host("task-question-input-0");
+    expect(input().props.style.at(-1).borderColor).toBe(theme.colors.border);
+    const renders = modalRenders.count;
+    await act(async () => input().props.onFocus());
+    expect(input().props.style.at(-1).borderColor).toBe(theme.colors.accent);
+    await act(async () => input().props.onChangeText("Hello"));
+    expect(input().props.value).toBe("Hello");
+    expect(input().props.style.at(-1).borderColor).toBe(theme.colors.accent);
+    expect(modalRenders.count).toBe(renders);
+    await act(async () => input().props.onBlur());
+    expect(input().props.style.at(-1).borderColor).toBe(theme.colors.border);
+    await act(async () => host("task-question-tab-1").props.onPress());
+    expect(host("task-question-input-1").props.style.at(-1).borderColor).toBe(theme.colors.border);
+  });
   it.each(["web", "ios", "android"])("expands long previews without selecting the option on %s", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     const preview = "First\nSecond\nThird\nFourth\nFifth\nLast";

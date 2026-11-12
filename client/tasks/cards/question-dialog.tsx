@@ -101,11 +101,12 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
                   </View>
                 </Pressable>;
               })}
-              {questionTextInput(q) ? <TextInput testID={`task-question-input-${index}`} accessibilityLabel={q.question} placeholder={q.placeholder ?? (q.options.length ? words.other : words.text)}
+              {questionTextInput(q) ? <QuestionTextInput testID={`task-question-input-${index}`} accessibilityLabel={q.question} placeholder={q.placeholder ?? (q.options.length ? words.other : words.text)}
                 value={state.draft.texts[index] ?? ""} editable={!disabled} secureTextEntry={q.isSecret} multiline={!q.isSecret}
+                borderColor={colors.border} focusColor={colors.accent}
                 autoCorrect={!q.isSecret} autoCapitalize="none"
                 onChangeText={(value) => props.store.change({ texts: { ...state.draft.texts, [index]: value }, selections: q.multiSelect ? state.draft.selections : { ...state.draft.selections, [index]: [] } })}
-                style={{ minHeight: taskControlHeight(44, scale), borderWidth: 1, borderRadius: 8, borderColor: colors.border, backgroundColor: colors.surface0, color: colors.foreground,
+                style={{ minHeight: taskControlHeight(44, scale), borderWidth: 1, borderRadius: 8, backgroundColor: colors.surface0, color: colors.foreground,
                   fontSize: Math.round(F.base * scale), lineHeight: Math.round(HOST_LINE.base * scale), padding: 12, textAlignVertical: "top" }} /> : null}
               {q.allowEmpty && q.options.length === 0 ? <Text style={meta}>{words.optional}</Text> : null}
             </View>)}
@@ -129,6 +130,12 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
           </View>
         </View>
       </TasksTypography>;
+}
+
+function QuestionTextInput({ borderColor, focusColor, style, ...props }: React.ComponentProps<typeof TextInput> & { borderColor: string; focusColor: string }) {
+  const [focused, setFocused] = useState(false);
+  return <TextInput {...props} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+    style={[style, { borderColor: focused ? focusColor : borderColor }]} />;
 }
 
 function QuestionPreview({ text, language, color, accent }: { text: string; language: TasksLanguage; color: string; accent: string }) {
