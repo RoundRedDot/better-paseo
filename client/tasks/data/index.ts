@@ -71,6 +71,7 @@ export interface SidebarCounts {
   /** False until the first active snapshot arrives. */
   ready: boolean;
   hidden?: TaskCard[];
+  questions?: TaskCard[];
 }
 
 export interface TasksSnapshot {
@@ -940,6 +941,7 @@ interface TaskStore {
   dropHolds(): void;
   getSnapshot(options: TasksOptions): TasksHandle;
   getCounts(scope?: CountScope): SidebarCounts;
+  getQuestionCounts(scope?: CountScope): SidebarCounts;
   refresh(): Promise<TasksRefreshResult>;
   setArchivedLane(on: boolean): void;
   loadMoreDone(window: DoneWindow): void;
@@ -1045,6 +1047,8 @@ function createStore(api: PaseoApi): TaskStore {
   /** The workspace list itself arrived, not a failed read: only then does a missing workspace mean archived. */
   let workspacesListed = false;
   let countsCache: SidebarCounts | null = null;
+  let questionCountsCache: SidebarCounts | null = null;
+  let countQuestions: TaskCard[] = [];
   let countsDirty = true;
   let countsScope: CountScope | undefined;
   let loadingDone = false;
@@ -2716,6 +2720,16 @@ function createStore(api: PaseoApi): TaskStore {
     return snapshot;
   }
 
+  function getQuestionCounts(scope?: CountScope): SidebarCounts {
+    const counts = getCounts(scope);
+    if (!questionCountsCache || questionCountsCache.questions !== countQuestions ||
+      questionCountsCache.needsInput !== counts.needsInput || questionCountsCache.running !== counts.running ||
+      questionCountsCache.review !== counts.review || questionCountsCache.ready !== counts.ready || questionCountsCache.hidden !== counts.hidden) {
+      questionCountsCache = { ...counts, questions: countQuestions };
+    }
+    return questionCountsCache;
+  }
+
   function getCounts(scope?: CountScope): SidebarCounts {
     if (countsDirty || !countsCache || scope !== countsScope) {
       countsDirty = false;
@@ -2737,6 +2751,8 @@ function createStore(api: PaseoApi): TaskStore {
         }
       }
       const shown = scope ? filterLanes(lanes, scope.filters, scope.firstMessage && scope.filters.query.trim() ? firstMessagesOf(lanes, scope.firstMessage) : undefined) : lanes;
+      const questions = shown.needs_input.cards.filter((card) => card.permission?.kind === "question" || card.permission?.kind === "other").sort(laneCompare("needs_input"));
+      if (countQuestions.length !== questions.length || questions.some((card, index) => countQuestions[index] !== card)) countQuestions = questions;
       const needsInput = shown.needs_input.cards.length;
       const running = shown.running.cards.length;
       const review = shown.review.cards.length;
@@ -3121,6 +3137,7 @@ function createStore(api: PaseoApi): TaskStore {
     },
     getSnapshot,
     getCounts,
+    getQuestionCounts,
     refresh,
     setArchivedLane,
     loadMoreDone,
@@ -3201,13 +3218,13 @@ export function releaseTasksHolds(): void {
  * the cards an unfiltered board draws, a provider subagent's included.
  * Re-renders only when a number changes.
  */
-export function useTaskCounts(paseo: PaseoApi, review: boolean, scope?: CountScope): SidebarCounts {
+export function useTaskCounts(paseo: PaseoApi, review: boolean, scope?: CountScope, questions = false): SidebarCounts {
   const store = getStore(paseo);
   const subscribe = useMemo(
     () => (listener: () => void) => store.subscribe(listener, { board: false, done: false, attention: review }),
     [store, review],
   );
-  const getCounts = useMemo(() => () => store.getCounts(scope), [store, scope]);
+  const getCounts = useMemo(() => () => questions ? store.getQuestionCounts(scope) : store.getCounts(scope), [store, scope, questions]);
   return useSyncExternalStore(subscribe, getCounts, getCounts);
 }
 

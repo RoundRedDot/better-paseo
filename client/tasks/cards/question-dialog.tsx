@@ -21,11 +21,20 @@ export function TaskQuestionDialog(props: {
   language: TasksLanguage;
   compact?: boolean;
   onOpen?(id: string): void;
+  cards?: TaskCard[];
 }) {
   const key = useSyncExternalStore(props.store.subscribe, () => props.store.get()?.key, () => props.store.get()?.key);
   if (!key) return null;
+  const state = props.store.get();
+  const cards = props.cards ?? [];
+  const index = cards.findIndex((card) => card.id === state?.agentId);
   return <Modal title={cardStrings(props.language).questions.title} open onOpenChange={(open) => { if (!open) props.store.close(); }}>
     <Modal.Content scrollable={false} contentContainerStyle={{ flex: 1, minHeight: 0, padding: 0, gap: 0 }}>
+      {cards.length > 1 && index >= 0 ? <View testID="task-question-card-pager" style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 8 }}>
+        <Pressable testID="task-question-previous-card" accessibilityRole="button" accessibilityLabel={props.language === "zh" ? "上一个卡片" : "Previous card"} disabled={index === 0 || state?.pending} onPress={() => props.store.open(cards[index - 1]!)}><Icon name="ChevronLeft" size={18} color={props.theme.colors.foregroundMuted} /></Pressable>
+        <Text style={{ color: props.theme.colors.foregroundMuted }}>{props.language === "zh" ? `卡片 ${index + 1} / ${cards.length}` : `Card ${index + 1} / ${cards.length}`}</Text>
+        <Pressable testID="task-question-next-card" accessibilityRole="button" accessibilityLabel={props.language === "zh" ? "下一个卡片" : "Next card"} disabled={index === cards.length - 1 || state?.pending} onPress={() => props.store.open(cards[index + 1]!)}><Icon name="ChevronRight" size={18} color={props.theme.colors.foregroundMuted} /></Pressable>
+      </View> : null}
       <QuestionDialogContent key={key} {...props} requestKey={key} />
     </Modal.Content>
   </Modal>;
@@ -130,7 +139,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
               <Text style={prose}>{state.submitted ? words.close : cardStrings(props.language).cancelTitle}</Text>
             </Pressable>
             {!state.submitted ? <Pressable testID="task-question-submit" accessibilityRole="button" accessibilityState={{ disabled: !(canSubmit || canAdvance), busy: state.pending }} disabled={!(canSubmit || canAdvance)}
-              onPress={() => { if (canAdvance) { const next = answered.findIndex((value, i) => i > index && !value); selectQuestion(next < 0 ? answered.findIndex((value) => !value) : next); return; } void props.store.submit(props.submit); }}
+              onPress={() => { if (canAdvance) { const next = answered.findIndex((value, i) => i > index && !value); selectQuestion(next < 0 ? answered.findIndex((value) => !value) : next); return; } void props.store.submit(props.submit, props.cards); }}
               style={{ ...(props.compact ? { flexGrow: 1, flexBasis: 0 } : {}), minWidth: 100, minHeight: taskControlHeight(44, scale), padding: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent, opacity: canSubmit || canAdvance ? 1 : 0.5 }}>
               {state.pending ? <ActivityIndicator color={colors.accentForeground} /> : <Text style={[prose, { color: colors.accentForeground }]}>{canAdvance ? words.next : words.submit}</Text>}
             </Pressable> : null}

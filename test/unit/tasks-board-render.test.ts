@@ -53,7 +53,7 @@ const host = vi.hoisted(() => ({
   settings: null as Record<string, unknown> | null,
   /** The automatic title settings; loading while null. */
   titleSettings: null as Record<string, unknown> | null,
-  counts: null as { running: number; needsInput: number; review: number; done: number; hidden?: import("../../client/tasks/model").TaskCard[] } | null,
+  counts: null as { running: number; needsInput: number; review: number; done: number; hidden?: import("../../client/tasks/model").TaskCard[]; questions?: import("../../client/tasks/model").TaskCard[] } | null,
   /** The filters the sidebar row last counted with. */
   countScope: null as unknown,
   canStop: false,
@@ -7722,6 +7722,20 @@ describe("Tasks sidebar entry", () => {
     const counts = row.findAll((node) => node.props.accessibilityLabel !== undefined && (node.type as unknown) === "View");
     expect(counts.map((node) => node.props.accessibilityLabel)).toEqual(label ? [label] : []);
     expect(textOf(row)).toBe(text);
+  });
+
+  it("opens a pending question directly from the needs-input count", () => {
+    const sample = (data as unknown as { __handle: { lanes: { needs_input: { cards: TaskCard[] } } } }).__handle.lanes.needs_input.cards[0]!;
+    const card = { ...sample, permission: { requestId: "q1", kind: "question" as const, name: "AskUserQuestion", title: "Question", summary: "Choose", actions: [], remaining: 0, questions: [{ header: "One", question: "Choose", options: [{ label: "Yes" }], multiSelect: false, allowOther: false, allowEmpty: false }] } };
+    host.counts = { needsInput: 1, running: 0, review: 0, done: 0, questions: [card] };
+    const openScreen = vi.fn();
+    const row = entry(null, openScreen);
+    const stopPropagation = vi.fn();
+    act(() => row.findByProps({ testID: "sidebar-open-questions" }).props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(openScreen).not.toHaveBeenCalled();
+    expect(renderer!.root.findAllByProps({ testID: "task-question-dialog" }).length).toBeGreaterThan(0);
+    expect(textOf(renderer!.root)).toContain("Choose");
   });
 
   it("draws needs input, running and review in that order with their lane icons", () => {

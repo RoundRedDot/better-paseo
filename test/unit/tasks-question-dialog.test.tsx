@@ -92,6 +92,26 @@ describe("task question dialog", () => {
     await act(async () => { store.open(current); tree = TestRenderer.create(render()); });
     return { store, fake, update: async (next: TaskCard) => { current = next; await act(async () => tree!.update(render())); } };
   }
+  it("separates card navigation from question tabs and preserves each card draft", async () => {
+    const first = card({ questions: [question, { ...question, header: "Second" }] });
+    const second = { ...card(), id: "another", title: "Another task", permission: { ...card().permission!, requestId: "another-request" } };
+    const cards = [first, second];
+    const store = createQuestionDialogStore();
+    const send = vi.fn(async () => {});
+    await act(async () => { store.open(first); tree = TestRenderer.create(<TaskQuestionDialog store={store} cards={cards} cardById={(id) => cards.find((item) => item.id === id)} submit={send} theme={theme} language="zh" />); });
+    expect(host("task-question-card-pager")).toBeDefined();
+    expect(host("task-question-tab-1")).toBeDefined();
+    await act(async () => host("task-question-option-0-0").props.onPress());
+    await act(async () => host("task-question-next-card").props.onPress());
+    expect(store.get()?.agentId).toBe("another");
+    await act(async () => host("task-question-previous-card").props.onPress());
+    expect(store.get()?.draft.selections[0]).toEqual([0]);
+    await act(async () => host("task-question-tab-1").props.onPress());
+    await act(async () => host("task-question-option-1-1").props.onPress());
+    await act(async () => host("task-question-submit").props.onPress());
+    expect(send).toHaveBeenCalledOnce();
+    expect(store.get()?.agentId).toBe("another");
+  });
   it("keeps the modal portal stable through consecutive text changes", async () => {
     const current = card({ questions: [{ ...question, options: [] }] });
     const { store, fake } = await mount(current);

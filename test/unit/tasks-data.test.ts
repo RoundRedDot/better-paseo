@@ -2036,6 +2036,23 @@ describe("Tasks data store", () => {
       expect(fake.openSubscriptions()).toBe(0);
     });
 
+    it("exposes only visible question requests and follows changes without a count change", async () => {
+      const asking = { id: "q", provider: "claude", name: "AskUserQuestion", kind: "question" as const, title: "Question", input: { questions: [{ header: "One", question: "Choose", options: [{ label: "Yes" }] }] } };
+      const fake = createFakePaseo({ agents: [activeAgent("question", { status: "running", pendingPermissions: [asking] }), activeAgent("tool", { status: "running", pendingPermissions: [permission] })] });
+      let current!: ReturnType<typeof useTaskCounts>;
+      const scope = { filters: EMPTY_FILTERS };
+      function Counts() { current = useTaskCounts(fake.paseo, false, scope, true); return null; }
+      let renderer!: Renderer;
+      await act(async () => { renderer = TestRenderer.create(React.createElement(Counts)); for (let i = 0; i < 8; i++) await Promise.resolve(); });
+      try {
+        expect(current.needsInput).toBe(2);
+        expect(current.questions?.map((card) => card.id)).toEqual(["question"]);
+        await act(async () => { fake.upsertAgent(activeAgent("question", { status: "running", pendingPermissions: [permission], updatedAt: at(12) })); await Promise.resolve(); });
+        expect(current.needsInput).toBe(2);
+        expect(current.questions).toEqual([]);
+      } finally { act(() => renderer.unmount()); }
+    });
+
     it("count what the board's filters leave on each lane, and count again when they change", async () => {
       const fake = createFakePaseo({
         agents: [

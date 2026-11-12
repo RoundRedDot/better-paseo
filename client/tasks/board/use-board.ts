@@ -38,9 +38,8 @@ import { useTaskAvailability } from "../availability";
 import { useSearchHistory } from "./search-history";
 import { taskIssueText } from "../cards/availability-tag";
 import type { TaskOperation } from "../../../shared/task-availability";
-import { questionDialogStore, questionRequestKey, type QuestionDialogStore, type QuestionDialogState } from "../actions/question-dialog";
-import { questionAnswers, questionDraftSupported, questionFormSupported } from "../question-form";
-import { questionAnswerPending } from "../actions";
+import { questionDialogStore, type QuestionDialogStore, type QuestionDialogState } from "../actions/question-dialog";
+import { submitQuestion } from "../actions/submit-question";
 
 /** What both layouts share: settings, data after the filters, the clock, and the card callbacks. */
 export interface BoardController {
@@ -503,19 +502,7 @@ export function useBoard(
   const questionDialog = questionDialogStore(paseo);
   const submitQuestions = useCallback(async (state: QuestionDialogState) => {
     const current = latest.current;
-    const issue = await current.availability.check(state.agentId, "permission");
-    if (issue) throw new Error(taskIssueText(issue, current.language));
-    const updated = latest.current.tasks.byId.get(state.agentId);
-    if (latest.current.paseo !== current.paseo || !updated || questionRequestKey(updated) !== state.key) {
-      throw new Error(current.language === "zh" ? "问题已变更或关闭，请重新查看。" : "The question changed or closed. Please view it again.");
-    }
-    const questions = state.permission.questions;
-    if (!questionFormSupported(questions, updated.provider, state.permission.name)) throw new Error("This question cannot be represented by the host form protocol.");
-    if (!questionDraftSupported(questions!, state.draft, updated.provider, state.permission.name)) throw new Error(current.language === "zh" ? "Codex 同步多选的自定义回答不能包含逗号：宿主会将其拆分。" : "Custom answers to Codex synchronous multi-select questions cannot contain commas: the host splits them.");
-    const answers = questionAnswers(questions!, state.draft);
-    if (!answers) throw new Error(current.language === "zh" ? "请完成所有问题。" : "Please answer every question.");
-    if (questionAnswerPending(current.paseo, state.agentId, state.permission.requestId)) throw new Error(current.language === "zh" ? "此问题正在提交回答。" : "An answer to this question is already being submitted.");
-    await respondToPermission(current.paseo, state.agentId, { key: "form", label: "", variant: "secondary", kind: "respond", action: { behavior: "allow", id: null }, answers }, state.permission.requestId);
+    await submitQuestion(current.paseo, state, current.language, (id) => latest.current.paseo === current.paseo ? latest.current.tasks.byId.get(id) : undefined, (id) => current.availability.check(id, "permission"));
   }, []);
   const stopAvailable = stop.available;
   const readAvailable = read.available;

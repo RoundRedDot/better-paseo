@@ -28,6 +28,7 @@ export function createQuestionDialogStore() {
   };
   return {
     get: () => state,
+    isSubmitted(card: TaskCard) { return submitted.has(questionRequestKey(card)); },
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     open(card: TaskCard) {
       if (!card.permission || state?.pending) return;
@@ -42,7 +43,7 @@ export function createQuestionDialogStore() {
       drafts.set(state.key, draft);
       publish({ ...state, draft, error: null });
     },
-    async submit(send: (state: QuestionDialogState) => Promise<void>) {
+    async submit(send: (state: QuestionDialogState) => Promise<void>, cards?: TaskCard[]) {
       if (!state || state.pending || state.submitted) return;
       const current = state;
       publish({ ...current, pending: true, error: null });
@@ -50,7 +51,15 @@ export function createQuestionDialogStore() {
         await send(current);
         submitted.add(current.key);
         drafts.delete(current.key);
-        if (state?.key === current.key) publish(null);
+        if (state?.key === current.key) {
+          const available = cards?.filter((card) => questionRequestKey(card) !== current.key && !submitted.has(questionRequestKey(card))) ?? [];
+          const originalIndex = cards?.findIndex((card) => card.id === current.agentId) ?? -1;
+          const next = cards?.slice(originalIndex + 1).find((card) => available.includes(card)) ?? available.at(-1);
+          if (next?.permission) {
+            const key = questionRequestKey(next);
+            publish({ agentId: next.id, key, permission: next.permission, draft: drafts.get(key) ?? EMPTY_QUESTION_DRAFT, pending: false, submitted: false, error: null });
+          } else publish(null);
+        }
       } catch (error) {
         if (state?.key === current.key) publish({ ...state, pending: false, error: error instanceof Error ? error.message : String(error) });
       }
