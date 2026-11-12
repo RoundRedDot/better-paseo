@@ -98,8 +98,8 @@ describe("brand marks", () => {
     expect(load).not.toHaveBeenCalled();
   });
 
-  it("loads the outlined Pinky mark when the old mark is cached", async () => {
-    seedMarkBitmaps({ "brand:pinky": "old-filled-mark" });
+  it("loads the Pinky face when earlier marks are cached", async () => {
+    seedMarkBitmaps({ "brand:pinky": "old-filled-mark", "brand:pinky-outline": "old-outline-mark" });
     const load = vi.fn(answer);
     setMarkLoader(load);
     const id = mcpServiceIcon("pinky")!;
@@ -107,7 +107,7 @@ describe("brand marks", () => {
     await act(async () => {
       await vi.waitFor(() => expect(seen.get(id)).toBe(MARK_BITMAPS[id]));
     });
-    expect(id).toBe("brand:pinky-outline");
+    expect(id).toBe("brand:pinky-face");
     expect(load).toHaveBeenCalledWith(expect.arrayContaining([id]));
   });
 
