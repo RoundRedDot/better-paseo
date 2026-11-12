@@ -4,13 +4,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import "./helpers/quiet-renderer";
 
 vi.hoisted(() => { (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; });
+const modalRenders = vi.hoisted(() => ({ count: 0 }));
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return { TextInput: rn.TextInput, ScrollView: rn.ScrollView,
     Icon: (props: object) => React.createElement("Icon", props),
     Modal: Object.assign((props: { children?: React.ReactNode }) => React.createElement("HostModal", props, props.children),
-      { Content: (props: { children?: React.ReactNode }) => React.createElement("ModalContent", props, props.children) }) };
+      { Content: (props: { children?: React.ReactNode }) => { modalRenders.count++; return React.createElement("ModalContent", props, props.children); } }) };
 });
 import { TaskQuestionDialog } from "../../client/tasks/cards/question-dialog";
 import { createQuestionDialogStore, questionDialogStore } from "../../client/tasks/actions/question-dialog";
@@ -75,6 +76,19 @@ describe("task question dialog", () => {
     await act(async () => { store.open(current); tree = TestRenderer.create(render()); });
     return { store, fake, update: async (next: TaskCard) => { current = next; await act(async () => tree!.update(render())); } };
   }
+  it("keeps the modal portal stable through consecutive text changes", async () => {
+    const current = card({ questions: [{ ...question, options: [] }] });
+    const { store, fake } = await mount(current);
+    const renders = modalRenders.count;
+    await act(async () => host("task-question-input-0").props.onChangeText("你"));
+    expect(host("task-question-input-0").props.value).toBe("你");
+    await act(async () => host("task-question-input-0").props.onChangeText("你好"));
+    expect(host("task-question-input-0").props.value).toBe("你好");
+    expect(modalRenders.count).toBe(renders);
+    expect(store.get()?.draft.texts[0]).toBe("你好");
+    await act(async () => host("task-question-submit").props.onPress());
+    expect(fake.permissionResponses[0]?.response).toEqual({ behavior: "allow", updatedInput: { answers: { "Original header": "你好" } } });
+  });
   it.each(["web", "ios", "android"])("expands long previews without selecting the option on %s", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     const preview = "First\nSecond\nThird\nFourth\nFifth\nLast";

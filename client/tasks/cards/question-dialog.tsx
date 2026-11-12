@@ -22,23 +22,33 @@ export function TaskQuestionDialog(props: {
   compact?: boolean;
   onOpen?(id: string): void;
 }) {
-  const state = useSyncExternalStore(props.store.subscribe, props.store.get, props.store.get);
-  if (!state) return null;
-  const card = props.cardById(state.agentId);
-  return <QuestionDialogBody key={state.key} {...props} state={state} card={card} />;
+  const key = useSyncExternalStore(props.store.subscribe, () => props.store.get()?.key, () => props.store.get()?.key);
+  if (!key) return null;
+  return <Modal title={cardStrings(props.language).questions.title} open onOpenChange={(open) => { if (!open) props.store.close(); }}>
+    <Modal.Content scrollable={false} contentContainerStyle={{ flex: 1, minHeight: 0, padding: 0, gap: 0 }}>
+      <QuestionDialogContent key={key} {...props} requestKey={key} />
+    </Modal.Content>
+  </Modal>;
 }
 
-function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { state: QuestionDialogState; card?: TaskCard }) {
+function QuestionDialogContent(props: Parameters<typeof TaskQuestionDialog>[0] & { requestKey: string }) {
+  const state = useSyncExternalStore(props.store.subscribe, props.store.get, props.store.get);
+  if (!state || state.key !== props.requestKey) return null;
+  return <QuestionDialogBody {...props} state={state} />;
+}
+
+function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { state: QuestionDialogState }) {
   const state = props.state;
+  const card = props.cardById(state.agentId);
   const [index, setIndex] = useState(0);
   const [openHovered, setOpenHovered] = useState(false);
   const words = cardStrings(props.language).questions;
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const questions = state.permission.questions;
-  const stale = !props.card || questionRequestKey(props.card) !== state.key;
-  const supported = questionFormSupported(questions, props.card?.provider ?? "", state.permission.name);
-  const draftSupported = !questions || questionDraftSupported(questions, state.draft, props.card?.provider ?? "", state.permission.name);
+  const stale = !card || questionRequestKey(card) !== state.key;
+  const supported = questionFormSupported(questions, card?.provider ?? "", state.permission.name);
+  const draftSupported = !questions || questionDraftSupported(questions, state.draft, card?.provider ?? "", state.permission.name);
   const disabled = state.pending || state.submitted || stale || !supported;
   const answered = questions?.map((q, i) => !!questionAnswers([q], { selections: { 0: state.draft.selections[i] ?? [] }, texts: { 0: state.draft.texts[i] ?? "" } })) ?? [];
   const allAnswered = answered.length > 0 && answered.every(Boolean);
@@ -50,9 +60,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
   const branch = branchPillColors(tokens);
   const prose = { fontSize: F.base, lineHeight: HOST_LINE.base, color: colors.foreground };
   const meta = { fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: colors.foregroundMuted };
-  return <Modal title={words.title} open onOpenChange={(open) => { if (!open) props.store.close(); }}>
-    <Modal.Content scrollable={false} contentContainerStyle={{ flex: 1, minHeight: 0, padding: 0, gap: 0 }}>
-      <TasksTypography theme={props.theme}>
+  return <TasksTypography theme={props.theme}>
         <View testID="task-question-dialog" style={{ flex: 1, minHeight: 0 }}>
           <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 16, gap: 20 }} keyboardShouldPersistTaps="handled">
             {multiple && props.compact ? <View testID="task-question-pager" style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 }}>
@@ -60,13 +68,13 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
               <Text style={[meta, { textAlign: "center" }]}>{words.answered(answered.filter(Boolean).length, answered.length)}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel={words.next} disabled={index === questions!.length - 1} onPress={() => setIndex(index + 1)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", opacity: index === questions!.length - 1 ? 0.4 : 1 }}><Icon name="ChevronRight" size={18} color={colors.foregroundMuted} /></Pressable>
             </View> : null}
-            {props.card ? <View testID="task-question-context" style={{ padding: 12, gap: 8, borderRadius: 10, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background, boxShadow: tokens.card.shadow }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><ProjectIcon location={props.card.location} size={16} /><Text numberOfLines={1} style={[meta, { flex: 1 }]}>{[props.card.location.projectName, props.card.location.workspaceTitle ?? props.card.location.workspaceName].filter(Boolean).join(" › ")}</Text>
-                {props.onOpen ? <Pressable testID="task-question-open" accessibilityRole="button" accessibilityLabel={cardStrings(props.language).openTab} onPress={() => props.onOpen?.(props.card!.id)} onHoverIn={() => setOpenHovered(true)} onHoverOut={() => setOpenHovered(false)} style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 6, borderColor: openHovered ? colors.border : "transparent", backgroundColor: openHovered ? colors.surface2 : "transparent" }}><Icon name="ArrowUpRight" size={16} color={colors.foregroundMuted} /></Pressable> : null}
+            {card ? <View testID="task-question-context" style={{ padding: 12, gap: 8, borderRadius: 10, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background, boxShadow: tokens.card.shadow }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><ProjectIcon location={card.location} size={16} /><Text numberOfLines={1} style={[meta, { flex: 1 }]}>{[card.location.projectName, card.location.workspaceTitle ?? card.location.workspaceName].filter(Boolean).join(" › ")}</Text>
+                {props.onOpen ? <Pressable testID="task-question-open" accessibilityRole="button" accessibilityLabel={cardStrings(props.language).openTab} onPress={() => props.onOpen?.(card.id)} onHoverIn={() => setOpenHovered(true)} onHoverOut={() => setOpenHovered(false)} style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 6, borderColor: openHovered ? colors.border : "transparent", backgroundColor: openHovered ? colors.surface2 : "transparent" }}><Icon name="ArrowUpRight" size={16} color={colors.foregroundMuted} /></Pressable> : null}
               </View>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}><StatusIcon kind={props.card.status} size={16} height={HOST_LINE.base} theme={props.theme} animated={false} /><Text selectable style={[prose, { flex: 1, fontWeight: "600" }]}>{props.card.title}</Text></View>
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99, backgroundColor: neutral.background }}><BrandMark provider={props.card.provider} size={14} tokens={tokens} /><Text style={[meta, { color: neutral.text }]}>{[props.card.providerLabel, props.card.modelLabel, props.card.thinkingLabel].filter(Boolean).join(" · ")}</Text></View>
-                {props.card.location.branch ? <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99, backgroundColor: branch.background }}><Icon name="GitBranch" size={14} color={branch.icon} /><Text style={[meta, { color: branch.text }]}>{props.card.location.branch}</Text></View> : null}
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}><StatusIcon kind={card.status} size={16} height={HOST_LINE.base} theme={props.theme} animated={false} /><Text selectable style={[prose, { flex: 1, fontWeight: "600" }]}>{card.title}</Text></View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99, backgroundColor: neutral.background }}><BrandMark provider={card.provider} size={14} tokens={tokens} /><Text style={[meta, { color: neutral.text }]}>{[card.providerLabel, card.modelLabel, card.thinkingLabel].filter(Boolean).join(" · ")}</Text></View>
+                {card.location.branch ? <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99, backgroundColor: branch.background }}><Icon name="GitBranch" size={14} color={branch.icon} /><Text style={[meta, { color: branch.text }]}>{card.location.branch}</Text></View> : null}
               </View>
             </View> : null}
             {multiple ? <ScrollView horizontal showsHorizontalScrollIndicator={false}><View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border }}>
@@ -120,9 +128,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
             </Pressable> : null}
           </View>
         </View>
-      </TasksTypography>
-    </Modal.Content>
-  </Modal>;
+      </TasksTypography>;
 }
 
 function QuestionPreview({ text, language, color, accent }: { text: string; language: TasksLanguage; color: string; accent: string }) {
