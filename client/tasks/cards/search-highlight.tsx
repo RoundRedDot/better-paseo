@@ -373,7 +373,7 @@ export function SearchHitSummary(props: {
             role="dialog"
             accessibilityLabel={strings.dialog}
             testID="task-search-popover"
-            style={{ ...panelChrome(props.theme), borderWidth: 1, borderColor: tokens.borderStrong, borderRadius: 10, marginHorizontal: 7, boxShadow: tokens.isDark ? "0px 20px 42px rgba(0, 0, 0, 0.60), 0px 6px 16px rgba(0, 0, 0, 0.38)" : "0px 20px 42px rgba(32, 38, 52, 0.30), 0px 6px 16px rgba(32, 38, 52, 0.18)", opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}
+            style={{ ...panelChrome(props.theme), borderWidth: 1, borderColor: tokens.borderStrong, borderRadius: 10, marginHorizontal: 7, boxShadow: tokens.isDark ? "0px 8px 20px rgba(0, 0, 0, 0.42), 0px 2px 6px rgba(0, 0, 0, 0.24)" : "0px 8px 20px rgba(32, 38, 52, 0.20), 0px 2px 6px rgba(32, 38, 52, 0.10)", opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}
           >
             <View pointerEvents="none" testID="task-search-popover-arrow" style={{ position: "absolute", left: 24, ...(placement === "below" ? { top: -6, borderTopWidth: 1, borderLeftWidth: 1, backgroundColor: tokens.surface1 } : { bottom: -6, borderBottomWidth: 1, borderRightWidth: 1, backgroundColor: panelChrome(props.theme).backgroundColor }), width: 10, height: 10, borderColor: tokens.borderStrong, transform: [{ rotate: "45deg" }] }} />
             <View style={{ maxHeight: 400, borderRadius: 9, overflow: "hidden" }}>
