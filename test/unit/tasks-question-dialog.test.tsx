@@ -5,10 +5,21 @@ import "./helpers/quiet-renderer";
 
 vi.hoisted(() => { (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; });
 const modalRenders = vi.hoisted(() => ({ count: 0 }));
-vi.mock("react-native", async () => import("./helpers/rn-mock"));
+const keyboard = vi.hoisted(() => ({ hide: undefined as (() => void) | undefined, blur: vi.fn() }));
+vi.mock("react-native", async () => {
+  const rn = await import("./helpers/rn-mock");
+  return { ...rn, Keyboard: { addListener: (_event: string, callback: () => void) => {
+    keyboard.hide = callback;
+    return { remove: () => { keyboard.hide = undefined; } };
+  } } };
+});
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
-  return { TextInput: rn.TextInput, ScrollView: rn.ScrollView,
+  const Input = React.forwardRef((_props: Record<string, unknown>, ref) => {
+    React.useImperativeHandle(ref, () => ({ blur: keyboard.blur }));
+    return React.createElement(rn.TextInput, _props);
+  });
+  return { TextInput: Input, ScrollView: rn.ScrollView,
     Icon: (props: object) => React.createElement("Icon", props),
     Modal: Object.assign((props: { children?: React.ReactNode }) => React.createElement("HostModal", props, props.children),
       { Content: (props: { children?: React.ReactNode }) => { modalRenders.count++; return React.createElement("ModalContent", props, props.children); } }) };
@@ -105,6 +116,19 @@ describe("task question dialog", () => {
     expect(input().props.style.at(-1).borderColor).toBe(theme.colors.border);
     await act(async () => host("task-question-tab-1").props.onPress());
     expect(host("task-question-input-1").props.style.at(-1).borderColor).toBe(theme.colors.border);
+  });
+  it.each(["ios", "android"])("blurs the answer and clears its highlight when the keyboard hides on %s", async (platform) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    keyboard.blur.mockClear();
+    await mount();
+    await act(async () => host("task-question-input-0").props.onFocus());
+    await act(async () => host("task-question-input-0").props.onChangeText("Draft"));
+    expect(keyboard.hide).toBeTypeOf("function");
+    await act(async () => keyboard.hide!());
+    expect(keyboard.blur).toHaveBeenCalledOnce();
+    expect(keyboard.hide).toBeUndefined();
+    expect(host("task-question-input-0").props.style.at(-1).borderColor).toBe(theme.colors.border);
+    expect(host("task-question-input-0").props.value).toBe("Draft");
   });
   it.each(["web", "ios", "android"])("expands long previews without selecting the option on %s", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;

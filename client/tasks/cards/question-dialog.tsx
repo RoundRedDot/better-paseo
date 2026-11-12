@@ -1,5 +1,5 @@
-import React, { useState, useSyncExternalStore } from "react";
-import { ActivityIndicator, Pressable, View } from "react-native";
+import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ActivityIndicator, Keyboard, Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
 import { questionRequestKey, type QuestionDialogState, type QuestionDialogStore } from "../actions/question-dialog";
@@ -134,7 +134,16 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
 
 function QuestionTextInput({ borderColor, focusColor, style, ...props }: React.ComponentProps<typeof TextInput> & { borderColor: string; focusColor: string }) {
   const [focused, setFocused] = useState(false);
-  return <TextInput {...props} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+  const input = useRef<React.ElementRef<typeof TextInput>>(null);
+  useEffect(() => {
+    if (!focused || Platform.OS === "web") return;
+    const subscription = Keyboard.addListener("keyboardDidHide", () => {
+      input.current?.blur();
+      setFocused(false);
+    });
+    return () => subscription.remove();
+  }, [focused]);
+  return <TextInput {...props} ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
     style={[style, { borderColor: focused ? focusColor : borderColor }]} />;
 }
 
