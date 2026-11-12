@@ -127,10 +127,14 @@ describe.each(["web", "ios", "android"])("code wrapping on %s", (os) => {
     const renderer = await render("echo a-long-command", { language: "bash", scrollX: true });
     const toggle = () => renderer.root.findByProps({ accessibilityLabel: "Do not wrap lines" });
     expect(toggle().props.accessibilityState.selected).toBe(true);
+    expect(toggle().findByProps({ name: "WrapText" })).toBeTruthy();
+    expect(styleObject(toggle().props.style).backgroundColor).toBeUndefined();
     act(() => toggle().props.onPress());
     expect(renderer.root.findAllByType(HScroll)).toHaveLength(1);
     const unwrapped = renderer.root.findByProps({ accessibilityLabel: "Wrap lines" });
     expect(unwrapped.props.accessibilityState.selected).toBe(false);
+    expect(unwrapped.findByProps({ name: "AlignLeft" })).toBeTruthy();
+    expect(styleObject(unwrapped.props.style).backgroundColor).toBeUndefined();
     act(() => unwrapped.props.onPress());
     expect(renderer.root.findAllByType(HScroll)).toHaveLength(0);
     expect(toggle().props.accessibilityState.selected).toBe(true);

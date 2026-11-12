@@ -385,6 +385,10 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
 - Code blocks: `surfaceCode`, radius 6, no border. A 30 header (32 native) carries the language,
   Wrap and Copy (24 buttons; Copy shows a check for 1.2 s). Blocks start wrapped and fold after 12
   lines; the document variant numbers blocks of 4 or more lines.
+- Timeline block header actions whose icons already distinguish two states, including Wrap, use
+  the same resting background in both states, without a persistent selected fill. Keep normal
+  hover, press and keyboard focus feedback and the control's accessibility state. Copy retains
+  its temporary success icon.
 - Tables: a 1 pt frame, radius 6; the header row on `surface2` with muted weight-500 text;
   all-numeric columns right-aligned; sideways scroll with the indicator shown only while
   scrolling. The copy control is a 30 square at the top left (radius 12); on the web it opens to
