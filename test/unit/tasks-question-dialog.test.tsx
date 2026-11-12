@@ -5,12 +5,13 @@ import "./helpers/quiet-renderer";
 
 vi.hoisted(() => { (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; });
 const modalRenders = vi.hoisted(() => ({ count: 0 }));
-const keyboard = vi.hoisted(() => ({ hide: undefined as (() => void) | undefined, blur: vi.fn() }));
+const keyboard = vi.hoisted(() => ({ hide: undefined as (() => void) | undefined, show: undefined as (() => void) | undefined, blur: vi.fn(), scrollToEnd: vi.fn() }));
 vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
-  return { ...rn, Keyboard: { addListener: (_event: string, callback: () => void) => {
-    keyboard.hide = callback;
-    return { remove: () => { keyboard.hide = undefined; } };
+  return { ...rn, Keyboard: { addListener: (event: string, callback: () => void) => {
+    const key = event === "keyboardDidHide" ? "hide" : "show";
+    keyboard[key] = callback;
+    return { remove: () => { keyboard[key] = undefined; } };
   } } };
 });
 vi.mock("@getpaseo/plugin/client/react-native", async () => {
@@ -19,7 +20,11 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     React.useImperativeHandle(ref, () => ({ blur: keyboard.blur }));
     return React.createElement(rn.TextInput, _props);
   });
-  return { TextInput: Input, ScrollView: rn.ScrollView,
+  const Scroll = React.forwardRef((props: Record<string, unknown>, ref) => {
+    React.useImperativeHandle(ref, () => ({ scrollToEnd: keyboard.scrollToEnd }));
+    return React.createElement(rn.ScrollView, props);
+  });
+  return { TextInput: Input, ScrollView: Scroll,
     Icon: (props: object) => React.createElement("Icon", props),
     Modal: Object.assign((props: { children?: React.ReactNode }) => React.createElement("HostModal", props, props.children),
       { Content: (props: { children?: React.ReactNode }) => { modalRenders.count++; return React.createElement("ModalContent", props, props.children); } }) };
@@ -129,6 +134,24 @@ describe("task question dialog", () => {
     expect(keyboard.hide).toBeUndefined();
     expect(host("task-question-input-0").props.style.at(-1).borderColor).toBe(theme.colors.border);
     expect(host("task-question-input-0").props.value).toBe("Draft");
+  });
+  it.each(["ios", "android"])("reveals the focused answer after the keyboard and viewport change on %s", async (platform) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    keyboard.scrollToEnd.mockClear();
+    await mount(card({ questions: [question, { ...question, header: "Second" }] }));
+    const scroller = () => tree!.root.findAllByType("ScrollView" as never).find((node) => node.props.keyboardShouldPersistTaps === "handled")!;
+    await act(async () => scroller().props.onLayout());
+    expect(keyboard.scrollToEnd).not.toHaveBeenCalled();
+    await act(async () => host("task-question-input-0").props.onFocus());
+    expect(keyboard.scrollToEnd).toHaveBeenCalledWith({ animated: true });
+    keyboard.scrollToEnd.mockClear();
+    await act(async () => scroller().props.onLayout());
+    await act(async () => keyboard.show!());
+    expect(keyboard.scrollToEnd).toHaveBeenCalledTimes(2);
+    await act(async () => host("task-question-tab-1").props.onPress());
+    keyboard.scrollToEnd.mockClear();
+    await act(async () => scroller().props.onLayout());
+    expect(keyboard.scrollToEnd).not.toHaveBeenCalled();
   });
   it.each(["web", "ios", "android"])("expands long previews without selecting the option on %s", async (platform) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;

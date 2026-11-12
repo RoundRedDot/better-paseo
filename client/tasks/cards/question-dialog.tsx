@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Keyboard, Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
@@ -41,7 +41,13 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
   const state = props.state;
   const card = props.cardById(state.agentId);
   const [index, setIndex] = useState(0);
+  const [inputFocused, setInputFocused] = useState(false);
   const [openHovered, setOpenHovered] = useState(false);
+  const scroll = useRef<React.ElementRef<typeof ScrollView>>(null);
+  const revealInput = useCallback(() => {
+    if (Platform.OS !== "web") scroll.current?.scrollToEnd({ animated: true });
+  }, []);
+  const selectQuestion = (next: number) => { setInputFocused(false); setIndex(next); };
   const words = cardStrings(props.language).questions;
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
@@ -62,11 +68,11 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
   const meta = { fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: colors.foregroundMuted };
   return <TasksTypography theme={props.theme}>
         <View testID="task-question-dialog" style={{ flex: 1, minHeight: 0 }}>
-          <ScrollView style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 16, gap: 20 }} keyboardShouldPersistTaps="handled">
+          <ScrollView ref={scroll} onLayout={() => { if (inputFocused) revealInput(); }} style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 16, gap: 20 }} keyboardShouldPersistTaps="handled">
             {multiple && props.compact ? <View testID="task-question-pager" style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 }}>
-              <Pressable accessibilityRole="button" accessibilityLabel={words.previous} disabled={index === 0} onPress={() => setIndex(index - 1)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", opacity: index === 0 ? 0.4 : 1 }}><Icon name="ChevronLeft" size={18} color={colors.foregroundMuted} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={words.previous} disabled={index === 0} onPress={() => selectQuestion(index - 1)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", opacity: index === 0 ? 0.4 : 1 }}><Icon name="ChevronLeft" size={18} color={colors.foregroundMuted} /></Pressable>
               <Text style={[meta, { textAlign: "center" }]}>{words.answered(answered.filter(Boolean).length, answered.length)}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={words.next} disabled={index === questions!.length - 1} onPress={() => setIndex(index + 1)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", opacity: index === questions!.length - 1 ? 0.4 : 1 }}><Icon name="ChevronRight" size={18} color={colors.foregroundMuted} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={words.next} disabled={index === questions!.length - 1} onPress={() => selectQuestion(index + 1)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", opacity: index === questions!.length - 1 ? 0.4 : 1 }}><Icon name="ChevronRight" size={18} color={colors.foregroundMuted} /></Pressable>
             </View> : null}
             {card ? <View testID="task-question-context" style={{ padding: 12, gap: 8, borderRadius: 10, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background, boxShadow: tokens.card.shadow }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><ProjectIcon location={card.location} size={16} /><Text numberOfLines={1} style={[meta, { flex: 1 }]}>{[card.location.projectName, card.location.workspaceTitle ?? card.location.workspaceName].filter(Boolean).join(" › ")}</Text>
@@ -78,7 +84,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
               </View>
             </View> : null}
             {multiple ? <ScrollView horizontal showsHorizontalScrollIndicator={false}><View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border }}>
-              {questions!.map((q, i) => <Pressable key={i} testID={`task-question-tab-${i}`} accessibilityRole="tab" accessibilityState={{ selected: i === index }} onPress={() => setIndex(i)} style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: i === index ? colors.accent : "transparent" }}><Text style={[meta, { color: i === index ? colors.foreground : colors.foregroundMuted, fontWeight: "600" }]}>{words.question(i + 1)}{answered[i] ? " ✓" : ""}</Text></Pressable>)}
+              {questions!.map((q, i) => <Pressable key={i} testID={`task-question-tab-${i}`} accessibilityRole="tab" accessibilityState={{ selected: i === index }} onPress={() => selectQuestion(i)} style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: i === index ? colors.accent : "transparent" }}><Text style={[meta, { color: i === index ? colors.foreground : colors.foregroundMuted, fontWeight: "600" }]}>{words.question(i + 1)}{answered[i] ? " ✓" : ""}</Text></Pressable>)}
             </View></ScrollView> : null}
             {questions?.map((q, i) => i !== index ? null : <View key={i} testID="task-question-field" style={{ gap: 10 }}>
               <Text style={meta}>{q.header} · {q.options.length ? q.multiSelect ? words.multiple : words.single : words.text}</Text>
@@ -104,6 +110,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
               {questionTextInput(q) ? <QuestionTextInput testID={`task-question-input-${index}`} accessibilityLabel={q.question} placeholder={q.placeholder ?? (q.options.length ? words.other : words.text)}
                 value={state.draft.texts[index] ?? ""} editable={!disabled} secureTextEntry={q.isSecret} multiline={!q.isSecret}
                 borderColor={colors.border} focusColor={colors.accent}
+                onFocusChange={setInputFocused} onReveal={revealInput}
                 autoCorrect={!q.isSecret} autoCapitalize="none"
                 onChangeText={(value) => props.store.change({ texts: { ...state.draft.texts, [index]: value }, selections: q.multiSelect ? state.draft.selections : { ...state.draft.selections, [index]: [] } })}
                 style={{ minHeight: taskControlHeight(44, scale), borderWidth: 1, borderRadius: 8, backgroundColor: colors.surface0, color: colors.foreground,
@@ -123,7 +130,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
               <Text style={prose}>{state.submitted ? words.close : cardStrings(props.language).cancelTitle}</Text>
             </Pressable>
             {!state.submitted ? <Pressable testID="task-question-submit" accessibilityRole="button" accessibilityState={{ disabled: !(canSubmit || canAdvance), busy: state.pending }} disabled={!(canSubmit || canAdvance)}
-              onPress={() => { if (canAdvance) { const next = answered.findIndex((value, i) => i > index && !value); setIndex(next < 0 ? answered.findIndex((value) => !value) : next); return; } void props.store.submit(props.submit); }}
+              onPress={() => { if (canAdvance) { const next = answered.findIndex((value, i) => i > index && !value); selectQuestion(next < 0 ? answered.findIndex((value) => !value) : next); return; } void props.store.submit(props.submit); }}
               style={{ ...(props.compact ? { flexGrow: 1, flexBasis: 0 } : {}), minWidth: 100, minHeight: taskControlHeight(44, scale), padding: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent, opacity: canSubmit || canAdvance ? 1 : 0.5 }}>
               {state.pending ? <ActivityIndicator color={colors.accentForeground} /> : <Text style={[prose, { color: colors.accentForeground }]}>{canAdvance ? words.next : words.submit}</Text>}
             </Pressable> : null}
@@ -132,7 +139,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
       </TasksTypography>;
 }
 
-function QuestionTextInput({ borderColor, focusColor, style, ...props }: React.ComponentProps<typeof TextInput> & { borderColor: string; focusColor: string }) {
+function QuestionTextInput({ borderColor, focusColor, onFocusChange, onReveal, style, ...props }: React.ComponentProps<typeof TextInput> & { borderColor: string; focusColor: string; onFocusChange(focused: boolean): void; onReveal(): void }) {
   const [focused, setFocused] = useState(false);
   const input = useRef<React.ElementRef<typeof TextInput>>(null);
   useEffect(() => {
@@ -140,10 +147,12 @@ function QuestionTextInput({ borderColor, focusColor, style, ...props }: React.C
     const subscription = Keyboard.addListener("keyboardDidHide", () => {
       input.current?.blur();
       setFocused(false);
+      onFocusChange(false);
     });
-    return () => subscription.remove();
-  }, [focused]);
-  return <TextInput {...props} ref={input} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+    const shown = Keyboard.addListener("keyboardDidShow", onReveal);
+    return () => { subscription.remove(); shown.remove(); };
+  }, [focused, onFocusChange, onReveal]);
+  return <TextInput {...props} ref={input} onFocus={() => { setFocused(true); onFocusChange(true); onReveal(); }} onBlur={() => { setFocused(false); onFocusChange(false); }}
     style={[style, { borderColor: focused ? focusColor : borderColor }]} />;
 }
 
