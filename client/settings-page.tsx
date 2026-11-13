@@ -1006,6 +1006,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
               onChange={(liveUiReplies) => updateEnhancerPreferences({ liveUiReplies })}
               label={t.liveUiTitle}
               look={look}
+              disabled={!preferences.assistantMarkdown}
             />
           }
           look={look}

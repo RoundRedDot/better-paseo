@@ -116,6 +116,8 @@ describe("preferences read while the plugin loads", () => {
     const second = plugin.active("omp-enhanced-assistant")[0]!;
     expect(first.removed).toBe(true);
     expect(second.transform(ui)).toBeUndefined();
+    expect(second.transform({ item: { type: "assistant_message", text: "```ui" }, phase: "streaming" })).toBeDefined();
+    expect(second.transform({ item: { type: "assistant_message", text: "```ui" }, phase: "complete" })).toBeUndefined();
     expect(second.transform(other)).toBeDefined();
     expect(second.transform(reply)).toBeDefined();
     preferences.updateEnhancerPreferences({ liveUiReplies: false });
@@ -123,7 +125,21 @@ describe("preferences read while the plugin loads", () => {
     expect(third.transform(ui)).toBeDefined();
     preferences.updateEnhancerPreferences({ assistantMarkdown: false, liveUiReplies: true });
     expect(plugin.active("omp-enhanced-assistant")[0]!.transform(reply)).toBeUndefined();
+    const count = plugin.registrations.length;
+    preferences.updateEnhancerPreferences({ liveUiReplies: false });
+    expect(plugin.registrations).toHaveLength(count);
+    preferences.updateEnhancerPreferences({ assistantMarkdown: true });
+    expect(plugin.registrations).toHaveLength(count + 1);
+    expect(plugin.active("omp-enhanced-assistant")[0]!.transform(reply)).toBeDefined();
+    preferences.updateEnhancerPreferences({ assistantMarkdown: false });
+    const beforeBoth = plugin.registrations.length;
+    preferences.updateEnhancerPreferences({ assistantMarkdown: true, liveUiReplies: true });
+    expect(plugin.registrations).toHaveLength(beforeBoth + 1);
+    expect(plugin.active("omp-enhanced-assistant")[0]!.transform(ui)).toBeUndefined();
     cleanup();
+    const cleaned = plugin.registrations.length;
+    preferences.updateEnhancerPreferences({ liveUiReplies: false });
+    expect(plugin.registrations).toHaveLength(cleaned);
   });
 
   it("asks while contribute runs and applies the record before any row mounts", async () => {

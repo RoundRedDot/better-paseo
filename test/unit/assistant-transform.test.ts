@@ -75,6 +75,15 @@ describe("ui fence yield", () => {
   });
 
   it("yields a streaming fence that has not closed yet", () => {
-    expect(hasUiFence("Reply so far\n\n```ui\nCard(\"Ping")).toBe(true);
+    expect(hasUiFence("Reply so far\n\n```ui\nCard(\"Ping", "streaming")).toBe(true);
+  });
+
+  it("waits for a streaming language label to finish before handing off", () => {
+    expect(hasUiFence("```app", "streaming")).toBe(false);
+    expect(hasUiFence("```applescript\n", "streaming")).toBe(false);
+    expect(hasUiFence("```ui", "streaming")).toBe(false);
+    expect(hasUiFence("```ui.json\n", "streaming")).toBe(false);
+    expect(hasUiFence("```ui\n", "streaming")).toBe(true);
+    expect(hasUiFence("```ui", "complete")).toBe(true);
   });
 });

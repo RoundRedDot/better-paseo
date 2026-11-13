@@ -1489,6 +1489,30 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const permissionSummary = permission ? summaryBeyondTitle(permission.title, permission.summary) : null;
   // Answers only their words tell apart stack when they do not fit side by side.
   const stackAnswers = props.permissionButtons.some((button) => !button.answers && keepsAnswerLabel(button, props.permissionButtons));
+  const answerGroups: PermissionButton[][] = [];
+  for (const button of props.permissionButtons) {
+    const previous = answerGroups.at(-1);
+    if (card.lane !== "needs_input" || (button.kind !== "question" && previous && previous.length < 2 && previous[0]?.kind !== "question")) {
+      if (previous) previous.push(button);
+      else answerGroups.push([button]);
+    } else answerGroups.push([button]);
+  }
+  const answerActions = (onPhone: boolean) => {
+    const id = onPhone ? "task-card-question-actions" : "task-card-answer-actions";
+    const style: ViewStyle | undefined = onPhone ? undefined : { width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0 };
+    const renderRow = (buttons: PermissionButton[]) => (
+      <ActionRow key={buttons[0]!.key} gap={GAP} stack={stackAnswers} stackFull={card.lane === "needs_input"} testID={answerGroups.length === 1 ? id : undefined} style={answerGroups.length === 1 ? style : undefined}>
+        {buttons.map((button) => (
+          <ActionButton key={button.key} button={button} tokens={tokens} compact={onPhone} keepLabel={card.lane === "needs_input" || keepsAnswerLabel(button, props.permissionButtons)} wrapOption={card.lane === "needs_input"}
+            disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}
+            hint={hint(`action-permission-${button.key}`, () => button.label)}
+            onPress={() => props.onPermission?.(card, button)} />
+        ))}
+      </ActionRow>
+    );
+    if (answerGroups.length === 1) return renderRow(answerGroups[0]!);
+    return <View testID={id} style={[{ width: "100%", gap: GAP }, style]}>{answerGroups.map(renderRow)}</View>;
+  };
   const permissionBlock =
     layout.permission && permission ? (
       // The divider replaces the block's rule. As much room above and below it
@@ -1522,32 +1546,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           ) : null}
         </View>
         {compactRequest && props.permissionButtons.length > 0 ? (
-          <ActionRow gap={GAP} stack={stackAnswers} stackFull={card.lane === "needs_input"} testID="task-card-question-actions">
-            {props.permissionButtons.map((button) => (
-              <ActionButton key={button.key} button={button} tokens={tokens} compact keepLabel={card.lane === "needs_input" || keepsAnswerLabel(button, props.permissionButtons)} wrapOption={card.lane === "needs_input"}
-                disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}
-                hint={hint(`action-permission-${button.key}`, () => button.label)}
-                onPress={() => props.onPermission?.(card, button)} />
-            ))}
-          </ActionRow>
+          answerActions(true)
         ) : null}
         {answerRow ? (
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP }} testID="task-card-answer-row">
-            <ActionRow gap={GAP} stack={stackAnswers} stackFull={card.lane === "needs_input"} style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0 }} testID="task-card-answer-actions">
-              {props.permissionButtons.map((button) => (
-                <ActionButton
-                  key={button.key}
-                  button={button}
-                  tokens={tokens}
-                  compact={false}
-                  keepLabel={card.lane === "needs_input" || keepsAnswerLabel(button, props.permissionButtons)}
-                  wrapOption={card.lane === "needs_input"}
-                  disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}
-                  hint={hint(`action-permission-${button.key}`, () => button.label)}
-                  onPress={() => props.onPermission?.(card, button)}
-                />
-              ))}
-            </ActionRow>
+            {answerActions(false)}
             {footerContent && !dividerFoot ? (
               <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, minHeight: footHeight, marginLeft: "auto" }} testID="task-card-footer">
                 {footerContent}

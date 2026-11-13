@@ -5,8 +5,8 @@ import {
 } from "../preferences";
 
 /**
- * Registers a timeline transformer that reads `key`, and registers it again
- * whenever that preference changes.
+ * Registers a timeline transformer again when its preference, or selected
+ * effective preference value, changes.
  *
  * Paseo runs a transformer once per source item and caches the result by the
  * host's combined transform, which it rebuilds whenever a plugin adds or
@@ -17,13 +17,14 @@ import {
  * that way. Registering again makes the host project them anew.
  */
 export function followPreference(
-  key: keyof EnhancerPreferences,
+  key: keyof EnhancerPreferences | ((preferences: EnhancerPreferences) => unknown),
   register: () => () => void,
 ): () => void {
+  const selected = () => typeof key === "function" ? key(getEnhancerPreferences()) : getEnhancerPreferences()[key];
   let remove = register();
-  let last = getEnhancerPreferences()[key];
+  let last = selected();
   const unsubscribe = subscribeEnhancerPreferences(() => {
-    const next = getEnhancerPreferences()[key];
+    const next = selected();
     if (next === last) return;
     last = next;
     // Remove first: the host refuses a second transformer with the same id.

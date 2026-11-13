@@ -38,14 +38,16 @@ export function Toggle({
   onChange,
   label,
   look,
+  disabled = false,
 }: {
   value: boolean;
   onChange(next: boolean): void;
   label: string;
   look: PageLook;
+  disabled?: boolean;
 }) {
   const { tokens } = look;
-  const onPress = () => onChange(!value);
+  const onPress = () => { if (!disabled) onChange(!value); };
   const spaceKeys = useSwitchSpace(onPress);
   return (
     <Pressable
@@ -53,11 +55,12 @@ export function Toggle({
       // React Native Web does not map `accessibilityState.checked` onto a
       // Pressable, so the ARIA attribute is set directly as well.
       aria-checked={value}
-      accessibilityState={{ checked: value }}
+      accessibilityState={{ checked: value, disabled }}
       accessibilityLabel={label}
+      disabled={disabled}
       hitSlop={10}
       onPress={onPress}
-      {...spaceKeys}
+      {...(disabled ? {} : spaceKeys)}
     >
       <SwitchTrack
         value={value}

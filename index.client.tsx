@@ -222,8 +222,9 @@ export default function contribute(client: PluginClientContext) {
   // follow it too; a reply the plugin should not own is left to the host or,
   // for ```ui/```app fences, to a plugin further down the chain that renders
   // them live.
-  const removeAssistantTransformer = followPreference("assistantMarkdown", () =>
-    followPreference("liveUiReplies", () =>
+  const removeAssistantTransformer = followPreference(
+    (preferences) => !preferences.assistantMarkdown ? "host" : preferences.liveUiReplies ? "live-ui" : "markdown",
+    () =>
       addChatTransformer({
         id: "omp-enhanced-assistant",
         query: { itemType: "assistant_message" },
@@ -231,10 +232,10 @@ export default function contribute(client: PluginClientContext) {
           if (item.type !== "assistant_message") return undefined;
           if (!getEnhancerPreferences().assistantMarkdown) return undefined;
           if (!item.text.trim()) return undefined;
-          if (getEnhancerPreferences().liveUiReplies && hasUiFence(item.text)) return undefined;
+          if (getEnhancerPreferences().liveUiReplies && hasUiFence(item.text, phase)) return undefined;
           return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
         },
-      })),
+      }),
   );
 
   const removeAssistantRenderer = client.addTimelineRenderer({

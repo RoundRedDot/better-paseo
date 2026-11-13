@@ -90,6 +90,20 @@ describe("block details settings", () => {
     expect(getEnhancerPreferences().liveUiReplies).toBe(true);
     act(() => renderer.unmount());
   });
+
+  it("disables interactive reply handoff when plugin Markdown is off", () => {
+    updateEnhancerPreferences({ language: "en", assistantMarkdown: false });
+    const renderer = renderPage();
+    const control = switchControl(renderer.root, "Let genui render interactive replies");
+    expect(control.props.disabled).toBe(true);
+    expect(control.props.accessibilityState.disabled).toBe(true);
+    expect(control.props.onKeyDown).toBeUndefined();
+    expect(control.props.onKeyUp).toBeUndefined();
+    act(() => control.props.onPress());
+    expect(getEnhancerPreferences().liveUiReplies).toBe(false);
+    act(() => renderer.unmount());
+  });
+
   it("turns details on by default and drops a stored row-click choice", () => {
     expect(DEFAULT_PREFERENCES).toMatchObject({ blockDetails: true });
     expect(DEFAULT_PREFERENCES).not.toHaveProperty("rowClick");

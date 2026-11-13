@@ -110,6 +110,7 @@ function phoneCard(card: TaskCard, language: Language, overrides: Partial<TaskCa
 const row = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-actions");
 /** A question's or a tool permission's answers, under its divider. */
 const questionRow = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-actions");
+const actionButtons = (node: ReactTestInstance) => node.findAll((child) => typeof child.type === "string" && child.props.accessibilityRole === "button");
 /** The labels a section request's controls row draws; its other labels are the request's answers. */
 const CONTROL_LABELS = new Set(["停止", "Stop", "确认停止", "Confirm stop", "打开", "Open"]);
 
@@ -731,21 +732,18 @@ describe("phone card action bar under native (Yoga) layout", () => {
     },
   );
 
-  // All three choices need their labels, so they stack on the 340pt card.
-  it.each(["zh", "en"] as const)("stacks a real ExitPlanMode's three choices in %s, with Stop and Open above", async (language) => {
+  it.each(["zh", "en"] as const)("puts a real ExitPlanMode's three choices in pairs in %s, with Stop and Open above", async (language) => {
     const plan = kindCard("plan-resume");
     await act(async () => { renderer = TestRenderer.create(phoneCard(plan, language, { onOpen() {}, permissionButtons: permissionButtons(plan.permission!, language, true) })); });
     const card = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${plan.id}`);
     const frames = await settleHostLayout(card, { width: 340, textScale: 1 });
     const answers = frames.get(questionRow())!;
-    const choices = hostChildren(questionRow()).map((node) => frames.get(node)!);
+    const choices = actionButtons(questionRow()).map((node) => frames.get(node)!);
     expect(choices).toHaveLength(3);
-    expect(hostChildren(questionRow()).map((node) => node.props.accessibilityLabel)).toEqual(ANSWERS["plan-resume"][language]);
-    for (const [index, choice] of choices.entries()) {
-      expect(choice.left).toBeCloseTo(answers.left, 0);
-      expect(choice.width).toBeCloseTo(answers.width, 0);
-      if (index > 0) expect(choice.top).toBeGreaterThan(choices[index - 1]!.top + choices[index - 1]!.height);
-    }
+    expect(actionButtons(questionRow()).map((node) => node.props.accessibilityLabel)).toEqual(ANSWERS["plan-resume"][language]);
+    expect(choices[0]!.left).toBeCloseTo(answers.left, 0);
+    expect(choices[0]!.top).toBeCloseTo(choices[1]!.top, 0);
+    expect(choices[2]!.top).toBeGreaterThan(choices[1]!.top + choices[1]!.height);
     expect(labelsOf(questionRow()).map((text) => text.children.join(""))).toEqual(ANSWERS["plan-resume"][language]);
     const [stop, open] = hostChildren(row()).map((node) => frames.get(node)!);
     const divider = frames.get(renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider"))!;
@@ -768,23 +766,43 @@ describe("phone card action bar under native (Yoga) layout", () => {
     },
   );
 
-  it.each([true, false])("stacks all question buttons only while their full labels do not fit (compact %s)", async (compact) => {
+  it.each([true, false])("keeps View questions on its own row and pairs answers when they fit (compact %s)", async (compact) => {
     const card = choice(["按此方案执行", "先不要改"])();
     await act(async () => { renderer = TestRenderer.create(phoneCard(card, "zh", { compact, onOpen() {}, permissionButtons: permissionButtons(card.permission!, "zh", true) })); });
     const id = compact ? "task-card-question-actions" : "task-card-answer-actions";
     const answers = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
-    for (const [width, stacked] of [[600, false], [240, true], [600, false]] as const) {
+    for (const [width, stacked] of [[600, false], [240, false], [120, true], [600, false]] as const) {
       const frames = await settleHostLayout(answers, { width, textScale: 1, wrapText: true, wordWrap: true });
-      const children = hostChildren(answers());
+      const children = actionButtons(answers());
       expect(children).toHaveLength(3);
       expect(labelsOf(answers()).map((node) => node.children.join(""))).toEqual(["按此方案执行", "先不要改", "查看问题"]);
-      for (const [index, button] of children.entries()) {
-        const frame = frames.get(button)!;
-        if (stacked) {
-          expect(frame.width).toBeCloseTo(frames.get(answers())!.width, 0);
-          if (index) expect(frame.top).toBeGreaterThan(frames.get(children[index - 1]!)!.top + frames.get(children[index - 1]!)!.height);
-        } else expect(frame.top).toBeCloseTo(frames.get(children[0]!)!.top, 0);
-      }
+      const [first, second, view] = children.map((button) => frames.get(button)!);
+      if (stacked) expect(second!.top).toBeGreaterThan(first!.top + first!.height);
+      else expect(second!.top).toBeCloseTo(first!.top, 0);
+      expect(view!.top).toBeGreaterThan(second!.top + second!.height);
+    }
+  });
+
+  it.each([true, false].flatMap((compact) => [240, 600].flatMap((width) => [1, 1.8].flatMap((scale) => (["zh", "en"] as const).map((language) => [compact, width, scale, language] as const)))))
+  ("lays out four answers and View questions in order (compact %s, %ipt, scale %f, %s)", async (compact, width, textScale, language) => {
+    const card = kindCard("plan-resume");
+    const planButtons = permissionButtons(card.permission!, language, true);
+    const view = permissionButtons(choice()().permission!, language, true).find((button) => button.kind === "question")!;
+    const buttons = [...planButtons, { ...planButtons[0]!, key: "fourth", label: language === "zh" ? "第四项" : "Fourth" }, view];
+    const onPermission = vi.fn();
+    await act(async () => { renderer = TestRenderer.create(phoneCard(card, language, { compact, onPermission, permissionButtons: buttons })); });
+    const id = compact ? "task-card-question-actions" : "task-card-answer-actions";
+    const row = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    const frames = await settleHostLayout(row, { width, textScale, wrapText: true, wordWrap: true });
+    const children = actionButtons(row());
+    expect(children.map((button) => button.props.accessibilityLabel)).toEqual(buttons.map((button) => button.label));
+    const tops = children.map((button) => Math.round(frames.get(button)!.top));
+    for (const top of new Set(tops)) expect(tops.filter((value) => value === top).length).toBeLessThanOrEqual(2);
+    expect(tops[4]!).toBeGreaterThan(tops[3]!);
+    expect(overflows(frames, textScale, row())).toEqual([]);
+    for (const [index, button] of children.entries()) {
+      await act(async () => button.props.onPress());
+      expect(onPermission).toHaveBeenLastCalledWith(card, buttons[index]);
     }
   });
 
@@ -811,7 +829,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
       const row = byId(rowId);
       const box = frames.get(byId(rootId))!;
       const visible = new Map<string, string[]>();
-      for (const button of hostChildren(row)) {
+      for (const button of actionButtons(row)) {
         const label = String(button.props.accessibilityLabel);
         const frame = frames.get(button)!;
         // Every answer stays inside the card or panel.
