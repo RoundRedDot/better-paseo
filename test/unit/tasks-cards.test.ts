@@ -1876,6 +1876,20 @@ describe("ProjectIcon", () => {
     expect(clock.props.size).toBe(compact ? 14 : 12);
   });
 
+  it.each([false, true])("scales the title status icon with the title text (compact=%s)", async (compact) => {
+    for (const factor of [0.8, 1, 1.5]) {
+      const tree = await render(React.createElement(TasksTypographyScale, {
+        factor,
+        children: cardElement(sample("sample-done"), { compact }),
+      }));
+      const title = hostByTestId(tree.root, "task-card-title");
+      const status = hostByTestId(tree.root, "status-done");
+      const icon = status.find((node) => (node.type as unknown) === "Icon");
+      expect(icon.props.size).toBe(flat(title.props.style).fontSize);
+      await act(async () => tree.unmount());
+    }
+  });
+
   it.each([
     { projectIcon: false },
     { project: false },

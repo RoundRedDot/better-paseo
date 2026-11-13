@@ -223,7 +223,7 @@ interface Metrics {
   titleGap: number;
   titleSize: number;
   titleLine: number;
-  /** The status icon's slot; its box is two wider so the mark keeps the sidebar's 12 px. */
+  /** The minimum aligned icon column and the error mark's box. */
   iconSlot: number;
   iconBox: number;
   /** Title to pills, pills to footer, footer to a lane block. */
@@ -582,6 +582,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     : opensInPaseo(given.card) ? given : { ...given, onOpen: undefined };
   const { card, fields, compact, theme } = props;
   const scale = useTasksFontScale();
+  const fontScale = useWindowDimensions().fontScale;
   const tokens = taskTokens(theme);
   const look = tokens.card;
   const preferred = useTasksLanguage();
@@ -605,6 +606,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     previousTitle.current = card.title;
   }, [card.title, card.id, props.titleUpdates, titleUpdate, shownTitle]);
   const m = compact ? PHONE : DESKTOP;
+  const titleIconSize = Math.round(m.titleSize * scale) * fontScale;
+  const iconSlot = Math.max(m.iconSlot, titleIconSize);
   const buttonHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : cardButtonHeight();
   const layout = cardLayout(card, fields, compact);
   const query = props.searchQuery ?? "";
@@ -901,7 +904,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       {avatar ? (
         // Centred in the status icon's slot, so the meta and title text start together.
         <View
-          style={{ width: m.iconSlot, alignItems: "center" }}
+          style={{ width: iconSlot, alignItems: "center" }}
           {...hintProps(location.projectName ? hint("project", () => pair(strings.hint.project, location.projectName!)) : undefined)}
         >
           <ProjectIcon location={location} size={m.icon} hostId={props.hostId} />
@@ -980,13 +983,13 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       testID="task-card-title-row"
     >
       <View
-        style={{ width: m.iconSlot, alignItems: "center" }}
+        style={{ width: iconSlot, alignItems: "center" }}
         {...hintProps(hint("status", () => lines(pair(strings.hint.status, card.stoppedManually ? strings.hint.stopped : strings.status[card.status]), card.subagent && strings.subagentCard)))}
       >
         <StatusIcon
           kind={card.stoppedManually ? "stopped" : card.status}
-          size={m.iconBox}
-          height={Math.round(m.titleLine * scale)}
+          size={titleIconSize}
+          height={Math.round(m.titleLine * scale) * fontScale}
           theme={theme}
           backdrop={background}
           animated={props.animated}
@@ -1379,7 +1382,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                 testID="task-card-started"
                 {...hintProps(hint("started", () => startHint(card, language)))}
               >
-                <View style={{ width: m.iconSlot, alignItems: "center" }}>
+                <View style={{ width: iconSlot, alignItems: "center" }}>
                   <Icon name="Clock" size={m.icon} color={muted} />
                 </View>
                 <StartText card={card} now={props.now} clock={props.clock} style={[text(m.footSize, m.footLine, muted), tabular]} />
@@ -1448,7 +1451,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     ) : null;
 
   // Lane blocks ------------------------------------------------------------
-  const iconCell: ViewStyle = { width: m.iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" };
+  const iconCell: ViewStyle = { width: iconSlot, height: Math.round(m.blockLine * scale), alignItems: "center", justifyContent: "center" };
   // The reset time and the next step read the same instant; `now` only tells today from another day.
   const errorNow = props.now ?? Date.now();
   const failureAction = card.error && !card.stoppedManually ? errorAction(card.error, language, cardErrorReset(card.error, errorNow) !== null) : null;
