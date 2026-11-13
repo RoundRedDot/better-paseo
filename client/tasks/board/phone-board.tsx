@@ -886,7 +886,12 @@ const PhoneLane = memo(function PhoneLane(props: {
   // The list's content height without the end space it was measured with.
   const [contentHeight, setContentHeight] = useState(0);
   const [initialOffset] = useState(() => isNative() ? rememberedPhoneLaneOffset(board.hostId, lane.id) : 0);
-  const offset = useRef(0);
+  // iOS sets a mount's contentOffset before the list can emit events, so the list would lay out its
+  // window and report the cards on screen from 0. It is restored by a scroll after mount instead,
+  // whose event the list reads; until that event, what the list reports on screen is from 0.
+  const [restoring, setRestoring] = useState(() => Platform.OS === "ios" && initialOffset > 0);
+  const restoreSent = useRef(false);
+  const offset = useRef(initialOffset);
   const [atBottom, setAtBottom] = useState(false);
   const updateEdges = (y: number, height: number, viewport: number) => {
     offset.current = y;
@@ -897,6 +902,7 @@ const PhoneLane = memo(function PhoneLane(props: {
   const strings = board.strings;
   const ready = board.tasks.ready;
   const count = lane.cards.length;
+  const loadingCards = !ready || (lane.initialLoading && count === 0);
   const isFresh = useFreshIds(
     lane.cards.map((card) => card.id),
     ready,
@@ -904,7 +910,7 @@ const PhoneLane = memo(function PhoneLane(props: {
   );
   // New tasks: seen once on screen in the lane shown; until then its pill says so.
   const unseen = useUnseenCards(board.hostId, lane.id);
-  const seen = useSeenCards(board.hostId, lane.id, board.visible && props.active !== false);
+  const seen = useSeenCards(board.hostId, lane.id, board.visible && props.active !== false && !restoring);
   // Hidden under copies of its cards while they move (native lane motion).
   const covered = useLaneCovered(lane.id);
   // Its list is what the lane shows: a card that leaves its end lets the list scroll back.
@@ -936,6 +942,18 @@ const PhoneLane = memo(function PhoneLane(props: {
     },
     [shared],
   );
+  useLayoutEffect(() => {
+    if (!restoring || restoreSent.current || loadingCards) return;
+    restoreSent.current = true;
+    if (count > 0) {
+      listRef.current?.scrollToOffset({ offset: initialOffset, animated: false });
+      return;
+    }
+    // An emptied lane has nothing to come back to: it stays at its top.
+    offset.current = 0;
+    rememberPhoneLaneOffset(board.hostId, lane.id, 0);
+    setRestoring(false);
+  }, [restoring, loadingCards, count, initialOffset, board.hostId, lane.id]);
   // No clock in here: a tick reaches the timer texts, not the list and its rows.
   const { callbacks } = props;
   const { highlighted, stop, read, fields } = board;
@@ -944,7 +962,7 @@ const PhoneLane = memo(function PhoneLane(props: {
     ({ item }: { item: TaskCard }) => <CardCell board={board} card={item} theme={theme} compact callbacks={callbacks} fresh={isFresh(item.id)} />,
     [board, theme, callbacks, isFresh],
   );
-  if (!ready || (lane.initialLoading && count === 0)) {
+  if (loadingCards) {
     return (
       <View style={{ padding: 12, gap: 12 }}>
         {[0, 1, 2].map((index) => (
@@ -971,7 +989,8 @@ const PhoneLane = memo(function PhoneLane(props: {
     }}>
     <FlatList<TaskCard>
       ref={setList}
-      contentOffset={isNative() ? { x: 0, y: initialOffset } : undefined}
+      // Android reports this offset with a scroll event once it applies it.
+      contentOffset={Platform.OS === "android" ? { x: 0, y: initialOffset } : undefined}
       onContentSizeChange={(_width, height) => {
         setContentHeight(height - endSpace);
         updateEdges(offset.current, height, viewportHeight);
@@ -979,6 +998,7 @@ const PhoneLane = memo(function PhoneLane(props: {
       onScroll={(event) => {
         const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
         if (isNative()) rememberPhoneLaneOffset(board.hostId, lane.id, contentOffset.y);
+        if (restoring) setRestoring(false);
         updateEdges(contentOffset.y, contentSize.height, layoutMeasurement.height);
       }}
       scrollEventThrottle={16}

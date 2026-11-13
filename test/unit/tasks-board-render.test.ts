@@ -6797,7 +6797,8 @@ describe("Tasks board, phone", () => {
   it.each(["ios", "android"])("restores the phone tabs and each lane after a screen remount on %s", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const scrollTo = vi.fn();
-    const create = () => TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "ScrollView" ? { scrollTo } : null });
+    const scrollToOffset = vi.fn();
+    const create = () => TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "ScrollView" ? { scrollTo } : element.type === "FlatList" ? { scrollToOffset } : null });
     const list = (id: string) => hostsById(`phone-lane-${id}`)[0]!.find((node) => (node.type as unknown) === "FlatList");
     const tabs = () => hostParentOf(hostsById("phone-stat-running")[0]!)!;
     const scroll = (id: string, y: number) => list(id).props.onScroll({ nativeEvent: { contentOffset: { x: 0, y }, contentSize: { height: 1800 }, layoutMeasurement: { height: 500 } } });
@@ -6806,9 +6807,22 @@ describe("Tasks board, phone", () => {
     act(() => pressable("Running 2").props.onPress());
     act(() => renderer!.unmount());
     scrollTo.mockClear();
+    scrollToOffset.mockClear();
     act(() => { renderer = create(); });
-    expect(list("needs_input").props.contentOffset).toEqual({ x: 0, y: 240 });
-    expect(list("running").props.contentOffset).toEqual({ x: 0, y: 420 });
+    if (os === "ios") {
+      // iOS reports no event for a mount's contentOffset: each list scrolls there once it is mounted, without animating.
+      expect(list("needs_input").props.contentOffset).toBeUndefined();
+      expect(list("running").props.contentOffset).toBeUndefined();
+      expect(scrollToOffset.mock.calls).toEqual([[{ offset: 240, animated: false }], [{ offset: 420, animated: false }]]);
+      // Its scroll event ends the restore; later renders do not scroll again.
+      act(() => { scroll("needs_input", 240); scroll("running", 420); });
+      act(() => renderer!.update(screen(true)));
+      expect(scrollToOffset).toHaveBeenCalledTimes(2);
+    } else {
+      expect(list("needs_input").props.contentOffset).toEqual({ x: 0, y: 240 });
+      expect(list("running").props.contentOffset).toEqual({ x: 0, y: 420 });
+      expect(scrollToOffset).not.toHaveBeenCalled();
+    }
     expect(tabs().props.contentOffset).toEqual({ x: 75, y: 0 });
     const running = () => hostsById("phone-stat-running")[0]!;
     const row = () => running().find((node) => node !== running() && typeof node.type === "string" && typeof node.props.onLayout === "function");
@@ -6819,6 +6833,49 @@ describe("Tasks board, phone", () => {
     });
     act(() => running().props.onLayout({ nativeEvent: { layout: { x: 90, width: 100 } } }));
     expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ animated: true }));
+  });
+
+  it("measures a lane restored at its end from the restored offset on ios", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    const list = () => hostsById("phone-lane-running")[0]!.find((node) => (node.type as unknown) === "FlatList");
+    const bottom = () => hostsById("phone-lane-running")[0]!.findAll((node) => typeof node.type === "string" && node.props.testID === "phone-scroll-bottom");
+    const scrollToOffset = vi.fn();
+    const create = () => TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "FlatList" ? { scrollToOffset } : null });
+    act(() => { renderer = create(); });
+    act(() => pressable("Running 2").props.onPress());
+    act(() => list().props.onScroll({ nativeEvent: { contentOffset: { x: 0, y: 900 }, contentSize: { height: 1400 }, layoutMeasurement: { height: 500 } } }));
+    act(() => renderer!.unmount());
+    act(() => { renderer = create(); });
+    expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 900, animated: false });
+    // Measured before the restore's scroll event comes: from the restored offset, not 0.
+    act(() => hostParentOf(list())!.props.onLayout({ nativeEvent: { layout: { height: 500 } } }));
+    act(() => list().props.onContentSizeChange(390, 1400));
+    expect(bottom()).toHaveLength(0);
+  });
+
+  it("leaves a lane emptied while away at its top on ios", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    const list = () => hostsById("phone-lane-running")[0]!.find((node) => (node.type as unknown) === "FlatList");
+    const scrollToOffset = vi.fn();
+    const create = () => TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "FlatList" ? { scrollToOffset } : null });
+    act(() => { renderer = create(); });
+    act(() => pressable("Running 2").props.onPress());
+    act(() => list().props.onScroll({ nativeEvent: { contentOffset: { x: 0, y: 600 }, contentSize: { height: 1400 }, layoutMeasurement: { height: 500 } } }));
+    act(() => renderer!.unmount());
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }> } }).__handle;
+    const saved = handle.lanes;
+    try {
+      handle.lanes = { ...saved, running: { ...saved.running!, cards: [] } };
+      act(() => { renderer = create(); });
+      expect(scrollToOffset).not.toHaveBeenCalled();
+      handle.lanes = saved;
+      act(() => renderer!.update(screen(true)));
+      act(() => renderer!.unmount());
+      act(() => { renderer = create(); });
+      expect(scrollToOffset).not.toHaveBeenCalled();
+    } finally {
+      handle.lanes = saved;
+    }
   });
 
   it.each(["ios", "android", "web"])("%s scrolls only when the selected tab is pressed again", (os) => {
@@ -8266,6 +8323,34 @@ describe("Tasks board, new tasks", () => {
     onScreen("running", ["a"]);
     onScreen("running", ["a", "b", "fresh"]);
     expect(outlined("fresh")).toBe(false);
+  });
+
+  it("sees no new card on ios from what a restored lane reports before its restore scroll", async () => {
+    const { push, announce } = await mount(true, "ios");
+    act(() => hostsById("phone-stat-running")[0]!.props.onPress());
+    act(() => list("running").props.onScroll({ nativeEvent: { contentOffset: { x: 0, y: 420 }, contentSize: { height: 1800 }, layoutMeasurement: { height: 500 } } }));
+    act(() => renderer!.unmount());
+    const scrollToOffset = vi.fn();
+    await act(async () => { renderer = TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "FlatList" ? { scrollToIndex: vi.fn(), scrollToOffset } : null }); });
+    layOut(390);
+    expect(scrollToOffset).toHaveBeenCalledExactlyOnceWith({ offset: 420, animated: false });
+    // A task comes while the restore's scroll event has not reached the list yet.
+    await push(running("fresh", new Date().toISOString()));
+    await announce();
+    expect(newCardStore("host-1").pending("running")).toEqual(["fresh"]);
+    // Until that event, VirtualizedList reports the cards from offset 0, not the ones on screen.
+    onScreen("running", ["a", "b", "fresh"]);
+    expect(newCardStore("host-1").pending("running")).toEqual(["fresh"]);
+    // VirtualizedList calls onScroll, then reports the cards at the new offset, in one event.
+    const target = list("running");
+    const report = (target.props.viewabilityConfigCallbackPairs as { onViewableItemsChanged(info: unknown): void }[])[0]!;
+    act(() => {
+      target.props.onScroll({ nativeEvent: { contentOffset: { x: 0, y: 420 }, contentSize: { height: 1800 }, layoutMeasurement: { height: 500 } } });
+      report.onViewableItemsChanged({ viewableItems: [{ key: "b", item: null, index: 1, isViewable: true }], changed: [] });
+    });
+    expect(newCardStore("host-1").pending("running")).toEqual(["fresh"]);
+    onScreen("running", ["b", "fresh"]);
+    expect(newCardStore("host-1").pending("running")).toEqual([]);
   });
 
   it.each(["ios", "web"])("%s offers a pill for a new card below the screen, and scrolls to it", async (os) => {
