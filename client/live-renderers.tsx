@@ -13,7 +13,8 @@ import { observeReasoning, observedDurationMs } from "./reasoning/observed";
 import { useDisclosure } from "./state/disclosure-store";
 import { TaskList, TaskListPanel, useTaskListPanel } from "./components/task-list";
 import { TaskActivityRow } from "./components/task-activity-row";
-import { HOST_ITEM_GAP, deriveTodoActivities, todoTaskStatus, useLatestTodoItems, useTodoTimeline, type EmptyGapTakeBack, type TodoTask } from "./state/todo-timeline";
+import { HOST_ITEM_GAP, deriveTodoActivities, todoTaskStatus, useLatestTodoItems, useMatchingTodo, useTodoTimeline, type EmptyGapTakeBack, type TodoTask } from "./state/todo-timeline";
+import { grokTodoItems } from "./tools/activity";
 import { UserMessage } from "./components/user-message";
 import { itemRootFont } from "./components/host-font-escape";
 import { pluginRoot } from "./components/focus-ring";
@@ -160,13 +161,8 @@ function BlockPlacement({ agentId, timestamp, kind, children }: {
   return <BlockPlacementContext.Provider value={value}>{children}</BlockPlacementContext.Provider>;
 }
 
-function LiveToolCallRendererBody({
-  agentId,
-  item,
-  theme,
-  layout,
-  timestamp,
-}: PluginTimelineItemProps<LiveToolCallPayload>) {
+function LiveToolCallRendererBody(props: PluginTimelineItemProps<LiveToolCallPayload>) {
+  const { agentId, item, theme, layout, timestamp } = props;
   const probe = probeCard(
     "tool_call",
     item.data.callId ?? item.data.name,
@@ -177,6 +173,9 @@ function LiveToolCallRendererBody({
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
   const data = item.data;
+
+  const grokTodos = useMemo(() => data.status === "completed" ? grokTodoItems(data.detail ?? {}) : null, [data.detail, data.status]);
+  const duplicateTodo = useMatchingTodo(agentId, timestamp.getTime(), grokTodos);
 
   const view = useMemo(() => classifyTool(data), [data]);
   // The host rewrites a call's timestamp as its result arrives, but keeps
@@ -247,6 +246,15 @@ function LiveToolCallRendererBody({
     readsImage && (expanded || previewed) ? view.filePath : undefined,
     pathContext.cwd ?? null,
   );
+
+  // A hidden tool still leaves the host's item gap. Join the canonical todo
+  // update instead, so its highest slot draws and reclaims every empty copy.
+  if (duplicateTodo) return <BlockPlacement agentId={agentId} timestamp={new Date(duplicateTodo.at)} kind="todo">
+    <LiveTodoRendererBody {...props}
+      timestamp={new Date(duplicateTodo.at)} sequence={duplicateTodo.sequence}
+      item={{ type: "plugin", kind: "omp-todo", version: 1,
+        data: { items: duplicateTodo.items as unknown as Array<Record<string, unknown>>, phase: "complete" } }} />
+  </BlockPlacement>;
 
   return (
     <View
@@ -408,7 +416,8 @@ function LiveTodoRendererBody({
   theme,
   layout,
   timestamp,
-}: PluginTimelineItemProps<LiveTodoPayload>) {
+  sequence,
+}: PluginTimelineItemProps<LiveTodoPayload> & { sequence?: number }) {
   const probe = probeCard("todo", String(timestamp.getTime()), item.data.phase === "streaming");
   useTimelineEntry(agentId, timestamp.getTime(), "tool");
   const preferences = useEnhancerPreferences();
@@ -419,7 +428,7 @@ function LiveTodoRendererBody({
   // Paseo hands over one item per change of an update, each with the whole
   // list: only one of them draws, and only the newest update draws open.
   const rootRef = useRef<View>(null);
-  const { role, previous, emptyGaps, measureEmptyGaps } = useTodoTimeline(agentId, timestamp.getTime(), items, rootRef);
+  const { role, previous, emptyGaps, measureEmptyGaps } = useTodoTimeline(agentId, timestamp.getTime(), items, rootRef, sequence);
   const hostStacks = useHostStacksRows();
   const activities = useMemo(
     () => (role === "summary" ? deriveTodoActivities(previous, items) : []),
@@ -498,9 +507,8 @@ const ASSISTANT_REVEAL = { web: false, native: true } as const;
 /**
  * The assistant's own reply, drawn with the plugin's markdown renderer.
  *
- * The host's renderer carries a pipeline this plugin cannot import — mermaid,
- * images, its own file-path links — so `assistantMarkdown` exists to hand the
- * turn back when a reply needs any of that.
+ * Mermaid fences delegate to the host Markdown component. Host images and
+ * file-path links still need `assistantMarkdown` off to hand the turn back.
  */
 function LiveAssistantRendererBody(props: PluginTimelineItemProps<LiveAssistantPayload>) {
   return props.item.data.blockIndex !== undefined && props.item.data.messageText === undefined
@@ -691,9 +699,9 @@ function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, 
 }
 
 /**
- * The host draws a `notification` or `error` item as bare text with an icon,
- * which reads as a different product beside the plugin's callouts. Both carry
- * only a level and a message, so the card is a badge plus that message.
+ * A host `notification` or `error` item carries only a level and a message.
+ * Both transformers turn one into this renderer, which draws the plugin's
+ * notice row instead of the host's tinted card.
  */
 function LiveNoticeRendererBody({
   agentId,

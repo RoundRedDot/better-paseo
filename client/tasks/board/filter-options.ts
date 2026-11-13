@@ -218,6 +218,13 @@ export type ChipGroupKind = "workspace" | "label" | "agent";
 /** What a filter picks, as the folded chips and the sidebar's groups count it. */
 export type FilterUnit = "agent" | "project" | "workspace" | "label";
 
+/**
+ * Agent, Labels, Project, Workspace. The filter bar, the sidebar's tabs,
+ * the filter sheet and a card's filter menu all follow this order. A card
+ * menu has no single label, so it keeps the other three in this sequence.
+ */
+export const FILTER_GROUP_ORDER = ["agent", "label", "project", "workspace"] as const satisfies readonly FilterUnit[];
+
 /** Each unit's Lucide icon, the same in the filter buttons, folded chips, chip menus and the sidebar's groups. */
 export const FILTER_ICONS: Readonly<Record<FilterUnit, string>> = {
   agent: "Bot",
@@ -382,7 +389,7 @@ function groupLabel(kind: ChipGroupKind, chips: readonly ActiveChip[], strings: 
   return strings.selected([...(projects ? [units.project(projects)] : []), ...(workspaces ? [units.workspace(workspaces)] : [])]);
 }
 
-/** "Clear all": no selections, switches and window back to the settings. */
+/** "Clear filters": no selections, switches and window back to the settings. */
 export function clearedParams(params: BoardParams): BoardParams {
   return { ...params, query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: null, doneWindow: null };
 }

@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 
 import { placeHint, placeTip } from "../../client/tasks/cards/card-hints";
-import { startHint, timerHint } from "../../client/tasks/cards/card-time";
-import { formatFullStamp } from "../../client/ui/time";
+import { cardWaitLength, startHint, timerHint, waitedHint, waitedLabel } from "../../client/tasks/cards/card-time";
+import { formatFooterStamp, formatFullStamp } from "../../client/ui/time";
 import type { Timed } from "../../client/tasks/cards/card-time";
 
 const CARD = { width: 338, height: 200 };
@@ -52,6 +52,29 @@ describe("footer time hints", () => {
   it("names when a waiting card began to wait", () => {
     const card = { lane: "needs_input", timing: { ...timing, attentionAt: iso(5 * 60_000) } } as Timed;
     expect(timerHint(card, NOW, "zh")).toBe(`开始等待输入：${stamp(5 * 60_000)}`);
+  });
+
+  it("gives a question divider the wait's length alone, and the hover how long it has waited", () => {
+    const card = { lane: "needs_input", timing: { ...timing, attentionAt: iso(21 * 60_000 + 30_000) } } as Timed;
+    expect(cardWaitLength(card, NOW)).toBe("21m");
+    // The start in the cards' stamp: no date today.
+    const today = formatFooterStamp(new Date(NOW - (21 * 60_000 + 30_000)), new Date(NOW));
+    expect(today).toMatch(/^\d\d:\d\d$/);
+    expect(waitedHint(card, NOW, "zh")).toBe(`开始等待：${today}\n已等待 21m`);
+    expect(waitedHint(card, NOW, "en")).toBe(`Waiting since: ${today}\nWaiting for 21m`);
+    expect(waitedLabel(card, NOW, "zh")).toBe("已等待 21m");
+    // Another day this year: the date without the year; another year: with it.
+    const days = { lane: "needs_input", timing: { ...timing, attentionAt: iso(3 * 86_400_000) } } as Timed;
+    expect(waitedHint(days, NOW, "zh")!.split("\n")[0]).toMatch(/^开始等待：\d\d-\d\d \d\d:\d\d$/);
+    const lastYear = { lane: "needs_input", timing: { ...timing, attentionAt: "2025-12-30T10:00:00.000Z" } } as Timed;
+    expect(waitedHint(lastYear, NOW, "zh")!.split("\n")[0]).toMatch(/^开始等待：2025-12-\d\d \d\d:\d\d$/);
+    // Without the attention time the turn's start counts.
+    const turnOnly = { lane: "needs_input", timing: { ...timing, turnStartedAt: iso(5 * 60_000) } } as Timed;
+    expect(waitedHint(turnOnly, NOW, "zh")!.split("\n")[1]).toBe("已等待 5m");
+    const running = { lane: "running", timing: { ...timing, turnStartedAt: iso(90_000) } } as Timed;
+    expect(cardWaitLength(running, NOW)).toBe("");
+    expect(waitedHint(running, NOW, "zh")).toBeNull();
+    expect(waitedLabel(running, NOW, "zh")).toBeNull();
   });
 
   it("names a running turn's length and start", () => {

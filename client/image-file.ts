@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExter
 import { useRpc } from "@getpaseo/plugin/client";
 import type { output as ZodOutput } from "zod";
 import { imageRpc } from "../shared/image-rpc";
+import { isNetworkOrDevicePath } from "../shared/network-path";
 import { probeImageRpc } from "./debug/perf";
 
 type ImageRpcResult = ZodOutput<typeof imageRpc.output>;
@@ -89,7 +90,7 @@ function stripSelector(path: string): string {
 
 /** True when this path names a file the chat can draw rather than tokenise. */
 export function isImagePath(path: string | undefined): boolean {
-  if (!path) return false;
+  if (!path || isNetworkOrDevicePath(path)) return false;
   // The whole name first: a space or `#` in it (`My Shots/a.png`) is part of
   // the name, and only a name that is not an image is cut at a selector.
   return endsInImageExtension(path.trim()) || endsInImageExtension(stripSelector(path));

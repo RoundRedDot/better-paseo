@@ -1,6 +1,6 @@
 /**
  * "Back to latest · N new lines": shown over the bottom of a streaming body
- * the reader has scrolled up from (docs/prototypes/block-details-sheet.md,
+ * the reader has scrolled up from (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md,
  * "运行中的 Block"). A tap goes back to the newest output and follows it again.
  * It fades in over 160 ms, rising 8.
  */

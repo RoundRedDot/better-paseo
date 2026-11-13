@@ -3,18 +3,22 @@ import { access, readFile, realpath, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
 import { execCommand, type PluginServerContext } from "@getpaseo/plugin/server";
+import type { PaseoApi } from "../paseo-types";
 import { TASKS_SETTINGS } from "../../shared/tasks-settings";
-import { createStopMarks, readMarksPath, stopMarksPath } from "./stop-marks";
+import { createStopMarks, readMarksPath, stopMarksPath, unreadMarksPath } from "./stop-marks";
 import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon, type SubagentWatch } from "./provider-subagents";
 import { iconThemeColor } from "./icon-color";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
-import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc } from "../../shared/tasks-rpc";
+import { createParentOriginWatch, type ParentOriginWatch } from "./parent-origins";
+import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksParentOriginsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc, tasksUnreadClearRpc, tasksUnreadRpc, tasksUnreadsRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
 import { registerTitleGeneration } from "./title-generation";
 import { tasksAvailabilityRpc } from "../../shared/task-availability";
 import { createTaskAvailability, taskDirectoryIssue, taskIssueError, taskUpdateIssue, taskUpdateState } from "./availability";
 import { conversationSearchRpc } from "../../shared/conversation-search";
 import { searchConversationPage } from "./conversation-search";
+import { createErrorDismissals } from "./error-dismissals";
+import { tasksDismissErrorRpc, tasksErrorDismissalsRpc } from "../../shared/tasks-rpc";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
@@ -147,8 +151,25 @@ function cliErrorMessage(error: unknown, doing = "stopping", verb = "stop"): str
   return `Paseo CLI failed to ${verb} the agent.`;
 }
 
-async function stopAgent(cli: CliCommand, agentId: string): Promise<{ ok: boolean; error: string | null }> {
+async function stopAgent(cli: CliCommand, agentId: string, paseo: PaseoApi): Promise<{ ok: boolean; error: string | null }> {
   if (!AGENT_ID_PATTERN.test(agentId)) return { ok: false, error: "Invalid agent ID." };
+
+  const agent = paseo.agents.ref(agentId);
+  try {
+    const snapshot = await agent.refresh();
+    if (!snapshot) return { ok: false, error: "Agent not found." };
+    if (snapshot.agent.status === "idle") {
+      const questions = snapshot.agent.pendingPermissions.filter((request) =>
+        request.provider === "codex" && request.name === "request_user_input_async");
+      if (questions.length === 0) return { ok: false, error: "Agent is not running and has no pending async questions." };
+      for (const question of questions) {
+        await agent.respondToPermission({ requestId: question.id, response: { behavior: "deny", message: "Interrupted" } });
+      }
+      return { ok: true, error: null };
+    }
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 
   try {
     const { stdout } = await runCli(cli, ["agent", "stop", agentId, "--json"], STOP_TIMEOUT_MS);
@@ -160,6 +181,7 @@ async function stopAgent(cli: CliCommand, agentId: string): Promise<{ ok: boolea
       return { ok: false, error: "Paseo CLI returned invalid JSON." };
     }
     if (!isCliStopOutput(output)) return { ok: false, error: "Paseo CLI returned an unexpected response." };
+    if (output.stoppedCount !== 1 || !output.agentIds.includes(agentId)) return { ok: false, error: "Paseo CLI did not stop the agent." };
     return { ok: true, error: null };
   } catch (error) {
     return { ok: false, error: cliErrorMessage(error) };
@@ -323,12 +345,40 @@ async function markRead(host: HostDaemonAccess, agentIds: string[]): Promise<{ o
 }
 
 /**
+ * Asks the daemon to mark these agents unread when its client exposes
+ * `markAgentUnread`. The board's own mark already moved the card, so a
+ * missing method, a refused agent, or a daemon that cannot be reached
+ * changes nothing the caller sees. Not awaited by the RPC.
+ */
+async function markDaemonUnread(host: HostDaemonAccess, agentIds: string[]): Promise<void> {
+  if (!host.available()) return;
+  const daemon = await host.connect();
+  if (!daemon || typeof daemon.markAgentUnread !== "function") {
+    await daemon?.close().catch(() => {});
+    return;
+  }
+  try {
+    for (const agentId of agentIds) {
+      try {
+        await daemon.markAgentUnread(agentId);
+      } catch {
+        // One agent can refuse (still running, already unread). The card has moved.
+      }
+    }
+  } finally {
+    await daemon.close().catch(() => {});
+  }
+}
+
+/**
  * The Tasks board's settings record, stop, read, subagent and unarchive RPCs. The
  * stops `tasks.stopped` answers with, and the reads `tasks.reads` answers
  * with, live in files under the plugin's data directory, so they outlive a
  * daemon restart; a mark goes when the agent starts a new turn or is
  * archived, and when it is 30 days old. The provider
  * subagents `tasks.subagents` answers with live in memory, as the daemon's do.
+ * The parents whose archive detached a child (`tasks.parent-origins`) are
+ * inferred from the agents the server follows, and kept in a file.
  */
 export function registerTasksServer(
   server: PluginServerContext,
@@ -337,7 +387,12 @@ export function registerTasksServer(
   host: HostDaemonAccess = hostDaemon,
   reads = createStopMarks(readMarksPath()),
   tokens: SessionTokenReader = createSessionTokenReader(),
+  parentOrigins: ParentOriginWatch = createParentOriginWatch(),
+  unreads = createStopMarks(unreadMarksPath()),
 ): void {
+  const errorDismissals = createErrorDismissals();
+  server.handle(tasksErrorDismissalsRpc, async () => ({ entries: await errorDismissals.list() }));
+  server.handle(tasksDismissErrorRpc, ({ agentId, error }) => errorDismissals.dismiss(agentId, error));
   server.registerSettings(TASKS_SETTINGS);
   const titleSettings = registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available, async (agentId) => {
     const daemon = await host.connect();
@@ -349,22 +404,32 @@ export function registerTasksServer(
       await daemon.close();
     }
   });
-  const availability = createTaskAvailability(titleSettings, host.available, async () => (await resolveCli()) !== null, host.available);
+  const availability = createTaskAvailability(titleSettings, host.available, async () => (await resolveCli()) !== null, host.connect);
   server.handle(tasksAvailabilityRpc, (input, { paseo }) => availability(paseo, input.agentIds));
   server.handle(conversationSearchRpc, (input, { paseo }) => searchConversationPage(paseo, host, input));
   // A new turn means a new prompt: the agent is no longer "stopped manually", nor read.
   server.on("agent.turn_started", async ({ agent }, context) => {
     void subagents.ensure(context?.paseo);
-    await Promise.all([stops.clear(agent.id), reads.clear(agent.id)]);
+    void parentOrigins.ensure(context?.paseo);
+    await Promise.all([stops.clear(agent.id), reads.clear(agent.id), unreads.clear(agent.id)]);
   });
   // A session opened from storage replays its subagents without an update; read its list after.
   server.before("agent.session_open", ({ request }, context) => {
     if (request.purpose === "interactive" && request.reason !== "create") subagents.loaded(context?.paseo, request.agentId);
   });
-  server.on("agent.archived", async ({ agent }) => {
-    subagents.dropParent(agent.id);
-    await Promise.all([stops.clear(agent.id), reads.clear(agent.id)]);
+  // A child created now is followed from its first snapshot, before its parent can be archived.
+  server.on("agent.created", (_event, context) => {
+    void parentOrigins.ensure(context?.paseo);
   });
+  server.on("agent.archived", async ({ agent, archivedAt }, context) => {
+    subagents.dropParent(agent.id);
+    // Its survivors are detached after this hook, and read again for a while: not awaited.
+    void parentOrigins.archived(context?.paseo, agent.id, archivedAt).catch((error: unknown) => {
+      console.error(`[better-paseo] parent origins after archiving ${agent.id}: ${error instanceof Error ? error.message : String(error)}`);
+    });
+    await Promise.all([stops.clear(agent.id), reads.clear(agent.id), unreads.clear(agent.id)]);
+  });
+  server.handle(tasksParentOriginsRpc, ({ since }, context) => parentOrigins.read(context?.paseo, since));
   server.handle(tasksStoppedRpc, async () => ({ stops: await stops.list() }));
   server.handle(tasksSessionTokensRpc, async ({ agentId }, context) => {
     const agent = context?.paseo ? (await context.paseo.agents.ref(agentId).refresh().catch(() => null))?.agent : null;
@@ -376,9 +441,32 @@ export function registerTasksServer(
   server.handle(tasksCapabilitiesRpc, async () => ({ stop: (await resolveCli()) !== null, read: host.available() }));
   server.handle(tasksReadRpc, async ({ agentIds }) => {
     const result = await markRead(host, agentIds);
-    if (result.ok) for (const agentId of agentIds) await reads.mark(agentId);
+    if (result.ok) {
+      for (const agentId of agentIds) {
+        await reads.mark(agentId);
+        await unreads.clear(agentId);
+      }
+    }
     return result;
   });
+  server.handle(tasksUnreadRpc, async ({ agentIds }) => {
+    if (!agentIds.every((agentId) => AGENT_ID_PATTERN.test(agentId))) return { ok: false, error: "Invalid agent ID." };
+    for (const agentId of agentIds) {
+      await reads.clear(agentId);
+      await unreads.mark(agentId);
+    }
+    void markDaemonUnread(host, agentIds).catch(() => {});
+    return { ok: true, error: null };
+  });
+  // Opened from the board: the agent was seen, so its unread mark goes. Opening it elsewhere in Paseo reaches no hook.
+  server.handle(tasksUnreadClearRpc, async ({ agentIds }) => {
+    if (!agentIds.every((agentId) => AGENT_ID_PATTERN.test(agentId))) return { ok: false, error: "Invalid agent ID." };
+    for (const agentId of agentIds) await unreads.clear(agentId);
+    return { ok: true, error: null };
+  });
+  server.handle(tasksUnreadsRpc, async () => ({
+    unreads: (await unreads.list()).map(({ agentId, stoppedAt }) => ({ agentId, unreadAt: stoppedAt })),
+  }));
   server.handle(tasksLabelsRpc, async () => ({ labels: await readLabels(host) }));
   server.handle(tasksRenameRpc, async ({ agentId, title }, { paseo }) => {
     const issue = await taskUpdateIssue(await paseo.agents.ref(agentId).refresh(), paseo);
@@ -389,7 +477,7 @@ export function registerTasksServer(
   server.handle(tasksReadsRpc, async () => ({
     reads: (await reads.list()).map(({ agentId, stoppedAt }) => ({ agentId, readAt: stoppedAt })),
   }));
-  server.handle(tasksStopRpc, async ({ agentIds }) => {
+  server.handle(tasksStopRpc, async ({ agentIds }, { paseo }) => {
     const cli = await resolveCli();
     const results: Array<{ agentId: string; ok: boolean; error: string | null }> = [];
 
@@ -399,7 +487,7 @@ export function registerTasksServer(
         continue;
       }
 
-      const result = await stopAgent(cli, agentId);
+      const result = await stopAgent(cli, agentId, paseo);
       if (result.ok) await stops.mark(agentId);
       results.push({ agentId, ...result });
     }

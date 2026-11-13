@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Markdown } from "@getpaseo/plugin/client/ui";
 import type { Tokens } from "../../../vendor/marked";
 import { SyntaxHighlightBlock } from "../../syntax-highlight";
 import type { RenderContext } from "./context";
@@ -62,7 +63,9 @@ export function CodeBlock({
   const Frame = collapseCode && variant === "compact" ? FadeIn : View;
   return (
     <Frame style={styles.codeBlock}>
-      {["", "md", "markdown", "text", "txt", "plaintext"].includes(lang.toLowerCase()) ? (
+      {lang.toLowerCase() === "mermaid" && closed ? (
+        <Markdown>{token.raw}</Markdown>
+      ) : ["", "md", "markdown", "text", "txt", "plaintext"].includes(lang.toLowerCase()) ? (
         <MarkdownCodePreview code={token.text} language={language} context={context} closed={closed}
           showLineNumbers={metrics.codeLineNumbersFrom > 0 && lines >= metrics.codeLineNumbersFrom} />
       ) : <SyntaxHighlightBlock

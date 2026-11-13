@@ -6,6 +6,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 interface SubtaskPanelProps {
   expanded: boolean;
   animated?: boolean;
+  testID?: string;
   children: ReactNode;
 }
 
@@ -27,7 +28,7 @@ export function SubtaskPanel(props: SubtaskPanelProps) {
 }
 
 /** Fabric animates the layout transaction; JS never writes a height per frame. */
-function NativeSubtaskPanel({ expanded, still, children }: PanelProps) {
+function NativeSubtaskPanel({ expanded, still, children, testID = "task-card-subtasks-panel" }: PanelProps) {
   const [present, setPresent] = useState(expanded);
   const target = useRef(expanded);
   const opacity = useRef(new Animated.Value(expanded ? 1 : 0)).current;
@@ -65,7 +66,7 @@ function NativeSubtaskPanel({ expanded, still, children }: PanelProps) {
   // every expansion. Only the rows unmount, so no measurement commit is needed.
   return (
     <Animated.View
-      testID="task-card-subtasks-panel"
+      testID={testID}
       collapsable={false}
       pointerEvents={expanded ? "auto" : "none"}
       accessibilityElementsHidden={!expanded}
@@ -80,7 +81,7 @@ function NativeSubtaskPanel({ expanded, still, children }: PanelProps) {
 }
 
 /** CSS owns interpolation; only measurement and the exit boundary reach React. */
-function WebSubtaskPanel({ expanded, still, children }: PanelProps) {
+function WebSubtaskPanel({ expanded, still, children, testID = "task-card-subtasks-panel" }: PanelProps) {
   const [present, setPresent] = useState(expanded);
   const [height, setHeight] = useState<number | null>(null);
   const initialExpanded = useRef(expanded).current;
@@ -99,7 +100,7 @@ function WebSubtaskPanel({ expanded, still, children }: PanelProps) {
   // Retain an empty, zero-height shell so a reopening has a CSS start state.
   return (
     <View
-      testID="task-card-subtasks-panel"
+      testID={testID}
       pointerEvents={expanded ? "auto" : "none"}
       aria-hidden={!expanded || undefined}
       style={{

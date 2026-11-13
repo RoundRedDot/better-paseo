@@ -1,10 +1,11 @@
 import React, { memo, useCallback, useLayoutEffect, useRef } from "react";
-import { ActivityIndicator, Animated, Platform, View, type ViewStyle } from "react-native";
+import { ActivityIndicator, Animated, PixelRatio, Platform, View, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { probeAnimationLoop } from "../../debug/perf";
 import { steppedEasing } from "../../ui/tokens/motion";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { withAlpha } from "../../components/theme-tokens";
 import type { StatusKind } from "../model";
 import { taskTokens } from "./tokens";
 
@@ -36,7 +37,7 @@ export function statusMarkSize(box: number): number {
 }
 
 export interface StatusIconProps {
-  /** A status, or "stopped" for a card stopped from the board: a solid square. */
+  /** A status, or "stopped" for a card stopped from the board. */
   kind: StatusKind | "stopped";
   /** Box width; the ring and dots scale from Paseo's sidebar geometry. Default 16. */
   size?: number;
@@ -165,21 +166,25 @@ const RunningRing = memo(function RunningRing(props: {
   testID?: string;
   accessibilityLabel?: string;
 }) {
-  const { box, mark, color } = props;
+  const { box, color } = props;
   const reduced = useReducedMotion();
   const active = props.animated && !reduced;
   const platformSpinner = active && Platform.OS === "android";
   const setWebNode = useWebSpin(WEB && active);
   useNativeSpin(!WEB && active && !platformSpinner);
+  const density = Platform.OS === "android" ? PixelRatio.get() : 0;
+  const markPixels = Math.round(props.mark * density);
+  const mark = density ? markPixels / density : props.mark;
   const scale = mark / 12;
   const stroke = 1.5 * scale;
-  const dot = 6 * scale;
-  const width = box.width as number;
-  const height = box.height as number;
+  // An integer inset keeps all three centres on the same physical pixel grid.
+  const dot = density ? (markPixels - 2 * Math.round(markPixels / 4)) / density : 6 * scale;
+  const spinnerInset = density ? Math.round(stroke * density) / density : stroke;
+  const spinnerSize = mark + 2 * spinnerInset;
   const circle: ViewStyle = {
     position: "absolute",
-    left: (width - mark) / 2,
-    top: (height - mark) / 2,
+    left: 0,
+    top: 0,
     width: mark,
     height: mark,
     borderRadius: mark / 2,
@@ -188,15 +193,17 @@ const RunningRing = memo(function RunningRing(props: {
   const arc: ViewStyle = { ...circle, borderColor: "transparent", borderTopColor: color, opacity: HEAD_OPACITY };
   return (
     <View style={box} testID={props.testID ?? "status-running"} accessibilityLabel={props.accessibilityLabel}>
-      <View style={[circle, { borderColor: color, opacity: TRACK_OPACITY }]} />
-      {WEB ? (
-        <View ref={setWebNode as never} style={arc} />
-      ) : platformSpinner ? (
-        <ActivityIndicator size={mark + stroke * 2} color={color} style={{ position: "absolute" }} />
-      ) : (
-        <Animated.View style={[arc, active ? { transform: [{ rotate: sharedRotation() }] } : null]} />
-      )}
-      {props.dot === false ? null : <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: color }} />}
+      <View testID="running-mark" style={{ width: mark, height: mark, alignItems: "center", justifyContent: "center" }}>
+        <View style={[circle, { borderColor: color, opacity: TRACK_OPACITY }]} />
+        {WEB ? (
+          <View ref={setWebNode as never} style={arc} />
+        ) : platformSpinner ? (
+          <ActivityIndicator size={spinnerSize} color={color} style={{ position: "absolute", left: -spinnerInset, top: -spinnerInset, width: spinnerSize, height: spinnerSize }} />
+        ) : (
+          <Animated.View style={[arc, active ? { transform: [{ rotate: sharedRotation() }] } : null]} />
+        )}
+        {props.dot === false ? null : <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: color }} />}
+      </View>
     </View>
   );
 });
@@ -211,6 +218,16 @@ export const SpinnerRing = memo(function SpinnerRing(props: { size: number; colo
   const box: ViewStyle = { width: props.size, height: props.size, flexShrink: 0, alignItems: "center", justifyContent: "center" };
   return <RunningRing box={box} mark={statusMarkSize(props.size)} color={props.color} animated dot={false} testID={props.testID ?? "spinner-ring"} />;
 });
+
+export function StoppedMark(props: { size: number; color: string }) {
+  const circle = props.size * 20 / 24;
+  const square = props.size * 7 / 24;
+  return (
+    <View testID="stopped-mark" style={{ width: circle, height: circle, borderRadius: circle / 2, backgroundColor: withAlpha(props.color, 0.16), alignItems: "center", justifyContent: "center" }}>
+      <View testID="stopped-mark-square" style={{ width: square, height: square, borderRadius: props.size * 1.3 / 24, backgroundColor: props.color }} />
+    </View>
+  );
+}
 
 /** Paseo's sidebar status indicator. All running rings turn in phase (900 ms per turn, in 12 steps on iOS; the platform spinner on Android). */
 export const StatusIcon = memo(function StatusIcon(props: StatusIconProps) {
@@ -258,12 +275,9 @@ export const StatusIcon = memo(function StatusIcon(props: StatusIconProps) {
   }
 
   if (props.kind === "stopped") {
-    // Stopped is the stop pill's solid square (an approved deviation from
-    // the prototype), muted: a stop is not a failure.
-    const side = mark * 0.75;
     return (
       <View style={box} testID="status-stopped" {...a11y}>
-        <View style={{ width: side, height: side, borderRadius: 2 * scale, backgroundColor: tokens.foregroundMuted }} />
+        <StoppedMark size={size} color={tokens.foregroundMuted} />
       </View>
     );
   }

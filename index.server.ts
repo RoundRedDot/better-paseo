@@ -13,6 +13,7 @@ import { embeddedFontsRpc } from "./shared/font-rpc";
 import { type HighlightLine, type HighlightToken, highlightRpc } from "./shared/highlight-rpc";
 import { imageRpc } from "./shared/image-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
+import { isNetworkOrDevicePath } from "./shared/network-path";
 import { perfDumpRpc } from "./shared/perf-rpc";
 import { EMBEDDED_FONTS } from "./server/font-data";
 import { MARK_BITMAPS } from "./server/mark-bitmaps";
@@ -109,21 +110,28 @@ function stripSelector(path: string): string {
   return cut === -1 ? trimmed : head + tail.slice(0, cut);
 }
 
+type ResolvedSelector = { path: string } | { error: "No path" | "Not a local path" };
+
 /**
  * `stripSelector`, unless the whole string names a file: a path with a space,
  * `#` or `:` in it (`My Shots/a.png`) is a real name, not a path plus selector.
+ *
+ * Network and device paths are refused before the first filesystem call; that
+ * ordering is the fix for issue #25, so do not move the guard below `stat`.
  */
-async function resolveSelector(path: string, cwd: string): Promise<string> {
+async function resolveSelector(path: string, cwd: string): Promise<ResolvedSelector> {
   const whole = path.trim();
-  if (whole) {
-    try {
-      await stat(isAbsolute(whole) ? whole : resolve(cwd, whole));
-      return whole;
-    } catch {
-      // Not a file as written; fall back to cutting the selector.
-    }
+  if (!whole) return { error: "No path" };
+  if (isNetworkOrDevicePath(whole)) return { error: "Not a local path" };
+  try {
+    await stat(isAbsolute(whole) ? whole : resolve(cwd, whole));
+    return { path: whole };
+  } catch {
+    // Not a file as written; fall back to cutting the selector.
   }
-  return stripSelector(path);
+  const stripped = stripSelector(path);
+  if (!stripped) return { error: "No path" };
+  return isNetworkOrDevicePath(stripped) ? { error: "Not a local path" } : { path: stripped };
 }
 
 /** Runs the path press's shell command (`shellOpenCommand`), detached. */
@@ -475,8 +483,9 @@ export default function contribute(server: PluginServerContext) {
   registerTurnUsageServer(server);
 
   server.handle(revealPathRpc, async (input) => {
-    const requested = await resolveSelector(input.path, input.cwd);
-    if (!requested) return { revealed: null, error: "No path" };
+    const resolved = await resolveSelector(input.path, input.cwd);
+    if ("error" in resolved) return { revealed: null, error: resolved.error };
+    const requested = resolved.path;
 
     const target = isAbsolute(requested) ? requested : resolve(input.cwd, requested);
     try {
@@ -493,8 +502,9 @@ export default function contribute(server: PluginServerContext) {
 
   server.handle(imageRpc, async (input) => {
     const empty = { dataUri: null, mime: null, width: null, height: null, bytes: null };
-    const requested = await resolveSelector(input.path, input.cwd);
-    if (!requested) return { ...empty, error: "No path" };
+    const resolved = await resolveSelector(input.path, input.cwd);
+    if ("error" in resolved) return { ...empty, error: resolved.error };
+    const requested = resolved.path;
 
     const kind = requested.slice(requested.lastIndexOf(".") + 1).toLowerCase();
     const mime = IMAGE_MIMES[kind];

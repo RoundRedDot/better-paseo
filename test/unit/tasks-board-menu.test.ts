@@ -272,15 +272,111 @@ describe("CascadeMenu", () => {
       render(sections());
       const panel = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === id);
       expect(StyleSheet.flatten(panel("menu-panel").props.style)).toMatchObject({
-        animationDuration: "180ms",
-        animationKeyframes: [{ from: { opacity: 0, transform: "translateY(-6px)" }, to: { opacity: 1, transform: "translateY(0px)" } }],
+        animationDuration: "100ms",
+        animationKeyframes: [{ from: { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" }, to: { opacity: 1, transform: "translateY(0px) scale(1)" } }],
       });
       act(() => row("Branch").props.onPress());
-      expect(StyleSheet.flatten(panel("menu-submenu-panel").props.style)).toMatchObject({ animationDuration: "180ms" });
+      expect(StyleSheet.flatten(panel("menu-submenu-panel").props.style)).toMatchObject({ animationDuration: "100ms" });
       act(() => renderer!.unmount());
       motion.reduced = true;
       render(sections());
       expect(StyleSheet.flatten(panel("menu-panel").props.style).animationDuration).toBeUndefined();
+    } finally {
+      motion.reduced = false;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([undefined, 60])("keeps menu entry visible and actionable immediately, including a panel capped at %s", (maxHeight) => {
+    vi.stubGlobal("__rnMockOS", "web");
+    close.mockClear();
+    picked.mockClear();
+    try {
+      act(() => {
+        renderer = TestRenderer.create(React.createElement(CascadeMenu, {
+          sections: sections(), theme: theme(LIGHT), width: 280, top: 0, align: "left",
+          maxHeight, onClose: close,
+        }));
+      });
+      const panel = (id: string) => renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === id);
+      expect(StyleSheet.flatten(panel("menu-panel").props.style)).toMatchObject({
+        animationDuration: "100ms",
+        animationKeyframes: [{ from: { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" }, to: { opacity: 1, transform: "translateY(0px) scale(1)" } }],
+        animationTimingFunction: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        animationFillMode: "both",
+      });
+      // No clock advance: entry must not delay interaction or delay the submenu's entrance.
+      act(() => row("Branch").props.onPress());
+      expect(StyleSheet.flatten(panel("menu-submenu-panel").props.style)).toMatchObject({ animationDuration: "100ms" });
+      act(() => row("Plain").props.onPress());
+      expect(picked).toHaveBeenCalledOnce();
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([
+    ["left", 0, undefined, "left top"],
+    ["right", -200, 60, "right bottom"],
+  ] as const)("settles a pop menu from its %s anchor without delaying actions", (align, top, maxHeight, origin) => {
+    vi.stubGlobal("__rnMockOS", "web");
+    close.mockClear();
+    picked.mockClear();
+    try {
+      act(() => {
+        renderer = TestRenderer.create(React.createElement(CascadeMenu, {
+          sections: sections(), theme: theme(LIGHT), width: 280, top, align, maxHeight,
+          onClose: close,
+        }));
+      });
+      const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
+      const style = StyleSheet.flatten(panel.props.style);
+      expect(style.transformOrigin).toBe(origin);
+      expect(style.animationDuration).toBe("100ms");
+      expect(style.animationKeyframes[0]).toEqual({
+        from: { opacity: 0.9, transform: "translateY(-3px) scale(0.98)" },
+        to: { opacity: 1, transform: "translateY(0px) scale(1)" },
+      });
+      // No timer advance: the entrance is visual and must not hold selection or dismissal.
+      act(() => row("Plain").props.onPress());
+      expect(picked).toHaveBeenCalledOnce();
+      expect(close).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([["web", true], ["ios", false], ["android", false]] as const)("skips pop menu entry on %s with reduced motion %s", (os, reduced) => {
+    vi.stubGlobal("__rnMockOS", os);
+    motion.reduced = reduced;
+    try {
+      act(() => {
+        renderer = TestRenderer.create(React.createElement(CascadeMenu, {
+          sections: sections(), theme: theme(LIGHT), width: 280, top: 0, align: "left",
+          onClose: close,
+        }));
+      });
+      const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
+      expect(StyleSheet.flatten(panel.props.style).animationDuration).toBeUndefined();
+    } finally {
+      motion.reduced = false;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([["web", true], ["ios", false], ["android", false]] as const)("skips menu entry on %s with reduced motion %s", (os, reduced) => {
+    vi.stubGlobal("__rnMockOS", os);
+    motion.reduced = reduced;
+    try {
+      act(() => {
+        renderer = TestRenderer.create(React.createElement(CascadeMenu, {
+          sections: sections(), theme: theme(LIGHT), width: 280, top: 0, align: "left",
+          onClose: close,
+        }));
+      });
+      const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
+      expect(StyleSheet.flatten(panel.props.style).animationDuration).toBeUndefined();
     } finally {
       motion.reduced = false;
       vi.unstubAllGlobals();
@@ -322,7 +418,7 @@ describe("CascadeMenu", () => {
     expect(StyleSheet.flatten(submenu()[0]!.props.style).left).toBe(280 - MENU.overlap);
   });
 
-  it("draws Linear's chrome from the theme: radius 12, a hairline, a wide soft shadow, rows 32 inset 6", () => {
+  it("draws themed menu chrome with equal 10 pt top and side insets", () => {
     for (const colors of [LIGHT, DARK, SEPIA]) {
       render(sections(), colors);
       const panel = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-panel");
@@ -331,10 +427,10 @@ describe("CascadeMenu", () => {
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: colors.border,
         backgroundColor: colors.surface0,
-        paddingVertical: 6,
+        paddingVertical: 10,
         boxShadow: menuChrome(theme(colors)).shadow,
       });
-      expect(StyleSheet.flatten(row("Plain").props.style)).toMatchObject({ height: 32, marginHorizontal: 6, borderRadius: 6 });
+      expect(StyleSheet.flatten(row("Plain").props.style)).toMatchObject({ height: 32, marginHorizontal: 10, borderRadius: 6 });
       act(() => renderer!.unmount());
     }
     renderer = undefined;
@@ -720,7 +816,9 @@ describe("CascadeMenu", () => {
       const scroller = panel.find((node) => (node.type as unknown) === "ScrollView");
       expect(panel.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "menu-search")).toHaveLength(1);
       expect(scroller.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "menu-search")).toHaveLength(0);
-      expect(StyleSheet.flatten(scroller.props.style).maxHeight).toBe(MENU.maxHeight - (MENU.searchHeight + 1));
+      const search = panel.find((node) => (node.type as unknown) === "View" && node.props.testID === "menu-search");
+      expect(StyleSheet.flatten(search.props.style).paddingTop).toBe(StyleSheet.flatten(row("Row 0").props.style).marginHorizontal);
+      expect(StyleSheet.flatten(scroller.props.style).maxHeight).toBe(MENU.maxHeight - (MENU.padV + MENU.searchHeight + 1));
     });
 
     it("draws no field over a menu with nothing to filter", () => {

@@ -34,6 +34,24 @@ const V1 = {
 };
 
 describe("preferences v2 defaults", () => {
+  it("keeps interactive reply handoff off until explicitly enabled", () => {
+    expect(DEFAULT_PREFERENCES.liveUiReplies).toBe(false);
+    expect(parsePreferences({}).liveUiReplies).toBe(false);
+    expect(parsePreferences({ liveUiReplies: "true" }).liveUiReplies).toBe(false);
+    expect(storedPart(parsePreferences({ liveUiReplies: true })).liveUiReplies).toBe(true);
+  });
+  it.each(["zinc", "midnight", "claude", "ghostty", "pureBlack"] as const)("preserves the %s accent", (accent) => {
+    expect(parsePreferences({ accent }).accent).toBe(accent);
+    expect(storedPart({ ...DEFAULT_PREFERENCES, accent }).accent).toBe(accent);
+  });
+  it("keeps the hue of an inline code shade that was folded into another", () => {
+    // The palette now offers one shade per hue; a stored duplicate keeps its hue.
+    expect(parsePreferences({ inlineCodeColor: "rose" }).inlineCodeColor).toBe("coral");
+    expect(parsePreferences({ inlineCodeColor: "zinc" }).inlineCodeColor).toBe("grey");
+    expect(parsePreferences({ inlineCodeColor: "ghostty" }).inlineCodeColor).toBe("midnight");
+    // The accent presets still offer all three.
+    expect(parsePreferences({ accent: "rose", inlineCodeColor: "ghostty" })).toMatchObject({ accent: "rose", inlineCodeColor: "midnight" });
+  });
   it("enables hover previews for old records and preserves an explicit opt-out", () => {
     expect(DEFAULT_PREFERENCES.hoverPreview).toBe(true);
     const { hoverPreview: _hover, ...older } = storedPart(DEFAULT_PREFERENCES);

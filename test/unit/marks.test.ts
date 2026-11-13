@@ -12,12 +12,14 @@ import {
   MARK_IDS,
   MONO_MARKS,
   readMark,
+  seedMarkBitmaps,
   setMarkLoader,
   useMarkBitmap,
 } from "../../client/components/marks";
 import contribute from "../../index.server";
 import { MARK_BITMAPS } from "../../server/mark-bitmaps";
 import { markBitmapsRpc } from "../../shared/mark-rpc";
+import { mcpServiceIcon } from "../../client/tools/mcp-service-icon";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -94,6 +96,23 @@ describe("brand marks", () => {
     const second = await render(["devicon:go"]);
     expect(second.get("devicon:go")).toBe(MARK_BITMAPS["devicon:go"]);
     expect(load).not.toHaveBeenCalled();
+  });
+
+  it("loads the Pinky face when earlier marks are cached", async () => {
+    seedMarkBitmaps({
+      "brand:pinky": "old-filled-mark",
+      "brand:pinky-outline": "old-outline-mark",
+      "brand:pinky-face": "old-face-mark",
+    });
+    const load = vi.fn(answer);
+    setMarkLoader(load);
+    const id = mcpServiceIcon("pinky")!;
+    const seen = await render([id]);
+    await act(async () => {
+      await vi.waitFor(() => expect(seen.get(id)).toBe(MARK_BITMAPS[id]));
+    });
+    expect(id).toBe("brand:pinky-face-large");
+    expect(load).toHaveBeenCalledWith(expect.arrayContaining([id]));
   });
 
   it("are answered by the daemon for known ids only", async () => {

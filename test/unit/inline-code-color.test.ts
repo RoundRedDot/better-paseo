@@ -10,7 +10,7 @@ vi.mock("react-native", async () => import("./helpers/rn-mock"));
 
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { buildStyles, variantMetrics } = await import("../../client/components/markdown/render/styles");
-const { DEFAULT_PREFERENCES, INLINE_CODE_PALETTE } = await import("../../client/preferences");
+const { DEFAULT_PREFERENCES, INLINE_CODE_PALETTE, parsePreferences, storedPart } = await import("../../client/preferences");
 type InlineCodeColor = import("../../client/preferences").InlineCodeColorPreference;
 type Platform = "ios" | "android" | "web";
 
@@ -27,6 +27,18 @@ function codeSpan(inlineCodeColor: InlineCodeColor, { quiet = false, colors = LI
 }
 
 describe("inline code colour on native", () => {
+  it.each([
+    ["jade", "#047857", "#34d399"], ["amber", "#925900", "#fbbf24"],
+    ["midnight", "#35568e", "#91b2e9"], ["claude", "#a7452c", "#ee9a7e"],
+    ["pureBlack", "#000000", "#ffffff"],
+  ] as const)("preserves %s and uses its light and dark shades on both mobile platforms", (inlineCodeColor, light, dark) => {
+    expect(parsePreferences(storedPart({ ...DEFAULT_PREFERENCES, inlineCodeColor })).inlineCodeColor).toBe(inlineCodeColor);
+    for (const platform of ["ios", "android"] as const) {
+      expect(codeSpan(inlineCodeColor, { colors: LIGHT, platform }).color).toBe(light);
+      expect(codeSpan(inlineCodeColor, { colors: DARK, platform }).color).toBe(dark);
+      expect(codeSpan(inlineCodeColor, { platform: "web" }).color).toBe(LIGHT.foreground);
+    }
+  });
   it("is dark grey by default", () => {
     const style = codeSpan(DEFAULT_PREFERENCES.inlineCodeColor);
     // #18181b moved 15% towards the white surface: opaque, not rgba.

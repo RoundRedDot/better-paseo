@@ -1,5 +1,5 @@
-import React, { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, type RefObject } from "react";
-import { Animated, PanResponder, Platform, Pressable, ScrollView, View, type GestureResponderEvent, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
+import React, { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type RefObject } from "react";
+import { Animated, findNodeHandle, PanResponder, Platform, Pressable, ScrollView, View, type GestureResponderEvent, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
 import { FlatList, Icon, Modal } from "@getpaseo/plugin/client/react-native";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -14,8 +14,9 @@ import { BoardEmptyState } from "./empty-state";
 import { LANE_EMPTY_ICON } from "./strings";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
 import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
-import { surfaceLift } from "../cards/surface-lift";
+import { liftStyle, surfaceLift } from "../cards/surface-lift";
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, NewCardsDot, NewCardsPill, RollingCount, SkeletonCard, VerticalLabel, laneHue, useBreathing, useFreshIds, useTap } from "./board-parts";
+import { CollapsedArrivalMarker, createCollapsedArrivals, useCollapsedArrivals, type CollapsedArrivals } from "./collapsed-arrivals";
 import { pillDirection, useSeenCards, useTrackNewCards, useUnseenCards } from "./new-cards";
 import { useFlash } from "./breathing";
 import { DesktopFilterBar, DesktopToolbar, KEY_HINTS_MIN_WIDTH, type EmptyLanes, type FilterMenu } from "./filter-bar";
@@ -46,7 +47,7 @@ import {
   type SidebarMode,
   type SidebarPreference,
 } from "./sidebar-model";
-import { BoardSheet } from "./board-sheet";
+import { BoardSheet, type BoardSheetHandle } from "./board-sheet";
 import { activeFilterCount, rememberCollapsed, rememberedCollapsed } from "./params";
 import { FilterSheetBody } from "./filter-sheet";
 import { sortsLoadedOnly } from "./sort";
@@ -208,15 +209,15 @@ export function DesktopBoard(props: {
     return out;
   }, [setCollapsed]);
   const searchRef = useRef<NativeTextInput>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
   const rowRef = useRef<ScrollView | null>(null);
 
   // The sidebar: open and width as the user left them, inline on a wide
   // board. A narrow board has no room to keep it beside the lanes, so it
   // floats over their right side only on demand: a card clicked or tapped,
   // or the switch. A click or tap outside, Esc or the switch puts it away;
-  // the remembered open state stays the wide board's. On a touch screen a
-  // tap on a card also shows a closed sidebar for the moment, as a floating
-  // panel.
+  // the remembered open state stays the wide board's. Selecting a card
+  // also shows a closed sidebar for the moment, as a floating panel.
   const touch = Platform.OS !== "web";
   const [preference, setPreferenceState] = useState<SidebarPreference>(readSidebarPreference);
   const setPreference = useCallback((update: (current: SidebarPreference) => SidebarPreference) => {
@@ -233,9 +234,10 @@ export function DesktopBoard(props: {
   const [shown, setShown] = useState<"card" | "switch" | null>(null);
   const [selection, dispatch] = useReducer(selectionReducer, NO_SELECTION);
   const [boardWidth, setBoardWidth] = useState(0);
-  const [filterControlsWidth, setFilterControlsWidth] = useState(0);
+  const searchExpanded = searchOpen && boardWidth < 960 * Math.max(1, scale);
   const [boardHeight, setBoardHeight] = useState(0);
   const [detent, setDetent] = useState<SheetDetent>("half");
+  const sheetRef = useRef<BoardSheetHandle>(null);
   const modeRef = useRef<SidebarMode | null>(null);
   const mode = boardWidth > 0 ? sidebarMode(boardWidth, modeRef.current) : modeRef.current ?? "inline";
   modeRef.current = boardWidth > 0 ? mode : modeRef.current;
@@ -249,10 +251,15 @@ export function DesktopBoard(props: {
   useEffect(() => {
     if (!tabletFloating) setFloatingDragWidth(null);
   }, [tabletFloating]);
-  const sheetRoom = inSheet ? sheetHeight(boardHeight, detent) : 0;
+  // The lanes make room once the sheet has slid in and keep it until it has slid out: their render waits for the sheet to stand still.
+  const [sheetShown, setSheetShown] = useState(false);
+  const sheetRoom = mode === "sheet" && sheetShown ? sheetHeight(boardHeight, detent) : 0;
+  // The lanes read it from here: a new room once the sheet is in, out or at another height drew every lane again (50-95 ms on an Android foldable).
+  const [laneRoom] = useState(createLaneRoom);
+  useLayoutEffect(() => laneRoom.set(sheetRoom), [laneRoom, sheetRoom]);
   const panelWidth = tabletFloating
     ? tabletSidebarWidth(boardWidth, floatingDragWidth ?? preference.floatingWidth)
-    : sidebarWidth(boardWidth, dragWidth ?? preference.width, floating ? "floating" : "inline");
+    : sidebarWidth(boardWidth, dragWidth ?? preference.width, narrow || floating ? "floating" : "inline");
   const lanesWidth = Math.max(0, boardWidth - (inline ? panelWidth + SIDEBAR.gap : 0));
   const laneSizing = touch ? "stable" : "fit";
   const laneWidth = boardLaneLayout(boardWidth, laneOrder, collapsed, board.laneWidth, lanesWidth, laneSizing).laneWidth;
@@ -271,10 +278,11 @@ export function DesktopBoard(props: {
   }, [shown, narrow, setPreference]);
   // A panel shown for the moment does not outlive the width it was shown at.
   useEffect(() => setShown(null), [mode]);
-  // A sheet opens at half height again after it closed.
+  // A sheet opens at half height again after it closed, once it has slid out.
+  const sheetGone = !inSheet && !sheetShown;
   useEffect(() => {
-    if (!inSheet) setDetent("half");
-  }, [inSheet]);
+    if (sheetGone) setDetent("half");
+  }, [sheetGone]);
 
   const scrollTo = useCallback((lane: LaneId, index: number, viewPosition = 0.3) => {
     const list = listRefs.current[lane];
@@ -301,8 +309,8 @@ export function DesktopBoard(props: {
   }, [selectedGone]);
 
   const floatWidth = touch ? tabletSidebarWidth(boardWidth, preference.floatingWidth) : sidebarWidth(boardWidth, preference.width, "floating");
-  const latest = useRef({ board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed });
-  latest.current = { board, live, emptyLanesSwitch, focus, shapes, menu, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed };
+  const latest = useRef({ board, live, emptyLanesSwitch, focus, shapes, menu, searchExpanded, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed });
+  latest.current = { board, live, emptyLanesSwitch, focus, shapes, menu, searchExpanded, selection, floating, open, narrow, preferred: preference.open, toggleSidebar, boardWidth, lanesWidth, inSheet, floatWidth, laneWidth: layout.laneWidth, collapsed };
   const sheetMode = mode === "sheet";
   const sheetModeRef = useRef(sheetMode);
   sheetModeRef.current = sheetMode;
@@ -322,6 +330,7 @@ export function DesktopBoard(props: {
   // not the sidebar's (`boardLaneLayout`).
   const dragViewRef = useRef<(width: number) => string>(() => "");
   dragViewRef.current = (width: number) => {
+    if (floating) return lanesInView(laneOrder, collapsed, layout.laneWidth, rowScrollX.current, lanesWidth - sidebarWidth(boardWidth, width, "floating") - SIDEBAR.gap);
     const viewport = Math.max(0, boardWidth - sidebarWidth(boardWidth, width, "inline") - SIDEBAR.gap);
     const lanes = boardLaneLayout(boardWidth, archivedSwitch.drawn, collapsedState, board.laneWidth, viewport, laneSizing);
     return `${lanes.scroll}${lanesInView(laneOrder, collapsed, lanes.laneWidth, rowScrollX.current, viewport)}`;
@@ -343,6 +352,7 @@ export function DesktopBoard(props: {
     setFloatingDragWidth(width);
   }, []);
   const fitInline = useCallback((width: number) => sidebarWidth(latest.current.boardWidth, width, "inline"), []);
+  const fitFloating = useCallback((width: number) => sidebarWidth(latest.current.boardWidth, width, "floating"), []);
   // The view the board last drew for the dragged width.
   const dragView = useRef<string | null>(null);
   // `drawn`: the column already took the width on the page. The board then
@@ -417,23 +427,20 @@ export function DesktopBoard(props: {
   props.handlers.current = {
     reveal,
     // A long press on a compact or touch card: the same as a click.
-    details(card, preview) {
-      showCard(card, preview);
+    details(card, preview, parent) {
+      showCard(card, preview, parent);
     },
   };
 
-  // A click, tap or explicit keyboard preview puts a card in the sidebar.
-  // Moving keyboard focus alone does not change the details.
-  // An explicit preview brings a put-away sidebar up for the moment. A
-  // click or tap does so on touch, or on a narrow board with the preference on.
+  // A click, tap or keyboard preview puts a card in the sidebar.
+  // Selecting a card brings a put-away sidebar up for the moment.
   const showCard = useCallback(
-    (card: TaskCard, preview = false) => {
+    (card: TaskCard, preview = false, parent?: string) => {
       if (!preview) setFocus(null);
-      dispatch({ type: "click", id: card.id });
+      dispatch({ type: "click", id: card.id, parent });
       const now = latest.current;
-      const show = !now.open && (preview || touch || (now.narrow && now.preferred));
-      if (show) setShown("card");
-      if (!(now.open || show) || !(now.narrow || !now.preferred)) return;
+      if (!now.open) setShown("card");
+      if (!now.narrow && now.preferred) return;
       if (sheetModeRef.current) {
         // The sheet covers the lanes' lower part: the card's list brings it to the top, above the sheet.
         const location = findCard(now.board.lanes, card.id);
@@ -513,6 +520,11 @@ export function DesktopBoard(props: {
         event.preventDefault();
         return;
       }
+      if (event.key === "Escape" && now.searchExpanded) {
+        setSearchOpen(false);
+        event.preventDefault();
+        return;
+      }
       if (event.key === "Escape" && now.open) {
         const step = escapeStep(now.selection, now.floating);
         if (step) {
@@ -565,7 +577,14 @@ export function DesktopBoard(props: {
       event.preventDefault();
       if (result.focus && result.effect !== "search") focusTaskBoard(root);
       setFocus(result.focus);
-      if (result.effect === "search") searchRef.current?.focus();
+      if (now.open && now.selection.id && result.focus && result.effect === null && ["j", "k", "h", "l", "ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+        const card = now.board.lanes[result.focus.lane].cards[result.focus.index];
+        if (card) dispatch({ type: "click", id: card.id });
+      }
+      if (result.effect === "search") {
+        if (now.boardWidth < 960 * Math.max(1, scale)) setSearchOpen(true);
+        if (searchRef.current) searchRef.current.focus();
+      }
       if (result.effect === "open" && result.focus) {
         const card = now.board.lanes[result.focus.lane].cards[result.focus.index];
         if (card) now.board.callbacks.onOpen?.(card.id);
@@ -594,6 +613,10 @@ export function DesktopBoard(props: {
       const active = document.activeElement as HTMLElement | null;
       const inBoard = !!active && !!root && root.contains(active);
       const disarmed = latest.current.board.stop.cancelAll();
+      if (inBoard && latest.current.searchExpanded) {
+        setSearchOpen(false);
+        event.preventDefault();
+      }
       if (inBoard && isTyping(active)) {
         active!.blur();
         event.preventDefault();
@@ -609,7 +632,7 @@ export function DesktopBoard(props: {
       document.removeEventListener("keydown", onCaptureKey, true);
       document.removeEventListener("keydown", onKey);
     };
-  }, [board.visible, rootRef, showCard]);
+  }, [board.visible, rootRef, showCard, scale]);
 
   const breathing = useBreathing(!tasks.ready && board.visible);
   const reduced = useReducedMotion();
@@ -619,9 +642,15 @@ export function DesktopBoard(props: {
   // view takes the board at once. The lane motion follows what the lanes show.
   const wantedLanes = `${inView}${focus ? `|${focus.lane}|` : ""}${flash ? `|${flash.lane}|` : ""}${highlightedLane ? `|${highlightedLane}|` : ""}`;
   const shownLanes = useOffscreenLanes(lanes, wantedLanes, { on: OFFSCREEN_LAG, churnLimit: LANE_CHURN_LIMIT ?? 0 });
+  // The live lookup can advance before the deferred lanes on screen do.
+  const selectedLane = selection.id === null ? null : findCard(shownLanes, selection.id)?.lane;
   // Filters, sort and search are the user's: lanes that change with them take their new order at once.
   const motion = useLaneMotion(shownLanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: true, churnLimit: LANE_CHURN_LIMIT });
   useTrackNewCards(board.hostId, shownLanes, tasks.ready);
+  const [arrivals] = useState(createCollapsedArrivals);
+  useEffect(() => {
+    arrivals.track(shownLanes, collapsed, board.scope, tasks.ready);
+  }, [arrivals, shownLanes, collapsed, board.scope, tasks.ready]);
   const renderCopy = useCallback(
     (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact={false} fresh={false} copy callbacks={callbacks} />,
     [board, theme, callbacks],
@@ -633,6 +662,16 @@ export function DesktopBoard(props: {
   const openFilterPanel = useCallback(() => {
     setMenu(null);
     setFiltersOpen(true);
+  }, []);
+  // Kept across the board's renders: the details are memoized and draw again only for what they show.
+  const sheetToggle = useMemo(() => ({
+    full: detent === "full",
+    label: detent === "full" ? strings.sidebar.sheetShrink : strings.sidebar.sheetGrow,
+    onPress: () => sheetRef.current?.toggle(),
+  }), [detent, strings.sidebar.sheetShrink, strings.sidebar.sheetGrow]);
+  const closeSheet = useCallback(() => {
+    dispatch({ type: "clear" });
+    setShown(null);
   }, []);
   const sidebar = (
     <DetailsSidebar
@@ -646,6 +685,8 @@ export function DesktopBoard(props: {
       stats={!(inSheet && selection.id !== null)}
       scrollAll={inSheet}
       tabs={!inSheet || touch}
+      sheetToggle={inSheet ? sheetToggle : undefined}
+      onSheetClose={inSheet ? closeSheet : undefined}
     />
   );
   const activeCardId = focus ? `task-card-${lanes[focus.lane].cards[focus.index]!.id}` : undefined;
@@ -654,6 +695,7 @@ export function DesktopBoard(props: {
       board={live}
       theme={theme}
       options={options}
+      hideSubtasksToggle={touch}
       showEmptyGroupsToggle
       tablet={touch}
       laneWidth={touch ? undefined : { value: live.laneWidth, onChange: live.setLaneWidth }}
@@ -662,11 +704,16 @@ export function DesktopBoard(props: {
   ) : null;
 
   return (
-    <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }} {...claimKeys(rootRef, () => setFocus(null), activeCardId)}>
+    <View ref={rootRef} collapsable={false} style={{ flex: 1, backgroundColor: colors.surface0, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }} {...claimKeys(rootRef, () => setFocus(null), activeCardId)}
+      onStartShouldSetResponderCapture={touch ? (event) => {
+        if (searchRef.current?.isFocused() && String(event.nativeEvent.target) !== String(findNodeHandle(searchRef.current))) searchRef.current.blur();
+        return false;
+      } : undefined}>
       {touch ? <TabletToolbar
         board={live}
         theme={theme}
         width={boardWidth}
+        laneWidth={layout.laneWidth}
         searchRef={searchRef}
         onFilters={() => setFiltersOpen(true)}
         filters={filtersOpen ? { content: filterBody, height: boardHeight, onClose: () => setFiltersOpen(false) } : undefined}
@@ -677,7 +724,10 @@ export function DesktopBoard(props: {
         theme={theme}
         searchRef={searchRef}
         keyHints={boardWidth === 0 || boardWidth >= KEY_HINTS_MIN_WIDTH * Math.max(1, scale)}
-        filterControlsWidth={sheetMode ? undefined : filterControlsWidth}
+        width={boardWidth}
+        laneWidth={layout.laneWidth}
+        searchOpen={searchOpen}
+        onSearchOpenChange={setSearchOpen}
         filterOptions={options ?? undefined}
         menu={menu}
         setMenu={setMenu}
@@ -694,7 +744,6 @@ export function DesktopBoard(props: {
           setMenu={setMenu}
           emptyLanes={emptyLanesSwitch}
           onMore={openFilterPanel}
-          onControlsWidth={setFilterControlsWidth}
         />
       )}
       {/* Tablets use the toolbar popover; narrow web layouts use the host's filter panel. */}
@@ -736,6 +785,7 @@ export function DesktopBoard(props: {
                     {/* On touch the gap between two lanes is a blank to tap too, inside the scroll row. */}
                     {touch && index > 0 ? <LaneGap onPress={letGo} /> : null}
                     <DesktopLane
+                      arrivals={arrivals}
                       lane={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.last : shownLanes[id]}
                       width={id === "archived" && archivedSwitch.phase === "leave" ? archivedSwitch.width : layout.laneWidth}
                       collapsed={collapsedState.includes(id)}
@@ -747,10 +797,10 @@ export function DesktopBoard(props: {
                       callbacks={callbacks}
                       theme={theme}
                       focusIndex={focus?.lane === id ? focus.index : null}
-                      currentId={open ? selection.id : null}
+                      currentId={open && selectedLane === id ? selection.id : null}
                       listRef={publishList[id]}
                       breathing={breathing}
-                      bottomRoom={sheetRoom}
+                      room={laneRoom}
                       onBlank={touch ? letGo : undefined}
                       flash={flash?.lane === id ? flash : null}
                       inView={wantedLanes.includes(`|${id}|`)}
@@ -765,24 +815,28 @@ export function DesktopBoard(props: {
           {unfilteredEmpty ? <BoardEmpty board={board} theme={theme} /> : null}
         </View>
         {mode === "inline" && !floating ? (
-          <SidebarColumn open={inline} width={panelWidth} theme={theme} fit={fitInline} onDrag={dragSidebar} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
+          <SidebarColumn open={inline} width={panelWidth} theme={theme} label={strings.sidebar.resize} fit={fitInline} onDrag={dragSidebar} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
             {sidebar}
           </SidebarColumn>
         ) : null}
-        {inSheet ? (
+        {mode === "sheet" ? (
           <BoardSheet
+            ref={sheetRef}
             area={boardHeight}
+            open={inSheet}
             detent={detent}
             onDetent={setDetent}
-            onClose={() => {
-              dispatch({ type: "clear" });
-              setShown(null);
-            }}
+            onShown={setSheetShown}
+            onClose={closeSheet}
             theme={theme}
             labels={{ grow: strings.sidebar.sheetGrow, shrink: strings.sidebar.sheetShrink }}
           >
             {sidebar}
           </BoardSheet>
+        ) : !touch ? (
+          <SidebarColumn open={floating} floating width={panelWidth} theme={theme} label={strings.sidebar.resize} fit={fitFloating} onDrag={dragSidebar} onResize={(width) => setPreference((current) => ({ ...current, width }))}>
+            {sidebar}
+          </SidebarColumn>
         ) : floating ? (
           <FloatingSidebar
             width={panelWidth}
@@ -949,8 +1003,8 @@ function LaneGap(props: { onPress(): void }) {
 }
 
 /**
- * The inline sidebar: a column at the board's right, 12 from its edge, its
- * left inset holding the drag handle on web. A drag
+ * The desktop sidebar: inline or floating at the board's right, 12 from its
+ * edge, with its left inset holding the same drag handle in both modes. A drag
  * resizes the column and the lanes' viewport, at most once a frame; the
  * release keeps the width. A double click puts 380 back.
  *
@@ -961,8 +1015,10 @@ function LaneGap(props: { onPress(): void }) {
  */
 function SidebarColumn(props: {
   open: boolean;
+  floating?: boolean;
   width: number;
   theme: PluginTheme;
+  label: string;
   fit(width: number): number;
   onDrag(width: number | null, drawn: boolean): void;
   onResize(width: number): void;
@@ -972,6 +1028,7 @@ function SidebarColumn(props: {
   const { hovered, hoverProps } = useHover();
   const [dragging, setDragging] = useState(false);
   const [mounted, setMounted] = useState(props.open);
+  const liveWidth = useRef(new Animated.Value(props.width)).current;
   const progress = useRef(new Animated.Value(reduced && props.open ? 1 : 0)).current;
   if (props.open && !mounted) setMounted(true);
   useEffect(() => {
@@ -981,7 +1038,12 @@ function SidebarColumn(props: {
       return;
     }
     // Reuse the current progress when reversed; never reset a half-open panel.
-    const animation = Animated.timing(progress, { toValue: props.open ? 1 : 0, duration: props.open ? 240 : 180, easing: MOTION.ease, useNativeDriver: false });
+    const animation = Animated.timing(progress, {
+      toValue: props.open ? 1 : 0,
+      duration: props.open ? 240 : 180,
+      easing: MOTION.ease,
+      useNativeDriver: Platform.OS !== "web",
+    });
     animation.start(({ finished }) => {
       if (finished && !props.open) setMounted(false);
     });
@@ -994,6 +1056,46 @@ function SidebarColumn(props: {
   const panelRef = useRef<View>(null);
   const handleRef = useRef<View>(null);
   const indicatorRef = useRef<View>(null);
+  const releaseGestures = useRef<(() => void) | null>(null);
+  useEffect(() => () => releaseGestures.current?.(), []);
+  const pan = useMemo(() => {
+    let touchX = 0;
+    let startWidth = 0;
+    const widthAt = (event: GestureResponderEvent) => live.current.fit(clampWidth(startWidth + touchX - event.nativeEvent.pageX));
+    return PanResponder.create({
+      onStartShouldSetPanResponderCapture: (event) => {
+        touchX = event.nativeEvent.pageX;
+        return false;
+      },
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 4 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        startWidth = live.current.width;
+        liveWidth.setValue(startWidth);
+        releaseGestures.current = holdHostGestures(handleRef.current);
+        setDragging(true);
+      },
+      onPanResponderMove: (event) => {
+        const width = widthAt(event);
+        liveWidth.setValue(width);
+        live.current.onDrag(width, true);
+      },
+      onPanResponderRelease: (event) => {
+        releaseGestures.current?.();
+        releaseGestures.current = null;
+        live.current.onResize(widthAt(event));
+        live.current.onDrag(null, false);
+        setDragging(false);
+      },
+      onPanResponderTerminate: () => {
+        releaseGestures.current?.();
+        releaseGestures.current = null;
+        live.current.onDrag(null, false);
+        setDragging(false);
+      },
+    });
+  }, []);
   const dom = () => [handleRef.current, indicatorRef.current] as unknown as [HTMLElement | null, HTMLElement | null];
   const follow = (clientY: number) => followPointer(...dom(), clientY);
   const start = (event: { nativeEvent: { pageX: number; clientY: number } }) => {
@@ -1071,10 +1173,63 @@ function SidebarColumn(props: {
         <View ref={indicatorRef} {...resizeIndicatorProps} style={{ position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 }} />
       </View>
     </View>
-  ) : null;
+  ) : (
+    <View
+      ref={handleRef}
+      collapsable={false}
+      {...pan.panHandlers}
+      accessible
+      accessibilityRole="adjustable"
+      accessibilityLabel={props.label}
+      accessibilityValue={{ min: SIDEBAR.min, max: props.fit(SIDEBAR.max), now: props.width }}
+      accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+      onAccessibilityAction={(event) => {
+        const action = event.nativeEvent.actionName;
+        if (action !== "increment" && action !== "decrement") return;
+        props.onResize(props.fit(clampWidth(props.width + (action === "increment" ? 20 : -20))));
+      }}
+      testID="sidebar-resize"
+      style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 12, alignItems: "center", justifyContent: "center", zIndex: 5 }}
+    >
+      <View pointerEvents="none" testID="sidebar-resize-grabber" style={{ width: 4, height: 40, borderRadius: 2, backgroundColor: dragging ? props.theme.colors.accent : props.theme.colors.foregroundMuted, opacity: dragging ? 1 : 0.5 }} />
+    </View>
+  );
   if (!props.open && (!mounted || reduced)) return null;
+  const width = Platform.OS !== "web" && dragging ? liveWidth : props.width;
+  const slotWidth = Platform.OS === "web"
+    ? reduced ? props.width + SIDEBAR.gap : progress.interpolate({ inputRange: [0, 1], outputRange: [0, props.width + SIDEBAR.gap] })
+    : !props.open ? 0 : dragging ? Animated.add(liveWidth, SIDEBAR.gap) : props.width + SIDEBAR.gap;
+  const panel = (
+    <Animated.View
+      ref={panelRef}
+      testID={props.floating ? "sidebar-floating" : "sidebar-inline"}
+      {...(Platform.OS === "web" ? { onPointerEnter: hoverProps.onHoverIn, onPointerLeave: hoverProps.onHoverOut } : {})}
+      style={{
+        position: "absolute",
+        top: 0,
+        bottom: 0,
+        right: SIDEBAR.gap,
+        width,
+        // Include the outer margin in the right inset to match the toolbar's 16 pt.
+        ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingLeft: 14, paddingRight: 14 - SIDEBAR.gap }),
+        paddingTop: 4,
+        paddingBottom: 12,
+        minHeight: 0,
+        backgroundColor: props.theme.colors.surface0,
+        boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
+        zIndex: 1,
+        ...(Platform.OS === "web" ? {
+          opacity: 1,
+          transform: [{ translateX: reduced ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [props.width + SIDEBAR.gap, 0] }) }],
+        } : null),
+      }}
+    >
+      {handle}
+      {props.children}
+    </Animated.View>
+  );
   return (
-    // Animate only the slot and surface: fixed-width cards do not reflow on every frame.
+    // Native transitions move only the surface; changing the slot each frame lays out the whole board.
     <Animated.View
       ref={slotRef}
       testID="sidebar-slot"
@@ -1082,33 +1237,16 @@ function SidebarColumn(props: {
       aria-hidden={!props.open}
       accessibilityElementsHidden={!props.open}
       importantForAccessibility={props.open ? "auto" : "no-hide-descendants"}
-      style={{ width: reduced ? props.width + SIDEBAR.gap : progress.interpolate({ inputRange: [0, 1], outputRange: [0, props.width + SIDEBAR.gap] }), flexShrink: 0, minHeight: 0 }}
+      style={{ width: slotWidth, flexShrink: 0, minHeight: 0, ...(props.floating ? { position: "absolute", top: 0, bottom: 0, right: 0, zIndex: 20 } as const : null) }}
     >
-      <Animated.View
-        ref={panelRef}
-        testID="sidebar-inline"
-        {...(Platform.OS === "web" ? { onPointerEnter: hoverProps.onHoverIn, onPointerLeave: hoverProps.onHoverOut } : {})}
-        style={{
-          position: "absolute",
-          top: 0,
-          bottom: 0,
-          right: SIDEBAR.gap,
-          width: props.width,
-          // Include the outer margin in the right inset to match the toolbar's 16 pt.
-          ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingHorizontal: 10 }),
-          paddingTop: 4,
-          paddingBottom: 12,
-          minHeight: 0,
-          backgroundColor: props.theme.colors.surface0,
-          boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
-          zIndex: 1,
+      {Platform.OS === "web" ? panel : (
+        // Native motion must not make the JS-driven resize width part of its animated graph.
+        <Animated.View testID="sidebar-motion" style={{
+          position: "absolute", top: 0, bottom: 0, left: 0, right: 0,
           opacity: reduced ? 1 : progress.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 1] }),
           transform: [{ translateX: reduced ? 0 : progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
-        }}
-      >
-        {handle}
-        {props.children}
-      </Animated.View>
+        }}>{panel}</Animated.View>
+      )}
     </Animated.View>
   );
 }
@@ -1186,50 +1324,54 @@ function FloatingSidebar(props: {
     return () => animation.stop();
   }, [x, opacity, reduced]);
   return (
-    <Animated.View
-      testID="sidebar-floating"
-      style={{
-        position: "absolute",
-        top: props.flushRight ? 0 : 4,
-        right: props.flushRight ? 0 : SIDEBAR.gap,
-        bottom: props.flushRight ? 0 : 12,
-        width: dragging ? liveWidth : props.width,
-        padding: 8,
-        paddingLeft: props.resize ? 12 : 8,
-        ...(props.flushRight ? { paddingTop: 4, paddingBottom: 12, paddingRight: 10 } : null),
-        borderRadius: props.flushRight ? 0 : 16,
-        borderWidth: props.flushRight ? 0 : HAIRLINE,
-        borderColor: chrome.border,
-        backgroundColor: props.flushRight ? props.theme.colors.surface0 : boardPalette(props.theme).panel,
-        boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
-        zIndex: 20,
-        opacity,
-        transform: [{ translateX: x }],
-      } as object}
-    >
-      {props.resize ? (
-        <View
-          ref={handleRef}
-          collapsable={false}
-          {...pan.panHandlers}
-          accessible
-          accessibilityRole="adjustable"
-          accessibilityLabel={props.resize.label}
-          accessibilityValue={{ min: TABLET_SIDEBAR.min, max: props.resize.max, now: props.width }}
-          accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
-          onAccessibilityAction={(event) => {
-            const action = event.nativeEvent.actionName;
-            if (action !== "increment" && action !== "decrement") return;
-            const width = props.width + (action === "increment" ? 20 : -20);
-            props.resize?.onResize(Math.max(TABLET_SIDEBAR.min, Math.min(props.resize.max, width)));
-          }}
-          testID="floating-sidebar-resize"
-          style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 12, alignItems: "center", justifyContent: "center", zIndex: 5 }}
-        >
-          <View pointerEvents="none" testID="floating-sidebar-grabber" style={{ width: 4, height: 40, borderRadius: 2, backgroundColor: dragging ? props.theme.colors.accent : props.theme.colors.foregroundMuted, opacity: dragging ? 1 : 0.5 }} />
-        </View>
-      ) : null}
-      {props.children}
+    <Animated.View testID="floating-sidebar-motion" pointerEvents="box-none" style={{
+      position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 20,
+      opacity,
+      transform: [{ translateX: x }],
+    }}>
+      <Animated.View
+        testID="sidebar-floating"
+        style={{
+          position: "absolute",
+          top: props.flushRight ? 0 : 4,
+          right: props.flushRight ? 0 : SIDEBAR.gap,
+          bottom: props.flushRight ? 0 : 12,
+          width: dragging ? liveWidth : props.width,
+          padding: 8,
+          paddingLeft: props.resize ? 12 : 8,
+          ...(props.flushRight ? { paddingTop: 4, paddingBottom: 12, paddingRight: 10 } : null),
+          borderRadius: props.flushRight ? 0 : 16,
+          borderWidth: props.flushRight ? 0 : HAIRLINE,
+          borderColor: chrome.border,
+          backgroundColor: props.flushRight ? props.theme.colors.surface0 : boardPalette(props.theme).panel,
+          boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
+          zIndex: 20,
+        } as object}
+      >
+        {props.resize ? (
+          <View
+            ref={handleRef}
+            collapsable={false}
+            {...pan.panHandlers}
+            accessible
+            accessibilityRole="adjustable"
+            accessibilityLabel={props.resize.label}
+            accessibilityValue={{ min: TABLET_SIDEBAR.min, max: props.resize.max, now: props.width }}
+            accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
+            onAccessibilityAction={(event) => {
+              const action = event.nativeEvent.actionName;
+              if (action !== "increment" && action !== "decrement") return;
+              const width = props.width + (action === "increment" ? 20 : -20);
+              props.resize?.onResize(Math.max(TABLET_SIDEBAR.min, Math.min(props.resize.max, width)));
+            }}
+            testID="floating-sidebar-resize"
+            style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 12, alignItems: "center", justifyContent: "center", zIndex: 5 }}
+          >
+            <View pointerEvents="none" testID="floating-sidebar-grabber" style={{ width: 4, height: 40, borderRadius: 2, backgroundColor: dragging ? props.theme.colors.accent : props.theme.colors.foregroundMuted, opacity: dragging ? 1 : 0.5 }} />
+          </View>
+        ) : null}
+        {props.children}
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -1329,13 +1471,11 @@ const HIDDEN = { opacity: 0 };
  */
 const LANE_CHURN_LIMIT = Platform.OS === "web" ? undefined : 6;
 /**
- * Native: how long a lane waits before it renders more of its cards out of
- * view. A filter that adds cards (the subtasks switch) grows every list at
- * once, and their next batches of cards no one could see yet landed while the
- * new cards faded in and the counts rolled. A list short of cards on screen
- * still fills at once (`VirtualizedList`'s high-priority update).
+ * Native: briefly defer offscreen batches on entrance and a subtask switch,
+ * while new cards fade in and counts roll. Keeping this delay after the
+ * transition starves the normal scroll buffer; a drag cancels it early.
  */
-const LANE_FILL_MS = Platform.OS === "web" ? undefined : MOTION.slideMs + MOTION.enterDelayMs;
+const LANE_FILL_MS = MOTION.slideMs + MOTION.enterDelayMs;
 
 /**
  * How many cards a lane adds to its list at a time, out of view. The lanes
@@ -1360,6 +1500,7 @@ const LANE_FLASH = {
 } as const;
 
 interface DesktopLaneProps {
+  arrivals: CollapsedArrivals;
   lane: LaneModel;
   width: number;
   collapsed: boolean;
@@ -1379,7 +1520,7 @@ interface DesktopLaneProps {
   listRef(list: NativeFlatList<TaskCard> | null): void;
   breathing: Animated.Value;
   /** The bottom sheet's height over the lanes: the list scrolls its last card above it. */
-  bottomRoom: number;
+  room: LaneRoom;
   /** Touch only: a tap on the header or under the cards lets go of the selection (see `letGo`). */
   onBlank?(): void;
   /** A stat pressed for this lane: its background flashes. */
@@ -1411,6 +1552,47 @@ function sameLaneProps(last: DesktopLaneProps, next: DesktopLaneProps): boolean 
   return keys.length === Object.keys(last).length && keys.every((key) => (key === "board" ? sameLaneBoard(last.board, next.board) : last[key] === next[key]));
 }
 
+/** How far the bottom sheet stands over the lanes, for each lane's list end and new-cards pill. */
+export interface LaneRoom {
+  get(): number;
+  set(room: number): void;
+  subscribe(listener: () => void): () => void;
+}
+
+export function createLaneRoom(): LaneRoom {
+  let room = 0;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => room,
+    set(next) {
+      if (next === room) return;
+      room = next;
+      for (const listener of [...listeners]) listener();
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}
+
+function useLaneRoom(room: LaneRoom): number {
+  return useSyncExternalStore(room.subscribe, room.get, room.get);
+}
+
+/** The end of a lane's list: room to scroll its last card above the sheet. */
+function LaneRoomSpacer(props: { room: LaneRoom; lane: LaneId }) {
+  const room = useLaneRoom(props.room);
+  return room > 0 ? <View testID={`lane-room-${props.lane}`} pointerEvents="none" style={{ height: room }} /> : null;
+}
+
+/** The new-cards pill, lifted above the sheet when it points down. */
+function RoomPill(props: React.ComponentProps<typeof NewCardsPill> & { room: LaneRoom; below: boolean }) {
+  const { room: store, below, ...pill } = props;
+  const room = useLaneRoom(store);
+  return <NewCardsPill {...pill} inset={pill.inset + (below ? room : 0)} />;
+}
+
 /** A lane draws again only when its own cards, its size or what its cards show changed, not when another lane did. */
 const DesktopLane = memo(DesktopLaneView, sameLaneProps);
 
@@ -1433,8 +1615,24 @@ function DesktopLaneView(props: DesktopLaneProps) {
     board.scope,
   );
   const reduced = useReducedMotion();
+  const hideSubtasks = board.params.hideSubtasks ?? board.defaults.hideSubtasks;
+  const [fill, dispatchFill] = useReducer(
+    (state: { hideSubtasks: boolean; holding: boolean }, action: { type: "switch"; hideSubtasks: boolean } | { type: "release" }) => {
+      if (action.type === "switch") return { hideSubtasks: action.hideSubtasks, holding: true };
+      return state.holding ? { ...state, holding: false } : state;
+    },
+    { hideSubtasks, holding: true },
+  );
+  if (fill.hideSubtasks !== hideSubtasks) dispatchFill({ type: "switch", hideSubtasks });
+  const delayFill = Platform.OS !== "web" && !reduced && fill.holding;
+  useEffect(() => {
+    if (!delayFill) return;
+    const timer = setTimeout(() => dispatchFill({ type: "release" }), LANE_FILL_MS);
+    return () => clearTimeout(timer);
+  }, [delayFill, fill.hideSubtasks]);
   // New tasks: seen once on screen; until then the list's pill, or the collapsed lane's dot, says so.
   const unseen = useUnseenCards(board.hostId, lane.id);
+  const arrivalIds = useCollapsedArrivals(props.arrivals, lane.id);
   const seen = useSeenCards(board.hostId, lane.id, board.visible && props.inView && !props.collapsed);
   const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
   const pillRef = useRef<View | null>(null);
@@ -1505,7 +1703,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
         ref={pillRef}
         lift={false}
         accessibilityRole="button"
-        accessibilityLabel={`${strings.expand}: ${name}`}
+        accessibilityLabel={`${strings.expand}: ${name}${arrivalIds.length ? `, ${strings.newTasks(arrivalIds.length)}` : ""}`}
         {...collapseTap.pressIn}
         onPress={collapseTap.tap(props.onToggle)}
         style={(hovered, pressed) => ({
@@ -1521,7 +1719,8 @@ function DesktopLaneView(props: DesktopLaneProps) {
         <StatusIcon kind={LANE_STATUS[lane.id]} size={14} theme={theme} animated={board.visible} />
         <VerticalLabel text={name} color={colors.foreground} language={board.language} />
         {ready ? <RollingCount value={count} scope={board.scope} align="center" style={countStyle} /> : <Text style={countStyle}>{""}</Text>}
-        <NewCardsDot on={unseen.length > 0} hue={laneHue(theme, lane.id)} testID={`lane-new-dot-${lane.id}`} />
+        <NewCardsDot on={unseen.length > 0 && arrivalIds.length === 0} hue={laneHue(theme, lane.id)} testID={`lane-new-dot-${lane.id}`} />
+        <CollapsedArrivalMarker ids={arrivalIds} theme={theme} lane={lane.id} />
       </HoverPressable>,
     );
   }
@@ -1562,7 +1761,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
             alignItems: "center",
             justifyContent: "center",
             backgroundColor: "transparent",
-            boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(theme).card.buttonShadowHover : undefined,
+            ...liftStyle(() => taskTokens(theme), surfaceLift(hovered, pressed)),
           })}
         >
           <Icon name="FoldHorizontal" size={14} color={colors.foregroundMuted} />
@@ -1594,11 +1793,12 @@ function DesktopLaneView(props: DesktopLaneProps) {
           extraData={extraData}
           renderItem={renderItem}
           ItemSeparatorComponent={Separator}
-          contentContainerStyle={{ ...LANE_PAD, paddingTop: Platform.OS === "web" ? 4 : 2, paddingBottom: 8 + props.bottomRoom, ...(props.onBlank ? { flexGrow: 1 } : null) }}
+          contentContainerStyle={{ ...LANE_PAD, paddingTop: Platform.OS === "web" ? 4 : 2, paddingBottom: 8, ...(props.onBlank ? { flexGrow: 1 } : null) }}
           initialNumToRender={8}
           maxToRenderPerBatch={LANE_BATCH}
           windowSize={7}
-          updateCellsBatchingPeriod={LANE_FILL_MS}
+          updateCellsBatchingPeriod={delayFill ? LANE_FILL_MS : undefined}
+          onScrollBeginDrag={delayFill ? () => dispatchFill({ type: "release" }) : undefined}
           onScrollToIndexFailed={({ index, averageItemLength }) => {
             // Variable heights: jump near it, then try again once laid out.
             listRef.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
@@ -1612,7 +1812,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
           }}
           onEndReachedThreshold={0.5}
           onEndReached={() => {
-            if (isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
+            if (!board.params.query.trim() && isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
           }}
           ListEmptyComponent={
             <BoardEmptyState
@@ -1628,20 +1828,23 @@ function DesktopLaneView(props: DesktopLaneProps) {
           ListFooterComponent={
             <>
               {/* Both history lanes can have no visible matches while later pages still have some. */}
-              {isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
+              {!board.params.query.trim() && isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
                 <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} />
               ) : null}
               <LaneFilterHint board={board} lane={lane.id} count={props.hidden} theme={theme} />
               {props.onBlank ? <Pressable accessible={false} {...blankTap.pressIn} onPress={blankTap.tap(props.onBlank)} testID={`lane-blank-${lane.id}`} style={{ flexGrow: 1, minHeight: 48 }} /> : null}
+              <LaneRoomSpacer room={props.room} lane={lane.id} />
             </>
           }
         />
       )}
       {loadingFirst ? null : (
-        <NewCardsPill
+        <RoomPill
+          room={props.room}
           count={unseen.length}
           direction={pillDirection(lane.cards, unseen, seen.firstShown())}
-          inset={pillDirection(lane.cards, unseen, seen.firstShown()) === "up" ? taskControlHeight(40, scale) + 8 : 12 + props.bottomRoom}
+          inset={pillDirection(lane.cards, unseen, seen.firstShown()) === "up" ? taskControlHeight(40, scale) + 8 : 12}
+          below={pillDirection(lane.cards, unseen, seen.firstShown()) !== "up"}
           hue={laneHue(theme, lane.id)}
           theme={theme}
           strings={strings}

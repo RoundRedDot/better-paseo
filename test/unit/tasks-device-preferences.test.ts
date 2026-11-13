@@ -41,7 +41,7 @@ describe("device Tasks preferences", () => {
     const listener = vi.fn();
     const unsubscribe = first.subscribe(listener);
     await first.update({ showArchived: false, showEmptyGroups: false, hideSubtasks: true, laneWidth: "narrow" });
-    expect(first.snapshot().values).toEqual({ showArchived: false, showEmptyGroups: false, hideSubtasks: true, laneWidth: "narrow", titleLines: "2" });
+    expect(first.snapshot().values).toEqual({ ...defaults, showArchived: false, showEmptyGroups: false, hideSubtasks: true, laneWidth: "narrow", titleLines: "2" });
     expect(second.snapshot().values).toEqual(defaults);
     expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();

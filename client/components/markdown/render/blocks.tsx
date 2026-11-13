@@ -25,6 +25,9 @@ import {
 } from "./styles";
 import { MdTable } from "./table";
 import { reuseNode, type NodeReuse } from "./reuse";
+import { blockSelectionText } from "./block-selection";
+import { ToolbarCopyButton } from "../../../ui/toolbar-button";
+import { space } from "../../theme-tokens";
 
 export interface BlockOptions {
   /** The first block of the message: a heading there takes no top margin. */
@@ -171,11 +174,7 @@ function renderBlock(
       return renderList(token, context, key, options);
 
     case "blockquote":
-      return (
-        <View key={key} style={styles.quote}>
-          {renderBlocks(token.tokens, context, key, { ...options, first: false, inQuote: true })}
-        </View>
-      );
+      return <QuoteBlock key={key} token={token} context={context} prefix={key} options={options} />;
 
     case "code":
       return <CodeBlock key={key} token={token} context={context} open={options.open} />;
@@ -202,6 +201,20 @@ function renderBlock(
         <MarkdownProse key={key} context={context} {...(codeSurface as object)} style={styles.plain} text={token.raw} />
       );
   }
+}
+
+function QuoteBlock({ token, context, prefix, options }: {
+  token: Tokens.Blockquote; context: RenderContext; prefix: string; options: BlockOptions;
+}) {
+  const text = blockSelectionText(token.tokens);
+  return <View style={[context.styles.quote, { flexDirection: "row", alignItems: "flex-start" }]}>
+    <View style={{ flex: 1, minWidth: 0, gap: space.xs }}>
+      {renderBlocks(token.tokens, context, prefix, { ...options, first: false, inQuote: true })}
+    </View>
+    <View style={{ flexDirection: "row", flexShrink: 0 }}>
+      <ToolbarCopyButton text={text} label="Copy quote" tokens={context.tokens} align="end" />
+    </View>
+  </View>;
 }
 
 interface ListRow {

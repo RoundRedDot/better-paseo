@@ -1,26 +1,27 @@
 import { LANE_WIDTHS, type TasksSettings } from "../../shared/tasks-settings";
+import { DEFAULT_OPEN_TASKS_SHORTCUT, validTasksShortcut } from "./shortcut-model";
 
 export const DEVICE_BOARD_FIELDS = ["hideSubtasks", "showArchived", "showEmptyGroups", "laneWidth"] as const;
-export const CARD_TITLE_LINE_COUNTS = ["1", "2", "3", "4"] as const;
-const DEVICE_PREFERENCE_FIELDS = [...DEVICE_BOARD_FIELDS, "titleLines"] as const;
+export const CARD_TITLE_LINE_COUNTS = ["1", "2", "3", "4", "all"] as const;
+const DEVICE_PREFERENCE_FIELDS = [...DEVICE_BOARD_FIELDS, "titleLines", "openShortcut"] as const;
 export type CardTitleLineCount = (typeof CARD_TITLE_LINE_COUNTS)[number];
 export const DEFAULT_CARD_TITLE_LINES: CardTitleLineCount = "2";
-export type DeviceBoardPreferences = Pick<TasksSettings["board"], (typeof DEVICE_BOARD_FIELDS)[number]> & { titleLines: CardTitleLineCount };
+export type DeviceBoardPreferences = Pick<TasksSettings["board"], (typeof DEVICE_BOARD_FIELDS)[number]> & { titleLines: CardTitleLineCount; openShortcut: string | null };
 export interface DevicePreferenceStorage {
   read(): string | null | Promise<string | null>;
   write(value: string): void | Promise<void>;
 }
 
 export function deviceBoardPreferences(board: TasksSettings["board"]): DeviceBoardPreferences {
-  return { hideSubtasks: board.hideSubtasks, showArchived: board.showArchived, showEmptyGroups: board.showEmptyGroups, laneWidth: board.laneWidth, titleLines: DEFAULT_CARD_TITLE_LINES };
+  return { hideSubtasks: board.hideSubtasks, showArchived: board.showArchived, showEmptyGroups: board.showEmptyGroups, laneWidth: board.laneWidth, titleLines: DEFAULT_CARD_TITLE_LINES, openShortcut: DEFAULT_OPEN_TASKS_SHORTCUT };
 }
 
 function decode(raw: string): DeviceBoardPreferences {
   const value = JSON.parse(raw) as Partial<DeviceBoardPreferences>;
-  if (!value || typeof value.hideSubtasks !== "boolean" || typeof value.showArchived !== "boolean" || typeof value.showEmptyGroups !== "boolean" || !LANE_WIDTHS.includes(value.laneWidth!) || value.titleLines !== undefined && !CARD_TITLE_LINE_COUNTS.includes(value.titleLines)) {
+  if (!value || typeof value.hideSubtasks !== "boolean" || typeof value.showArchived !== "boolean" || typeof value.showEmptyGroups !== "boolean" || !LANE_WIDTHS.includes(value.laneWidth!) || value.titleLines !== undefined && !CARD_TITLE_LINE_COUNTS.includes(value.titleLines) || value.openShortcut !== undefined && !validTasksShortcut(value.openShortcut)) {
     throw new Error("Invalid device Tasks preferences");
   }
-  return { hideSubtasks: value.hideSubtasks, showArchived: value.showArchived, showEmptyGroups: value.showEmptyGroups, laneWidth: value.laneWidth!, titleLines: value.titleLines ?? DEFAULT_CARD_TITLE_LINES };
+  return { hideSubtasks: value.hideSubtasks, showArchived: value.showArchived, showEmptyGroups: value.showEmptyGroups, laneWidth: value.laneWidth!, titleLines: value.titleLines ?? DEFAULT_CARD_TITLE_LINES, openShortcut: value.openShortcut === undefined ? DEFAULT_OPEN_TASKS_SHORTCUT : value.openShortcut };
 }
 
 /** The old host fields are migration input only; never send a device edit back to the daemon. */

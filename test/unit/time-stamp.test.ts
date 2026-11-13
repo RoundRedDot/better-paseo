@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { formatStamp, formatFooterStamp, formatFullStamp, formatDuration } from "../../client/ui/time";
 
-it("always includes the full local date and seconds in timestamp hints", () => {
-  expect(formatFullStamp(new Date(2026, 9, 15, 3, 4, 5))).toBe("2026-10-15 03:04:05");
-  expect(formatFullStamp(new Date(2025, 0, 2, 0, 0, 0))).toBe("2025-01-02 00:00:00");
+it("includes seconds and omits only the current year in timestamp hints", () => {
+  const now = new Date(2026, 9, 15);
+  expect(formatFullStamp(new Date(2026, 9, 15, 3, 4, 5), now)).toBe("10-15 03:04:05");
+  expect(formatFullStamp(new Date(2025, 0, 2, 0, 0, 0), now)).toBe("2025-01-02 00:00:00");
 });
 
 it("omits the current year and seconds with zero-padded local time", () => {

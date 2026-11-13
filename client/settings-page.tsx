@@ -63,27 +63,43 @@ function storageHint(sync: SyncStatus, t: SettingsStrings): string | null {
   return null;
 }
 
+/**
+ * Both palettes run in the same hue order so the two rows line up column by
+ * column: the default, then red, orange, amber, green, the blues, violet and
+ * black. Each row also carries one colour the other lacks; `zinc` against
+ * `green` is the single column whose hues differ.
+ */
 const ACCENT_OPTIONS: ReadonlyArray<{
   id: AccentPreset;
-  label: "accentHost" | "accentJade" | "accentViolet" | "accentAmber" | "accentRose";
+  label: "accentHost" | "accentJade" | "accentViolet" | "accentAmber" | "accentRose" | "accentZinc" | "accentMidnight" | "accentClaude" | "accentGhostty" | "accentPureBlack";
   color: string | undefined;
 }> = [
   { id: "host", label: "accentHost", color: undefined },
-  { id: "jade", label: "accentJade", color: ACCENT_PRESETS.jade },
-  { id: "violet", label: "accentViolet", color: ACCENT_PRESETS.violet },
-  { id: "amber", label: "accentAmber", color: ACCENT_PRESETS.amber },
   { id: "rose", label: "accentRose", color: ACCENT_PRESETS.rose },
+  { id: "claude", label: "accentClaude", color: ACCENT_PRESETS.claude },
+  { id: "amber", label: "accentAmber", color: ACCENT_PRESETS.amber },
+  { id: "jade", label: "accentJade", color: ACCENT_PRESETS.jade },
+  { id: "zinc", label: "accentZinc", color: ACCENT_PRESETS.zinc },
+  { id: "midnight", label: "accentMidnight", color: ACCENT_PRESETS.midnight },
+  { id: "ghostty", label: "accentGhostty", color: ACCENT_PRESETS.ghostty },
+  { id: "violet", label: "accentViolet", color: ACCENT_PRESETS.violet },
+  { id: "pureBlack", label: "accentPureBlack", color: ACCENT_PRESETS.pureBlack },
 ];
 
 const INLINE_CODE_OPTIONS: ReadonlyArray<{
   id: InlineCodeColorPreference;
-  label: "inlineCodeGrey" | "inlineCodeBlue" | "inlineCodeViolet" | "inlineCodeGreen" | "inlineCodeCoral";
+  label: "inlineCodeGrey" | "inlineCodeBlue" | "inlineCodeViolet" | "inlineCodeGreen" | "inlineCodeCoral" | "accentJade" | "accentAmber" | "accentMidnight" | "accentClaude" | "accentPureBlack";
 }> = [
   { id: "grey", label: "inlineCodeGrey" },
+  { id: "coral", label: "inlineCodeCoral" },
+  { id: "claude", label: "accentClaude" },
+  { id: "amber", label: "accentAmber" },
+  { id: "jade", label: "accentJade" },
+  { id: "green", label: "inlineCodeGreen" },
+  { id: "midnight", label: "accentMidnight" },
   { id: "blue", label: "inlineCodeBlue" },
   { id: "violet", label: "inlineCodeViolet" },
-  { id: "green", label: "inlineCodeGreen" },
-  { id: "coral", label: "inlineCodeCoral" },
+  { id: "pureBlack", label: "accentPureBlack" },
 ];
 
 type PreviewDevice = "desktop" | "mobile";
@@ -333,7 +349,7 @@ function DetailsSizeControl({ value, look }: { value: number; look: PageLook }) 
   );
 }
 
-/** "Host" and the four presets: round swatches, the selected one ringed. */
+/** "Host" and the presets: round swatches, the selected one ringed. */
 function AccentControl({ value, hostAccent, look }: { value: AccentPreset; hostAccent: string; look: PageLook }) {
   const { tokens, t } = look;
   return (
@@ -584,7 +600,7 @@ function VersionResult({ state, look, language, updateAvailable }: {
     </View>)}
     <View style={{ gap: 2, marginTop: space.xs }}>
       <Text style={[labelStyle, { color: tokens.foreground, fontWeight: updateAvailable ? "500" : "400" }]}>{state.matches ? t.versionUpToDate : updateAvailable ? t.versionNewAvailable : t.versionAvailable}</Text>
-      <Text style={labelStyle}>{t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US"))}</Text>
+      <Text style={labelStyle}>{t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US", { year: new Date(state.checkedAt).getFullYear() === new Date().getFullYear() ? undefined : "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }))}</Text>
       {state.versions.status === "unavailable" ? <Text style={labelStyle}>{t.versionMapUnavailable}</Text> : null}
       {state.versions.status === "available" && (state.versions.current === null || state.versions.latest === null || state.versions.currentBuild === null || state.versions.latestBuild === null) ? <Text style={labelStyle}>{t.versionUnmapped}</Text> : null}
     </View>
@@ -644,8 +660,8 @@ function VersionSection({ look, language, version, autoUpdateCheck, native }: { 
       {state.notes.status === "available"
         ? <View style={{ gap: 24 }}>
             {state.notes.releases.map((release) => <View key={release.version} style={{ gap: 12 }}>
-              <Text style={[settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi, fontWeight: "600" }]}>{release.version}</Text>
-              <View style={{ gap: 15 }}>
+              <Text style={[settingsTextStyle(look.tokens, 3), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi, fontWeight: "600" }]}>{release.version}</Text>
+              <View style={{ gap: 8 }}>
                 {release[language].map((item, index) => <View key={index} style={{ flexDirection: "row", alignItems: "flex-start", gap: 13 }}>
                   <View style={{ width: 5, height: 5, borderRadius: 3, marginTop: Math.round((look.tokens.typography.ui.size + 1) * 1.56 / 2 - 2.5), backgroundColor: look.tokens.foregroundMuted }} />
                   <Text style={{ flex: 1, minWidth: 0, color: look.tokens.foreground, fontFamily: look.tokens.fontUi, fontSize: look.tokens.typography.ui.size + 1, lineHeight: Math.round((look.tokens.typography.ui.size + 1) * 1.56) }}>{item}</Text>
@@ -982,6 +998,20 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           look={look}
         />
         <SettingRow
+          title={t.liveUiTitle}
+          description={t.liveUiDescription}
+          control={
+            <Toggle
+              value={preferences.liveUiReplies}
+              onChange={(liveUiReplies) => updateEnhancerPreferences({ liveUiReplies })}
+              label={t.liveUiTitle}
+              look={look}
+            />
+          }
+          look={look}
+          disabled={!preferences.assistantMarkdown}
+        />
+        <SettingRow
           title={t.markdownStyleTitle}
           description={t.markdownStyleDescription}
           control={
@@ -1233,7 +1263,7 @@ const styles = {
       fontSize: TYPE.button.size,
       fontVariant: ["tabular-nums"],
     },
-    swatches: { flexDirection: "row", alignItems: "center", gap: space.md },
+    swatches: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.md },
     hostChip: {
       height: SWATCH + 6,
       paddingHorizontal: space.sm,
@@ -1252,7 +1282,7 @@ const styles = {
       justifyContent: "center",
     },
     // Centre to centre as far apart as the accent swatches above.
-    ringedSwatches: { flexDirection: "row", alignItems: "center", gap: space.md - (RINGED_SWATCH - SWATCH) },
+    ringedSwatches: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.md - (RINGED_SWATCH - SWATCH) },
     swatchFill: { width: SWATCH, height: SWATCH, borderRadius: SWATCH / 2 },
     secondsField: { flexDirection: "row", alignItems: "center", gap: space.sm },
     secondsInput: { alignSelf: "auto", width: 72, textAlign: "right" },

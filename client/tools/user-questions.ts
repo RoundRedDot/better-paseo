@@ -5,7 +5,7 @@ export interface UserQuestion {
   question: string;
   header?: string;
   multiSelect: boolean;
-  options: { label: string; description?: string }[];
+  options: { label: string; description?: string; preview?: string }[];
   answer?: string;
   selected?: string[];
 }
@@ -69,7 +69,7 @@ export function readUserQuestions(call: ToolCallView): UserQuestionData | undefi
       const option = record(value);
       const label = text(value) ?? text(option?.label);
       if (!label) return undefined;
-      options.push({ label, description: text(option?.description) });
+      options.push({ label, description: text(option?.description), ...(text(option?.preview) ? { preview: text(option?.preview) } : {}) });
     }
     questions.push({ id: text(row.id), question, header: text(row.header),
       multiSelect: row.multiSelect === true || row.multi === true || row.multiple === true || row.allowMultiple === true, options });

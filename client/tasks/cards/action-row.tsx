@@ -30,6 +30,8 @@ type Entry = ActionSize & { id: string; index: number };
 interface ActionSlot {
   index: number;
   folded: ReadonlySet<string>;
+  /** The row lays its buttons out one under another (`ActionRow`'s `stack`). */
+  stacked: boolean;
   register(entry: Entry): () => void;
 }
 const ActionContext = createContext<ActionSlot | null>(null);
@@ -57,8 +59,23 @@ function sameIds(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean
  * Android phone some 200 ms for every card that came into view. Now a row
  * whose buttons fit, the usual case, renders once.
  */
-export function ActionRow(props: { children: ReactNode; gap?: number; style?: StyleProp<ViewStyle>; testID?: string }) {
+export function ActionRow(props: {
+  children: ReactNode;
+  gap?: number;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
+  /**
+   * Lay the buttons out one under another, each as wide as the row and with
+   * its whole label, when they do not fit on one line even with the others
+   * folded to their icons: for answers that only their words tell apart
+   * (`keepsAnswerLabel`), so none is ever cut in the middle of a word.
+   */
+  stack?: boolean;
+}) {
   const [folded, setFolded] = useState<ReadonlySet<string>>(NO_FOLDS);
+  const [stacked, setStacked] = useState(false);
+  const stack = useRef(props.stack === true);
+  stack.current = props.stack === true;
   const gap = props.gap ?? 8;
   const authored = StyleSheet.flatten(props.style);
   const padding = (authored?.paddingLeft ?? authored?.paddingHorizontal ?? authored?.padding ?? 0) as number;
@@ -70,7 +87,11 @@ export function ActionRow(props: { children: ReactNode; gap?: number; style?: St
     if (width === null) return;
     const sorted = [...entries.values()].sort((a, b) => a.index - b.index);
     const modes = actionIconOnly(width, sorted, sizes.current.gap);
-    const next = new Set(sorted.filter((_, index) => modes[index]).map((item) => item.id));
+    const total = sorted.reduce((sum, item, index) => sum + (modes[index] ? item.icon : item.full), 0) + Math.max(0, sorted.length - 1) * sizes.current.gap;
+    // Stacked, every button has the row's width, so none needs to fold.
+    const tight = stack.current && total > width + 0.5;
+    setStacked(tight);
+    const next = tight ? NO_FOLDS : new Set(sorted.filter((_, index) => modes[index]).map((item) => item.id));
     setFolded((current) => (sameIds(current, next) ? current : next.size === 0 ? NO_FOLDS : next));
   }, []);
   const register = useCallback((entry: Entry) => {
@@ -87,12 +108,13 @@ export function ActionRow(props: { children: ReactNode; gap?: number; style?: St
     sizes.current.gap = gap;
     refold();
   }, [gap, refold]);
+  useLayoutEffect(() => { refold(); }, [props.stack, refold]);
   // One value per slot while the fold holds, so a button draws again only when it folds or unfolds.
-  const slots = useMemo(() => new Map<number, ActionSlot>(), [folded, register]);
+  const slots = useMemo(() => new Map<number, ActionSlot>(), [folded, stacked, register]);
   const slot = (index: number) => {
     let value = slots.get(index);
     if (!value) {
-      value = { index, folded, register };
+      value = { index, folded, stacked, register };
       slots.set(index, value);
     }
     return value;
@@ -104,7 +126,7 @@ export function ActionRow(props: { children: ReactNode; gap?: number; style?: St
         sizes.current.width = Math.max(0, event.nativeEvent.layout.width - padding - endPadding);
         refold();
       }}
-      style={[{ flexDirection: "row", width: "100%", minWidth: 0, alignSelf: "stretch", gap }, props.style]}
+      style={[{ flexDirection: "row", width: "100%", minWidth: 0, alignSelf: "stretch", gap }, props.style, stacked ? { flexDirection: "column", alignItems: "stretch" } : null]}
     >
       {actions(props.children).map((child, index) => (
         <ActionContext.Provider key={index} value={slot(index)}>{child}</ActionContext.Provider>
@@ -136,9 +158,14 @@ export function layoutCeil(width: number): number {
 
 /**
  * Measure the untruncated label once per text/typography change, retaining it
- * while icon-only. `keep` marks the row's main answer, folded last.
+ * while icon-only. `keep` marks the row's main answer, folded last. A
+ * `labelOnly` button (a question's written option) has no icon to fold to and
+ * stays visible: the others fold first, then its label can shrink if needed.
+ * A `wrap` button never folds either, nor shrinks on its row: its row stacks
+ * (`ActionRow`'s `stack`) when it does not fit, and there its label wraps
+ * between words.
  */
-export function useActionFit(label: string, typography: string, iconWidth: number, chromeWidth: number, square = false, keep = false) {
+export function useActionFit(label: string, typography: string, iconWidth: number, chromeWidth: number, square = false, keep = false, labelOnly = false, wrap = false) {
   const context = useContext(ActionContext);
   const id = useId();
   const key = `${label}|${typography}`;
@@ -153,9 +180,10 @@ export function useActionFit(label: string, typography: string, iconWidth: numbe
   const register = context?.register;
   const index = context?.index ?? 0;
   useLayoutEffect(() => {
-    if (register && full !== null) return register({ id, index, full, icon: iconWidth, keep });
-  }, [register, id, index, full, iconWidth, keep]);
-  const iconOnly = square || (full !== null && context?.folded.has(id) === true);
+    if (register && full !== null) return register({ id, index, full, icon: labelOnly || wrap ? full : iconWidth, keep });
+  }, [register, id, index, full, iconWidth, keep, labelOnly, wrap]);
+  const iconOnly = square || (!labelOnly && !wrap && full !== null && context?.folded.has(id) === true);
+  const stacked = context?.stacked === true;
   const labelLayout = context ? (event: LayoutChangeEvent) => {
     const width = Math.max(layoutCeil(event.nativeEvent.layout.width), labelWidths.get(cacheKey) ?? 0);
     labelWidths.set(cacheKey, width);
@@ -167,6 +195,7 @@ export function useActionFit(label: string, typography: string, iconWidth: numbe
   } : undefined;
   const style: ViewStyle | undefined = context ? iconOnly
     ? { width: iconWidth, minWidth: iconWidth, flexGrow: 0, flexShrink: 0, paddingHorizontal: 0 }
-    : { minWidth: full ?? iconWidth, flexShrink: 0 } : undefined;
-  return { iconOnly, labelLayout, style, full, labelStyle: context ? { flexShrink: 0 as const } : undefined };
+    : labelOnly || (wrap && stacked) ? { minWidth: 0, flexShrink: 1 } : { minWidth: full ?? iconWidth, flexShrink: 0 } : undefined;
+  // A wrapping label keeps its one-line width on a row, so it is measured whole; stacked, it may wrap.
+  return { iconOnly, labelLayout, style, full, stacked, labelStyle: context ? { flexShrink: labelOnly || (wrap && stacked) ? 1 : 0 } : undefined };
 }

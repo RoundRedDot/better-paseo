@@ -2,7 +2,7 @@ import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
 export const taskIssueSchema = z.object({
-  code: z.enum(["checking", "host_unavailable", "unsupported", "agent_missing", "directory_missing", "directory_not_directory", "directory_inaccessible", "workspace_unavailable", "project_unavailable", "title_settings_invalid", "provider_unavailable", "model_unavailable"]),
+  code: z.enum(["checking", "host_unavailable", "unsupported", "agent_missing", "directory_missing", "directory_not_directory", "directory_inaccessible", "workspace_unavailable", "workspace_archived", "project_unavailable", "title_settings_invalid", "provider_unavailable", "model_unavailable"]),
   detail: z.string().nullable(),
 });
 export type TaskIssue = z.output<typeof taskIssueSchema>;

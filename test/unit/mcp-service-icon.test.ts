@@ -56,6 +56,14 @@ describe("mcpServiceIcon", () => {
     ["mcp__wecom__send_message", "brand:wecom"],
     ["mcp__ms-teams__post", "brand:teams"],
     ["mcp__zapier__run_action", "brand:zapier"],
+    ["mcp__agent-device__open", "Smartphone"],
+    ["mcp__plugin_agent_device_agent_device__snapshot", "Smartphone"],
+    ["mcp__serena__find_symbol", "ScanSearch"],
+    ["mcp__serena__replace_symbol_body", "ScanSearch"],
+    ["mcp__graphiti__search_nodes", "Network"],
+    ["mcp__mcp-graphiti__add_memory", "Network"],
+    ["mcp__pinky__phone_tap", "brand:pinky-face-large"],
+    ["mcp__plugin_pinky_pinky__phone_screenshot", "brand:pinky-face-large"],
     ["mcp__chrome-devtools__take_screenshot", "brand:chrome"],
     ["mcp__claude-in-chrome__navigate", "brand:chrome"],
     ["mcp__plugin_playwright_playwright__browser_click", "brand:playwright"],
@@ -103,7 +111,7 @@ describe("mcpServiceIcon", () => {
 
   it("only draws marks the daemon serves, tinted like the other row icons", () => {
     for (const name of ["linear", "sentry", "figma", "notion", "google-calendar", "gmail", "google-drive", "slack", "feishu", "gitlab", "postgresql", "brave",
-      "puppeteer", "playwright", "perplexity", "aws", "google-maps", "jira", "confluence", "jenkins", "gitee",
+      "puppeteer", "playwright", "pinky-face-large", "perplexity", "aws", "google-maps", "jira", "confluence", "jenkins", "gitee",
       "bitbucket", "circleci", "ansible", "sonarqube", "grafana", "prometheus", "elastic", "postman", "redis", "kafka",
       "trello", "asana", "dingtalk", "wecom", "teams", "discord", "telegram", "zapier", "airtable", "cypress", "storybook", "chrome", "vite", "nextjs", "nuxt",
       "react-native", "angular", "astro", "svelte", "vue", "tailwind", "firebase", "stripe", "django", "laravel", "youtube", "eslint",

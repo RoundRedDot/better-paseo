@@ -31,6 +31,7 @@ export const CARD_FIELDS = [
   "pullRequest",
   "timer",
   "context",
+  "plan",
   "subtasks",
 ] as const;
 export type CardField = (typeof CARD_FIELDS)[number];
@@ -86,6 +87,7 @@ export const CARD_PRESETS: Readonly<Record<DensityPreset, CardFieldPreset>> = {
       pullRequest: false,
       timer: true,
       context: false,
+      plan: false,
       subtasks: false,
     },
     labelLimit: "2",
@@ -106,6 +108,7 @@ export const CARD_PRESETS: Readonly<Record<DensityPreset, CardFieldPreset>> = {
       pullRequest: false,
       timer: true,
       context: true,
+      plan: true,
       subtasks: true,
     },
     labelLimit: "2",
@@ -126,6 +129,7 @@ export const CARD_PRESETS: Readonly<Record<DensityPreset, CardFieldPreset>> = {
       pullRequest: true,
       timer: true,
       context: true,
+      plan: true,
       subtasks: true,
     },
     labelLimit: "all",
@@ -158,7 +162,7 @@ export const tasksSettingsSchema = z.object({
   mobile: z.object({ compactCards: flag(false) }).catch({ compactCards: false }),
   board: z
     .object({
-      doneWindow: z.enum(DONE_WINDOWS).catch("24h"),
+      doneWindow: z.enum(DONE_WINDOWS).catch("7d"),
       hideSubtasks: flag(false),
       laneWidth: z.enum(LANE_WIDTHS).catch("default"),
       /**
@@ -169,13 +173,13 @@ export const tasksSettingsSchema = z.object({
       showArchived: flag(true),
       /**
        * The filter menus, the filter sheet and the sidebar's groups list
-       * every agent, project, workspace and label Paseo has, a count of 0
+       * every agent, label, project and workspace Paseo has, a count of 0
        * where the board has none. Done and archived cards count. Off, they
        * list only those with a card (or picked). On by default.
        */
       showEmptyGroups: flag(true),
     })
-    .catch({ doneWindow: "24h", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true }),
+    .catch({ doneWindow: "7d", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true }),
   sidebar: z.object({ count: z.enum(SIDEBAR_COUNTS).catch("all") }).catch({ count: "all" }),
 });
 
@@ -186,8 +190,14 @@ export const DEFAULT_TASKS_SETTINGS: TasksSettings = tasksSettingsSchema.parse({
 export const TASKS_SETTINGS = defineSettings({
   id: "tasks",
   scope: "host",
-  version: 1,
+  version: 2,
   schema: tasksSettingsSchema,
+  migrate(values, fromVersion) {
+    if (fromVersion >= 2 || !values || typeof values !== "object" || Array.isArray(values)) return values;
+    const record = values as Record<string, unknown>;
+    const card = record.card && typeof record.card === "object" && !Array.isArray(record.card) ? record.card as Record<string, unknown> : {};
+    return { ...record, card: { ...card, plan: card.plan ?? record.density !== "minimal" } };
+  },
 });
 
 /** The settings with every card switch and the label limit set from a preset. */

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, View, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { mix } from "../../components/theme-tokens";
 import { ProgressRing } from "../../ui/progress-ring";
 import type { TasksLanguage } from "../i18n";
 import type { StatusKind } from "../model";
-import { TaskText as Text, HOST_FONT as F, HOST_LINE, taskControlHeight, useTasksFontScale } from "../typography";
+import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, taskControlHeight, useTasksFontScale } from "../typography";
 import {
   formatExact,
   formatShare,
@@ -25,11 +26,13 @@ import type { TaskTokens } from "./tokens";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { tipProps } from "./card-hints";
+import { tipChrome } from "./panel";
 import { webTransition } from "./action-style";
-import { scaleStyle, surfaceLift } from "./surface-lift";
+import { liftStyle, scaleStyle, surfaceLift } from "./surface-lift";
+import { usePressCue } from "./action-pressable";
 
 /**
- * The details card's charts (`docs/prototypes/task-details-rich.md`, board 6),
+ * The details card's charts (`https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/task-details-rich.md`, board 6),
  * every one drawn with Views: the plugin sandbox has no SVG. Tooltips show on
  * hover with a pointer and on a tap with touch, where a tap elsewhere or 3 s
  * hides them.
@@ -46,9 +49,6 @@ export interface DetailColors {
   tokens: Record<TokenPart, string>;
   errorFill: string;
   errorBorder: string;
-  tipFill: string;
-  tipText: string;
-  tipMuted: string;
 }
 
 const colorCache = new WeakMap<TaskTokens, DetailColors>();
@@ -67,9 +67,6 @@ export function detailColors(tokens: TaskTokens): DetailColors {
       tokens: { cached: mix(card, tokens.accent, 0.32), input: tokens.accent, output: mix(card, fg, 0.45) },
       errorFill: mix(card, tokens.danger, 0.06),
       errorBorder: mix(card, tokens.danger, 0.28),
-      tipFill: fg,
-      tipText: card,
-      tipMuted: mix(fg, card, 0.65),
     };
     colorCache.set(tokens, colors);
   }
@@ -110,21 +107,27 @@ function useTip<K extends string>(touch: boolean) {
   return { tip, bind };
 }
 
-/** A dark tooltip: a title and a muted line, above its anchor. */
-function Tip(props: { colors: DetailColors; title: string; sub: string; style: ViewStyle; testID?: string }) {
+/** A chart tooltip in the card tips' chrome: the menu surface, a hairline, radius 8. */
+function Tip(props: { theme: PluginTheme; tokens: TaskTokens; title: string; sub: string; style: ViewStyle; testID?: string }) {
   return (
     <View
       pointerEvents="none"
       testID={props.testID}
       style={[
-        { position: "absolute", zIndex: 5, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 6, backgroundColor: props.colors.tipFill, boxShadow: "0px 4px 12px rgba(0, 0, 0, 0.14)" } as ViewStyle,
+        {
+          position: "absolute",
+          zIndex: 5,
+          paddingHorizontal: 8,
+          paddingVertical: 4,
+          ...tipChrome(props.theme),
+        } as ViewStyle,
         props.style,
       ]}
     >
-      <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, fontWeight: "500", color: props.colors.tipText }}>
+      <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, fontWeight: "500", color: props.tokens.foreground }}>
         {props.title}
       </Text>
-      <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.colors.tipMuted }}>
+      <Text numberOfLines={1} style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: props.tokens.foregroundMuted }}>
         {props.sub}
       </Text>
     </View>
@@ -132,7 +135,7 @@ function Tip(props: { colors: DetailColors; title: string; sub: string; style: V
 }
 
 /** A tooltip at `at` px along a track `width` wide, kept inside it. */
-function TrackTip(props: { colors: DetailColors; title: string; sub: string; at: number; width: number; bottom: number; testID?: string }) {
+function TrackTip(props: { theme: PluginTheme; tokens: TaskTokens; title: string; sub: string; at: number; width: number; bottom: number; testID?: string }) {
   const [tipWidth, setTipWidth] = useState(0);
   const left = Math.max(0, Math.min(props.at - tipWidth / 2, props.width - tipWidth));
   return (
@@ -141,7 +144,7 @@ function TrackTip(props: { colors: DetailColors; title: string; sub: string; at:
       onLayout={(event: LayoutChangeEvent) => setTipWidth(event.nativeEvent.layout.width)}
       style={{ position: "absolute", zIndex: 5, bottom: props.bottom, left, opacity: tipWidth > 0 ? 1 : 0 }}
     >
-      <Tip colors={props.colors} title={props.title} sub={props.sub} style={{ position: "relative" }} testID={props.testID} />
+      <Tip theme={props.theme} tokens={props.tokens} title={props.title} sub={props.sub} style={{ position: "relative" }} testID={props.testID} />
     </View>
   );
 }
@@ -167,6 +170,10 @@ function ChartHead(props: { icon: string; label: string; font: number; tokens: T
 
 const dashed = (tokens: TaskTokens, height: number): ViewStyle => ({ height, borderRadius: height / 2, borderWidth: 1, borderStyle: "dashed", borderColor: tokens.border });
 
+function monoFigures(text: string) {
+  return text.split(/(\d+(?:\.\d+)?[a-z%]*)/gi).map((part, index) => index % 2 ? <Text key={index} style={{ fontFamily: TASK_MONO }}>{part}</Text> : part);
+}
+
 // ---- The running turn ------------------------------------------------------
 
 /**
@@ -175,7 +182,7 @@ const dashed = (tokens: TaskTokens, height: number): ViewStyle => ({ height, bor
  * and context, and the ring shrinks to the context's label icon.
  */
 /** `timerOnly`: a provider subagent's run, which has no turns or context of its own to report. */
-export function TurnHero(props: { timer: string; lastTurn: string | null; total: { value: string; sub: string } | null; context: ContextView | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage; timerOnly?: boolean }) {
+export function TurnHero(props: { timer: string; lastTurn: string | null; total: { value: string; sub: string } | null; context: ContextView | null; tokens: TaskTokens; theme: PluginTheme; touch: boolean; language: TasksLanguage; timerOnly?: boolean }) {
   const { tokens, context } = props;
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
@@ -185,7 +192,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
   const tone = context ? contextColor(context, tokens) : tokens.foregroundMuted;
   const cell: ViewStyle = { flex: 1, minWidth: 0, paddingHorizontal: 12, paddingVertical: 10, gap: 2 };
   const divided: ViewStyle = { borderLeftWidth: 1, borderLeftColor: tokens.border };
-  const big: TextStyle = { fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: tokens.foreground, fontVariant: ["tabular-nums"] };
+  const big: TextStyle = { fontSize: F["2xl"], lineHeight: HOST_LINE["2xl"], fontWeight: "600", color: tokens.foreground, fontFamily: TASK_MONO };
   const sub: TextStyle = { fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] };
   const head = (lead: React.ReactNode, label: string) => (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
@@ -204,7 +211,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
   const figures = context ? (
     <>
       <Text numberOfLines={1} style={[big, context.level === "normal" ? null : { color: tone }]}>{context.percent}</Text>
-      <Text numberOfLines={1} style={sub}>
+      <Text numberOfLines={1} style={[sub, { fontFamily: TASK_MONO }]}>
         {context.text}
       </Text>
     </>
@@ -220,7 +227,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
         </Text>
         {props.timerOnly ? null : (
           <Text numberOfLines={1} style={sub}>
-            {words.lastTurn(props.lastTurn ?? "—")}
+            {monoFigures(words.lastTurn(props.lastTurn ?? "—"))}
           </Text>
         )}
       </View>
@@ -233,7 +240,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
                 {props.total?.value}
               </Text>
               <Text numberOfLines={1} style={sub}>
-                {props.total?.sub}
+                {props.total ? monoFigures(props.total.sub) : null}
               </Text>
             </View>
           ) : null}
@@ -261,7 +268,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
               </>
             )}
             {tip === "context" && context ? (
-              <Tip colors={colors} title={`${words.context} · ${context.percent}`} sub={words.tokensUnit(context.exact)} style={{ bottom: "100%", left: 12, marginBottom: 6 }} testID="detail-context-tip" />
+              <Tip theme={props.theme} tokens={tokens} title={`${words.context} · ${context.percent}`} sub={words.tokensUnit(context.exact)} style={{ bottom: "100%", left: 12, marginBottom: 6 }} testID="detail-context-tip" />
             ) : null}
           </Pressable>
         </>
@@ -273,7 +280,7 @@ export function TurnHero(props: { timer: string; lastTurn: string | null; total:
 // ---- Usage -----------------------------------------------------------------
 
 /** The context bar with notches at 75% and 90%, outside the running turn. */
-export function ContextBar(props: { context: ContextView | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage; font: number }) {
+export function ContextBar(props: { context: ContextView | null; tokens: TaskTokens; theme: PluginTheme; touch: boolean; language: TasksLanguage; font: number }) {
   const { context, tokens } = props;
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
@@ -292,8 +299,8 @@ export function ContextBar(props: { context: ContextView | null; tokens: TaskTok
   return (
     <Pressable {...bind("context")} accessibilityLabel={`${words.context} ${context.percent}`} testID="detail-context-bar" style={{ position: "relative" }}>
       <ChartHead icon="Gauge" label={words.context} font={props.font} tokens={tokens}>
-        <Text style={{ fontSize: props.font, fontWeight: "600", color: context.level === "normal" ? tokens.foreground : tone, fontVariant: ["tabular-nums"] }}>{context.percent}</Text>
-        <Text style={{ fontSize: props.font, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{context.text}</Text>
+        <Text style={{ fontSize: props.font, fontWeight: "600", color: context.level === "normal" ? tokens.foreground : tone, fontFamily: TASK_MONO }}>{context.percent}</Text>
+        <Text style={{ fontSize: props.font, color: tokens.foregroundMuted, fontFamily: TASK_MONO }}>{context.text}</Text>
       </ChartHead>
       <View style={{ height: 6, marginTop: 8, borderRadius: 3, backgroundColor: colors.track, overflow: "hidden" }}>
         <View style={{ width: `${Math.min(context.ratio, 1) * 100}%`, height: 6, borderRadius: 3, backgroundColor: tone }} />
@@ -301,14 +308,14 @@ export function ContextBar(props: { context: ContextView | null; tokens: TaskTok
         <View style={{ position: "absolute", left: "90%", top: 0, bottom: 0, width: 2, backgroundColor: tokens.card.background }} />
       </View>
       {tip === "context" ? (
-        <Tip colors={colors} title={`${words.context} · ${context.percent}`} sub={words.tokensUnit(context.exact)} style={{ bottom: "100%", right: 0, marginBottom: 4 }} testID="detail-context-tip" />
+        <Tip theme={props.theme} tokens={tokens} title={`${words.context} · ${context.percent}`} sub={words.tokensUnit(context.exact)} style={{ bottom: "100%", right: 0, marginBottom: 4 }} testID="detail-context-tip" />
       ) : null}
     </Pressable>
   );
 }
 
 /** Cached input, new input and output as one stacked bar with a legend; a segment's tooltip has its exact count. */
-export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touch: boolean; language: TasksLanguage; font: number }) {
+export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; theme: PluginTheme; touch: boolean; language: TasksLanguage; font: number }) {
   const { mix: tokenMix, tokens } = props;
   const colors = detailColors(tokens);
   const words = cardStrings(props.language).details;
@@ -324,7 +331,7 @@ export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touc
   return (
     <View testID="detail-tokens">
       <ChartHead icon="Layers" label={words.tokenMix} font={props.font} tokens={tokens}>
-        <Text style={{ fontSize: props.font, fontWeight: "600", color: tokenMix ? tokens.foreground : tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>
+        <Text style={{ fontSize: props.font, fontWeight: "600", color: tokenMix ? tokens.foreground : tokens.foregroundMuted, fontFamily: tokenMix ? TASK_MONO : undefined }}>
           {tokenMix ? formatTokens(tokenMix.total) : "—"}
         </Text>
       </ChartHead>
@@ -344,7 +351,8 @@ export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touc
             </View>
             {shown ? (
               <TrackTip
-                colors={colors}
+                theme={props.theme}
+                tokens={tokens}
                 title={`${words.tokenParts[shown.part]} · ${words.tokensUnit(formatExact(shown.tokens))}`}
                 sub={words.tokenShare(formatShare(shown.share), formatExact(tokenMix.total))}
                 at={(mids[shown.part] ?? 0.5) * width}
@@ -359,7 +367,7 @@ export function TokenBar(props: { mix: TokenMix | null; tokens: TaskTokens; touc
               <View key={segment.part} style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
                 <View style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: colors.tokens[segment.part] }} />
                 <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted }}>{words.tokenParts[segment.part]}</Text>
-                <Text style={{ fontSize: F.sm, color: tokens.foreground, fontVariant: ["tabular-nums"] }}>{formatTokens(segment.tokens)}</Text>
+                <Text style={{ fontSize: F.sm, color: tokens.foreground, fontFamily: TASK_MONO }}>{formatTokens(segment.tokens)}</Text>
               </View>
             ))}
           </View>
@@ -483,7 +491,6 @@ export function SummaryTiles(props: { tiles: SummaryReadout[]; tokens: TaskToken
   const colors = detailColors(tokens);
   const [width, onLayout] = useWidth();
   const wide = width >= 480;
-  const wrap = width > 0 && width < 300;
   return (
     <View
       testID="detail-summary"
@@ -491,9 +498,9 @@ export function SummaryTiles(props: { tiles: SummaryReadout[]; tokens: TaskToken
       style={{
         flexDirection: "row",
         alignItems: "baseline",
-        flexWrap: wrap ? "wrap" : "nowrap",
+        flexWrap: "wrap",
         // Wrapped rows space by row only; a wrapped cluster keeps its own line.
-        rowGap: wrap ? 4 : 0,
+        rowGap: 4,
         columnGap: 0,
         justifyContent: wide ? "space-between" : "flex-start",
         borderWidth: 1,
@@ -516,6 +523,7 @@ export function SummaryTiles(props: { tiles: SummaryReadout[]; tokens: TaskToken
             alignItems: "baseline",
             gap: 6,
             flexShrink: 0,
+            maxWidth: "100%",
             marginRight: wide || index === props.tiles.length - 1 ? 0 : 14,
           }}
         >
@@ -525,13 +533,13 @@ export function SummaryTiles(props: { tiles: SummaryReadout[]; tokens: TaskToken
               lineHeight: HOST_LINE.lg,
               fontWeight: tile.value !== null ? "600" : "500",
               color: tile.value !== null ? tokens.foreground : tokens.foregroundMuted,
-              fontVariant: ["tabular-nums"],
+              fontFamily: tile.value !== null ? TASK_MONO : undefined,
             }}
           >
             {tile.value ?? "—"}
           </Text>
-          <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted }}>
-            {wide ? tile.wide : tile.short}
+          <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: tokens.foregroundMuted, flexShrink: 1 }}>
+            {monoFigures(wide ? tile.wide : tile.short)}
           </Text>
           {/* The rule belongs to the cluster it follows, so space-between divides clusters, not rules. */}
           {wide && index < props.tiles.length - 1 ? (
@@ -551,17 +559,21 @@ export function Chip(props: { tokens: TaskTokens; lead?: React.ReactNode; text: 
   // Grows with the text size like the card's other controls, so larger text stays inside the pill.
   const height = taskControlHeight(props.height, useTasksFontScale());
   const { hovered, hoverProps } = useHover();
-  const [pressed, setPressed] = useState(false);
+  const press = usePressCue(hovered);
   const reduced = useReducedMotion();
-  const lift = surfaceLift(hovered, pressed, reduced);
+  const lift = surfaceLift(hovered, press.pressed, reduced, "control", press.input);
   return (
     <Pressable
       testID={props.testID}
       {...hoverProps}
       {...tipProps(props.tip)}
-      onPressIn={() => setPressed(true)}
-      onPressOut={() => setPressed(false)}
-      style={{ height, minWidth: height, maxWidth: "100%", paddingHorizontal: props.compact ? 9 : 8, borderRadius: height / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: props.tokens.card.pillBorder, backgroundColor: props.tokens.card.background, boxShadow: lift.shadow ? props.tokens.card.buttonShadowHover : undefined, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: props.compact ? 6 : 5, ...scaleStyle(lift.scale), ...webTransition }}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      onTouchStart={press.onTouchStart}
+      onTouchMove={press.onTouchMove}
+      onTouchEnd={press.onTouchEnd}
+      onTouchCancel={press.onTouchCancel}
+      style={{ height, minWidth: height, maxWidth: "100%", paddingHorizontal: props.compact ? 9 : 8, borderRadius: height / 2, borderWidth: StyleSheet.hairlineWidth, backgroundColor: props.tokens.card.background, ...liftStyle(props.tokens, lift, { border: props.tokens.card.pillBorder }), flexDirection: "row", alignItems: "center", justifyContent: "center", gap: props.compact ? 6 : 5, ...scaleStyle(lift.scale), ...webTransition }}
     >
       {props.lead}
       <Text numberOfLines={1} style={{ fontSize: props.font, lineHeight: Math.round(props.font * 1.25), flexShrink: 1, color: props.muted ? props.tokens.foregroundMuted : props.tokens.foreground }}>

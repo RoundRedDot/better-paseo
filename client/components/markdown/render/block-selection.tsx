@@ -46,6 +46,11 @@ export function blockSelectionText(blocks: readonly Token[]): string {
       case "paragraph": case "text": case "heading": return inlineText(block.tokens ?? [block]);
       case "blockquote": return blockSelectionText((block as Tokens.Blockquote).tokens);
       case "list": return (block as Tokens.List).items.map((item) => blockSelectionText(item.tokens)).join("\n");
+      case "code": return (block as Tokens.Code).text;
+      case "table": {
+        const table = block as Tokens.Table;
+        return [table.header, ...table.rows].map((row) => row.map((cell) => inlineText(cell.tokens)).join("\t")).join("\n");
+      }
       case "html": return block.raw.replace(/\n+$/, "");
       case "math": return String((block as Tokens.Generic).text ?? "");
       default: return "";

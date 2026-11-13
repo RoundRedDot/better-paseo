@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 // Tool rows sit one step behind the prose at rest and come back to full
-// contrast on hover, press or when opened (docs/prototypes/quiet-tool-rows.md).
+// contrast on hover, press or when opened (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/quiet-tool-rows.md).
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 const paging = vi.hoisted(() => ({ maximized: false, bind: vi.fn(), release: vi.fn() }));

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "./helpers/quiet-renderer";
 import {
   permissionButtons,
+  QUICK_ANSWER_COLUMNS,
   respondToPermission,
   STOP_RPC_TIMEOUT_MS,
   STOP_VERIFY_MS,
@@ -70,6 +71,93 @@ function action(overrides: Partial<TaskPermissionAction> = {}): TaskPermissionAc
 beforeEach(() => { mocks.paseo = {}; });
 
 describe("Tasks permission actions", () => {
+  type Question = NonNullable<TaskPermission["questions"]>[number];
+  // A Codex request_user_input_async request as the daemon hands it over: the
+  // model writes only the title and option strings; id, header and isOther are the daemon's.
+  const choice = (labels: string[], overrides: Partial<Question> = {}): TaskPermission => ({
+    ...permission("question"),
+    questions: [{ id: "0", header: "Question 1", question: "按上述方案执行吗？", multiSelect: false,
+      options: labels.map((label) => ({ label })), ...overrides }],
+  });
+
+  it.each([
+    ["Chinese", ["允许", "拒绝"]],
+    ["reversed", ["拒绝", "允许"]],
+    ["the host's own words", ["按此方案执行", "先不要改"]],
+    ["an ordinary two-way choice", ["从现在持续观察一小时", "回看最近一小时即可"]],
+    ["English", ["Go ahead", "Not yet"]],
+    ["Japanese", ["はい", "いいえ"]],
+    ["mixed script and emoji", ["Ship it 🚀", "再想想"]],
+  ])("answers a %s two-option question with its options as written", async (_name, labels) => {
+    for (const language of ["zh", "en"] as const) {
+      const fake = createFakePaseo({ agents: [makeAgent({ id: "agent-a" })] });
+      const buttons = permissionButtons(choice(labels), language);
+      expect(buttons.map((button) => [button.label, button.kind, button.variant, button.action.behavior])).toEqual(
+        labels.map((label) => [label, "respond", "secondary", "allow"]),
+      );
+      for (const [index, button] of buttons.entries()) {
+        await respondToPermission(fake.paseo, "agent-a", button, `request-${index}`);
+      }
+      expect(fake.permissionResponses).toEqual(labels.map((answer, index) => ({
+        agentId: "agent-a", requestId: `request-${index}`,
+        response: { behavior: "allow", updatedInput: { answers: { "Question 1": answer } } },
+      })));
+    }
+  });
+
+  it("keys the answer by the request's own header", async () => {
+    const fake = createFakePaseo();
+    const [first] = permissionButtons(choice(["Keep", "Drop"], { header: "Migration", id: "migration_choice" }));
+    await respondToPermission(fake.paseo, "agent-a", first!, "request-a");
+    expect(fake.permissionResponses[0]?.response).toEqual({ behavior: "allow", updatedInput: { answers: { Migration: "Keep" } } });
+  });
+
+  it("answers options up to QUICK_ANSWER_COLUMNS wide and leaves a longer one to the agent tab", () => {
+    expect(QUICK_ANSWER_COLUMNS).toBe(24);
+    expect(permissionButtons(choice(["一二三四五六七八九十一二", "Twenty-four columns wide"]))[0]?.kind).toBe("respond");
+    expect(permissionButtons(choice(["一二三四五六七八九十一二三", "No"]))[0]?.kind).toBe("open");
+    expect(permissionButtons(choice(["Yes", "Twenty-five columns wide!"]))[0]?.kind).toBe("open");
+    expect(permissionButtons(choice(["Yes", "🚀".repeat(13)]))[0]?.kind).toBe("open");
+  });
+
+  it.each<[string, Partial<Question>]>([
+    ["multi-select", { multiSelect: true }],
+    ["no header", { header: undefined }],
+    ["one option", { options: [{ label: "允许" }] }],
+    ["three options", { options: [{ label: "A" }, { label: "B" }, { label: "C" }] }],
+    ["no options", { options: [] }],
+    ["duplicate options", { options: [{ label: "允许" }, { label: "允许" }] }],
+    ["option descriptions", { options: [{ label: "Keep", description: "Leaves the schema as it is" }, { label: "Drop" }] }],
+    ["option previews", { options: [{ label: "A", preview: "```ts\nconst a = 1\n```" }, { label: "B" }] }],
+    ["a two-line option", { options: [{ label: "Yes\nnow" }, { label: "No" }] }],
+  ])("leaves a question with %s to the agent tab", (_name, overrides) => {
+    expect(permissionButtons(choice(["Yes", "No"], overrides)).map((button) => button.kind)).toEqual(["open"]);
+  });
+
+  it("leaves several questions to the agent tab", () => {
+    const request = choice(["Yes", "No"]);
+    request.questions = [...request.questions!, { ...request.questions![0]!, id: "1", header: "Question 2" }];
+    expect(permissionButtons(request).map((button) => button.kind)).toEqual(["open"]);
+  });
+
+  it("sends only one answer while it is pending and allows a retry after a failure", async () => {
+    const fake = createFakePaseo();
+    const pending = deferred<void>();
+    const send = vi.fn().mockReturnValueOnce(pending.promise).mockResolvedValue(undefined);
+    vi.spyOn(fake.paseo.agents, "ref").mockReturnValue({ respondToPermission: send } as unknown as ReturnType<typeof fake.paseo.agents.ref>);
+    const buttons = permissionButtons(choice(["Go ahead", "Not yet"]));
+    const first = respondToPermission(fake.paseo, "agent-a", buttons[0]!, "request-a");
+    const failed = expect(first).rejects.toThrow("socket closed");
+    await respondToPermission(fake.paseo, "agent-a", buttons[1]!, "request-a");
+    expect(send).toHaveBeenCalledTimes(1);
+    pending.reject(new Error("socket closed"));
+    await failed;
+    await respondToPermission(fake.paseo, "agent-a", buttons[1]!, "request-a");
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[1]?.[0]).toEqual({ requestId: "request-a",
+      response: { behavior: "allow", updatedInput: { answers: { "Question 1": "Not yet" } } } });
+  });
+
   it.each(["tool", "plan", "mode"] as const)("uses request actions for %s permissions", (kind) => {
     const requested = [
       action(),
@@ -175,8 +263,9 @@ function taskCard(id: string, children: TaskCard["children"] = []): TaskCard {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((accept) => { resolve = accept; });
-  return { promise, resolve };
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((accept, decline) => { resolve = accept; reject = decline; });
+  return { promise, resolve, reject };
 }
 
 describe("Tasks stop control", () => {

@@ -401,7 +401,7 @@ describe("Tasks board prefetch", () => {
       addSettingsScreen: () => () => {},
       addCommandCenterItem: (item: { onSelect(context: unknown): void }) => (commands.push(item), () => {}),
       openSettings: vi.fn(),
-      rpc: () => Promise.resolve({ status: "ready", revision: "1", values: { enabled: true } }),
+      rpc: (contract: { name: string }) => Promise.resolve(contract.name === "tasks.error-dismissals" ? { entries: [] } : { status: "ready", revision: "1", values: { ...DEFAULT_TASKS_SETTINGS, enabled: true } }),
     } as never);
     try {
       await settle();
@@ -425,7 +425,7 @@ describe("Tasks board prefetch", () => {
       addSettingsScreen: () => () => {},
       addCommandCenterItem: (item: { onSelect(context: { openScreen: () => void }): void }) => (commands.push(item), () => {}),
       openSettings: vi.fn(),
-      rpc: () => Promise.resolve({ status: "ready", revision: "1", values: { enabled: true } }),
+      rpc: (contract: { name: string }) => Promise.resolve(contract.name === "tasks.error-dismissals" ? { entries: [] } : { status: "ready", revision: "1", values: { ...DEFAULT_TASKS_SETTINGS, enabled: true } }),
     } as never);
     try {
       await settle();

@@ -30,6 +30,22 @@ constants. Moving a constant from one family to the other is a design change, no
 - Lane titles are base 14/20 on the web and sm 12/18 on native (`laneTitle`). Board monospace is
   `TASK_MONO`: Menlo on iOS, `monospace` on Android, a `ui-monospace` stack on the web.
 
+### Short action tooltips
+
+Simple hover labels use the command-copy hint as their visual reference
+(`client/ui/toolbar-button.tsx`, `tooltipLook`): an opaque `surface0` background,
+`foreground` UI text, the theme's `v2.border` hairline (1px on web), 4pt corners,
+6pt horizontal and 4pt vertical padding, and fixed 12/18 type (`UI_SCALE.base`).
+The shadow is black at `0 2 8`, with 12% opacity in light themes and 36% in dark
+themes. The label is unselectable; it has no arrow or pill shape.
+
+This is the design constraint for short action labels, including host-rendered
+diagram and source toolbar hints. New simple hints reuse this look rather than
+introducing another bubble style. Rich hover panels keep their own content layout.
+Hover and keyboard focus retain the localized action label, disabled-state semantics,
+and existing button visibility. Placement must keep the hint readable above code,
+outside scrolling clips and within the viewport.
+
 ### Space, radius and lines
 
 - Chat, details and settings space on `space` (4, 8, 12, 16; 24 only between settings sections)
@@ -70,7 +86,8 @@ Cards, the sidebar's capsules, and the board's buttons share one treatment (`sur
 - On desktop web, a fine pointer (`(hover: hover) and (pointer: fine)`) deepens the shadow while hovered. Nothing scales.
 - On a phone, a touch browser, and an iPad (the app, trackpad included), the deeper shadow and a scale of 1.03 happen only while pressed. Hover, including an iPad pointer, does not.
 - Reduced motion skips the scale and keeps the shadow. Action buttons animate the scale over 100 ms; the other controls snap.
-- A selected, open, current, expanded, or on fill stays where the control has one. The tablet toolbar's Subtasks switch has no selected fill. The stop chevron keeps its danger wash while its menu is open. An expanded pill keeps its 6% wash. Chat rows, menu rows, detail property rows, subtask rows, and the lane panel are outside this treatment.
+- Phone and tablet toolbar buttons show the press shadow and 1.03 scale after a finger stays still for 100 ms; a quick tap shows the cue briefly after release. A scroll or pan cancels it. Reduced motion keeps the shadow without the scale.
+- A selected, open, current, expanded, or on fill stays where the control has one. The stop chevron keeps its danger wash while its menu is open. An expanded pill keeps its 6% wash. Chat rows, menu rows, detail property rows, subtask rows, and the lane panel are outside this treatment.
 - Menu chrome (`menuChrome`): `surface0`, hairline border, hover foreground 5.5% (8% dark),
   shadow `0 4 24` and `0 1 3` at 8% and 4% (45% and 30% dark). `panelChrome` reuses it.
 - Chat rows have no surface at rest: `surface1` hovered, `surface2` pressed or held. The chat's
@@ -134,12 +151,33 @@ rule: put its movement behind `motionDuration` and keep at most a short fade.
 - The board picks its touch sizes by platform: any native client is touch (`TOUCH`,
   `Platform.OS !== "web"`), so an iPad draws desktop lanes with touch targets. The phone layout
   (`compact`) is a separate switch.
-- Targets: chat rows reach 44 through hit slop; board toolbar buttons are 28 on the web and 36 on
-  native; detail rows, headings and buttons 32, 44 on touch; round icons 28, 36; chips 22, 28;
-  sidebar group rows 36, 44; card buttons 28, at least 32 on a phone; copy buttons 24 with a 32
+- Targets: chat rows reach 44 through hit slop; desktop board toolbar buttons are 28 on the web
+  and 36 on native; tablet toolbar buttons and detail header menu/close buttons are 32 on touch,
+  with 28 targets for the detail header on desktop. Detail rows, headings and buttons are 32,
+  44 on touch; chips 22, 28;
+  sidebar group rows 36, 44; card buttons 26 on desktop web, 28 on native tablets, at least 32 on a phone; copy buttons 24 with a 32
   hit area. A long press is 450 ms on a card and 500 ms on a chat row.
 
 ## Icons
+
+### Icon and label consistency
+
+These rules apply to the named controls across desktop, tablet and phone, web and native, in light and dark themes. Other surfaces remain subject to their existing rules until audited. Touch targets and icon sizes may vary by platform. All values are logical points at the default text size; fixed gaps do not scale with larger text.
+
+| Scope | Icon-to-label gap | State |
+| --- | --- | --- |
+| Three message section headings | 4 pt from the 14 pt `Icon` layout box to the text layout box | No icon backing; all three icons use `foregroundMuted`, including the last reply. The heading stays `foreground`, weight 600; keep the existing icon shapes. |
+| Named card and detail action buttons, filter menu buttons, filter chips and the phone sort pill | 4 pt between the leading icon box and label | Keep each action's semantic colours and each chip's existing accent border, fill, text and brand marks. Tail arrows and hints retain their separate layout and require individual review. |
+| Named phone card-menu, sort and filter-switch rows | 8 pt between leading icon box and label | Menu leading icons use `foregroundMuted`, danger actions keep danger, checked choices keep the `accent` check. Switch state stays on its track. |
+| Named persistent Subtasks and Archived icon-only switches on desktop, tablet and phone, web and native | No label gap | Use `foreground` in both states, with no state-dependent control fill. Distinguish states by the icon shape or archive slash; keep the badge and accessibility semantics. |
+
+A message heading positions the 14 pt icon 5 pt inside its wrapper, with 4 pt from the icon box to the text. Keep its existing left alignment and hit area; do not add a gap outside a centered 24 pt wrapper.
+
+For these icon-only switches, the archive slash and hidden-subtask badge appear when off: match the slash cutout and badge ring to the control's actual background (`surface0` on these toolbars). Keep the shared `CornerBadge` default unchanged; a caller supplies its own ring colour when needed. Search, sidebar, filter/menu expansion, chips, lane-status icons, copy-success feedback, errors, warnings, brand marks and primary actions keep their own semantics and are not covered by this switch state. The message headings are not toggles and never gain a selection background or green reply icon. Distinguish hover, press, focus, selection, expansion and disabled states.
+
+Audit the remaining chat, settings and detail controls separately rather than treating them as automatic changes. Reconcile each implemented control's description here in the same change. Measure the actual icon box and wrappers; update fitting calculations with visual gaps. Check `en` and `zh`, large system text, dark and light themes, and desktop, tablet and phone. Mockups are not native-client verification.
+
+### Timeline icon family
 
 Every icon in the timeline is one line family: the host's Lucide set, drawn at the host's stroke.
 A tool row, a preview header, a hub or agent card all draw from it. Where a call belongs to a
@@ -326,7 +364,8 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
   trailing line holds Copy, the rewind menu, the time and the usage.
 - **Notice**: a row. Info is a muted `Info`, warning `TriangleAlert`, error `CircleX`, fatal
   `OctagonX` at weight 500; error and fatal add a 2 pt left rule. Long or technical text opens in
-  a mono block on `surfaceCode`.
+  a mono block on `surfaceCode`. The host's own background-job notice and error item both transform
+  into this row; nothing about a notice is drawn as a tinted card.
 - **Turn footer**: one line 24 high, 8 above and 16 below: Copy, the model with its provider logo,
   the clock, the duration. On a phone it drops the clock, then the model, rather than wrap.
 - Rows take back 12 of the host's 16 between timeline items (`ROW_GAP_COMPENSATION`).
@@ -346,6 +385,10 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
 - Code blocks: `surfaceCode`, radius 6, no border. A 30 header (32 native) carries the language,
   Wrap and Copy (24 buttons; Copy shows a check for 1.2 s). Blocks start wrapped and fold after 12
   lines; the document variant numbers blocks of 4 or more lines.
+- Timeline block header actions whose icons already distinguish two states, including Wrap, use
+  the same resting background in both states, without a persistent selected fill. Keep normal
+  hover, press and keyboard focus feedback and the control's accessibility state. Copy retains
+  its temporary success icon.
 - Tables: a 1 pt frame, radius 6; the header row on `surface2` with muted weight-500 text;
   all-numeric columns right-aligned; sideways scroll with the indicator shown only while
   scrolling. The copy control is a 30 square at the top left (radius 12); on the web it opens to
@@ -447,7 +490,7 @@ control row is rounded at 6. An icon in a pill or row is the size of the Lucide 
 | Phone filter sheet chip | `filter-sheet.tsx` | 32 | 4 | none; `accentSoft` when on | 14 | `base` |
 | Menu row | `menu.tsx`, `MENU` | 32 | 6 | none; `chrome.hover` hovered | 16 | `base` |
 | Sidebar group row | `details-sidebar.tsx` | 36 (44 touch) | 6 | none; `surface2` when on | 16 in a 20 slot | `base`, count `sm` |
-| Card button | `CardButton` in `action-buttons.tsx` | 28 (at least 32 phone) | 6 (7 phone) | none; shadow per [Lift](#lift) | 13 (14 phone) | `sm`, weight 500 |
+| Card button | `CardButton` in `action-buttons.tsx` | 26 desktop web, 28 native tablet (at least 32 phone) | 6 (7 phone) | none; shadow per [Lift](#lift) | 13 (14 phone) | `sm`, weight 500 |
 
 All heights grow with the host's interface text size through `taskControlHeight`.
 
@@ -535,6 +578,22 @@ Unarchive, Open tab. None is ever filled with its hue.
 take them from it, and `requestLook(button)` picks a permission button's look in every place.
 A new action button takes a look from the table rather than its own colours.
 
+Center the visible label and icon together inside a centered action button, not just their layout
+boxes: account for empty space inside the icon, especially a trailing arrow. Preserve the intended
+icon-to-label gap, button size and hit area; icon-only controls stay centered in their full box.
+Check the result in each affected surface, language and icon-only state, including native layout.
+
+### Dialog footers
+
+A dialog footer's action is not a card action. It takes the rename dialog's shape
+(`client/tasks/cards/rename-dialog.tsx`): 44 high with radius 22 and the theme hairline on
+touch, 32 high with radius 12 filled `surface2` and no border on the web. Do not reuse the
+card's outline look (`CardButton`) or hand-draw a pill: a dialog is not a card, and a footer
+action that matches neither the card row nor the dialog reads as a different product. The
+hidden task dialog's "Clear filters" is the first of these; its label is `status.warning`,
+because the action changes which tasks the board shows. Keep one footer action per dialog
+unless the dialog also has a primary; then the primary takes the accent.
+
 ### Same buttons on the card and in its details
 
 The details sidebar's header and the phone sheet's bar offer the card's buttons, with its labels
@@ -569,7 +628,7 @@ Default. Wide stays at 300 pt when the board is below 632 pt; wider boards retai
 existing preset ranges.
 
 An icon-only button keeps its outline, colour, height, action and full accessibility label.
-Its width is its base target height (28/32 pt on cards, 48 pt in the sheet bar); its height
+Its width is its base target height (26 desktop web, 28 native tablet, 32 phone on cards; 48 pt in the sheet bar); its height
 still grows with large type. A split Stop button additionally reserves its menu segment.
 Keep confirmation (`OctagonAlert`), working spinner and disabled semantics in icon-only mode.
 A spinner replaces the action icon, so a folded working button never draws a second arrow.
@@ -840,6 +899,34 @@ apply to all three.
   a phone they fill a row at the card's bottom with Open tab last. A desktop permission card puts
   its answer buttons and footer on one row.
 
+### Request section
+
+A card that waits on a request names the request, then gives its answers.
+
+- The request's text starts at the card's edge, at most 2 lines: its kind in weight 600, a muted
+  ` · `, then its summary, in the card's block text. A tool shows its command or file; a plan
+  shows its title.
+- A plan's title is the first line of its Markdown, without a heading's `#`, a list marker or
+  emphasis (`planTitle` in `client/tasks/data/index.ts`). Claude's ExitPlanMode and Codex's plan
+  approval both carry the plan in `input.plan`, with `metadata.planText` as the fallback. Never show
+  the request's fixed description ("Review the proposed plan…") in place of the plan's title.
+- "View plan" (`查看计划`) ends the title's row: `FileText` 13 and the `sm` label in weight 500,
+  muted, `foreground` on hover, with no outline and no fill. It is a link to read the plan, not an
+  answer, so it never joins the answer row or takes an answer's look. It does not shrink; the
+  title gives up width first. Touch layouts widen its target with `hitSlop`, so the row does not
+  get taller.
+- "View plan" opens the whole plan as Markdown in the host's `Modal`, titled "Plan". The plan's
+  own first heading already repeats the title, so the dialog does not. On the card, the dialog
+  mounts outside the card's pressable, and the button stops its press, so neither selects the card.
+  The dialog belongs to the request it opened on: an answered plan or a newer one closes it.
+- The details' request block uses the same row: the request's icon, its kind, then "View plan". A
+  plan's title sits in the summary box as text in weight 500. Commands and files keep the code
+  face.
+- Changes to this row must still pass the Yoga layout case in
+  `test/unit/tasks-card-action-layout.test.ts`: "View plan" keeps its whole label inside the phone
+  card, the desktop card and the details at 240 to 387 pt and text scale 1 to 1.8, in Chinese and
+  English.
+
 ### Lanes
 
 - Widths follow the lane width presets in [tasks-board.md](tasks-board.md) (`LANE_SIZES`), with 8 between lanes and 12 at
@@ -861,14 +948,33 @@ apply to all three.
 
 | Toolbar | Height | Targets | Contents |
 | --- | --- | --- | --- |
-| Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 400 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
-| Tablet (`TabletToolbar`) | 48 | 40 | see [tasks-board.md](tasks-board.md); buttons radius 7, `surface1` when selected or expanded, except the Subtasks switch |
+| Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 320 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
+| Tablet (`TabletToolbar`) | 40 | 32 | see [tasks-board.md](tasks-board.md); buttons radius 7, no selected fill for two-state icons and `surface1` for expanded menus |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
+- Board toolbar actions and detail header menu/close buttons share `TASK_TOOLBAR_METRICS`
+  (`client/tasks/toolbar-metrics.ts`). Desktop actions use 16 pt icons in 28 pt targets;
+  both grow through `taskControlHeight` with the host interface size. Touch uses fixed 18 pt
+  icons in 32 pt targets, with only targets growing through `taskControlHeight`. Keep adjacent
+  detail header controls in one group with the tablet toolbar's 0 pt extra gap; target padding
+  separates the glyphs. Do not assign larger, independent sizes to the detail header icons.
+- The tablet toolbar's right-hand action group sits 6 pt closer to the board edge. All its
+  buttons keep the same spacing and full touch targets. With a 32 pt target the sidebar's
+  16 pt panel mark ends 14 pt from the board edge; targets grow with larger interface text.
+- Search width is fixed at 320, independent of filter-label measurements, task counts and
+  active filters. At board widths below `960 * max(1, scale)`, desktop and tablet show only
+  the Search button; pressing it opens a separate row below the toolbar with autofocus,
+  the search-mode switch and a Close button. The field shrinks only when that row cannot
+  fit it, never grows beyond 320, and closing it preserves the query. The total and toolbar
+  actions remain visible. Wider boards show the field inline; resizing preserves the query.
+  Desktop `/` opens and focuses compact search; Escape closes its row without clearing it.
+  Phones keep their existing Search button and expandable pill below the header.
 - Wide desktop: the top row ends with Show groups with no tasks, then the sidebar
   switch. The filter bar's right side orders Collapse empty lanes, Subtasks, Archived, Lane
-  width, Time range, then Sort. Agent, Project and Workspace menus also offer the empty-groups
-  switch at their foot; Labels does not. When the filter bar folds into the header, keep
+  width, Time range, then Sort. The filter buttons order Agent, Labels, Project, then Workspace,
+  and the sidebar tabs, filter sheet and card filter menu use that same order. Agent, Project
+  and Workspace menus also offer the empty-groups switch at their foot; Labels does not. When
+  the filter bar folds into the header, keep
   Collapse empty lanes, Archived, Filters and the sidebar switch in that order; the filter
   panel owns the remaining choices. If the header's measured action slot cannot fit, fold its
   view actions into View while keeping Filters separately reachable.
@@ -877,8 +983,8 @@ apply to all three.
   Collapse empty lanes, Subtasks, Archived and Sidebar after its layout choices; empty groups
   belongs only in the filter panel. The menu starts at 220 wide and follows the menu width
   calculation below, with 44 pt rows and in-panel
-  drill-down. Below `560 * max(1, scale)`, Search expands in the header, hides the total and
-  keeps the right actions available. From `1000 * max(1, scale)`, Filters and View show labels
+  drill-down. Search follows the fixed-width and separate-row rules above.
+  From `1000 * max(1, scale)`, Filters and View show labels
   together. If the noncompact action slot cannot fit Filters beside View, View includes Filters.
 - Tablet filter counts and the Subtasks switch's hidden-card count use `CornerBadge`: bottom
   right, `foregroundMuted` fill, `surface0` text and 1 pt ring, at least 12 high, 8/10 weight-600
@@ -886,10 +992,22 @@ apply to all three.
   Running and Review excluded by hiding subtasks under the other current filters; Done and
   Archived do not contribute. This badge appears only while subtasks are hidden, including on
   the phone and desktop switches. The phone/desktop Filters badge retains its accent treatment.
-- The tablet Subtasks switch stays transparent in both states; its icon and hidden-card badge
-  communicate the state. Keep its accessibility selected state and the normal press lift.
+- The numbered filter circle uses one count on the phone More button, the tablet Filters button
+  (or View, when Filters is folded into it) and the desktop sheet's Filters button.
+  `activeFilterCount` adds one for each selected workspace, agent and label, and one when the
+  search is not empty. Switching the time range does not show the circle. The subtask switch,
+  archived lane, empty groups, lane width and sort already show their own state and do not add
+  to it. Zero draws nothing.
+- Across phone, Pad, web and desktop, toolbar action icons that already distinguish two states
+  by their glyph, slash or panel mark never add a persistent selected fill. This includes
+  Subtasks, Archived, the details sidebar, empty-lane folding and search scope. Keep the
+  same resting background in both states, accessibility selected/checked state, hidden-card
+  badges and normal hover/press feedback. Badge rings and slash cutouts match the resting
+  surface. Menu expansion, menu selections and segmented controls retain their own treatment.
 - Round buttons (`RoundButton`) are a 36 circle in a 44 target with a hairline, an accent border
-  when active, and a badge at least 20 high on the accent with a 2 pt `surface0` ring.
+  when active, and a badge at least 20 high on the accent with a 2 pt `surface0` ring. The persistent Subtasks and Archived switches use the icon-only selection treatment above.
+- Desktop toolbar icon buttons with `quietOutline` use radius 7 and a transparent hairline at
+  rest; hovering reveals the theme border and the shared button shadow without a fill.
 - An on/off switch in a toolbar is a round button whose icon tells the state; Archived is struck
   through while the lane is hidden. Segmented controls (`Segments`) are 28 high on the desktop
   (radius 6, inner 4), 32 and fully round on a phone, the chosen cell on `surface2`.
@@ -911,16 +1029,16 @@ apply to all three.
   | --- | --- | --- |
   | More actions | 200 maximum, fitted to content on web | Action labels and shortcuts; fitted rows retain `round(32 * max(1, scale))` after the label |
   | Agent | 240 | Provider mark, name, count and selection check |
+  | Label | 200 | Tag mark, name, count and check |
   | Project | 280 | Project name and folded path, count and check; `PROJECT_PATH_COLUMNS` uses this same base width |
   | Workspace | 260 | Project heading, workspace names, counts and checks |
-  | Label | 200 | Tag mark, name, count and check |
   | Lane width | 180 | Width mark, translated name and check |
   | Sort fields | 220 | Field icon, translated name, active direction and submenu chevron |
   | Sort directions | 190 | Direction icon, translated direction and check |
   | Selected-filter group | 280 | Selected values, optional kind hints, checks and Clear filters |
   | Tablet View and its drill-down pages | 220 | Translated actions and layout choices in one touch panel |
 
-  Keep the existing row gutters (6 pt), horizontal padding (8 pt) and column gaps (8 pt).
+  Keep the existing row gutters (6 pt), horizontal padding (8 pt) and column gaps (8 pt). Phone card-menu, sort and filter-switch rows also use an 8 pt icon-to-label gap.
   Ordinary dropdowns use the full calculated width instead of hugging short labels; long
   labels keep their existing one-line ellipsis and cannot displace counts, checks or
   chevrons. Project and workspace search fields share their panel width. Verify both
@@ -931,8 +1049,18 @@ apply to all three.
   after 150 ms of hover or on a click, aligned to its row's top and overlapping the parent by 4,
   toward the side with room. Arrow keys, Enter and Escape work; a press outside closes it. Danger
   rows take the danger colour; a check is the accent.
+- Menu shortcut hints share `MenuRow` in `client/tasks/board/menu.tsx`, including More actions,
+  card context menus and their submenus. On web, use `TASK_MONO`, `F.sm`, `foregroundMuted`
+  and `letterSpacing: 2` (2 pt) so modifier symbols and keys such as `⌥R` have breathing room.
+  Display letters in uppercase and Enter as `↵`; keep shortcut values and key handling unchanged.
+  Native menus omit shortcut hints.
 - On touch every row is at least 44 and submenus become a drill-down in the same panel, with a
   `›` hint and a Back row (`touchSections`).
+- A host `Modal`'s card sizes to its content only through `Modal.Content`'s own scroll, the
+  default (`scrollable`). `scrollable={false}` tells the host to pin the desktop card at
+  `height: 85%` (`packages/app/src/plugins/react-native/modal.tsx`), so a dialog with one row
+  floats in a mostly empty panel. Keep the host scroll and put an action row after the content:
+  the plugin `Modal` exposes no footer of its own.
 - The card menu opens at the pointer on the web, flipping at the edges. A tablet long press opens
   a popover at the touch point with its submenus flattened and rows at least 44 high. Its width is
   `menuWidth(240, scale, window.width - 16)`, with 8 pt at each screen edge. A phone long press
@@ -948,25 +1076,46 @@ apply to all three.
 
 ### Details
 
+- Clicking or tapping a board card selects it and opens its details whenever the sidebar is
+  hidden, including after the user explicitly hid it or when the same card is selected again.
+  Keep an already-visible sidebar in its current form. A hidden sidebar opens temporarily as a
+  floating panel, or as a bottom sheet in sheet mode, without changing the remembered open
+  preference. The sidebar switch, Escape or a click/tap on the lanes' blank space dismisses the
+  temporary panel; selecting a card opens it again (`DesktopBoard.showCard`, reconciled with
+  `0ceb077a` on 2026-11-06).
+- Space explicitly previews the focused or selected card and also opens a hidden sidebar;
+  pressing Space again on that card clears the preview. Moving keyboard focus alone does not
+  change the details. Open tab remains a separate action.
 - The sidebar (`sidebar-model.ts`) is inline from 1020, floating below 996 down to 784 and a bottom
   sheet below 760; between those pairs it keeps its current form. Inline it is 380 wide (260 to
   520, a double click restores 380). Inline, the slot and surface open over
   240 and close over 180 with an 8 pt slide and opacity change. Cards keep a fixed width during
   the transition; reversing continues from the current progress. Closing disables input and
   hides the subtree from assistive technology immediately, then unmounts after the animation.
-  Reduced motion snaps. Floating it is a radius-16 panel on
-  the lane fill, entering with a 24 slide over 220. The iPad floating panel
+  Reduced motion snaps. On web, floating changes only the sidebar's positioning: keep the
+  desktop surface, insets, shadow and resize handle, without a rounded outer frame or lane-fill
+  background. Its surface aligns vertically with the inline sidebar. The iPad floating panel
   is 340 (320 to 480) with a 24 grab strip.
 - The inline surface uses `surface0`, with a left shadow cast over the lanes:
   `-8px 0px 16px -8px`, black at 20% light / 50% dark. Floating uses the same shadow.
   It sits 12 from the right edge, padded 10 left and 4 right on web so the cards end 16 from the
-  board edge, aligned with the toolbar; native keeps 10 on both sides. Top/bottom padding is 4/12.
-- The web resize target is 8 wide inside the inline surface's left edge, inset 4 at the top and
-  12 at the bottom. A permanent muted 3 × 40 grabber (radius 2, opacity 0.5) centres in it; the
-  1 px line shows after 100 ms of hover and follows the pointer. Drag resizes the lanes and panel;
-  double click restores 380.
+  board edge, aligned with the toolbar; native uses 14 left and 2 right, making both card
+  insets 14 when the outer margin is included. Top/bottom padding is 4/12.
+- Web inline and floating sidebars share `SidebarColumn` and its resize handle, including the
+  temporary floating panel opened by clicking a card while the sidebar is hidden. The resize
+  target is 8 wide inside the surface's left edge, inset 4 at the top and 12 at the bottom.
+  A muted 3 × 40 grabber (radius 2) shows at opacity 0.5 while the surface is hovered or dragged;
+  the 1 px line shows after 100 ms of handle hover and follows the pointer. Drag changes the
+  panel width, keeps lane widths stable and updates the lanes' visible area. Release remembers
+  the width without changing the sidebar's remembered open preference; double click restores
+  380. Keep this handle available after dismissing and reopening the same card's details.
 - The board sheet has a 58% half detent; full height leaves 8 of the lanes showing; radius 16 on
-  top, a 36 × 5 handle.
+  top, a 36 × 5 handle. Its bottom pad is 4. On Android that pad is the window's system bottom
+  inset (navigation or gesture bar) when the inset is larger, read from the safe-area module.
+  iOS, including iPad, stays at 4.
+- On a phone or tablet sheet, on iOS and Android, place the vertical scroll indicator outside the cards.
+  Keep the cards' existing width and alignment; moving the indicator must not narrow the cards or
+  add space between them and the sheet edge. Check the placement while scrolling.
 
 | Metric (`DETAIL_CARD`, `TOUCH_CARD`) | Pointer | Touch |
 | --- | --- | --- |
@@ -974,12 +1123,17 @@ apply to all three.
 | List row | 30 | 44 |
 | Icon | 16 | 18 |
 | Chip | 22 | 28 |
-| Round icon | 28 | 36 |
+| Header menu/close target (`TASK_TOOLBAR_METRICS`) | 28 | 32 |
 
 - A detail card is the card fill with a hairline border, radius 12, the rest shadow, 8 between
-  cards and 12 × 6 inside. The header is padded 12: the status row (icon 14, the status, close),
+  cards and 12 × 6 inside. The header is padded 12: the status row (icon 14, the status, card menu, close),
   the title at base weight 600, chips and labels, and the actions 12 below. Open tab leads on the
   desktop and comes last on touch.
+- A title longer than five lines folds under the same fade and "Show all · N lines" row as the
+  message bodies below it, and opens folded. The fold measures the laid-out title, so a title that
+  fits stays whole and a narrow column folds sooner; the title's line height is the scaled base step.
+- On web, the card menu and close icons use the toolbar's radius-7 quiet outline and hover
+  shadow. Native keeps round icon buttons and follows the touch press treatment.
 - Hero blocks (the running turn, a permission request, an error, the last turn's summary) are
   `sunk` boxes of radius 10 with a 1 pt border; an error box is the danger at 6% with a border at
   28%. Values are 2xl in the turn hero and lg in summary tiles.
@@ -1013,6 +1167,15 @@ board's remembered filters for that host and this device's Subtasks preference, 
 provider subagent cards. Its counts match the filtered lane headers. Search reads already-loaded
 first prompts and follows their updates; the entry does not load timelines just to count.
 Keep counts hidden until their required lists are ready, and honour the configured count mode.
+
+The count opens the hidden task dialog (`board/hidden-count.tsx`), which sizes to its content
+(see [Menus and sheets](#menus-and-sheets)) and ends with "Clear filters". That action has to
+reach a board that is already open, and an open screen keeps the params it was opened with.
+Cleared params encode to `{}`, which the board reads as "no route" and ignores, so `openScreen`
+alone leaves the board untouched. The sidebar remembers the cleared params for the next open and
+bumps `requestBoardClear(hostId)` (`board/params.ts`), which the board subscribes to
+(`subscribeBoardParams`) and applies once with its own `clearedParams`, leaving the Subtasks
+preference alone; the route is opened only when the board is not the current screen.
 
 ### Status marks
 

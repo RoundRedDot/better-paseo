@@ -38,7 +38,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 });
 vi.mock("../../client/components/markdown/markdown-view", () => ({ MarkdownView: () => null }));
 vi.mock("../../client/tasks/data/first-prompt", () => ({ useFirstPrompt: () => null }));
-vi.mock("../../client/tasks/data/last-message", () => ({ useLastMessage: () => null, lastMessageVersion: () => "", useLiveReplyCount: () => 0 }));
+vi.mock("../../client/tasks/data/last-message", () => ({ useLastMessage: () => ({ prompt: { state: "idle" }, load() {} }), lastMessageVersion: () => "", useLiveReplyCount: () => 0 }));
 vi.mock("../../client/tasks/data/last-human-message", () => ({ useLastHumanMessage: () => ({ prompt: { state: "idle" }, load() {} }), lastHumanMessageVersion: () => "" }));
 vi.mock("../../client/tasks/data/session-tokens", () => ({ useSessionTokens: () => null }));
 vi.mock("../../client/tasks/data/subagent-timeline", () => ({ useSubagentTimeline: () => ({ firstPrompt: null, lastMessage: null }) }));
@@ -83,7 +83,7 @@ afterEach(async () => {
 
 async function render(element: React.ReactElement) {
   await act(async () => {
-    renderer = TestRenderer.create(element, { createNodeMock: (node) => ({ props: node.props }) });
+    renderer = TestRenderer.create(element, { createNodeMock: (node) => ({ props: node.props, measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(10, 20, 30, 40) }) });
   });
   return renderer!.root;
 }
@@ -118,6 +118,38 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it("uses the toolbar's quiet rounded outline for both header buttons", async () => {
+    const root = await render(<TaskDetailCards {...details("en", "sample-running", { onMenu() {} })} />);
+    for (const id of ["detail-menu", "detail-close"]) {
+      const button = () => host(root, id);
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderColor: "transparent" });
+      await act(async () => button().props.onHoverIn());
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: taskTokens(THEME).borderStrong, boxShadow: taskTokens(THEME).card.buttonShadowHover });
+      await act(async () => button().props.onHoverOut());
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderColor: "transparent", boxShadow: undefined });
+    }
+  });
+  it("opens the selected card menu at the header button", async () => {
+    const onMenu = vi.fn();
+    const root = await render(<TaskDetailCards {...details("zh", "sample-running", { onMenu })} />);
+    await act(async () => host(root, "detail-menu").props.onPress());
+    expect(onMenu).toHaveBeenCalledWith({ x: 40, y: 60 });
+  });
+  it("clears filters and shows subtasks when clearing a hidden card notice", async () => {
+    const card = previewSampleCards(NOW).find((item) => item.id === "sample-child-1")!;
+    const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: [] }]));
+    const setParams = vi.fn();
+    const board = {
+      language: "en", strings: BOARD_STRINGS.en, params: EMPTY_PARAMS, lanes,
+      tasks: { ready: true }, cardById: () => card, setParams, callbacks: {},
+      stop: { phase: () => "idle" }, read: { available: false }, unarchive: { available: false }, archive: { pending: () => false }, buttonsFor: () => [],
+    } as unknown as BoardController;
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: card.id, tab: "messages", back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={false} stats={false} />);
+    const button = host(root, "detail-notice").find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    await act(async () => button.props.onPress());
+    expect(setParams).toHaveBeenCalledOnce();
+    expect(setParams.mock.calls[0]![0]({ ...EMPTY_PARAMS, query: "test", hideSubtasks: true })).toEqual({ ...EMPTY_PARAMS, hideSubtasks: false });
+  });
   it("restarts the countdown if a hovered undo button is unmounted", async () => {
     vi.useFakeTimers();
     const child = details("en").card.children[0]!;
@@ -176,6 +208,26 @@ describe("sidebar action tips", () => {
     expect(row().findAll((node) => node.props.testID === "task-title-update-shimmer")).toHaveLength(0);
     expect(host(row(), `detail-subtask-title-${child.id}`).findAll((node) => typeof node.type === "string" && node.children.includes("A newly generated title"))).toHaveLength(1);
   });
+  it("streams the selected title under the shimmer until the final title is revealed", async () => {
+    vi.useFakeTimers();
+    let finish!: (value: { state: "done"; title: string }) => void;
+    const titleUpdates = createTitleUpdateControl(({ action }) => action === "start"
+      ? Promise.resolve({ state: "running", text: "Generated title" })
+      : new Promise((resolve) => { finish = resolve; }));
+    const props = details("en", "sample-running", { titleUpdates });
+    const root = await render(<TaskDetailCards {...props} />);
+    await act(async () => { titleUpdates.start(props.card.id); await vi.advanceTimersByTimeAsync(0); });
+    expect(host(root, "task-title-update-shimmer").props.accessibilityState.busy).toBe(true);
+    await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+    const partial = host(host(root, "task-title-update-shimmer"), "task-card-title").children.join("");
+    expect(partial.length).toBeGreaterThan(0);
+    expect(partial.length).toBeLessThan("Generated title".length);
+    await act(async () => { await vi.advanceTimersByTimeAsync(970); finish({ state: "done", title: "Generated title extended" }); });
+    expect(host(root, "task-title-update-shimmer")).toBeTruthy();
+    for (let i = 0; i < 40; i++) await act(async () => { await vi.advanceTimersByTimeAsync(30); });
+    expect(root.findAll((node) => node.props.testID === "task-title-update-shimmer")).toHaveLength(0);
+    expect(host(root, "detail-title").children.join("")).toBe("Generated title extended");
+  });
   it("opens the selected subtask's card menu without navigating", async () => {
     const cards = previewSampleCards(NOW);
     const parent = cards.find((card) => card.id === "sample-running")!;
@@ -189,7 +241,7 @@ describe("sidebar action tips", () => {
       callbacks: { onOpen, onReveal }, stop: { phase: () => "idle" }, read: { available: false, pending: () => false }, unarchive: { available: false }, archive: { pending: () => false },
       buttonsFor: () => [],
     } as unknown as BoardController;
-    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: parent.id, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={onReveal} touch={false} stats={false} />);
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: parent.id, tab: "messages", back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={onReveal} touch={false} stats={false} />);
     await act(async () => contextMenus.get(`detail-subtask-${child.id}`)!({ x: 20, y: 30 }));
     expect(root.findAll((node) => node.props.accessibilityLabel === cardStrings("en").copyTitle).length).toBeGreaterThan(0);
     expect(onReveal).not.toHaveBeenCalled();
@@ -213,7 +265,7 @@ describe("sidebar action tips", () => {
       },
       setParams: vi.fn(), callbacks: {}, cardById: () => undefined,
     } as unknown as BoardController;
-    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={touch} stats={false} />);
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, tab: "messages", back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={touch} stats={false} />);
     const rows = () => root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
     const expectLines = (row: ReactTestInstance, label: string, detail: string) => {
       const texts = row.findAll((node) => (node.type as unknown) === "Text");
@@ -254,7 +306,7 @@ describe("sidebar action tips", () => {
       },
       setParams: vi.fn(), callbacks: {}, cardById: () => undefined,
     } as unknown as BoardController;
-    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={touch} stats={false} />);
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, tab: "messages", back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={touch} stats={false} />);
     const input = () => host(root, "sidebar-groups-search-input");
     const rows = () => root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
     expect(host(root, "sidebar-groups-search").props.style).toMatchObject({ borderRadius: 999, height: touch ? 36 : 28, borderColor: THEME.colors.border });
@@ -374,7 +426,7 @@ describe("sidebar action tips", () => {
       tasks: { lanes, ready: true, workspaces: [], providers: [{ id: "claude", label: "Claude" }], labels: [], requestProjectIcon() {} },
       setParams: vi.fn(), callbacks: {}, cardById: () => undefined,
     } as unknown as BoardController;
-    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={false} />);
+    const root = await render(<DetailsSidebar board={board} theme={THEME} selection={{ id: null, tab: "messages", back: [] }} dispatch={() => {}} onLane={() => {}} onReveal={() => {}} touch={false} />);
     expectActionTips(root);
     for (const id of LANE_ORDER) expect(tip(host(root, `sidebar-stat-${id}`))).toBe(BOARD_STRINGS[language].lanes[id]);
     const tabs = root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "tab");

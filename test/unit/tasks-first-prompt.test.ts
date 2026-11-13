@@ -1,5 +1,10 @@
+import React from "react";
+import TestRenderer, { act, type ReactTestRenderer } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import { createFirstPromptStore, firstPromptMessage } from "../../client/tasks/data/first-prompt";
+import "./helpers/quiet-renderer";
+import { createFirstPromptStore, firstPromptMessage, useFirstPrompt, type FirstPrompt } from "../../client/tasks/data/first-prompt";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 type Page = { error: string | null; entries: { timestamp?: string; item: { type: string; text?: string } }[]; hasNewer?: boolean; endCursor?: { epoch: string; seq: number }; reset?: boolean };
 
@@ -16,6 +21,83 @@ function fakeApi(pages: (Page | Error)[]) {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("first prompt", () => {
+  it("marks a search-owned refresh of an empty prompt as loading", async () => {
+    const held = heldApi();
+    const store = createFirstPromptStore(held.api as never);
+    const first = store.request("search-empty");
+    await held.answer({ error: null, entries: [] });
+    await first;
+    const next = store.request("search-empty", () => true, {});
+    expect(store.read("search-empty")).toEqual({ state: "loading" });
+    await held.answer(prompt("Fresh prompt"));
+    await next;
+    expect(store.read("search-empty")).toMatchObject({ state: "ready", text: "Fresh prompt" });
+  });
+  it.each(["error", "none"] as const)("restores an existing details %s if a search read is interrupted", async (initial) => {
+    let resolve!: (value: Page) => void;
+    let calls = 0;
+    const api = { agents: { ref: () => ({ timeline: { refetch: () => {
+      calls++;
+      if (calls === 1) return Promise.resolve({ error: initial === "error" ? "offline" : null, entries: [] });
+      return new Promise<Page>((done) => { resolve = done; });
+    } } }) } };
+    const store = createFirstPromptStore(api as never);
+    await store.request("shared");
+    const owner = {};
+    let active = true;
+    const request = store.request("shared", () => active, owner);
+    active = false;
+    store.release(owner);
+    resolve({ error: null, entries: [{ item: { type: "user_message", text: "late" } }] });
+    await request;
+    expect(store.read("shared").state).toBe(initial);
+  });
+  it("restores a shared empty result if an interrupted search read throws", async () => {
+    let reject!: (error: Error) => void;
+    let calls = 0;
+    const api = { agents: { ref: () => ({ timeline: { refetch: () => ++calls === 1
+      ? Promise.resolve({ error: null, entries: [] })
+      : new Promise<Page>((_resolve, fail) => { reject = fail; }) } }) } };
+    const store = createFirstPromptStore(api as never);
+    await store.request("shared");
+    let active = true;
+    const request = store.request("shared", () => active, {});
+    active = false;
+    reject(new Error("offline"));
+    await request;
+    expect(store.read("shared")).toEqual({ state: "none" });
+  });
+  it("releases search-owned prompts, preserves retained ones and ignores late responses", async () => {
+    let resolve!: (value: Page) => void;
+    const api = { agents: { ref: () => ({ timeline: { refetch: () => new Promise<Page>((done) => { resolve = done; }) } }) } };
+    const store = createFirstPromptStore(api as never);
+    const owner = {};
+    const late = store.request("late", () => true, owner);
+    store.release(owner);
+    resolve({ error: null, entries: [{ item: { type: "user_message", text: "late" } }] });
+    await late;
+    expect(store.read("late").state).toBe("idle");
+    const kept = store.request("kept", () => true, owner);
+    store.retain("kept");
+    store.release(owner);
+    resolve({ error: null, entries: [{ item: { type: "user_message", text: "shared" } }] });
+    await kept;
+    expect(store.read("kept")).toMatchObject({ state: "ready", text: "shared" });
+  });
+  it("continues an in-flight search read adopted by details after search ends", async () => {
+    let resolve!: (value: Page) => void;
+    const api = { agents: { ref: () => ({ timeline: { refetch: () => new Promise<Page>((done) => { resolve = done; }) } }) } };
+    const store = createFirstPromptStore(api as never);
+    const owner = {};
+    let active = true;
+    const request = store.request("shared", () => active, owner);
+    store.retain("shared");
+    active = false;
+    store.release(owner);
+    resolve({ error: null, entries: [{ item: { type: "user_message", text: "details prompt" } }] });
+    await request;
+    expect(store.read("shared")).toMatchObject({ state: "ready", text: "details prompt" });
+  });
   it("ignores tool data before the first user message", async () => {
     const { api } = fakeApi([{ error: null, entries: [
       { item: { type: "tool_call", text: "tool-only keyword" } },
@@ -123,5 +205,139 @@ describe("first prompt", () => {
     store.request("a");
     expect(refetch).toHaveBeenCalledTimes(3);
     expect(listener).toHaveBeenCalled();
+  });
+});
+
+/** A timeline whose reads wait until the test answers them, in order. */
+function heldApi() {
+  const answers: ((page: Page | Error) => void)[] = [];
+  const refetch = vi.fn(() => new Promise<Page>((resolve, reject) => {
+    answers.push((page) => (page instanceof Error ? reject(page) : resolve(page)));
+  }));
+  const answer = async (page: Page | Error) => {
+    answers.shift()!(page);
+    await flush();
+  };
+  return { refetch, answer, api: { agents: { ref: () => ({ timeline: { refetch } }) } } };
+}
+
+const prompt = (text: string): Page => ({ error: null, entries: [{ item: { type: "user_message", text } }] });
+
+describe("first prompt, what a request shows at once", () => {
+  type Held = ReturnType<typeof heldApi>;
+  const states: [string, (store: ReturnType<typeof createFirstPromptStore>, held: Held) => Promise<unknown>][] = [
+    ["missing", async () => {}],
+    ["loading", async (store) => { void store.request("a"); }],
+    ["ready", async (store, held) => { void store.request("a"); await held.answer(prompt("Ship it")); }],
+    ["none", async (store, held) => { void store.request("a"); await held.answer({ error: null, entries: [] }); }],
+    ["error", async (store, held) => { void store.request("a"); await held.answer({ error: "offline", entries: [] }); }],
+    ["unavailable", async (store, held) => { void store.request("a"); await held.answer(new Error("Agent a references unavailable provider 'x'")); }],
+    ["released by its search", async (store) => { const owner = {}; void store.request("a", () => true, owner); store.release(owner); }],
+  ];
+
+  it.each(states)("%s: the same object read returns after the request, and nothing changes before it", async (_name, reach) => {
+    const held = heldApi();
+    const store = createFirstPromptStore(held.api as never);
+    await reach(store, held);
+    const listener = vi.fn();
+    store.subscribe(listener);
+    const read = store.read("a");
+    const revision = store.version();
+    const calls = held.refetch.mock.calls.length;
+    const shown = store.readRequested("a");
+    expect(store.read("a")).toBe(read);
+    expect(store.version()).toBe(revision);
+    expect(held.refetch).toHaveBeenCalledTimes(calls);
+    expect(listener).not.toHaveBeenCalled();
+    void store.request("a");
+    expect(store.read("a")).toBe(shown);
+  });
+
+  it("shows what is held while an interrupted search read is still finishing", async () => {
+    const held = heldApi();
+    const store = createFirstPromptStore(held.api as never);
+    let active = true;
+    const search = store.request("a", () => active, {});
+    active = false;
+    const seen: { shown: FirstPrompt; after: FirstPrompt }[] = [];
+    store.subscribe(() => {
+      // The interrupted read put the prompt back; its request has not finished yet.
+      const shown = store.readRequested("a");
+      void store.request("a");
+      seen.push({ shown, after: store.read("a") });
+    });
+    held.answer(prompt("late"));
+    await search;
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.shown).toEqual({ state: "idle" });
+    expect(seen[0]!.after).toBe(seen[0]!.shown);
+    expect(held.refetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("useFirstPrompt", () => {
+  function mount(api: unknown, auto: boolean) {
+    const seen: FirstPrompt[] = [];
+    let load = () => {};
+    function Probe() {
+      const read = useFirstPrompt(api as never, "a", auto);
+      seen.push(read.prompt);
+      load = read.load;
+      return null;
+    }
+    let renderer!: ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(React.createElement(Probe)); });
+    return { seen, load: () => load(), renderer };
+  }
+
+  it("waits for load() when not auto", async () => {
+    const held = heldApi();
+    const { seen, load, renderer } = mount(held.api, false);
+    expect(seen.map((read) => read.state)).toEqual(["idle"]);
+    expect(held.refetch).not.toHaveBeenCalled();
+    act(() => { load(); });
+    expect(seen.at(-1)!.state).toBe("loading");
+    await act(async () => held.answer(prompt("Ship it")));
+    expect(seen.at(-1)).toMatchObject({ state: "ready", text: "Ship it" });
+    act(() => renderer.unmount());
+  });
+
+  it("draws a fresh auto read loading from its first render, then its result", async () => {
+    const held = heldApi();
+    const { seen, renderer } = mount(held.api, true);
+    expect(seen.map((read) => read.state)).toEqual(["loading"]);
+    expect(held.refetch).toHaveBeenCalledTimes(1);
+    await act(async () => held.answer(prompt("Ship it")));
+    expect(seen.map((read) => read.state)).toEqual(["loading", "ready"]);
+    act(() => renderer.unmount());
+  });
+
+  it("shows a found prompt without reading again", async () => {
+    const held = heldApi();
+    const first = mount(held.api, true);
+    await act(async () => held.answer(prompt("Ship it")));
+    act(() => first.renderer.unmount());
+    const { seen, renderer } = mount(held.api, true);
+    expect(seen.map((read) => read.state)).toEqual(["ready"]);
+    expect(held.refetch).toHaveBeenCalledTimes(1);
+    act(() => renderer.unmount());
+  });
+
+  it.each([
+    ["none", { error: null, entries: [] } as Page],
+    ["error", { error: "offline", entries: [] } as Page],
+  ])("asks again after %s on the next open, and keeps a repeated miss on screen", async (state, miss) => {
+    const held = heldApi();
+    const first = mount(held.api, true);
+    await act(async () => held.answer(miss));
+    expect(first.seen.at(-1)!.state).toBe(state);
+    act(() => first.renderer.unmount());
+    const { seen, renderer } = mount(held.api, true);
+    expect(seen.map((read) => read.state)).toEqual([state === "none" ? "none" : "loading"]);
+    expect(held.refetch).toHaveBeenCalledTimes(2);
+    // The answer replaces the loading state: the request already ran, so nothing projects it any more.
+    await act(async () => held.answer(miss));
+    expect(seen.at(-1)!.state).toBe(state);
+    act(() => renderer.unmount());
   });
 });

@@ -13,7 +13,7 @@ import { TYPE } from "./tokens/typography";
 import { useHover } from "./use-hover";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { useEnhancerPreferences } from "../preferences";
-import { TooltipAlignContext, TooltipSideContext } from "./toolbar-button";
+import { ToolbarHoverColorContext, TooltipAlignContext, TooltipSideContext } from "./toolbar-button";
 import { HoverPreview, HoverPreviewContext, RowLongPressContext, useHoverPreview } from "./hover-preview";
 import { useScrollAnchor, type ScrollAnchor } from "./scroll-anchor";
 import { useContainerButton } from "./container-button";
@@ -57,7 +57,7 @@ export const DISCLOSURE_HEADER = {
 } as const;
 
 /**
- * How loud a row is (docs/prototypes/quiet-tool-rows.md). `quiet` is a call
+ * How loud a row is (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/quiet-tool-rows.md). `quiet` is a call
  * that has finished: it sits one step behind the prose. `active` is one still
  * running, its target halfway back to `foreground`. `loud` is a row that waits
  * for the reader (an open question) and is never dimmed.
@@ -569,10 +569,12 @@ export function DisclosureHeader({
                 ) : null}
                 {hoverActions || (hoverSlot && countedTarget) ? (
                   <View style={styles.targetBox}>
-                    {countedTarget ?? <View style={styles.fill} />}
+                    <View style={styles.targetContent}>{countedTarget}</View>
                     {hoverActions ? (
-                      <View style={[styles.overlay, { backgroundColor: inert ? tokens.v2.surface0 : tokens.v2.surface1 }]}>
-                        <RowTooltips>{actions}</RowTooltips>
+                      <View style={styles.overlay}>
+                        <ToolbarHoverColorContext.Provider value={tokens.surface2}>
+                          <RowTooltips>{actions}</RowTooltips>
+                        </ToolbarHoverColorContext.Provider>
                       </View>
                     ) : null}
                   </View>
@@ -664,14 +666,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "stretch",
   },
-  fill: {
+  targetContent: {
     flex: 1,
+    minWidth: 0,
   },
   overlay: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    right: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: ACTION_GAP,

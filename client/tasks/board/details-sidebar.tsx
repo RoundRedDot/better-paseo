@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
@@ -6,16 +6,19 @@ import { tipProps } from "../cards/card-hints";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { scaleStyle, surfaceLift } from "../cards/surface-lift";
-import { BrandMark, DETAIL_CARD, DetailCard, detailGutter, detailScrollProps, ProjectIcon, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
+import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { usePressCue } from "../cards/action-pressable";
+import { BrandMark, DETAIL_CARD, DetailActionBar, DetailCard, detailGutter, detailScrollProps, outsideIndicator, ProjectIcon, requestInSection, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { activeStopChildren } from "../actions/stop-targets";
+import { SheetFoot, SheetScrollRoom } from "../sheet-motion";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastHumanMessageVersion, useLastHumanMessage } from "../data/last-human-message";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
+import { detailsShowNote, useQuestionContext } from "../data/question-context";
 import { useSessionTokens } from "../data/session-tokens";
 import { useSubagentTimeline } from "../data/subagent-timeline";
-import { FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption } from "./filter-options";
+import { FILTER_GROUP_ORDER, FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption, type ShownFilterOptions } from "./filter-options";
 import { RollingCount, RollingTotal } from "./board-parts";
 import { useRequestProjectIcons } from "./project-icons";
 import { toggleItem } from "./params";
@@ -27,8 +30,8 @@ import { cardStrings } from "../cards/strings";
 import { parentOpensInPaseo } from "../model";
 import { useTitleUpdateState } from "../actions/title-update";
 
-type GroupKind = "agent" | "project" | "workspace" | "label";
-const GROUP_KINDS: readonly GroupKind[] = ["agent", "project", "workspace", "label"];
+type GroupKind = (typeof FILTER_GROUP_ORDER)[number];
+const GROUP_KINDS: readonly GroupKind[] = FILTER_GROUP_ORDER;
 
 export interface DetailsSidebarProps {
   board: BoardController;
@@ -46,6 +49,8 @@ export interface DetailsSidebarProps {
   /** Scroll the whole column as one whatever its height (a bottom sheet: its handle, not the header, is what stays). */
   scrollAll?: boolean;
   tabs?: boolean;
+  sheetToggle?: { full: boolean; label: string; onPress(): void };
+  onSheetClose?(): void;
   testID?: string;
 }
 
@@ -57,97 +62,220 @@ export interface DetailsSidebarProps {
  */
 export const DetailsSidebar = memo(DetailsSidebarView);
 
+/**
+ * The board fields a card's details draw nothing from: the lanes, beyond
+ * whether the card is in them, the counts and the store's snapshot. Every
+ * running agent's update changes them, and drew the open card again each
+ * time, 25-60 ms on an Android foldable. Any other field is compared, so one
+ * added later draws the details again rather than leaving them stale.
+ */
+const DETAILS_BLIND: ReadonlySet<string> = new Set(["lanes", "hidden", "hiddenSubtasks", "total", "tasks", "searchStatus"]);
+
+/** The board as a card's details read it: equal but for `DETAILS_BLIND` (the caller compares the card itself). */
+export function sameDetailsBoard(last: BoardController, next: BoardController): boolean {
+  if (last === next) return true;
+  if (last.tasks.ready !== next.tasks.ready) return false;
+  const fields = Object.keys(next) as (keyof BoardController)[];
+  return fields.length === Object.keys(last).length && fields.every((key) => DETAILS_BLIND.has(key) || last[key] === next[key]);
+}
+
+/** The action bar's part of a card's details: what it can do now. */
+function detailActions(board: BoardController, card: TaskCard) {
+  const stopAvailable = !!board.callbacks.onStop && (card.stoppable || activeStopChildren(card).length > 0);
+  return {
+    card,
+    language: board.language,
+    strings: board.strings.sidebar,
+    onOpen: board.callbacks.onOpen,
+    stop: stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null,
+    permissionButtons: board.buttonsFor(card),
+    submitQuestions: board.submitQuestions,
+    questionDialog: board.questionDialog,
+    onPermission: (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button),
+    unarchive: board.unarchive.available ? board.unarchive : null,
+    archive: board.archive,
+    markRead: board.read.available ? board.read : null,
+    markUnread: board.unread ?? null,
+  };
+}
+
 function DetailsSidebarView(props: DetailsSidebarProps) {
   const { board, theme, selection, dispatch } = props;
   const tokens = taskTokens(theme);
   // Pixel-by-pixel resizes only change the browser's layout, not this subtree.
   const [layout, setLayout] = useState({ short: false, wide: false });
   const [menu, setMenu] = useState<{ id: string; point: { x: number; y: number } } | null>(null);
+  const openMenu = useCallback((id: string, point: { x: number; y: number }) => setMenu({ id, point }), []);
   const card = selection.id ? board.cardById(selection.id) : undefined;
   useParentTitle(board, card);
   const shown = card && selection.id ? findCard(board.lanes, selection.id) !== null : false;
-  const strings = board.strings.sidebar;
-
-  let notice: DetailNotice | null = null;
-  if (card && !shown) {
-    notice = { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams(clearedParams) } };
-  }
-  const backId = selection.back[selection.back.length - 1];
+  const backId = selection.back[selection.back.length - 1]?.id;
   const backCard = backId ? board.cardById(backId) : undefined;
 
-  const jump = (agentId: string) => {
-    dispatch({ type: "jump", id: agentId });
-    props.onReveal(agentId);
-  };
-  const { firstPrompt, humanMessage, lastMessage, sessionTokens } = useDetailReads(board, card);
-  const stopAvailable = !!board.callbacks.onStop && !!card && (card.stoppable || activeStopChildren(card).length > 0);
-  const detailProps = card
-    ? {
-        card,
-        searchQuery: board.params.query,
-        theme,
-        language: board.language,
-        strings,
-        touch: props.touch,
-        clock: board.clock,
-        onClose: () => dispatch({ type: "clear" }),
-        back: backId ? { title: backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null,
-        notice,
-        onOpen: board.callbacks.onOpen,
-        stop: stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null,
-        permissionButtons: board.buttonsFor(card),
-        onPermission: (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button),
-        onJump: jump,
-        onSubtaskMenu: (id: string, point: { x: number; y: number }) => setMenu({ id, point }),
-        titleUpdates: board.callbacks.titleUpdates,
-        firstPrompt,
-        sessionTokens,
-        humanMessage,
-        lastMessage,
-        unarchive: board.unarchive.available ? board.unarchive : null,
-        archive: board.archive,
-        markRead: board.read.available ? board.read : null,
-      }
-    : null;
+  const showStats = props.stats !== false;
+  // The counts' summary and the groups read the same options: built once here, and only while one of them is shown.
+  const optionsShown = showStats || card === undefined;
+  const showEmpty = board.showEmptyGroups;
+  const options = useMemo(() => (optionsShown ? shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty) : null), [optionsShown, board.tasks, board.params, showEmpty]);
 
   // A short column (an iPad in landscape, a low window) has no room to hold
   // the header still: the fixed part left the sections a strip of 80. There
   // the whole column scrolls as one.
   // A wide sheet lays a card out in two columns that scroll on their own, so the header stays in view.
-  const tabs = props.tabs === true && detailProps !== null;
-  const columns = !tabs && props.scrollAll === true && detailProps !== null && layout.wide;
+  const tabs = props.tabs === true && card !== undefined;
+  const columns = !tabs && props.scrollAll === true && card !== undefined && layout.wide;
   const short = !tabs && !columns && (props.scrollAll === true || layout.short);
   const content = (
     <>
       {menu && board.cardById(menu.id) ? <SidebarCardMenu board={board} card={board.cardById(menu.id)!} theme={theme} point={menu.point} onClose={() => setMenu(null)} /> : null}
-      {props.stats === false ? null : <StatsCard board={board} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} />}
-      {detailProps ? (
-        <TaskDetailCards key={tabs ? card?.id : undefined} {...detailProps} scrollBody={!short && !columns && !tabs} columns={columns} tabs={tabs} scrollHeader={tabs && (props.touch || layout.short || props.scrollAll === true)} />
+      {showStats ? <StatsCard board={board} options={options!} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} /> : null}
+      {card ? (
+        <SidebarDetails
+          board={board}
+          card={card}
+          shown={shown}
+          backId={backId}
+          backCard={backCard}
+          theme={theme}
+          dispatch={dispatch}
+          onReveal={props.onReveal}
+          onMenu={openMenu}
+          touch={props.touch}
+          sheetToggle={props.sheetToggle}
+          onSheetClose={props.onSheetClose}
+          questionActionsInHeader={!tabs && !!props.onSheetClose}
+          actions={!tabs && props.onSheetClose ? false : undefined}
+          scrollBody={!short && !columns && !tabs}
+          columns={columns}
+          tabs={tabs}
+          tab={selection.tab}
+          scrollHeader={tabs && (props.touch || layout.short || props.scrollAll === true)}
+        />
       ) : (
-        <GroupCard board={board} theme={theme} tokens={tokens} touch={props.touch} />
+        <GroupCard board={board} options={options!} theme={theme} tokens={tokens} touch={props.touch} />
       )}
     </>
   );
+  const sheetActions = !tabs && card && props.onSheetClose && !requestInSection(card, board.buttonsFor(card)) ? <SheetFoot><DetailActionBar {...detailActions(board, card)} theme={theme} sidebar onClose={props.onSheetClose} /></SheetFoot> : null;
+  // Whether the column's size can change what it draws. A touch card in tabs
+  // (the tablet's sheet and floating panel) ignores it: there the layout that
+  // follows a card's first frame only drew the whole card again, the same,
+  // for 70 ms on an Android foldable, and the sheet waited for it to slide in.
+  const layoutUsed = card ? (tabs ? !(props.touch || props.scrollAll === true) : true) : props.scrollAll !== true;
+  const usedNow = useRef(layoutUsed);
+  usedNow.current = layoutUsed;
+  // The last size measured while it was not used; taken once it is.
+  const measured = useRef(layout);
+  useLayoutEffect(() => {
+    if (!layoutUsed) return;
+    const next = measured.current;
+    setLayout((was) => was.short === next.short && was.wide === next.wide ? was : next);
+  }, [layoutUsed]);
   const onLayout = (event: { nativeEvent: { layout: { width: number; height: number } } }) => {
     const height = Math.round(event.nativeEvent.layout.height);
     const short = height > 0 && height < SHORT_COLUMN;
     const wide = Math.round(event.nativeEvent.layout.width) >= SHEET_COLUMNS;
-    setLayout((was) => was.short === short && was.wide === wide ? was : { short, wide });
+    measured.current = { short, wide };
+    if (usedNow.current) setLayout((was) => was.short === short && was.wide === wide ? was : { short, wide });
   };
   if (short) {
+    const parked = outsideIndicator(props.scrollAll === true && props.touch === true);
     return (
       <View style={{ flex: 1, minHeight: 0 }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
         {/* Keyed by the card: a jump to the parent or back starts at the top. */}
-        <ScrollView key={selection.id ?? ""} style={{ flex: 1 }} contentContainerStyle={{ gap: DETAIL_CARD.gap }} {...detailScrollProps("column")} testID="details-sidebar-scroll">
-          {content}
-        </ScrollView>
+        <SheetScrollRoom>
+          <ScrollView key={selection.id ?? ""} style={{ flex: 1, marginRight: parked?.marginRight ?? 0 }} contentContainerStyle={{ gap: DETAIL_CARD.gap, paddingRight: parked?.paddingRight ?? 0 }} {...detailScrollProps("column")} testID="details-sidebar-scroll">
+            {content}
+          </ScrollView>
+        </SheetScrollRoom>
+        {sheetActions}
       </View>
     );
   }
   return (
     <View style={{ flex: 1, minHeight: 0, gap: DETAIL_CARD.gap }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
-      {content}
+      {/* A tabbed card gives up the room inside, above its own foot. */}
+      {columns ? <SheetScrollRoom>{content}</SheetScrollRoom> : content}
+      {sheetActions}
     </View>
+  );
+}
+
+interface SidebarDetailsProps {
+  board: BoardController;
+  card: TaskCard;
+  /** In the lanes the filters leave; a hidden card says so. */
+  shown: boolean;
+  backId: string | undefined;
+  backCard: TaskCard | undefined;
+  theme: PluginTheme;
+  dispatch(action: SelectionAction): void;
+  onReveal(agentId: string): void;
+  onMenu(id: string, point: { x: number; y: number }): void;
+  touch: boolean;
+  sheetToggle?: { full: boolean; label: string; onPress(): void };
+  onSheetClose?(): void;
+  questionActionsInHeader?: boolean;
+  actions: false | undefined;
+  scrollBody: boolean;
+  columns: boolean;
+  tabs: boolean;
+  tab: SidebarSelection["tab"];
+  scrollHeader: boolean;
+}
+
+/**
+ * The chosen card's details. The column around them draws again for every
+ * board change (its counts follow the lanes); the details only for their own
+ * card or what they read of the board (`sameDetailsBoard`), in the sheet and
+ * the side panels alike.
+ */
+const SidebarDetails = memo(SidebarDetailsView, (last: SidebarDetailsProps, next: SidebarDetailsProps) => {
+  const keys = Object.keys(next) as (keyof SidebarDetailsProps)[];
+  return keys.length === Object.keys(last).length && keys.every((key) => (key === "board" ? sameDetailsBoard(last.board, next.board) : last[key] === next[key]));
+});
+
+function SidebarDetailsView(props: SidebarDetailsProps) {
+  const { board, card, dispatch } = props;
+  const strings = board.strings.sidebar;
+  const notice: DetailNotice | null = props.shown
+    ? null
+    : { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams((params) => ({ ...clearedParams(params), hideSubtasks: false })) } };
+  const { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext } = useDetailReads(board, card);
+  return (
+    <TaskDetailCards
+      key={props.tabs ? card.id : undefined}
+      {...detailActions(board, card)}
+      searchQuery={board.params.query}
+      theme={props.theme}
+      touch={props.touch}
+      clock={board.clock}
+      onClose={() => dispatch({ type: "clear" })}
+      onMenu={(point) => props.onMenu(card.id, point)}
+      sheetToggle={props.sheetToggle}
+      onSheetClose={props.onSheetClose}
+      questionActionsInHeader={props.questionActionsInHeader}
+      back={props.backId ? { title: props.backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null}
+      notice={notice}
+      onJump={(agentId) => {
+        dispatch({ type: "jump", id: agentId });
+        props.onReveal(agentId);
+      }}
+      onSubtaskMenu={props.onMenu}
+      titleUpdates={board.callbacks.titleUpdates}
+      firstPrompt={firstPrompt}
+      sessionTokens={sessionTokens}
+      humanMessage={humanMessage}
+      lastMessage={lastMessage}
+      questionContext={questionContext}
+      actions={props.actions}
+      scrollBody={props.scrollBody}
+      columns={props.columns}
+      tabs={props.tabs}
+      initialTab={props.tab}
+      onTabChange={(tab) => dispatch({ type: "tab", tab })}
+      scrollHeader={props.scrollHeader}
+    />
   );
 }
 
@@ -167,6 +295,7 @@ function SidebarCardMenu(props: { board: BoardController; card: TaskCard; theme:
     children: canStop && card.stoppable ? children : 0,
     childrenOnly: !card.stoppable,
     read: !canStop && card.readable && callbacks.onRead && !board.read.pending(card.id) ? () => callbacks.onRead?.(card) : undefined,
+    unread: card.lane === "done" && !card.archived && !card.subagent && callbacks.onUnread && !board.unread?.pending(card.id) ? () => callbacks.onUnread?.(card) : undefined,
     unarchive: card.archived === "agent" && callbacks.onUnarchive ? () => callbacks.onUnarchive?.(card.id) : undefined,
     archive: card.lane === "done" && !card.archived && callbacks.onArchive && !board.archive.pending(card.id) ? () => callbacks.onArchive?.(card.id) : undefined,
     filters: callbacks.onFilter && callbacks.filterState ? { state: callbacks.filterState(card), select: (by) => callbacks.onFilter?.(card, by) } : undefined,
@@ -189,9 +318,10 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
   const agent = card && !card.subagent ? card : undefined;
   const shown = agent !== undefined;
   const firstPrompt = useFirstPrompt(board.paseo, agent?.id ?? "", shown);
-  const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? lastHumanMessageVersion(agent) : "", shown);
   const live = board.visible && agent !== undefined && turnRunning(agent) && agent.closed !== true;
   const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", shown, live);
+  const replyEpoch = lastMessage.prompt.state === "ready" ? lastMessage.prompt.position?.epoch : undefined;
+  const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? `${lastHumanMessageVersion(agent)}|${replyEpoch ?? ""}` : "", shown);
   const sessionTokens = useSessionTokens(agent?.id ?? "", agent !== undefined && turnRunning(agent) && agent.closed !== true);
   const subagentReads = useSubagentTimeline(
     {
@@ -202,7 +332,10 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
     },
     subagent !== undefined,
   );
-  return subagent ? { ...subagentReads, humanMessage: null, sessionTokens: null } : { firstPrompt, humanMessage, lastMessage, sessionTokens };
+  const asking = agent?.lane === "needs_input" && agent.permission?.kind === "question" ? agent.permission : null;
+  const questionRead = useQuestionContext(board.paseo, agent?.id ?? "", asking);
+  const questionContext = asking && detailsShowNote(questionRead.context, lastMessage.prompt) ? questionRead : null;
+  return subagent ? { ...subagentReads, humanMessage: null, sessionTokens: null, questionContext: null } : { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext };
 }
 
 /**
@@ -225,8 +358,8 @@ const SHEET_COLUMNS = 640;
 const SHORT_COLUMN = 640;
 
 /** The board's lanes' counts after the filters, each with its lane's mark; a press shows the lane. */
-function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; onLane(lane: LaneId): void; touch: boolean }) {
-  const { board, tokens } = props;
+function StatsCard(props: { board: BoardController; options: ShownFilterOptions; theme: PluginTheme; tokens: TaskTokens; onLane(lane: LaneId): void; touch: boolean }) {
+  const { board, options, tokens } = props;
   const scale = useTasksFontScale();
   const [rowWidth, setRowWidth] = useState(0);
   const [measured, setMeasured] = useState<{ value: number; scale: number; width: number } | null>(null);
@@ -238,8 +371,6 @@ function StatsCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   const countSize = measured?.value === largestCount && measured.scale === scale && measured.width > 0 && available > 0
     ? Math.min(F.base, Math.floor(F.base * available / measured.width * scale) / scale)
     : F.base;
-  const showEmpty = board.showEmptyGroups;
-  const options = useMemo(() => shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty), [board.tasks, board.params, showEmpty]);
   const summary = filterSummary(board.params, board.defaults, options, board.strings);
   return (
     <DetailCard tokens={tokens} style={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: props.touch ? 4 : 8, gap: 6 }} testID="sidebar-stats">
@@ -300,6 +431,8 @@ function StatCell(props: {
   const hideLabel = headingWidth !== null && labelSize?.key === labelKey && labelSize.width + 13 + 5 > headingWidth + 0.5;
   const { hovered, hoverProps } = useHover();
   const reduced = useReducedMotion();
+  const press = usePressCue(hovered);
+  const lift = surfaceLift(hovered, press.pressed, reduced, "capsule", press.input);
   const alert = props.lane === "needs_input" && (props.count ?? 0) > 0;
   const countStyle = { fontSize: props.countSize, lineHeight: HOST_LINE.base, fontWeight: "600" as const, color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums" as const] };
   return (
@@ -307,11 +440,16 @@ function StatCell(props: {
       accessibilityRole="button"
       accessibilityLabel={`${props.label} ${props.count ?? ""}`}
       {...tipProps(props.label)}
-      onPress={props.onPress}
+      onPress={press.guard(props.onPress)}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      onTouchStart={press.onTouchStart}
+      onTouchMove={press.onTouchMove}
+      onTouchEnd={press.onTouchEnd}
+      onTouchCancel={press.onTouchCancel}
       {...hoverProps}
       testID={`sidebar-stat-${props.lane}`}
-      style={({ pressed }) => {
-        const lift = surfaceLift(hovered, pressed, reduced);
+      style={() => {
         return {
           flex: 1,
           minWidth: 0,
@@ -321,9 +459,9 @@ function StatCell(props: {
           paddingBottom: props.touch ? 2 : 6,
           borderRadius: 8,
           borderWidth: StyleSheet.hairlineWidth,
-          borderColor: alert ? tokens.warning : "transparent",
           backgroundColor: "transparent",
-          boxShadow: lift.shadow ? tokens.card.buttonShadowHover : undefined,
+          // Transparent at rest; the needs-input alert's warning line keeps its hue.
+          ...liftStyle(tokens, lift, { border: alert ? tokens.warning : "transparent", hued: alert }),
           ...scaleStyle(lift.scale),
           gap: 2,
         };
@@ -385,12 +523,12 @@ interface GroupRow {
 }
 
 /**
- * With no card chosen: Agent, Project, Workspace and Label counts (every
+ * With no card chosen: Agent, Label, Project and Workspace counts (every
  * loaded card, including done and archived), a row a filter; those at 0 too
  * while `board.showEmptyGroups` is on.
  */
-function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: TaskTokens; touch: boolean }) {
-  const { board, tokens } = props;
+function GroupCard(props: { board: BoardController; options: ShownFilterOptions; theme: PluginTheme; tokens: TaskTokens; touch: boolean }) {
+  const { board, options, tokens } = props;
   const strings = board.strings.sidebar;
   const scale = useTasksFontScale();
   const [labelFits, setLabelFits] = useState<Partial<Record<GroupKind, { key: string; fits: boolean }>>>({});
@@ -403,8 +541,6 @@ function GroupCard(props: { board: BoardController; theme: PluginTheme; tokens: 
   const [queries, setQueries] = useState<Record<GroupKind, string>>({ agent: "", project: "", workspace: "", label: "" });
   const [searchFocused, setSearchFocused] = useState(false);
   const query = queries[kind];
-  const showEmpty = board.showEmptyGroups;
-  const options = useMemo(() => shownFilterOptions(buildFilterOptions(board.tasks, board.params), showEmpty), [board.tasks, board.params, showEmpty]);
   const rows = useMemo<GroupRow[]>(() => {
     const byCount = (a: { count: number }, b: { count: number }) => b.count - a.count;
     if (kind === "agent") {

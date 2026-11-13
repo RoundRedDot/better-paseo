@@ -1,4 +1,4 @@
-import { useLayoutEffect, useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import { parseSystemEnvelope } from "../../system-envelope";
 import type { FirstPrompt } from "./first-prompt";
@@ -18,7 +18,7 @@ export type LastHumanMessage = FirstPrompt | { state: "first" };
 
 type Api = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "refetch"> } } };
 type Cursor = NonNullable<Parameters<PaseoAgentTimelineHandle["refetch"]>[0]>["cursor"];
-type Row = { timestamp?: string; item: { type: string; text?: string } };
+type Row = { timestamp?: string; seqStart?: number; item: { type: string; text?: string } };
 
 /** The rows read per page. */
 const PAGE_LIMIT = 40;
@@ -38,14 +38,14 @@ function humanText(text: string | undefined): string | null {
 }
 
 /** The last message a person sent among a page's rows, oldest first. */
-export function lastHumanMessage(entries: readonly Row[]): HumanMatch | null {
+export function lastHumanMessage(entries: readonly Row[], epoch?: string): HumanMatch | null {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const { item, timestamp } = entries[index]!;
+    const { item, timestamp, seqStart } = entries[index]!;
     if (item.type !== "user_message") continue;
     const text = humanText(item.text);
     if (!text) continue;
     const earliest = !entries.slice(0, index).some((entry) => entry.item.type === "user_message");
-    return { message: { state: "ready", text, timestamp }, earliest };
+    return { message: { state: "ready", text, timestamp, ...(epoch !== undefined && seqStart !== undefined ? { position: { epoch, seq: seqStart } } : {}) }, earliest };
   }
   return null;
 }
@@ -57,7 +57,7 @@ const readLastHuman: TimelineRead<LastHumanMessage> = async (timeline) => {
       direction: cursor ? "before" : "tail", projection: "projected", limit: PAGE_LIMIT, ...(cursor ? { cursor } : {}),
     });
     if (page.error || page.reset && cursor) return { state: "error" };
-    const found = lastHumanMessage(page.entries);
+    const found = lastHumanMessage(page.entries, page.epoch);
     if (found) return found.earliest && !page.hasOlder ? { state: "first" } : found.message;
     const next = page.startCursor;
     if (!page.hasOlder || !next) return { state: "none" };
@@ -91,9 +91,13 @@ function storeFor(api: PaseoApi | Api) {
  */
 export function useLastHumanMessage(api: PaseoApi, agentId: string, version: string, auto: boolean): { prompt: LastHumanMessage; load(): void } {
   const store = storeFor(api);
-  const prompt = useSyncExternalStore(store.subscribe, () => store.read(agentId), () => store.read(agentId));
+  // Until this commit's request runs, an auto read shows what it will: no draw of the state it replaces at once.
+  const asked = useRef<{ store: typeof store; agentId: string; version: string } | null>(null);
+  const snapshot = () => (auto && (asked.current?.store !== store || asked.current.agentId !== agentId || asked.current.version !== version) ? store.readRequested(agentId, version) : store.read(agentId));
+  const prompt = useSyncExternalStore(store.subscribe, snapshot, snapshot);
   useLayoutEffect(() => {
     if (auto) store.request(agentId, version);
+    asked.current = auto ? { store, agentId, version } : null;
   }, [store, agentId, version, auto]);
   return { prompt, load: () => store.request(agentId, version) };
 }

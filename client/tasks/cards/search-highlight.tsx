@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, ScrollView, View, type LayoutChangeEvent, type TextLayoutEvent } from "react-native";
+import { Animated, Platform, Pressable, ScrollView, View, type LayoutChangeEvent, type TextLayoutEvent } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -7,6 +7,7 @@ import { TaskText as Text, TASK_MONO, useTasksFontScale } from "../typography";
 import { orderedSearchHits, searchRanges, type SearchField, type SearchHit } from "../data/search-hits";
 import { useHover } from "../../ui/use-hover";
 import { useInputCapabilities } from "../../ui/use-input-capabilities";
+import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { SelectableSpan } from "../../ui/prose-text";
 import { openToolbarDetailsLayer } from "../../web";
 import { cardStrings } from "./strings";
@@ -137,6 +138,11 @@ export function SearchHitSummary(props: {
   const input = useInputCapabilities();
   const touch = props.phone || input.touch;
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [placement, setPlacement] = useState<"above" | "below">("below");
+  const progress = useRef(new Animated.Value(0)).current;
+  const reducedMotion = useReducedMotion();
+  const visible = !touch && (open || mounted);
   const anchor = useRef<View>(null);
   const panel = useRef<View>(null);
   const { hovered, hoverProps } = useHover(anchor);
@@ -152,6 +158,23 @@ export function SearchHitSummary(props: {
   }, [hovered, touch]);
   const { onOpenChange } = props;
   useEffect(() => {
+    if (touch) return;
+    if (open) setMounted(true);
+    if (reducedMotion) {
+      progress.setValue(open ? 1 : 0);
+      if (!open) setMounted(false);
+      return;
+    }
+    const duration = open ? 180 : 140;
+    const animation = Animated.timing(progress, { toValue: open ? 1 : 0, duration, useNativeDriver: Platform.OS !== "web", isInteraction: false });
+    animation.start();
+    const timeout = open ? null : setTimeout(() => setMounted(false), duration);
+    return () => {
+      animation.stop();
+      if (timeout) clearTimeout(timeout);
+    };
+  }, [open, touch, reducedMotion, progress]);
+  useEffect(() => {
     onOpenChange(open);
     return () => onOpenChange(false);
   }, [open, onOpenChange]);
@@ -160,12 +183,13 @@ export function SearchHitSummary(props: {
     return cancel;
   }, [props.query]);
   useLayoutEffect(() => {
-    if (!open || touch || Platform.OS !== "web") return;
-    const release = openToolbarDetailsLayer(panel.current, anchor.current, "below");
+    if (!visible || Platform.OS !== "web") return;
+    const anchorElement = anchor.current as unknown as HTMLElement | null;
+    const release = openToolbarDetailsLayer(panel.current, anchor.current, "below", anchorElement?.closest("[data-bctaskcard]"), setPlacement);
     const element = panel.current as unknown as HTMLElement | null;
     element?.querySelector<HTMLElement>('[role="listitem"]')?.focus({ preventScroll: true });
     return release;
-  }, [open, touch]);
+  }, [visible]);
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     const element = anchor.current as unknown as HTMLElement | null;
@@ -203,7 +227,7 @@ export function SearchHitSummary(props: {
       key={`${hit.field}-${index}`}
       role={full ? "listitem" : undefined}
       {...(full && Platform.OS === "web" ? { tabIndex: -1 } : {})}
-      style={full ? { paddingVertical: 6, paddingHorizontal: 8, gap: 3, ...(Platform.OS === "web" ? { outlineWidth: 0.5, outlineColor: tokens.isDark ? "#777777" : "#B0B0B0" } : null) } : { flexDirection: "row", alignItems: "center", gap: 6 }}
+      style={full ? { paddingVertical: touch ? 6 : 4, paddingHorizontal: touch ? 8 : 17, gap: 3, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : {}) } : { flexDirection: "row", alignItems: "center", gap: 6 }}
     >
       {full ? (
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -248,24 +272,28 @@ export function SearchHitSummary(props: {
       ) : null}
     </View>
   );
-  const all = (
-    <>
-      <View style={{ flexDirection: "row", justifyContent: "space-between", padding: 8 }}>
+  const header = (
+      <View testID="task-search-popover-header" style={{ flexDirection: "row", alignItems: "center", gap: 7, paddingHorizontal: touch ? 8 : 17, paddingVertical: touch ? 8 : 6, ...(touch ? {} : { backgroundColor: tokens.surface1, borderBottomWidth: 1, borderBottomColor: tokens.border }) }}>
         <Text style={{ fontSize: 12, lineHeight: 18, color: tokens.foreground, fontWeight: "600" }}>
-          {strings.count(props.hits.length, props.query)}
+          {touch ? strings.count(props.hits.length, props.query) : strings.countOnly(props.hits.length)}
         </Text>
+        {!touch ? <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 11, color: tokens.isDark ? "#FBEFC6" : "#695327", backgroundColor: tokens.isDark ? "#5A4A17" : "#FFF3CE", paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 }}>{props.query}</Text> : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={strings.close}
+          style={{ marginLeft: "auto" }}
           onPress={(event) => {
             event.stopPropagation();
             setOpen(false);
           }}
         >
-          <Text style={{ fontSize: 12, color: tokens.foregroundMuted }}>{touch ? strings.close : "Esc"}</Text>
+          <Text style={{ fontSize: 12, color: tokens.foregroundMuted, ...(touch ? {} : { borderWidth: 1, borderColor: tokens.border, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 }) }}>{touch ? strings.close : "Esc"}</Text>
         </Pressable>
       </View>
-      <View accessibilityRole="list">{orderedSearchHits(props.hits).map((hit, index) => row(hit, index, true))}</View>
+  );
+  const body = (
+    <>
+      <View accessibilityRole="list" style={touch ? undefined : { paddingVertical: 4 }}>{orderedSearchHits(props.hits).map((hit, index) => row(hit, index, true))}</View>
       {props.promptNote ? (
         <View style={{ flexDirection: "row", alignItems: "center", padding: 8, gap: 8 }}>
           <Text style={{ flex: 1, fontSize: 12, color: tokens.foregroundMuted }}>{props.promptNote}</Text>
@@ -282,12 +310,18 @@ export function SearchHitSummary(props: {
           ) : null}
         </View>
       ) : null}
+    </>
+  );
+  const footer = (
       <Text
+        testID="task-search-popover-footer"
         style={{
           borderTopWidth: 1,
-          borderTopColor: tokens.card.border,
-          marginTop: 4,
-          padding: 8,
+          borderTopColor: tokens.border,
+          marginTop: touch ? 4 : 0,
+          marginHorizontal: touch ? 0 : 17,
+          paddingHorizontal: touch ? 8 : 0,
+          paddingVertical: touch ? 8 : 6,
           fontSize: 12,
           lineHeight: 18,
           color: tokens.foregroundMuted,
@@ -295,7 +329,6 @@ export function SearchHitSummary(props: {
       >
         {strings.detailHint}
       </Text>
-    </>
   );
   return (
     <Pressable
@@ -333,17 +366,22 @@ export function SearchHitSummary(props: {
       >
         {shown.map((hit, index) => row(hit, index, false))}
       </Pressable>
-      {open && touch ? <View testID="task-search-expanded">{all}</View> : null}
-      {open && !touch ? (
-        <View ref={panel} collapsable={false} testID="task-search-popover-layer" style={{ position: "absolute", top: "100%", left: "50%", marginLeft: -168, paddingTop: 8, width: 336 }}>
-          <View
+      {open && touch ? <View testID="task-search-expanded">{header}{body}{footer}</View> : null}
+      {visible ? (
+        <View ref={panel} collapsable={false} pointerEvents={open ? "auto" : "none"} testID="task-search-popover-layer" style={{ position: "absolute", top: "100%", left: 0, paddingTop: placement === "below" ? 8 : 0, paddingBottom: placement === "above" ? 8 : 0, width: "100%" }}>
+          <Animated.View
             role="dialog"
             accessibilityLabel={strings.dialog}
             testID="task-search-popover"
-            style={{ ...panelChrome(props.theme), borderRadius: 10, padding: 6 }}
+            style={{ ...panelChrome(props.theme), borderWidth: 1, borderColor: tokens.borderStrong, borderRadius: 10, marginHorizontal: 7, boxShadow: tokens.isDark ? "0px 8px 20px rgba(0, 0, 0, 0.42), 0px 2px 6px rgba(0, 0, 0, 0.24)" : "0px 8px 20px rgba(32, 38, 52, 0.20), 0px 2px 6px rgba(32, 38, 52, 0.10)", opacity: progress, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}
           >
-            <ScrollView style={{ maxHeight: 400 }}>{all}</ScrollView>
-          </View>
+            <View pointerEvents="none" testID="task-search-popover-arrow" style={{ position: "absolute", left: 24, ...(placement === "below" ? { top: -6, borderTopWidth: 1, borderLeftWidth: 1, backgroundColor: tokens.surface1 } : { bottom: -6, borderBottomWidth: 1, borderRightWidth: 1, backgroundColor: panelChrome(props.theme).backgroundColor }), width: 10, height: 10, borderColor: tokens.borderStrong, transform: [{ rotate: "45deg" }] }} />
+            <View style={{ maxHeight: 400, borderRadius: 9, overflow: "hidden" }}>
+              {header}
+              <ScrollView testID="task-search-popover-content" style={{ flexShrink: 1 }}>{body}</ScrollView>
+              {footer}
+            </View>
+          </Animated.View>
         </View>
       ) : null}
     </Pressable>

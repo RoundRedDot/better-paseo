@@ -27,6 +27,8 @@ export interface Frame {
 export interface YogaLayoutOptions {
   /** The width the root's container offers, as a card's content column does. */
   width: number;
+  /** Physical pixels per layout point. */
+  pixelScale?: number;
   /** Multiplies every text width, as a larger system font does. */
   textScale?: number;
   /**
@@ -34,6 +36,11 @@ export interface YogaLayoutOptions {
    * `numberOfLines`, as a title does. Off: every text is one line tall.
    */
   wrapText?: boolean;
+  /**
+   * With `wrapText`: break lines between words, as iOS and Android do, and
+   * only inside a word wider than the line (`wrapLines`), instead of by width alone.
+   */
+  wordWrap?: boolean;
 }
 
 /** Host element types that sit in a separate native layer, outside the row. */
@@ -65,6 +72,32 @@ export function estimateTextWidth(text: string, fontSize: number): number {
     width += fontSize * (wide ? 1 : char === " " ? 0.28 : 0.56);
   }
   return Math.ceil(width);
+}
+
+/**
+ * The lines a native text view draws `text` in at `width`: breaks fall
+ * between words (and between CJK characters), and inside a word only when the
+ * word alone is wider than the line. Widths by `estimateTextWidth`, times
+ * `textScale` as the layout measures a text.
+ */
+export function wrapLines(text: string, fontSize: number, width: number, textScale = 1): string[] {
+  const tokens = text.match(/[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]|[^\s\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]+|\s+/g) ?? [];
+  const lines: string[] = [];
+  let line = "";
+  const fits = (candidate: string) => estimateTextWidth(candidate.trimEnd(), fontSize) * textScale <= width + 0.5;
+  for (const token of tokens) {
+    if (/^\s+$/.test(token)) { if (line) line += token; continue; }
+    if (fits(line + token)) { line += token; continue; }
+    if (line.trim()) lines.push(line.trimEnd());
+    line = "";
+    // A word wider than the line breaks inside it.
+    for (const char of token) {
+      if (line && !fits(line + char)) { lines.push(line); line = ""; }
+      line += char;
+    }
+  }
+  if (line.trim()) lines.push(line.trimEnd());
+  return lines.length ? lines : [""];
 }
 
 const ALIGN: Record<string, Align> = {
@@ -157,7 +190,7 @@ function applyStyle(node: Node, style: Style) {
 export function measureHostTree(root: ReactTestInstance, options: YogaLayoutOptions): Map<ReactTestInstance, Frame> {
   const config = Yoga.Config.create();
   config.setErrata(Errata.All);
-  config.setPointScaleFactor(3);
+  config.setPointScaleFactor(options.pixelScale ?? 3);
   const scale = options.textScale ?? 1;
   const nodes = new Map<ReactTestInstance, Node>();
 
@@ -178,7 +211,13 @@ export function measureHostTree(root: ReactTestInstance, options: YogaLayoutOpti
       const maxLines = typeof instance.props.numberOfLines === "number" && instance.props.numberOfLines > 0 ? instance.props.numberOfLines : Infinity;
       node.setMeasureFunc((width, widthMode) => {
         const shown = widthMode === MeasureMode.Exactly ? width : widthMode === MeasureMode.AtMost ? Math.min(width, intrinsic) : intrinsic;
-        const lines = options.wrapText && widthMode !== MeasureMode.Undefined && width > 0 ? Math.min(maxLines, Math.max(1, Math.ceil(intrinsic / width))) : 1;
+        const wrapping = options.wrapText && widthMode !== MeasureMode.Undefined && width > 0;
+        if (wrapping && options.wordWrap && intrinsic > width + 0.5) {
+          const drawn = wrapLines(textOf(instance), fontSize, width, scale);
+          const widest = Math.max(...drawn.map((part) => estimateTextWidth(part, fontSize) * scale));
+          return { width: widthMode === MeasureMode.Exactly ? width : Math.min(width, widest), height: lineHeight * Math.min(maxLines, drawn.length) };
+        }
+        const lines = wrapping ? Math.min(maxLines, Math.max(1, Math.ceil(intrinsic / width))) : 1;
         return { width: shown, height: lineHeight * lines };
       });
     } else {

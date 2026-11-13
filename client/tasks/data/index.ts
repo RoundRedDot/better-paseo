@@ -14,12 +14,11 @@ import type {
 } from "@getpaseo/client";
 import { doneWindowMs, type DoneWindow } from "../../../shared/tasks-settings";
 import type { LastTurn } from "../../../shared/turn-usage-rpc";
-import type { ProviderSubagent } from "../../../shared/tasks-rpc";
+import type { ParentOrigin, ProviderSubagent } from "../../../shared/tasks-rpc";
 import { footerModel } from "../../state/footer-model";
 import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
-import { classifyTool } from "../../tools/classify";
-import { readUserQuestions } from "../../tools/user-questions";
+import { parseTaskQuestions } from "../question-form";
 import { classifyAgent } from "../agent-state-bucket";
 import { resolveTasksLanguage } from "../i18n";
 import { fallbackLabelColor } from "../label-colors";
@@ -71,6 +70,8 @@ export interface SidebarCounts {
   review: number;
   /** False until the first active snapshot arrives. */
   ready: boolean;
+  hidden?: TaskCard[];
+  questions?: TaskCard[];
 }
 
 export interface TasksSnapshot {
@@ -91,6 +92,12 @@ export interface TasksSnapshot {
 export type TasksRefreshResult = "done" | "failed" | "superseded";
 
 export interface TasksHandle extends TasksSnapshot {
+  historyBlocked?: boolean;
+  historyError?: string | null;
+  clearHistoryError?(): void;
+  loadMoreSearch?(current: () => boolean): void;
+  beginHistorySearch?(owner: object): void;
+  endHistorySearch?(owner: object): void;
   /**
    * Read the board's lists again (`TaskStore.refresh`): the cards stay and
    * change in place, the done pages already loaded are read again, and the
@@ -105,6 +112,8 @@ export interface TasksHandle extends TasksSnapshot {
   refreshParent(agentId: string): Promise<boolean | null>;
   /** Read the server's read marks again, as after a Mark read. */
   refreshReads(): void;
+  /** Read the server's unread marks again, as after a Mark unread. */
+  refreshUnreads(): void;
   /** Fetch the icon for a visible card's project. */
   requestProjectIcon(projectId: string): void;
 }
@@ -332,9 +341,47 @@ function taskLabels(workspace: PaseoWorkspace | undefined, colorNames: ReadonlyM
     .map((name) => ({ name, color: colorNames.get(name) ?? fallbackLabelColor(name) }));
 }
 
+/**
+ * A plan's text, as the request carries it: Claude's ExitPlanMode and Codex's
+ * plan approval both put the Markdown in `input.plan` (and `metadata.planText`).
+ */
+function planText(permission: PaseoAgent["pendingPermissions"][number]): string | null {
+  if (permission.kind !== "plan") return null;
+  const input = permission.input as Record<string, unknown> | undefined;
+  const metadata = (permission as { metadata?: Record<string, unknown> }).metadata;
+  for (const text of [input?.plan, metadata?.planText]) if (typeof text === "string" && text.trim()) return text;
+  return null;
+}
+
+/**
+ * A plan's title: its first line, without the heading's "#", a list item's
+ * marker or emphasis. "# Ship it" reads "Ship it".
+ */
+export function planTitle(text: string): string | null {
+  const line = text.split(/\r?\n/).find((value) => value.trim())?.trim();
+  if (!line) return null;
+  const title = line
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/\s+#+\s*$/, "")
+    .replace(/^(?:[-*+]|\d+[.)])\s+/, "")
+    .replace(/(\*\*|__|`)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return title || null;
+}
+
+/** The question's tool call id: Claude names it in the metadata, Codex builds the request id from it. */
+function questionCallId(permission: PaseoAgent["pendingPermissions"][number]): string | undefined {
+  const toolUseId = permission.metadata?.toolUseId;
+  if (typeof toolUseId === "string" && toolUseId) return toolUseId;
+  return permission.id.startsWith("permission-") ? permission.id.slice("permission-".length) : undefined;
+}
+
 function firstPermissionSummary(permission: PaseoAgent["pendingPermissions"][number]): string | null {
   const input = permission.input as Record<string, unknown> | undefined;
   const detail = permission.detail as Record<string, unknown> | undefined;
+  const plan = planText(permission);
+  if (plan) return planTitle(plan);
   if (permission.kind === "question" && Array.isArray(input?.questions)) {
     const questions = input.questions.flatMap((value: unknown) => {
       if (!value || typeof value !== "object" || Array.isArray(value)) return [];
@@ -423,6 +470,36 @@ export function setReadMarksLoader(next: ReadMarksLoader | null): void {
   readMarksLoader = next;
 }
 
+/** `tasks.unreads`: the agents marked unread from a board, with when. */
+export type UnreadMarksLoader = () => Promise<Array<{ agentId: string; unreadAt: string }>>;
+
+let unreadMarksLoader: UnreadMarksLoader | null = null;
+
+/** `contribute` sets the loader; the marks are read with the subagents and after a Mark unread. */
+export function setUnreadMarksLoader(next: UnreadMarksLoader | null): void {
+  unreadMarksLoader = next;
+}
+
+/** `tasks.unread-clear`: drop these agents' unread marks, as the board opened them. Rejects on failure. */
+export type UnreadClearer = (agentIds: string[]) => Promise<void>;
+
+let unreadClearer: UnreadClearer | null = null;
+
+/** `contribute` sets the clearer; `openedTask` calls it each time the board opens an agent. */
+export function setUnreadClearer(next: UnreadClearer | null): void {
+  unreadClearer = next;
+}
+
+/** `tasks.parent-origins`: the parents whose archive detached a child, or null while `since` is still the server's version. */
+export type ParentOriginsLoader = (since?: string) => Promise<{ version: string; origins: ParentOrigin[] | null }>;
+
+let parentOriginsLoader: ParentOriginsLoader | null = null;
+
+/** `contribute` sets the loader; the origins are read with the subagents. */
+export function setParentOriginsLoader(next: ParentOriginsLoader | null): void {
+  parentOriginsLoader = next;
+}
+
 /** `tasks.labels`: the daemon's label definitions, for a host whose API lists none; null when the server cannot read them. */
 export type LabelDefinitionsLoader = () => Promise<Array<{ name: string; color: string }> | null>;
 
@@ -449,15 +526,11 @@ function epoch(value: string | null | undefined): number {
 }
 
 /**
- * A parent's provider subagents worth a row: the running ones, and the
- * failures since its latest prompt. A prompt after a failure is the person
- * acting on it, so the failure leaves the card then.
+ * A parent's retained provider subagents, ordered by creation time.
  */
-export function shownSubagents(subagents: readonly ProviderSubagent[] | undefined, lastUserMessageAt: string | null): ProviderSubagent[] {
+export function shownSubagents(subagents: readonly ProviderSubagent[] | undefined): ProviderSubagent[] {
   if (!subagents?.length) return [];
-  const prompted = epoch(lastUserMessageAt);
-  return subagents
-    .filter((subagent) => subagent.status === "running" || epoch(subagent.updatedAt) > prompted)
+  return [...subagents]
     .sort((left, right) => epoch(left.createdAt) - epoch(right.createdAt));
 }
 
@@ -474,12 +547,12 @@ function subagentChild(subagent: ProviderSubagent, parent: TaskCard): TaskChild 
   return {
     id: subagent.id,
     title: subagent.description?.trim() || subagent.title?.trim() || "Subagent",
-    status: running ? "running" : "failed",
+    status: running ? "running" : subagent.status === "failed" ? "failed" : "done",
     kind: "provider",
     subtitle: subagent.subtitle,
     subagentType: subagentType(subagent.title, subagent.subtitle),
     provider: parent.provider,
-    lane: running ? "running" : "review",
+    lane: running ? "running" : subagent.status === "failed" ? "review" : "done",
     timing: {
       createdAt: subagent.createdAt,
       updatedAt: subagent.updatedAt,
@@ -499,9 +572,9 @@ function subagentChild(subagent: ProviderSubagent, parent: TaskCard): TaskChild 
  * its rows say what failed.
  */
 export function withSubagents(card: TaskCard, subagents: readonly ProviderSubagent[] | undefined): TaskCard {
-  const shown = shownSubagents(subagents, card.timing.lastUserMessageAt);
+  const shown = shownSubagents(subagents);
   if (shown.length === 0) return card;
-  const failed = shown.filter((subagent) => subagent.status === "failed").length;
+  const failed = shown.filter((subagent) => subagent.status === "failed" && epoch(subagent.updatedAt) > epoch(card.timing.lastUserMessageAt)).length;
   const finished = card.lane === "review" || card.lane === "done";
   return {
     ...card,
@@ -539,6 +612,23 @@ function laneCompare(lane: LaneId): (left: TaskCard, right: TaskCard) => number 
 
 // One list per parent card, so a subagent's card keeps its identity while its parent's does.
 const subagentCardCache = new WeakMap<TaskCard, TaskCard[]>();
+
+/**
+ * What the sidebar's hidden-task dialog draws, besides the live timer and context ring.
+ * A running turn's clock must not rebuild the sidebar row.
+ */
+function hiddenListChanged(previous: TaskCard, card: TaskCard): boolean {
+  const location = card.location;
+  const was = previous.location;
+  return previous.id !== card.id || previous.title !== card.title || previous.lane !== card.lane || previous.status !== card.status
+    || previous.provider !== card.provider || previous.providerLabel !== card.providerLabel || previous.providerMark !== card.providerMark
+    || previous.modelLabel !== card.modelLabel || previous.thinkingLabel !== card.thinkingLabel
+    || previous.subagent?.subtitle !== card.subagent?.subtitle || previous.subagent?.type !== card.subagent?.type
+    || was.projectName !== location.projectName || was.workspaceName !== location.workspaceName || was.workspaceTitle !== location.workspaceTitle
+    || was.branch !== location.branch || was.folder !== location.folder
+    || previous.error !== card.error || previous.children.length !== card.children.length
+    || previous.labels.length !== card.labels.length || previous.labels.some((label, index) => label.name !== card.labels[index]?.name);
+}
 
 /** A parent's provider subagents as read-only cards, in the workspace, labels and agent of the parent. */
 function subagentCardsOf(parent: TaskCard): TaskCard[] {
@@ -658,6 +748,19 @@ export function withReadMark(card: TaskCard, readAt: number | undefined, failedA
 }
 
 /**
+ * The card with its unread mark. A mark taken since the latest prompt, and
+ * since any read mark, moves a done card back to review. Archive and a
+ * running child still win, because they are applied after this. A review
+ * card is left as it is: clearing its read mark already put a failure back.
+ */
+export function withUnreadMark(card: TaskCard, unreadAt: number | undefined, readAt: number | undefined): TaskCard {
+  if (unreadAt === undefined || card.lane !== "done" || card.archived) return card;
+  if (unreadAt < epoch(card.timing.lastUserMessageAt)) return card;
+  if (readAt !== undefined && readAt >= unreadAt) return card;
+  return { ...card, lane: "review", status: "unread", readable: true };
+}
+
+/**
  * A finished parent whose subtasks still run or wait for input is not done:
  * it moves to the running lane with the running ring, so the board does not
  * read it as finished while its work goes on. Its own turn has ended
@@ -707,6 +810,8 @@ function buildBaseCard(
     requiresAttention: agent.requiresAttention,
     attentionReason: agent.attentionReason,
     lastError: agent.lastError,
+    lastUserMessageAt: agent.lastUserMessageAt,
+    hasActiveTurn: agent.activeTurn != null,
   });
   const workspaceTitle = workspace?.title?.trim() || workspace?.name || placement?.workspaceName || null;
   const projectName = workspace?.projectCustomName?.trim() || workspace?.projectDisplayName ||
@@ -729,13 +834,16 @@ function buildBaseCard(
     : { modelName: null, thinkingLabel: null };
   const modeLabel = agent.availableModes?.find((mode) => mode.id === agent.currentModeId)?.label ?? null;
   const projectId = workspace?.projectId ?? project?.projectId ?? null;
-  const projectKey = placement?.projectKey || project?.projectKey || null;
+  // Paseo's sidebar hashes the project descriptor's projectKey; the placement's projectKey can hold the
+  // project id (Paseo 0.14), so it is only the fallback when the project isn't listed.
+  const projectKey = project?.projectKey || placement?.projectKey || null;
   const revision = project?.projectIconRevision ?? null;
   const projectIcon = icon?.revision === revision ? icon.uri : null;
   const projectIconColor = projectIcon ? icon?.color ?? null : null;
   const hasGitState = workspace ? workspace.gitRuntime != null : placement?.checkout.isGit === true;
   const pullRequest = workspace?.githubRuntime?.pullRequest;
   const permission = pendingPermissions[0];
+  const plan = permission ? planText(permission) : null;
 
   return {
     id: agent.id,
@@ -804,7 +912,8 @@ function buildBaseCard(
             : "other",
           title: permission.title ?? permission.name,
           summary: firstPermissionSummary(permission),
-          ...(permission.kind === "question" ? { questions: readUserQuestions(classifyTool({ name: permission.name, status: "running", detail: { type: "unknown", input: permission.input } }))?.questions } : {}),
+          ...(plan ? { body: plan } : {}),
+          ...(permission.kind === "question" ? { name: permission.name, callId: questionCallId(permission), questions: parseTaskQuestions(permission.input) } : {}),
           actions: (permission.actions ?? []).map((action) => ({
             id: action.id,
             label: action.label,
@@ -882,12 +991,15 @@ interface TaskStore {
   dropHolds(): void;
   getSnapshot(options: TasksOptions): TasksHandle;
   getCounts(scope?: CountScope): SidebarCounts;
+  getQuestionCounts(scope?: CountScope): SidebarCounts;
   refresh(): Promise<TasksRefreshResult>;
   setArchivedLane(on: boolean): void;
   loadMoreDone(window: DoneWindow): void;
   resolveParent(id: string): void;
   refreshParent(id: string): Promise<boolean | null>;
   refreshReads(): void;
+  refreshUnreads(): void;
+  openedAgent(id: string): void;
   requestProjectIcon(projectId: string): void;
 }
 
@@ -915,6 +1027,17 @@ function createStore(api: PaseoApi): TaskStore {
   /** Cards whose parent is being refreshed for them, so a parent loop cannot recurse. */
   const refreshingParents = new Set<string>();
   const parentByChild = new Map<string, string>();
+  /**
+   * The parent whose archive detached each agent, as the server inferred it
+   * (`tasks.parent-origins`). History only, and only for an agent without a
+   * live parent: kept apart from the live links above, so it names the parent
+   * on the child's card and nothing else. No children rows, stop targets,
+   * subtask waiting, folding or background retention.
+   */
+  const serverOrigins = new Map<string, string>();
+  let originsVersion: string | undefined;
+  const originByChild = new Map<string, string>();
+  const originChildrenByParent = new Map<string, Set<string>>();
   /** Parents read by id because they are not on the board: their title and whether they are archived. */
   const resolvedParents = new Map<string, { title: string | null; archived: boolean | null }>();
   const parentReads = new Set<string>();
@@ -947,6 +1070,10 @@ function createStore(api: PaseoApi): TaskStore {
   let subagentReading = false;
   /** The server's read marks (`tasks.reads`), as epoch ms by agent. */
   const readMarks = new Map<string, number>();
+  /** The server's unread marks (`tasks.unreads`), as epoch ms by agent. */
+  const unreadMarks = new Map<string, number>();
+  /** Agents the board opened whose unread clear is still out (`openedAgent`). */
+  const clearingUnreads = new Map<string, number>();
   /** Failed parents asked for by id, once per version of the list. */
   const subagentParentsAsked = new Set<string>();
   const subscriptions = new Map<string, StoreSubscription>();
@@ -973,9 +1100,14 @@ function createStore(api: PaseoApi): TaskStore {
   /** The workspace list itself arrived, not a failed read: only then does a missing workspace mean archived. */
   let workspacesListed = false;
   let countsCache: SidebarCounts | null = null;
+  let questionCountsCache: SidebarCounts | null = null;
+  let countQuestions: TaskCard[] = [];
   let countsDirty = true;
   let countsScope: CountScope | undefined;
   let loadingDone = false;
+  let historyError: string | null = null;
+  let searchPages: { cursor: string | null; tail: string | null; keys: Set<string> } | null = null;
+  const historySearchOwners = new Set<object>();
   /** The done run a refresh is reading again; no next page is fetched while it is the current one. */
   let doneRefreshRun = -1;
   let doneReady = false;
@@ -1036,6 +1168,11 @@ function createStore(api: PaseoApi): TaskStore {
     });
   }
 
+  /** Cards that name `id` as their parent: its live children and those its archive detached. */
+  function linkedChildrenOf(id: string): string[] {
+    return [...childrenByParent.get(id) ?? [], ...originChildrenByParent.get(id) ?? []];
+  }
+
   function dropIfUnreferenced(id: string) {
     if (memberSetsContaining(id).length > 0 || hasActiveBackgroundChildren(id)) return;
     removeRecord(id);
@@ -1077,7 +1214,7 @@ function createStore(api: PaseoApi): TaskStore {
     let changed = refreshFinalCard(id);
     const parentId = parentByChild.get(id);
     if (parentId && refreshFinalCard(parentId)) changed = true;
-    for (const childId of childrenByParent.get(id) ?? []) if (refreshFinalCard(childId)) changed = true;
+    for (const childId of linkedChildrenOf(id)) if (refreshFinalCard(childId)) changed = true;
     return changed;
   }
 
@@ -1092,7 +1229,9 @@ function createStore(api: PaseoApi): TaskStore {
     const workspaceId = entryForArchive?.agent.workspaceId;
     const archivedAt = entryForArchive?.agent.archivedAt
       ?? (archivedKind === "workspace" && workspaceId ? workspaces.get(workspaceId)?.archivingAt ?? workspaceArchiveTimes.get(workspaceId) ?? null : null);
-    const parentAgentId = parentByChild.get(id);
+    const liveParentId = parentByChild.get(id);
+    const originId = liveParentId ? undefined : originByChild.get(id);
+    const parentAgentId = liveParentId ?? originId;
     const parentEntry = parentAgentId ? entries.get(parentAgentId) : undefined;
     const parentTitle = parentAgentId
       ? parentEntry?.agent.title?.trim() || resolvedParents.get(parentAgentId)?.title || null
@@ -1105,7 +1244,8 @@ function createStore(api: PaseoApi): TaskStore {
         ? isArchived(parentEntry.agent) ? "agent" : inArchivedWorkspace(parentAgentId) ? "workspace" : null
         : resolvedParents.get(parentAgentId)?.archived ? "agent" : null;
     const childIds = childrenByParent.get(id);
-    const next: TaskCard = withArchived(withActiveSubtasks(withReadMark(withSubagents({
+    const readAt = readMarks.get(id);
+    const next: TaskCard = withArchived(withActiveSubtasks(withUnreadMark(withReadMark(withSubagents({
       ...withTurnError(base, turnErrors.get(id)),
       usage: withRecordedCost(base.usage, turnCosts.get(id)),
       timing: withLastTurn({ ...base.timing, archivedAt }, lastTurns.get(id), base.lane === "running" || base.lane === "needs_input"),
@@ -1116,6 +1256,7 @@ function createStore(api: PaseoApi): TaskStore {
             missing: parentMissing,
             archived: !parentMissing ? false : parentEntry ? isArchived(parentEntry.agent) : (resolvedParents.get(parentAgentId)?.archived ?? null),
             ...(parentArchivedAs ? { archivedAs: parentArchivedAs } : null),
+            ...(originId ? { detached: true as const } : null),
           }
         : null,
       children: childIds
@@ -1142,16 +1283,18 @@ function createStore(api: PaseoApi): TaskStore {
             .filter((child): child is TaskChild => child !== null)
             .sort((left, right) => compareText(left.title, right.title))
         : [],
-    }, subagentsByParent.get(id)), readMarks.get(id), latestFailure(id))), archivedKind);
+    }, subagentsByParent.get(id)), readAt, latestFailure(id)), unreadMarks.get(id), readAt)), archivedKind);
+    const failureAt = latestFailure(id);
+    if (Number.isFinite(failureAt)) next.errorOccurredAt = failureAt;
     const previous = cards.get(id);
     if (shallowCardEqual(previous, next)) return false;
     cards.set(id, next);
     // A parent's row and lane follow its children's status: a child that
     // starts or stops waiting on its own subtasks reaches up the chain.
-    if (parentAgentId && (previous?.status !== next.status || previous?.lane !== next.lane) && !refreshingParents.has(parentAgentId)) {
+    if (liveParentId && (previous?.status !== next.status || previous?.lane !== next.lane) && !refreshingParents.has(liveParentId)) {
       refreshingParents.add(id);
       try {
-        refreshFinalCard(parentAgentId);
+        refreshFinalCard(liveParentId);
       } finally {
         refreshingParents.delete(id);
       }
@@ -1177,6 +1320,23 @@ function createStore(api: PaseoApi): TaskStore {
     return previousParent;
   }
 
+  function replaceOriginLink(id: string, nextOrigin: string | null) {
+    const previousOrigin = originByChild.get(id) ?? null;
+    if (previousOrigin === nextOrigin) return;
+    if (previousOrigin) {
+      const children = originChildrenByParent.get(previousOrigin);
+      children?.delete(id);
+      if (children?.size === 0) originChildrenByParent.delete(previousOrigin);
+      originByChild.delete(id);
+    }
+    if (nextOrigin) {
+      let children = originChildrenByParent.get(nextOrigin);
+      if (!children) originChildrenByParent.set(nextOrigin, children = new Set());
+      children.add(id);
+      originByChild.set(id, nextOrigin);
+    }
+  }
+
   function isStaleAgent(agent: PaseoAgent): boolean {
     const current = entries.get(agent.id)?.agent;
     return current !== undefined && Date.parse(agent.updatedAt) < Date.parse(current.updatedAt);
@@ -1192,6 +1352,15 @@ function createStore(api: PaseoApi): TaskStore {
       removeRecord(agent.id);
       return;
     }
+    // The daemon sends one snapshot on every list it matches (a running agent
+    // that needs attention is on two), each in its own message. A resent one
+    // still goes through below, but tells the board only if a card changed:
+    // the board reads cards, and a base card reaches it only through the
+    // cards refreshed here (this agent's, its parent's row, its children's).
+    const previous = entries.get(agent.id);
+    const resent = previous !== undefined
+      && JSON.stringify(previous.agent) === JSON.stringify(agent)
+      && JSON.stringify(previous.placement) === JSON.stringify(placement);
     const oldParent = parentByChild.get(agent.id) ?? null;
     const wasActive = cards.get(agent.id)?.status === "running" || cards.get(agent.id)?.status === "needs_input";
     // A turn seen ending: the update that ends it carries its end. The agent
@@ -1210,6 +1379,7 @@ function createStore(api: PaseoApi): TaskStore {
     entries.set(agent.id, { agent, placement });
     const newParent = parentIdOf(agent);
     replaceParentLink(agent.id, newParent);
+    replaceOriginLink(agent.id, newParent ? null : serverOrigins.get(agent.id) ?? null);
     const workspace = agent.workspaceId ? workspaces.get(agent.workspaceId) : undefined;
     const project = projectFor({ agent, placement }, workspace, projects);
     const projectId = workspace?.projectId ?? project?.projectId ?? null;
@@ -1224,8 +1394,9 @@ function createStore(api: PaseoApi): TaskStore {
     const affected = new Set<string>([agent.id]);
     if (oldParent) affected.add(oldParent);
     if (newParent) affected.add(newParent);
-    for (const childId of childrenByParent.get(agent.id) ?? []) affected.add(childId);
-    for (const affectedId of affected) refreshFinalCard(affectedId);
+    for (const childId of linkedChildrenOf(agent.id)) affected.add(childId);
+    let cardsChanged = false;
+    for (const affectedId of affected) if (refreshFinalCard(affectedId)) cardsChanged = true;
     if (wasActive && oldParent) dropIfUnreferenced(oldParent);
     // A prompt after the failure is the person acting on it: the parent may go.
     const subagentMembers = sourceMembers.get(SUBAGENT_KEY);
@@ -1233,7 +1404,7 @@ function createStore(api: PaseoApi): TaskStore {
       if (failsBySubagent(agent.id, agent.lastUserMessageAt)) subagentMembers.add(agent.id);
       else subagentMembers.delete(agent.id);
     }
-    notify();
+    if (!resent || cardsChanged) notify();
   }
 
   function removeRecord(id: string) {
@@ -1241,9 +1412,10 @@ function createStore(api: PaseoApi): TaskStore {
     if (!existed) return;
     entries.delete(id);
     const oldParent = replaceParentLink(id, null);
+    replaceOriginLink(id, null);
     const affected = new Set<string>([id]);
     if (oldParent) affected.add(oldParent);
-    for (const childId of childrenByParent.get(id) ?? []) affected.add(childId);
+    for (const childId of linkedChildrenOf(id)) affected.add(childId);
     baseCards.delete(id);
     cards.delete(id);
     for (const affectedId of affected) refreshFinalCard(affectedId);
@@ -1467,6 +1639,7 @@ function createStore(api: PaseoApi): TaskStore {
         if (!pagesKept) {
           doneCursor = snapshot.pageInfo.nextCursor;
           doneTailAt = snapshot.entries.at(-1)?.agent.updatedAt ?? null;
+          if (searchPages) { searchPages.cursor = doneCursor; searchPages.tail = doneTailAt; searchPages.keys.clear(); }
         }
         doneListLanded();
       }
@@ -1480,11 +1653,11 @@ function createStore(api: PaseoApi): TaskStore {
    * in at once: the lane neither shrinks while they load nor keeps an agent
    * archived or deleted since. A failed read keeps the old pages.
    */
-  async function rereadDonePages(run: Run, first: PaseoAgentListResult, pages: number): Promise<Landing> {
+  async function rereadDonePages(run: Run, first: PaseoAgentListResult, pages: number, session: typeof searchPages, regularPages: number): Promise<Landing> {
     const read: Array<{ key: string; result: PaseoAgentListResult }> = [];
     let cursor = first.pageInfo.nextCursor;
     try {
-      while (read.length < pages && cursor) {
+      while (read.length < (session && searchPages !== session ? regularPages : pages) && cursor) {
         const result = await api.agents.list({ filter: doneFilter(), sort: DONE_SORT, page: { limit: PAGE_SIZE, cursor } });
         if (!isCurrent(run)) return "stale";
         read.push({ key: `done-page-${cursor}`, result });
@@ -1492,8 +1665,14 @@ function createStore(api: PaseoApi): TaskStore {
       }
     } catch (caught) {
       if (!isCurrent(run)) return "stale";
-      subscriptionError(caught);
-      return "failed";
+      if (!session || searchPages === session || read.length < regularPages) {
+        subscriptionError(caught);
+        return "failed";
+      }
+    }
+    if (session && searchPages !== session) {
+      read.splice(regularPages);
+      cursor = read.length ? read.at(-1)!.result.pageInfo.nextCursor : first.pageInfo.nextCursor;
     }
     batchUpdates(() => {
       const before = new Set<string>();
@@ -1513,6 +1692,16 @@ function createStore(api: PaseoApi): TaskStore {
       for (const id of before) dropIfUnreferenced(id);
       doneCursor = cursor;
       doneTailAt = read.length ? read.at(-1)!.result.entries.at(-1)?.agent.updatedAt ?? doneTailAt : first.entries.at(-1)?.agent.updatedAt ?? null;
+      if (session && searchPages === session) {
+        const lastRegular = regularPages > 0 ? read[Math.min(regularPages, read.length) - 1]?.result : first;
+        session.cursor = lastRegular?.pageInfo.nextCursor ?? null;
+        session.tail = lastRegular?.entries.at(-1)?.agent.updatedAt ?? null;
+        session.keys = new Set(read.slice(regularPages).map((page) => page.key));
+      }
+      if (searchPages && searchPages !== session && searchPages.keys.size === 0) {
+        searchPages.cursor = doneCursor;
+        searchPages.tail = doneTailAt;
+      }
       notify();
     });
     return "landed";
@@ -1720,6 +1909,8 @@ function createStore(api: PaseoApi): TaskStore {
     subagentReading = true;
     try {
       await readReads(run);
+      await readUnreads(run);
+      await readOrigins(run);
       const result = await loader(subagentVersion);
       if (run !== generation) return;
       if (result.subagents) applySubagents(result.version, result.subagents);
@@ -1758,7 +1949,7 @@ function createStore(api: PaseoApi): TaskStore {
   function failsBySubagent(id: string, lastUserMessageAt: string | null): boolean {
     const readAt = readMarks.get(id);
     const seen = readAt !== undefined && readAt >= epoch(lastUserMessageAt) ? readAt : Number.NEGATIVE_INFINITY;
-    return shownSubagents(subagentsByParent.get(id), lastUserMessageAt).some((subagent) => subagent.status === "failed" && epoch(subagent.updatedAt) > seen);
+    return shownSubagents(subagentsByParent.get(id)).some((subagent) => subagent.status === "failed" && epoch(subagent.updatedAt) > epoch(lastUserMessageAt) && epoch(subagent.updatedAt) > seen);
   }
 
   /** The latest failure the board knows the time of: the last turn's error, or a provider subagent's. */
@@ -1768,6 +1959,36 @@ function createStore(api: PaseoApi): TaskStore {
       if (subagent.status === "failed") at = Math.max(at, epoch(subagent.updatedAt));
     }
     return at;
+  }
+
+  /** The server's inferred origins; a changed one relinks its card to the parent it names. */
+  async function readOrigins(run: number) {
+    const loader = parentOriginsLoader;
+    if (!loader) return;
+    try {
+      const result = await loader(originsVersion);
+      if (run !== generation) return;
+      originsVersion = result.version;
+      if (!result.origins) return;
+      const next = new Map(result.origins.map((origin) => [origin.agentId, origin.parentAgentId] as const));
+      const changed = new Set<string>();
+      for (const [id, parentId] of next) if (serverOrigins.get(id) !== parentId) changed.add(id);
+      for (const id of serverOrigins.keys()) if (!next.has(id)) changed.add(id);
+      serverOrigins.clear();
+      for (const [id, parentId] of next) serverOrigins.set(id, parentId);
+      if (changed.size === 0) return;
+      batchUpdates(() => {
+        for (const id of changed) {
+          const entry = entries.get(id);
+          if (!entry) continue;
+          replaceOriginLink(id, parentIdOf(entry.agent) ? null : serverOrigins.get(id) ?? null);
+          refreshFinalCard(id);
+        }
+        notify();
+      });
+    } catch {
+      // An older server without `tasks.parent-origins`, or a failed read: the cards name no former parent.
+    }
   }
 
   /** The server's read marks; a changed one moves its card (and lets a failed parent go). */
@@ -1799,6 +2020,39 @@ function createStore(api: PaseoApi): TaskStore {
       });
     } catch {
       // An older server without `tasks.reads`, or a failed read: the marks stay as they were.
+    }
+  }
+
+  /** The server's unread marks; a changed one moves a done card back to review. */
+  async function readUnreads(run: number) {
+    const loader = unreadMarksLoader;
+    if (!loader) return;
+    try {
+      const marks = await loader();
+      if (run !== generation) return;
+      const next = new Map<string, number>();
+      for (const mark of marks) {
+        const at = Date.parse(mark.unreadAt);
+        // A read that left before an open's clear landed still lists the mark.
+        if (Number.isFinite(at) && !clearingUnreads.has(mark.agentId)) next.set(mark.agentId, at);
+      }
+      const changed = new Set<string>();
+      for (const [id, at] of next) if (unreadMarks.get(id) !== at) changed.add(id);
+      for (const id of unreadMarks.keys()) if (!next.has(id)) changed.add(id);
+      if (changed.size === 0) return;
+      unreadMarks.clear();
+      for (const [id, at] of next) unreadMarks.set(id, at);
+      batchUpdates(() => {
+        for (const id of changed) {
+          refreshFinalCard(id);
+          const parent = parentByChild.get(id);
+          if (parent) refreshFinalCard(parent);
+        }
+        syncSubagentParents();
+        notify();
+      });
+    } catch {
+      // An older server without `tasks.unreads`, or a failed read: the marks stay as they were.
     }
   }
 
@@ -2163,7 +2417,7 @@ function createStore(api: PaseoApi): TaskStore {
       const project = workspace ? projects.get(workspace.projectId) : undefined;
       baseCards.set(id, buildBaseCard(entry, workspace, project, colorNames, modelCatalogs.get(entry.agent.provider), project ? projectIcons.get(project.projectId) : undefined));
       refreshFinalCard(id);
-      for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
+      for (const childId of linkedChildrenOf(id)) refreshFinalCard(childId);
     }
   }
 
@@ -2338,6 +2592,8 @@ function createStore(api: PaseoApi): TaskStore {
     cards.clear();
     childrenByParent.clear();
     parentByChild.clear();
+    originChildrenByParent.clear();
+    originByChild.clear();
     resolvedParents.clear();
     parentReads.clear();
     workspaces.clear();
@@ -2365,7 +2621,10 @@ function createStore(api: PaseoApi): TaskStore {
     subagentsByParent.clear();
     subagentParentsAsked.clear();
     subagentVersion = undefined;
+    serverOrigins.clear();
+    originsVersion = undefined;
     readMarks.clear();
+    unreadMarks.clear();
     statusReady = false;
     attentionReady = false;
     workspacesReady = false;
@@ -2375,6 +2634,7 @@ function createStore(api: PaseoApi): TaskStore {
     loadingDone = false;
     doneReady = false;
     doneReloading = false;
+    historyError = null;
     archivedLane = archivedAsked;
     error = null;
     notify();
@@ -2498,15 +2758,32 @@ function createStore(api: PaseoApi): TaskStore {
       labels: [...labelsByName.values()].sort((a, b) => compareText(a.name, b.name)),
       ready: statusReady && attentionReady && workspacesReady,
       error,
+      historyBlocked: doneReloading || doneRefreshRun === doneRun,
+      historyError,
+      clearHistoryError,
+      loadMoreSearch,
+      beginHistorySearch,
+      endHistorySearch,
       refresh,
       loadMoreDone: loadMoreFor(options),
       resolveParent,
       refreshParent,
       refreshReads,
+      refreshUnreads,
       requestProjectIcon,
     };
     snapshotCaches.push({ key: cacheKey, snapshot });
     return snapshot;
+  }
+
+  function getQuestionCounts(scope?: CountScope): SidebarCounts {
+    const counts = getCounts(scope);
+    if (!questionCountsCache || questionCountsCache.questions !== countQuestions ||
+      questionCountsCache.needsInput !== counts.needsInput || questionCountsCache.running !== counts.running ||
+      questionCountsCache.review !== counts.review || questionCountsCache.ready !== counts.ready || questionCountsCache.hidden !== counts.hidden) {
+      questionCountsCache = { ...counts, questions: countQuestions };
+    }
+    return questionCountsCache;
   }
 
   function getCounts(scope?: CountScope): SidebarCounts {
@@ -2530,24 +2807,70 @@ function createStore(api: PaseoApi): TaskStore {
         }
       }
       const shown = scope ? filterLanes(lanes, scope.filters, scope.firstMessage && scope.filters.query.trim() ? firstMessagesOf(lanes, scope.firstMessage) : undefined) : lanes;
+      const questions = shown.needs_input.cards.filter((card) => card.permission?.kind === "question" || card.permission?.kind === "other").sort(laneCompare("needs_input"));
+      if (countQuestions.length !== questions.length || questions.some((card, index) => countQuestions[index] !== card)) countQuestions = questions;
       const needsInput = shown.needs_input.cards.length;
       const running = shown.running.cards.length;
       const review = shown.review.cards.length;
+      const baseline = scope ? filterLanes(lanes, { ...scope.filters, query: "", workspaceIds: [], providers: [], labels: [] }) : lanes;
+      const hidden = scope ? (["needs_input", "running", "review"] as const).flatMap((id) => {
+        const visible = new Set(shown[id].cards.map((card) => card.id));
+        return baseline[id].cards.filter((card) => !visible.has(card.id));
+      }) : undefined;
       // The same object while the numbers hold, so a streaming agent does not re-render the row.
       if (
         !countsCache ||
         countsCache.needsInput !== needsInput ||
         countsCache.running !== running ||
         countsCache.review !== review ||
-        countsCache.ready !== (statusReady && workspacesReady)
+        countsCache.ready !== (statusReady && workspacesReady) ||
+        countsCache.hidden?.length !== hidden?.length ||
+        hidden?.some((card, index) => {
+          const previous = countsCache!.hidden?.[index];
+          return !previous || hiddenListChanged(previous, card);
+        })
       ) {
-        countsCache = { needsInput, running, review, ready: statusReady && workspacesReady };
+        countsCache = { needsInput, running, review, ready: statusReady && workspacesReady, ...(hidden ? { hidden } : {}) };
       }
     }
     return countsCache;
   }
 
-  function loadMoreDone(window: DoneWindow) {
+  function clearHistoryError() {
+    if (historyError === null) return;
+    historyError = null;
+    notify();
+  }
+
+  function beginHistorySearch(owner: object) {
+    historySearchOwners.add(owner);
+    if (!searchPages) searchPages = { cursor: doneCursor, tail: doneTailAt, keys: new Set() };
+  }
+
+  function endHistorySearch(owner: object) {
+    historySearchOwners.delete(owner);
+    if (historySearchOwners.size) return;
+    const session = searchPages;
+    if (!session) return;
+    searchPages = null;
+    batchUpdates(() => {
+      const ids = new Set<string>();
+      for (const key of session.keys) {
+        for (const id of sourceMembers.get(key) ?? []) ids.add(id);
+        sourceMembers.delete(key);
+      }
+      for (const id of ids) dropIfUnreferenced(id);
+      if (session.keys.size) { doneCursor = session.cursor; doneTailAt = session.tail; }
+      historyError = null;
+      notify();
+    });
+  }
+
+  function loadMoreSearch(current: () => boolean) {
+    loadMoreDone("all", current);
+  }
+
+  function loadMoreDone(window: DoneWindow, current?: () => boolean) {
     if (loadingDone || doneReloading || doneRefreshRun === doneRun || !doneCursor || doneConsumers === 0) return;
     const cutoff = doneWindowMs(window);
     const tailTime = doneTailAt ? Date.parse(doneTailAt) : Number.NaN;
@@ -2561,7 +2884,7 @@ function createStore(api: PaseoApi): TaskStore {
       sort: [{ key: "updated_at", direction: "desc" }],
       page: { limit: PAGE_SIZE, cursor },
     }).then((result) => {
-      if (!isCurrent(run)) return;
+      if (!isCurrent(run) || (current && !current())) return;
       const key = `done-page-${cursor}`;
       batchUpdates(() => {
         const pageMembers = new Set<string>();
@@ -2572,9 +2895,19 @@ function createStore(api: PaseoApi): TaskStore {
         sourceMembers.set(key, pageMembers);
         doneCursor = result.pageInfo.nextCursor;
         doneTailAt = result.entries.at(-1)?.agent.updatedAt ?? doneTailAt;
+        if (searchPages) {
+          if (current) searchPages.keys.add(key);
+          else { searchPages.keys.clear(); searchPages.cursor = doneCursor; searchPages.tail = doneTailAt; }
+        }
         notify();
       });
-    }).catch(subscriptionError).finally(() => {
+    }).catch((caught: unknown) => {
+      if (!isCurrent(run)) return;
+      if (!current) { subscriptionError(caught); return; }
+      if (!current()) return;
+      historyError = caught instanceof Error ? caught.message : String(caught);
+      notify();
+    }).finally(() => {
       if (!isCurrent(run)) return;
       loadingDone = false;
       notify();
@@ -2613,6 +2946,39 @@ function createStore(api: PaseoApi): TaskStore {
     void readReads(generation);
   }
 
+  function refreshUnreads(): void {
+    void readUnreads(generation);
+  }
+
+  /**
+   * The board opened this agent in Paseo: it was seen, so its unread mark
+   * goes now and on the server. The server is asked every time, as the marks
+   * may not have been read yet; its marks are read again after, so a failed
+   * or older server puts the mark back.
+   */
+  function openedAgent(id: string): void {
+    const clearer = unreadClearer;
+    if (!clearer) return;
+    if (unreadMarks.delete(id)) {
+      batchUpdates(() => {
+        refreshFinalCard(id);
+        const parent = parentByChild.get(id);
+        if (parent) refreshFinalCard(parent);
+        syncSubagentParents();
+        notify();
+      });
+    }
+    const run = generation;
+    clearingUnreads.set(id, (clearingUnreads.get(id) ?? 0) + 1);
+    const settle = () => {
+      const left = (clearingUnreads.get(id) ?? 1) - 1;
+      if (left > 0) clearingUnreads.set(id, left);
+      else clearingUnreads.delete(id);
+      if (run === generation) void readUnreads(run);
+    };
+    void Promise.resolve().then(() => clearer([id])).then(settle, settle);
+  }
+
   function refreshParent(id: string): Promise<boolean | null> {
     if (!resolvedParents.has(id)) resolvedParents.set(id, { title: null, archived: null });
     const run = generation;
@@ -2621,7 +2987,7 @@ function createStore(api: PaseoApi): TaskStore {
       if (run !== generation || !result) return archived;
       resolvedParents.set(id, { title: result.agent.title?.trim() || null, archived });
       if (!archived && hasActiveBackgroundChildren(id)) updateRecord(result.agent, result.project ?? null);
-      for (const childId of childrenByParent.get(id) ?? []) refreshFinalCard(childId);
+      for (const childId of linkedChildrenOf(id)) refreshFinalCard(childId);
       notify();
       return archived;
     });
@@ -2776,14 +3142,17 @@ function createStore(api: PaseoApi): TaskStore {
     if (doneConsumers > 0 && doneReady && !doneReloading) {
       const run: Run = { generation, tier: "done", tierRun: ++doneRun, refresh: token };
       const pages = [...sourceMembers.keys()].filter((key) => key.startsWith("done-page-")).length;
+      const session = searchPages;
+      const regularPages = pages - (session?.keys.size ?? 0);
       // A page in flight belongs to the old run; the pages are read again below.
       loadingDone = false;
       doneRefreshRun = doneRun;
+      notify();
       let first: PaseoAgentListResult | null = null;
       landings.push(openAgentSubscription(DONE_SUBSCRIPTION, doneListOptions(), run, (list) => { first = list; })
-        .then((landing) => (landing === "landed" && first && pages > 0 ? rereadDonePages(run, first, pages) : landing))
+        .then((landing) => (landing === "landed" && first && pages > 0 ? rereadDonePages(run, first, pages, session, regularPages) : landing))
         .finally(() => {
-          if (doneRefreshRun === run.tierRun) doneRefreshRun = -1;
+          if (doneRefreshRun === run.tierRun) { doneRefreshRun = -1; notify(); }
         }));
     }
     scheduleSubagents(0);
@@ -2811,6 +3180,7 @@ function createStore(api: PaseoApi): TaskStore {
     active.token.cancelled = true;
     for (const [key, own] of [...replacements]) dropReplacement(key, own);
     doneRefreshRun = -1;
+    notify();
     active.end(result);
   }
 
@@ -2852,12 +3222,15 @@ function createStore(api: PaseoApi): TaskStore {
     },
     getSnapshot,
     getCounts,
+    getQuestionCounts,
     refresh,
     setArchivedLane,
     loadMoreDone,
     resolveParent,
     refreshParent,
     refreshReads,
+    refreshUnreads,
+    openedAgent,
     requestProjectIcon,
   };
   return store;
@@ -2915,6 +3288,17 @@ export function holdTasks(paseo: PaseoApi, reason: TasksHoldReason, ms: number |
   getStore(paseo).hold(reason, ms);
 }
 
+/**
+ * The board opened an agent in Paseo: drop its unread mark, so a task marked
+ * unread and then looked at does not come back to review. Without a store
+ * for this host the server is still told.
+ */
+export function openedTask(paseo: PaseoApi, agentId: string): void {
+  const store = stores.get(paseo);
+  if (store) store.openedAgent(agentId);
+  else void unreadClearer?.([agentId]).catch(() => {});
+}
+
 export function hasTasksHold(paseo: PaseoApi, reason: TasksHoldReason): boolean {
   return stores.get(paseo)?.hasHold(reason) ?? false;
 }
@@ -2931,13 +3315,13 @@ export function releaseTasksHolds(): void {
  * the cards an unfiltered board draws, a provider subagent's included.
  * Re-renders only when a number changes.
  */
-export function useTaskCounts(paseo: PaseoApi, review: boolean, scope?: CountScope): SidebarCounts {
+export function useTaskCounts(paseo: PaseoApi, review: boolean, scope?: CountScope, questions = false): SidebarCounts {
   const store = getStore(paseo);
   const subscribe = useMemo(
     () => (listener: () => void) => store.subscribe(listener, { board: false, done: false, attention: review }),
     [store, review],
   );
-  const getCounts = useMemo(() => () => store.getCounts(scope), [store, scope]);
+  const getCounts = useMemo(() => () => questions ? store.getQuestionCounts(scope) : store.getCounts(scope), [store, scope, questions]);
   return useSyncExternalStore(subscribe, getCounts, getCounts);
 }
 
@@ -2972,7 +3356,8 @@ export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilt
   if (filters.hideSubtasks) for (const id of LANE_ORDER) for (const card of lanes[id].cards) byId.set(card.id, card);
   const keep = (card: TaskCard) => {
     if (!matches(card)) return false;
-    if (!filters.hideSubtasks || card.parent === null) return true;
+    // A detached card's former parent is history: it is a task of its own.
+    if (!filters.hideSubtasks || card.parent === null || card.parent.detached) return true;
     if (card.status !== "running" && card.status !== "needs_input" && card.status !== "failed") return false;
     // A parent left on the board shows it as a row, or its own parent does.
     const parent = byId.get(card.parent.id);

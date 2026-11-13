@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CARD_PRESETS,
+  TASKS_SETTINGS,
   DEFAULT_TASKS_SETTINGS,
   applyDensity,
   densityOf,
@@ -18,9 +19,31 @@ describe("tasks settings", () => {
       density: "standard",
       card: { ...CARD_PRESETS.standard.fields, labelLimit: "2" },
       mobile: { compactCards: false },
-      board: { doneWindow: "24h", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true },
+      board: { doneWindow: "7d", hideSubtasks: false, laneWidth: "default", showArchived: true, showEmptyGroups: true },
       sidebar: { count: "all" },
     });
+  });
+
+  it.each(["minimal", "standard", "full"] as const)("migrates old %s without changing its density", async (density) => {
+    const old = applyDensity(DEFAULT_TASKS_SETTINGS, density);
+    const { plan: _plan, ...card } = old.card;
+    const migrated = await TASKS_SETTINGS.migrate!({ ...old, card }, 1);
+    const parsed = tasksSettingsSchema.parse(migrated);
+    expect(parsed.card.plan).toBe(density !== "minimal");
+    expect(parsed.density).toBe(density);
+    expect(densityOf(parsed.card)).toBe(density);
+  });
+
+  it("migrates custom and missing density to an enabled plan", async () => {
+    for (const density of ["custom", undefined]) {
+      const parsed = tasksSettingsSchema.parse(await TASKS_SETTINGS.migrate!({ density, card: { model: false } }, 1));
+      expect(parsed.card.plan).toBe(true);
+      expect(parsed.card.model).toBe(false);
+      expect(parsed.density).toBe(density ?? "standard");
+    }
+    expect(CARD_PRESETS.minimal.fields.plan).toBe(false);
+    expect(CARD_PRESETS.standard.fields.plan).toBe(true);
+    expect(CARD_PRESETS.full.fields.plan).toBe(true);
   });
 
   it("keeps the board on unless a record turns it off", () => {
@@ -44,6 +67,7 @@ describe("tasks settings", () => {
       board: { doneWindow: "7d", confirmStop: "yes", laneWidth: "huge" },
     });
     expect(tasksSettingsSchema.parse({ board: { confirmStop: false } }).board).toEqual(DEFAULT_TASKS_SETTINGS.board);
+    expect(tasksSettingsSchema.parse({ board: { doneWindow: "24h" } }).board.doneWindow).toBe("24h");
     expect(parsed.density).toBe("standard");
     expect(parsed.card.provider).toBe(false);
     expect(parsed.card.labelLimit).toBe("2");

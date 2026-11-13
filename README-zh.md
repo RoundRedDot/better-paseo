@@ -4,7 +4,7 @@
 
 [English](README.md) | **简体中文**
 
-一个 [Paseo](https://paseo.sh) 插件，重新绘制 Paseo 中所有 agent 的聊天时间线，不论背后是哪家服务（Claude Code、Codex、Oh My Pi 等）：工具调用、思考、回复、提问、待办和错误都画成紧凑、按类型区分、带语法高亮的行，配色跟随当前的 Paseo 主题。它还加了一个 **Tasks** 看板，把这台主机上的所有 agent 按状态分列铺开。界面按手上的设备来画：手机上是可以双指缩放字号的详情抽屉和左右滑动的单列看板，iPad 上是浮动面板、侧边面板，以及带详情侧栏或底部弹层的看板。下方实测对比时间线和 Paseo 原生时间线的开销。
+一个 [Paseo](https://paseo.sh) 插件，重新绘制 Paseo 中所有 agent 的聊天时间线，不论背后是哪家服务（Claude Code、Codex、Oh My Pi 等）：工具调用、思考、回复、提问、待办和错误都画成紧凑、按类型区分、带语法高亮的行，配色跟随当前的 Paseo 主题。它还加了一个 **Tasks** 看板，把这台主机上的所有 agent 按状态分列铺开。界面按手上的设备来画：手机上是可以双指缩放字号的详情抽屉和左右滑动的单列看板，iPad 上是浮动面板、侧边面板，以及带详情侧栏或底部弹层的看板。下方实测对比时间线和 Paseo 原生时间线的性能表现与开销，完整数据见[性能测试报告](docs/performance-zh.md)。
 
 https://github.com/user-attachments/assets/493499a2-411f-45bb-9274-d33c92255099
 
@@ -14,18 +14,20 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 
 <sub>GitHub App 里看不到播放器？[打开Tasks视频](https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/better-paseo-promo-v14-tasks-web.mp4)。</sub>
 
-<img alt="Better Paseo，一个 Paseo 插件：桌面窗口里的 Tasks 看板，有出错的子任务卡片、展开子任务的父卡片和虚线框的只读子代理卡片，旁边是 iPhone 上的聊天时间线" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--hero-cover-zh.png">
+<img alt="Better Paseo：带授权和问询卡片的 Tasks 看板，旁边是手机尺寸的聊天时间线" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/hero-cover-v2-zh.png">
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--tasks-board-zh-dark.png"><img alt="Tasks 看板：所有 agent 按状态分列排开，包括带错误信息的出错子任务卡片、展开子任务的父卡片和虚线框的只读子代理卡片，侧栏显示各状态数量和按 agent 的分组" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--tasks-board-zh-light.png"></picture>
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--timeline-zh-dark.png"><img alt="由紧凑工具行和待办组成的聊天时间线，区块详情侧边面板里打开了一次编辑的 diff" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--timeline-zh-light.png"></picture>
 
-> Better Paseo fork 自 [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat)，从 `42b61d8`（2026-09-23）接着开发。除 Eval、Ask、Task 和审批卡片外，Beautiful Chat 原有的卡片都还在；当前的 Paseo 不会把这几类内容交给插件（见[兼容性](#兼容性)）。本文介绍这个 fork 新增的功能和它的性能表现。
+> Better Paseo fork 自 [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat)，从 `42b61d8`（2026-09-23）接着开发。除 Eval、Ask、Task 和审批卡片外，Beautiful Chat 原有的卡片都还在；当前的 Paseo 不会把这几类内容交给插件（见[限制与兼容性](docs/limitations-zh.md)）。本文介绍这个 fork 新增的功能和它的性能表现。
+
+> **版本要求：** 需要 Paseo `>=0.14.0`。安装命令：`paseo plugin install roundreddot/better-paseo`（详见[安装指南](docs/install-zh.md)）。
 
 ## 亮点
 
 - **为手机和 iPad 设计。** 手机上点按一行，它会在底部抽屉里打开，双指可以调字号；iPad 上则是浮动面板或侧边面板。Tasks 看板在手机上一次显示一列，在平板上是多列泳道，配详情侧栏、浮动面板或底部弹层。见[手机与 iPad](#手机与-ipad)。
 
-- **性能实测。** 对照 Paseo 0.13.0，Web 与 iOS 共串行回放 220 次（每格 5 次）；长回复的 Web 主线程时间从 16.189 秒降到 5.520 秒，减少 66%。详见[性能对比](#性能对比)。
+- **性能实测。** 对照 Paseo 0.13.0，Web 与 iOS 共串行回放 220 次（每格 5 次）；长回复的 Web 主线程时间从 16.189 秒降到 5.520 秒，减少 66%。详见[性能对比](#性能对比)与[完整基准报告](docs/performance-zh.md)。
 
 - **一个工具调用一行。** 调用默认折叠成 26pt 的一行，摘要按类型生成；完成、滚进历史、重新挂载后，展开状态都不会丢。
 - **每个工具都有自己的图标。** Shell 行画出所运行的程序（101 个图标覆盖 209 个程序，从 `python` 到 `kubectl`），MCP 行画出所调用的服务（75 个服务，从 Linear 到飞书），其余调用按类型画。见[工具图标](#工具图标)。
@@ -34,21 +36,6 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 - **Tasks 看板。** 按状态（待输入、运行中、待查看、已完成、已归档）铺开主机上的所有 agent，标签颜色和项目图标与 Paseo 一致，卡片上就能停止、标为已读、归档、处理权限请求；详情里有本轮计时和 token、首条消息、最后回复消息、子任务和用量。见 [Tasks 看板](#tasks-看板)。
 - **跟随 Paseo。** 字体、字号、颜色和语言默认跟随宿主；设置保存在 daemon 上，桌面、网页、iOS、Android 共用同一份。
 - **重连负担小。** 客户端以压缩后的形式下发，Tasks 看板只在开启时加载，Paseo 每次重连都要重发的插件清单从 1,977 KB 降到 722 KB（2026-10-23 改动合入时在 Paseo 0.12 daemon 上测得）。
-
-- **内存实测。** 所有 Web 场景中，Better Paseo 强制 GC 后的 JavaScript 堆比不开插件多 5.1–13.2 MB。见[内存对比](#内存对比)。
-
-## 安装
-
-```bash
-paseo plugin install RoundRedDot/better-paseo
-```
-
-需要 Paseo `>=0.14.0`，文中的性能测量基于 Paseo 0.13.0。版本要求见[兼容性](#兼容性)。在 **设置 → 插件 → Better Paseo**（页面标题为 **设置**）中配置。Paseo 从 GitHub 安装插件，并在安装时构建客户端；更新到新版本：
-
-```bash
-paseo plugin update better-paseo        # 列出更新并询问
-paseo plugin update better-paseo --yes  # 不询问，直接更新
-```
 
 ---
 
@@ -74,7 +61,7 @@ Paseo 在桌面、网页、iOS 和 Android 上运行的是同一个插件。Bett
 - **能横屏的地方。** Paseo 的 iOS 和 Android 应用让手机保持竖屏（Paseo 0.13 的应用配置里是 `orientation: "portrait"`）。在横过来的手机浏览器里，或任何宽至少 600pt、高不足 500pt 的窗口中，详情改成 400pt 宽的侧边面板，旁边的时间线仍然可读。
 - **用手指选中。** iOS 上长按回复正文可以放置光标、拖动选区。表格里，连续点按两次选中一个单元格，按住某个单元格再横向、纵向拖动可以选中一片；松手后弹出复制菜单。
 - **图片。** 全屏查看器以手指为中心缩放（0.25 到 8 倍），放大后可拖动平移，双击复位，上下拖动关闭。文件按钮显示为「复制路径」，复制文件的绝对路径，因为文件在 daemon 那台机器上。
-- **单手看 Tasks。** 看板一次显示一列，顶部是带各列计数的标签（待输入、运行中、待查看、已完成，开启已归档泳道时还有已归档）；左右滑动或点按切换。各列是原生分页，所以除了第一列，横向滑动只会换列，不会打开 Paseo 的 agent 列表。卡片末尾是一排按钮，最右是「打开」，提问请求显示「打开处理」。点按卡片打开详情弹层，可以在同一列的卡片间前后切换，底部固定着「打开」或「打开处理」和「停止」或「归档」，权限请求还会有「拒绝」或「允许」；停止前先弹系统对话框确认。顶部保留搜索、已归档泳道和「筛选」；筛选弹层里有空分组和子任务开关、agent、标签、已完成时间窗口和排序，最后是带搜索框的 workspace 列表，「重置」和「显示 N 个任务」固定在底部。
+- **单手看 Tasks。** 看板一次显示一列，顶部是带各列计数的标签（待输入、运行中、待查看、已完成，开启已归档泳道时还有已归档）；左右滑动或点按切换。各列是原生分页，所以除了第一列，横向滑动只会换列，不会打开 Paseo 的 agent 列表。卡片末尾是一排按钮，最右是「打开」，提问请求显示「打开处理」。点按卡片打开详情弹层，可以在同一列的卡片间前后切换，底部固定着「打开」或「打开处理」和「停止」或「归档」，权限请求还会有「拒绝」或「允许」；停止前先弹系统对话框确认。顶部保留搜索、已归档泳道和「筛选」；筛选弹层里有空分组开关、已完成时间窗口、agent、标签、带搜索的项目和 workspace，以及排序，「重置」和「显示 N 个任务」固定在底部。
 
 | 时间线 | 区块详情抽屉，正在双指缩放 | Tasks 看板 |
 | --- | --- | --- |
@@ -84,7 +71,7 @@ Paseo 在桌面、网页、iOS 和 Android 上运行的是同一个插件。Bett
 
 ### 在 iPad 上
 
-- **用面板代替抽屉。** 宽度达到 600pt 时，详情以浮动面板打开，居中盖在聊天上方，最宽 760pt；达到 960pt 且聊天区在旁边还能留出至少 400pt 时，改为右侧的侧边面板，宽度为窗口的 36%（420–640pt）。在模拟器上，11 英寸 iPad 竖屏是浮动面板、横屏是侧边面板，13 英寸 iPad 竖屏就已是侧边面板；按同样的阈值，分屏后窗口窄于 600pt 时退回抽屉。Paseo 在 iOS 和 Android 上只给插件全屏模态层，所以点面板外面会关闭它（见[插件做不到的事](#插件做不到的事)）。
+- **用面板代替抽屉。** 宽度达到 600pt 时，详情以浮动面板打开，居中盖在聊天上方，最宽 760pt；达到 960pt 且聊天区在旁边还能留出至少 400pt 时，改为右侧的侧边面板，宽度为窗口的 36%（420–640pt）。在模拟器上，11 英寸 iPad 竖屏是浮动面板、横屏是侧边面板，13 英寸 iPad 竖屏就已是侧边面板；按同样的阈值，分屏后窗口窄于 600pt 时退回抽屉。Paseo 在 iOS 和 Android 上只给插件全屏模态层，所以点面板外面会关闭它（见[插件做不到的事](docs/limitations-zh.md)）。
 - **先按手指的尺寸，再按指针的尺寸。** 用手指操作时，详情标题栏高 52pt、按钮 36pt，工具栏高 44pt。触控板悬停过某一行之后，它们缩到桌面的 44pt 和 36pt，点击在原地展开行，行的悬停操作也会出现；长按依然可用。
 - **保留泳道的看板。** 平板上的 Tasks 看板沿用桌面布局。没有悬停可以唤出按钮，所以每张卡片在计时下方常驻一排按钮：「停止」、「标为已读」或「归档」，最右是「打开」；父任务可打开的子任务卡片还会在旁边显示「打开父任务」；停止前弹系统对话框确认。点按选中卡片查看详情。详情放在哪里取决于看板宽度：1,020pt 起排在泳道旁的侧栏（13 英寸 iPad 横屏），784pt 起浮在泳道上方，不足 760pt（11 或 13 英寸 iPad 竖屏、打开着 Paseo 侧边栏）时是一个底部弹层，泳道仍可操作。弹层默认半高，可以拉到全高，宽 640pt 以上时分两栏。看板窄于 760pt 时，顶部保留搜索和已归档泳道开关，以及「筛选」；筛选弹层里有空分组、过滤、已完成时间窗口、排序、子任务开关和泳道宽度；泳道保持自己的宽度、左右滚动，除了卡片，列标题和卡片间的空隙也能拖动滚动。
 
@@ -102,103 +89,16 @@ Paseo 在桌面、网页、iOS 和 Android 上运行的是同一个插件。Bett
 
 ## 性能对比
 
-### Web
+测试版本为 `948b8720`，在 Mac Studio（Apple M5 Max、18 核、64 GB、macOS 27.0.1）上对照 Paseo 0.13.0 进行 220 次串行回放实测（覆盖 11 个典型场景），尚未在 0.14.0 上重测（iOS 测试基于模拟器，不代表真机性能）：
 
-2026-10-26 至 27 日在 Mac Studio（Apple M5 Max、18 核、64 GB、macOS 27.0.1）上对照 Paseo 0.13.0 测量；Paseo 0.13 基于 React Native 0.86，回复仍由 react-native-enriched-markdown 绘制。Better Paseo 测试版本为 948b8720，通过插件安装流程构建，每次跑次都核实了实际加载的压缩 bundle。Web 和 iOS 各测 11 个场景 × 2 种配置（不开插件、Better Paseo）× 5 次：每个平台 110 次，共 220 次；串行执行，并按场景轮换配置顺序。bench daemon 使用干净的 home，测量期间只有 1 个 workspace 和 1 个 agent。每批只在机器安静时开始：没有其他已启动的模拟器，没有其他构建在跑，一分钟内 CPU 平均空闲不低于 90%；每次跑完时的 1 分钟负载，Web 为 1–7（中位数 2），iOS 为 1.0–8.3（中位数 1.7）。Web 使用 Chrome 156.0.8078.48、1280×900。Tasks 看板和 Block details 均按默认设置开启。之后的提交 948b8720..8802deb8 只改了 Tasks 看板在手机上的搜索、筛选弹层和搜索索引，不涉及时间线。随后的 50143ce1 改了 iOS 时间线：仍在流式输出的回复先用普通文本绘制正文，结束后再换成原生文本视图；在另一组交错的 iOS 长回复 A/B 中（每组 5 次，未经上述安静闸门），App CPU 从 12.35 秒降到 11.01 秒。下表是 948b8720 的 220 次回放结果，没有针对 50143ce1 重测。
+- **长回复 Web 主线程时间减少 66%：** 耗时从 16.189 秒降至 5.520 秒；11 个场景中 9 项更低、1 项持平、1 项更高。
+- **长回复 Web 时间线行渲染耗时减少 95%：** 宿主 Profiler 行渲染总量从 8,887.4 毫秒降至 438.7 毫秒。
+- **Web 历史回放主线程任务时间增加 37%：** 从 0.784 秒增至 1.075 秒（宿主更新时频繁传递新数组为[已知开销来源之一](docs/performance-zh.md#method-and-limits)）。
+- **流式布局偏移（CLS）变动：** 长回复场景 CLS 降低 100%（0.000015 对比 0.053955）；11 个场景中 2 项更低、3 项持平、6 项回退（Better Paseo 测得的绝对读数均在 0.031 以下）。
+- **iOS App CPU 综合表现：** 长回复 CPU 耗时减少 54%（从 25.56 秒降至 11.76 秒，掉帧中位数从 894 降至 15）；11 个场景中 4 项更低、6 项持平、1 项更高。
+- **内存实测：** 覆盖 Web 各场景，Better Paseo 在 GC 后的 JavaScript 堆比不开插件多用 5.1–13.2 MB。
 
 ![Web 主线程时间](docs/perf/readme/web-cpu.zh.svg)
-
-整段回放主线程 Task 时间（秒）对比不开插件：9 项更低、1 项持平、1 项更高。差异不到 10% 记为持平；如果两边整段回放都不到 0.5 秒，也记为持平。长回复的 Task 时间是不开插件 16.189 秒、Better Paseo 5.520 秒，减少 66%。
-
-| 场景 | 不开插件 | Better Paseo | 对比不开插件 |
-| --- | ---: | ---: | :--- |
-| 代码块流式 | 3.789 | **2.351** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;38% |
-| 大 diff | 0.368 | **0.328** | 持平 |
-| 历史回放 | 0.784 | **1.075** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;37% |
-| 长回复 | 16.189 | **5.520** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;66% |
-| 混合一轮 | 1.514 | **1.221** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;19% |
-| 读 20 个文件 | 1.077 | **0.945** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;12% |
-| 思考散文 | 2.985 | **1.737** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;42% |
-| 思考分节 | 2.586 | **1.470** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;43% |
-| 大段终端 | 0.943 | **0.657** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;30% |
-| 表格流式 | 2.783 | **1.651** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;41% |
-| 工具日志增长 | 1.736 | **1.450** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;16% |
-
-同一批跑次的时间线行渲染总量（宿主 Profiler allRows.sum，毫秒），对比不开插件：9 项更低、0 项持平、2 项更高。
-
-| 场景 | 不开插件 | Better Paseo | 对比不开插件 |
-| --- | ---: | ---: | :--- |
-| 代码块流式 | 1,247.1 | **222.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;82% |
-| 大 diff | 27.6 | **19.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;31% |
-| 历史回放 | 147.0 | **236.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;61% |
-| 长回复 | 8,887.4 | **438.7** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;95% |
-| 混合一轮 | 164.6 | **89.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;46% |
-| 读 20 个文件 | 120.7 | **87.7** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;27% |
-| 思考散文 | 493.7 | **132.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% |
-| 思考分节 | 457.5 | **120.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;74% |
-| 大段终端 | 26.2 | **17.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;35% |
-| 表格流式 | 886.4 | **147.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;83% |
-| 工具日志增长 | 56.8 | **94.3** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;66% |
-
-### 流式布局偏移
-
-同一批 Web 跑次的累计布局偏移（CLS，越低越好），保留六位小数。0.5 秒规则不适用。基线很小时百分比会显得很大，应同时看绝对值；低于 0.002 的读数通常不易看出来。对比不开插件：2 项更低、3 项持平、6 项更高。
-
-| 场景 | 不开插件 | Better Paseo | 对比不开插件 |
-| --- | ---: | ---: | :--- |
-| 代码块流式 | 0.001168 | **0.030875** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;2543% |
-| 大 diff | 0.000015 | **0.000015** | 持平 |
-| 历史回放 | 0.000015 | **0.000347** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;2278% |
-| 长回复 | 0.053955 | **0.000015** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
-| 混合一轮 | 0.002791 | **0.026655** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;855% |
-| 读 20 个文件 | 0.000015 | **0.000793** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5335% |
-| 思考散文 | 0.000015 | **0.000778** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5235% |
-| 思考分节 | 0.000015 | **0.000778** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5235% |
-| 大段终端 | 0.000015 | **0.000015** | 持平 |
-| 表格流式 | 0.045756 | **0.016243** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;65% |
-| 工具日志增长 | 0.000015 | **0.000015** | 持平 |
-
-### iOS
-
-Paseo 0.13.0 Release 构建，iPhone 17 Pro / iOS 26.5 模拟器；每次样本都冷启动，行探针使用 React profiling renderer。Paseo 0.13 在原生线程上排版 Markdown，因此 iOS 的主要指标是整段回放期间整个 App 进程的 CPU 时间。这些模拟器测量不代表真机性能。iOS 批次进行中，bench 之外的一次模拟器服务重启关掉了所有模拟器；第 1、2 轮因此作废，在同样的安静检查下完整重跑，并检查每个样本期间模拟器都没有重启。有 7 个样本（都是不开插件）以 Paseo App 崩溃结束，已整次重跑，所以每格都是 5 个完整样本。
-
-![iOS App CPU 时间](docs/perf/readme/ios-cpu.zh.svg)
-
-整个 App 进程的 CPU 时间对比不开插件：4 项更低、6 项持平、1 项更高。长回复中宿主耗时 25.56 秒，Better Paseo 为 11.76 秒（减少 54%）。帧探针记录的掉帧数中位数分别为宿主 894 帧、Better Paseo 15 帧；最长帧分别为 155.1 ms 和 47.9 ms。iOS 的历史回放呈双峰：App CPU 取决于回放画了多少帧。本轮 10 个样本全部落在低峰，之前 Paseo 0.12 那一轮则全部落在高峰。因此 iOS 的秒数不能跨轮比较，只看同一轮内的比例。
-
-| 场景 | 不开插件 | Better Paseo | 对比不开插件 |
-| --- | ---: | ---: | :--- |
-| 代码块流式 | 4.54 | **4.23** | 持平 |
-| 大 diff | 0.55 | **0.50** | 持平 |
-| 历史回放 | 0.38 | **0.58** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;53% |
-| 长回复 | 25.56 | **11.76** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;54% |
-| 混合一轮 | 2.04 | **1.90** | 持平 |
-| 读 20 个文件 | 1.50 | **1.63** | 持平 |
-| 思考散文 | 3.40 | **3.31** | 持平 |
-| 思考分节 | 2.98 | **2.54** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;15% |
-| 大段终端 | 1.32 | **0.92** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;30% |
-| 表格流式 | 3.10 | **2.98** | 持平 |
-| 工具日志增长 | 2.80 | **2.33** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;17% |
-
-JavaScript 时间线行渲染总量（宿主 Profiler allRows.sum，毫秒）对比不开插件：3 项更低、0 项持平、8 项更高。Paseo 在原生线程上排版 Markdown，所以这项 JavaScript 探针不能代表整个 App 的 CPU 开销。
-
-| 场景 | 不开插件 | Better Paseo | 对比不开插件 |
-| --- | ---: | ---: | :--- |
-| 代码块流式 | 647.2 | **407.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;37% |
-| 大 diff | 11.9 | **45.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;286% |
-| 历史回放 | 34.7 | **82.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;137% |
-| 长回复 | 13,968.3 | **798.9** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;94% |
-| 混合一轮 | 107.6 | **168.8** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;57% |
-| 读 20 个文件 | 101.0 | **175.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;74% |
-| 思考散文 | 144.5 | **215.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;49% |
-| 思考分节 | 133.1 | **179.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;35% |
-| 大段终端 | 12.0 | **40.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;241% |
-| 表格流式 | 358.6 | **285.2** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;20% |
-| 工具日志增长 | 87.9 | **144.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;64% |
-
-绿色 ⬆ 表示更低，红色 ⬇ 表示更高。百分比按未舍入的中位数计算。`history-100` 是 fixture 名称，不代表 100 个实际 provider turn，此处称“历史回放”。`tool-expanded-streaming` 不执行展开操作，此处称“工具日志增长”。
-
-**方法与边界。** Web 主线程时间是 CDP 记录的整段回放 TaskDuration；行渲染表为宿主 React Profiler 对各时间线行计时的总和。iOS App CPU 覆盖整个进程及原生线程，iOS 行渲染时间只覆盖 JavaScript。表中每格都是 5 次跑次的中位数，百分比按未舍入中位数计算。差异不到 10% 记为持平；Web 整段回放两边都不到 0.5 秒时也记为持平。CLS 不适用 0.5 秒门槛；基线接近零时百分比会放大，应看六位小数的绝对值。与 Beautiful Chat 42b61d8 的对比是在 Paseo 0.11.2 上测得，未在 0.12 和 0.13 重测。Tasks 和 Block details 按默认设置开启。在 Paseo 0.12 上单独做的 A/B（未在 0.13 重做）显示，Tasks 使 Web 历史回放主线程时间从 0.885 秒升至 0.941 秒（+6%），对应样本的 JS 堆增加约 1.3–2.1 MB；iOS 历史回放 App CPU 变化约 2%。关闭 Block details 后，三个 iOS 场景的 JavaScript 行渲染时间减少 12–17%，App CPU 只变化约 2–4%。历史回放开销的一个已知来源是：宿主每次 agent 更新时，即使 `features` 没有变化，也会换成一个新的数组，导致整个 agent 视图和行渲染回调重新渲染；无论 Tasks 看板开或关都一样。已向上游报告（[getpaseo/paseo#7773](https://github.com/getpaseo/paseo/issues/7773)），修复见 [#7774](https://github.com/getpaseo/paseo/pull/7774)，目前仍未合并，所以 Paseo 0.13.0 也是如此。
 
 ### 时间省在哪里
 
@@ -208,35 +108,14 @@ JavaScript 时间线行渲染总量（宿主 Profiler allRows.sum，毫秒）对
 - **减少持续动画开销。** 网页运行圆点使用 CSS 动画，减少动态效果时静止；移除装饰性的阴影、磨砂和呼吸动画。
 - **缩小重连交付。** App 每次重连，Paseo 都会把所有插件的客户端包重新发一遍；走中继时，手机还要用 JavaScript 解密。安装时插件会压缩客户端，Tasks 看板、它的侧边栏入口和设置标签拆成一个 304 KB 的独立分块，看板开启时每次启动 App 取一次，关闭时从不下载：Paseo 0.12 daemon 上的插件清单从 1,977 KB 降到 722 KB。品牌图标和 Inter 字体按需下发，客户端源码保持 ASCII，供 Hermes 按单字节保存。
 
----
-
-## 内存对比
-
-2026-10-26 的 Web 生产 profiling 跑次；每个数值是同一批回放中强制 GC 后 5 次读数的中位数。这是 JavaScript 堆，不是整个进程或应用的内存。差值为 Better Paseo 减不开插件，单位 MB；不适用 10% 持平规则。所有列出的场景里，Better Paseo 的堆多 5.1–13.2 MB。
-
-![Web JavaScript 堆与 DOM 节点](docs/perf/readme/web-memory.zh.svg)
-
-| 场景 | 不开插件 | Better Paseo | 差值 |
-| --- | ---: | ---: | ---: |
-| 代码块流式 | 83.9 | **89.0** | +5.1 |
-| 大 diff | 78.3 | **86.6** | +8.2 |
-| 历史回放 | 85.8 | **99.1** | +13.2 |
-| 长回复 | 83.8 | **96.4** | +12.6 |
-| 混合一轮 | 80.6 | **90.2** | +9.6 |
-| 读 20 个文件 | 81.6 | **92.1** | +10.6 |
-| 思考散文 | 79.4 | **87.4** | +8.0 |
-| 思考分节 | 79.3 | **87.0** | +7.7 |
-| 大段终端 | 78.9 | **87.3** | +8.4 |
-| 表格流式 | 80.4 | **89.0** | +8.6 |
-| 工具日志增长 | 81.2 | **91.6** | +10.4 |
-
-本轮 Web 原始样本留在本地、被 git 忽略的 docs/bench/2026-10-26-paseo-013-948b8720 归档中，不进入 git。
+> [!NOTE]
+> 完整测量方法、测试机环境、模拟器限制，以及覆盖 11 个场景的 Web / iOS / CLS / 内存全量对照表与已知限制，见独立文档 [性能测试报告](docs/performance-zh.md)。
 
 ---
 
 ## 时间线
 
-截图于 2026-10-26 至 27 日拍摄。桌面看板、时间线截图和封面图来自 `948b8720`，运行在网页版 Paseo 0.13.0 上；手机和 iPad 截图在 `8802deb8` 上拍摄或复核，来自 iOS 26.5 模拟器（iPhone 17 Pro、11 英寸和 13 英寸 iPad）上的 Paseo 0.13.0 Release 构建。`948b8720..8802deb8` 只改了手机上的搜索和筛选弹层，桌面截图里没有这些界面。卡片和设置截图来自离线 Web showcase，已在 `948b8720` 上复核，没有变化的沿用之前的截图。所有数据都是示例 fixture。全部截图默认浅色，并随阅读器主题自动切换深色。性能版本及条件见上文。[截图清单](docs/images/screenshots.json)。
+封面展示的是 1.5.5 之后的开发版本 `d53fe171`，运行在网页版 Paseo 0.15.4 上；其中手机尺寸的时间线也是网页版，并非 iOS 原生截图。其他截图于 2026-10-26 至 27 日拍摄：桌面看板和时间线来自 `948b8720`，运行在网页版 Paseo 0.13.0 上；手机和 iPad 截图在 `8802deb8` 上拍摄或复核，来自 iOS 26.5 模拟器（iPhone 17 Pro、11 英寸和 13 英寸 iPad）上的 Paseo 0.13.0 Release 构建。`948b8720..8802deb8` 只改了手机上的搜索和筛选弹层，桌面截图里没有这些界面。卡片和设置截图来自离线 Web showcase，已在 `948b8720` 上复核，没有变化的沿用之前的截图。所有数据都是示例 fixture。其他截图默认浅色，并随阅读器主题自动切换深色。性能版本及测量条件见[性能对比](#性能对比)（完整测试报告见 [性能测试报告](docs/performance-zh.md)）。
 
 以下功能都建立在 Beautiful Chat 已有的能力之上：按类型区分的工具卡片、Shiki 高亮、读图、打开文件，以及插件自己的查找栏。
 
@@ -257,7 +136,7 @@ Oh My Pi 的 `hub` 工具和它的 GitHub 设备调用按工具名识别，有�
 - Paseo 自己的工具带 Paseo 标识；agent 卡片和回复信息栏使用 agent 所属服务商的标识，不随所选模型改变。
 - Oh My Pi 的 `hub` 工具每个操作都有对应卡片：进程、消息和任务快照。卡片只做展示，不带按钮，因为插件无法重启或取消任何东西。
 - 不同 agent 发出的受支持提问调用，只要带结构化 `questions` 数据，就会显示分页问答记录，包括选项、已记录的回答和状态。「显示原始数据」可查看原始内容；这类卡片只展示记录，回答仍由 Paseo 处理。预览中的问题会自动换行，便于阅读。
-- 前一轮的后台子 agent 还在汇报时，Paseo 0.12 可能把后面的工具行再画一份；插件会隐藏这些重复的行（见[插件绕开的 Paseo 问题](#插件绕开的-paseo-问题)）。
+- 前一轮的后台子 agent 还在汇报时，Paseo 0.12 可能把后面的工具行再画一份；插件会隐藏这些重复的行（见[插件绕开的 Paseo 问题](docs/limitations-zh.md#插件绕开的-paseo-问题)）。
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--questions-dark.png"><img alt="带已记录回答的结构化提问记录" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--questions-light.png"></picture>
 
@@ -529,7 +408,8 @@ Oh My Pi 的 `hub` 工具和它的 GitHub 设备调用按工具名识别，有�
 - 网页和桌面上双击单元格可选中其中的文字；iOS 和 Android 上对同一单元格连续点按两次即可选中。要选中一片单元格，按住某个单元格再横向、纵向拖动；用鼠标时，从一个单元格直接拖进另一个也可以。网页和桌面上，按住 Command（Windows 和 Linux 上是 Ctrl）再点按或拖过单元格，可以再加一片选区而不丢掉已有的；这时每片选区都沿用最后画的那片的列。松手后弹出菜单：选中一个单元格复制它的文字，选中多个则按表格顺序复制只含所选行列的 Markdown 表格，并带上这几列的表头。表格角落菜单始终提供「复制选中」，Paseo 允许插件向输入框写入文字时还会显示「添加到对话」。
 - 每个已完成轮次会在最终回复下方显示独立信息栏，提供复制和时间；有数据时还会显示服务商标识、模型、思考等级和本轮实际耗时。悬停或长按信息栏可打开「轮次详情」表格：agent、模型、思考等级、开始和结束时间、耗时，以及输入、缓存和输出 token。点按模型名称可复制，并会显示提示；后续轮次运行时，已完成轮次的信息栏仍会保留。关闭「回复使用插件 Markdown」可恢复 Paseo 完整的信息栏和 Fork 操作。
 - 一段回复里的多张本地图片都会画出来。
-- 关闭「回复使用插件 Markdown」即可把回复交回 Paseo，由它绘制 mermaid 图表、宿主图片和文件链接。
+- 完整的 `mermaid` 代码块由 Paseo 绘图，沿用宿主的源码查看和全屏操作；围栏尚未闭合且回复仍在生成时显示源码。
+- 需要宿主图片和文件链接时，关闭「回复使用插件 Markdown」。
 
 | 表格复制菜单 | 选中单元格后的操作 |
 | --- | --- |
@@ -562,7 +442,7 @@ Oh My Pi 的 `hub` 工具和它的 GitHub 设备调用按工具名识别，有�
 
 ### 提问气泡
 
-默认由 Paseo 绘制提问，保留粘贴的图片和回退菜单。打开「增强提问气泡」后，符合条件的提问会改用插件气泡：复制按钮常驻；对最新一条提问，在本客户端看着这一轮运行时，还会显示本轮 token 用量。插件能取得受支持的图片源时也会绘制图片；含无法呈现附件的提问仍交给 Paseo。已发布的 Paseo 不把回退菜单交给插件，所以插件气泡上没有回退（见[插件做不到的事](#插件做不到的事)）。
+默认由 Paseo 绘制提问，保留粘贴的图片和回退菜单。打开「增强提问气泡」后，符合条件的提问会改用插件气泡：复制按钮常驻；对最新一条提问，在本客户端看着这一轮运行时，还会显示本轮 token 用量。插件能取得受支持的图片源时也会绘制图片；含无法呈现附件的提问仍交给 Paseo。已发布的 Paseo 不把回退菜单交给插件，所以插件气泡上没有回退（见[插件做不到的事](docs/limitations-zh.md)）。
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--user-dark.png"><img alt="提问气泡" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--user-light.png"></picture>
 
@@ -614,7 +494,7 @@ Paseo 仍会绘制原生权限提示，并负责允许和拒绝操作。agent �
 ### 卡片
 
 - 卡片从上到下：带 Paseo 项目图标（项目的图片，或项目颜色上的首字母）的「项目 › workspace」，子任务还有指向父任务的链接，父任务已归档时带标记；状态图标和标题，运行中的一轮右上角有上下文占用环；然后是一行 pill：一个 agent pill（服务商标识、模型和思考等级）、分支（领先数绿色、落后数橙色，有未提交改动时显示一个圆点）、文件夹或路径、以 Paseo 标签颜色的标签图标开头的标签，以及关联 PR。点按模型、分支、文件夹和路径即可复制。底栏是计时（运行中的一轮先显示开始时间，再显示已运行多久）和卡片的按钮。显示哪些字段由「卡片信息密度」决定。
-- 标签颜色按 Paseo 的标签定义，项目图标就是 Paseo 侧边栏里的图标。在 Paseo 0.12 上，这两样由插件服务端直接向 daemon 读取，见[插件做不到的事](#插件做不到的事)。
+- 标签颜色按 Paseo 的标签定义，项目图标就是 Paseo 侧边栏里的图标。在 Paseo 0.12 上，这两样由插件服务端直接向 daemon 读取，见[插件做不到的事](docs/limitations-zh.md)。
 - 状态图标就是 Paseo 侧边栏的图标。失败的卡片带红色底色。已结束那一轮的计时取自该轮记录下的结束时间，过后再打开旧 agent 的 tab 也不会把它拉长；Claude 因出错（会话额度用尽、密钥无效）而结束的一轮算作失败。
 - **打开**会跳到 agent 所在的 tab；提问请求显示「打开处理」。桌面和网页上，指针停在卡片上时它和其他按钮一起出现，双击卡片也能打开；平板上按钮在计时下方常驻一排；手机上「打开」在操作栏最右。子任务卡片在可打开父任务时，还会在旁边显示「打开父任务」；卡片上方仍有父任务链接。父任务卡片上有子任务 pill，按状态显示数量；点开后在卡片里列出各个子任务，点某个子任务的行会定位到它自己的卡片并闪一下。
 - **停止**带电源图标，排在按钮最前。网页上要再按一次，iOS 和 Android 上弹系统对话框确认。父任务可以只停自己，也可以连同运行中的子任务一起停止。桌面上等待中的卡片把「停止」放进菜单和详情，底栏留给请求本身：tool、plan、mode 类权限请求可以直接在卡片上允许或拒绝；结构化问题请求会在卡片摘要中显示问题文本，并打开对应 tab 供用户回答。
@@ -626,13 +506,13 @@ Paseo 仍会绘制原生权限提示，并负责允许和拒绝操作。agent �
 
 ### 过滤、排序与快捷键
 
-- 可以按项目、workspace、agent 和标签过滤。项目和 workspace 菜单带搜索框，每个项目名下显示它的文件夹，选一个项目就选中它的全部 workspace。搜索框匹配标题，以及项目、workspace 和分支名称。同一种过滤选了多项时，合成一个以该过滤图标开头的标签（如「已选择 2 个项目和 1 个 workspace」）。过滤条件让某列少了卡片时，列底下会写明少了几张、是哪些过滤造成的。
+- 可以按 agent、标签、项目和 workspace 过滤。项目和 workspace 菜单带搜索框，每个项目名下显示它的文件夹，选一个项目就选中它的全部 workspace。搜索框匹配标题，以及项目、workspace 和分支名称。同一种过滤选了多项时，合成一个以该过滤图标开头的标签（如「已选择 2 个项目和 1 个 workspace」）。过滤条件让某列少了卡片时，列底下会写明少了几张、是哪些过滤造成的。 搜索期间，搜索框旁边显示已读完首条消息的任务数（如「已加载 86 个」），读完就收起；会话已关闭或 provider 不可用的任务读不到首条消息，不再报数，也没有重试，它们的标题、项目、标签等字段照常参与搜索。侧边栏任务行尾的黄色数字打开「被隐藏的任务」，底部（桌面在右下角）的「清除筛选」清掉搜索和筛选并关掉弹窗，效果同看板工具栏。
 - 过滤栏末尾依次是已完成时间窗口（24h、7d、∞），子任务、已归档泳道和空分组三个开关，排序和泳道宽度；指针停在控件上会显示说明。隐藏子任务时，子任务并入父任务的卡片，但运行中、待输入和失败的子任务仍保留自己的卡片，除非父任务的卡片就在同一列。可按 workspace、项目、分支、文件夹、标题、创建时间、更新时间、上下文或耗时排序，排序只作用于已加载的卡片。
 - 桌面和网页上的快捷键：J/K 或 ↑/↓ 在一列内移动，H/L 或 ←/→ 跨列移动，Enter 打开当前卡片的 tab，/ 搜索，I 开关侧栏，Esc 逐层退出。
 
 ### 卡片详情
 
-点一下卡片，就在详情里打开它。没有选中卡片时，侧栏显示过滤后各列的数量，总数旁边概括当前的过滤条件，下面按 agent、项目、workspace 和标签给看板分组并显示数量，点某一组即按它过滤。
+点一下卡片，就在详情里打开它。没有选中卡片时，侧栏显示过滤后各列的数量，总数旁边概括当前的过滤条件，下面按 agent、标签、项目和 workspace 给看板分组并显示数量，点某一组即按它过滤。
 
 详情顶部是状态、标题、模型、思考等级、模式和标签，以及操作：「打开」（提问类请求显示「打开处理」；桌面上在最前，触控设备上在最后）、「停止」，以及「归档」或「取消归档」。接着是这张卡片最需要关注的内容：运行中的这一轮（每秒走动的本轮计时、Claude Code 和 Codex 会话的累计 token 及缓存占比、上下文）、待处理的权限请求、失败的错误信息，或者上一轮的耗时、费用和 token 摘要。然后是下面几节，等待中和失败的卡片把「属性」放在最前：
 
@@ -687,7 +567,8 @@ Paseo 仍会绘制原生权限提示，并负责允许和拒绝操作。agent �
 | 间距 | 紧凑行距 | 开 | 插件行后面还有一行时，下方间距从 16pt 缩到 4pt；Paseo 已经把插件行紧挨着排好时，不再额外收紧。行间重叠时请关闭。 |
 | 间距 | 紧凑回复间距 | 开 | 已完成的回复后紧跟插件行（包括待办行）时，把间距从 16pt 缩到 4pt。重叠时请关闭。 |
 | 消息 | 增强提问气泡 | 关 | 复制按钮常驻，并显示最新一轮的 token 用量；能读取的粘贴图片会一并显示，其他附件仍交给 Paseo。切换后已有的提问也会更新。 |
-| 消息 | 回复使用插件 Markdown | 开 | 关闭后回复交给 Paseo，恢复宿主完整信息栏，并可用 mermaid、宿主图片和 Paseo 的文件链接。 |
+| 消息 | 回复使用插件 Markdown | 开 | 关闭后回复交给 Paseo，恢复宿主完整信息栏，并可用宿主图片和 Paseo 的文件链接；开启时也支持 Mermaid 图表。 |
+| 消息 | 交给 genui 渲染交互式回复 | 关 | 含 `ui` 或 `app` 代码块的回复交给其他渲染器；没有对应插件时，Paseo 显示普通 Markdown，不显示插件回复信息栏。 |
 | 消息 | Markdown 样式 | 文档 | 文档、紧凑或终端（正文使用代码字体）。 |
 | 消息 | 选中文字工具栏 | 开 | 网页和桌面：选中文字后显示「复制」和「添加到对话」；滚动时工具栏收起。 |
 | 悬停预览 | 悬停预览 | 开 | 桌面悬停折叠行或路径时预览内容；关闭区块详情时，在触控设备上长按折叠行可预览。 |
@@ -718,7 +599,7 @@ Paseo 仍会绘制原生权限提示，并负责允许和拒绝操作。agent �
 | 看板 | 已完成默认时间窗口 | 近 24 小时 | 近 24 小时、近 7 天或全部，作用于已完成和已归档。看板上的时间窗口控件只改当前这块看板。 |
 | 看板 | 泳道宽度 | 默认 | 紧凑（260–280pt）、默认（300–340pt）或宽松（340–400pt），用于桌面、网页和平板，与看板上的泳道宽度菜单是同一个选项；看板放不下时泳道左右滚动。手机上每次只显示一条泳道，不显示这一项。 |
 | 看板 | 显示子任务 | 开 | 关闭时子任务并入父任务的卡片；运行中、待输入和失败的子任务仍保留自己的卡片，除非父任务的卡片就在同一列。工具栏上的开关只改当前这块看板。 |
-| 看板 | 显示没有任务的分组 | 开 | 过滤菜单和侧栏列出 Paseo 里所有的 agent、项目、workspace 和标签，看板上没有任务的显示 0，已完成和已归档计入。工具栏上也有开关。 |
+| 看板 | 显示没有任务的分组 | 开 | 过滤菜单和侧栏列出 Paseo 里所有的 agent、标签、项目和 workspace，看板上没有任务的显示 0，已完成和已归档计入。工具栏上也有开关。 |
 | 侧边栏 | 侧边栏入口计数 | 待输入 · 运行中 · 待查看 | 或只显示待输入，或不显示。 |
 | 恢复 | 恢复任务看板默认设置 | — | 把任务看板的所有选项恢复为默认，看板开关保持不变；需要确认。 |
 
@@ -740,100 +621,26 @@ Paseo 自带的聊天查找（Ctrl/Cmd+F）定位不到插件绘制的行。所�
 - **Windows：** 在资源管理器中选中文件，或打开文件夹。
 - **其他系统：** 用 `xdg-open` 打开文件所在目录，或文件夹本身。
 
-在触控设备上，同样的点按改为复制绝对路径并给出提示，因为手机看不到 daemon 那台机器的屏幕。目前还无法在 Paseo 自己的文件面板中打开，见[插件做不到的事](#插件做不到的事)。
+在触控设备上，同样的点按改为复制绝对路径并给出提示，因为手机看不到 daemon 那台机器的屏幕。目前还无法在 Paseo 自己的文件面板中打开，见[插件做不到的事](docs/limitations-zh.md)。
+
+Better Paseo 不读取指向网络共享或 Windows 设备的路径。`\\host\share`、`//host/share`、`\??\`、`\\?\`、`\\.\` 都在 daemon 访问文件系统之前被拒绝，读图和打开文件都一样。相对路径的图片预览仍会在该共享上读取，因为预览把工作区目录分开传送。打开文件时，客户端会先把路径拼成绝对共享路径，daemon 会拒绝。被拒绝的路径只保留为普通文本或无法打开的链接。
 
 ---
 
-## 插件做不到的事
+## 更多文档
 
-Better Paseo 只能画 Paseo 插件 SDK 允许插件画的东西。下面列出你可能期待、但在已发布的 Paseo 上做不到或只能绕开 SDK 做到的功能（2026-10-23 对照 `@getpaseo/plugin` 0.12.0 和 0.13.0-beta.1 核实），插件现在的替代做法，以及各自在等待的上游改动。上游状态也截至同一天。
+- **[安装指南](docs/install-zh.md)：** 插件市场安装、更新、Git 跟踪与版本要求。
+- **[性能测试报告](docs/performance-zh.md)：** 11 个典型场景下 220 次串行回放的完整实测数据（主线程耗时、行渲染、CLS 与内存）。
+- **[限制与兼容性](docs/limitations-zh.md)：** 宿主与 SDK 限制、绕过的上游问题及版本兼容说明。
+- **[常见问题排查](docs/troubleshooting-zh.md)：** 间距重叠、查找、耗时与连接断开等常见问题处理。
+- **[开发指南](docs/development-zh.md)：** 项目结构、本地调试、Hermes 兼容性校验与发布流程。
 
-### 时间线相关
+## 关注
 
-| 做不到 | 现在的做法 | 等待 |
-| --- | --- | --- |
-| 点文件时在 Paseo 的文件面板中打开。插件拿不到跳转到文件的导航；0.13 允许插件添加文件查看器，但仍不能打开文件。 | 桌面上用默认应用打开，或在访达、资源管理器中显示；触控设备上复制路径（见[打开文件](#打开文件)）。 | [getpaseo/paseo#7318](https://github.com/getpaseo/paseo/pull/7318)，未合并 |
-| 显示粘贴在提问里的图片。Paseo 交给插件的条目里没有这些图片。 | 「增强提问气泡」默认关闭，提问和图片由 Paseo 绘制；打开后，带有插件画不了的附件的提问仍交给 Paseo。 | [#6736](https://github.com/getpaseo/paseo/pull/6736)，草稿，未合并 |
-| 在插件的提问气泡上提供 Paseo 的回退菜单，在插件的回复信息栏上提供 Fork 操作。插件只能整行替换，借不到宿主的菜单。 | 需要回退时关闭「增强提问气泡」，需要 Fork 时关闭「回复使用插件 Markdown」。 | [#6677](https://github.com/getpaseo/paseo/pull/6677)（回退）、[#7462](https://github.com/getpaseo/paseo/pull/7462)（Fork），未合并 |
-| 让 Paseo 的 Ctrl/Cmd+F 定位到插件画的行。 | 插件自己的查找栏，搜索已加载的消息（见[查找文字](#查找文字)）。 | 尚无上游提案 |
-| 让插件行与原生工具行间距一致。Paseo 在每个插件行下方留 16pt 间距。 | 「紧凑行距」和「紧凑回复间距」在安全的地方把大部分间距收回。 | [#6602](https://github.com/getpaseo/paseo/pull/6602)，未合并 |
-| 实时跟随 Paseo 外观设置里的字体修改。Paseo 不向插件提供字体设置。 | 网页和桌面读取 Paseo 保存在这台电脑上的字体；iOS 和 Android 上「跟随 Paseo」即系统等宽字体、12px。 | 尚未向上游提交 |
-| 在 iOS 和 Android 上为表格选区提供「添加到对话」。插件无法向 Paseo 的输入框写入文字。 | 「复制选中」。网页上插件自己把文字插入输入框。 | 尚未向上游提交 |
-| 滚动时把当前提问或展开卡片的标题固定在顶部。 | 插件一侧已经接好，Paseo 提供后自动启用。 | 尚未向上游提交 |
-| 把多个调用合并成「Read 12 files」一行。Paseo 的工具调用显示设为「摘要」时会把连续调用折在一起，但不收插件行。 | 每个调用仍占一行。 | [讨论 #7687](https://github.com/getpaseo/paseo/discussions/7687)，未关闭 |
-| 快速滚动 5,000 行的代码块（开发版模拟器上打开约需 30 秒）。 | 长输出折叠到 12 行并分批绘制。 | 宿主没有对应 API |
-| 显示插件安装之前那些轮次的 token 数字。Paseo 只在实时事件里带用量。 | 插件的服务端从运行起记录每一轮的开始、结束、错误和用量，此后的轮次在任何客户端上都有数字。 | [#7000](https://github.com/getpaseo/paseo/pull/7000)（轮次时间），未合并 |
-| 在 iOS 和 Android 上，详情面板打开时仍能操作后面的时间线。插件在这两个平台上的浮层只能是全屏模态层。 | 浮动面板和侧边面板点外面即关闭；网页上它们不是模态的。 | 尚无上游提案 |
+欢迎关注获取最新版本动态与更新：
 
-### Tasks 看板相关
-
-看板上有几项功能目前没有插件 API。它们在已发布的 Paseo 0.12 上能用，是因为插件服务端绕开了 SDK：在 daemon 那台机器上调用 Paseo 的 CLI，或者借 Paseo 安装的客户端模块自己连接 daemon。这些都是过渡办法，Paseo 提供官方 API 后就改用官方 API。
-
-| 功能 | 现在怎么做 | 等待 |
-| --- | --- | --- |
-| 标签颜色和项目图标 | 插件服务端向 daemon 读取标签定义和项目图标（`tasks.labels`、`tasks.project-icons`）。看板先问插件 API，所以在提供了这两个 API 的 Paseo 上会自动改用官方调用。两边都没有结果时，标签按名称取一个颜色，项目显示生成的首字母图标。 | [#7482](https://github.com/getpaseo/paseo/pull/7482)，未合并（[讨论 #7481](https://github.com/getpaseo/paseo/discussions/7481)） |
-| 停止 | 调用 `paseo agent stop`；找不到 CLI 时隐藏。 | 尚无上游提案 |
-| 取消归档 | 调用 `paseo agent reload`；找不到 CLI 时隐藏。 | 尚无上游提案 |
-| 标为已读 | 通过服务端自己的 daemon 连接清除这个 agent 的提醒；连不上时隐藏。 | [#7647](https://github.com/getpaseo/paseo/pull/7647)（CLI 命令），未合并 |
-| 服务商子 agent 的卡片 | 服务端向 daemon 读取会话里的子 agent 并跟随更新；没有这条连接时看板上不显示。 | 尚无上游提案 |
-
-归档不需要绕：它用的就是插件 API。
-
-| 做不到 | 现在的做法 | 等待 |
-| --- | --- | --- |
-| 打开已归档任务的 tab。插件打开的 tab 无法固定，Paseo 会丢掉已归档 agent 的 tab，改为显示同一 workspace 的另一个 tab。 | 已归档任务在原来「打开」的位置显示「取消归档」；取消归档后就能打开。因 workspace 归档而列入的任务仍显示「打开」。 | [#6382](https://github.com/getpaseo/paseo/pull/6382)，草稿，未合并 |
-
-### 全局
-
-| 做不到 | 现在的做法 | 等待 |
-| --- | --- | --- |
-| 手机断开连接时保留插件界面。连接一断，Paseo 会移除所有插件，重连后再把它们的客户端包全部重发一遍，所以打开着的看板会显示「This plugin surface is unavailable.」，直到重新连上。 | 看板回来时保留原来的卡片、所在列和过滤条件；客户端包经过压缩，看板按需加载，插件清单从 1,977 KB 降到 722 KB（改动合入时在 Paseo 0.12 daemon 上测得）。 | [#7088](https://github.com/getpaseo/paseo/issues/7088)（issue）、[#6731](https://github.com/getpaseo/paseo/pull/6731)、[#6732](https://github.com/getpaseo/paseo/pull/6732)，未合并 |
-| 按设备分别保存设置。插件设置只能是整台主机共用的。 | 同一 daemon 的所有客户端共用一份设置，抽屉的双指字号也一样。 | 尚无上游提案 |
-
-开发过程中遇到的 SDK 限制、证据和对应的绕行方式见面向开发者的 [`docs/plugin-sdk-limitations.md`](docs/plugin-sdk-limitations.md)（英文）。
-
-### 插件绕开的 Paseo 问题
-
-| 问题 | 插件的处理 | 修复 |
-| --- | --- | --- |
-| 前一轮的后台子 agent 让 Paseo 0.12 把后面的工具调用画两遍。 | 隐藏重复的行和它们留下的间距。 | [#7541](https://github.com/getpaseo/paseo/issues/7541) / [#7543](https://github.com/getpaseo/paseo/pull/7543)，未合并 |
-| Claude 一轮碰到会话额度（或密钥无效）时按正常回复结束，agent 看起来已经完成。 | Tasks 看板把它放进待查看，标为失败并显示错误。 | [#7636](https://github.com/getpaseo/paseo/issues/7636) / [#7637](https://github.com/getpaseo/paseo/pull/7637)，未合并 |
-| Grok 和 Cursor 的历史重新加载后没有逐条时间。 | 对这两个服务商隐藏不足 1 秒的耗时；实时运行的轮次照常显示。 | 服务商一侧 |
-
-### 兼容性
-
-Better Paseo 需要 Paseo 0.14.0 或更新版本。任务看板使用该版本的后台 workspace 查询 API，在隐藏的子任务仍运行时保持父任务为运行中。
-上文的性能测量基于 Paseo 0.13.0，尚未在 0.14.0 上重新测量。
-
----
-
-## 常见问题
-
-| 现象 | 处理 |
-| --- | --- |
-| 行与行重叠，或回复盖住了下一行 | 关闭「紧凑行距」或「紧凑回复间距」。 |
-| 回复里需要 mermaid 图、宿主图片或 Paseo 的文件链接 | 关闭「回复使用插件 Markdown」。 |
-| 手机上选中表格单元格后没有「添加到对话」 | Paseo 暂不允许插件向输入框写入文字；「复制选中」始终可用。 |
-| 含附件的提问需要由 Paseo 绘制 | 关闭「增强提问气泡」。插件无法呈现的附件会自动交给 Paseo。 |
-| Ctrl/Cmd+F 搜不到较早的消息 | 先往上滚动加载，或按上文把回复交回 Paseo。 |
-| 旧的一轮对话没有 token 数字 | 插件服务端从安装起记录每个已完成轮次的用量；安装之前的轮次、失败或取消的轮次，以及服务商没有上报数字的轮次没有记录。最新一轮还可以从 daemon 快照恢复用量。 |
-| 抽屉里捏合调出的字号在另一台手机上太大或太小 | 这个字号由同一 daemon 的所有客户端共用；再捏合一次，或点标记上的「复原」。 |
-| Grok 和 Cursor 回放出来的轮次在 Copy 工具栏和轮次详情里不显示耗时 | 上游工具问题：daemon 重新加载 Grok 或 Cursor 的历史时，记录没有逐条时间戳，回放记录的时间都是加载时刻或仅相差 1 毫秒，会误显示为 `0秒`。Better Paseo 对 `grok` 和 `cursor` 服务商隐藏不足 1 秒的耗时；实时运行的轮次照常显示耗时。按服务商判断，不按模型名称判断。 |
-| 手机上显示「This plugin surface is unavailable.」 | App 断开了连接，重新连上后界面会回来（[#7088](https://github.com/getpaseo/paseo/issues/7088)）。 |
-| 推送了修复，但界面没变化 | 运行 `paseo plugin update better-paseo`；Paseo 运行的是 GitHub 上的版本。 |
-
-## 开发
-
-```bash
-npm install
-npm run typecheck
-npm test
-npm run check:hermes
-npm run build:client
-paseo plugin reload better-paseo
-```
-
-`npm run check:hermes` 会在 Hermes（iOS 和 Android 应用使用的 JS 引擎）里编译并运行客户端包，源码版和带 Tasks 分块的压缩安装版各跑一次；在网页上能跑的代码，到了 Hermes 仍可能失败，并导致整个插件无法加载。`npm run build:client` 输出安装版各文件的大小。Hermes 检查的规则、项目结构，以及如何重新生成截图和图表，见 [`docs/development.md`](docs/development.md)（英文）。
+- **小红书：** [个人主页](https://www.xiaohongshu.com/user/profile/63ba8f1d000000002702971c)
+- **X (Twitter)：** [@tlittlefan](https://x.com/tlittlefan)
 
 ## 许可证
 

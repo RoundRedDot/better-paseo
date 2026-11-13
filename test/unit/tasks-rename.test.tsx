@@ -380,6 +380,43 @@ describe("task title editor", () => {
 
 describe("task card rename entry", () => {
   const card = sampleCards(Date.parse("2026-10-20T09:00:00Z"))[0]!;
+  it("dismisses the web menu on lane scroll, preserves internal scrolling, and unbinds for the editor", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const listeners = new Set<(event: { target: unknown }) => void>();
+    const view = {
+      addEventListener: (_type: string, listener: (event: { target: unknown }) => void) => listeners.add(listener),
+      removeEventListener: (_type: string, listener: (event: { target: unknown }) => void) => listeners.delete(listener),
+    };
+    const doc = new EventTarget();
+    const inside = {};
+    const anchor = {
+      ownerDocument: Object.assign(doc, { defaultView: view }),
+      style: {}, setAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(),
+      matches: () => true,
+      contains: (target: unknown) => target === inside,
+    };
+    await act(async () => {
+      tree = TestRenderer.create(<CardContextMenu point={{ x: 20, y: 30 }} card={card} strings={cardStrings("en")} actions={{ children: 0 }} theme={theme} onClose={onClose} />, {
+        createNodeMock: (element) => (element.props as { testID?: string }).testID === "task-card-menu-anchor" ? anchor : null,
+      });
+    });
+    const scroll = (target: unknown) => {
+      for (const listener of listeners) listener({ target });
+    };
+    await act(async () => scroll(inside));
+    expect(onClose).not.toHaveBeenCalled();
+    await act(async () => scroll({}));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    onClose.mockClear();
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Edit title").props.onPress());
+    await act(async () => scroll({}));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(anchor.hidePopover).toHaveBeenCalledTimes(1);
+    expect(listeners.size).toBe(0);
+    await act(async () => tree.unmount());
+    await act(async () => scroll({}));
+    expect(onClose).not.toHaveBeenCalled();
+  });
   it.each([["ios", "zh", 14], ["ios", "en", 21], ["android", "en", 14], ["android", "zh", 21]] as const)("sizes the %s tablet menu for %s at UI size %i", async (platform, language, ui) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     const scaledTheme = { ...theme, typography: { fontSize: { ui } } };

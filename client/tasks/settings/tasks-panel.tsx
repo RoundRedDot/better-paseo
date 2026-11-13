@@ -10,6 +10,7 @@ import {
   LANE_WIDTHS,
   SIDEBAR_COUNTS,
   applyDensity,
+  effectiveCard,
   setCardSetting,
   type CardField,
   type Density,
@@ -34,6 +35,9 @@ import { PREVIEW_LANES_MAX_HEIGHT, TasksBoardPreview } from "./board-preview";
 import { TASKS_SETTINGS_STRINGS, type TasksSettingsStrings } from "./strings";
 import { dismissEnabledNotice, useTasksForm, type TasksForm } from "./use-tasks-form";
 import { TitleGenerationSettings } from "./title-generation";
+import { HiddenCount, hiddenExampleCard } from "../board/hidden-count";
+import { FieldPreview } from "./field-preview";
+import { OpenTasksShortcut } from "./open-shortcut";
 
 /**
  * The Tasks half of Better Paseo's settings page: the switch, the preview
@@ -334,6 +338,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         ]}
       >
         <EnabledRow form={form} strings={strings} look={look} />
+        <OpenTasksShortcut value={form.openShortcut} ready={form.shortcutReady} onChange={form.setOpenShortcut} strings={strings} look={look} />
         {form.turnedOn ? <EnabledNotice strings={strings} look={look} /> : null}
       </View>
       {settings.status === "ready" ? (
@@ -408,6 +413,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         title={strings.fieldsTitle}
         description={strings.fieldsHint}
         control={
+          <View>
           <View accessibilityLabel={strings.fieldsTitle} style={styles.chips} testID="tasks-field-chips">
             {CARD_FIELDS.map((field: CardField) => (
               <FieldChip
@@ -418,6 +424,8 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
                 look={look}
               />
             ))}
+          </View>
+          <FieldPreview values={values} titleLines={titleLines} theme={theme} look={look} language={language} strings={strings} hostId={hostId} />
           </View>
         }
         look={look}
@@ -493,10 +501,11 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         stacked
         below={
           <TasksTypography theme={theme}>
-            <View testID="tasks-sidebar-preview" pointerEvents="none" style={{ borderWidth: 1, borderColor: look.tokens.v2.border, borderRadius: radiusV2.block, backgroundColor: theme.colors.surface0, overflow: "hidden" }}>
+            <View testID="tasks-sidebar-preview" style={{ borderWidth: 1, borderColor: look.tokens.v2.border, borderRadius: radiusV2.block, backgroundColor: theme.colors.surface0 }}>
               <View style={{ minHeight: 40, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Icon name="SquareKanban" size={16} color={theme.colors.foregroundMuted} />
                 <TaskText style={{ flex: 1, fontSize: HOST_FONT.base, color: theme.colors.foregroundMuted }}>{BOARD_STRINGS[language].name}</TaskText>
+                {values.sidebar.count !== "none" ? <HiddenCount theme={theme} language={language} fields={effectiveCard(values, look.compact)} compact={look.compact} hostId={hostId} tasks={[hiddenExampleCard(language)]} /> : null}
                 <View accessible accessibilityLabel={sidebarCountText(sidebarCountParts({ needsInput: 2, running: 1, review: 1 }, values.sidebar.count), language)} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   {sidebarCountParts({ needsInput: 2, running: 1, review: 1 }, values.sidebar.count).map((part) => (
                     <View key={part.lane} testID={`tasks-sidebar-preview-${part.lane}`} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>

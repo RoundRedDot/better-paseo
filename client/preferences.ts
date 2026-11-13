@@ -38,6 +38,11 @@ export const ACCENT_PRESETS = {
   violet: "#8b5cf6",
   amber: "#f59e0b",
   rose: "#f43f5e",
+  zinc: "#808080",
+  midnight: "#4A6BA8",
+  claude: "#D97757",
+  ghostty: "#8caaee",
+  pureBlack: "#000000",
 } as const;
 
 export type AccentPreset = keyof typeof ACCENT_PRESETS;
@@ -52,6 +57,11 @@ export const INLINE_CODE_PALETTE = {
   violet: { light: "#8250df", dark: "#bc8cff" },
   green: { light: "#1a7f37", dark: "#3fb950" },
   coral: { light: "#cf222e", dark: "#ff7b72" },
+  jade: { light: "#047857", dark: "#34d399" },
+  amber: { light: "#925900", dark: "#fbbf24" },
+  midnight: { light: "#35568e", dark: "#91b2e9" },
+  claude: { light: "#a7452c", dark: "#ee9a7e" },
+  pureBlack: { light: "#000000", dark: "#ffffff" },
 } as const;
 
 export type InlineCodeColorPreference = "grey" | keyof typeof INLINE_CODE_PALETTE;
@@ -108,7 +118,7 @@ export interface EnhancerPreferences {
    */
   detailsFontSize: number;
   /**
-   * Tap a row to open its details in a drawer or panel (docs/prototypes/block-details-sheet.md).
+   * Tap a row to open its details in a drawer or panel (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md).
    * On by default; off brings back the long-press preview and tap-to-expand.
    */
   blockDetails: boolean;
@@ -140,6 +150,8 @@ export interface EnhancerPreferences {
    * subset rather than a superset.
    */
   assistantMarkdown: boolean;
+  /** Leave replies containing UI fences to another renderer. */
+  liveUiReplies: boolean;
   /** Which look the markdown renderer uses. */
   markdownVariant: MarkdownVariantPreference;
   /**
@@ -223,6 +235,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   enhancedUserBubble: false,
   selectionActions: true,
   assistantMarkdown: true,
+  liveUiReplies: false,
   markdownVariant: "document",
   rowLabelStyle: "icon",
   compactRowSpacing: true,

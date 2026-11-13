@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
+import { isAssistantPlaceholder } from "../../assistant-text";
 import type { FirstPrompt } from "./first-prompt";
 import { turnRunning, type LaneId } from "../model";
 
@@ -30,15 +31,28 @@ const LOADING: LastMessage = { state: "loading" };
 /** Read once for its version: asked again only when the version moves. */
 const SETTLED = new Set(["ready", "loading", "first"]);
 
+/** Whether a request for `version` asks nothing: that version's read is in flight or done. */
+function settledFor(entry: { version: string; value: Value; pending?: boolean } | undefined, version: string): boolean {
+  return entry !== undefined && entry.version === version && (entry.pending === true || SETTLED.has(entry.value.state));
+}
+
+/** Keep a settled result visible while a newer read is in flight. */
+function shownWhileLoading<V extends Value>(value: V | undefined): V {
+  return value?.state === "ready" || value?.state === "none" ? value : (LOADING as V);
+}
+
 interface Entry<V> {
   version: string;
   value: V;
+  pending: boolean;
   /** Bumped on each read, so a slower stale read cannot land over a newer one. */
   ticket: number;
 }
 
 interface Store<V extends Value = LastMessage> {
   read(agentId: string): V;
+  /** What `read` returns right after `request(agentId, version)`: the same object, without reading or changing anything. */
+  readRequested(agentId: string, version: string): V;
   request(agentId: string, version: string): void;
   subscribe(listener: () => void): () => void;
 }
@@ -47,7 +61,7 @@ interface Store<V extends Value = LastMessage> {
 const readLastReply: TimelineRead = (timeline) =>
   timeline.refetch({ direction: "tail", projection: "projected", limit: TAIL_LIMIT }).then((page) => {
     if (page.error) return { state: "error" };
-    return lastReplyMessage(page.entries) ?? { state: "none" };
+    return lastReplyMessage(page.entries, page.epoch) ?? { state: "none" };
   });
 
 /** A value read off a timeline once per version; `readValue` is the latest reply unless given another. */
@@ -60,17 +74,21 @@ export function createLastMessageStore<V extends Value = LastMessage>(api: Api, 
   };
   return {
     read: (agentId) => entries.get(agentId)?.value ?? (IDLE as V),
+    readRequested(agentId, version) {
+      const known = entries.get(agentId);
+      return settledFor(known, version) ? known!.value : shownWhileLoading(known?.value);
+    },
     request(agentId, version) {
       const known = entries.get(agentId);
-      if (known && known.version === version && SETTLED.has(known.value.state)) return;
+      if (settledFor(known, version)) return;
       const ticket = ++tickets;
-      // A newer version keeps showing the older reply until the tail answers.
-      const value = known?.value.state === "ready" ? known.value : (LOADING as V);
-      entries.set(agentId, { version, value, ticket });
+      // A newer read keeps showing the settled result until the tail answers.
+      const value = shownWhileLoading(known?.value);
+      entries.set(agentId, { version, value, ticket, pending: true });
       if (value !== known?.value) notify();
       const land = (next: V) => {
         if (entries.get(agentId)?.ticket !== ticket) return;
-        entries.set(agentId, { version, value: next, ticket });
+        entries.set(agentId, { version, value: next, ticket, pending: false });
         notify();
       };
       readValue(api.agents.ref(agentId).timeline)
@@ -87,12 +105,12 @@ export function createLastMessageStore<V extends Value = LastMessage>(api: Api, 
 }
 
 /** The last nonempty assistant message and its own timestamp among a timeline's tail rows. */
-export function lastReplyMessage(entries: readonly { timestamp?: string; item: { type: string; text?: string } }[]): Extract<LastMessage, { state: "ready" }> | null {
+export function lastReplyMessage(entries: readonly { timestamp?: string; seqStart?: number; item: { type: string; text?: string } }[], epoch?: string): Extract<LastMessage, { state: "ready" }> | null {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const { item, timestamp } = entries[index]!;
+    const { item, timestamp, seqStart } = entries[index]!;
     if (item.type !== "assistant_message") continue;
     const text = item.text?.trim();
-    if (text) return { state: "ready", text, timestamp };
+    if (text && !isAssistantPlaceholder(text)) return { state: "ready", text, timestamp, ...(epoch !== undefined && seqStart !== undefined ? { position: { epoch, seq: seqStart } } : {}) };
   }
   return null;
 }
@@ -107,7 +125,7 @@ export function lastMessageVersion(card: { lane: LaneId; waitingOnSubtasks?: boo
 
 type LiveApi = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "refetch" | "subscribe"> } } };
 type Stream = { seq?: number; epoch?: string; timestamp: string; event: Extract<PaseoAgentTimelineEvent["event"], { type: "timeline" }> };
-type Tail = { type: string; seqEnd: number; turnId?: string; messageId?: string };
+type Tail = { type: string; seqStart: number; seqEnd: number; turnId?: string; messageId?: string };
 
 interface LiveEntry {
   value: LastMessage;
@@ -146,12 +164,13 @@ export function createLiveLastMessageStore(api: LiveApi) {
     const append = event.item.type === "assistant_message" && entry.tail?.type === "assistant_message" &&
       entry.tail.seqEnd + 1 === update.seq && entry.tail.turnId === event.turnId &&
       (event.item.messageId === undefined || event.item.messageId === entry.tail.messageId);
+    const seqStart = append ? entry.tail!.seqStart : update.seq;
     if (event.item.type === "assistant_message") {
       entry.raw = append ? entry.raw + event.item.text : event.item.text;
       const text = entry.raw.trim();
-      if (text) entry.value = { state: "ready", text, timestamp: update.timestamp };
+      if (text && !isAssistantPlaceholder(text)) entry.value = { state: "ready", text, timestamp: update.timestamp, position: { epoch: update.epoch, seq: seqStart } };
     }
-    entry.tail = { type: event.item.type, seqEnd: update.seq, turnId: event.turnId,
+    entry.tail = { type: event.item.type, seqStart, seqEnd: update.seq, turnId: event.turnId,
       messageId: event.item.type === "assistant_message" ? append ? entry.tail?.messageId : event.item.messageId : undefined };
     entry.cursor = { epoch: update.epoch, seq: update.seq };
     return true;
@@ -161,7 +180,7 @@ export function createLiveLastMessageStore(api: LiveApi) {
     const ticket = ++entry.ticket;
     entry.pending = true;
     entry.buffered = buffered;
-    if (entry.value.state !== "ready") {
+    if (shownWhileLoading(entry.value) === LOADING) {
       entry.value = LOADING;
       notify();
     }
@@ -173,10 +192,10 @@ export function createLiveLastMessageStore(api: LiveApi) {
         notify();
         return;
       }
-      entry.value = lastReplyMessage(page.entries) ?? { state: "none" };
+      entry.value = lastReplyMessage(page.entries, page.epoch) ?? { state: "none" };
       const tail = page.entries.at(-1);
       entry.raw = tail?.item.type === "assistant_message" ? tail.item.text : "";
-      entry.tail = tail ? { type: tail.item.type, seqEnd: tail.seqEnd, turnId: tail.turnId, messageId: tail.item.type === "assistant_message" ? tail.item.messageId : undefined } : null;
+      entry.tail = tail ? { type: tail.item.type, seqStart: tail.seqStart, seqEnd: tail.seqEnd, turnId: tail.turnId, messageId: tail.item.type === "assistant_message" ? tail.item.messageId : undefined } : null;
       entry.cursor = { epoch: page.epoch, seq: page.endCursor?.seq ?? page.window.nextSeq - 1 };
       const pending = entry.buffered;
       entry.buffered = [];
@@ -197,9 +216,14 @@ export function createLiveLastMessageStore(api: LiveApi) {
   };
   return {
     read: (id: string) => entryFor(id).value,
+    /** What `read` returns right after `request(id, version)` (not forced): the same object, without reading or changing anything. */
+    readRequested(id: string, version: string): LastMessage {
+      const entry = entries.get(id) ?? { version: "", value: IDLE };
+      return settledFor(entry, version) ? entry.value : shownWhileLoading(entry.value);
+    },
     request(id: string, version: string, force = false) {
       const entry = entryFor(id);
-      if (!force && entry.version === version && SETTLED.has(entry.value.state)) return;
+      if (!force && settledFor(entry, version)) return;
       entry.version = version;
       refresh(id);
     },
@@ -259,7 +283,10 @@ function storeFor(api: PaseoApi) {
 /** The visible running reply observes live chunks. Otherwise `auto` reads the tail once, including an agent the daemon has not loaded. */
 export function useLastMessage(api: PaseoApi, agentId: string, version: string, auto: boolean, live = false): { prompt: LastMessage; load(): void } {
   const store = storeFor(api);
-  const prompt = useSyncExternalStore(store.subscribe, () => store.read(agentId), () => store.read(agentId));
+  // Until this commit's tail read runs, an auto read shows what it will. A live reply waits for its subscription, so it shows what is held.
+  const asked = useRef<{ store: typeof store; agentId: string; version: string } | null>(null);
+  const snapshot = () => (auto && !live && (asked.current?.store !== store || asked.current.agentId !== agentId || asked.current.version !== version) ? store.readRequested(agentId, version) : store.read(agentId));
+  const prompt = useSyncExternalStore(store.subscribe, snapshot, snapshot);
   useEffect(() => {
     if (!live || !agentId) return;
     const release = store.watch(agentId);
@@ -272,6 +299,7 @@ export function useLastMessage(api: PaseoApi, agentId: string, version: string, 
   }, [store, agentId, live, version]);
   useLayoutEffect(() => {
     if (auto && !live) store.request(agentId, version);
+    asked.current = auto && !live ? { store, agentId, version } : null;
   }, [store, agentId, version, auto, live]);
   return { prompt, load: () => store.request(agentId, version) };
 }

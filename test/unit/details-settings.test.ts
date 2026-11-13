@@ -81,6 +81,15 @@ beforeEach(() => {
 });
 
 describe("block details settings", () => {
+  it("enables interactive reply handoff from the messages setting", () => {
+    updateEnhancerPreferences({ language: "en" });
+    const renderer = renderPage();
+    const label = "Let genui render interactive replies";
+    expect(switchControl(renderer.root, label).props["aria-checked"]).toBe(false);
+    act(() => switchControl(renderer.root, label).props.onPress());
+    expect(getEnhancerPreferences().liveUiReplies).toBe(true);
+    act(() => renderer.unmount());
+  });
   it("turns details on by default and drops a stored row-click choice", () => {
     expect(DEFAULT_PREFERENCES).toMatchObject({ blockDetails: true });
     expect(DEFAULT_PREFERENCES).not.toHaveProperty("rowClick");

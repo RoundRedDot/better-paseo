@@ -16,7 +16,7 @@ import { bindDetailsEscape, bindRowHover, bindTouchDismiss, openToolbarDetailsLa
 import { useInputCapabilities } from "./use-input-capabilities";
 import { SafeInset } from "./safe-inset";
 import { usePreviewEntrance } from "./use-preview-entrance";
-import { PREVIEW_REVEAL } from "./tokens/motion";
+import { DROPDOWN_REVEAL, PREVIEW_REVEAL } from "./tokens/motion";
 
 /** How long a pointer rests on a button before its name shows. */
 export const TOOLBAR_TOOLTIP_MS = 400;
@@ -40,11 +40,12 @@ export const TooltipAlignContext = createContext<TooltipAlign>("center");
  * next row; `auto` opens it above unless the list's top edge leaves no room.
  */
 export const TooltipSideContext = createContext<"below" | "auto">("below");
+export const ToolbarHoverColorContext = createContext<string | null>(null);
 
 /**
  * The size of a toolbar's buttons and their icons. The hover panel's are 24
  * with a 14 icon; the details panel's header and toolbar set 36 on touch and
- * 28 with a pointer (docs/prototypes/block-details-sheet.md, table 5.2).
+ * 28 with a pointer (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md, table 5.2).
  */
 export interface ToolbarMetrics {
   button: number;
@@ -165,6 +166,7 @@ export function ToolbarItem({
   const sideMode = useContext(TooltipSideContext);
   const metrics = useContext(ToolbarMetricsContext);
   const sized = metrics.button !== TOOLBAR_METRICS.button;
+  const hoverColor = useContext(ToolbarHoverColorContext) ?? tokens.v2.surface2;
   const anchorRef = useRef<View>(null);
   const detailsRef = useRef<View>(null);
   const [side, setSide] = useState<TooltipPlacement>("below");
@@ -261,8 +263,8 @@ export function ToolbarItem({
           outlined && { borderColor: tokens.v2.border },
           buttonStyle,
           disabled && styles.disabled,
-          onPress && !disabled && hovered && { backgroundColor: tokens.v2.surface2 },
-          onPress && !disabled && pressed && { backgroundColor: tokens.v2.surface2 },
+          onPress && !disabled && hovered && { backgroundColor: hoverColor },
+          onPress && !disabled && pressed && { backgroundColor: hoverColor },
           pressedStyle?.({ pressed }),
         ]}
       >
@@ -370,12 +372,13 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
   );
 }
 
-/** Shared frame; the entrance matches the hover preview without changing its measured bounds. */
+/** Shared popup frame; desktop dropdown motion does not change its measured bounds. */
 export function ToolbarDetailsFrame({ tokens, children, side = "above", ready = true }: {
   tokens: ExtendedThemeTokens; children: ReactNode; side?: TooltipPlacement; ready?: boolean;
 }) {
-  const entrance = usePreviewEntrance({ ready, from: side === "below" ? -PREVIEW_REVEAL.shift : PREVIEW_REVEAL.shift });
-  return <Animated.View style={entrance}>
+  const shift = Platform.OS === "web" ? DROPDOWN_REVEAL.shift : PREVIEW_REVEAL.shift;
+  const entrance = usePreviewEntrance({ ready, from: side === "below" ? -shift : shift, dropdown: true });
+  return <Animated.View style={[entrance, Platform.OS === "web" && { transformOrigin: side === "below" ? "center top" : "center bottom" }]}>
     <View testID="toolbar-details-frame" style={{ backgroundColor: tokens.surface0, borderColor: tokens.v2.border,
       borderWidth: 1, borderRadius: FLOAT.radius, boxShadow: floatShadow(tokens) }}>
       <View style={{ borderRadius: FLOAT.radius - 1, overflow: "hidden" }}>{children}</View>

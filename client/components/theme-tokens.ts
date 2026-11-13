@@ -141,7 +141,7 @@ export interface ExtendedThemeTokens {
   borderSubtle: string;
 
   /**
-   * A collapsed tool row at rest (docs/prototypes/quiet-tool-rows.md): one step
+   * A collapsed tool row at rest (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/quiet-tool-rows.md): one step
    * behind the prose, so a run of calls reads as a quiet log. Hover, press and
    * an opened row go back to `foreground`, `foregroundMuted` and the status
    * colours; see `rowTone` in `disclosure-header.tsx`.
@@ -164,7 +164,7 @@ export interface ExtendedThemeTokens {
     outputText: string;
   };
 
-  /** Block details palette from docs/prototypes/block-details-sheet.md §5.6. */
+  /** Block details palette from https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md §5.6. */
   details: {
     accentSoft: string;
     grabber: string;

@@ -1,3 +1,5 @@
+import type { TodoSummary } from "./data/todo-summary";
+import type { TasksLanguage } from "./i18n";
 import type { TaskCard } from "./model";
 
 /**
@@ -227,4 +229,14 @@ export function sampleCards(now: number = Date.now()): TaskCard[] {
 
 export function previewSampleCards(now: number = Date.now()): TaskCard[] {
   return allSamples(now);
+}
+
+/** Static checklist data for the settings previews. */
+export function previewTodoItems(language: TasksLanguage): Record<string, TodoSummary> {
+  const labels = language === "zh"
+    ? ["核对当前状态", "记录事件顺序", "复核过滤条件", "补充回归测试", "更新说明"]
+    : ["Check the current state", "Record event order", "Review filter conditions", "Add regression tests", "Update the notes"];
+  const running = labels.map((text, index) => ({ text, completed: index < 2, status: index < 2 ? "completed" : index === 2 ? "in_progress" : "pending" }));
+  const done = labels.slice(0, 4).map((text, index) => ({ text, completed: index < 3, status: index < 3 ? "completed" : "in_progress" }));
+  return { "sample-running": { completed: 2, total: 5, items: running }, "sample-done": { completed: 3, total: 4, items: done } };
 }

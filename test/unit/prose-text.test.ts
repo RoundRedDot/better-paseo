@@ -102,6 +102,79 @@ describe("ProseText on iOS", () => {
   });
 });
 
+describe("ProseText in a drawer sliding in on iOS", () => {
+  async function drawer() {
+    const loaded = await load(true);
+    const { createBodyScroll } = await import("../../client/details/shell/body-handover");
+    const body = createBodyScroll();
+    // Each native root instance seen: a new one is a remount.
+    const roots = new Set<unknown>();
+    let renderer!: ReturnType<typeof loaded.TestRenderer.create>;
+    const seen = () => renderer.root.findAll((node) => (node.type as unknown) === "RNUITextView").forEach((node) => roots.add(node));
+    const tree = (text: string, color = "#111") => React.createElement(loaded.ProseRedrawContext.Provider, { value: body },
+      React.createElement(loaded.ProseText, { style: { fontSize: 15 } },
+        "Prompt ", React.createElement(loaded.ProseSpan, { style: { color } }, text)));
+    const mount = async (element: React.ReactElement) => {
+      await loaded.act(async () => {
+        renderer = loaded.TestRenderer.create(element);
+      });
+      seen();
+    };
+    return {
+      ...loaded, body, tree, mount,
+      update: async (element: React.ReactElement) => { await loaded.act(async () => { renderer.update(element); }); seen(); },
+      rest: async () => { await loaded.act(async () => { body.redraw(); }); seen(); },
+      mounts: () => roots.size,
+      text: () => ((renderer.toJSON() as unknown as Node).children ?? []).map((run) => run.props.text).join(""),
+    };
+  }
+
+  it("keeps text drawn before the slide mounted when the drawer rests", async () => {
+    const view = await drawer();
+    await view.mount(view.tree("body"));
+    view.body.slideIn();
+    // The drawer's own renders hand the text new elements with the same runs.
+    await view.update(view.tree("body"));
+    await view.rest();
+    // Mounting it again showed a fresh UITextView, blank for a frame: the body flashed.
+    expect(view.mounts()).toBe(1);
+    expect(view.text()).toBe("Prompt body");
+  });
+
+  it("draws text that changed while sliding again once, at rest", async () => {
+    const view = await drawer();
+    await view.mount(view.tree("body"));
+    view.body.slideIn();
+    // Highlighting that lands late: same words, new colour.
+    await view.update(view.tree("body", "#06c"));
+    expect(view.mounts()).toBe(1);
+    await view.rest();
+    expect(view.mounts()).toBe(2);
+    await view.rest();
+    expect(view.mounts()).toBe(2);
+    expect(view.text()).toBe("Prompt body");
+  });
+
+  it("draws text that first mounted while sliding again at rest", async () => {
+    const view = await drawer();
+    view.body.slideIn();
+    await view.mount(view.tree("late"));
+    await view.rest();
+    expect(view.mounts()).toBe(2);
+  });
+
+  it("leaves text that changes at rest to draw in place", async () => {
+    const view = await drawer();
+    await view.mount(view.tree("body"));
+    view.body.slideIn();
+    await view.rest();
+    await view.update(view.tree("streamed"));
+    await view.rest();
+    expect(view.mounts()).toBe(1);
+    expect(view.text()).toBe("Prompt streamed");
+  });
+});
+
 describe("ProseText off iOS", () => {
   it("does not let the Android system font scale the reading size", async () => {
     mockOS.__rnMockOS = "android";

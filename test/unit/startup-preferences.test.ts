@@ -38,6 +38,7 @@ const TRANSFORMERS = [
   "omp-enhanced-todo",
   "omp-enhanced-user-message",
   "omp-enhanced-assistant",
+  "omp-enhanced-notification",
   "omp-enhanced-error",
 ];
 
@@ -99,6 +100,30 @@ describe("preferences read while the plugin loads", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     host.settings = { status: "loading" };
+  });
+
+  it("reprojects interactive replies when handoff changes", async () => {
+    const { contribute, preferences } = await load();
+    let answer!: (value: unknown) => void;
+    const plugin = fakeClient(() => new Promise((resolve) => { answer = resolve; }));
+    const cleanup = contribute(plugin.client as never);
+    const ui = { item: { type: "assistant_message", text: "```ui\nCard()" }, phase: "streaming" };
+    const other = { item: { type: "assistant_message", text: "```ui.json\n{}\n```" }, phase: "complete" };
+    const first = plugin.active("omp-enhanced-assistant")[0]!;
+    expect(first.transform(ui)).toBeDefined();
+    answer({ status: "ready", revision: "r1", values: { liveUiReplies: true } });
+    await flush();
+    const second = plugin.active("omp-enhanced-assistant")[0]!;
+    expect(first.removed).toBe(true);
+    expect(second.transform(ui)).toBeUndefined();
+    expect(second.transform(other)).toBeDefined();
+    expect(second.transform(reply)).toBeDefined();
+    preferences.updateEnhancerPreferences({ liveUiReplies: false });
+    const third = plugin.active("omp-enhanced-assistant")[0]!;
+    expect(third.transform(ui)).toBeDefined();
+    preferences.updateEnhancerPreferences({ assistantMarkdown: false, liveUiReplies: true });
+    expect(plugin.active("omp-enhanced-assistant")[0]!.transform(reply)).toBeUndefined();
+    cleanup();
   });
 
   it("asks while contribute runs and applies the record before any row mounts", async () => {

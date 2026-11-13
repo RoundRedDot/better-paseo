@@ -5,7 +5,7 @@ import "./helpers/quiet-renderer";
 
 type Run = { value: { setValue(value: number): void; __value: number }; to: number; stop: ReturnType<typeof vi.fn>; finish(): void };
 const motion = vi.hoisted(() => ({ reduced: false, runs: [] as Run[], layouts: vi.fn() }));
-vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced }));
+vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced, getReducedMotion: () => motion.reduced }));
 vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return { ...rn, LayoutAnimation: { configureNext: motion.layouts }, Animated: { ...rn.Animated,
@@ -30,7 +30,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: rn.View, TextInput: rn.TextInput };
 });
-vi.mock("../../client/tasks/typography", async () => ({ HOST_FONT: { base: 14 }, useTasksFontScale: () => 1, TaskText: (await import("./helpers/rn-mock")).Text }));
+vi.mock("../../client/tasks/typography", async (importOriginal) => ({ ...await importOriginal(), HOST_FONT: { base: 14 }, useTasksFontScale: () => 1, TaskText: (await import("./helpers/rn-mock")).Text }));
 import { PhoneSearch } from "../../client/tasks/board/phone-search";
 
 let renderer: TestRenderer.ReactTestRenderer;

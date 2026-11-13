@@ -6,8 +6,7 @@ import {
   type PreviewBox, type PreviewEdge, type PreviewSize,
 } from "./ui/preview-frame";
 import { SELECTION_BAR_SELECTOR } from "./components/selection-actions";
-import { FLOAT_EASE } from "./ui/tokens/float";
-import { PREVIEW_REVEAL } from "./ui/tokens/motion";
+import { DESKTOP_OVERLAY } from "./ui/tokens/motion";
 import { radiusV2 } from "./components/theme-tokens";
 import { hasActiveDetailsKeyboard } from "./details/keyboard";
 
@@ -126,7 +125,7 @@ export function bindContextMenu(node: unknown, open: (point: { x: number; y: num
  * it is clipped by no lane and covered by no later card. It stays in the
  * React tree (and the DOM's) where it was rendered.
  */
-export function openPointLayer(node: unknown, point: { x: number; y: number }): () => void {
+export function openPointLayer(node: unknown, point: { x: number; y: number }, close: () => void): () => void {
   if (Platform.OS !== "web") return () => {};
   const element = node as HTMLElement | null;
   if (typeof element?.showPopover !== "function") return () => {};
@@ -136,17 +135,68 @@ export function openPointLayer(node: unknown, point: { x: number; y: number }): 
     margin: "0", padding: "0", border: "0", background: "transparent", overflow: "visible",
   });
   element.showPopover();
+  const dismiss = bindTouchDismiss(element, close, { allowInsideScroll: true });
   return () => {
+    dismiss();
     if (element.matches(":popover-open")) element.hidePopover();
+  };
+}
+
+/** The text box keeps its intrinsic scroll width even when CSS ellipsizes it. */
+export function optionTextClipped(node: unknown): boolean {
+  if (Platform.OS !== "web") return false;
+  const text = node as HTMLElement | null;
+  return !!text && text.scrollWidth > text.clientWidth;
+}
+
+/** Lift a question option above the lane, without moving the button's layout slot. */
+export function openOptionExpansion(labelNode: unknown, panelNode: unknown, reduced: boolean) {
+  const label = labelNode as HTMLElement;
+  const panel = panelNode as HTMLElement;
+  const button = label.parentElement!;
+  const view = panel.ownerDocument.defaultView!;
+  let frame = 0;
+  let expanded = false;
+  panel.setAttribute("popover", "manual");
+  Object.assign(panel.style, {
+    position: "fixed", inset: "auto", margin: "0", boxSizing: "border-box",
+    maxWidth: "none", maxHeight: "none", overflow: "hidden", opacity: "1",
+    transition: reduced ? "none" : "width 160ms ease-out, left 160ms ease-out",
+  });
+  const position = () => {
+    const box = button.getBoundingClientRect();
+    const width = expanded ? Math.min(label.scrollWidth + box.width - label.clientWidth + 1, view.innerWidth - 16) : box.width;
+    const left = expanded ? Math.max(8, Math.min(box.left, view.innerWidth - width - 8)) : box.left;
+    Object.assign(panel.style, { width: `${width}px`, height: `${box.height}px`, left: `${left}px`, top: `${box.top}px` });
+  };
+  panel.showPopover();
+  position();
+  // Commit the starting width before the next frame changes it.
+  panel.getBoundingClientRect();
+  view.addEventListener("resize", position);
+  view.addEventListener("scroll", position, true);
+  return {
+    setExpanded(value: boolean) {
+      view.cancelAnimationFrame(frame);
+      expanded = value;
+      frame = view.requestAnimationFrame(position);
+    },
+    close() {
+      view.cancelAnimationFrame(frame);
+      view.removeEventListener("resize", position);
+      view.removeEventListener("scroll", position, true);
+      panel.hidePopover();
+    },
   };
 }
 
 
 /** Keep interactive toolbar details above timeline stacking contexts without moving their React tree. */
-export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "above" | "below"): () => void {
+export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "above" | "below", matchBounds?: unknown, onPlacement?: (placement: "above" | "below") => void): () => void {
   if (Platform.OS !== "web") return () => {};
   const panel = node as HTMLElement | null;
   const trigger = anchor as HTMLElement | null;
+  const bounds = matchBounds as HTMLElement | null | undefined;
   if (!panel || !trigger) return () => {};
   const view = panel.ownerDocument.defaultView!;
   const originalStyle = panel.style.cssText;
@@ -161,21 +211,26 @@ export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "a
   panel.showPopover();
   const position = () => {
     const rect = trigger.getBoundingClientRect();
+    const matched = bounds?.getBoundingClientRect();
+    if (matched) panel.style.width = `${matched.width}px`;
     const { width, height } = panel.getBoundingClientRect();
     const above = rect.top - height;
     const below = rect.bottom;
     const fitsAbove = above >= 8;
     const fitsBelow = below + height <= view.innerHeight - 8;
-    const top = side === "above"
-      ? (fitsAbove || !fitsBelow ? above : below)
-      : (fitsBelow || !fitsAbove ? below : above);
-    panel.style.left = `${Math.max(8, Math.min(rect.left + offset, view.innerWidth - width - 8))}px`;
+    const placement = side === "above"
+      ? (fitsAbove || !fitsBelow ? "above" : "below")
+      : (fitsBelow || !fitsAbove ? "below" : "above");
+    const top = placement === "above" ? above : below;
+    panel.style.left = `${Math.max(8, Math.min(matched ? matched.left : rect.left + offset, view.innerWidth - width - 8))}px`;
     panel.style.top = `${Math.max(8, Math.min(top, view.innerHeight - height - 8))}px`;
+    onPlacement?.(placement);
   };
   position();
   const observer = new view.ResizeObserver(position);
   observer.observe(panel);
   observer.observe(trigger);
+  if (bounds) observer.observe(bounds);
   view.addEventListener("resize", position);
   return () => {
     observer.disconnect();
@@ -677,17 +732,17 @@ function editable(target: EventTarget | null): boolean {
 }
 
 /**
- * Fades the panel in while it slides `PREVIEW_REVEAL.shift` px away from its
+ * Fades the panel in while it slides `DESKTOP_OVERLAY.shift` px away from its
  * row. A translate leaves the panel's measured height alone, which placing it
  * above the row reads. No fill: once played, the panel's own style stands.
  */
 function reveal(panel: HTMLElement, below: boolean): void {
   const view = panel.ownerDocument.defaultView!;
   if (typeof panel.animate !== "function" || view.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-  const from = below ? -PREVIEW_REVEAL.shift : PREVIEW_REVEAL.shift;
+  const from = below ? -DESKTOP_OVERLAY.shift : DESKTOP_OVERLAY.shift;
   panel.animate(
-    [{ opacity: 0, transform: `translateY(${from}px)` }, { opacity: 1, transform: "none" }],
-    { duration: PREVIEW_REVEAL.ms, easing: FLOAT_EASE.out },
+    [{ opacity: DESKTOP_OVERLAY.opacity, transform: `translateY(${from}px)` }, { opacity: 1, transform: "none" }],
+    { duration: DESKTOP_OVERLAY.ms, easing: DESKTOP_OVERLAY.cssEase },
   );
 }
 
@@ -695,7 +750,7 @@ function reveal(panel: HTMLElement, below: boolean): void {
 const hoverRects = new WeakMap<HTMLElement, DOMRect>();
 
 /** Maximize: the panel's clip opens from its hover box to the whole panel. */
-export const PREVIEW_GROW = { ms: 200, shadow: 48 } as const;
+export const PREVIEW_GROW = { ms: DESKTOP_OVERLAY.ms, shadow: 48 } as const;
 
 /**
  * Lays the panel out at its maximized size at once, then opens a clip from the
@@ -712,7 +767,7 @@ function grow(panel: HTMLElement, from: DOMRect | undefined): void {
   const round = `round ${radiusV2.overlay}px`;
   panel.animate(
     [{ clipPath: `inset(${inset} ${round})` }, { clipPath: `inset(-${PREVIEW_GROW.shadow}px ${round})` }],
-    { duration: PREVIEW_GROW.ms, easing: FLOAT_EASE.out },
+    { duration: PREVIEW_GROW.ms, easing: DESKTOP_OVERLAY.cssEase },
   );
 }
 

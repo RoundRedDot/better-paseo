@@ -71,7 +71,7 @@ function nativeStyle(style: TextProps["style"], context: RenderContext, gap = 0,
       fontWeight: String(base.fontWeight ?? "400"), color: color(base.color), lineHeight: base.lineHeight ?? metrics.bodyLineHeight,
       marginTop: 0, marginBottom: gap, marginLeft: metrics.indentStep,
       markerMinWidth: metrics.markerWidth - MARKER_GAP, gapWidth: MARKER_GAP + (unordered ? MOBILE_BULLET_GAP : 0), itemSpacing: metrics.itemGap,
-      bulletColor: processColor(tokens.foregroundMuted), bulletSize: 4,
+      bulletColor: processColor(tokens.foregroundMuted), bulletSize: context.variant === "document" ? 3 : 4,
       markerColor: processColor(tokens.foregroundMuted), markerFontWeight: "400" },
   };
 }

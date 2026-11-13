@@ -7,6 +7,7 @@ import { createTaskAvailability, taskDirectoryIssue, taskUpdateIssue } from "../
 import { titleGenerationSettingsSchema } from "../../shared/title-generation";
 import { tasksAvailabilityRpc } from "../../shared/task-availability";
 import { fakeWorkspaceDirectory, type FakeWorkspace } from "./helpers/fake-workspace-directory";
+import type { HostDaemon } from "../../server/tasks/provider-subagents";
 
 const directories: string[] = [];
 afterEach(async () => { for (const directory of directories.splice(0)) { await chmod(directory, 0o700); await rm(directory, { recursive: true, force: true }); } });
@@ -28,9 +29,13 @@ async function fixture() {
   const settings = { read: vi.fn(async () => ({ status: "ready" as const, revision: "1", values })), subscribe: () => () => {} };
   const canRename = vi.fn(() => true);
   const canUnarchive = vi.fn(async () => true);
-  const canRestore = vi.fn(() => true);
-  const read = createTaskAvailability(settings, canRename, canUnarchive, canRestore);
-  return { directory, source, refresh, workspaces, workspace, timeline, providers, snapshot, listModels, values, canRename, canUnarchive, canRestore, api, read };
+  const inspectWorkspaceRecovery = vi.fn<NonNullable<HostDaemon["inspectWorkspaceRecovery"]>>(async (id) => workspaces.some((entry) => entry.id === id && entry.archivedAt)
+    ? { kind: "recoverable", action: "unarchive" }
+    : { kind: "unavailable", message: "Workspace missing" });
+  const daemon: Pick<HostDaemon, "inspectWorkspaceRecovery" | "restoreWorkspace" | "close"> = { inspectWorkspaceRecovery, restoreWorkspace: vi.fn(), close: vi.fn(async () => {}) };
+  const connect = vi.fn(async () => daemon as typeof daemon | null);
+  const read = createTaskAvailability(settings, canRename, canUnarchive, connect);
+  return { directory, source, refresh, workspaces, workspace, timeline, providers, snapshot, listModels, values, canRename, canUnarchive, inspectWorkspaceRecovery, daemon, connect, api, read };
 }
 
 describe("task operation availability", () => {
@@ -40,6 +45,7 @@ describe("task operation availability", () => {
     expect(tasksAvailabilityRpc.output.parse(result)).toEqual({ entries: ["a", "b"].map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) });
     expect(f.listModels).toHaveBeenCalledTimes(1);
     expect(f.timeline).not.toHaveBeenCalled();
+    expect(f.connect).not.toHaveBeenCalled();
   });
 
   it("blocks every write for a removed directory and recovers on the next check", async () => {
@@ -68,25 +74,79 @@ describe("task operation availability", () => {
     expect(await taskUpdateIssue(null, f.api)).toEqual({ code: "agent_missing", detail: null });
     f.workspaces[0]!.archivedAt = "2026-10-28T00:00:00Z";
     const archived = (await f.read(f.api, ["a"])).entries[0]!.availability;
-    expect(archived.issue?.code).toBe("workspace_unavailable");
+    expect(archived.issue).toBeNull();
     expect(archived.blocked.unarchive).toBeUndefined();
-    expect(archived.blocked.rename?.code).toBe("workspace_unavailable");
+    expect(archived.blocked.rename?.code).toBe("workspace_archived");
+    expect(archived.blocked.autoTitle?.code).toBe("workspace_archived");
+    expect(f.inspectWorkspaceRecovery).toHaveBeenCalledWith("workspace-a");
+    expect(f.daemon.restoreWorkspace).not.toHaveBeenCalled();
     Object.assign(f.workspaces[0]!, { archivedAt: null, archivingAt: "2026-10-28T00:00:00Z" });
     const archiving = (await f.read(f.api, ["a"])).entries[0]!.availability;
     expect(archiving.blocked.unarchive?.code).toBe("workspace_unavailable");
   });
 
-  it("still checks the CLI and provider before unarchiving an unavailable workspace", async () => {
+  it("still checks the CLI, recovery API and provider before unarchiving an archived workspace", async () => {
     const f = await fixture();
-    f.workspaces.length = 0;
+    f.workspaces[0]!.archivedAt = "2026-10-28T00:00:00Z";
     f.canUnarchive.mockResolvedValue(false);
     expect((await f.read(f.api, ["a"])).entries[0]!.availability.blocked.unarchive?.code).toBe("unsupported");
     f.canUnarchive.mockResolvedValue(true);
-    f.canRestore.mockReturnValue(false);
+    const restore = f.daemon.restoreWorkspace;
+    delete f.daemon.restoreWorkspace;
     expect((await f.read(f.api, ["a"])).entries[0]!.availability.blocked.unarchive?.code).toBe("unsupported");
-    f.canRestore.mockReturnValue(true);
+    f.daemon.restoreWorkspace = restore;
     f.providers[0]!.enabled = false;
     expect((await f.read(f.api, ["a"])).entries[0]!.availability.blocked.unarchive?.code).toBe("provider_unavailable");
+  });
+
+  it("does not mistake a missing workspace record or a worktree requiring recreation for normal archiving", async () => {
+    const f = await fixture();
+    f.workspaces.length = 0;
+    const missing = (await f.read(f.api, ["a"])).entries[0]!.availability;
+    expect(missing.issue?.code).toBe("workspace_unavailable");
+    expect(missing.blocked.unarchive?.code).toBe("workspace_unavailable");
+    f.inspectWorkspaceRecovery.mockResolvedValueOnce({ kind: "recoverable", action: "restore" });
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability).toEqual(missing);
+  });
+
+  it("does not substitute another active workspace at the same directory for the task's own workspace", async () => {
+    const f = await fixture();
+    f.workspaces[0]!.archivedAt = "2026-10-28T00:00:00Z";
+    f.workspaces.push({ id: "other-workspace", activityAt: "2026-10-29T00:00:00Z", archivingAt: null });
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability.issue).toBeNull();
+    f.workspaces.shift();
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability.issue?.code).toBe("workspace_unavailable");
+    expect(f.inspectWorkspaceRecovery.mock.calls.map(([id]) => id)).toEqual(["workspace-a", "workspace-a"]);
+  });
+
+  it("shares one recovery inspection per workspace in a batch and reads it again next time", async () => {
+    const f = await fixture();
+    f.workspaces[0]!.archivedAt = "2026-10-28T00:00:00Z";
+    const result = await f.read(f.api, ["a", "b", "a"]);
+    expect(tasksAvailabilityRpc.output.parse(result).entries.every((entry) => entry.availability.issue === null)).toBe(true);
+    expect(f.connect).toHaveBeenCalledTimes(1);
+    expect(f.inspectWorkspaceRecovery).toHaveBeenCalledTimes(1);
+    expect(f.daemon.close).toHaveBeenCalledTimes(1);
+    f.workspaces.length = 0;
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability.issue?.code).toBe("workspace_unavailable");
+    expect(f.inspectWorkspaceRecovery).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports a disconnected host separately and recovers on the next check", async () => {
+    const f = await fixture();
+    f.workspaces[0]!.archivedAt = "2026-10-28T00:00:00Z";
+    f.connect.mockResolvedValueOnce(null);
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability.issue?.code).toBe("host_unavailable");
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability.issue).toBeNull();
+  });
+
+  it("does not conceal recovery inspection failures and always closes the connection", async () => {
+    const f = await fixture();
+    f.workspaces[0]!.archivedAt = "2026-10-28T00:00:00Z";
+    f.inspectWorkspaceRecovery.mockRejectedValueOnce(new Error("inspect_failed"));
+    await expect(f.read(f.api, ["a"])).rejects.toThrow("inspect_failed");
+    expect(f.daemon.close).toHaveBeenCalledTimes(1);
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability.issue).toBeNull();
   });
 
   it.each(["disabled", "error", "unavailable", "loading"])("preserves metadata edits while a %s provider blocks generation and resume", async (status) => {

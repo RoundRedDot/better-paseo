@@ -1,9 +1,10 @@
 import { constants } from "node:fs";
 import { access, stat } from "node:fs/promises";
-import type { PaseoAgentRefetchResult, PaseoApi, PaseoProviderModelsResult, PaseoWorkspace } from "@getpaseo/client";
+import type { PaseoAgentRefetchResult, PaseoApi, PaseoProviderModelsResult, PaseoWorkspace } from "../paseo-types";
 import type { PluginSettings } from "@getpaseo/plugin/server";
 import { type TaskAvailability, type TaskIssue, unavailableTask } from "../../shared/task-availability";
 import { titleGenerationSettingsSchema } from "../../shared/title-generation";
+import type { HostDaemon } from "./provider-subagents";
 
 export async function taskDirectoryIssue(cwd: string): Promise<TaskIssue | null> {
   try {
@@ -50,9 +51,10 @@ export async function taskUpdateState(source: PaseoAgentRefetchResult | null, pa
 /**
  * The workspaces of `ids`, read the way `workspaces.ref(id).refresh()` reads
  * one: pages of 200, background included, stopping once every id has turned
- * up, and to the last page while one has not. An id on none of the pages is
- * the SDK's null, so a miss here needs no second read. The daemon rebuilds the
- * whole directory for each page, so one scan per batch replaces one per card.
+ * up, and to the last page while one has not. Like the SDK's null, a miss
+ * can mean an archived record; recovery inspection below resolves those ids.
+ * The daemon rebuilds the whole directory for each page, so one scan per
+ * batch replaces one per card.
  */
 async function listTaskWorkspaces(paseo: PaseoApi, ids: ReadonlySet<string>): Promise<ReadonlyMap<string, PaseoWorkspace>> {
   const workspaces = new Map<string, PaseoWorkspace>();
@@ -71,7 +73,27 @@ export async function taskUpdateIssue(source: PaseoAgentRefetchResult | null, pa
   return (await taskUpdateState(source, paseo)).issue;
 }
 
-export function createTaskAvailability(settings: PluginSettings<typeof titleGenerationSettingsSchema>, canRename: () => boolean, canUnarchive: () => Promise<boolean>, canRestore: () => boolean) {
+type RecoveryDaemon = Pick<HostDaemon, "inspectWorkspaceRecovery" | "restoreWorkspace" | "close">;
+
+/** The active directory omits archived records; only the host can distinguish them from missing ones. */
+async function inspectArchivedWorkspaces(ids: string[], connect: () => Promise<RecoveryDaemon | null>) {
+  const states = new Map<string, TaskIssue["code"]>();
+  if (ids.length === 0) return states;
+  const daemon = await connect();
+  if (!daemon) return new Map(ids.map((id) => [id, "host_unavailable" as const]));
+  try {
+    if (!daemon.inspectWorkspaceRecovery || !daemon.restoreWorkspace) return new Map(ids.map((id) => [id, "unsupported" as const]));
+    for (const id of ids) {
+      const recovery = await daemon.inspectWorkspaceRecovery(id);
+      states.set(id, recovery.kind === "recoverable" && recovery.action === "unarchive" ? "workspace_archived" : "workspace_unavailable");
+    }
+    return states;
+  } finally {
+    await daemon.close().catch(() => {});
+  }
+}
+
+export function createTaskAvailability(settings: PluginSettings<typeof titleGenerationSettingsSchema>, canRename: () => boolean, canUnarchive: () => Promise<boolean>, connect: () => Promise<RecoveryDaemon | null>) {
   return async (paseo: PaseoApi, agentIds: string[]) => {
     const [config, providers, unarchive] = await Promise.all([settings.read(), paseo.providers.snapshot(), canUnarchive()]);
     const catalogs = new Map<string, Promise<Pick<PaseoProviderModelsResult, "error" | "models">>>();
@@ -84,17 +106,21 @@ export function createTaskAvailability(settings: PluginSettings<typeof titleGene
       const source = await paseo.agents.ref(agentId).refresh();
       placements.push({ agentId, source, placement: await taskPlacementState(source) });
     }
-    const workspaces = await listTaskWorkspaces(paseo, new Set(placements.flatMap(({ placement }) => placement.workspaceId ? [placement.workspaceId] : [])));
+    const workspaceIds = new Set(placements.flatMap(({ placement }) => placement.workspaceId ? [placement.workspaceId] : []));
+    const workspaces = await listTaskWorkspaces(paseo, workspaceIds);
+    const recoveries = await inspectArchivedWorkspaces([...workspaceIds].filter((id) => !workspaces.has(id)), connect);
     // Cards share provider catalogs within this batch.
     for (const { agentId, source, placement: { workspaceId, ...placed } } of placements) {
       const { issue, archivedWorkspaceId } = workspaceId ? workspaceState(source!.agent.cwd, workspaceId, workspaces.get(workspaceId) ?? null) : placed;
       if (issue || !source) {
-        const availability = unavailableTask(issue!);
-        if (source && archivedWorkspaceId) {
-          if (!unarchive || !canRestore()) availability.blocked.unarchive = { code: "unsupported", detail: null };
+        const availability = unavailableTask(archivedWorkspaceId ? { ...issue!, code: recoveries.get(archivedWorkspaceId)! } : issue!);
+        if (source && availability.issue?.code === "workspace_archived") {
+          if (!unarchive) availability.blocked.unarchive = { code: "unsupported", detail: null };
           else if (!providers.entries.some((entry) => entry.provider === source.agent.provider && entry.enabled && entry.status === "ready")) {
             availability.blocked.unarchive = { code: "provider_unavailable", detail: source.agent.provider };
           } else delete availability.blocked.unarchive;
+          // Archiving is normal task history, not a failed workspace. Keep operation guards until unarchived.
+          availability.issue = availability.blocked.unarchive ?? null;
         }
         entries.push({ agentId, availability });
         continue;

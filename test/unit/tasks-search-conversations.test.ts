@@ -14,6 +14,26 @@ const deferred = () => {
 };
 
 describe("incremental conversation search", () => {
+  it("pauses queued work and resumes without losing results", async () => {
+    const pending = deferred();
+    const load = vi.fn().mockResolvedValueOnce({ ...page, match: "target" }).mockImplementationOnce(() => pending.promise).mockResolvedValue(page);
+    const store = createConversationSearch(load);
+    store.configure([card("a"), card("b"), card("c")], "target");
+    await settle();
+    expect(store.messages().has("a")).toBe(true);
+    store.setPaused(true);
+    const before = load.mock.calls.length;
+    pending.resolve({ ...page, match: "late" });
+    await settle();
+    expect(load).toHaveBeenCalledTimes(before);
+    expect(store.messages().has("a")).toBe(true);
+    expect(store.messages().has("b")).toBe(false);
+    store.setPaused(false);
+    await settle();
+    expect(load.mock.calls.length).toBeGreaterThan(before);
+    store.configure([], "");
+    expect(store.messages().size).toBe(0);
+  });
   it("keeps two page requests in flight, rotates between tasks and exposes matches immediately", async () => {
     const requests = Array.from({ length: 4 }, deferred);
     const load = vi.fn().mockImplementationOnce(() => requests[0]!.promise).mockImplementationOnce(() => requests[1]!.promise).mockImplementationOnce(() => requests[2]!.promise).mockImplementationOnce(() => requests[3]!.promise);
@@ -22,7 +42,7 @@ describe("incremental conversation search", () => {
     store.configure(cards, "target");
     await settle();
     expect(load).toHaveBeenCalledTimes(2);
-    expect(store.read()).toEqual({ pending: 3, unavailable: 0, failed: 0, retrying: 0 });
+    expect(store.read()).toEqual({ pending: 3, loaded: 0 });
     requests[0]!.resolve({ ...page, nextCursor: { epoch: "one", seq: 16 } });
     await settle();
     expect(load.mock.calls[2]![0].agentId).toBe("c");
@@ -76,11 +96,11 @@ describe("incremental conversation search", () => {
     pending.resolve({ ...page, nextCursor: { epoch: "history", seq: 16 } });
     await settle();
     expect(store.messages().size).toBe(0);
-    expect(store.read()).toEqual({ pending: 0, unavailable: 0, failed: 0, retrying: 0 });
+    expect(store.read()).toEqual({ pending: 0, loaded: 0 });
     expect(load).toHaveBeenCalledTimes(3);
   });
 
-  it("skips closed owners and removed directories, then retries only temporary failures", async () => {
+  it("skips closed owners and removed directories, and retries one temporary failure on demand", async () => {
     const load = vi.fn().mockResolvedValue({ ...page, error: "offline" });
     const store = createConversationSearch(load);
     const parent = card("parent", true);
@@ -89,10 +109,11 @@ describe("incremental conversation search", () => {
     store.configure([card("a"), parent, child, removed], "target");
     await settle();
     expect(load.mock.calls.map(([input]) => input.agentId)).toEqual(["a"]);
-    expect(store.read()).toEqual({ pending: 0, unavailable: 3, failed: 1, retrying: 0 });
+    // Reads that cannot run and reads that failed are neither pending nor loaded.
+    expect(store.read()).toEqual({ pending: 0, loaded: 0 });
     load.mockResolvedValue({ ...page, match: "target" });
-    await store.retry();
-    expect(store.read()).toEqual({ pending: 0, unavailable: 3, failed: 0, retrying: 0 });
+    await store.retryCard(card("a"));
+    expect(store.read()).toEqual({ pending: 0, loaded: 1 });
     expect(store.messages().get("a")).toBe("target");
   });
 
@@ -118,7 +139,8 @@ describe("incremental conversation search", () => {
     pending.resolve({ ...page, nextCursor: { epoch: "history", seq: 16 } });
     await settle();
     expect(load).toHaveBeenCalledTimes(1);
-    expect(store.read().unavailable).toBe(1);
+    // The closed owner's record can no longer be read, so it is neither pending nor loaded.
+    expect(store.read()).toEqual({ pending: 0, loaded: 0 });
     store.configure([card("a")], "target");
     await settle();
     expect(store.messages().get("a")).toBe("target");

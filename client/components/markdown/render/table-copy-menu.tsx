@@ -364,7 +364,7 @@ interface MenuMotion {
 }
 
 /**
- * CSS transitions, as the menu exists on web only (docs/prototypes/table-copy-menu.md).
+ * CSS transitions, as the menu exists on web only (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/table-copy-menu.md).
  * Opening widens the frame and lifts its shadow over 180 ms, and the names
  * follow 40 ms later; closing fades the names first and narrows the frame
  * over 160 ms. The declarations follow the state being entered, so a pointer

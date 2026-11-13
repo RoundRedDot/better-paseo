@@ -1,6 +1,6 @@
 /**
  * The details toolbar's copy buttons: as many as fit side by side, the rest
- * in a "⋯" menu (docs/prototypes/block-details-sheet.md, "复制按钮"). The
+ * in a "⋯" menu (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md, "复制按钮"). The
  * order is the content's, its first copy the main one, so the fold starts at
  * the last and the first always stays. An empty copy, or one with the label or
  * text of an earlier one, is not offered at all.
@@ -8,8 +8,8 @@
  * The buttons are the content's own `ToolbarCopyButton`s; under
  * `CopyOverflowContext` each registers here and draws only while it fits.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { radiusV2, space } from "../../components/theme-tokens";
@@ -19,6 +19,8 @@ import { AnchoredToolbarDetails, ToolbarButton, type CopyOverflow, type CopyOver
 import { bindDetailsEscape, bindTouchDismiss } from "../../web";
 import { useEnhancerPreferences } from "../../preferences";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
+import { usePreviewEntrance } from "../../ui/use-preview-entrance";
+import { DROPDOWN_REVEAL } from "../../ui/tokens/motion";
 
 interface Registered {
   seq: number;
@@ -119,13 +121,19 @@ export function CopyOverflowMenu({ items, tokens }: { items: readonly CopyOverfl
     <View ref={anchorRef} collapsable={false} testID="details-copy-overflow" style={styles.anchor}>
       <ToolbarButton icon="MoreVertical" label="More" checked={open} onPress={() => setOpen((value) => !value)} tokens={tokens} align="end" />
       {open ? Platform.OS === "web" ? (
-        <View style={[styles.dropdown, menuLook(tokens)]}>{menu}</View>
+        <CopyDropdown tokens={tokens}>{menu}</CopyDropdown>
       ) : (
         // A native panel is a Modal already; only another one can rise over it and take the press outside.
         <AnchoredToolbarDetails anchor={anchorRef} close={close} width={220} tokens={tokens}>{menu}</AnchoredToolbarDetails>
       ) : null}
     </View>
   );
+}
+
+/** Mount the animation with each opening, rather than with the persistent trigger. */
+function CopyDropdown({ tokens, children }: { tokens: ExtendedThemeTokens; children: ReactNode }) {
+  const entrance = usePreviewEntrance({ ready: true, from: -DROPDOWN_REVEAL.shift, dropdown: true });
+  return <Animated.View testID="details-copy-dropdown" style={[styles.dropdown, menuLook(tokens), entrance]}>{children}</Animated.View>;
 }
 
 function CopyMenu({ items, tokens, close }: { items: readonly CopyOverflowItem[]; tokens: ExtendedThemeTokens; close(): void }) {
@@ -170,6 +178,7 @@ const styles = StyleSheet.create({
     borderRadius: radiusV2.card,
     overflow: "hidden",
     zIndex: 10,
+    transformOrigin: "right top",
   },
   menu: { paddingVertical: space.xs },
   item: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 36, paddingHorizontal: space.md },

@@ -1,4 +1,4 @@
-import type { PaseoApi } from "@getpaseo/client";
+import type { PaseoApi } from "../paseo-types";
 import { conversationExcerpt, unavailableConversationError, type ConversationCursor, type ConversationSearchInput, type ConversationSearchPage } from "../../shared/conversation-search";
 import { taskDirectoryIssue } from "./availability";
 import type { HostDaemonAccess } from "./register";

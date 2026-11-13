@@ -6,7 +6,7 @@ import { Platform } from "react-native";
  * and floating over its right side on a narrow one. A board narrower still
  * (a tablet or foldable with the host's sidebar open) has no room beside its
  * lanes at all: there the details rise from the bottom as a sheet
- * (`docs/prototypes/task-board-pad.md`).
+ * (`https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/task-board-pad.md`).
  */
 export const SIDEBAR = {
   /** The width it opens at, and where a double click on its edge puts it back. */
@@ -81,33 +81,45 @@ export function clampWidth(width: number): number {
 }
 
 /** Which card the sidebar shows, and the cards to go back to. */
+export type DetailTab = "info" | "messages";
+
 export interface SidebarSelection {
   id: string | null;
+  tab: DetailTab;
   /** Earlier cards, newest last, for the back row after a parent or subtask jump. */
-  back: string[];
+  back: { id: string; tab: DetailTab }[];
 }
 
-export const NO_SELECTION: SidebarSelection = { id: null, back: [] };
+export const NO_SELECTION: SidebarSelection = { id: null, tab: "messages", back: [] };
 
 export type SelectionAction =
-  /** A click or tap on a card: the only way a board card reaches the sidebar. */
-  | { type: "click"; id: string }
+  /**
+   * A click or tap on a card: the only way a board card reaches the sidebar.
+   * `parent`: the card whose subtask row was pressed, kept to go back to, so
+   * a subtask shown from its parent's card has the parent one press away.
+   */
+  | { type: "click"; id: string; parent?: string }
   /** A parent or subtask link in the sidebar: shown, the current one kept to go back to. */
   | { type: "jump"; id: string }
+  | { type: "tab"; tab: DetailTab }
   | { type: "back" }
   | { type: "clear" };
 
 export function selectionReducer(state: SidebarSelection, action: SelectionAction): SidebarSelection {
   switch (action.type) {
-    case "click":
-      if (state.id === action.id && state.back.length === 0) return state;
-      return { id: action.id, back: [] };
+    case "click": {
+      const parent = action.parent && action.parent !== action.id ? action.parent : undefined;
+      if (state.id === action.id && (parent ? state.back.length === 1 && state.back[0]!.id === parent : state.back.length === 0)) return state;
+      return { id: action.id, tab: "messages", back: parent ? [{ id: parent, tab: "messages" }] : [] };
+    }
     case "jump":
       if (state.id === action.id) return state;
-      return { id: action.id, back: state.id ? [...state.back, state.id].slice(-SIDEBAR.history) : state.back };
+      return { id: action.id, tab: "messages", back: state.id ? [...state.back, { id: state.id, tab: state.tab }].slice(-SIDEBAR.history) : state.back };
+    case "tab":
+      return state.tab === action.tab ? state : { ...state, tab: action.tab };
     case "back": {
       if (state.back.length === 0) return state;
-      return { id: state.back[state.back.length - 1] ?? null, back: state.back.slice(0, -1) };
+      return { ...state.back[state.back.length - 1]!, back: state.back.slice(0, -1) };
     }
     case "clear":
       return state.id === null ? state : NO_SELECTION;

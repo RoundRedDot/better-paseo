@@ -1,7 +1,7 @@
 /**
  * The preview content drawn in the block details chrome: the same content the
  * hover panel draws, its `HoverPreviewHeader` turned into the details header
- * and toolbar (docs/prototypes/block-details-sheet.md, tables 5.2, 5.8, 5.9).
+ * and toolbar (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md, tables 5.2, 5.8, 5.9).
  * The shell is stubbed: slice B provides `DetailsShellContext` in the app.
  */
 import React from "react";

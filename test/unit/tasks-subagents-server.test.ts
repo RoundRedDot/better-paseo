@@ -72,15 +72,16 @@ function fakeEvents() {
 const live = { capabilities: { supportsStreaming: true } };
 
 describe("provider subagent registry", () => {
-  it("keeps running and failed subagents and drops finished ones", () => {
+  it("keeps running, failed, completed and canceled subagents", () => {
     const registry = createSubagentRegistry(() => BASE);
     registry.upsert(descriptor("a"));
     registry.upsert(descriptor("b", { status: "failed", updatedAt: iso(2) }));
     registry.upsert(descriptor("c", { status: "completed" }));
-    expect(registry.read().subagents?.map((subagent) => [subagent.id, subagent.status])).toEqual([["a", "running"], ["b", "failed"]]);
+    registry.upsert(descriptor("d", { status: "canceled" }));
+    expect(registry.read().subagents?.map((subagent) => [subagent.id, subagent.status])).toEqual([["a", "running"], ["b", "failed"], ["c", "completed"], ["d", "canceled"]]);
 
     registry.upsert(descriptor("a", { status: "completed", updatedAt: iso(3) }));
-    expect(registry.read().subagents?.map((subagent) => subagent.id)).toEqual(["b"]);
+    expect(registry.read().subagents?.find((subagent) => subagent.id === "a")?.status).toBe("completed");
   });
 
   it("answers null while the version holds, and a new version when the list moves", () => {
@@ -101,18 +102,20 @@ describe("provider subagent registry", () => {
     const registry = createSubagentRegistry(() => BASE);
     registry.upsert(descriptor("a", { status: "completed", updatedAt: iso(5) }));
     registry.upsert(descriptor("a", { status: "running", updatedAt: iso(1) }));
-    expect(registry.read().subagents).toEqual([]);
+    expect(registry.read().subagents?.[0]?.status).toBe("completed");
   });
 
-  it("forgets failures after a week, and a parent once it is archived", () => {
+  it("forgets finished subagents after a week, and a parent once it is archived", () => {
     let now = BASE;
     const registry = createSubagentRegistry(() => now);
     registry.upsert(descriptor("old", { status: "failed", updatedAt: iso(0) }));
+    registry.upsert(descriptor("complete", { status: "completed", updatedAt: iso(0) }));
+    registry.upsert(descriptor("still-running", { status: "running", updatedAt: iso(0) }));
     registry.upsert(descriptor("other", { parentAgentId: "archived", status: "failed", updatedAt: iso(0) }));
     registry.dropParent("archived");
-    expect(registry.read().subagents?.map((subagent) => subagent.id)).toEqual(["old"]);
+    expect(registry.read().subagents?.map((subagent) => subagent.id)).toEqual(["old", "complete", "still-running"]);
     now = BASE + 8 * 24 * 60 * 60_000;
-    expect(registry.read().subagents).toEqual([]);
+    expect(registry.read().subagents?.map((subagent) => subagent.id)).toEqual(["still-running"]);
   });
 
   it("reads upserts and removes off the update feed, and ignores timeline items", () => {
@@ -126,6 +129,13 @@ describe("provider subagent registry", () => {
 });
 
 describe("provider subagent seed", () => {
+  it("restores a completed subagent from a loaded parent's daemon list", async () => {
+    const registry = createSubagentRegistry(() => BASE);
+    const daemon = fakeDaemon([{ id: "parent", ...live }], { parent: [descriptor("NoticeRowDesign", { status: "completed", updatedAt: iso(3) })] });
+    await seedSubagents(registry, daemon, () => BASE);
+    expect(registry.read().subagents).toMatchObject([{ id: "NoticeRowDesign", parentAgentId: "parent", status: "completed" }]);
+  });
+
   it("lists only loaded, unarchived agents, across pages", async () => {
     const registry = createSubagentRegistry(() => BASE);
     const daemon = fakeDaemon(

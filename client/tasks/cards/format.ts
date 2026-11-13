@@ -41,6 +41,16 @@ function coarse(ms: number): string {
   return rest > 0 ? `${Math.floor(minutes / 60)}h ${rest}m` : `${Math.floor(minutes / 60)}h`;
 }
 
+/** A request's wait alone, where a clock icon already says it waits: "4m". */
+export function formatWaitLength(ms: number): string {
+  return coarse(ms);
+}
+
+/** A request's wait as a hover hint reads it: "已等待 4m" / "Waiting for 4m". */
+export function formatWaited(ms: number, language: TasksLanguage): string {
+  return language === "zh" ? `已等待 ${coarse(ms)}` : `Waiting for ${coarse(ms)}`;
+}
+
 /** How long a request has waited: "等待 4m" / "Waiting 4m". */
 export function formatWait(ms: number, language: TasksLanguage): string {
   return language === "zh" ? `等待 ${coarse(ms)}` : `Waiting ${coarse(ms)}`;
@@ -71,7 +81,9 @@ export function formatClockTime(at: number, now: number): string {
   const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`;
   const sameDay =
     date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth() && date.getDate() === today.getDate();
-  return sameDay ? time : `${date.getMonth() + 1}/${date.getDate()} ${time}`;
+  if (sameDay) return time;
+  const year = date.getFullYear() === today.getFullYear() ? "" : `${date.getFullYear()}/`;
+  return `${year}${date.getMonth() + 1}/${date.getDate()} ${time}`;
 }
 
 /** Milliseconds since an ISO time; null when absent or unparseable. */
@@ -81,19 +93,25 @@ export function since(iso: string | null, now: number): number | null {
   return Number.isNaN(at) ? null : now - at;
 }
 
-/** Token counts: "950", "182k", "1.25M". */
+/** Drop a decimal that is only trailing zeros: "32.0" → "32", "1.20" → "1.2". */
+function trimDecimalZeros(text: string): string {
+  return text.replace(/0+$/, "").replace(/\.$/, "");
+}
+
+/** Token counts: "950", "182k", "1M", "1.2M", "1.25M". Trailing zeros after the decimal are omitted. */
 export function formatTokens(count: number): string {
-  if (count >= 1e6) return `${(count / 1e6).toFixed(2)}M`;
+  if (count >= 1e6) return `${trimDecimalZeros((count / 1e6).toFixed(2))}M`;
   if (count >= 1e3) return `${Math.round(count / 1e3)}k`;
   return String(Math.round(count));
 }
 
-/** A large count in three figures at most, for a narrow cell: 812k, 15.3M, 354M, 1.23B. */
+/** A large count in three figures at most, for a narrow cell: 812k, 15.3M, 32M, 1.23B. Trailing zeros after the decimal are omitted. */
 export function formatTokenTotal(count: number): string {
   for (const [unit, size] of [["B", 1e9], ["M", 1e6], ["k", 1e3]] as const) {
     if (count >= size * 0.9995) {
       const scaled = count / size;
-      return `${scaled >= 99.95 ? Math.round(scaled) : scaled >= 9.995 ? scaled.toFixed(1) : scaled.toFixed(2)}${unit}`;
+      const text = scaled >= 99.95 ? String(Math.round(scaled)) : scaled >= 9.995 ? scaled.toFixed(1) : scaled.toFixed(2);
+      return `${trimDecimalZeros(text)}${unit}`;
     }
   }
   return String(Math.round(count));

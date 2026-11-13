@@ -5,6 +5,7 @@ import type { PaseoApi } from "@getpaseo/client";
 import { vi } from "vitest";
 import { titleGenerationSettingsSchema } from "../../../shared/title-generation";
 import { fakeWorkspaceDirectory, type FakeWorkspace } from "./fake-workspace-directory";
+import type { HostDaemon } from "../../../server/tasks/provider-subagents";
 
 type Source = { agent: { cwd: string; workspaceId: string | undefined; provider: string; model: string }; project: object | null };
 
@@ -54,7 +55,12 @@ export async function availabilityBatchFixture(options: { workspaces: number; ca
   } as unknown as PaseoApi;
   const values = titleGenerationSettingsSchema.parse({});
   const settings = { read: vi.fn(async () => ({ status: "ready" as const, revision: "1", values })), subscribe: () => () => {} };
+  const inspectWorkspaceRecovery = vi.fn<NonNullable<HostDaemon["inspectWorkspaceRecovery"]>>(async (id) => records.some((entry) => entry.id === id && entry.archivedAt)
+    ? { kind: "recoverable", action: "unarchive" }
+    : { kind: "unavailable", message: "Workspace missing" });
+  const daemon = { inspectWorkspaceRecovery, restoreWorkspace: vi.fn(), close: vi.fn(async () => {}) };
+  const connect = vi.fn(async () => daemon);
   const counts = () => ({ fetchAgent: fetchAgent.mock.calls.length, fetchWorkspaces: directory.fetchWorkspaces.mock.calls.length, listModels: listModels.mock.calls.length, providersSnapshot: snapshot.mock.calls.length });
   const reset = () => { for (const spy of [fetchAgent, directory.fetchWorkspaces, listModels, snapshot]) spy.mockClear(); };
-  return { root, ids, records, sources, api, settings, fetchAgent, fetchWorkspaces: directory.fetchWorkspaces, counts, reset, cleanup: () => rm(root, { recursive: true, force: true }) };
+  return { root, ids, records, sources, api, settings, connect, daemon, fetchAgent, fetchWorkspaces: directory.fetchWorkspaces, counts, reset, cleanup: () => rm(root, { recursive: true, force: true }) };
 }

@@ -7,8 +7,10 @@ import type { DoneWindow } from "../../../shared/tasks-settings";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
-import { scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { liftStyle, scaleStyle, surfaceLift, type LiftSize, type PressInput } from "../cards/surface-lift";
+import { usePressCue } from "../cards/action-pressable";
 import { TaskCardView, taskTokens, type CardCallbacks } from "../cards";
+import { useTodoSummary } from "../data/todo-summary";
 import { SpinnerRing } from "../cards/status-icon";
 import { tipProps } from "../cards/card-hints";
 import type { LaneId, TaskCard } from "../model";
@@ -150,7 +152,7 @@ export function Segments<T extends string>(props: {
               paddingHorizontal: mark ? 6 : props.large ? 12 : 9,
               borderRadius: round(inner),
               backgroundColor: on ? colors.surface2 : "transparent",
-              boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+              ...liftStyle(() => taskTokens(props.theme), surfaceLift(hovered, pressed)),
               alignItems: "center",
               justifyContent: "center",
             })}
@@ -240,9 +242,8 @@ export function LoadMoreRow(props: {
           paddingHorizontal: props.large ? 16 : 12,
           borderRadius: height / 2,
           borderWidth: HAIRLINE,
-          borderColor: colors.border,
           backgroundColor: colors.surface0,
-          boxShadow: surfaceLift(hovered, pressed).shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+          ...liftStyle(() => taskTokens(props.theme), surfaceLift(hovered, pressed), { border: colors.border }),
           flexDirection: "row",
           alignItems: "center",
           gap: 5,
@@ -329,21 +330,32 @@ export function useTap(): {
 const TAP_SLOP = 10;
 
 export function HoverPressable(
-  props: Omit<React.ComponentProps<typeof Pressable>, "style"> & { lift?: boolean; style(hovered: boolean, pressed: boolean): StyleProp<ViewStyle> },
+  props: Omit<React.ComponentProps<typeof Pressable>, "style"> & {
+    /** What the lift treats it as (`LiftSize`); false keeps its size on every press. */
+    lift?: boolean | LiftSize;
+    /** `pressed` is the press cue: at once for a pointer, after a still 100 ms for a finger (`usePressCue`). */
+    style(hovered: boolean, pressed: boolean, input: PressInput): StyleProp<ViewStyle>;
+  },
 ) {
-  const { style, onPressIn, onPressOut, lift: liftEnabled = true, ...rest } = props;
+  const { style, onPress, onLongPress, onPressIn, onPressOut, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, lift: liftAs = true, ...rest } = props;
   const { hovered, hoverProps } = useHover();
   const reduced = useReducedMotion();
-  const [pressed, setPressed] = useState(false);
-  const visual = style(hovered, pressed);
-  const lift = scaleStyle(liftEnabled ? surfaceLift(hovered, pressed, reduced).scale : 1);
+  const press = usePressCue(hovered, !rest.disabled);
+  const visual = style(hovered, press.pressed, press.input);
+  const lift = scaleStyle(liftAs === false ? 1 : surfaceLift(hovered, press.pressed, reduced, liftAs === true ? "control" : liftAs, press.input).scale);
   const flat = visual && typeof visual === "object" && !Array.isArray(visual) ? { ...visual, ...lift } : [visual, lift];
   return (
     <Pressable
       {...rest}
       {...hoverProps}
-      onPressIn={(event) => { setPressed(true); onPressIn?.(event); }}
-      onPressOut={(event) => { setPressed(false); onPressOut?.(event); }}
+      onPress={press.guard(onPress)}
+      onLongPress={press.guard(onLongPress)}
+      onPressIn={(event) => { press.onPressIn(event); onPressIn?.(event); }}
+      onPressOut={(event) => { press.onPressOut(event); onPressOut?.(event); }}
+      onTouchStart={(event) => { press.onTouchStart(event); onTouchStart?.(event); }}
+      onTouchMove={(event) => { press.onTouchMove(event); onTouchMove?.(event); }}
+      onTouchEnd={(event) => { press.onTouchEnd(event); onTouchEnd?.(event); }}
+      onTouchCancel={(event) => { press.onTouchCancel(event); onTouchCancel?.(event); }}
       style={flat}
     />
   );
@@ -395,6 +407,7 @@ export interface CardCellProps {
  */
 export function CardCell(props: CardCellProps) {
   const { card, board, register } = props;
+  const todo = useTodoSummary(board.paseo, card.id, board.visible && !card.subagent && !card.closed && board.fields.plan, !props.copy);
   const searchPrompt = useSyncExternalStore(
     board.params.query.trim() ? board.searchStatus.subscribe : () => () => {},
     () => board.params.query.trim() ? board.searchStatus.prompt(card) : undefined,
@@ -425,18 +438,22 @@ export function CardCell(props: CardCellProps) {
         <EnterOnMount enabled={props.fresh}>
           <TaskCardView
             card={card}
+            todo={todo}
             searchQuery={board.params.query.trim().toLowerCase()}
             searchPrompt={searchPrompt}
             searchPromptUnavailable={Boolean(card.closed || card.subagent && (!card.parent || !board.cardById(card.parent.id) || board.cardById(card.parent.id)!.closed))}
             fields={board.fields}
-            titleLines={Number(board.titleLines)}
+            titleLines={board.titleLines === "all" ? null : Number(board.titleLines)}
             theme={props.theme}
             compact={props.compact}
+            todoExpanded={board.expandedTodo.has(card.id)}
+            onTodoExpandedChange={board.setTodoExpanded}
             subtasksExpanded={board.expandedSubtasks.has(card.id)}
             onSubtasksExpandedChange={board.setSubtasksExpanded}
             permissionButtons={board.buttonsFor(card)}
             stopPhase={board.stop.phase(card.id)}
             readPending={board.read.pending(card.id)}
+            unreadPending={board.unread?.pending(card.id) ?? false}
             unarchivePending={board.unarchive.pending(card.id)}
             archivePending={board.archive.pending(card.id)}
             focused={props.focused ?? false}
@@ -709,6 +726,7 @@ export function RoundButton(props: {
   testID?: string;
   /** A toggle's state, read out as selected. */
   selected?: boolean;
+  toggle?: boolean;
   disabled?: boolean;
   /** Struck through, as Lucide's "-off" icons: a toggle that is off. */
   slashed?: boolean;
@@ -729,8 +747,9 @@ export function RoundButton(props: {
   const pad = props.size === undefined ? 4 : 0;
   const icon = props.iconSize ?? Math.round(size / 2);
   const { hovered, hoverProps } = useHover();
-  const [pressed, setPressed] = useState(false);
-  const lift = surfaceLift(hovered, pressed);
+  const press = usePressCue(hovered, !props.disabled);
+  const lift = surfaceLift(hovered, press.pressed, undefined, "toolbar", press.input);
+  const line = props.quietOutline && Platform.OS === "web" && !hovered ? "transparent" : props.active ? colors.accent : colors.border;
   return (
     <Pressable
       accessibilityRole="button"
@@ -738,9 +757,13 @@ export function RoundButton(props: {
       accessibilityState={props.busy !== undefined ? { busy: props.busy } : props.selected === undefined ? undefined : { selected: props.selected, ...(props.disabled ? { disabled: true } : {}) }}
       disabled={props.disabled}
       {...tipProps(props.tip)}
-      onPress={props.onPress}
-      onPressIn={() => setPressed(true)}
-      onPressOut={() => setPressed(false)}
+      onPress={press.guard(props.onPress)}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
+      onTouchStart={press.onTouchStart}
+      onTouchMove={press.onTouchMove}
+      onTouchEnd={press.onTouchEnd}
+      onTouchCancel={press.onTouchCancel}
       {...hoverProps}
       hitSlop={pad || Platform.OS === "web" ? 0 : 4}
       testID={props.testID}
@@ -752,8 +775,9 @@ export function RoundButton(props: {
           height: size,
           borderRadius: props.quietOutline && Platform.OS === "web" ? 7 : size / 2,
           borderWidth: props.borderless ? 0 : HAIRLINE,
-          borderColor: props.quietOutline && Platform.OS === "web" && !hovered ? "transparent" : props.active ? colors.accent : colors.border,
-          boxShadow: !props.disabled && lift.shadow ? taskTokens(props.theme).card.buttonShadowHover : undefined,
+          borderColor: line,
+          ...(props.toggle ? { backgroundColor: "transparent" } : null),
+          ...(props.disabled ? { boxShadow: undefined } : liftStyle(() => taskTokens(props.theme), lift, props.borderless ? {} : { border: line, hued: !!props.active })),
           alignItems: "center",
           justifyContent: "center",
         }}
@@ -792,7 +816,7 @@ export function RoundButton(props: {
  * filter count, and the cards a switch leaves off the board. Placed by
  * its parent (`style`), in a 1 px ring of the surface. Nothing at zero.
  */
-export function CornerBadge(props: { count: number; theme: PluginTheme; style: { top?: number; right?: number; bottom?: number; left?: number }; testID?: string }) {
+export function CornerBadge(props: { count: number; theme: PluginTheme; ringColor?: string; style: { top?: number; right?: number; bottom?: number; left?: number }; testID?: string }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   if (props.count <= 0) return null;
@@ -800,7 +824,7 @@ export function CornerBadge(props: { count: number; theme: PluginTheme; style: {
   return (
     <View
       pointerEvents="none"
-      style={{ position: "absolute", ...props.style, minWidth: size, height: size, paddingHorizontal: 2, borderRadius: size / 2, backgroundColor: colors.foregroundMuted, borderWidth: 1, borderColor: colors.surface0, alignItems: "center", justifyContent: "center" }}
+      style={{ position: "absolute", ...props.style, minWidth: size, height: size, paddingHorizontal: 2, borderRadius: size / 2, backgroundColor: colors.foregroundMuted, borderWidth: 1, borderColor: props.ringColor ?? colors.surface0, alignItems: "center", justifyContent: "center" }}
     >
       <Text testID={props.testID} style={{ fontSize: 8, lineHeight: 10, includeFontPadding: false, fontWeight: "600", fontVariant: ["tabular-nums"], color: colors.surface0 }}>
         {props.count > 99 ? "99+" : props.count}

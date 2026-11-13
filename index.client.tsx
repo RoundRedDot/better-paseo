@@ -2,7 +2,6 @@ import type { PluginClientContext, PluginTimelineTransformerContribution } from 
 import { z } from "zod";
 import { contributeSettingsScreen } from "./client/settings-screen";
 import { removeEmbeddedFonts, setEmbeddedFontLoader } from "./client/components/embed-fonts";
-import { installHostNoticeStyle } from "./client/components/host-notice";
 import { installChatFind } from "./client/components/chat-find";
 import { installPointerFocusRing } from "./client/components/focus-ring";
 import { extractPromptImages } from "./client/prompt-images";
@@ -13,6 +12,7 @@ import { perfSlashCommand } from "./client/debug/perf-command";
 import { loadMark } from "./client/debug/load-marks";
 import { scheduleLoadTraceDump } from "./client/debug/load-trace";
 import { transformCompaction, transformToolCall } from "./client/tools/transform";
+import { transformNotification } from "./client/notice-transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
 import { assistantRows, hasUiFence } from "./client/assistant-transform";
 import { externalHistoryRows } from "./client/external-history";
@@ -64,8 +64,6 @@ export default function contribute(client: PluginClientContext) {
   };
   // Brand marks are read from the daemon by id, batched per tick, as rows draw them.
   setMarkLoader((ids) => client.rpc(markBitmapsRpc, { ids }).then((result) => result.bitmaps));
-  // The host draws  rows itself; this only re-chromes them.
-  const removeNoticeStyle = followChat(installHostNoticeStyle);
   // Paseo's Ctrl+F cannot reveal rows this plugin draws; this bar can.
   const removeChatFind = followChat(installChatFind);
   // A clicked row, chip or button keeps no focus ring; Tab focus does.
@@ -225,17 +223,18 @@ export default function contribute(client: PluginClientContext) {
   // for ```ui/```app fences, to a plugin further down the chain that renders
   // them live.
   const removeAssistantTransformer = followPreference("assistantMarkdown", () =>
-    addChatTransformer({
-      id: "omp-enhanced-assistant",
-      query: { itemType: "assistant_message" },
-      transform({ item, phase }) {
-        if (item.type !== "assistant_message") return undefined;
-        if (!getEnhancerPreferences().assistantMarkdown) return undefined;
-        if (!item.text.trim()) return undefined;
-        if (hasUiFence(item.text)) return undefined;
-        return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
-      },
-    }),
+    followPreference("liveUiReplies", () =>
+      addChatTransformer({
+        id: "omp-enhanced-assistant",
+        query: { itemType: "assistant_message" },
+        transform({ item, phase }) {
+          if (item.type !== "assistant_message") return undefined;
+          if (!getEnhancerPreferences().assistantMarkdown) return undefined;
+          if (!item.text.trim()) return undefined;
+          if (getEnhancerPreferences().liveUiReplies && hasUiFence(item.text)) return undefined;
+          return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
+        },
+      })),
   );
 
   const removeAssistantRenderer = client.addTimelineRenderer({
@@ -247,13 +246,17 @@ export default function contribute(client: PluginClientContext) {
     Component: LiveAssistantRenderer,
   });
 
-  // Only `error` is intercepted here. Paseo 0.8 accepts transformers for
-  // user_message, assistant_message, reasoning, tool_call, todo, error, and
-  // compaction; `notification` — the ⓘ row a finished background job produces —
-  // is not on that list, and registering it throws. Every contribution in this
-  // function shares one call frame, so that throw drops every renderer the
-  // plugin installs and the whole chat falls back to native styling. Add the
-  // notification transformer the day the host accepts the type, not before.
+  // A host notice — the ⓘ row a finished background job produces — is the
+  // same row the host draws for `error`: a level and a message, in its own
+  // tinted rectangle. Paseo 0.14 lists `notification` among the transformable
+  // item types, so both now go through `omp-notice` and read as the rest of
+  // the timeline.
+
+  const removeNotificationTransformer = addChatTransformer({
+    id: "omp-enhanced-notification",
+    query: { itemType: "notification" },
+    transform: transformNotification,
+  });
 
   const removeErrorTransformer = addChatTransformer({
     id: "omp-enhanced-error",
@@ -305,8 +308,8 @@ export default function contribute(client: PluginClientContext) {
     removeFonts();
     setMarkLoader(null);
     removeFocusRing();
-    removeNoticeStyle();
     removeChatFind();
+    removeNotificationTransformer();
     removeToolTransformer();
     removeCompactionTransformer();
     removeToolRenderer();

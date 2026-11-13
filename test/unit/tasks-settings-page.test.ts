@@ -16,7 +16,11 @@ vi.mock("@getpaseo/plugin/client/ui", () => ({
   SettingsSelect: "SettingsSelect", TextInput: "TextInput",
   SidebarRow: () => { throw new Error("SidebarRow must render inside a sidebar item"); },
 }));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ TextInput: "TextInput", Icon: "Icon", copyText: state.copyText, useToast: () => ({ show() {}, error() {} }) }));
+vi.mock("@getpaseo/plugin/client/react-native", async () => {
+  const React = await import("react");
+  const Modal = Object.assign((props: { children?: React.ReactNode }) => React.createElement("Modal", null, props.children), { Content: (props: { children?: React.ReactNode }) => React.createElement("ModalContent", null, props.children) });
+  return { TextInput: "TextInput", Icon: "Icon", Modal, copyText: state.copyText, useToast: () => ({ show() {}, error() {} }) };
+});
 vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => state.language, resolveTasksLanguage: () => state.language }));
 vi.mock("../../client/tasks/chunk/load", async () => import("../../client/tasks/settings/tasks-panel"));
 vi.mock("../../client/state/preference-sync-slot", () => ({ usePreferenceSettings: () => ({ status: "ready", failed: false }) }));
@@ -103,6 +107,55 @@ it("does not render an empty description as a native text node", () => {
   let r!: Renderer;
   act(() => { r = TestRenderer.create(React.createElement(SettingRow, { title: "Title", description: "", look: look(true) })); });
   expect(r.root.findAll((node) => (node.type as unknown) === "View").every((node) => !node.children.includes(""))).toBe(true);
+  act(() => r.unmount());
+});
+
+it("records, cancels, clears and restores the device shortcut without saving host settings", async () => {
+  vi.stubGlobal("__rnMockOS", "web");
+  vi.stubGlobal("navigator", { platform: "MacIntel" });
+  const target = new EventTarget();
+  vi.stubGlobal("window", target);
+  const press = (code: string, modifiers = {}) => target.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, repeat: false, isComposing: false, ...modifiers }));
+  let r: Renderer | undefined;
+  try {
+    const api = makeSettings();
+    r = panel();
+    const current = () => textOf(byTestID(r!, "tasks-open-shortcut")[0]!);
+    expect(current()).toBe("Command + Shift + Y");
+    act(() => button(r!, "Change shortcut").props.onPress());
+    expect(textOf(r.root)).toContain("Escape cancels.");
+    await act(async () => { press("ShiftLeft", { shiftKey: true }); press("KeyJ"); });
+    expect(current()).toBe("Command + Shift + Y");
+    act(() => { press("Escape"); });
+    expect(button(r, "Change shortcut")).toBeTruthy();
+    expect(current()).toBe("Command + Shift + Y");
+    act(() => button(r!, "Change shortcut").props.onPress());
+    await act(async () => { press("KeyJ", { metaKey: true, altKey: true }); });
+    expect(current()).toBe("Command + Option + J");
+    expect(deviceTasksStore().snapshot().values?.openShortcut).toBe("Mod+Alt+KeyJ");
+    await act(async () => button(r!, "Clear shortcut").props.onPress());
+    expect(current()).toBe("Not assigned");
+    await act(async () => button(r!, "Restore default shortcut").props.onPress());
+    expect(current()).toBe("Command + Shift + Y");
+    expect(api.save).not.toHaveBeenCalled();
+    act(() => button(r!, "Change shortcut").props.onPress());
+    act(() => { target.dispatchEvent(new Event("blur")); });
+    expect(button(r, "Change shortcut")).toBeTruthy();
+    act(() => button(r!, "Change shortcut").props.onPress());
+    act(() => r!.unmount());
+    r = undefined;
+    press("KeyJ", { metaKey: true });
+    expect(deviceTasksStore().snapshot().values?.openShortcut).toBe("Mod+Shift+KeyY");
+  } finally {
+    act(() => r?.unmount());
+    vi.unstubAllGlobals();
+  }
+});
+
+it("hides keyboard settings on native phones", () => {
+  makeSettings();
+  const r = panel(true);
+  expect(byTestID(r, "tasks-open-shortcut")).toHaveLength(0);
   act(() => r.unmount());
 });
 
@@ -225,6 +278,42 @@ describe("Tasks half of the settings page", () => {
     const preview = byTestID(r, "tasks-sidebar-preview")[0]!;
     expect(textOf(preview)).toContain("Tasks");
     expect(preview.findAll((node) => typeof node.type === "string" && node.props.testID?.startsWith("tasks-sidebar-preview-"))).toHaveLength(expected);
+    expect(preview.findAll((node) => typeof node.type === "string" && node.props.testID === "hidden-tasks-count")).toHaveLength(count === "none" ? 0 : 1);
+  });
+
+  it("opens the hidden-task example from the sidebar preview", () => {
+    makeSettings({ values: { ...DEFAULT_TASKS_SETTINGS, sidebar: { count: "all" } } });
+    const r = panel(true);
+    const button = byTestID(r, "hidden-tasks-count")[0]!;
+    expect(button.props.accessibilityLabel).toBe("1 hidden task");
+    act(() => button.props.onPress());
+    const shown = r.root.findAll((node) => typeof node.type === "string" && node.props.card?.id === "example");
+    expect(shown).toHaveLength(1);
+    expect(shown[0]!.props.card.location.workspaceTitle).toBe("Example workspace");
+    expect(shown[0]!.props.card.provider).toBe("claude");
+    expect(shown[0]!.props.card.thinkingLabel).toBe("High");
+    expect(shown[0]!.props.fields.provider).toBe(true);
+    expect(shown[0]!.props.fields.thinking).toBe(true);
+    // The preview has no board to clear, so the dialog offers no clear action there.
+    expect(r.root.findAll((node) => node.props.testID === "hidden-tasks-clear-filters")).toHaveLength(0);
+  });
+
+  it("sets the web hover hint on the rendered button", () => {
+    makeSettings({ values: { ...DEFAULT_TASKS_SETTINGS, sidebar: { count: "all" } } });
+    const setAttribute = vi.fn();
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    let r!: Renderer;
+    try {
+      act(() => {
+        r = TestRenderer.create(React.createElement(TasksSettingsPanel, { look: look(), theme: theme as never, side: false }), {
+          createNodeMock: (element) => (element.props as { testID?: string }).testID === "hidden-tasks-count" ? { setAttribute } : null,
+        });
+      });
+      expect(setAttribute).toHaveBeenCalledWith("title", expect.stringContaining("Example task"));
+    } finally {
+      act(() => r?.unmount());
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    }
   });
 
   it("keeps phone tabs scrollable and switches the preview lane", () => {
@@ -321,6 +410,9 @@ describe("Tasks half of the settings page", () => {
     expect(deviceTasksStore().snapshot().values?.titleLines).toBe("4");
     expect(api.save).not.toHaveBeenCalled();
     expect(state.previews.some((preview) => preview.titleLines === 4)).toBe(true);
+    await act(async () => radio(r, "Title lines", "All").props.onPress());
+    expect(deviceTasksStore().snapshot().values?.titleLines).toBe("all");
+    expect(state.previews.some((preview) => preview.titleLines === null)).toBe(true);
     act(() => r.unmount());
   });
 
@@ -339,6 +431,16 @@ describe("Tasks half of the settings page", () => {
     await act(async () => byLabel(r, "Git status").props.onPress());
     expect(lastSaved(api).board).toEqual(DEFAULT_TASKS_SETTINGS.board);
     expect(deviceTasksStore().snapshot().values?.laneWidth).toBe("wide");
+    act(() => r.unmount());
+  });
+
+  it("saves the plan chip independently and changes density", async () => {
+    const api = makeSettings();
+    const r = panel();
+    expect(byTestID(r, "tasks-field-preview")).toHaveLength(1);
+    await act(async () => byLabel(r, "Plan capsule").props.onPress());
+    expect(lastSaved(api).card.plan).toBe(false);
+    expect(lastSaved(api).density).toBe("custom");
     act(() => r.unmount());
   });
 
@@ -381,8 +483,9 @@ describe("Tasks half of the settings page", () => {
     const values = { ...DEFAULT_TASKS_SETTINGS, mobile: { compactCards: true } };
     makeSettings({ values });
     panel(true);
-    expect(state.previews.at(-1)!.fields).toEqual(effectiveCard(values, true));
-    expect(state.previews.at(-1)!.compact).toBe(true);
+    const phoneCard = state.previews.findLast((card) => card.compact === true)!;
+    expect(phoneCard.fields).toEqual(effectiveCard(values, true));
+    expect(phoneCard.compact).toBe(true);
   });
 
   it("on a desktop page, draws the board as a phone does when the preview's device switch says so", () => {

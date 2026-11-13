@@ -5,9 +5,10 @@ import { requestSubagentFirstPrompt, subagentFirstPrompts } from "./subagent-tim
 import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../model";
 
 export interface SearchCoverage {
+  /** Tasks whose read is still running. */
   pending: number;
-  unavailable: number;
-  failed: number;
+  /** Tasks whose first message (or conversation) has been read: "ready" and "none" both finish a read. */
+  loaded: number;
 }
 
 /**
@@ -15,9 +16,14 @@ export interface SearchCoverage {
  * a closed agent's timeline: that would resume it. Details' cached messages
  * still participate after an agent closes. Clearing search stops queued work.
  */
-export function useSearchFirstPrompts(api: PaseoApi, lanes: Record<LaneId, LaneModel>, query: string) {
+export function useSearchFirstPrompts(api: PaseoApi, lanes: Record<LaneId, LaneModel>, query: string, enabled = true) {
   const store = firstPromptStoreFor(api);
   const active = Boolean(query.trim());
+  const owner = useRef({}).current;
+  useEffect(() => {
+    if (!active) return;
+    return () => { store.release(owner); subagentFirstPrompts.release(owner); };
+  }, [active, store, owner]);
   const subscribe = useMemo(() => (listener: () => void) => {
     if (!active) return () => {};
     const own = store.subscribe(listener);
@@ -33,49 +39,72 @@ export function useSearchFirstPrompts(api: PaseoApi, lanes: Record<LaneId, LaneM
   const byId = useMemo(() => new Map(cards.map((card) => [card.id, card])), [cards]);
   const latestCards = useRef(byId);
   latestCards.current = byId;
+  const latestActive = useRef(active);
+  latestActive.current = active && enabled;
   const requests = useRef(new Set<Promise<void>>());
+  const enqueue = useRef<((cards: readonly TaskCard[]) => void) | null>(null);
+  const wake = useRef<(() => void) | null>(null);
   // Card identities also change on token updates. Only eligibility or a new prompt
   // should restart the queue (a previously empty timeline may now have a message).
   const requestKey = useMemo(() => JSON.stringify(cards.map((card) => [card.id, card.closed, card.parent?.id, card.timing.lastUserMessageAt])), [cards]);
   useEffect(() => {
     if (!active) return;
+    for (const card of cards) {
+      const prompts = card.subagent ? subagentFirstPrompts : store;
+      prompts.claim(card.id, owner, () => {
+        const current = latestCards.current.get(card.subagent ? card.parent?.id ?? "" : card.id);
+        return latestActive.current && latestCards.current.has(card.id) && current !== undefined && !current.closed;
+      });
+    }
+  }, [active, cards, revision, store, owner]);
+  useEffect(() => {
+    if (!active || !enabled) return;
     let live = true;
-    let index = 0;
-    const eligible = (card: TaskCard) => card.subagent
-      ? Boolean(card.parent && byId.has(card.parent.id) && !byId.get(card.parent.id)!.closed)
-      : !card.closed;
-    const queue = cards.filter(eligible);
-    const work = async () => {
-      while (live && index < queue.length) {
-        // A replacement queue waits for the previous one's in-flight reads too.
-        if (requests.current.size >= 4) {
-          await Promise.race(requests.current);
-          continue;
-        }
-        const card = queue[index++]!;
+    let started = false;
+    const queue: TaskCard[] = [];
+    const seen = new Set<string>();
+    const work = () => {
+      while (live && started && queue.length && requests.current.size < 4) {
+        const card = queue.shift()!;
         const prompts = card.subagent ? subagentFirstPrompts : store;
         const state = prompts.read(card.id).state;
         if (state === "ready") continue;
         const canRead = () => {
           const current = latestCards.current.get(card.subagent ? card.parent!.id : card.id);
-          return live && current !== undefined && !current.closed;
+          return live && latestCards.current.has(card.id) && current !== undefined && !current.closed;
         };
-        if (!canRead()) continue;
-        const request = card.subagent ? requestSubagentFirstPrompt(card.id, card.parent!.id) : store.request(card.id, canRead);
+        if (!canRead()) { seen.delete(JSON.stringify([card.id, card.parent?.id, card.timing.lastUserMessageAt])); continue; }
+        const request = card.subagent ? requestSubagentFirstPrompt(card.id, card.parent!.id, canRead, owner) : store.request(card.id, canRead, owner);
         requests.current.add(request);
-        await request;
-        requests.current.delete(request);
+        void request.finally(() => {
+          requests.current.delete(request);
+          if (live && prompts.read(card.id).state === "idle") {
+            const key = JSON.stringify([card.id, card.parent?.id, card.timing.lastUserMessageAt]);
+            seen.delete(key);
+            if (canRead()) { seen.add(key); queue.push(card); }
+          }
+          wake.current?.();
+        });
       }
     };
-    // Let a typing burst settle, with at most four timeline reads in flight.
-    const timer = setTimeout(() => { for (let worker = 0; worker < 4; worker++) void work(); }, 200);
-    return () => { live = false; clearTimeout(timer); };
-    // `requestKey` captures every card fact the queue depends on.
-  }, [store, active, requestKey]);
+    wake.current = work;
+    enqueue.current = (next) => {
+      for (const card of next) {
+        const owner = latestCards.current.get(card.subagent ? card.parent?.id ?? "" : card.id);
+        if (card.closed || !owner || owner.closed) continue;
+        const key = JSON.stringify([card.id, card.parent?.id, card.timing.lastUserMessageAt]);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        queue.push(card);
+      }
+      work();
+    };
+    const timer = setTimeout(() => { started = true; work(); }, 200);
+    return () => { live = false; enqueue.current = null; wake.current = null; clearTimeout(timer); };
+  }, [store, active, enabled, owner]);
+  useEffect(() => { enqueue.current?.(cards); }, [requestKey, store, active, enabled]);
 
-  const latestActive = useRef(active);
-  latestActive.current = active;
-  const status = useMemo(() => createSearchCoverage(api, () => [...latestCards.current.values()], () => latestActive.current, (id) => latestCards.current.get(id), requests.current), [api]);
+  const status = useMemo(() => createSearchCoverage(api, () => [...latestCards.current.values()], () => latestActive.current, (id) => latestCards.current.get(id)), [api]);
   const nextMessages = useMemo(() => {
     const messages = new Map<string, string>();
     if (active) for (const card of cards) {
@@ -88,35 +117,32 @@ export function useSearchFirstPrompts(api: PaseoApi, lanes: Record<LaneId, LaneM
   const messages = useRef(nextMessages);
   if (messages.current.size !== nextMessages.size || [...nextMessages].some(([id, text]) => messages.current.get(id) !== text)) messages.current = nextMessages;
   const coverage = status.read();
-  return { messages: messages.current, coverage: { pending: coverage.pending, unavailable: coverage.unavailable, failed: coverage.failed }, status };
+  return { messages: messages.current, coverage: { pending: coverage.pending, loaded: coverage.loaded }, status };
 }
 
 export interface SearchCoverageControl {
   subscribe(listener: () => void): () => void;
-  read(): SearchCoverage & { retrying: number };
-  retry(): Promise<void>;
+  read(): SearchCoverage;
   prompt(card: TaskCard): SearchPrompt;
 }
 
 export type SearchPrompt = FirstPrompt & { field?: "conversation" };
 
 /** Shared by a card's retry and the board-wide failed batch. Recheck before every page. */
-export function retrySearchPrompt(api: PaseoApi, card: TaskCard, cardById: (id: string) => TaskCard | undefined): Promise<void> {
+export function retrySearchPrompt(api: PaseoApi, card: TaskCard, cardById: (id: string) => TaskCard | undefined, owner?: object, active = () => true): Promise<void> {
   const ownerId = card.subagent ? card.parent?.id : card.id;
-  const canRead = () => Boolean(ownerId && cardById(card.id) && cardById(ownerId) && !cardById(ownerId)!.closed && !cardById(card.id)!.closed);
+  const canRead = () => Boolean(active() && ownerId && cardById(card.id) && cardById(ownerId) && !cardById(ownerId)!.closed && !cardById(card.id)!.closed);
   if (!ownerId || !canRead()) return Promise.resolve();
   return card.subagent
-    ? requestSubagentFirstPrompt(card.id, ownerId, canRead)
-    : firstPromptStoreFor(api).request(card.id, canRead);
+    ? requestSubagentFirstPrompt(card.id, ownerId, canRead, owner)
+    : firstPromptStoreFor(api).request(card.id, canRead, owner);
 }
 
 /** Leaf subscribers observe counts directly; a loading tick does not invalidate the board. */
-export function createSearchCoverage(api: PaseoApi, getCards: () => readonly TaskCard[], isActive: () => boolean, cardById: (id: string) => TaskCard | undefined, requests = new Set<Promise<void>>()): SearchCoverageControl {
+export function createSearchCoverage(api: PaseoApi, getCards: () => readonly TaskCard[], isActive: () => boolean, cardById: (id: string) => TaskCard | undefined): SearchCoverageControl {
   const store = firstPromptStoreFor(api);
   const listeners = new Set<() => void>();
-  let retrying = 0;
-  let snapshot = { pending: 0, unavailable: 0, failed: 0, retrying: 0 };
-  const publish = () => { for (const listener of listeners) listener(); };
+  let snapshot: SearchCoverage = { pending: 0, loaded: 0 };
   const pendingPrompt: FirstPrompt = { state: "idle" };
   return {
     prompt(card) {
@@ -130,42 +156,18 @@ export function createSearchCoverage(api: PaseoApi, getCards: () => readonly Tas
       return () => { listeners.delete(listener); own(); sub(); };
     },
     read() {
-      const next = { pending: 0, unavailable: 0, failed: 0, retrying };
+      const next: SearchCoverage = { pending: 0, loaded: 0 };
       if (isActive()) for (const card of getCards()) {
         const prompt = (card.subagent ? subagentFirstPrompts : store).read(card.id);
-        if (prompt.state === "ready" || prompt.state === "none") continue;
+        if (prompt.state === "ready" || prompt.state === "none") { next.loaded++; continue; }
+        // A read that failed or never started (closed session) is neither pending nor loaded.
+        if (prompt.state === "error") continue;
         const owner = cardById(card.subagent ? card.parent?.id ?? "" : card.id);
-        if (card.closed || !owner || owner.closed || prompt.state === "error" && prompt.unavailable) next.unavailable++;
-        else if (prompt.state === "error") next.failed++;
-        else next.pending++;
+        if (card.closed || !owner || owner.closed) continue;
+        next.pending++;
       }
-      if (Object.keys(next).some((key) => next[key as keyof typeof next] !== snapshot[key as keyof typeof snapshot])) snapshot = next;
+      if (next.pending !== snapshot.pending || next.loaded !== snapshot.loaded) snapshot = next;
       return snapshot;
-    },
-    async retry() {
-      if (!isActive() || retrying) return;
-      const batch = getCards().filter((card) => {
-        const owner = cardById(card.subagent ? card.parent?.id ?? "" : card.id);
-        const prompt = (card.subagent ? subagentFirstPrompts : store).read(card.id);
-        return !card.closed && owner && !owner.closed && prompt.state === "error" && !prompt.unavailable;
-      });
-      if (!batch.length) return;
-      retrying = batch.length;
-      publish();
-      let index = 0;
-      const work = async () => {
-        while (isActive() && index < batch.length) {
-          // Retries share the automatic reader's four slots, including reads already in flight.
-          if (requests.size >= 4) { await Promise.race(requests); continue; }
-          const request = retrySearchPrompt(api, batch[index++]!, cardById);
-          requests.add(request);
-          await request;
-          requests.delete(request);
-        }
-      };
-      await Promise.all(Array.from({ length: Math.min(4, batch.length) }, () => work()));
-      retrying = 0;
-      publish();
     },
   };
 }

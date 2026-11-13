@@ -5,6 +5,8 @@ import {
   contextView,
   detailHero,
   detailSections,
+  replyBeforeHuman,
+  requestInSection,
   formatShare,
   formatSpan,
   formatTurnClock,
@@ -16,6 +18,7 @@ import {
 } from "../../client/tasks/cards/detail-model";
 import { sortSubtasks, subtaskHeading, subtaskMeta, subtaskModels, subtaskTime, titlePrefix } from "../../client/tasks/cards/details-format";
 import { formatClockTime } from "../../client/tasks/cards/format";
+import type { PermissionButton } from "../../client/tasks/actions";
 
 const NOW = Date.parse("2026-10-20T09:00:00.000Z");
 const MINUTE = 60_000;
@@ -23,6 +26,20 @@ const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const sample = (id: string): TaskCard => previewSampleCards(NOW).find((card) => card.id === id)!;
 
 describe("details card model", () => {
+  it("answers every waiting request kind in its section once it has buttons, so the board leaves its bottom bar out", () => {
+    const input = sample("sample-input");
+    const buttons: PermissionButton[] = [{ key: "allow", label: "Allow", variant: "primary", kind: "respond", action: { behavior: "allow", id: null } }];
+    for (const kind of ["tool", "plan", "mode", "question", "other"] as const) {
+      const card: TaskCard = { ...input, permission: { ...input.permission!, kind } };
+      expect(requestInSection(card, buttons)).toBe(true);
+      // No buttons (a hidden card's preview): the bar, if any, keeps the controls.
+      expect(requestInSection(card, [])).toBe(false);
+      // A request outside the waiting lane leads nothing, so its buttons stay with the bar.
+      expect(requestInSection({ ...card, lane: "running" }, buttons)).toBe(false);
+    }
+    expect(requestInSection(sample("sample-running"), buttons)).toBe(false);
+  });
+
   it("leads with what each state needs first, and orders the sections after it", () => {
     expect(detailHero(sample("sample-running"))).toBe("turn");
     expect(detailHero(sample("sample-input"))).toBe("permission");
@@ -48,6 +65,16 @@ describe("details card model", () => {
     expect(detailSections(subagent, true, true).order).toEqual(["properties", "prompt", "message"]);
   });
 
+  it("compares timeline positions only within the same epoch", () => {
+    const human = { state: "ready" as const, text: "sent", timestamp: "2026-10-25T09:00:00Z", position: { epoch: "e", seq: 8 } };
+    const reply = { state: "ready" as const, text: "reply", timestamp: "2026-10-25T10:00:00Z", position: { epoch: "e", seq: 5 } };
+    expect(replyBeforeHuman(human, reply)).toBe(true);
+    expect(replyBeforeHuman(human, { ...reply, position: { epoch: "e", seq: 9 } })).toBe(false);
+    expect(replyBeforeHuman(human, { ...reply, position: { epoch: "other", seq: 9 } })).toBeNull();
+    expect(replyBeforeHuman(human, { ...reply, position: undefined })).toBeNull();
+    expect(detailSections(sample("sample-running"), true, true, true, true).order.slice(1, 4)).toEqual(["prompt", "message", "human"]);
+  });
+
   it("splits Codex's cached input out of its input, and leaves Claude's as reported", () => {
     // Codex: 182k input includes the 120k cached.
     expect(tokenMix(sample("sample-running"))).toEqual({
@@ -69,7 +96,7 @@ describe("details card model", () => {
 
   it("grades the context at 75% and 90%", () => {
     const at = (used: number) => contextView({ ...sample("sample-done"), context: { usedTokens: used, maxTokens: 1_000_000 } })!;
-    expect(at(225_312)).toMatchObject({ level: "normal", percent: "23%", text: "225k / 1.00M", exact: "225,312 / 1,000,000" });
+    expect(at(225_312)).toMatchObject({ level: "normal", percent: "23%", text: "225k / 1M", exact: "225,312 / 1,000,000" });
     expect(at(750_000).level).toBe("warning");
     expect(at(900_000).level).toBe("danger");
     expect(contextView(sample("sample-done"))).toBeNull();

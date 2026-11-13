@@ -16,9 +16,20 @@ import { z } from "zod";
  * default.
  */
 
-export const ACCENT_IDS = ["host", "jade", "violet", "amber", "rose"] as const;
-/** Inline code text on iOS and Android, where the span has no fill. */
-export const INLINE_CODE_COLORS = ["grey", "blue", "violet", "green", "coral"] as const;
+export const ACCENT_IDS = ["host", "jade", "violet", "amber", "rose", "zinc", "midnight", "claude", "ghostty", "pureBlack"] as const;
+/**
+ * Inline code text on iOS and Android, where the span has no fill. One shade
+ * per hue: `midnight` and `ghostty` were the same blue, `coral` and `rose` the
+ * same red, `grey` and `zinc` the same grey.
+ */
+export const INLINE_CODE_COLORS = ["grey", "blue", "violet", "green", "coral", "jade", "amber", "midnight", "claude", "pureBlack"] as const;
+/** Colours the setting offered before each hue kept a single shade. */
+const LEGACY_INLINE_CODE_COLORS: Readonly<Record<string, (typeof INLINE_CODE_COLORS)[number]>> = {
+  rose: "coral",
+  zinc: "grey",
+  ghostty: "midnight",
+};
+
 export const UI_FONTS = ["host", "inter", "system"] as const;
 export const MONO_FONTS = ["host", "custom"] as const;
 export const TOOL_DETAILS = ["collapsed", "expand-failed"] as const;
@@ -91,7 +102,18 @@ function migrateHoverDelay(raw: unknown): unknown {
   return seconds === undefined ? rest : { ...rest, hoverDelaySeconds: seconds };
 }
 
-export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrateRowLabels(raw)), z.object({
+/**
+ * The palette offered three extra shades of hues it already had; a stored one
+ * keeps its hue rather than dropping to the default grey.
+ */
+function migrateInlineCodeColor(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const { inlineCodeColor, ...rest } = raw as Record<string, unknown>;
+  const kept = typeof inlineCodeColor === "string" ? LEGACY_INLINE_CODE_COLORS[inlineCodeColor] : undefined;
+  return kept === undefined ? raw : { ...rest, inlineCodeColor: kept };
+}
+
+export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrateInlineCodeColor(migrateRowLabels(raw))), z.object({
   autoUpdateCheck: flag(true),
   accent: z.enum(ACCENT_IDS).catch("host"),
   uiFont: z.enum(UI_FONTS).catch("host"),
@@ -134,6 +156,7 @@ export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrate
   enhancedUserBubble: flag(false),
   selectionActions: flag(true),
   assistantMarkdown: flag(true),
+  liveUiReplies: flag(false),
   markdownVariant: z.enum(MARKDOWN_VARIANTS_STORED).catch("document"),
   rowLabelStyle: z.enum(ROW_LABEL_STYLES).catch("icon"),
   compactRowSpacing: flag(true),

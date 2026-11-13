@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import type { PaseoApi } from "@getpaseo/client";
+import type { PaseoApi } from "../paseo-types";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 
 /** A provider subagent as the daemon sends it (`ProviderSubagentDescriptorPayload`). */
@@ -37,6 +37,11 @@ export interface HostDaemon extends SeedDaemon {
   fetchAgent(agentId: string): Promise<{ agent: { cwd: string; status: string } } | null>;
   /** Resolves when the daemon cleared every agent's; it never answers a request naming an unknown agent. */
   clearAgentAttention(agentId: string | string[]): Promise<void>;
+  /**
+   * Marks one finished agent unread. The installed daemon can, but the client
+   * the plugin loads may not expose it yet; callers feature-detect it.
+   */
+  markAgentUnread?(agentId: string): Promise<void>;
   /** The label definitions; a daemon from before workspace labels lacks it. */
   listWorkspaceLabels?(): Promise<{ labels: Array<{ name: string; color: string }> }>;
   /** A project's icon, uploaded or found in its repository; a daemon from before project icons lacks it. */
@@ -49,8 +54,8 @@ export interface HostDaemon extends SeedDaemon {
   ): Promise<{ rows: Array<{ timestamp?: string; item: { type: string; text?: unknown } }>; error?: string | null; reset?: boolean; gap?: boolean; staleCursor?: boolean; hasNewer?: boolean; startCursor?: { epoch: string; seq: number } | null; endCursor?: { epoch: string; seq: number } | null }>;
 }
 
-/** A failure stays on the board this long at most; a new prompt to the parent clears it sooner. */
-const FAILED_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
+/** Finished subagents remain visible for seven days. */
+const FINISHED_KEPT_MS = 7 * 24 * 60 * 60 * 1000;
 const SEED_PAGE = 200;
 const SEED_CONCURRENCY = 8;
 /** Without the live feed the list is read again, on a board's request, at most this often. */
@@ -78,9 +83,8 @@ function toWire(descriptor: SubagentDescriptor & { status: ProviderSubagent["sta
 }
 
 /**
- * The running and failed provider subagents by parent. A finished or
- * cancelled one leaves, and the newer `updatedAt` wins, so a seed read
- * before an update cannot bring back what the update ended.
+ * Provider subagents by parent. The newer `updatedAt` wins so an older
+ * seed cannot overwrite a live update.
  */
 export function createSubagentRegistry(now = () => Date.now()) {
   const byParent = new Map<string, Map<string, ProviderSubagent>>();
@@ -96,14 +100,7 @@ export function createSubagentRegistry(now = () => Date.now()) {
     if ((seen.get(id) ?? -1) > at) return;
     seen.set(id, at);
     let parent = byParent.get(descriptor.parentAgentId);
-    if (descriptor.status !== "running" && descriptor.status !== "failed") {
-      if (parent?.delete(descriptor.id)) {
-        if (parent.size === 0) byParent.delete(descriptor.parentAgentId);
-        revision += 1;
-      }
-      return;
-    }
-    const next = toWire({ ...descriptor, status: descriptor.status });
+    const next = toWire(descriptor);
     const previous = parent?.get(descriptor.id);
     if (previous && JSON.stringify(previous) === JSON.stringify(next)) return;
     if (!parent) byParent.set(descriptor.parentAgentId, parent = new Map());
@@ -132,9 +129,9 @@ export function createSubagentRegistry(now = () => Date.now()) {
   }
 
   function read(since?: string): { version: string; subagents: ProviderSubagent[] | null } {
-    const cutoff = now() - FAILED_KEPT_MS;
+    const cutoff = now() - FINISHED_KEPT_MS;
     for (const [parentAgentId, parent] of byParent) {
-      for (const [id, subagent] of parent) if (subagent.status === "failed" && time(subagent.updatedAt) < cutoff) remove(parentAgentId, id);
+      for (const [id, subagent] of parent) if (subagent.status !== "running" && time(subagent.updatedAt) < cutoff) remove(parentAgentId, id);
     }
     const version = `${epoch}:${revision}`;
     if (since === version) return { version, subagents: null };

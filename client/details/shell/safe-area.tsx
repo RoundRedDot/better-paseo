@@ -11,7 +11,7 @@
  * the gesture bar. `androidBottomInset` keeps that bar clear instead.
  */
 import React, { useCallback, useRef, useState } from "react";
-import { Dimensions, Platform, StatusBar, StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import { Dimensions, Platform, StatusBar, StyleSheet, TurboModuleRegistry, View, type LayoutChangeEvent, type TurboModule } from "react-native";
 import { SafeInset } from "../../ui/safe-inset";
 
 export interface Insets {
@@ -40,6 +40,42 @@ export function androidBottomInset(stage: number, screenHeight: number, windowHe
   if (gap > NAV_BAR.max && gap - statusBar >= NAV_BAR.min && gap - statusBar <= NAV_BAR.max) gap -= Math.round(statusBar);
   return gap >= NAV_BAR.min && gap <= NAV_BAR.max ? gap : ANDROID_NAV_FALLBACK;
 }
+
+interface SafeAreaModule extends TurboModule {
+  getConstants?: () => {
+    initialWindowMetrics?: { insets?: { bottom?: number } } | null;
+  };
+}
+
+/**
+ * The Android window's bottom inset, in dp, from the host's safe-area module.
+ * That module reads `WindowInsets` (navigation bar, gesture bar). The host's
+ * React context is not shared with a plugin, so this asks the native module.
+ * Null when it has no reading. iOS is not asked: its sheet keeps its own pad.
+ */
+export function androidWindowBottomInset(): number | null {
+  if (Platform.OS !== "android") return null;
+  try {
+    const native = TurboModuleRegistry.get<SafeAreaModule>("RNCSafeAreaContext");
+    const bottom = native?.getConstants?.()?.initialWindowMetrics?.insets?.bottom;
+    if (typeof bottom === "number" && Number.isFinite(bottom) && bottom >= 0) return Math.round(bottom);
+  } catch {
+    // The host has no safe-area module.
+  }
+  return null;
+}
+
+/**
+ * Pad for content on the window's bottom edge. A measured inset replaces the
+ * design pad when it is larger. With no reading, keep the gesture bar clear.
+ */
+export function androidContentBottomPad(designPad = 4): number {
+  if (Platform.OS !== "android") return designPad;
+  const measured = androidWindowBottomInset();
+  if (measured === null) return Math.max(designPad, ANDROID_NAV_FALLBACK);
+  return Math.max(designPad, measured);
+}
+
 let known: Insets | null = Platform.OS === "web" ? NONE : null;
 
 /** The insets, null on native until the probe has laid out once. */

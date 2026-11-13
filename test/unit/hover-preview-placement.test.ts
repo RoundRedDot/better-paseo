@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { bindPreviewPointer, dropSelectionIn, linesFit, openPreviewLayer, openToolbarDetailsLayer, PREVIEW_GROW, PREVIEW_REVEAL, scrollsWithin } from "../../client/web";
+import { bindPreviewPointer, dropSelectionIn, linesFit, openOptionExpansion, optionTextClipped, openPreviewLayer, openToolbarDetailsLayer, PREVIEW_GROW, scrollsWithin } from "../../client/web";
+import { DESKTOP_OVERLAY } from "../../client/ui/tokens/motion";
 
 /** The system's reduce-motion setting and the anchor row's top, for the next `layer`. */
 let reduceMotion = false;
@@ -16,7 +17,63 @@ afterEach(() => {
 /** A node under the panel, in the timeline. */
 const OUTSIDE = { nodeType: 1 };
 
+describe("question option expansion", () => {
+  it.each([false, true])("animates from the option bounds and respects the viewport (reduced motion: %s)", (reduced) => {
+    let frame: () => void = () => {};
+    let resize: () => void = () => {};
+    const view = {
+      innerWidth: 400,
+      addEventListener: vi.fn((name: string, callback: () => void) => { if (name === "resize") resize = callback; }),
+      removeEventListener: vi.fn(),
+      requestAnimationFrame: vi.fn((callback: () => void) => { frame = callback; return 1; }),
+      cancelAnimationFrame: vi.fn(),
+    };
+    const label = { clientWidth: 80, scrollWidth: 200, parentElement: { getBoundingClientRect: () => ({ left: 270, top: 80, width: 100, height: 26 }) } };
+    const panel = { ownerDocument: { defaultView: view }, style: {} as Record<string, string>, setAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(), getBoundingClientRect: vi.fn() };
+    expect(optionTextClipped(label)).toBe(true);
+    const layer = openOptionExpansion(label, panel, reduced);
+    expect(panel.style).toMatchObject({ width: "100px", left: "270px", top: "80px", height: "26px", transition: reduced ? "none" : "width 160ms ease-out, left 160ms ease-out" });
+    layer.setExpanded(true);
+    frame();
+    expect(panel.style).toMatchObject({ width: "221px", left: "171px" });
+    view.innerWidth = 300;
+    resize();
+    expect(panel.style.left).toBe("71px");
+    layer.setExpanded(false);
+    frame();
+    expect(panel.style.width).toBe("100px");
+    layer.close();
+    expect(panel.hidePopover).toHaveBeenCalledOnce();
+    expect(view.removeEventListener).toHaveBeenCalledTimes(2);
+    label.clientWidth = 200;
+    expect(optionTextClipped(label)).toBe(false);
+  });
+});
+
 describe("toolbar layer window edges", () => {
+  it.each([262, 322, 382])("matches a %s px task card and follows its resize", (width) => {
+    let resize!: () => void;
+    let cardWidth = width;
+    const observe = vi.fn();
+    const view = { innerWidth: 1200, innerHeight: 600, addEventListener: vi.fn(), removeEventListener: vi.fn(), ResizeObserver: class {
+      constructor(callback: () => void) { resize = callback; }
+      observe = observe;
+      disconnect() {}
+    } };
+    const panel = { ownerDocument: { defaultView: view }, style: {} as Record<string, string>, getAttribute: () => null,
+      setAttribute: vi.fn(), removeAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(), matches: () => true,
+      getBoundingClientRect() { return { left: 120, width: Number.parseFloat(this.style.width ?? "") || 200, height: 100 }; } };
+    const anchor = { getBoundingClientRect: () => ({ left: 120, top: 100, bottom: 140 }) };
+    const card = { getBoundingClientRect: () => ({ left: 100, width: cardWidth }) };
+    const release = openToolbarDetailsLayer(panel, anchor, "below", card);
+    expect(panel.style.width).toBe(`${width}px`);
+    expect(panel.style.left).toBe("100px");
+    expect(observe).toHaveBeenCalledWith(card);
+    cardWidth = width + 20;
+    resize();
+    expect(panel.style.width).toBe(`${width + 20}px`);
+    release();
+  });
   it.each([
     { left: 0, top: 0, expectedLeft: "8px", expectedTop: "40px" },
     { left: 780, top: 0, expectedLeft: "492px", expectedTop: "40px" },
@@ -31,6 +88,31 @@ describe("toolbar layer window edges", () => {
     const release = openToolbarDetailsLayer(panel, anchor, "below");
     expect(panel.style.left).toBe(expectedLeft);
     expect(panel.style.top).toBe(expectedTop);
+    release();
+  });
+  it("reports placement changes when the window no longer fits below the anchor", () => {
+    let reposition!: () => void;
+    let top = 100;
+    const view = { innerWidth: 800, innerHeight: 600, addEventListener: vi.fn(), removeEventListener: vi.fn(), ResizeObserver: class {
+      constructor(callback: () => void) { reposition = callback; }
+      observe() {}
+      disconnect() {}
+    } };
+    const panel = { ownerDocument: { defaultView: view }, style: {} as Record<string, string>, getAttribute: () => null,
+      setAttribute: vi.fn(), removeAttribute: vi.fn(), showPopover: vi.fn(), hidePopover: vi.fn(), matches: () => true,
+      getBoundingClientRect: () => ({ left: 0, width: 300, height: 100 }) };
+    const anchor = { getBoundingClientRect: () => ({ left: 0, top, bottom: top + 40 }) };
+    const onPlacement = vi.fn();
+    const release = openToolbarDetailsLayer(panel, anchor, "below", undefined, onPlacement);
+    expect(onPlacement).toHaveBeenLastCalledWith("below");
+    top = 570;
+    reposition();
+    expect(panel.style.top).toBe("470px");
+    expect(onPlacement).toHaveBeenLastCalledWith("above");
+    top = 0;
+    reposition();
+    expect(panel.style.top).toBe("40px");
+    expect(onPlacement).toHaveBeenLastCalledWith("below");
     release();
   });
 });
@@ -208,18 +290,18 @@ describe("hover preview entrance", () => {
     expect(panel.animate).toHaveBeenCalledOnce();
     const [frames, timing] = panel.animate.mock.calls[0]!;
     expect(frames).toEqual([
-      { opacity: 0, transform: `translateY(-${PREVIEW_REVEAL.shift}px)` },
+      { opacity: 0.9, transform: `translateY(-${DESKTOP_OVERLAY.shift}px)` },
       { opacity: 1, transform: "none" },
     ]);
     // No fill, so nothing outlives the entrance.
-    expect(timing).toEqual({ duration: PREVIEW_REVEAL.ms, easing: expect.any(String) });
+    expect(timing).toEqual({ duration: DESKTOP_OVERLAY.ms, easing: DESKTOP_OVERLAY.cssEase });
     release();
   });
   it("slides up when it opens above its row", () => {
     anchorTop = 800;
     const { panel, release } = layer(200, 700);
     expect(Number.parseFloat(panel.style.top!)).toBeLessThan(anchorTop);
-    expect(panel.animate.mock.calls[0]![0][0]).toEqual({ opacity: 0, transform: `translateY(${PREVIEW_REVEAL.shift}px)` });
+    expect(panel.animate.mock.calls[0]![0][0]).toEqual({ opacity: 0.9, transform: `translateY(${DESKTOP_OVERLAY.shift}px)` });
     release();
   });
   it("appears at once when maximized or when the system reduces motion", () => {
@@ -255,7 +337,7 @@ describe("maximizing a hover preview", () => {
       { clipPath: "inset(52px 0px 292px 0px round 12px)" },
       { clipPath: `inset(-${PREVIEW_GROW.shadow}px round 12px)` },
     ]);
-    expect(timing).toEqual({ duration: PREVIEW_GROW.ms, easing: expect.any(String) });
+    expect(timing).toEqual({ duration: PREVIEW_GROW.ms, easing: DESKTOP_OVERLAY.cssEase });
     release();
   });
   it("grows only from a hover box this panel just had", () => {

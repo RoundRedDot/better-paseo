@@ -45,14 +45,14 @@ async function registerHandlers(host: HostAccess = noHost): Promise<Map<string, 
       handlers.set(contract.name, handler);
     },
   } as unknown as PluginServerContext;
-  registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")), undefined, host, createStopMarks(join(tempRoot, "tasks-reads.json")));
+  registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")), undefined, host, createStopMarks(join(tempRoot, "tasks-reads.json")), undefined, undefined, createStopMarks(join(tempRoot, "tasks-unreads.json")));
   return handlers;
 }
 
 async function invoke<T>(handlers: Map<string, Handler>, name: string, input: unknown, context?: PaseoApi): Promise<T> {
   const handler = handlers.get(name);
   if (!handler) throw new Error(`Missing test handler: ${name}`);
-  const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: tempRoot, workspaceId: "workspace-a" } }) }) }, workspaces: { ref: () => ({ refresh: async () => ({ id: "workspace-a" }) }) } } as unknown as PaseoApi;
+  const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: tempRoot, workspaceId: "workspace-a", status: "running", pendingPermissions: [] } }) }) }, workspaces: { ref: () => ({ refresh: async () => ({ id: "workspace-a" }) }) } } as unknown as PaseoApi;
   return await handler(input, { paseo: context ?? paseo }) as T;
 }
 
@@ -103,6 +103,41 @@ afterEach(async () => {
 });
 
 describe("Tasks server stop RPC", () => {
+  it("dismisses idle Codex async questions without starting a new turn", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    const respondToPermission = vi.fn(async () => {});
+    const paseo = { agents: { ref: () => ({
+      refresh: async () => ({ agent: { status: "idle", pendingPermissions: [
+        { id: "question", provider: "codex", name: "request_user_input_async" },
+        { id: "other", provider: "codex", name: "other" },
+      ] } }),
+      respondToPermission,
+    }) } } as unknown as PaseoApi;
+    const handlers = await registerHandlers();
+    await expect(invoke(handlers, "tasks.stop", { agentIds: ["agent-a"] }, paseo)).resolves.toEqual({ results: [{ agentId: "agent-a", ok: true, error: null }] });
+    expect(respondToPermission).toHaveBeenCalledExactlyOnceWith({ requestId: "question", response: { behavior: "deny", message: "Interrupted" } });
+    expect(execCommand).not.toHaveBeenCalled();
+  });
+
+  it("reports a dismissal failure without recording a stop", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    const paseo = { agents: { ref: () => ({
+      refresh: async () => ({ agent: { status: "idle", pendingPermissions: [{ id: "question", provider: "codex", name: "request_user_input_async" }] } }),
+      respondToPermission: async () => { throw new Error("Question is no longer pending"); },
+    }) } } as unknown as PaseoApi;
+    const handlers = await registerHandlers();
+    await expect(invoke(handlers, "tasks.stop", { agentIds: ["agent-a"] }, paseo)).resolves.toEqual({ results: [{ agentId: "agent-a", ok: false, error: "Question is no longer pending" }] });
+    await expect(invoke(handlers, "tasks.stopped", {})).resolves.toEqual({ stops: [] });
+  });
+
+  it("reports a no-op when the agent stops before the CLI acts", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    execCommand.mockResolvedValue({ stdout: JSON.stringify({ stoppedCount: 0, agentIds: [] }), stderr: "" });
+    const handlers = await registerHandlers();
+    await expect(invoke(handlers, "tasks.stop", { agentIds: ["agent-a"] })).resolves.toEqual({ results: [{ agentId: "agent-a", ok: false, error: "Paseo CLI did not stop the agent." }] });
+    await expect(invoke(handlers, "tasks.stopped", {})).resolves.toEqual({ stops: [] });
+  });
+
   it("prefers an executable PASEO_CLI, reports capability, and passes the host environment", async () => {
     const configured = await executable(tempRoot, "configured paseo");
     const pathCandidate = await executable(join(tempRoot, "bin"));
@@ -223,7 +258,7 @@ describe("Tasks server stop RPC", () => {
       if (agentId === "agent-exit") throw Object.assign(new Error("failed"), { code: 7 });
       if (agentId === "agent-timeout") throw Object.assign(new Error("timed out"), { code: "ETIMEDOUT" });
       if (agentId === "agent-json") return { stdout: "not json", stderr: "" };
-      return { stdout: validJson, stderr: "" };
+      return { stdout: JSON.stringify({ stoppedCount: 1, agentIds: [agentId] }), stderr: "" };
     });
     const handlers = await registerHandlers();
 
@@ -252,7 +287,7 @@ describe("Tasks server stopped record", () => {
   it("remembers successful stops with their time, newest last, and forgets nothing it did not stop", async () => {
     process.env.PASEO_CLI = await executable(tempRoot);
     execCommand.mockImplementation(async (_cli: string, args: string[]) =>
-      args[2] === "agent-bad" ? Promise.reject(Object.assign(new Error("boom"), { code: 1 })) : { stdout: validJson, stderr: "" });
+      args[2] === "agent-bad" ? Promise.reject(Object.assign(new Error("boom"), { code: 1 })) : { stdout: JSON.stringify({ stoppedCount: 1, agentIds: [args[2]] }), stderr: "" });
     const handlers = await registerHandlers();
     await expect(invoke(handlers, "tasks.stopped", {})).resolves.toEqual({ stops: [] });
     await invoke(handlers, "tasks.stop", { agentIds: ["agent-a", "agent-bad", "agent-b"] });
@@ -494,6 +529,81 @@ describe("Tasks server read RPC", () => {
   });
 });
 
+describe("Tasks server unread RPC", () => {
+  function daemonHost(extra: Record<string, unknown> = {}) {
+    const close = vi.fn(async () => {});
+    const clearAgentAttention = vi.fn(async () => {});
+    const fetchAgent = vi.fn(async () => ({ agent: { cwd: tempRoot, status: "idle" } }));
+    const connect = vi.fn(async () => ({ clearAgentAttention, fetchAgent, close, ...extra }) as unknown as Awaited<ReturnType<HostAccess["connect"]>>);
+    const host: HostAccess = { available: () => true, connect };
+    return { host, connect, close, clearAgentAttention };
+  }
+
+  it("clears the read mark, records the unread mark, and asks the daemon when it can", async () => {
+    const markAgentUnread = vi.fn(async () => {});
+    const { host, close } = daemonHost({ markAgentUnread });
+    const handlers = await registerHandlers(host);
+
+    await expect(invoke(handlers, "tasks.read", { agentIds: ["agent-a"] })).resolves.toEqual({ ok: true, error: null });
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["agent-a", "agent-b"] })).resolves.toEqual({ ok: true, error: null });
+    const { reads } = await invoke<{ reads: Array<{ agentId: string }> }>(handlers, "tasks.reads", {});
+    const { unreads } = await invoke<{ unreads: Array<{ agentId: string; unreadAt: string }> }>(handlers, "tasks.unreads", {});
+    expect(reads).toEqual([]);
+    expect(unreads.map((mark) => mark.agentId)).toEqual(["agent-a", "agent-b"]);
+    expect(Number.isFinite(Date.parse(unreads[0]!.unreadAt))).toBe(true);
+    await vi.waitFor(() => expect(markAgentUnread.mock.calls).toEqual([["agent-a"], ["agent-b"]]));
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("still records the mark when the daemon has no per-agent method or the call throws", async () => {
+    const missing = daemonHost();
+    let handlers = await registerHandlers(missing.host);
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["agent-a"] })).resolves.toEqual({ ok: true, error: null });
+    await vi.waitFor(() => expect(missing.close).toHaveBeenCalled());
+    const listed = await invoke<{ unreads: Array<{ agentId: string }> }>(handlers, "tasks.unreads", {});
+    expect(listed.unreads.map((mark) => mark.agentId)).toEqual(["agent-a"]);
+
+    const markAgentUnread = vi.fn(async () => {
+      throw new Error("still running");
+    });
+    const refusing = daemonHost({ markAgentUnread });
+    handlers = await registerHandlers(refusing.host);
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["agent-b"] })).resolves.toEqual({ ok: true, error: null });
+    await vi.waitFor(() => expect(markAgentUnread).toHaveBeenCalledWith("agent-b"));
+    await vi.waitFor(() => expect(refusing.close).toHaveBeenCalled());
+    const after = await invoke<{ unreads: Array<{ agentId: string }> }>(handlers, "tasks.unreads", {});
+    // The new server loads the mark the first half already wrote, then adds its own.
+    expect(after.unreads.map((mark) => mark.agentId)).toEqual(["agent-a", "agent-b"]);
+  });
+
+  it("drops only the opened agents' unread marks, without the daemon", async () => {
+    const { host, connect } = daemonHost();
+    const handlers = await registerHandlers(host);
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["agent-a", "agent-b"] })).resolves.toEqual({ ok: true, error: null });
+    connect.mockClear();
+    await expect(invoke(handlers, "tasks.unread-clear", { agentIds: ["agent-a", "agent-c"] })).resolves.toEqual({ ok: true, error: null });
+    expect(connect).not.toHaveBeenCalled();
+    const { unreads } = await invoke<{ unreads: Array<{ agentId: string }> }>(handlers, "tasks.unreads", {});
+    expect(unreads.map((mark) => mark.agentId)).toEqual(["agent-b"]);
+    await expect(invoke(handlers, "tasks.unread-clear", { agentIds: ["bad/id"] })).resolves.toEqual({ ok: false, error: "Invalid agent ID." });
+  });
+
+  it("writes nothing for a bad id, and does not connect when the daemon is unavailable", async () => {
+    const { host, connect } = daemonHost();
+    let handlers = await registerHandlers(host);
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["bad/id"] })).resolves.toEqual({ ok: false, error: "Invalid agent ID." });
+    expect(connect).not.toHaveBeenCalled();
+    await expect(invoke(handlers, "tasks.unreads", {})).resolves.toEqual({ unreads: [] });
+
+    const probe = vi.fn(async () => null);
+    handlers = await registerHandlers({ available: () => false, connect: probe });
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["agent-a"] })).resolves.toEqual({ ok: true, error: null });
+    expect(probe).not.toHaveBeenCalled();
+    const { unreads } = await invoke<{ unreads: Array<{ agentId: string }> }>(handlers, "tasks.unreads", {});
+    expect(unreads.map((mark) => mark.agentId)).toEqual(["agent-a"]);
+  });
+});
+
 describe("Tasks server subagent timeline RPC", () => {
   it("preserves a provider subagent's message times while dropping unrelated fields, and closes the connection", async () => {
     const fetchProviderSubagentTimeline = vi.fn(async () => ({
@@ -533,5 +643,43 @@ describe("Tasks server subagent timeline RPC", () => {
       rows: [],
       error: "Update the host to view subagent conversations.",
     });
+  });
+});
+
+describe("Tasks server parent origins", () => {
+  it("hands the parent's archive to the watch without holding the hook, wakes it on a new agent, and answers its origins", async () => {
+    vi.resetModules();
+    const { registerTasksServer } = await import("../../server/tasks/register");
+    const { createStopMarks } = await import("../../server/tasks/stop-marks");
+    type Hook = (event: unknown, context: { paseo: PaseoApi }) => unknown;
+    const hooks = new Map<string, Hook>();
+    const handlers = new Map<string, Handler>();
+    const server = {
+      registerSettings() {},
+      on(name: string, hook: Hook) {
+        hooks.set(name, hook);
+        return () => {};
+      },
+      before() {
+        return () => {};
+      },
+      handle(contract: { name: string }, handler: Handler) {
+        handlers.set(contract.name, handler);
+      },
+    } as unknown as PluginServerContext;
+    // The re-reads after an archive run for seconds: the hook must not wait for them.
+    const watch = {
+      ensure: vi.fn(async () => {}),
+      archived: vi.fn(() => new Promise<void>(() => {})),
+      read: vi.fn(async () => ({ version: "v2", origins: [{ agentId: "child", parentAgentId: "parent" }] })),
+    };
+    registerTasksServer(server, createStopMarks(join(tempRoot, "tasks-stops.json")), undefined, noHost, createStopMarks(join(tempRoot, "tasks-reads.json")), undefined, watch, createStopMarks(join(tempRoot, "tasks-unreads.json")));
+    const paseo = {} as PaseoApi;
+    await hooks.get("agent.archived")!({ agent: { id: "parent" }, archivedAt: "2026-11-05T06:27:39.958Z" }, { paseo });
+    expect(watch.archived).toHaveBeenCalledWith(paseo, "parent", "2026-11-05T06:27:39.958Z");
+    await hooks.get("agent.created")!({ agent: { id: "child", parentAgentId: "parent" } }, { paseo });
+    expect(watch.ensure).toHaveBeenCalledWith(paseo);
+    await expect(handlers.get("tasks.parent-origins")!({ since: "v1" }, { paseo })).resolves.toEqual({ version: "v2", origins: [{ agentId: "child", parentAgentId: "parent" }] });
+    expect(watch.read).toHaveBeenCalledWith(paseo, "v1");
   });
 });

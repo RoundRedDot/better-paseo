@@ -17,6 +17,13 @@ export interface TasksSettingsStrings {
   enabledConfirm: string;
   enabledConfirmHint: string;
   openBoard: string;
+  openShortcut: string;
+  shortcutHint: string;
+  shortcutRecord: string;
+  shortcutRecording: string;
+  shortcutClear: string;
+  shortcutDefault: string;
+  shortcutNone: string;
   previewTitle: string;
   previewOffHint: string;
   previewOnHint: string;
@@ -28,6 +35,10 @@ export interface TasksSettingsStrings {
   densities: Record<Density, string>;
   cardTitle: string;
   fieldsTitle: string;
+  fieldPreviewTitle: string;
+  fieldPreviewHint: string;
+  fieldPreviewHidden: string;
+  fieldPreviewOffHint: string;
   fieldsHint: string;
   fields: Record<CardField, string>;
   moduleReset: (module: string) => string;
@@ -85,6 +96,13 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     enabledConfirm: "Tasks is now at the top of the sidebar.",
     enabledConfirmHint: "Leave Settings to see it, or open the board from here.",
     openBoard: "Open board",
+    openShortcut: "Quickly open the Tasks board",
+    shortcutHint: "Works while Paseo is focused and Tasks is enabled. Saved on this device only. Choose a combination not used by Paseo or your system.",
+    shortcutRecord: "Change shortcut",
+    shortcutRecording: "Press a key with Command, Ctrl or Option / Alt. Escape cancels.",
+    shortcutClear: "Clear shortcut",
+    shortcutDefault: "Restore default shortcut",
+    shortcutNone: "Not assigned",
     previewTitle: "Preview",
     previewOffHint: "What the board looks like once it is on: sample tasks, drawn with the options below.",
     previewOnHint: "Sample tasks, drawn with the options below as you change them.",
@@ -95,6 +113,10 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     densities: { minimal: "Minimal", standard: "Standard", full: "Full", custom: "Custom" },
     cardTitle: "Cards",
     fieldsTitle: "Fields",
+    fieldPreviewTitle: "Card preview",
+    fieldPreviewHint: "Follows the switches above; click the capsule for the list",
+    fieldPreviewHidden: "Hidden",
+    fieldPreviewOffHint: "Plan capsule is off",
     fieldsHint: "What each card shows. Phones keep the essentials whatever is picked here.",
     moduleReset: (module) => `Reset ${module} settings`,
     moduleResetHint: "Only settings in this section will be restored.",
@@ -116,13 +138,14 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
       pullRequest: "Linked PR",
       timer: "Timer / finished at",
       context: "Context usage ring",
+      plan: "Plan capsule",
       subtasks: "Subtask summary",
     },
     labelLimit: "Labels shown",
     labelLimits: { "1": "1", "2": "2", "3": "3", all: "All" },
     titleLines: "Title lines",
     titleLinesHint: "Saved on this device only.",
-    titleLineCounts: { "1": "1", "2": "2", "3": "3", "4": "4" },
+    titleLineCounts: { "1": "1", "2": "2", "3": "3", "4": "4", "all": "All" },
     compactCards: "Use minimal cards on phones",
     compactCardsHint: "Phones draw the Minimal card whatever the density above.",
     boardTitle: "Board",
@@ -134,8 +157,8 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     showArchived: "Show the archived lane",
     showArchivedHint: "Saved on this device only. A lane after Done with archived tasks and those of archived workspaces, in the same time window.",
     showEmptyGroups: "Show all",
-    showEmptyGroupsTips: [{ label: "Visibility", text: "The filters and the sidebar list every Agent, project, workspace and label in Paseo, with 0 where the board has none, including Done and Archived." }, { label: "Storage", text: "Saved on this device only." }],
-    showEmptyGroupsHint: "The filters and the sidebar list every Agent, project, workspace and label in Paseo, with 0 where the board has none, including Done and Archived. Saved on this device only.",
+    showEmptyGroupsTips: [{ label: "Visibility", text: "The filters and the sidebar list every Agent, label, project and workspace in Paseo, with 0 where the board has none, including Done and Archived." }, { label: "Storage", text: "Saved on this device only." }],
+    showEmptyGroupsHint: "The filters and the sidebar list every Agent, label, project and workspace in Paseo, with 0 where the board has none, including Done and Archived. Saved on this device only.",
     laneWidth: "Lane width",
     laneWidthHint: "Saved on this device only. On desktop, web and tablets. Phones show one lane at a time.",
     laneWidths: { narrow: "Narrow", default: "Default", wide: "Wide" },
@@ -164,6 +187,13 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     enabledConfirm: "「任务」已加入侧边栏顶部。",
     enabledConfirmHint: "退出设置即可看到，也可以直接从这里打开看板。",
     openBoard: "打开看板",
+    openShortcut: "快速打开任务面板",
+    shortcutHint: "Paseo 窗口有焦点且任务看板启用时生效，仅保存在当前设备。请选择未被 Paseo 或系统占用的组合键。",
+    shortcutRecord: "修改快捷键",
+    shortcutRecording: "请按下包含 Command、Ctrl 或 Option / Alt 的组合键；Esc 取消。",
+    shortcutClear: "清除快捷键",
+    shortcutDefault: "恢复默认快捷键",
+    shortcutNone: "未设置",
     previewTitle: "实时预览",
     previewOffHint: "开启后看板就是这个样子：示例任务，按下面的选项绘制。",
     previewOnHint: "示例任务，随下面的选项实时变化。",
@@ -174,6 +204,10 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     densities: { minimal: "精简", standard: "标准", full: "完整", custom: "自定义" },
     cardTitle: "卡片",
     fieldsTitle: "显示字段",
+    fieldPreviewTitle: "卡片预览",
+    fieldPreviewHint: "随上面的开关变化；点胶囊查看清单",
+    fieldPreviewHidden: "已隐藏",
+    fieldPreviewOffHint: "计划胶囊已关闭",
     fieldsHint: "每张卡片显示哪些信息。手机上始终保留最关键的几项。",
     moduleReset: (module) => `恢复「${module}」默认设置`,
     moduleResetHint: "只恢复本组设置，不影响其他组。",
@@ -195,13 +229,14 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
       pullRequest: "关联 PR",
       timer: "计时 / 完成于",
       context: "上下文占用环",
+      plan: "计划胶囊",
       subtasks: "子任务摘要",
     },
     labelLimit: "标签数量",
     labelLimits: { "1": "1 个", "2": "2 个", "3": "3 个", all: "全部" },
     titleLines: "标题行数",
     titleLinesHint: "仅保存在当前设备。",
-    titleLineCounts: { "1": "1 行", "2": "2 行", "3": "3 行", "4": "4 行" },
+    titleLineCounts: { "1": "1 行", "2": "2 行", "3": "3 行", "4": "4 行", "all": "全部" },
     compactCards: "手机上使用精简卡片",
     compactCardsHint: "手机上无论上面选哪种密度，都按精简卡片显示。",
     boardTitle: "看板",
@@ -213,8 +248,8 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     showArchived: "显示已归档泳道",
     showArchivedHint: "在已完成之后显示归档任务，时间窗口与已完成相同。仅保存在当前设备。",
     showEmptyGroups: "显示全部",
-    showEmptyGroupsTips: [{ label: "显示范围", text: "筛选菜单和侧栏也显示看板上没有任务的 Agent、项目、工作区和标签，已完成和已归档计入。" }, { label: "保存位置", text: "仅保存在当前设备。" }],
-    showEmptyGroupsHint: "筛选菜单和侧栏也显示看板上没有任务的 Agent、项目、工作区和标签，已完成和已归档计入。仅保存在当前设备。",
+    showEmptyGroupsTips: [{ label: "显示范围", text: "筛选菜单和侧栏也显示看板上没有任务的 Agent、标签、项目和工作区，已完成和已归档计入。" }, { label: "保存位置", text: "仅保存在当前设备。" }],
+    showEmptyGroupsHint: "筛选菜单和侧栏也显示看板上没有任务的 Agent、标签、项目和工作区，已完成和已归档计入。仅保存在当前设备。",
     laneWidth: "泳道宽度",
     laneWidthHint: "用于桌面和非手机布局；仅保存在当前设备。",
     laneWidths: { narrow: "紧凑", default: "默认", wide: "宽松" },

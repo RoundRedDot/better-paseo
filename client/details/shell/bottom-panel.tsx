@@ -25,6 +25,7 @@ import { detailsPalette } from "./scrim";
 import type { Insets } from "./safe-area";
 import type { BodyWatch } from "./body-handover";
 import { keepOffWindowDrag } from "./web-layer";
+import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
 
 /** The handle's strip: a 36 × 5 grabber 8 below the panel's top, in a row a finger can take. */
 export const HANDLE = 28;
@@ -193,15 +194,26 @@ export function BottomPanel(props: BottomPanelProps) {
     }
     const panel = now.current.height;
     if (now0.entrance === "slide" && !now0.reduced) {
+      if (Platform.OS === "web" && now0.form === "floating") {
+        setTranslate(DESKTOP_OVERLAY.shift);
+        opacity.setValue(DESKTOP_OVERLAY.opacity);
+        now.current.translate = 0;
+        animate(translate, 0, DESKTOP_OVERLAY.ms, undefined, "overlay");
+        animate(opacity, 1, DESKTOP_OVERLAY.ms, undefined, "overlay");
+        return;
+      }
       // Laid out where it rests; now below the edge, shown, and up.
       setTranslate(panel);
       opacity.setValue(1);
       now.current.translate = 0;
       // iOS draws a selectable text's string when it is next displayed; one
       // that changed while the panel was below the screen (highlighting that
-      // landed late) stayed blank until a relayout. At rest, the body draws
-      // its content again.
-      animate(translate, 0, DETAILS_MOTION.openMs, Platform.OS === "ios" ? () => latest.current.body.redraw() : undefined);
+      // landed late) stayed blank until a relayout. At rest, the text that
+      // came or changed during the slide draws again (`ProseRedraw`); the
+      // rest stays mounted, since mounting it all again flashed the body.
+      const ios = Platform.OS === "ios";
+      if (ios) now0.body.slideIn();
+      animate(translate, 0, DETAILS_MOTION.openMs, ios ? () => latest.current.body.redraw() : undefined);
       animate(backdrop, 1, DETAILS_MOTION.scrimMs, undefined, "linear");
     } else if (now0.entrance !== "none") {
       const ms = now0.reduced ? DETAILS_MOTION.reducedMs : DETAILS_MOTION.formInMs;
@@ -304,6 +316,10 @@ export function BottomPanel(props: BottomPanelProps) {
       return;
     }
     const done = () => latest.current.onExited();
+    if (Platform.OS === "web" && latest.current.form === "floating") {
+      done();
+      return;
+    }
     if (!entered.current) {
       done();
       return;
@@ -398,16 +414,15 @@ export function BottomPanel(props: BottomPanelProps) {
       cancel() {},
     };
   }, []);
-  // On the body itself, not the panel: the header, the toolbar and the
-  // handle above it drag the drawer their own way. On iOS and Android a body
-  // at its top takes the touch as it starts (see `claimAtStart`).
+  // Observe native body pulls without taking the responder from sideways
+  // scrollers. The header, toolbar and handle drag through their own responders.
   const bodyPan = useMemo(() => panelResponder({
     vertical: () => drag,
     hold: () => latest.current.hold(),
     pullDown: () => latest.current.bodyAtTop() === true,
     ...(Platform.OS === "web" ? {} : {
       pullUp: () => lift,
-      claimAtStart: () => latest.current.bodyAtTop() === true,
+      observeTouches: true,
     }),
   }), [drag, lift]);
   props.body.setPanHandlers(bodyPan.panHandlers as unknown as Record<string, unknown>);

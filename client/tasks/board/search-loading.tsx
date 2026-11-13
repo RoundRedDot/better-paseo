@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AccessibilityInfo, Animated, Platform, Pressable, View, type TextInput as NativeTextInput } from "react-native";
 import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import type { SearchCoverageControl } from "../data/search-first-prompts";
@@ -7,16 +7,27 @@ import { TaskText as Text, taskControlHeight, useTasksFontScale } from "../typog
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { useHover } from "../../ui/use-hover";
 import { taskTokens } from "../cards/tokens";
-import { scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
+import { usePressCue } from "../cards/action-pressable";
 import { tipProps } from "../cards/card-hints";
+import { HoverPressable } from "./board-parts";
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { PluginIcon } from "@getpaseo/plugin/client";
 
 export const SearchCoverageContext = createContext<{
   status: SearchCoverageControl;
+  cancelled?: boolean;
+  setCancelled?(cancelled: boolean): void;
+  cancelText?: string;
+  resumeText?: string;
+  stoppedText?: string;
+  historyLoading?: boolean;
+  historyError?: string | null;
+  retryHistory?(): void;
+  historyLoadingText?: string;
+  historyFailedText?: string;
   query: string;
   strings: BoardStrings["searchCoverage"];
-  total: number;
   fullConversation?: boolean;
   onFullConversationChange?(on: boolean): void;
   fullConversationLabel?: string;
@@ -24,12 +35,12 @@ export const SearchCoverageContext = createContext<{
   fullConversationHint?: string;
 } | null>(null);
 
-export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; query: string; strings: BoardStrings["searchCoverage"]; total: number; fullConversation?: boolean; onFullConversationChange?(on: boolean): void; fullConversationLabel?: string; fullConversationShortLabel?: string; fullConversationHint?: string }>) {
-  const value = useMemo(() => ({ status: props.status, query: props.query, strings: props.strings, total: props.total, fullConversation: props.fullConversation, onFullConversationChange: props.onFullConversationChange, fullConversationLabel: props.fullConversationLabel, fullConversationShortLabel: props.fullConversationShortLabel, fullConversationHint: props.fullConversationHint }), [props.status, props.query, props.strings, props.total, props.fullConversation, props.onFullConversationChange, props.fullConversationLabel, props.fullConversationShortLabel, props.fullConversationHint]);
-  return <SearchCoverageContext.Provider value={value}>{props.children}</SearchCoverageContext.Provider>;
+export function SearchCoverageProvider(props: React.PropsWithChildren<{ status: SearchCoverageControl; cancelled?: boolean; setCancelled?(cancelled: boolean): void; cancelText?: string; resumeText?: string; stoppedText?: string; historyLoading?: boolean; historyError?: string | null; retryHistory?(): void; historyLoadingText?: string; historyFailedText?: string; query: string; strings: BoardStrings["searchCoverage"]; fullConversation?: boolean; onFullConversationChange?(on: boolean): void; fullConversationLabel?: string; fullConversationShortLabel?: string; fullConversationHint?: string }>) {
+  const value = useMemo(() => ({ status: props.status, cancelled: props.cancelled, setCancelled: props.setCancelled, cancelText: props.cancelText, resumeText: props.resumeText, stoppedText: props.stoppedText, historyLoading: props.historyLoading, historyError: props.historyError, retryHistory: props.retryHistory, historyLoadingText: props.historyLoadingText, historyFailedText: props.historyFailedText, query: props.query, strings: props.strings, fullConversation: props.fullConversation, onFullConversationChange: props.onFullConversationChange, fullConversationLabel: props.fullConversationLabel, fullConversationShortLabel: props.fullConversationShortLabel, fullConversationHint: props.fullConversationHint }), [props.status, props.cancelled, props.setCancelled, props.cancelText, props.resumeText, props.stoppedText, props.historyLoading, props.historyError, props.retryHistory, props.historyLoadingText, props.historyFailedText, props.query, props.strings, props.fullConversation, props.onFullConversationChange, props.fullConversationLabel, props.fullConversationShortLabel, props.fullConversationHint]);
+  return <SearchCoverageContext.Provider value={value}>{props.children}<SearchAnnouncement /></SearchCoverageContext.Provider>;
 }
 
-const EMPTY = { pending: 0, unavailable: 0, failed: 0, retrying: 0 };
+const EMPTY = { pending: 0, loaded: 0 };
 const emptyRead = () => EMPTY;
 const emptySubscribe = () => () => {};
 
@@ -80,17 +91,18 @@ export function SearchSpinner(props: { size: number; color: string }) {
   </Animated.View>;
 }
 
-export function SearchInput(props: React.ComponentProps<typeof TextInput> & { iconSize: number; iconColor: string; ref?: React.Ref<NativeTextInput> }) {
-  const { iconSize, iconColor, ...input } = props;
+/**
+ * `staticIcon` keeps the magnifier while a read runs: the loading state is
+ * shown elsewhere (the field's count badge), so the icon must not crossfade
+ * into a spinner.
+ */
+export function SearchInput(props: React.ComponentProps<typeof TextInput> & { theme: PluginTheme; iconSize: number; iconColor: string; hideSearchIcon?: boolean; staticIcon?: boolean; ref?: React.Ref<NativeTextInput>; beforeCancel?: ReactNode }) {
+  const { theme, iconSize, iconColor, hideSearchIcon, staticIcon, beforeCancel, ...input } = props;
   const { context, counts } = useSearchCoverage();
-  const loading = counts.pending > 0 || counts.retrying > 0;
+  const loading = !context?.cancelled && (counts.pending > 0 || context?.historyLoading === true);
   const shown = useSearchLoading(loading, input.value ?? "");
   const opacity = useRef(new Animated.Value(0)).current;
   const [present, setPresent] = useState<string | null>(null);
-  const [announcement, setAnnouncement] = useState("");
-  const announced = useRef({ query: input.value, started: false });
-  const lastCount = useRef(0);
-  if (counts.pending) lastCount.current = counts.pending;
   useEffect(() => {
     if (!shown && present === null) return;
     if (shown) setPresent(input.value ?? null);
@@ -99,33 +111,85 @@ export function SearchInput(props: React.ComponentProps<typeof TextInput> & { ic
     animation.start();
     return () => { clearTimeout(timer); animation.stop(); };
   }, [opacity, shown, Boolean(input.value?.trim())]);
+  const spinnerVisible = Boolean(input.value?.trim() && (shown || present === input.value));
+  return <>
+    {!hideSearchIcon ? <View testID="search-icon-slot" {...tipProps(shown && context ? counts.pending ? context.strings.tip(counts.loaded) : context.historyLoading ? context.historyLoadingText : undefined : undefined)} style={{ width: iconSize, height: iconSize, flexShrink: 0 }}>
+      <Animated.View style={{ position: "absolute", opacity: staticIcon ? 1 : opacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}><Icon name="Search" size={iconSize} color={iconColor} /></Animated.View>
+      {!staticIcon && spinnerVisible ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
+    </View> : null}
+    <TextInput {...input} accessibilityState={{ ...input.accessibilityState, busy: loading }} />
+    {beforeCancel}
+    {input.value?.trim() ? <SearchCancelToggle theme={theme} iconSize={iconSize} iconColor={iconColor} /> : null}
+  </>;
+}
+
+/** Stays mounted when a tablet replaces its search field with a query pill. */
+function SearchAnnouncement() {
+  const { context, counts } = useSearchCoverage();
+  const loading = !context?.cancelled && (counts.pending > 0 || context?.historyLoading === true);
+  const shown = useSearchLoading(loading, context?.query ?? "");
+  const [announcement, setAnnouncement] = useState("");
+  const announced = useRef({ query: context?.query, started: false });
   useEffect(() => {
-    if (announced.current.query !== input.value) {
-      announced.current = { query: input.value, started: false };
+    if (announced.current.query !== context?.query) {
+      announced.current = { query: context?.query, started: false };
       setAnnouncement("");
     }
-    if (!input.value?.trim()) return;
-    if (!context) return;
+    if (!context?.query.trim()) return;
+    if (context.historyError) {
+      announced.current.started = false;
+      setAnnouncement(context.historyFailedText ?? context.historyError);
+      return;
+    }
     if (shown && loading && !announced.current.started) {
       announced.current.started = true;
-      setAnnouncement(context.strings.started);
+      setAnnouncement(context.historyLoading ? context.historyLoadingText ?? context.strings.started : context.strings.started);
     }
     if (!loading && announced.current.started) {
       announced.current.started = false;
-      setAnnouncement(context.strings.complete(context.total, counts.unavailable, counts.failed));
+      setAnnouncement(context.cancelled ? context.stoppedText ?? "" : context.historyError ? context.historyFailedText ?? context.historyError : context.strings.complete(counts.loaded));
     }
-  }, [shown, loading, context, counts.unavailable, counts.failed, input.value]);
+  }, [shown, loading, context, counts.loaded]);
   useEffect(() => {
     if (announcement && Platform.OS === "ios") AccessibilityInfo.announceForAccessibility(announcement);
   }, [announcement]);
-  return <>
-    <View testID="search-icon-slot" {...tipProps(shown && context ? context.strings.tip(counts.pending || lastCount.current) : undefined)} style={{ width: iconSize, height: iconSize, flexShrink: 0 }}>
-      <Animated.View style={{ position: "absolute", opacity: opacity.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }}><Icon name="Search" size={iconSize} color={iconColor} /></Animated.View>
-      {input.value?.trim() && (shown || present === input.value) ? <Animated.View style={{ position: "absolute", opacity }}><SearchSpinner size={iconSize} color={iconColor} /></Animated.View> : null}
-    </View>
-    <TextInput {...input} accessibilityState={{ ...input.accessibilityState, busy: loading }} />
-    <Text testID="search-announcement" accessibilityLiveRegion="polite" role="status" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}>{announcement}</Text>
-  </>;
+  return <Text testID="search-announcement" accessibilityLiveRegion="polite" role="status" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}>{context?.query.trim() ? announcement : ""}</Text>;
+}
+
+/** The one state a collapsed query shows; the mark and its spoken hint both read it. */
+function useSearchStatus() {
+  const { context, counts } = useSearchCoverage();
+  if (!context?.query.trim()) return { context, state: null };
+  const state = context.historyError ? "failed" as const : context.cancelled ? "stopped" as const : counts.pending || context.historyLoading ? "loading" as const : null;
+  return { context, state };
+}
+
+/** A narrow tablet keeps its search state visible inside the editable query. */
+export function SearchStatusMark({ theme }: { theme: PluginTheme }) {
+  const { state } = useSearchStatus();
+  if (state === "failed") return <Icon name="CircleAlert" size={14} color={taskTokens(theme).danger} />;
+  if (state === "stopped") return <Icon name="Pause" size={14} color={theme.colors.foregroundMuted} />;
+  if (state === "loading") return <SearchSpinner size={14} color={theme.colors.foregroundMuted} />;
+  return null;
+}
+
+/** What `SearchStatusMark` shows, worded as the live region words it. */
+export function useSearchStatusText(): string | undefined {
+  const { context, state } = useSearchStatus();
+  if (!context || !state) return undefined;
+  if (state === "failed") return context.historyFailedText ?? context.historyError ?? undefined;
+  if (state === "stopped") return context.stoppedText;
+  return context.historyLoading ? context.historyLoadingText ?? context.strings.started : context.strings.started;
+}
+
+/** Shared by the search field and the tablet's collapsed query. */
+export function SearchCancelToggle({ theme, iconSize, iconColor = theme.colors.foregroundMuted }: { theme: PluginTheme; iconSize: number; iconColor?: string }) {
+  const { context, counts } = useSearchCoverage();
+  const loading = !context?.cancelled && (counts.pending > 0 || context?.historyLoading === true);
+  if (!context?.query.trim() || !context.setCancelled || (!loading && !context.cancelled)) return null;
+  return <HoverPressable lift="toolbar" testID="search-cancel-toggle" accessibilityRole="button" accessibilityLabel={context.cancelled ? context.resumeText : context.cancelText} accessibilityHint={context.cancelled ? context.stoppedText : undefined} {...tipProps(context.cancelled ? context.resumeText : context.cancelText)} onPress={() => context.setCancelled?.(!context.cancelled)} hitSlop={6} style={(hovered, pressed, source) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", ...liftStyle(() => taskTokens(theme), surfaceLift(hovered, pressed, undefined, "toolbar", source)) })}>
+      <Icon name={context.cancelled ? "Play" : "Square"} size={iconSize} color={iconColor} />
+    </HoverPressable>;
 }
 
 const SVG_HEAD = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">';
@@ -143,7 +207,7 @@ const OUTLINE_SEARCH_ICON: PluginIcon = {
 export function FullConversationSwitch({ theme, compact, iconSize: requestedIconSize }: { theme: PluginTheme; compact?: boolean; iconSize?: number }) {
   const { context } = useSearchCoverage();
   const { hovered, hoverProps } = useHover();
-  const [pressed, setPressed] = useState(false);
+  const press = usePressCue(hovered);
   const reduced = useReducedMotion();
   const scale = useTasksFontScale();
   const size = !compact && Platform.OS === "web" ? taskControlHeight(28, scale) : compact ? 36 : 32;
@@ -151,11 +215,12 @@ export function FullConversationSwitch({ theme, compact, iconSize: requestedIcon
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);
   if (!context?.onFullConversationChange) return null;
-  const lift = surfaceLift(hovered, pressed, reduced);
+  const lift = surfaceLift(hovered, press.pressed, reduced, "toolbar", press.input);
+  const outlined = !compact && Platform.OS === "web";
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
-    accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={toggle} hitSlop={4} {...hoverProps}
-    onPressIn={() => setPressed(true)} onPressOut={() => setPressed(false)}
-    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: !compact && Platform.OS === "web" ? 1 : 0, borderColor: hovered ? theme.colors.border : "transparent", borderRadius: 7, backgroundColor: on ? theme.colors.surface2 : theme.colors.surface0, boxShadow: lift.shadow ? taskTokens(theme).card.buttonShadowHover : undefined, ...scaleStyle(lift.scale) }}>
+    accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={press.guard(toggle)} hitSlop={4} {...hoverProps}
+    onPressIn={press.onPressIn} onPressOut={press.onPressOut} onTouchStart={press.onTouchStart} onTouchMove={press.onTouchMove} onTouchEnd={press.onTouchEnd} onTouchCancel={press.onTouchCancel}
+    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: outlined ? 1 : 0, borderColor: hovered ? theme.colors.border : "transparent", borderRadius: 7, backgroundColor: theme.colors.surface0, ...liftStyle(() => taskTokens(theme), lift, outlined ? { border: hovered ? theme.colors.border : "transparent" } : {}), ...scaleStyle(lift.scale) }}>
     <Icon icon={on ? FULL_TEXT_SEARCH_ICON : OUTLINE_SEARCH_ICON} size={iconSize} color={theme.colors.foreground} />
   </Pressable>;
 }

@@ -2,14 +2,16 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, type TasksHandle } from "../../client/tasks/data";
+import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, setUnreadClearer, openedTask, planTitle, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { fallbackLabelColor } from "../../client/tasks/label-colors";
+import { permissionButtons, respondToPermission } from "../../client/tasks/actions";
 import { cardStart, cardTimer, formatEnded } from "../../client/tasks/cards/card-time";
 import { at, createFakePaseo, makeAgent, makePlacement, makeWorkspace } from "./helpers/fake-paseo";
 import "./helpers/quiet-renderer";
+import { claudeExitPlanRequest, codexPlanRequest, exitPlanPermission } from "./helpers/plan-request";
 
 const storeNotificationProbe = vi.hoisted(() => ({ enabled: false, count: 0 }));
 vi.mock("react", async (importOriginal) => {
@@ -692,6 +694,131 @@ function recentIso(ageMs: number) {
 }
 
 describe("Tasks data store", () => {
+  // The request in the 2026-11-10 report, exactly as the daemon's CodexAsyncQuestions
+  // hands it over: the model wrote only the title and option strings.
+  it.each([["允许", "拒绝"], ["Not yet", "Go ahead"]])("answers a Codex async question with options %j from the card", async (...labels) => {
+    const title = "是否允许按上述范围实施结构化快捷回答，包括普通二选一题也可能显示按钮？";
+    const fake = createFakePaseo({
+      agents: [activeAgent("asking", { provider: "codex", status: "running", pendingPermissions: [{
+        id: "permission-item-1", provider: "codex", name: "request_user_input_async", kind: "question", title: "Question",
+        input: { questions: [{ id: "0", header: "Question 1", question: title, options: labels.map((label) => ({ label })), isOther: true }] },
+      }] })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      const permission = mounted.current.byId.get("asking")!.permission!;
+      // Codex builds the request id from the question's timeline row: the dialog reads the text before it.
+      expect(permission).toMatchObject({ requestId: "permission-item-1", kind: "question", summary: title, callId: "item-1",
+        questions: [{ id: "0", header: "Question 1", question: title, multiSelect: false, options: labels.map((label) => ({ label })) }] });
+      const buttons = permissionButtons(permission, "zh");
+      expect(buttons.map((button) => [button.label, button.kind])).toEqual(labels.map((label) => [label, "respond"]));
+      await respondToPermission(fake.paseo, "asking", buttons[1]!, permission.requestId);
+      expect(fake.permissionResponses).toEqual([{ agentId: "asking", requestId: "permission-item-1",
+        response: { behavior: "allow", updatedInput: { answers: { "Question 1": labels[1] } } } }]);
+    } finally { mounted.unmount(); }
+  });
+
+  // Claude's provider names the AskUserQuestion's tool use in the metadata; the request id is a fresh uuid.
+  it("keeps a Claude question's tool use id as its call id", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("asking", { provider: "claude", status: "running", pendingPermissions: [{
+        id: "permission-6b1f", provider: "claude", name: "AskUserQuestion", kind: "question", title: "Question",
+        input: { questions: [{ header: "Scope", question: "Change both?", options: [{ label: "Yes" }, { label: "No" }], multiSelect: false }] },
+        metadata: { toolUseId: "toolu_01ABC" },
+      }] })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.byId.get("asking")!.permission).toMatchObject({ requestId: "permission-6b1f", name: "AskUserQuestion", callId: "toolu_01ABC" });
+    } finally { mounted.unmount(); }
+  });
+
+  // Claude's ExitPlanMode, as its provider sends it: no title, Reject and
+  // Implement, and Implement with the resume mode when there is one. The cards
+  // show it as a plan (tasks-cards, tasks-card-action-layout, tasks-board-render).
+  it.each([false, true])("answers a real Claude ExitPlanMode request with its own actions (resume %s)", async (resume) => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("planning", { provider: "claude", status: "running", pendingPermissions: [claudeExitPlanRequest({ resume })] as never })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      const card = mounted.current.byId.get("planning")!;
+      expect(card.lane).toBe("needs_input");
+      expect(card.permission).toEqual(exitPlanPermission({ resume }));
+      const buttons = permissionButtons(card.permission!, "zh", true);
+      expect(buttons.map((button) => [button.label, button.kind, button.variant])).toEqual([
+        ["拒绝", "respond", "danger"], ["实施", "respond", "primary"], ...(resume ? [["Implement with Bypass", "respond", "secondary"]] : []),
+      ]);
+      for (const button of buttons) await respondToPermission(fake.paseo, "planning", button, card.permission!.requestId);
+      expect(fake.permissionResponses).toEqual([
+        { agentId: "planning", requestId: "permission-exit-plan", response: { behavior: "deny", selectedActionId: "reject", message: "Denied by user" } },
+        { agentId: "planning", requestId: "permission-exit-plan", response: { behavior: "allow", selectedActionId: "implement" } },
+        ...(resume ? [{ agentId: "planning", requestId: "permission-exit-plan", response: { behavior: "allow", selectedActionId: "implement_resume" } }] : []),
+      ]);
+    } finally { mounted.unmount(); }
+  });
+
+  it("answers a Codex plan approval with Dismiss and Implement", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("planning", { provider: "codex", status: "running", pendingPermissions: [codexPlanRequest()] as never })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      const permission = mounted.current.byId.get("planning")!.permission!;
+      // The plan's first line names it, not the request's fixed description; "View plan" opens the whole text.
+      expect(permission).toMatchObject({ kind: "plan", title: "Plan", summary: "Section every request", body: "1. Section every request" });
+      const buttons = permissionButtons(permission, "en", true);
+      expect(buttons.map((button) => button.label)).toEqual(["Dismiss", "Implement"]);
+      await respondToPermission(fake.paseo, "planning", buttons[0]!, permission.requestId);
+      expect(fake.permissionResponses).toEqual([{ agentId: "planning", requestId: "permission-codex-plan", response: { behavior: "deny", selectedActionId: "dismiss", message: "Denied by user" } }]);
+    } finally { mounted.unmount(); }
+  });
+
+  // The card names a plan by its first line; the whole plan opens from "View plan".
+  it.each([
+    ["# 把左右键同按新规则同步到 luoph-mini\n\n## Context\n本机已改好", "把左右键同按新规则同步到 luoph-mini"],
+    ["\n\n## **Ship** the `layout` ##\nsteps", "Ship the layout"],
+    ["- Section every request\n- Test it", "Section every request"],
+    ["2) Test it", "Test it"],
+    ["Plain   first\tline\nsecond", "Plain first line"],
+    ["  \n\n", null],
+    ["#", "#"],
+  ])("titles the plan %j as %j", (text, title) => {
+    expect(planTitle(text)).toBe(title);
+  });
+
+  it("reads a plan from its metadata when the input carries none", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("planning", { provider: "claude", status: "running", pendingPermissions: [{ ...claudeExitPlanRequest(), input: { plan: "  \n" }, metadata: { planText: "# From metadata" } }] as never })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.byId.get("planning")!.permission).toMatchObject({ summary: "From metadata", body: "# From metadata" });
+    } finally { mounted.unmount(); }
+  });
+
+  // Codex request_user_input (Plan mode) requires a description on each option, which a card cannot show.
+  it("leaves a Codex question whose options carry descriptions to the agent tab", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("asking", { provider: "codex", status: "running", pendingPermissions: [{
+        id: "permission-item-2", provider: "codex", name: "request_user_input", kind: "question", title: "Question",
+        input: { questions: [{ id: "plan_scope", header: "Scope", question: "Ship both fixes?", options: [
+          { label: "Both", description: "One release for the two fixes" }, { label: "First only", description: "Hold the second" },
+        ] }] },
+      }] })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(permissionButtons(mounted.current.byId.get("asking")!.permission!).map((button) => button.kind)).toEqual(["open"]);
+    } finally { mounted.unmount(); }
+  });
+
   it("retains the full pending Claude question and options for details", async () => {
     const fake = createFakePaseo({
       agents: [activeAgent("asking", { provider: "claude", status: "running", pendingPermissions: [{
@@ -876,6 +1003,131 @@ describe("Tasks data store", () => {
     expect(withReadMark({ ...card, lane: "running", status: "running" }, marked, 0).readable).toBeFalsy();
   });
 
+  it("moves a done card back to review when marked unread since its prompt and since any read", () => {
+    const card = { ...sampleCards(Date.parse("2026-10-22T10:00:00.000Z")).find((sample) => sample.id === "sample-done")! };
+    const prompted = Date.parse(card.timing.lastUserMessageAt ?? "");
+    const unreadAt = prompted + 60_000;
+    expect(withUnreadMark(card, unreadAt, undefined)).toMatchObject({ lane: "review", status: "unread", readable: true });
+    // A read at the same moment or later keeps the card done.
+    expect(withUnreadMark(card, unreadAt, unreadAt)).toMatchObject({ lane: "done", status: "done" });
+    expect(withUnreadMark(card, unreadAt, unreadAt + 1)).toMatchObject({ lane: "done", status: "done" });
+    expect(withUnreadMark(card, unreadAt, unreadAt - 1)).toMatchObject({ lane: "review", status: "unread", readable: true });
+    // A mark from before this prompt, a review card, and an archived card stay put.
+    expect(withUnreadMark(card, prompted - 1, undefined)).toMatchObject({ lane: "done", status: "done" });
+    expect(withUnreadMark(card, undefined, undefined)).toBe(card);
+    expect(withUnreadMark({ ...card, lane: "review", status: "unread" }, unreadAt, undefined).lane).toBe("review");
+    expect(withUnreadMark({ ...card, archived: "agent" }, unreadAt, undefined).lane).toBe("done");
+  });
+
+  it("moves a done card to review once its unread mark loads", async () => {
+    const prompt = Date.now() - 10 * 60_000;
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const fake = createFakePaseo({
+      agents: [activeAgent("finished", { status: "closed", updatedAt: iso(prompt), lastUserMessageAt: iso(prompt) })],
+      workspaces: [workspace()],
+    });
+    const loader = vi.fn(async () => [{ agentId: "finished", unreadAt: iso(prompt + 30_000) }]);
+    setUnreadMarksLoader(loader);
+    const mounted = await mountTasks(fake, "all");
+    try {
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "done", status: "done" });
+      await act(async () => {
+        mounted.current.refreshUnreads();
+        for (let index = 0; index < 6; index += 1) await Promise.resolve();
+      });
+      expect(loader).toHaveBeenCalled();
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "review", status: "unread", readable: true });
+    } finally {
+      mounted.unmount();
+      setUnreadMarksLoader(null);
+    }
+  });
+
+  it("drops the unread mark when the board opens the task, and keeps it if the server refuses", async () => {
+    // Marked unread on 11-10, opened later: the card must not come back to review.
+    const prompt = Date.now() - 10 * 60_000;
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("finished", { status: "closed", updatedAt: iso(prompt), lastUserMessageAt: iso(prompt) }),
+        activeAgent("other", { status: "closed", updatedAt: iso(prompt), lastUserMessageAt: iso(prompt) }),
+      ],
+      workspaces: [workspace()],
+    });
+    let server = [{ agentId: "finished", unreadAt: iso(prompt + 30_000) }, { agentId: "other", unreadAt: iso(prompt + 30_000) }];
+    const loader = vi.fn(async () => server);
+    let refuse = false;
+    let release!: () => void;
+    const clearer = vi.fn((agentIds: string[]) => new Promise<void>((resolve, reject) => {
+      release = () => {
+        if (refuse) reject(new Error("refused"));
+        else {
+          server = server.filter((mark) => !agentIds.includes(mark.agentId));
+          resolve();
+        }
+      };
+    }));
+    setUnreadMarksLoader(loader);
+    setUnreadClearer(clearer);
+    const settle = async () => {
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    };
+    const mounted = await mountTasks(fake, "all");
+    try {
+      await act(async () => {
+        mounted.current.refreshUnreads();
+        await settle();
+      });
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "review", status: "unread" });
+      const other = mounted.current.byId.get("other");
+      expect(other).toMatchObject({ lane: "review", status: "unread" });
+
+      await act(async () => {
+        openedTask(fake.paseo, "finished");
+        await settle();
+      });
+      // Out of review at once, before the server answers; the other card is untouched.
+      expect(clearer).toHaveBeenCalledWith(["finished"]);
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "done", status: "done" });
+      expect(mounted.current.byId.get("other")).toBe(other);
+
+      // A read that left before the clear landed still lists the mark: it does not move the card back.
+      await act(async () => {
+        mounted.current.refreshUnreads();
+        await settle();
+      });
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "done" });
+
+      await act(async () => {
+        release();
+        await settle();
+      });
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "done" });
+      await act(async () => {
+        mounted.current.refreshUnreads();
+        await settle();
+      });
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "done" });
+
+      // A server that refuses keeps its mark: the read after the failure puts the card back.
+      refuse = true;
+      await act(async () => {
+        openedTask(fake.paseo, "other");
+        await settle();
+      });
+      expect(mounted.current.byId.get("other")).toMatchObject({ lane: "done" });
+      await act(async () => {
+        release();
+        await settle();
+      });
+      expect(mounted.current.byId.get("other")).toMatchObject({ lane: "review", status: "unread" });
+    } finally {
+      mounted.unmount();
+      setUnreadMarksLoader(null);
+      setUnreadClearer(null);
+    }
+  });
+
   it.each(["feature/tasks", "feature-tasks"])("hides a workspace name that repeats branch %s", async (workspaceName) => {
     const fake = createFakePaseo({
       agents: [activeAgent("a", { status: "running" })],
@@ -930,30 +1182,34 @@ describe("Tasks data store", () => {
     }
   });
 
-  it("uses the placement project key, falls back to the project descriptor, and preserves unchanged cards", async () => {
+  it("uses the project descriptor's key (the sidebar's colour key), falls back to the placement's, and preserves unchanged cards", async () => {
     const placementAgent = activeAgent("placement", { status: "running", workspaceId: "ws" });
     const fallbackAgent = activeAgent("fallback", { status: "running", workspaceId: "ws" });
     const unknownAgent = activeAgent("unknown", { status: "running", workspaceId: "ws-unknown" });
+    const orphanAgent = activeAgent("orphan", { status: "running", workspaceId: "ws-unknown" });
     const fake = createFakePaseo({
-      agents: [placementAgent, fallbackAgent, unknownAgent],
+      agents: [placementAgent, fallbackAgent, unknownAgent, orphanAgent],
       workspaces: [workspace(), makeWorkspace({ id: "ws-unknown", projectId: "missing-project" })],
       projects: [{ ...PROJECT, projectKey: "descriptor-key" }],
       placements: {
-        placement: makePlacement(placementAgent, { projectKey: "placement-key" }),
+        // Paseo 0.14 fills the placement's projectKey with the project id.
+        placement: makePlacement(placementAgent, { projectKey: "project-id-not-key" }),
         fallback: makePlacement(fallbackAgent, { projectKey: "" }),
         unknown: makePlacement(unknownAgent, { projectKey: "" }),
+        orphan: makePlacement(orphanAgent, { projectKey: "placement-key" }),
       },
     });
     const mounted = await mountTasks(fake, "24h", false);
     try {
-      expect(mounted.current.byId.get("placement")?.location.projectKey).toBe("placement-key");
+      expect(mounted.current.byId.get("placement")?.location.projectKey).toBe("descriptor-key");
       expect(mounted.current.byId.get("fallback")?.location.projectKey).toBe("descriptor-key");
       expect(mounted.current.byId.get("unknown")?.location.projectKey).toBeNull();
+      expect(mounted.current.byId.get("orphan")?.location.projectKey).toBe("placement-key");
       const unchanged = mounted.current.byId.get("fallback");
       await act(async () => {
         fake.upsertAgent(
           activeAgent("placement", { status: "running", workspaceId: "ws", title: "Updated placement" }),
-          makePlacement(placementAgent, { projectKey: "placement-key" }),
+          makePlacement(placementAgent, { projectKey: "project-id-not-key" }),
         );
         await Promise.resolve();
       });
@@ -1079,6 +1335,110 @@ describe("Tasks data store", () => {
     } finally {
       mounted.unmount();
     }
+  });
+
+  describe("one agent update that reaches several lists", () => {
+    const flush = async () => { for (let index = 0; index < 8; index += 1) await Promise.resolve(); };
+    async function notifications(change: () => void) {
+      storeNotificationProbe.count = 0;
+      storeNotificationProbe.enabled = true;
+      try {
+        await act(async () => { change(); await flush(); });
+      } finally {
+        storeNotificationProbe.enabled = false;
+      }
+      return storeNotificationProbe.count;
+    }
+
+    it("notifies once for a running agent the status and attention lists both send", async () => {
+      const fake = createFakePaseo({ agents: [activeAgent("both", { status: "running", updatedAt: recentIso(5_000) })], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        // The daemon sends the same snapshot on each list it matches: running, and needing attention.
+        const updated = activeAgent("both", { status: "running", requiresAttention: true, attentionReason: "finished", title: "Asked again", updatedAt: recentIso(0) });
+        expect(await notifications(() => fake.upsertAgent(updated))).toBe(1);
+        expect(mounted.current.byId.get("both")).toMatchObject({ lane: "running", title: "Asked again" });
+        // The same snapshot again, on any list, changes nothing.
+        const before = mounted.current;
+        expect(await notifications(() => fake.pushAgentSnapshot(structuredClone(updated)))).toBe(0);
+        expect(mounted.current).toBe(before);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("notifies once for an idle agent the attention and done lists both send", async () => {
+      const fake = createFakePaseo({ agents: [activeAgent("finished", { status: "running", updatedAt: recentIso(5_000) })], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        const done = activeAgent("finished", { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(0) });
+        expect(await notifications(() => fake.upsertAgent(done))).toBe(1);
+        expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "review", status: "unread" });
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("still notifies a status change sent with the same updatedAt", async () => {
+      // The daemon has sent a new status stamped with the time of the one before (initializing, then idle).
+      const stamp = recentIso(5_000);
+      const fake = createFakePaseo({ agents: [activeAgent("stamped", { status: "running", updatedAt: stamp })], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        expect(mounted.current.byId.get("stamped")).toMatchObject({ lane: "running" });
+        const idle = activeAgent("stamped", { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: stamp });
+        expect(await notifications(() => fake.upsertAgent(idle))).toBeGreaterThan(0);
+        expect(mounted.current.byId.get("stamped")).toMatchObject({ lane: "review", status: "unread" });
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("still notifies the same agent sent with another placement", async () => {
+      const agent = activeAgent("moved", { status: "running", updatedAt: recentIso(5_000) });
+      const fake = createFakePaseo({ agents: [agent], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        // The same agent record, sent with another project placement: the card's project follows it.
+        const before = mounted.current.byId.get("moved")!;
+        const placement = { ...makePlacement(agent), projectKey: "other-project", projectName: "Other project" };
+        expect(await notifications(() => fake.upsertAgent(structuredClone(agent), placement))).toBeGreaterThan(0);
+        expect(mounted.current.byId.get("moved")).not.toEqual(before);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("still notifies a resent snapshot that brings a parent's row up to date", async () => {
+      // A provider's model names rebuild its agents' cards one by one, in the
+      // order the store holds them: a parent held first draws its row for the
+      // child before the child's card has the name, and a child whose status
+      // stays does not refresh its parent. A resent snapshot of the child
+      // refreshes its parent, so the board must hear it.
+      const catalog: PaseoProviderModelsResult["models"] = [{
+        provider: "claude",
+        id: "claude-opus-5-5",
+        label: "Claude Opus 5.5",
+        defaultThinkingOptionId: "high",
+        thinkingOptions: [{ id: "high", label: "High", isDefault: true }],
+      }];
+      const child = activeAgent("child", { status: "running", provider: "claude", model: "claude-opus-5-5", labels: { "paseo.parent-agent-id": "parent" }, updatedAt: recentIso(9_000) });
+      const fake = createFakePaseo({
+        // The newer parent comes first in the list, so the store holds it first.
+        agents: [activeAgent("parent", { status: "running", provider: "claude", model: "claude-opus-5-5", updatedAt: recentIso(5_000) }), child],
+        workspaces: [workspace()],
+        models: { claude: catalog },
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        expect(mounted.current.byId.get("child")?.modelLabel).toBe("Claude Opus 5.5");
+        expect(mounted.current.byId.get("parent")?.children.map((row) => row.modelLabel)).toEqual(["claude-opus-5-5"]);
+        expect(await notifications(() => fake.pushAgentSnapshot(structuredClone(child)))).toBeGreaterThan(0);
+        expect(mounted.current.byId.get("parent")?.children.map((row) => row.modelLabel)).toEqual(["Claude Opus 5.5"]);
+      } finally {
+        mounted.unmount();
+      }
+    });
   });
 
   it("notifies store listeners once for a multi-agent subscription snapshot", async () => {
@@ -1406,6 +1766,99 @@ describe("Tasks data store", () => {
       expect(mounted.current.byId.get("child")?.parent).toMatchObject({ missing: true, archived: true });
     } finally {
       mounted.unmount();
+    }
+  });
+
+  it("names the parent the server saw archive a task's link as history, never as a live subtask", async () => {
+    let origins = [{ agentId: "both", parentAgentId: "gone" }, { agentId: "lost", parentAgentId: "gone" }];
+    let version = 1;
+    setSubagentLoader(async () => ({ version: "s", subagents: [] }));
+    setParentOriginsLoader(async (since) => (since === String(version) ? { version: String(version), origins: null } : { version: String(version), origins }));
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("parent", { status: "running", title: "Parent", updatedAt: at(10) }),
+        activeAgent("child", { status: "running", title: "Child", labels: { "paseo.parent-agent-id": "parent" } }),
+        activeAgent("by-hand", { status: "running", title: "Detached by hand", labels: { "paseo.parent-agent-id": "parent" } }),
+        activeAgent("both", { status: "idle", updatedAt: at(9), title: "Live parent too", labels: { "paseo.parent-agent-id": "parent" } }),
+        activeAgent("lost", { status: "running", title: "Parent unreadable" }),
+      ],
+    });
+    const mounted = await mountTasks(fake, "all");
+    // An agent update brings the next read of the server's origins forward.
+    const settle = () => act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1_600));
+    });
+    try {
+      await act(async () => {
+        await vi.waitFor(() => expect(mounted.current.byId.get("lost")?.parent).not.toBeNull());
+      });
+      // A former parent that cannot be read stays named by id, unknown rather than guessed.
+      expect(mounted.current.byId.get("lost")?.parent).toEqual({ id: "gone", title: null, missing: true, archived: null, detached: true });
+      // A live parent label wins over a recorded origin.
+      expect(mounted.current.byId.get("both")?.parent).toEqual({ id: "parent", title: "Parent", missing: false, archived: false });
+      expect(mounted.current.byId.get("parent")?.children.map((child) => child.id)).toEqual(["child", "by-hand", "both"]);
+
+      // Detached by hand: the label goes and the server records nothing, so the card names no parent.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("by-hand", { status: "running", title: "Detached by hand", updatedAt: at(11) }));
+      });
+      await settle();
+      expect(mounted.current.byId.get("by-hand")?.parent).toBeNull();
+
+      // The daemon archives the parent and detaches the surviving child; the server confirms it.
+      origins = [...origins, { agentId: "child", parentAgentId: "parent" }];
+      version = 2;
+      await act(async () => {
+        fake.upsertAgent(activeAgent("parent", { status: "closed", title: "Parent", updatedAt: at(12), archivedAt: at(12) }));
+        fake.upsertAgent(activeAgent("child", { status: "running", title: "Child", updatedAt: at(13) }));
+      });
+      await settle();
+      const detached = mounted.current.byId.get("child");
+      expect(detached?.parent).toEqual({ id: "parent", title: "Parent", missing: true, archived: true, archivedAs: "agent", detached: true });
+      expect(mounted.current.byId.get("by-hand")?.parent).toBeNull();
+      // Still its own running task: not folded, not waiting on, not stopped with the parent.
+      expect(detached?.lane).toBe("running");
+      expect(filterLanes(mounted.current.lanes, { ...EMPTY_FILTERS, hideSubtasks: true }).running.cards.map((card) => card.id)).toContain("child");
+
+      // Restoring the parent does not reattach the child: the link stays history.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("parent", { status: "idle", title: "Parent", updatedAt: at(14), archivedAt: null }));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      const restored = mounted.current.byId.get("parent");
+      expect(restored?.children.map((child) => child.id)).toEqual(["both"]);
+      // Its only live child is idle; the running detached task does not keep it waiting.
+      expect(restored?.waitingOnSubtasks).toBeUndefined();
+      expect(mounted.current.byId.get("child")?.parent).toEqual({ id: "parent", title: "Parent", missing: false, archived: false, detached: true });
+
+      // The former parent's rename reaches the child's link.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("parent", { status: "idle", title: "Renamed parent", updatedAt: at(15), archivedAt: null }));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("child")?.parent).toMatchObject({ title: "Renamed parent", detached: true });
+
+      // Done, it stays a card when subtasks are hidden: hiding folds only live subtasks.
+      await act(async () => {
+        fake.upsertAgent(activeAgent("child", { status: "idle", title: "Child", updatedAt: at(16) }));
+        for (let index = 0; index < 4; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("child")?.lane).not.toBe("running");
+      const hidden = filterLanes(mounted.current.lanes, { ...EMPTY_FILTERS, hideSubtasks: true });
+      expect(LANE_ORDER.flatMap((lane) => hidden[lane].cards.map((card) => card.id))).toContain("child");
+
+      // The server forgets it (a live parent again elsewhere): the card follows.
+      origins = origins.filter((origin) => origin.agentId !== "child");
+      version = 3;
+      await act(async () => {
+        fake.upsertAgent(activeAgent("other", { status: "running" }));
+      });
+      await settle();
+      expect(mounted.current.byId.get("child")?.parent).toBeNull();
+    } finally {
+      mounted.unmount();
+      setSubagentLoader(null);
+      setParentOriginsLoader(null);
     }
   });
 
@@ -1753,6 +2206,23 @@ describe("Tasks data store", () => {
       expect(fake.openSubscriptions()).toBe(0);
     });
 
+    it("exposes only visible question requests and follows changes without a count change", async () => {
+      const asking = { id: "q", provider: "claude", name: "AskUserQuestion", kind: "question" as const, title: "Question", input: { questions: [{ header: "One", question: "Choose", options: [{ label: "Yes" }] }] } };
+      const fake = createFakePaseo({ agents: [activeAgent("question", { status: "running", pendingPermissions: [asking] }), activeAgent("tool", { status: "running", pendingPermissions: [permission] })] });
+      let current!: ReturnType<typeof useTaskCounts>;
+      const scope = { filters: EMPTY_FILTERS };
+      function Counts() { current = useTaskCounts(fake.paseo, false, scope, true); return null; }
+      let renderer!: Renderer;
+      await act(async () => { renderer = TestRenderer.create(React.createElement(Counts)); for (let i = 0; i < 8; i++) await Promise.resolve(); });
+      try {
+        expect(current.needsInput).toBe(2);
+        expect(current.questions?.map((card) => card.id)).toEqual(["question"]);
+        await act(async () => { fake.upsertAgent(activeAgent("question", { status: "running", pendingPermissions: [permission], updatedAt: at(12) })); await Promise.resolve(); });
+        expect(current.needsInput).toBe(2);
+        expect(current.questions).toEqual([]);
+      } finally { act(() => renderer.unmount()); }
+    });
+
     it("count what the board's filters leave on each lane, and count again when they change", async () => {
       const fake = createFakePaseo({
         agents: [
@@ -1781,9 +2251,15 @@ describe("Tasks data store", () => {
         act(() => renderer.update(React.createElement(Counts)));
         // The running child shows on its running parent's card, not as a card of its own.
         expect(current.running).toBe(2);
+        expect(current.hidden?.map((card) => card.id)).toEqual([]);
         scope = claude;
         act(() => renderer.update(React.createElement(Counts)));
         expect(current.running).toBe(1);
+        expect(current.hidden?.map((card) => card.id)).toEqual(["other"]);
+        scope = { filters: { ...EMPTY_FILTERS, query: "no matching task" } };
+        act(() => renderer.update(React.createElement(Counts)));
+        expect(current.running).toBe(0);
+        expect(current.hidden?.map((card) => card.id).sort()).toEqual(["child", "other", "parent"]);
       } finally {
         act(() => renderer.unmount());
       }
@@ -2262,9 +2738,9 @@ describe("Tasks data store", () => {
       });
     });
 
-    it("lets a failure go once the parent is prompted after it, and keeps a working parent's lane", () => {
+    it("retains an old failure without failing a parent prompted after it", () => {
       const prompted = { ...doneCard(), timing: { ...doneCard().timing, lastUserMessageAt: "2026-10-22T09:30:00.000Z" } };
-      expect(withSubagents(prompted, [subagent("a")])).toBe(prompted);
+      expect(withSubagents(prompted, [subagent("a")])).toMatchObject({ lane: "done", status: "done", error: null, children: [{ id: "a", status: "failed" }] });
       const running = { ...doneCard(), lane: "running" as const, status: "running" as const };
       const shown = withSubagents(running, [subagent("a")]);
       expect(shown).toMatchObject({ lane: "running", status: "running", error: null });
@@ -2272,6 +2748,13 @@ describe("Tasks data store", () => {
       // A failure of its own keeps its own reason.
       const failed = { ...doneCard(), lane: "review" as const, status: "failed" as const, error: "API error" };
       expect(withSubagents(failed, [subagent("a")]).error).toBe("API error");
+    });
+
+    it("retains completed and canceled provider subagents after a later prompt", () => {
+      const parent = { ...doneCard(), timing: { ...doneCard().timing, lastUserMessageAt: "2026-10-22T09:30:00.000Z" } };
+      const card = withSubagents(parent, [subagent("done", { status: "completed" }), subagent("canceled", { status: "canceled" })]);
+      expect(card.children.map((child) => [child.id, child.status, child.lane])).toEqual([["done", "done", "done"], ["canceled", "done", "done"]]);
+      expect(card).toMatchObject({ lane: "done", status: "done", error: null });
     });
 
     it("moves a done parent to review on the board and drops it when the failures go", async () => {

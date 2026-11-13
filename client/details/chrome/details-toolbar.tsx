@@ -1,5 +1,5 @@
 /**
- * The details panel's toolbar (docs/prototypes/block-details-sheet.md,
+ * The details panel's toolbar (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md,
  * "工具栏"; tables 5.2 and 5.8): line wrap and the content's own controls
  * (pager, render / raw, a question's raw toggle) at the left; its copy
  * buttons, "⋯" for those that do not fit, and full screen at the right. 44

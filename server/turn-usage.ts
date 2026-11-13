@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { PaseoAgentTimelineHandle } from "@getpaseo/client";
+import type { PaseoAgentTimelineHandle } from "./paseo-types";
 import type { PluginServerContext, PluginTurnOutcome } from "@getpaseo/plugin/server";
 import { z } from "zod";
 import { pluginDataDir } from "./plugin-data";

@@ -777,7 +777,7 @@ export function SyntaxHighlightBlock({
               <>
                 {scrollX ? (
                   <ToggleIconButton
-                    icon="WrapText"
+                    icon={wrapped ? "WrapText" : "AlignLeft"}
                     label={wrapped ? "Do not wrap lines" : "Wrap lines"}
                     active={wrapped}
                     onPress={() => setWrapped((value) => !value)}
@@ -873,7 +873,7 @@ export function codeLanguageLabel(language: string | undefined, filename?: strin
   return LANGUAGE_LABELS[key] ?? key;
 }
 
-/** A 24pt icon button with a pressed-in look while `active` (Wrap). */
+/** A 24pt icon button for the block's Wrap toggle. */
 function ToggleIconButton({
   icon,
   label,
@@ -897,10 +897,10 @@ function ToggleIconButton({
       onPress={onPress}
       style={({ pressed }) => [
         toggleStyles.button,
-        (active || pressed) && { backgroundColor: tokens.v2.surface2 },
+        pressed && { backgroundColor: tokens.v2.surface2 },
       ]}
     >
-      <Icon name={icon} size={TYPE.button.size + 1} color={active ? tokens.foreground : tokens.foregroundMuted} />
+      <Icon name={icon} size={TYPE.button.size + 1} color={tokens.foregroundMuted} />
     </Pressable>
   );
 }

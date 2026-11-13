@@ -18,7 +18,7 @@ vi.mock("../../client/details/details-store", () => ({
   useMarkerPhase: () => state.marker,
 }));
 vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: vi.fn(() => state.reduced) }));
-vi.mock("../../client/ui/use-input-capabilities", () => ({ useInputCapabilities: () => {
+vi.mock("../../client/ui/use-input-capabilities", () => ({ noteHover: () => {}, useInputCapabilities: () => {
   const native = (globalThis as { __rnMockOS?: string }).__rnMockOS !== "web";
   return { native, hover: !native, touch: native, compact: native };
 } }));
@@ -50,6 +50,7 @@ import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { classifyTool, type ToolCallView } from "../../client/tools/classify";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { Animated, StyleSheet } from "./helpers/rn-mock";
+import { ToolbarCopyButton } from "../../client/ui/toolbar-button";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -360,6 +361,21 @@ describe("other detail callers", () => {
 });
 
 describe("current marker", () => {
+  it("keeps a highlighted row's action centered on a translucent hover fill", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    state.current = "call:preview"; state.marker = "on";
+    render(header({ actionsActive: true, actions: <ToolbarCopyButton text="npm test" label="Copy command" tokens={tokens} /> }));
+    const button = buttons("Copy command")[0]!;
+    let overlay = button.parent;
+    while (overlay && StyleSheet.flatten(overlay.props.style).flexDirection !== "row") overlay = overlay.parent;
+    expect(overlay).not.toBeNull();
+    expect(StyleSheet.flatten(overlay!.props.style)).toMatchObject({ flexDirection: "row", alignItems: "center" });
+    expect(StyleSheet.flatten(overlay!.props.style).backgroundColor).toBeUndefined();
+    act(() => button.props.onHoverIn());
+    const look = StyleSheet.flatten(button.props.style);
+    expect(look).toMatchObject({ width: 24, height: 24, alignItems: "center", justifyContent: "center", backgroundColor: tokens.surface2 });
+    expect(look.backgroundColor).toMatch(/^rgba\(/);
+  });
   it.each([[false, 200], [true, 120]] as const)("mounts only on selection and preserves close, fade and reopening (reduced=%s)", (reduced, duration) => {
     vi.useFakeTimers(); state.reduced = reduced;
     const timing = vi.spyOn(Animated, "timing");

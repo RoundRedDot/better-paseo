@@ -1,6 +1,18 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
+const errorDismissalSchema = z.object({ agentId: z.string(), error: z.string(), dismissedAt: z.number() });
+export const tasksErrorDismissalsRpc = defineRpc({
+  name: "tasks.error-dismissals",
+  input: z.object({}),
+  output: z.object({ entries: z.array(errorDismissalSchema) }),
+});
+export const tasksDismissErrorRpc = defineRpc({
+  name: "tasks.dismiss-error",
+  input: z.object({ agentId: z.string().min(1).max(256), error: z.string().min(1) }),
+  output: errorDismissalSchema,
+});
+
 /**
  * The Tasks board's server RPCs.
  *
@@ -67,6 +79,43 @@ export const tasksReadsRpc = defineRpc({
 });
 
 /**
+ * Marks done agents unread: clears their read mark and records an unread
+ * mark (`tasks.unreads`), so the board moves that card from done to review.
+ * When the connected daemon client can mark one agent unread, the server
+ * also asks it to; a host without that call still moves the card. Never
+ * rejects for a missing daemon method.
+ */
+export const tasksUnreadRpc = defineRpc({
+  name: "tasks.unread",
+  input: z.object({ agentIds: z.array(z.string().min(1)).min(1).max(50) }),
+  output: z.object({ ok: z.boolean(), error: z.string().nullable() }),
+});
+
+/**
+ * The board opened these agents in Paseo: their unread marks go, as Mark read
+ * would drop them, but the daemon is not asked to clear anything (opening the
+ * agent already does). Only the unread marks: a failure the board reads stays
+ * for Mark read. Clearing an agent without a mark is a no-op.
+ */
+export const tasksUnreadClearRpc = defineRpc({
+  name: "tasks.unread-clear",
+  input: z.object({ agentIds: z.array(z.string().min(1)).min(1).max(50) }),
+  output: z.object({ ok: z.boolean(), error: z.string().nullable() }),
+});
+
+/**
+ * The agents marked unread through `tasks.unread`, with when. Kept like the
+ * reads: in a file, until Mark read, the agent's next turn, or archive, 30
+ * days at most, or until the board opens the agent (`tasks.unread-clear`). A
+ * mark older than the latest prompt does not move the card.
+ */
+export const tasksUnreadsRpc = defineRpc({
+  name: "tasks.unreads",
+  input: z.object({}),
+  output: z.object({ unreads: z.array(z.object({ agentId: z.string(), unreadAt: z.string() })) }),
+});
+
+/**
  * The agents stopped through `tasks.stop`, with when, newest last, so a board
  * opened later (another client, the app after a restart) can still say
  * "Stopped manually". The server keeps them in a file under its data
@@ -84,7 +133,7 @@ export const tasksStoppedRpc = defineRpc({
 /**
  * A subagent the provider runs inside its parent's session (Claude's Agent
  * tool, Codex's and Pi's own), as the daemon describes it
- * (`ProviderSubagentDescriptorPayload`). Not a Paseo agent: no card, no tab,
+ * (`ProviderSubagentDescriptorPayload`). Not a Paseo agent: no tab,
  * no `paseo.parent-agent-id` label.
  */
 export const providerSubagentSchema = z.object({
@@ -95,7 +144,7 @@ export const providerSubagentSchema = z.object({
   title: z.string().nullable(),
   /** The task it was given ("RRD-10161 desktop native fatal"); names a fan-out's siblings. */
   description: z.string().nullable(),
-  status: z.enum(["running", "failed"]),
+  status: z.enum(["running", "completed", "failed", "canceled"]),
   createdAt: z.string(),
   updatedAt: z.string(),
   /** The provider's own facts line: the subagent type, model, effort and tokens, dot-separated. */
@@ -104,7 +153,7 @@ export const providerSubagentSchema = z.object({
 export type ProviderSubagent = z.output<typeof providerSubagentSchema>;
 
 /**
- * The running and failed provider subagents of every agent, as the plugin
+ * The running and recent finished provider subagents, as the plugin
  * server last heard of them. `PaseoApi` cannot list them, so the server
  * reads the daemon once over its own connection and follows its updates
  * after that. `version` changes with the list: asked with the version it
@@ -114,6 +163,25 @@ export const tasksSubagentsRpc = defineRpc({
   name: "tasks.subagents",
   input: z.object({ since: z.string().optional() }),
   output: z.object({ version: z.string(), subagents: z.array(providerSubagentSchema).nullable() }),
+});
+
+/** An agent detached when its parent was archived, and that parent. */
+export const parentOriginSchema = z.object({ agentId: z.string(), parentAgentId: z.string() });
+export type ParentOrigin = z.output<typeof parentOriginSchema>;
+
+/**
+ * The parents whose archive is inferred to have detached a surviving child.
+ * Paseo clears the child's `paseo.parent-agent-id` then, exactly as a detach
+ * by hand does, so the server infers the cause from what it saw happen and
+ * when (`server/tasks/parent-origins.ts`, which lists the cases it gets
+ * wrong). History only: the child is a task of its own. Kept in a file, so a
+ * restart keeps them; a file it cannot read fails the call. `version` works
+ * as `tasks.subagents`'s; an older server lacks the RPC.
+ */
+export const tasksParentOriginsRpc = defineRpc({
+  name: "tasks.parent-origins",
+  input: z.object({ since: z.string().optional() }),
+  output: z.object({ version: z.string(), origins: z.array(parentOriginSchema).nullable() }),
 });
 
 /** One row of a provider subagent's timeline, as far as the details read it: its kind, text and time. */

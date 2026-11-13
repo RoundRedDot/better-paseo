@@ -21,8 +21,11 @@ export function createConversationSearch(load: Loader): SearchCoverageControl & 
   query(): string;
   version(): number;
   retryCard(card: TaskCard): Promise<void>;
+  setPaused(paused: boolean): void;
 } {
   let query = "";
+  let paused = false;
+  let generation = 0;
   let cards = new Map<string, TaskCard>();
   const records = new Map<string, RecordState>();
   const queue = new Set<string>();
@@ -30,16 +33,15 @@ export function createConversationSearch(load: Loader): SearchCoverageControl & 
   const listeners = new Set<() => void>();
   let revision = 0;
   let matches: ReadonlyMap<string, string> = EMPTY_MESSAGES;
-  let counts = { pending: 0, unavailable: 0, failed: 0, retrying: 0 };
+  let counts = { pending: 0, loaded: 0 };
   const publish = () => {
     revision++;
-    const next = { pending: 0, unavailable: 0, failed: 0, retrying: 0 };
+    const next = { pending: 0, loaded: 0 };
     for (const record of records.values()) {
       if (record.prompt.state === "loading") next.pending++;
-      if (record.prompt.state === "error") record.prompt.unavailable ? next.unavailable++ : next.failed++;
-      if (record.retrying) next.retrying++;
+      else if (record.prompt.state === "ready" || record.prompt.state === "none") next.loaded++;
     }
-    if (Object.keys(next).some((key) => next[key as keyof typeof next] !== counts[key as keyof typeof counts])) counts = next;
+    if (next.pending !== counts.pending || next.loaded !== counts.loaded) counts = next;
     for (const listener of listeners) listener();
   };
   const eligible = (card: TaskCard) => {
@@ -47,20 +49,21 @@ export function createConversationSearch(load: Loader): SearchCoverageControl & 
     return !card.closed && owner !== undefined && !owner.closed && !owner.availability?.blocked.read && !card.availability?.blocked.read;
   };
   const pump = () => {
-    while (query && inflight.size < 2 && queue.size) {
+    while (query && !paused && inflight.size < 2 && queue.size) {
       const id = queue.values().next().value!;
       queue.delete(id);
       const record = records.get(id)!;
       const card = cards.get(id)!;
       if (!eligible(card)) { record.prompt = UNAVAILABLE; record.retrying = false; publish(); continue; }
       const currentQuery = query;
+      const run = generation;
       const request = Promise.resolve().then(() => {
-        if (query !== currentQuery || records.get(id) !== record) return null;
+        if (generation !== run || query !== currentQuery || records.get(id) !== record) return null;
         const remaining = currentQuery.split(/\s+/).filter((word) => !taskSearchText(card).includes(word)).join(" ");
         return load({ agentId: id, ...(card.subagent ? { parentAgentId: card.parent!.id } : {}), query: remaining || currentQuery, ...(record.cursor ? { cursor: record.cursor } : {}) });
       }).then((page) => {
         if (!page) return;
-        if (query !== currentQuery || records.get(id) !== record) return;
+        if (generation !== run || query !== currentQuery || records.get(id) !== record) return;
         if (!eligible(cards.get(id)!)) record.prompt = UNAVAILABLE;
         else if (page.unavailable) record.prompt = UNAVAILABLE;
         else if (page.error) record.prompt = { state: "error", field: "conversation" };
@@ -75,7 +78,7 @@ export function createConversationSearch(load: Loader): SearchCoverageControl & 
         record.retrying = false;
         publish();
       }, () => {
-        if (query !== currentQuery || records.get(id) !== record) return;
+        if (generation !== run || query !== currentQuery || records.get(id) !== record) return;
         record.prompt = { state: "error", field: "conversation" };
         record.retrying = false;
         publish();
@@ -109,8 +112,14 @@ export function createConversationSearch(load: Loader): SearchCoverageControl & 
     messages: () => matches,
     query: () => query,
     version: () => revision,
-    retry: () => retry([...records.keys()]),
     retryCard: (card) => retry([card.id]),
+    setPaused(next) {
+      if (paused === next) return;
+      paused = next;
+      generation++;
+      if (!paused) for (const [id, record] of records) if (record.prompt.state === "loading") queue.add(id);
+      pump();
+    },
     configure(nextCards, nextQuery) {
       const normalized = nextQuery.trim().toLowerCase();
       if (query !== normalized) { records.clear(); queue.clear(); matches = EMPTY_MESSAGES; }
@@ -150,10 +159,11 @@ export function conversationSearchFor(api: PaseoApi) {
   return store;
 }
 
-export function useSearchConversations(api: PaseoApi, lanes: Record<LaneId, LaneModel>, query: string) {
+export function useSearchConversations(api: PaseoApi, lanes: Record<LaneId, LaneModel>, query: string, enabled = true) {
   const store = conversationSearchFor(api);
   const cards = useMemo(() => LANE_ORDER.flatMap((id) => lanes[id].cards), [lanes]);
   const key = JSON.stringify(cards.map((card) => [card.id, card.closed, card.parent?.id, card.timing.lastUserMessageAt, card.timing.lastTurnEndedAt, card.availability?.blocked.read?.code]));
+  useEffect(() => { store.setPaused(!enabled); }, [store, enabled]);
   useEffect(() => {
     if (!query.trim()) { store.configure([], ""); return; }
     const timer = setTimeout(() => store.configure(cards, query), 200);

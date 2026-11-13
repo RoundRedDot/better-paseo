@@ -49,6 +49,17 @@ describe("classifyAgent", () => {
 
   it("puts initializing agents in the running lane, as the spec's rule 3 says", () => {
     expect(classifyAgent({ status: "initializing" })).toEqual({ lane: "running", status: "running" });
+    expect(classifyAgent({ status: "initializing", lastUserMessageAt: null, hasActiveTurn: false })).toEqual({ lane: "running", status: "running" });
+    expect(classifyAgent({ status: "initializing", lastUserMessageAt: "2026-11-07T13:16:01.827Z", hasActiveTurn: true })).toEqual({ lane: "running", status: "running" });
+  });
+
+  it("keeps history initialization settled while preserving attention, errors and permissions", () => {
+    const restoring = { status: "initializing" as const, lastUserMessageAt: "2026-11-07T13:16:01.827Z", hasActiveTurn: false };
+    expect(classifyAgent(restoring)).toEqual({ lane: "done", status: "done" });
+    expect(classifyAgent({ ...restoring, requiresAttention: true, attentionReason: "finished" })).toEqual({ lane: "review", status: "unread" });
+    expect(classifyAgent({ ...restoring, lastError: "Rate limit exceeded." })).toEqual({ lane: "review", status: "failed" });
+    expect(classifyAgent({ ...restoring, attentionReason: "error" })).toEqual({ lane: "review", status: "failed" });
+    expect(classifyAgent({ ...restoring, pendingPermissionCount: 1, lastError: "Rate limit exceeded." })).toEqual({ lane: "needs_input", status: "needs_input" });
   });
 
   it("fails a settled agent that kept its last error", () => {

@@ -36,9 +36,11 @@ import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { previewSampleCards } from "../../client/tasks/sample-cards";
+import { asExitPlan } from "./helpers/plan-request";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { TasksTypography, TasksTypographyScale, HOST_FONT } from "../../client/tasks/typography";
 import { variantMetrics } from "../../client/components/markdown/render/styles";
+import { measureHostTree } from "./helpers/yoga-host-layout";
 
 const NOW = Date.parse("2026-10-20T09:00:00Z");
 const THEME = { colors: {
@@ -73,11 +75,81 @@ function props(children: boolean): TaskDetailCardsProps {
 function host(root: ReactTestInstance, id: string) {
   return root.find((node) => typeof node.type === "string" && node.props.testID === id);
 }
+function texts(root: ReactTestInstance): string[] {
+  return root.findAll((node) => (node.type as unknown) === "Text").flatMap((node) => node.children.filter((child): child is string => typeof child === "string"));
+}
 function order(root: ReactTestInstance) {
   return root.findAll((node) => typeof node.type === "string" && ORDER.includes(node.props.testID)).map((node) => node.props.testID);
 }
 
 describe("details columns", () => {
+  it.each([["zh", "基本信息", "消息"], ["en", "Info", "Messages"]] as const)("keeps %s tab labels unchanged when search matches both pages", async (language, info, messages) => {
+    const base = props(false);
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...base} card={{ ...base.card, location: { ...base.card.location, branch: "needle" } }} language={language} columns={false} tabs searchQuery="needle" firstPrompt={{ prompt: { state: "ready", text: "needle" }, load() {} }} />);
+    });
+    for (const [id, label] of [["info", info], ["messages", messages]]) {
+      const text = host(renderer!.root, `detail-tab-${id}`).find((node) => (node.type as unknown) === "Text");
+      expect(text.props.children).toBe(label);
+    }
+  });
+  it.each([
+    { os: "android", touch: true, scrollHeader: true, corner: "detail-sheet-toggle" },
+    { os: "ios", touch: true, scrollHeader: true, corner: "detail-sheet-toggle" },
+    { os: "web", touch: false, scrollHeader: false, corner: "detail-close" },
+  ] as const)("puts the $os corner control on the card corner's diagonal", async ({ os, touch, scrollHeader, corner }) => {
+    vi.stubGlobal("__rnMockOS", os);
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(false)} touch={touch} columns={false} tabs scrollHeader={scrollHeader} onMenu={() => {}} onClose={touch ? undefined : () => {}} sheetToggle={touch ? { full: false, label: "Expand", onPress() {} } : undefined} />);
+    });
+    const card = host(renderer!.root, "detail-cards");
+    const frames = measureHostTree(card, { width: 560 });
+    const box = frames.get(card)!;
+    const control = frames.get(host(renderer!.root, corner))!;
+    const right = box.left + box.width - (control.left + control.width / 2);
+    const top = control.top + control.height / 2 - box.top;
+    expect(Math.abs(right - top)).toBeLessThan(0.6);
+    // The menu beside it keeps its place against it.
+    const menu = frames.get(host(renderer!.root, "detail-menu"))!;
+    expect(menu.top + menu.height / 2).toBeCloseTo(control.top + control.height / 2, 1);
+    expect(control.left - (menu.left + menu.width)).toBeCloseTo(0, 1);
+  });
+  it.each(["ios", "android", "web"].flatMap((os) => [false, true].map((sheet) => ({ os, sheet }))))("sizes detail action bar spacing for $os sheet=$sheet", async ({ os, sheet }) => {
+    vi.stubGlobal("__rnMockOS", os);
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false} tabs scrollHeader onOpen={() => {}} sheetToggle={sheet ? { full: false, label: "Expand", onPress() {} } : undefined} />);
+    });
+    expect(StyleSheet.flatten(host(renderer!.root, "detail-action-bar").props.style).paddingTop).toBe((os === "android" && sheet ? 6 : 10) + (os === "web" ? 0 : 4));
+    expect(StyleSheet.flatten(host(renderer!.root, "detail-action-bar-frame").props.style).paddingBottom).toBe(os === "android" && sheet ? 6 : 10);
+    expect(StyleSheet.flatten(host(renderer!.root, "detail-bar-open").props.style).height).toBe(os === "web" ? 34 : 36);
+  });
+  it.each(["ios", "android", "web"])("keeps the status toolbar above the scrolling header and sticky tabs on %s", async (os) => {
+    vi.stubGlobal("__rnMockOS", os);
+    const onMenu = vi.fn();
+    const onClose = vi.fn();
+    const toggle = vi.fn();
+    await act(async () => {
+      renderer = TestRenderer.create(<TaskDetailCards {...props(false)} columns={false} tabs scrollHeader onMenu={onMenu} onClose={onClose} sheetToggle={{ full: false, label: "Expand", onPress: toggle }} />, {
+        createNodeMock: (element) => (element.props as { collapsable?: boolean }).collapsable === false ? { measureInWindow: (callback: (x: number, y: number, width: number, height: number) => void) => callback(10, 20, 30, 40) } : null,
+      });
+    });
+    const root = renderer!.root;
+    const scroll = host(root, "detail-tab-short-scroll");
+    const toolbar = host(root, "detail-status-row");
+    expect(scroll.findAll((node) => node === toolbar)).toHaveLength(0);
+    const order = host(root, "detail-cards").findAll((node) => typeof node.type === "string" && (node.props.testID === "detail-status-row" || node.props.testID === "detail-tab-short-scroll"));
+    expect(order).toEqual([toolbar, scroll]);
+    expect(scroll.props.stickyHeaderIndices).toEqual([1]);
+    await act(async () => {
+      scroll.props.onScroll({ nativeEvent: { contentOffset: { y: 500 } } });
+      host(root, "detail-sheet-toggle").props.onPress();
+      host(root, "detail-menu").props.onPress();
+      host(root, "detail-close").props.onPress();
+    });
+    expect(toggle).toHaveBeenCalledOnce();
+    expect(onMenu).toHaveBeenCalledWith({ x: 40, y: 60 });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
   it.each([false, true])("shows a read-only pending question with selection marks (multiSelect: %s)", async (multiSelect) => {
     const base = props(false);
     const card = { ...base.card, lane: "needs_input" as const, permission: {
@@ -304,7 +376,6 @@ describe("details columns", () => {
     const read = (y: number) => scroll.props.onScroll({ nativeEvent: { contentOffset: { y } } });
     await act(async () => {
       read(320);
-      host(root, "detail-prompt-more").props.onPress();
       host(root, "detail-tab-info").props.onPress();
     });
     expect(host(root, "detail-tab-messages-content")).toBe(messages);
@@ -341,7 +412,8 @@ describe("details columns", () => {
     const root = renderer!.root;
     const info = host(root, "detail-tab-info-scroll");
     const messages = host(root, "detail-tab-messages-scroll");
-    expect(order(info)).toEqual(["detail-location", "detail-subtasks", "detail-usage", "detail-activity"]);
+    // Info mounts on its first visit, on touch too: the card opens with Messages alone.
+    expect(order(info)).toEqual([]);
     expect(order(messages)).toEqual(["detail-prompt", "detail-message"]);
     expect(host(root, "detail-tab-messages").props.accessibilityState.selected).toBe(true);
     expect(StyleSheet.flatten(host(root, "detail-tab-messages").props.style)).toMatchObject({ borderRadius: 999, backgroundColor: taskTokens(THEME).surface2 });
@@ -350,6 +422,10 @@ describe("details columns", () => {
     await act(async () => host(root, "detail-tab-info").props.onPress());
     expect(host(root, "detail-tab-info").props.accessibilityState.selected).toBe(true);
     expect(host(root, "detail-tab-info-scroll")).toBe(info);
+    expect(order(info)).toEqual(["detail-location", "detail-subtasks", "detail-usage", "detail-activity"]);
+    // Once visited, Info stays mounted behind Messages.
+    await act(async () => host(root, "detail-tab-messages").props.onPress());
+    expect(order(info)).toEqual(["detail-location", "detail-subtasks", "detail-usage", "detail-activity"]);
   });
   it("shows expanded sections and keeps archive before open in the shared footer", async () => {
     const card = previewSampleCards(NOW).find((item) => item.id === "sample-done")!;
@@ -362,6 +438,7 @@ describe("details columns", () => {
     expect(buttons.map((node) => node.props.testID)).toEqual(["detail-bar-archive", "detail-bar-open"]);
     expect(StyleSheet.flatten(buttons[0]!.props.style).borderColor).toBe(taskTokens(THEME).card.archiveBorder);
     expect(host(root, "detail-header").findAll((node) => node.props.testID === "detail-actions")).toHaveLength(0);
+    await act(async () => host(root, "detail-tab-info").props.onPress());
     for (const id of ["detail-prompt", "detail-message", "detail-location", "detail-usage", "detail-activity"]) {
       const heading = host(root, id).find((node) => typeof node.type === "string" && typeof node.props.accessibilityState?.expanded === "boolean");
       expect(heading.props.accessibilityState.expanded).toBe(true);
@@ -372,15 +449,55 @@ describe("details columns", () => {
     expect(onOpen).toHaveBeenCalledWith(card.id);
     await act(async () => host(root, "detail-tab-info").props.onPress());
     expect(host(root, "detail-action-bar")).toBe(bar);
+    const markUnread = { pending: () => false, press: vi.fn() };
+    await act(async () => { renderer!.update(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={onOpen} archive={archive} markUnread={markUnread} />); });
+    const withUnread = host(renderer!.root, "detail-action-bar").findAll((node) => typeof node.type === "string" && ["detail-bar-unread", "detail-bar-archive", "detail-bar-open"].includes(node.props.testID));
+    expect(withUnread.map((node) => node.props.testID)).toEqual(["detail-bar-unread", "detail-bar-archive", "detail-bar-open"]);
+    await act(async () => withUnread[0]!.props.onPress());
+    expect(markUnread.press).toHaveBeenCalledWith(card);
   });
-  it("keeps permission and stop actions in the footer", async () => {
+  // Every request kind, a real ExitPlanMode among them, answers in its section
+  // as a tool permission does, with Stop (and Open, but beside "Answer") above it.
+  it.each(["plan", "plan-resume", "mode", "other"] as const)("answers a %s request in its section and keeps Stop on the controls row above it", async (kind) => {
+    const input = previewSampleCards(NOW).find((item) => item.id === "sample-input")!;
+    const card = kind === "plan" || kind === "plan-resume" ? asExitPlan(input, { resume: kind === "plan-resume" }) : { ...input, permission: { ...input.permission!, kind, actions: [] } };
+    const stop = vi.fn();
+    const onPermission = vi.fn();
+    const buttons = permissionButtons(card.permission!, "en", true);
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={() => {}} stop={{ phase: "idle", onPress: stop }} permissionButtons={buttons} onPermission={onPermission} />); });
+    const root = renderer!.root;
+    expect(root.findAll((node) => node.props.testID === "detail-action-bar")).toHaveLength(0);
+    expect(host(root, "detail-question-section").props.style).toMatchObject({ borderTopWidth: 0.5 });
+    const answers = host(host(root, "detail-question-section"), "detail-permission-actions").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    expect(answers.map((node) => node.props.accessibilityLabel)).toEqual({
+      plan: ["Reject", "Implement"], "plan-resume": ["Reject", "Implement", "Implement with Bypass"], mode: ["Allow", "Deny"], other: ["Answer"],
+    }[kind]);
+    // A plan reads as one, not as the tool that asks for it.
+    if (kind !== "mode" && kind !== "other") expect(texts(host(root, "detail-permission"))).toContain("Plan");
+    if (kind !== "mode" && kind !== "other") expect(texts(host(root, "detail-permission"))).not.toContain("ExitPlanMode");
+    const controls = host(root, "detail-question-controls");
+    expect(controls.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.testID)).toEqual(kind === "other" ? ["detail-bar-stop"] : ["detail-bar-stop", "detail-bar-open"]);
+    for (const [index, answer] of answers.entries()) {
+      await act(async () => answer.props.onPress());
+      expect(onPermission).toHaveBeenLastCalledWith(buttons[index]);
+    }
+    await act(async () => host(controls, "detail-bar-stop").props.onPress());
+    expect(stop).toHaveBeenCalledOnce();
+  });
+  it("answers a tool permission in its section and keeps Stop on the controls row above it", async () => {
     const card = previewSampleCards(NOW).find((item) => item.id === "sample-input")!;
     const stop = vi.fn();
-    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={() => {}} stop={{ phase: "idle", onPress: stop }} permissionButtons={permissionButtons(card.permission!, "en")} onPermission={() => {}} />); });
+    const onPermission = vi.fn();
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={() => {}} stop={{ phase: "idle", onPress: stop }} permissionButtons={permissionButtons(card.permission!, "en")} onPermission={onPermission} />); });
     const root = renderer!.root;
-    expect(host(root, "detail-permission").findAll((node) => node.props.testID === "detail-permission-actions")).toHaveLength(0);
-    expect(host(root, "detail-action-bar").findAll((node) => node.props.accessibilityRole === "button").length).toBeGreaterThan(1);
-    await act(async () => host(root, "detail-bar-stop").props.onPress());
+    // As a question's: Allow and Deny under the request, no bottom bar.
+    const answers = host(root, "detail-permission-actions").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    expect(answers.map((node) => node.props.accessibilityLabel)).toEqual(["Allow", "Deny"]);
+    expect(root.findAll((node) => node.props.testID === "detail-action-bar")).toHaveLength(0);
+    expect(host(root, "detail-question-section").props.style).toMatchObject({ borderTopWidth: 0.5 });
+    await act(async () => answers[1]!.props.onPress());
+    expect(onPermission).toHaveBeenCalledWith(expect.objectContaining({ kind: "respond", action: expect.objectContaining({ behavior: "deny" }) }));
+    await act(async () => host(host(root, "detail-question-controls"), "detail-bar-stop").props.onPress());
     expect(stop).toHaveBeenCalledOnce();
   });
   it("shows all three messages and remembers a manually collapsed section", async () => {
@@ -394,28 +511,31 @@ describe("details columns", () => {
     await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...detailProps} tabs />); });
     expect(heading().props.accessibilityState.expanded).toBe(false);
   });
-  it("shows long messages in full and streams the latest reply as chunks arrive", async () => {
-    const first = "First prompt. ".repeat(40);
+  it("folds the first prompt and opens the sent message and reply while streaming chunks", async () => {
+    const first = "First prompt. ".repeat(80);
     const human = "Latest request. ".repeat(40);
     const reply = "Live reply. ".repeat(80);
     let emit: (event: unknown) => void = () => {};
     const refetch = vi.fn(async () => ({
-      error: null, epoch: "epoch", entries: [{ timestamp: "2026-10-20T09:00:00Z", seqEnd: 0, turnId: "turn", item: { type: "assistant_message", text: reply, messageId: "message" } }],
-      endCursor: { epoch: "epoch", seq: 0 }, window: { nextSeq: 1 },
+      error: null, epoch: "epoch", entries: [{ timestamp: "2026-10-20T09:00:00Z", seqStart: 1, seqEnd: 1, turnId: "turn", item: { type: "assistant_message", text: reply, messageId: "message" } }],
+      endCursor: { epoch: "epoch", seq: 1 }, window: { nextSeq: 2 },
     }));
     const subscribe = (handler: (event: unknown) => void) => { emit = handler; return Object.assign(() => {}, { ready: Promise.resolve() }); };
     const api = { agents: { ref: () => ({ timeline: { refetch, subscribe } }) } };
     function LiveDetails() {
       const lastMessage = useLastMessage(api as never, "running", "v1", true, true);
-      return <TaskDetailCards {...props(false)} columns={false} tabs firstPrompt={{ prompt: { state: "ready", text: first }, load() {} }} humanMessage={{ prompt: { state: "ready", text: human }, load() {} }} lastMessage={lastMessage} />;
+      return <TaskDetailCards {...props(false)} columns={false} tabs firstPrompt={{ prompt: { state: "ready", text: first }, load() {} }} humanMessage={{ prompt: { state: "ready", text: human, position: { epoch: "epoch", seq: 0 } }, load() {} }} lastMessage={lastMessage} />;
     }
     await act(async () => { renderer = TestRenderer.create(<LiveDetails />); });
-    for (const id of ["detail-prompt", "detail-human", "detail-message"]) {
+    expect(host(renderer!.root, "detail-prompt-text").props.style).toMatchObject({ overflow: "hidden" });
+    expect(host(renderer!.root, "detail-prompt-more").props.accessibilityState.expanded).toBe(false);
+    for (const id of ["detail-human", "detail-message"]) {
       expect(host(renderer!.root, `${id}-text`).props.style).toBeNull();
+      expect(host(renderer!.root, `${id}-more`).props.accessibilityState.expanded).toBe(true);
     }
     const markdown = () => host(renderer!.root, "detail-message-text").findByType(MarkdownView);
     expect(markdown().props).toMatchObject({ text: reply.trim(), streaming: true });
-    await act(async () => emit({ epoch: "epoch", seq: 1, timestamp: "2026-10-20T09:00:01Z", event: { type: "timeline", turnId: "turn", item: { type: "assistant_message", text: "More output", messageId: "message" } } }));
+    await act(async () => emit({ epoch: "epoch", seq: 2, timestamp: "2026-10-20T09:00:01Z", event: { type: "timeline", turnId: "turn", item: { type: "assistant_message", text: "More output", messageId: "message" } } }));
     expect(markdown().props.text).toBe(`${reply}More output`);
     expect(host(renderer!.root, "detail-message-text").props.style).toBeNull();
     expect(refetch).toHaveBeenCalledOnce();
@@ -425,6 +545,7 @@ describe("details columns", () => {
   it("keeps usage above activity and both expanded for failed tasks", async () => {
     const card = previewSampleCards(NOW).find((item) => item.id === "sample-failed")!;
     await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs />); });
+    await act(async () => host(renderer!.root, "detail-tab-info").props.onPress());
     const info = host(renderer!.root, "detail-tab-info-scroll");
     expect(order(info)).toEqual(["detail-location", "detail-usage", "detail-activity"]);
     expect(host(info, "detail-usage").find((node) => typeof node.type === "string" && typeof node.props.accessibilityState?.expanded === "boolean").props.accessibilityState.expanded).toBe(true);
@@ -564,7 +685,7 @@ describe("detail message times", () => {
     const last = new Date(first);
     last.setDate(last.getDate() - 1);
     last.setHours(21, 47, 52, 0);
-    const day = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const day = (date: Date) => `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     for (const language of ["zh", "en"] as const) {
       for (const columns of [false, true]) {
         resetSectionChoices();

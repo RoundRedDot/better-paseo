@@ -10,6 +10,7 @@ import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useEnhancerPreferences } from "../preferences";
 import type { CopyItem } from "./contracts";
 import { detailsForm } from "./layout-model";
+import { DROPDOWN_REVEAL } from "../ui/tokens/motion";
 
 /** A group divider: a hairline with 4 above and below, as Paseo's menus. */
 const SEPARATOR = 9;
@@ -46,7 +47,7 @@ export function RowMenu(props: RowMenuProps) {
   const { language } = useEnhancerPreferences();
   const label = (text: string) => toolbarLabel(text, language);
   const reduced = useReducedMotion();
-  const progress = useRef(new Animated.Value(0)).current;
+  const progress = useRef(new Animated.Value(Platform.OS === "web" ? reduced ? 1 : DROPDOWN_REVEAL.opacity : 0)).current;
   const layer = useRef<View>(null);
   const window = useWindowDimensions();
   // As wide as its longest label, between Paseo's menu minimum and a cap.
@@ -81,7 +82,16 @@ export function RowMenu(props: RowMenuProps) {
   const left = Math.max(8, Math.min(anchor.x, window.width - width - 8));
   const top = Math.max(8, Math.min(anchor.y + anchor.height, window.height - height - 8));
   useEffect(() => {
-    const animation = Animated.timing(progress, { toValue: 1, duration: reduced ? 120 : 160, useNativeDriver: true });
+    if (Platform.OS === "web" && reduced) {
+      progress.setValue(1);
+      return;
+    }
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: Platform.OS === "web" ? DROPDOWN_REVEAL.ms : reduced ? 120 : 160,
+      easing: Platform.OS === "web" ? DROPDOWN_REVEAL.ease : undefined,
+      useNativeDriver: Platform.OS !== "web",
+    });
     animation.start();
     return () => animation.stop();
   }, [progress, reduced]);
@@ -111,8 +121,12 @@ export function RowMenu(props: RowMenuProps) {
         position: "absolute", left, top, minWidth, maxWidth, maxHeight: height, borderRadius: 12,
         backgroundColor: tokens.v2.surface0, borderColor: tokens.v2.border, borderWidth: StyleSheet.hairlineWidth,
         boxShadow: tokens.isDark ? "0px 8px 32px rgba(0,0,0,0.5)" : "0px 8px 32px rgba(0,0,0,0.12)",
-        opacity: progress, transformOrigin: [Math.max(0, anchor.x - left), anchor.y + anchor.height / 2 - top, 0],
-        transform: reduced ? undefined : [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
+        opacity: progress,
+        transformOrigin: [Math.max(0, anchor.x - left), anchor.y + anchor.height / 2 - top, 0],
+        transform: reduced ? undefined : Platform.OS === "web"
+          ? [{ translateY: progress.interpolate({ inputRange: [DROPDOWN_REVEAL.opacity, 1], outputRange: [-DROPDOWN_REVEAL.shift, 0] }) },
+            { scale: progress.interpolate({ inputRange: [DROPDOWN_REVEAL.opacity, 1], outputRange: [DROPDOWN_REVEAL.scale, 1] }) }]
+          : [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
       }}>
         {/* Scrolls only when the menu is taller than the room; no track drawn beside it (Android drew one always). */}
         <ScrollView contentContainerStyle={{ paddingVertical: 6 }} showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false}>

@@ -3,6 +3,7 @@ import {
   Animated,
   Platform,
   Pressable,
+  RefreshControl,
   View,
   type FlatList as NativeFlatList,
   type ScrollView as NativeScrollView,
@@ -13,7 +14,7 @@ import { FlatList, Icon, Modal, ScrollView } from "@getpaseo/plugin/client/react
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, taskControlHeight } from "../typography";
-import { DetailActionBar, StatusIcon, TaskDetailCards, taskTokens, type CardCallbacks } from "../cards";
+import { EdgeActionBar, StatusIcon, TaskDetailCards, createDetailChrome, requestInSection, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
 import { ActionPressable } from "../cards/action-pressable";
 import { LANE_STATUS, isHistoryLane, turnRunning, type LaneId, type LaneModel, type TaskCard } from "../model";
@@ -23,7 +24,8 @@ import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { findHostHorizontalScroll } from "../../ui/host-horizontal-scroll";
 import { HAIRLINE, MOTION, boardPalette } from "./board-style";
 import { BoardEmptyState } from "./empty-state";
-import { CardCell, NewCardsDot, NewCardsPill, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, SkeletonCard, WindowSegments, laneHue, useBreathing, useFreshIds } from "./board-parts";
+import { CardCell, HoverPressable, NewCardsDot, NewCardsPill, RollingCount, RoundButton, LaneFilterHint, LoadMoreRow, SkeletonCard, WindowSegments, laneHue, useBreathing, useFreshIds } from "./board-parts";
+import { liftStyle, surfaceLift } from "../cards/surface-lift";
 import { pillDirection, useSeenCards, useTrackNewCards, useUnseenCards, useUnseenLanes } from "./new-cards";
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { buildFilterOptions, clearedParams } from "./filter-options";
@@ -33,10 +35,12 @@ import { SearchQueryChip } from "./filter-bar";
 import { PhoneSearch } from "./phone-search";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabsOverflow, type TabBox } from "./navigation";
 import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
-import { useDetailReads, useParentTitle } from "./details-sidebar";
+import { sameDetailsBoard, useDetailReads, useParentTitle } from "./details-sidebar";
 import { LANE_EMPTY_ICON, sortLabel } from "./strings";
 import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
+import { NO_SELECTION, SIDEBAR, selectionReducer, type SelectionAction, type SidebarSelection } from "./sidebar-model";
+import type { DetailScrollOffsets } from "../cards/detail-cards";
 
 const nativeDriver = Platform.OS !== "web";
 /** iOS and Android page the lanes natively; web swipes them with pointer events. */
@@ -57,7 +61,8 @@ const SHEET_BODY = { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap
 // The filters bound their own scroll so their button stays pinned (FilterSheetBody).
 const SHEET_FILTER_BODY = { ...SHEET_BODY, flex: 1, minHeight: 0 } as const;
 
-type Sheet = { kind: "filters"; focus?: "sort" } | { kind: "details"; id: string } | null;
+type Sheet = { kind: "filters"; focus?: "sort" } | { kind: "details"; selection: SidebarSelection; scrollBack: DetailScrollOffsets[]; initialScroll?: DetailScrollOffsets } | null;
+type DetailNavigation = Exclude<SelectionAction, { type: "jump" }> | { type: "jump"; id: string; offsets: DetailScrollOffsets };
 
 /** The phone board (prototype 04): one lane at a time behind a tab bar, swiped or tapped. */
 export function PhoneBoard(props: {
@@ -235,13 +240,14 @@ export function PhoneBoard(props: {
       onStop: base.onStop ? guard(base.onStop) : undefined,
       onCancelStop: base.onCancelStop,
       onRead: base.onRead ? guard(base.onRead) : undefined,
+      onUnread: base.onUnread ? guard(base.onUnread) : undefined,
       onUnarchive: base.onUnarchive ? guard(base.onUnarchive) : undefined,
       onArchive: base.onArchive ? guard(base.onArchive) : undefined,
       onFilter: base.onFilter,
       filterState: base.filterState,
       onPermission: guard(base.onPermission),
       // A tap shows the details sheet; the card's arrow still opens the tab.
-      onSelect: guard((card: TaskCard) => setSheet({ kind: "details", id: card.id })),
+      onSelect: guard((card: TaskCard) => setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id }), scrollBack: [] })),
       onLongPress: () => {
         if (swallowsTap(swipedAt.current, Date.now())) return false;
         // A long press: the finger is still down.
@@ -278,8 +284,8 @@ export function PhoneBoard(props: {
         switching && !reduced ? MOTION.laneMs + 20 : 0,
       );
     },
-    details(card) {
-      setSheet({ kind: "details", id: card.id });
+    details(card, _preview, parent) {
+      setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id, parent }), scrollBack: [] });
     },
   };
 
@@ -299,7 +305,29 @@ export function PhoneBoard(props: {
     (card: TaskCard) => <CardCell board={board} card={card} theme={theme} compact fresh={false} copy callbacks={callbacks} />,
     [board, theme, callbacks],
   );
-  const detailsCard = sheet?.kind === "details" ? board.cardById(sheet.id) : undefined;
+  const selection = sheet?.kind === "details" ? sheet.selection : NO_SELECTION;
+  const detailsCard = selection.id ? board.cardById(selection.id) : undefined;
+  const backId = selection.back[selection.back.length - 1]?.id;
+  const backCard = backId ? board.cardById(backId) : undefined;
+  // The details' neighbours in their lane, for the sheet's stepper: the body itself draws again only for its card.
+  const detailsList = detailsCard ? board.lanes[detailsCard.lane]?.cards ?? [] : [];
+  const detailsIndex = detailsCard ? detailsList.findIndex((item) => item.id === detailsCard.id) : -1;
+  const showDetails = useCallback((id: string) => setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id }), scrollBack: [] }), []);
+  const navigateDetails = useCallback((action: DetailNavigation) => setSheet((current) => {
+    if (current?.kind !== "details") return current;
+    const selection = selectionReducer(current.selection, action);
+    if (selection === current.selection) return current;
+    if (action.type === "jump") return { ...current, selection, scrollBack: [...current.scrollBack, action.offsets].slice(-SIDEBAR.history), initialScroll: undefined };
+    if (action.type === "back") return { ...current, selection, initialScroll: current.scrollBack[current.scrollBack.length - 1], scrollBack: current.scrollBack.slice(0, -1) };
+    return { ...current, selection };
+  }), []);
+  const openFromDetails = useMemo(() => {
+    const onOpen = board.callbacks.onOpen;
+    return onOpen ? (agentId: string) => {
+      setSheet(null);
+      onOpen(agentId);
+    } : undefined;
+  }, [board.callbacks.onOpen]);
   const warning = taskTokens(theme).status.warning;
 
   return (
@@ -319,12 +347,13 @@ export function PhoneBoard(props: {
         </Text>
         {board.params.sort ? (
           // A non-default sort says so, as the desktop sort button's label does; it opens the sheet.
-          <Pressable
+          <HoverPressable
+            lift="toolbar"
             accessibilityRole="button"
             accessibilityLabel={`${strings.sort}: ${sortLabel(board.params.sort, strings)}`}
             onPress={() => setSheet({ kind: "filters", focus: "sort" })}
             testID="phone-sort-hint"
-            style={{
+            style={(hovered, pressed, input) => ({
               flexShrink: 1,
               minHeight: 28,
               marginLeft: 4,
@@ -332,16 +361,17 @@ export function PhoneBoard(props: {
               borderRadius: 14,
               borderWidth: HAIRLINE,
               borderColor: colors.border,
+              ...liftStyle(() => taskTokens(theme), surfaceLift(hovered, pressed, undefined, "toolbar", input), { border: colors.border }),
               flexDirection: "row",
               alignItems: "center",
-              gap: 5,
-            }}
+              gap: 4,
+            })}
           >
             <Icon name="ArrowUpDown" size={13} color={colors.foregroundMuted} />
             <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: F.base, fontWeight: "500", color: colors.foreground }}>
               {sortLabel(board.params.sort, strings)}
             </Text>
-          </Pressable>
+          </HoverPressable>
         ) : null}
         <View style={{ flex: 1 }} />
         <View style={{ flexDirection: "row" }}>
@@ -351,6 +381,7 @@ export function PhoneBoard(props: {
             borderless
             label={strings.showSubtasks}
             selected={!filters.hideSubtasks}
+            toggle
             cornerBadge={board.hiddenSubtasks}
             theme={theme}
             onPress={() => board.setParams((params) => ({ ...params, hideSubtasks: !(params.hideSubtasks ?? board.defaults.hideSubtasks) }))}
@@ -363,6 +394,7 @@ export function PhoneBoard(props: {
             style={{ marginLeft: -6 }}
             label={strings.archivedLane.row}
             selected={board.showArchived}
+            toggle
             slashed={!board.showArchived}
             theme={theme}
             onPress={() => board.setShowArchived(!board.showArchived)}
@@ -381,7 +413,7 @@ export function PhoneBoard(props: {
         theme={theme}
       />
       {board.params.query.trim() ? <ScrollView testID="phone-search-summary" horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, flexShrink: 0 }} contentContainerStyle={{ paddingHorizontal: 16, flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <SearchQueryChip board={board} theme={theme} />
+        <SearchQueryChip board={board} theme={theme} scrollable={false} />
         <SearchCoverageItems theme={theme} phone />
       </ScrollView> : null}
       <View
@@ -553,22 +585,23 @@ export function PhoneBoard(props: {
         </Modal.Content>
       </Modal>
       <Modal title={strings.details} open={detailsCard !== undefined} onOpenChange={(open) => !open && setSheet(null)}>
-        <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
+        <Modal.Content contentContainerStyle={Platform.OS === "ios" ? { ...SHEET_FILTER_BODY, paddingBottom: 0 } : SHEET_FILTER_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
             {detailsCard ? (
               <DetailsSheetBody
                 card={detailsCard}
                 board={board}
                 theme={theme}
-                onShow={(id) => setSheet({ kind: "details", id })}
-                onOpen={
-                  board.callbacks.onOpen
-                    ? (agentId) => {
-                        setSheet(null);
-                        board.callbacks.onOpen?.(agentId);
-                      }
-                    : undefined
-                }
+                index={detailsIndex}
+                count={detailsList.length}
+                previousId={detailsList[detailsIndex - 1]?.id ?? null}
+                nextId={detailsList[detailsIndex + 1]?.id ?? null}
+                onShow={showDetails}
+                selection={selection}
+                initialScroll={sheet?.kind === "details" ? sheet.initialScroll : undefined}
+                backTitle={backId ? backCard?.title ?? board.strings.back : undefined}
+                navigate={navigateDetails}
+                onOpen={openFromDetails}
               />
             ) : null}
           </TasksTypography>
@@ -583,30 +616,53 @@ export function PhoneBoard(props: {
  * under a bar that steps to the previous and next card of the same lane. The
  * card scrolls; its actions stay pinned at the bottom, at thumb height.
  */
-function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme: PluginTheme; onShow(id: string): void; onOpen?(agentId: string): void }) {
-  const { card, board, theme } = props;
+interface DetailsSheetBodyProps {
+  card: TaskCard;
+  board: BoardController;
+  theme: PluginTheme;
+  /** The card's place in its lane and the lane's length, for the stepper; -1 when the filters leave it out. */
+  index: number;
+  count: number;
+  previousId: string | null;
+  nextId: string | null;
+  onShow(id: string): void;
+  selection: SidebarSelection;
+  initialScroll?: DetailScrollOffsets;
+  backTitle?: string;
+  navigate(action: DetailNavigation): void;
+  onOpen?(agentId: string): void;
+}
+
+/** Every running agent's update changes the board; the body draws again only for its own card (`sameDetailsBoard`). */
+const DetailsSheetBody = memo(DetailsSheetBodyView, (last: DetailsSheetBodyProps, next: DetailsSheetBodyProps) => {
+  const keys = Object.keys(next) as (keyof DetailsSheetBodyProps)[];
+  return keys.length === Object.keys(last).length && keys.every((key) => key === "board" ? sameDetailsBoard(last.board, next.board) : last[key] === next[key]);
+});
+
+function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
+  const { card, board, theme, index } = props;
   const colors = theme.colors;
   useParentTitle(board, card);
-  const { firstPrompt, humanMessage, lastMessage, sessionTokens } = useDetailReads(board, card);
-  const list = board.lanes[card.lane]?.cards ?? [];
-  const index = list.findIndex((item) => item.id === card.id);
+  const { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext } = useDetailReads(board, card);
   const step = (delta: number) => {
-    const next = list[index + delta];
-    if (next) props.onShow(next.id);
+    const next = delta < 0 ? props.previousId : props.nextId;
+    if (next) props.onShow(next);
   };
   const stopAvailable = !!board.callbacks.onStop && (card.stoppable || activeStopChildren(card).length > 0);
   const stop = stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null;
   const onPermission = (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button);
-  const [contentUnderBar, setContentUnderBar] = useState(false);
+  // Whether the card's content runs under the action bar: only the bar draws again when it changes.
+  const [edge] = useState(createDetailChrome);
+  const noteEdge = useCallback((under: boolean) => edge.set({ headerUnderBar: under }), [edge]);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
-      {index >= 0 && list.length > 1 ? (
+      {index >= 0 && props.count > 1 ? (
         <View style={{ minHeight: 40, paddingHorizontal: 12, flexDirection: "row", alignItems: "center" }} testID="sheet-stepper">
           <SheetStep icon="ChevronLeft" label={board.strings.sidebar.previous} disabled={index <= 0} onPress={() => step(-1)} theme={theme} />
           <Text style={{ flex: 1, textAlign: "center", fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
-            {`${board.strings.lanes[card.lane]} · ${index + 1} / ${list.length}`}
+            {`${board.strings.lanes[card.lane]} · ${index + 1} / ${props.count}`}
           </Text>
-          <SheetStep icon="ChevronRight" label={board.strings.sidebar.next} disabled={index >= list.length - 1} onPress={() => step(1)} theme={theme} />
+          <SheetStep icon="ChevronRight" label={board.strings.sidebar.next} disabled={index >= props.count - 1} onPress={() => step(1)} theme={theme} />
         </View>
       ) : null}
       {/* Keyed by the card: a jump to the parent or a step starts on its messages. */}
@@ -621,27 +677,39 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
           touch
           compact
           tabs
+          initialTab={props.selection.tab}
+          initialScrollOffsets={props.initialScroll}
+          onTabChange={(tab) => props.navigate({ type: "tab", tab })}
+          back={props.backTitle ? { title: props.backTitle, onPress: () => props.navigate({ type: "back" }) } : null}
           scrollHeader
+          indicatorOutside
           actions={false}
+          questionActionsInHeader
           clock={board.clock}
           onOpen={props.onOpen}
           stop={stop}
+          questionDialog={board.questionDialog}
+          submitQuestions={board.submitQuestions}
           permissionButtons={board.buttonsFor(card)}
           onPermission={onPermission}
-          onJump={props.onShow}
+          onJumpWithScroll={(id, offsets) => props.navigate({ type: "jump", id, offsets })}
           titleUpdates={board.callbacks.titleUpdates}
           firstPrompt={firstPrompt}
           humanMessage={humanMessage}
           lastMessage={lastMessage}
+          questionContext={questionContext}
           sessionTokens={sessionTokens}
           unarchive={board.unarchive.available ? board.unarchive : null}
           archive={board.archive}
           markRead={board.read.available ? board.read : null}
-          onScrollEdge={setContentUnderBar}
+          markUnread={board.unread ?? null}
+          onScrollEdge={noteEdge}
         />
       </View>
-      <DetailActionBar
-        contentUnder={contentUnderBar}
+      {!requestInSection(card, board.buttonsFor(card)) ? <EdgeActionBar
+        chrome={edge}
+        scrollHeader
+        flushBottom={Platform.OS === "ios"}
         card={card}
         theme={theme}
         language={board.language}
@@ -653,7 +721,8 @@ function DetailsSheetBody(props: { card: TaskCard; board: BoardController; theme
         unarchive={board.unarchive.available ? board.unarchive : null}
         archive={board.archive}
         markRead={board.read.available ? board.read : null}
-      />
+        markUnread={board.unread ?? null}
+      /> : null}
     </View>
   );
 }
@@ -869,6 +938,11 @@ const PhoneLane = memo(function PhoneLane(props: {
   const endSpace = scrollActions ? LANE_END_SPACE_WITH_ACTIONS : LANE_END_SPACE;
   // A history lane with more pages ends at its loaded cards, and reaching them loads one more page as scrolling there does.
   const loadedEnd = isHistoryLane(lane.id) && (lane.hasMore || lane.loading);
+  const onRefresh = () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    void Promise.resolve().then(board.tasks.refresh).catch(() => "failed").finally(() => setRefreshing(false));
+  };
   return (
     <View style={{ flex: 1, minHeight: 0 }} onLayout={(event: LayoutChangeEvent) => {
       const height = event.nativeEvent.layout.height;
@@ -884,11 +958,15 @@ const PhoneLane = memo(function PhoneLane(props: {
       onScroll={(event) => updateEdges(event.nativeEvent.contentOffset.y, event.nativeEvent.contentSize.height, event.nativeEvent.layoutMeasurement.height)}
       scrollEventThrottle={16}
       refreshing={refreshing}
-      onRefresh={() => {
-        if (refreshing) return;
-        setRefreshing(true);
-        void Promise.resolve().then(board.tasks.refresh).catch(() => "failed").finally(() => setRefreshing(false));
-      }}
+      refreshControl={Platform.OS === "android" ? (
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          progressBackgroundColor={colors.surface1}
+          colors={[colors.foregroundMuted]}
+        />
+      ) : undefined}
+      onRefresh={onRefresh}
       alwaysBounceVertical
       style={covered ? { opacity: 0 } : undefined}
       viewabilityConfigCallbackPairs={seen.viewabilityConfigCallbackPairs}
@@ -921,7 +999,7 @@ const PhoneLane = memo(function PhoneLane(props: {
       }}
       onEndReachedThreshold={0.5}
       onEndReached={() => {
-        if (props.active !== false && isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
+        if (!board.params.query.trim() && props.active !== false && isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
       }}
       ListEmptyComponent={
         <BoardEmptyState
@@ -944,7 +1022,7 @@ const PhoneLane = memo(function PhoneLane(props: {
       }
       ListFooterComponent={
         <View testID="phone-lane-footer">
-          {isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
+          {!board.params.query.trim() && isHistoryLane(lane.id) && (lane.hasMore || lane.loading) ? (
             <LoadMoreRow shown={count} sortedLoadedOnly={sortsLoadedOnly(board.params.sort)} loading={lane.loading} onPress={board.tasks.loadMoreDone} theme={theme} strings={strings} large />
           ) : null}
           <LaneFilterHint board={board} lane={lane.id} count={board.hidden[lane.id]} theme={theme} />

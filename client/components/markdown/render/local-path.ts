@@ -1,4 +1,5 @@
 import type { Token } from "../../../vendor/marked";
+import { isNetworkOrDevicePath } from "../../../../shared/network-path";
 import { isImagePath } from "../../../image-file";
 import { normalizePath } from "../../../paths/format-path";
 
@@ -25,18 +26,19 @@ export function resolveLocalLink(path: string, cwd?: string): string {
 export function localPath(href: string): string | null {
   const trimmed = href.trim();
   if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("?")) return null;
+  if (isNetworkOrDevicePath(trimmed)) return null;
   const file = /^file:\/\/(?:localhost)?(\/.*)$/i.exec(trimmed);
   if (file) {
     const path = decoded(file[1]!);
+    if (path === null || isNetworkOrDevicePath(path)) return null;
     // `file:///C:/x.png` names `C:/x.png`.
-    return path !== null && /^\/[A-Za-z]:\//.test(path) ? path.slice(1) : path;
+    return /^\/[A-Za-z]:\//.test(path) ? path.slice(1) : path;
   }
   const windowsDrive = /^[A-Za-z]:[\\/]/.test(trimmed);
   // Any other scheme (`https:`, `mailto:`, `javascript:`) is not a file.
   if (!windowsDrive && /^[A-Za-z][A-Za-z0-9+.-]*:/.test(trimmed)) return null;
-  if (trimmed.startsWith("//")) return null;
   const path = decoded(trimmed);
-  if (path === null) return null;
+  if (path === null || isNetworkOrDevicePath(path)) return null;
   // A word with no separator and no extension ("here") is not a file.
   return /[\\/]/.test(path) || /\.[A-Za-z0-9]+$/.test(path) ? path : null;
 }

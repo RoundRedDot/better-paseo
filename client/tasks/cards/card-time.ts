@@ -1,7 +1,7 @@
 import { formatFooterStamp, formatFullStamp } from "../../ui/time";
 import type { TasksLanguage } from "../i18n";
 import { settledAt, turnRunning, type TaskCard, type TaskChild } from "../model";
-import { formatApprox, formatClockTime, formatDuration, formatRelative, formatWait, since } from "./format";
+import { formatApprox, formatClockTime, formatDuration, formatRelative, formatWait, formatWaitLength, formatWaited, since } from "./format";
 import { cardStrings } from "./strings";
 
 /**
@@ -53,14 +53,51 @@ export function formatEnded(iso: string | null, now: number, language: TasksLang
   const at = new Date(iso!);
   const sameDay = at.toDateString() === new Date(now).toDateString();
   if (sameDay && ago < 86_400_000) return formatRelative(ago, language);
-  return short ? formatFooterStamp(at, new Date(now)) : formatFullStamp(at);
+  return short ? formatFooterStamp(at, new Date(now)) : formatFullStamp(at, new Date(now));
+}
+
+/** When a card waiting for input began to wait; null for any other card or without a start. */
+function waitStart(card: Timed, now: number): string | null {
+  if (card.lane !== "needs_input") return null;
+  const { attentionAt, turnStartedAt } = card.timing;
+  return since(attentionAt, now) !== null ? attentionAt : since(turnStartedAt, now) !== null ? turnStartedAt : null;
+}
+
+/** How long a card waiting for input has waited at `now`; null for any other card or without a start. */
+function waitedFor(card: Timed, now: number): number | null {
+  return since(waitStart(card, now), now);
+}
+
+/** A question divider's wait, beside its clock icon: "4m"; empty when the card does not wait. */
+export function cardWaitLength(card: Timed, now: number): string {
+  const waited = waitedFor(card, now);
+  return waited === null ? "" : formatWaitLength(waited);
+}
+
+/** How long the divider's wait has run, for a screen reader: "已等待 4m" / "Waiting for 4m"; null when the card does not wait. */
+export function waitedLabel(card: Timed, now: number, language: TasksLanguage): string | null {
+  const waited = waitedFor(card, now);
+  return waited === null ? null : formatWaited(waited, language);
+}
+
+/**
+ * The divider wait's hover hint: when the wait began, in the cards' stamp
+ * (no date today, no year this year), then how long it has run:
+ * "开始等待：14:15\n已等待 21m". Null when the card does not wait.
+ */
+export function waitedHint(card: Timed, now: number, language: TasksLanguage): string | null {
+  const start = waitStart(card, now);
+  const waited = since(start, now);
+  if (start === null || waited === null) return null;
+  const { hint } = cardStrings(language);
+  return `${hint.pair(hint.waitStarted, formatFooterStamp(new Date(start), new Date(now)))}\n${formatWaited(waited, language)}`;
 }
 
 /** The footer's timer at `now`; null when there is nothing to count. `short` as `formatEnded`. */
 export function cardTimer(card: Timed, now: number, language: TasksLanguage, short = false): TimerView | null {
   const timing = card.timing;
   if (card.lane === "needs_input") {
-    const waited = since(timing.attentionAt, now) ?? since(timing.turnStartedAt, now);
+    const waited = waitedFor(card, now);
     return waited === null ? null : { text: formatWait(waited, language), tone: "warning" };
   }
   if (turnRunning(card)) {
@@ -98,7 +135,7 @@ export function cardStart(card: Timed, now: number): string | null {
 export function timerHint(card: Timed, now: number, language: TasksLanguage): string | null {
   const { hint, starting } = cardStrings(language);
   const timing = card.timing;
-  const stamp = (iso: string | null) => (since(iso, now) === null ? null : formatFullStamp(new Date(iso!)));
+  const stamp = (iso: string | null) => (since(iso, now) === null ? null : formatFullStamp(new Date(iso!), new Date(now)));
   if (card.lane === "needs_input") {
     const at = stamp(timing.attentionAt) ?? stamp(timing.turnStartedAt);
     return at === null ? null : hint.pair(hint.waitingSince, at);

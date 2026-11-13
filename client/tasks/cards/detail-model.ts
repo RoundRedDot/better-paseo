@@ -1,4 +1,7 @@
+import type { FirstPrompt } from "../data/first-prompt";
+import type { LastHumanMessage } from "../data/last-human-message";
 import type { TasksLanguage } from "../i18n";
+import type { PermissionButton } from "../actions";
 import { turnRunning, type StatusKind, type TaskCard } from "../model";
 import { contextRatio, formatCost, formatDuration, formatRelative, formatTokens, since } from "./format";
 import { cardStrings } from "./strings";
@@ -6,7 +9,7 @@ import { cardStrings } from "./strings";
 /**
  * What the details card (`detail-cards.tsx`) shows, as pure functions for the
  * tests: which block leads, the order of the sections, and the numbers behind
- * the charts. Spec: `docs/prototypes/task-details-rich.md`.
+ * the charts. Spec: `https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/task-details-rich.md`.
  */
 
 const MINUTE = 60_000;
@@ -24,12 +27,26 @@ export function detailHero(card: TaskCard): DetailHero {
 }
 
 /**
+ * Whether a waiting request's answers sit in its own section, under the
+ * details' header and the task's controls (Stop, Open, Close), instead of in
+ * the sheet's bottom bar. Every kind does: a tool's or a mode change's Allow
+ * and Deny and a plan's Implement and Reject answer in place as a question's
+ * options do, and an unknown request's "Answer" opens the tab from there. The
+ * board leaves its bottom bar out for the same cards the details draw the
+ * section for. A request outside the waiting lane leads nothing, so its
+ * buttons stay with the bar.
+ */
+export function requestInSection(card: TaskCard, buttons: readonly PermissionButton[]): boolean {
+  return detailHero(card) === "permission" && buttons.length > 0;
+}
+
+/**
  * The sections after the hero, in order, and the ones closed unless the user
  * opened them. Properties lead, followed by the task's first prompt, the
  * last message a person sent and the agent's latest reply when the details
  * can read them.
  */
-export function detailSections(card: TaskCard, prompt = false, message = false, human = false): { order: DetailSection[]; closed: DetailSection[] } {
+export function detailSections(card: TaskCard, prompt = false, message = false, human = false, replyFirst = false): { order: DetailSection[]; closed: DetailSection[] } {
   const hero = detailHero(card);
   let order: DetailSection[];
   if (hero === "turn") order = ["subtasks", "usage", "activity"];
@@ -39,10 +56,20 @@ export function detailSections(card: TaskCard, prompt = false, message = false, 
   if (card.children.length === 0) order = order.filter((section) => section !== "subtasks");
   // A provider subagent's card carries no usage or activity of its own.
   if (card.subagent) order = [];
-  if (message) order = ["message", ...order];
-  if (human) order = ["human", ...order];
+  if (replyFirst && human && message) order = ["message", "human", ...order];
+  else {
+    if (message) order = ["message", ...order];
+    if (human) order = ["human", ...order];
+  }
   if (prompt) order = ["prompt", ...order];
   return { order: ["properties", ...order], closed: [] };
+}
+
+/** Compare positions only within the same timeline epoch. */
+export function replyBeforeHuman(human: LastHumanMessage | undefined, reply: FirstPrompt | undefined): boolean | null {
+  if (human?.state !== "ready" || reply?.state !== "ready") return null;
+  if (!human.position || !reply.position || human.position.epoch !== reply.position.epoch || human.position.seq === reply.position.seq) return null;
+  return reply.position.seq < human.position.seq;
 }
 
 /** The colour each status draws with in the charts: the board's status band, done in grey. */

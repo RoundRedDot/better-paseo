@@ -1,5 +1,5 @@
 /**
- * The block details panel (docs/prototypes/block-details-sheet.md): the open
+ * The block details panel (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md): the open
  * block's preview drawn as a bottom drawer (phone), a floating bottom panel
  * (tablet) or a right-hand side panel (wide windows), chosen by the window.
  *
@@ -462,7 +462,8 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
       leaving={leaving}
       onExited={onExited}
       wide={fullscreen}
-      resizable={pointer && Platform.OS === "web"}
+      resizable={pointer && Platform.OS === "web" || Platform.OS === "ios" && Platform.isPad}
+      onResizeStart={() => { if (fullscreen) detailsApi.setFullscreen(agentId, false); }}
       onOutside={close}
     >
       {content}

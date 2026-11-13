@@ -4,7 +4,7 @@ import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { BrandMark, ProjectIcon, TagMark, foldPath, taskTokens, tildePath } from "../cards";
 import { FILTER_ICONS, type ActiveChip, type ChipGroup, type FilterOption, type ProjectOption, type ShownFilterOptions } from "./filter-options";
 import type { BoardParams } from "./params";
-import type { MenuItem, MenuSection } from "./menu-model";
+import { MENU, type MenuItem, type MenuSection } from "./menu-model";
 import { NAME_KEYS, sameSort, type BoardSort, type SortDirection, type SortKey } from "./sort";
 import { sortOrderLabel, type BoardStrings } from "./strings";
 import { LaneWidthMark } from "./lane-width-mark";
@@ -112,7 +112,7 @@ export const PROJECT_MENU_WIDTH = 280;
  * width less the row's insets and padding, the icon, the count, the check
  * and the gaps between them.
  */
-const PROJECT_PATH_COLUMNS = Math.floor((PROJECT_MENU_WIDTH - 2 * 6 - 2 * 8 - 16 - 3 * 8 - 20 - 14) / 6);
+const PROJECT_PATH_COLUMNS = Math.floor((PROJECT_MENU_WIDTH - 2 * MENU.inset - 2 * 8 - 16 - 3 * 8 - 20 - 14) / 6);
 
 /**
  * One row per project, its icon leading and its folder under its name, home

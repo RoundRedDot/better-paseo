@@ -8,7 +8,7 @@ import { matchesSearch, searchWords } from "./search";
 /**
  * The board's menus, after Linear's (measured at 2x on its light theme):
  * a panel with a 12 pt corner, a hairline border and a soft wide shadow;
- * rows 32 high inset 6 from the panel's edges, a 6 pt rounded hover fill;
+ * rows 32 high inset 10 from the panel's edges, a 6 pt rounded hover fill;
  * groups split by a full-width hairline with 6 above and below; a row is a
  * 16 icon, 8, a 14 label, then a muted hint and a small chevron for a
  * submenu. A submenu has the same chrome and opens beside its row.
@@ -18,8 +18,8 @@ import { matchesSearch, searchWords } from "./search";
  */
 export const MENU = {
   radius: 12,
-  padV: 6,
-  inset: 6,
+  padV: 10,
+  inset: 10,
   rowHeight: 32,
   rowRadius: 6,
   icon: 16,
@@ -156,9 +156,9 @@ export function layoutMenu(sections: readonly MenuSection[], scale = 1): { rows:
   return { rows, height: y + MENU.padV };
 }
 
-/** A searchable menu's field and the 1 pt box of its hairline, with the UI scale's growth. */
+/** A searchable menu's top inset, scaled field and the 1 pt box of its hairline. */
 export function menuSearchHeight(scale = 1): number {
-  return Math.round(MENU.searchHeight * Math.max(1, scale)) + 1;
+  return MENU.padV + Math.round(MENU.searchHeight * Math.max(1, scale)) + 1;
 }
 
 /**

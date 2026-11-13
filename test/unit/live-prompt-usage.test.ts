@@ -64,7 +64,7 @@ vi.mock("../../client/reasoning/segment", () => ({ createReasoningSegmenter: () 
 vi.mock("../../client/reasoning/key", () => ({ useReasoningKey: () => "thought-key" }));
 vi.mock("../../client/reasoning/observed", () => ({ observeReasoning() {}, observedDurationMs: () => null }));
 vi.mock("../../client/state/todo-timeline", () => ({
-  HOST_ITEM_GAP: 16, deriveTodoActivities: () => [], todoTaskStatus: () => "pending", useLatestTodoItems: () => null,
+  HOST_ITEM_GAP: 16, deriveTodoActivities: () => [], todoTaskStatus: () => "pending", useLatestTodoItems: () => null, useMatchingTodo: () => false,
   useTodoTimeline: () => ({ role: "full", previous: [], emptyGaps: { above: 0, below: 0 }, measureEmptyGaps() {} }),
 }));
 vi.mock("../../client/components/hub-live", () => ({ TimelineTailHub: () => null }));

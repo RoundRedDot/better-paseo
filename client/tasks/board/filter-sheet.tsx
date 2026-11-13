@@ -11,7 +11,8 @@ import { SwitchTrack } from "../../ui/switch-track";
 import { useSwitchSpace } from "../../ui/use-switch-space";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { easing } from "../../ui/tokens/motion";
-import { clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, type FilterOption, type FilterOptions } from "./filter-options";
+import { clearedParams, emptyGroupsIcon, searchWorkspaceGroups, shownFilterOptions, toggleProject, type FilterOption, type FilterOptions } from "./filter-options";
+import { matchesSearch, searchWords } from "./search";
 import { iconlessProjects, useRequestProjectIcons } from "./project-icons";
 import { detailScrollProps } from "../cards/detail-scrollbar";
 import { useLaneScrollbar } from "./lane-scrollbar";
@@ -26,7 +27,7 @@ import { tasksSettingsOpener } from "./enabled";
  * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
  * sheet as a bounded body (`Modal.Content scrollable={false}`): the options
  * scroll, Reset and "Show N tasks" stay pinned under them. The short
- * filters follow the desktop order; workspaces sit under a search field. With `board.showEmptyGroups` off, only the options with a
+ * filters follow the desktop order (Agent, Labels, Project, Workspace); workspaces sit under a search field. With `board.showEmptyGroups` off, only the options with a
  * card on the board, including done and archived, or that are picked, are listed.
  */
 export function FilterSheetBody(props: {
@@ -66,14 +67,19 @@ export function FilterSheetBody(props: {
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [workspacesOpen, setWorkspacesOpen] = useState(false);
+  const [projectsOpen, setProjectsOpen] = useState(false);
+  const [projectQuery, setProjectQuery] = useState("");
+  const [projectSearching, setProjectSearching] = useState(false);
   const scrollRef = useRef<NativeScrollView>(null);
   // Where the workspaces start in the scroll: read only when the search field
   // takes focus. A ref, not state: it changes on every frame while a group
   // folds, and a render per frame of the whole sheet drops the fold's frames.
   const workspacesY = useRef(0);
+  const projectsY = useRef(0);
   // The scroller's height.
   const [viewport, setViewport] = useState(0);
   const groups = searchWorkspaceGroups(shown.workspaceGroups, query);
+  const projects = shown.projects.filter((project) => matchesSearch([project.label, project.group.projectPath], searchWords(projectQuery)));
   // While searching, the workspaces fill the scroller at least, so their field
   // can stay at its top above the keyboard however few rows match.
   const holdTop = searching || query.trim() !== "";
@@ -96,11 +102,11 @@ export function FilterSheetBody(props: {
         {...detailScrollProps("inset")}
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
-        stickyHeaderIndices={[1, 3]}
+        stickyHeaderIndices={[1, 3, 5]}
         onLayout={(event: LayoutChangeEvent) => setViewport(event.nativeEvent.layout.height)}
         testID="filter-sheet-scroll"
       >
-        <View onLayout={(event: LayoutChangeEvent) => (workspacesY.current = event.nativeEvent.layout.height)} style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4 }}>
+        <View onLayout={(event: LayoutChangeEvent) => (projectsY.current = event.nativeEvent.layout.height)} style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4 }}>
           {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
           {props.hideSubtasksToggle ? null : (
             <ToggleRow
@@ -168,8 +174,32 @@ export function FilterSheetBody(props: {
               ))}
             </ChipWrap>
           </CollapsibleGroup>
+          <CollapsibleGroup title={strings.labels} icon="Tag" theme={theme} testID="filter-sheet-labels">
+            {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+            <ChipWrap>
+              {shown.labels.map((label) => (
+                <Chip
+                  key={label.id}
+                  option={label}
+                  theme={theme}
+                  pill={props.phone}
+                  leading={<TagMark size={14} color={label.color ?? colors.foregroundMuted} hole={label.on ? taskTokens(theme).accentSoft : colors.surface0} />}
+                  onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
+                />
+              ))}
+            </ChipWrap>
+          </CollapsibleGroup>
         </View>
-        <View testID="filter-sheet-workspace-header" style={{ paddingHorizontal: 16, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
+        <View testID="filter-sheet-project-header" style={{ paddingHorizontal: 16, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
+          <CollapsibleTitle text={strings.project} icon="FolderKanban" theme={theme} open={projectsOpen} onPress={() => { setProjectSearching(false); setProjectsOpen((value) => !value); }} testID="filter-sheet-projects-toggle" />
+          {projectsOpen && shown.projects.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
+          {projectsOpen && shown.projects.length > 0 ? <SheetSearch value={projectQuery} onChange={setProjectQuery} placeholder={strings.sheetSearch} clear={strings.menuSearch.clear} theme={theme} onFocus={() => { setProjectSearching(true); setTimeout(() => scrollRef.current?.scrollTo({ y: projectsY.current, animated: true }), 0); }} onBlur={() => setProjectSearching(false)} /> : null}
+        </View>
+        <View testID="filter-sheet-projects" style={{ paddingHorizontal: 16, paddingBottom: projectsOpen ? 8 : 0, ...(projectsOpen && (projectSearching || projectQuery.trim() !== "") && viewport > 0 ? { minHeight: viewport } : null) }}>
+          {projectsOpen && shown.projects.length > 0 && projects.length === 0 ? <Muted text={strings.menuSearch.empty} theme={theme} /> : null}
+          {projectsOpen ? <ChipWrap>{projects.map((project) => <Chip key={project.id} option={project} theme={theme} leading={<ProjectIcon location={project.group} size={16} hostId={board.hostId} />} onPress={() => setParams((p) => toggleProject(p, project))} />)}</ChipWrap> : null}
+        </View>
+        <View testID="filter-sheet-workspace-header" onLayout={(event: LayoutChangeEvent) => (workspacesY.current = event.nativeEvent.layout.y)} style={{ paddingHorizontal: 16, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
           <CollapsibleTitle text={strings.workspace} icon="FolderGit2" theme={theme} open={workspacesOpen} onPress={() => { setSearching(false); setWorkspacesOpen((value) => !value); }} testID="filter-sheet-workspaces-toggle" />
           {workspacesOpen && shown.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           {workspacesOpen && shown.workspaceGroups.length > 0 ? (
@@ -212,21 +242,6 @@ export function FilterSheetBody(props: {
         {/* End the workspace sticky header before the following groups. */}
         <View />
         <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-          <CollapsibleGroup title={strings.labels} icon="Tag" theme={theme} testID="filter-sheet-labels">
-            {shown.labels.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
-            <ChipWrap>
-              {shown.labels.map((label) => (
-                <Chip
-                  key={label.id}
-                  option={label}
-                  theme={theme}
-                  pill={props.phone}
-                  leading={<TagMark size={14} color={label.color ?? colors.foregroundMuted} hole={label.on ? taskTokens(theme).accentSoft : colors.surface0} />}
-                  onPress={() => setParams((p) => ({ ...p, labels: toggleItem(p.labels, label.id) }))}
-                />
-              ))}
-            </ChipWrap>
-          </CollapsibleGroup>
           {!props.phone && !props.tablet && !props.laneWidth ? range : null}
           {sortFirst || props.tablet ? null : sort}
         </View>
@@ -396,7 +411,7 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
         backgroundColor: on ? taskTokens(props.theme).accentSoft : "transparent",
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
+        gap: 4,
       }}
     >
       {props.leading}
@@ -423,7 +438,7 @@ function ToggleRow(props: { icon: string; label: string; hint?: string; on: bool
       onPress={props.onPress}
       {...spaceKeys}
       testID={props.testID}
-      style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 12 }}
+      style={{ minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8 }}
     >
       <Icon name={props.icon} size={18} color={colors.foregroundMuted} />
       <View style={{ flex: 1, paddingVertical: 6 }}>
@@ -504,7 +519,7 @@ function SortRow(props: { icon: string; label: string; hint?: string; checked?: 
       accessibilityRole="menuitem"
       accessibilityState={{ checked: props.checked }}
       onPress={props.onPress}
-      style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 12 }}
+      style={{ minHeight: 44, flexDirection: "row", alignItems: "center", gap: 8 }}
     >
       <Icon name={props.icon} size={18} color={colors.foregroundMuted} />
       <Text style={{ flex: 1, fontSize: F.base, color: colors.foreground }}>{props.label}</Text>

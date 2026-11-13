@@ -23,7 +23,7 @@
  * A second finger is a pinch (`pinch-zoom.ts`): the drag the first one began
  * is cancelled, and the panel takes nothing more from that touch.
  */
-import { PanResponder, type GestureResponderEvent, type PanResponderGestureState } from "react-native";
+import { PanResponder, type GestureResponderEvent } from "react-native";
 import { AXIS_LOCK_DISTANCE, axisLock } from "../gesture-model";
 import { contentOwnsTouch } from "../touch-claim";
 
@@ -103,6 +103,8 @@ export function panelResponder(options: {
    * ancestor: a claim made only on a move never reached this view.
    */
   claimAtStart?(): boolean;
+  /** Observe a native body's touches without becoming an ancestor JS responder. */
+  observeTouches?: boolean;
 }) {
   let x0 = 0;
   let y0 = 0;
@@ -190,7 +192,7 @@ export function panelResponder(options: {
     if (Math.hypot(dx, dy) >= AXIS_LOCK_DISTANCE) return;
     selecting = stampOf(event) - t0 >= CONTENT_HOLD_MS;
   };
-  const finish = (event: GestureResponderEvent, _gesture: PanResponderGestureState) => {
+  const finish = (event: GestureResponderEvent) => {
     release();
     release = () => {};
     const drag = target();
@@ -206,6 +208,31 @@ export function panelResponder(options: {
     release = options.hold();
     target()?.begin();
   };
+  if (options.observeTouches) {
+    // An ancestor JS responder prevents iOS ScrollView from cancelling its
+    // content's touches, even with onShouldBlockNativeResponder returning false.
+    // Raw touch capture still sees vertical pulls under the Modal's responder.
+    return { panHandlers: {
+      onTouchStartCapture: record,
+      onTouchMoveCapture: (event: GestureResponderEvent) => {
+        if (fingers(event) > 1) abort();
+        if (refused || contentOwnsTouch()) return false;
+        sample(event);
+        if (!chosen) {
+          if (!decide(event)) return false;
+          start();
+        }
+        target()?.move(travel(event).dy);
+        return true;
+      },
+      onTouchEndCapture: (event: GestureResponderEvent) => {
+        if ((event.nativeEvent.touches?.length ?? 0) > 0) return;
+        lifted(event);
+        finish(event);
+      },
+      onTouchCancelCapture: abort,
+    } };
+  }
   const pan = PanResponder.create({
     onStartShouldSetPanResponderCapture: record,
     onStartShouldSetPanResponder: () => {

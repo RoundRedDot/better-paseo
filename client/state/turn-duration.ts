@@ -1,4 +1,5 @@
 import type { PaseoAgent, PaseoAgentTimelineHandle } from "@getpaseo/client";
+import { isAssistantPlaceholder } from "../assistant-text";
 import { parseSystemEnvelope } from "../system-envelope";
 import { getAgentTimelinePageReader } from "./agent-timeline-page-reader";
 
@@ -109,7 +110,8 @@ export function completedTurnFooters(
     let reply: Entry | undefined;
     for (let index = start; index <= end; index++) {
       const entry = entries[index]!;
-      if (entry.item.type === "assistant_message" && entry.item.text.trim() && !parseSystemEnvelope(entry.item.text)) reply = entry;
+      if (entry.item.type === "assistant_message" && entry.item.text.trim() &&
+        !isAssistantPlaceholder(entry.item.text) && !parseSystemEnvelope(entry.item.text)) reply = entry;
     }
     if (!reply || reply.item.type !== "assistant_message") return;
     const at = Date.parse(reply.timestamp);

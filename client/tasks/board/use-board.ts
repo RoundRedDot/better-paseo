@@ -6,9 +6,9 @@ import { TITLE_GENERATION_SETTINGS } from "../../../shared/title-generation";
 import { useToast } from "@getpaseo/plugin/client/react-native";
 import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
-import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl } from "../actions";
+import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, useUnreadControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl, type UnreadControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
-import { filterLanes, setTasksArchivedLane, useTasks, withSubagentCards, type TasksHandle } from "../data";
+import { filterLanes, openedTask, setTasksArchivedLane, useTasks, withSubagentCards, type TasksHandle } from "../data";
 import { useSearchFirstPrompts, retrySearchPrompt, type SearchCoverageControl } from "../data/search-first-prompts";
 import { useSearchConversations } from "../data/search-conversations";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -18,23 +18,28 @@ import { DEFAULT_CARD_TITLE_LINES, type CardTitleLineCount } from "../device-sto
 import { MOTION } from "./board-style";
 import { carriedSettings, useCarriedTasks } from "./carry";
 import { lingerBoard } from "./prefetch";
-import { cardFilterState, filterToCard } from "./filter-options";
+import { cardFilterState, clearedParams, filterToCard } from "./filter-options";
 import { encodeSort, nameCompare, sortLaneCards } from "./sort";
 import {
+  boardClearCount,
   decodeBoardParams,
   encodeBoardParams,
-  isEmptyParams,
-  lastBoardParams,
   rememberBoardParams,
+  rememberBoardRoute,
+  restoreBoardRoute,
   resolveBoardParams,
+  subscribeBoardParams,
   type BoardDefaults,
   type BoardParams,
 } from "./params";
 import { BOARD_STRINGS, type BoardStrings } from "./strings";
 import { useBoardClock, useBoardVisible } from "./visibility";
 import { useTaskAvailability } from "../availability";
+import { useSearchHistory } from "./search-history";
 import { taskIssueText } from "../cards/availability-tag";
 import type { TaskOperation } from "../../../shared/task-availability";
+import { questionDialogStore, type QuestionDialogStore, type QuestionDialogState } from "../actions/question-dialog";
+import { submitQuestion } from "../actions/submit-question";
 
 /** What both layouts share: settings, data after the filters, the clock, and the card callbacks. */
 export interface BoardController {
@@ -75,6 +80,9 @@ export interface BoardController {
   lanes: Record<LaneId, LaneModel>;
   /** First messages still loading or not covered by this search. Other metadata is searched for every card. */
   searchStatus: SearchCoverageControl;
+  searchHistoryLoading: boolean;
+  searchCancelled: boolean;
+  setSearchCancelled(cancelled: boolean): void;
   fullConversationSearch: boolean;
   setFullConversationSearch(on: boolean): void;
   /** A card by id, a provider subagent's included (`tasks.byId` has only the agents'), filtered out or not. */
@@ -89,6 +97,8 @@ export interface BoardController {
   fields: CardSettings;
   titleLines: CardTitleLineCount;
   /** Shared by virtualised cards and their lane-motion copies. */
+  expandedTodo: ReadonlySet<string>;
+  setTodoExpanded(agentId: string, expanded: boolean): void;
   expandedSubtasks: ReadonlySet<string>;
   setSubtasksExpanded(agentId: string, expanded: boolean): void;
   /** The 1 s clock for what shows the time; its identity holds across ticks. */
@@ -96,11 +106,15 @@ export interface BoardController {
   visible: boolean;
   stop: StopControl;
   read: ReadControl;
+  /** Mark unread for a done task: its card, its menu and the details. */
+  unread: UnreadControl;
   /** Unarchive for an archived parent in the details. */
   unarchive: UnarchiveControl;
   /** Archive for a done task: its card, its menu and the details. */
   archive: ArchiveControl;
   callbacks: CardCallbacks;
+  questionDialog: QuestionDialogStore;
+  submitQuestions(state: QuestionDialogState): Promise<void>;
   buttonsFor(card: TaskCard): PermissionButton[];
   /** Fetch a rendered card's project icon; undefined when the field is off. */
   requestIcon: ((projectId: string) => void) | undefined;
@@ -128,7 +142,8 @@ export const NOTICE_MS = 4000;
 /** The layout's own answers to a parent link and a details request. */
 export interface BoardLayoutHandlers {
   reveal(agentId: string): void;
-  details(card: TaskCard, preview?: boolean): void;
+  /** `parent`: the card whose subtask row asked for these details, to go back to. */
+  details(card: TaskCard, preview?: boolean, parent?: string): void;
 }
 
 const NO_BUTTONS: PermissionButton[] = [];
@@ -140,7 +155,7 @@ function buttonsIn(card: TaskCard, language: TasksLanguage): PermissionButton[] 
   if (!permission) return NO_BUTTONS;
   let entry = buttonCache.get(permission);
   if (entry?.language !== language) {
-    entry = { language, buttons: permissionButtons(permission, language) };
+    entry = { language, buttons: permissionButtons(permission, language, true) };
     buttonCache.set(permission, entry);
   }
   return entry.buttons;
@@ -244,16 +259,18 @@ export function useBoard(
   // Opened with params (a deep link, the sidebar, the Command Center): those;
   // else what this board showed last in this session.
   const [storedParams, setParamsState] = useState<BoardParams>(() =>
-    isEmptyParams(props.params) ? lastBoardParams(hostId) : decodeBoardParams(props.params),
+    restoreBoardRoute(hostId, props.params),
   );
   const routeKey = JSON.stringify(encodeBoardParams(decodeBoardParams(props.params)));
   useEffect(() => {
     if (routeKey === "{}") return;
-    const next = decodeBoardParams(JSON.parse(routeKey) as Record<string, string>);
+    const route = JSON.parse(routeKey) as Record<string, string>;
+    const next = restoreBoardRoute(hostId, route);
     // An explicit legacy deep link is a local choice, never a daemon settings write.
-    if (next.hideSubtasks !== null && device.ready) void updateDevice({ hideSubtasks: next.hideSubtasks }).catch((error: unknown) => latest.current.toast.error(errorText(error)));
+    const hideSubtasks = decodeBoardParams(route).hideSubtasks;
+    if (hideSubtasks !== null && device.ready) void updateDevice({ hideSubtasks }).catch((error: unknown) => latest.current.toast.error(errorText(error)));
     setParamsState((current) => (JSON.stringify(encodeBoardParams(current)) === routeKey ? current : next));
-  }, [routeKey, device.ready, updateDevice]);
+  }, [hostId, routeKey, device.ready, updateDevice]);
   useEffect(() => rememberBoardParams(hostId, { ...storedParams, hideSubtasks: null }), [hostId, storedParams]);
   const params = useMemo(() => ({ ...storedParams, hideSubtasks: settings.board.hideSubtasks }), [storedParams, settings.board.hideSubtasks]);
   const paramsRef = useRef(params);
@@ -264,21 +281,36 @@ export function useBoard(
       void updateDevice({ hideSubtasks: next.hideSubtasks }).catch((error: unknown) => latest.current.toast.error(errorText(error)));
     }
     paramsRef.current = { ...next, hideSubtasks: next.hideSubtasks ?? paramsRef.current.hideSubtasks };
+    rememberBoardRoute(hostId, JSON.parse(routeKey) as Record<string, string>, next);
     setParamsState({ ...next, hideSubtasks: null });
-  }, [updateDevice]);
+  }, [hostId, routeKey, updateDevice]);
+
+  // The sidebar's hidden-task dialog cannot pass new params to an open screen;
+  // its clear request arrives here and is applied once per request.
+  const clearRequest = useSyncExternalStore(subscribeBoardParams, () => boardClearCount(hostId), () => boardClearCount(hostId));
+  const appliedClear = useRef(clearRequest);
+  useEffect(() => {
+    if (clearRequest === appliedClear.current) return;
+    appliedClear.current = clearRequest;
+    setParams(clearedParams);
+  }, [clearRequest, setParams]);
 
   const defaults = useMemo<BoardDefaults>(
     () => ({ hideSubtasks: settings.board.hideSubtasks, doneWindow: settings.board.doneWindow }),
     [settings.board.hideSubtasks, settings.board.doneWindow],
   );
   const { filters, doneWindow } = useMemo(() => resolveBoardParams(params, defaults), [params, defaults]);
-  const options = useMemo(() => ({ doneWindow, includeDone: true, includeArchived: showArchived }), [doneWindow, showArchived]);
+  const [searchCancelled, setSearchCancelled] = useState(false);
+  useEffect(() => { setSearchCancelled(false); }, [filters.query]);
+  const searching = Boolean(filters.query.trim());
+  const options = useMemo(() => ({ doneWindow: searching ? "all" as const : doneWindow, includeDone: true, includeArchived: showArchived }), [doneWindow, showArchived, searching]);
   const laneOrder = boardLaneOrder(showArchived);
   // Closed, the board's data stays warm a while, so a quick reopen sends nothing.
   // After a reconnect the last cards stand in until the store is ready.
   const visible = useBoardVisible(rootRef, compact);
   const availability = useTaskAvailability(useCarriedTasks(hostId, options, useTasks(paseo, options, lingerBoard)), visible, hostId);
   const tasks = availability.tasks;
+  const searchHistoryLoading = useSearchHistory(tasks, filters.query, visible, searchCancelled);
   useEffect(() => {
     if (tasks.error) toast.error(tasks.error);
   }, [tasks.error]);
@@ -288,6 +320,17 @@ export function useBoard(
   const fieldsRef = useRef(cardFields);
   if (!sameFields(fieldsRef.current, cardFields)) fieldsRef.current = cardFields;
   const fields = fieldsRef.current;
+
+  const [expandedTodo, setExpandedTodo] = useState<ReadonlySet<string>>(() => new Set());
+  const setTodoExpanded = useCallback((agentId: string, expanded: boolean) => {
+    setExpandedTodo((current) => {
+      if (current.has(agentId) === expanded) return current;
+      const next = new Set(current);
+      if (expanded) next.add(agentId);
+      else next.delete(agentId);
+      return next;
+    });
+  }, []);
 
   const [expandedSubtasks, setExpandedSubtasks] = useState<ReadonlySet<string>>(() => new Set());
   const setSubtasksExpanded = useCallback((agentId: string, expanded: boolean) => {
@@ -310,8 +353,12 @@ export function useBoard(
   }, []);
   const stop = useStopControl({ cardById: (id) => byIdRef.current.get(id), isActive, toast });
   const isReadable = useCallback((agentId: string) => byIdRef.current.get(agentId)?.readable === true, []);
-  const afterRead = useCallback(() => latest.current.tasks.refreshReads(), []);
-  const read = useReadControl({ isReadable, onRead: afterRead, toast });
+  const afterMarks = useCallback(() => {
+    latest.current.tasks.refreshReads();
+    latest.current.tasks.refreshUnreads();
+  }, []);
+  const read = useReadControl({ isReadable, onRead: afterMarks, toast });
+  const unread = useUnreadControl({ onUnread: afterMarks, toast });
   const reconcileRead = read.reconcile;
   // Unarchive runs through the same CLI as Stop.
   const verifyUnarchive = useCallback((agentId: string) => latest.current.tasks.refreshParent(agentId), []);
@@ -344,8 +391,8 @@ export function useBoard(
   // Every card the board can draw: the store's, with a card for each provider subagent.
   const unfiltered = useMemo(() => withSubagentCards(withStopReasons(titleLanes, stoppedIds, strings.stoppedManually)), [titleLanes, stoppedIds, strings.stoppedManually]);
   const [fullConversationSearch, setFullConversationSearchState] = useState(false);
-  const firstPrompts = useSearchFirstPrompts(paseo, unfiltered, fullConversationSearch ? "" : filters.query);
-  const conversations = useSearchConversations(paseo, unfiltered, fullConversationSearch ? filters.query : "");
+  const firstPrompts = useSearchFirstPrompts(paseo, unfiltered, filters.query, !searchCancelled && !fullConversationSearch);
+  const conversations = useSearchConversations(paseo, unfiltered, fullConversationSearch ? filters.query : "", !searchCancelled);
   const search = fullConversationSearch ? conversations : firstPrompts;
   const filtered = useMemo(() => filterLanes(unfiltered, filters, search.messages), [unfiltered, filters, search.messages]);
   // The order is taken when the sort or the cards change, never on a clock
@@ -396,8 +443,8 @@ export function useBoard(
   }, []);
 
   // Callbacks read the latest values through a ref, so the memoized cards see stable functions.
-  const latest = useRef({ props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search });
-  latest.current = { props, paseo, toast, stop, read, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search };
+  const latest = useRef({ props, paseo, toast, stop, read, unread, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search });
+  latest.current = { props, paseo, toast, stop, read, unread, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search };
   const setFullConversationSearch = useCallback((on: boolean) => {
     setFullConversationSearchState(on);
     latest.current.toast.show(latest.current.strings.fullConversationToast(on));
@@ -448,11 +495,20 @@ export function useBoard(
       latest.current.toast.show(latest.current.strings.archivedLane.cannotOpen);
       return;
     }
-    latest.current.props.navigation?.openAgent({ agentId });
+    const navigation = latest.current.props.navigation;
+    if (!navigation) return;
+    navigation.openAgent({ agentId });
+    // Opened is seen: a task marked unread does not stay in review.
+    openedTask(latest.current.paseo, agentId);
   }, []);
   const requestProjectIcon = useCallback((projectId: string) => latest.current.tasks.requestProjectIcon(projectId), []);
   const buttonsFor = useCallback((card: TaskCard) => buttonsIn(card, language), [language]);
   const hasNavigation = props.navigation !== undefined;
+  const questionDialog = questionDialogStore(paseo);
+  const submitQuestions = useCallback(async (state: QuestionDialogState) => {
+    const current = latest.current;
+    await submitQuestion(current.paseo, state, current.language, (id) => latest.current.paseo === current.paseo ? latest.current.tasks.byId.get(id) : undefined, (id) => current.availability.check(id, "permission"));
+  }, []);
   const stopAvailable = stop.available;
   const readAvailable = read.available;
   const unarchiveAvailable = unarchive.available;
@@ -470,7 +526,7 @@ export function useBoard(
       onReveal: (agentId, parentId) => {
         if (parentId && !findCard(latest.current.lanes, agentId)) {
           const card = cardById(agentId);
-          if (card) handlers.current?.details(card, true);
+          if (card) handlers.current?.details(card, true, parentId);
           else open(parentId);
           return;
         }
@@ -481,9 +537,16 @@ export function useBoard(
       onCancelStop: (agentId) => latest.current.stop.cancel(agentId),
       // The server cannot reach the daemon itself: no Mark read either.
       onRead: readAvailable ? (card) => write(card.id, "read", () => latest.current.read.press(card)) : undefined,
+      // A file the plugin keeps: not gated on the daemon, and not a blocked write.
+      onUnread: (card) => latest.current.unread.press(card),
       onUnarchive: unarchiveAvailable ? (agentId) => write(agentId, "unarchive", () => latest.current.unarchive.press(agentId)) : undefined,
       onArchive: (agentId) => write(agentId, "archive", () => latest.current.archive.press(agentId)),
       onPermission: (card, button) => {
+        if (button.kind === "question") {
+          const current = cardById(card.id);
+          if (current) questionDialog.open(current);
+          return;
+        }
         if (button.kind === "open") {
           open(card.id);
           return;
@@ -500,7 +563,7 @@ export function useBoard(
       onFilter: (card, by) => setParams((current) => filterToCard(current, card, latest.current.tasks.workspaces, by)),
       filterState: (card) => cardFilterState(paramsRef.current, card, latest.current.tasks.workspaces),
     }),
-    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates, write, cardById, conversations.status],
+    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates, write, cardById, conversations.status, questionDialog],
   );
 
   const guardedRead = useMemo(() => ({ ...read, press: (card: TaskCard) => write(card.id, "read", () => read.press(card)) }), [read, write]);
@@ -527,6 +590,9 @@ export function useBoard(
     paseo,
     lanes,
     searchStatus: search.status,
+    searchHistoryLoading,
+    searchCancelled,
+    setSearchCancelled,
     fullConversationSearch,
     setFullConversationSearch,
     cardById,
@@ -536,15 +602,20 @@ export function useBoard(
     total,
     fields,
     titleLines,
+    expandedTodo,
+    setTodoExpanded,
     expandedSubtasks,
     setSubtasksExpanded,
     clock,
     visible,
     stop,
     read: guardedRead,
+    unread,
     unarchive: guardedUnarchive,
     archive: guardedArchive,
     callbacks,
+    questionDialog,
+    submitQuestions,
     buttonsFor,
     requestIcon: fields.projectIcon ? requestProjectIcon : undefined,
     highlighted,

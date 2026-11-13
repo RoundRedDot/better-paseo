@@ -6,6 +6,7 @@ import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontSca
 import { HAIRLINE, devicePixel } from "./board-style";
 import { taskTokens } from "../cards/tokens";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { DROPDOWN_REVEAL } from "../../ui/tokens/motion";
 import {
   MENU,
   MENU_EDGE,
@@ -43,6 +44,8 @@ export interface CascadeMenuProps {
   width: number;
   /** An owner's measured available height, when smaller than the board. */
   maxHeight?: number;
+  /** The owner contains the panel's full native touch bounds (for example, a modal). */
+  nativeScroll?: boolean;
   /** On web, fit the translated content; `width` is the panel's maximum. */
   fitContent?: boolean;
   submenuWidth?: number;
@@ -232,11 +235,13 @@ export function CascadeMenu(props: CascadeMenuProps) {
         theme={theme}
         width={fitContent ? undefined : width}
         fitContent={fitContent}
+        transformOrigin={`${props.align === "right" ? "right" : "left"} ${props.top < 0 ? "bottom" : "top"}`}
         active={focus.level === 0 ? focus.top : focus.open ?? -1}
         open={focus.open}
         onHover={hoverTop}
         onPress={(index) => choose(0, index)}
-        onScroll={setScrollY}
+        onScroll={topItems.some((item) => item.submenu) ? setScrollY : undefined}
+        nativeScroll={props.nativeScroll}
         maxHeight={maxHeight}
         scrolls={layout.height + headerHeight > maxHeight}
         header={
@@ -258,12 +263,14 @@ export function CascadeMenu(props: CascadeMenuProps) {
             chrome={chrome}
             theme={theme}
             width={subWidth}
+            transformOrigin={side === "right" ? "left top" : "right top"}
             active={focus.level === 1 ? focus.sub : -1}
             open={null}
             onHover={hoverSub}
             onPress={(index) => choose(1, index)}
             maxHeight={sub.maxHeight}
             scrolls={subHeight > sub.maxHeight}
+            nativeScroll={props.nativeScroll}
             testID="menu-submenu-panel"
           />
         </View>
@@ -285,8 +292,8 @@ function MenuSearch(props: {
   const colors = props.theme.colors;
   const [clearHovered, setClearHovered] = useState(false);
   return (
-    <View testID="menu-search">
-      <View style={{ height: menuSearchHeight(scale) - 1, flexDirection: "row", alignItems: "center", gap: MENU.gap, paddingHorizontal: MENU.inset + 8 }}>
+    <View testID="menu-search" style={{ paddingTop: MENU.padV }}>
+      <View style={{ height: menuSearchHeight(scale) - MENU.padV - 1, flexDirection: "row", alignItems: "center", gap: MENU.gap, paddingHorizontal: MENU.inset + 8 }}>
         <Icon name="Search" size={14} color={colors.foregroundMuted} />
         <TextInput
           ref={props.inputRef}
@@ -338,6 +345,7 @@ function MenuPanel(props: {
   theme: PluginTheme;
   width?: number;
   fitContent?: boolean;
+  transformOrigin?: string;
   /** The highlighted selectable row; -1 for none. */
   active: number;
   /** The row whose submenu shows; it keeps its fill. */
@@ -348,6 +356,7 @@ function MenuPanel(props: {
   /** Taller content scrolls inside this. */
   maxHeight?: number;
   scrolls?: boolean;
+  nativeScroll?: boolean;
   testID?: string;
   /** Held above the rows, out of their scroll: the search field. */
   header?: ReactNode;
@@ -401,7 +410,9 @@ function MenuPanel(props: {
     boxShadow: chrome.shadow,
     elevation: 8,
   };
-  const entrance = Platform.OS === "web" && !reducedMotion ? menuEntrance : null;
+  const entrance = Platform.OS === "web" && !reducedMotion
+    ? [menuEntrance, { transformOrigin: props.transformOrigin }]
+    : null;
   const header = props.header ?? null;
   const headerHeight = header ? props.headerHeight ?? 0 : 0;
   if (!props.scrolls) {
@@ -412,7 +423,7 @@ function MenuPanel(props: {
       </View>
     );
   }
-  if (Platform.OS === "android") {
+  if (Platform.OS === "android" && !props.nativeScroll) {
     return (
       <DragScroll
         testID={props.testID ?? "menu-panel"}
@@ -434,7 +445,7 @@ function MenuPanel(props: {
         style={{ maxHeight: (props.maxHeight ?? MENU.maxHeight) - headerHeight }}
         contentContainerStyle={{ paddingVertical: MENU.padV }}
         scrollEventThrottle={16}
-        onScroll={(event) => props.onScroll?.(event.nativeEvent.contentOffset.y)}
+        onScroll={props.onScroll ? (event) => props.onScroll?.(event.nativeEvent.contentOffset.y) : undefined}
       >
         {body}
       </ScrollView>
@@ -445,9 +456,12 @@ function MenuPanel(props: {
 // RN Web compiles keyframes only when they are created through StyleSheet.
 const menuEntrance = StyleSheet.create({
   panel: {
-    animationKeyframes: [{ from: { opacity: 0, transform: "translateY(-6px)" }, to: { opacity: 1, transform: "translateY(0px)" } }],
-    animationDuration: "180ms",
-    animationTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
+    animationKeyframes: [{
+      from: { opacity: DROPDOWN_REVEAL.opacity, transform: `translateY(-${DROPDOWN_REVEAL.shift}px) scale(${DROPDOWN_REVEAL.scale})` },
+      to: { opacity: 1, transform: "translateY(0px) scale(1)" },
+    }],
+    animationDuration: `${DROPDOWN_REVEAL.ms}ms`,
+    animationTimingFunction: DROPDOWN_REVEAL.cssEase,
     animationFillMode: "both",
   } as ViewStyle,
 }).panel;
@@ -557,7 +571,7 @@ function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginThe
       )}
       {item.trailing}
       {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}
-      {Platform.OS === "web" && item.shortcut ? <Text style={{ fontFamily: TASK_MONO, fontSize: F.sm, color: colors.foregroundMuted }}>{item.shortcut === "Enter" ? "↵" : item.shortcut.toUpperCase()}</Text> : null}
+      {Platform.OS === "web" && item.shortcut ? <Text style={{ fontFamily: TASK_MONO, fontSize: F.sm, letterSpacing: 2, color: colors.foregroundMuted }}>{item.shortcut === "Enter" ? "↵" : item.shortcut.toUpperCase()}</Text> : null}
       {item.checked ? <Icon name="Check" size={14} color={colors.accent} /> : item.checked === false ? <View style={{ width: 14 }} /> : null}
       {item.submenu ? <Icon name="ChevronRight" size={12} color={colors.foregroundMuted} /> : null}
     </Pressable>

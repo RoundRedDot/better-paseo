@@ -1,3 +1,4 @@
+import { isAssistantPlaceholder } from "./assistant-text";
 import { splitBlocks } from "./components/markdown/blocks";
 import { parseSystemEnvelope } from "./system-envelope";
 import { lexBlockTokens } from "./components/markdown/lex";
@@ -61,6 +62,7 @@ export function hasUiFence(text: string): boolean {
 
 /** Completed long replies use the host's existing row virtualization. */
 export function assistantRows(text: string, phase: string) {
+  if (isAssistantPlaceholder(text)) return [];
   // Definitions and their references share a lexer context, as do system cards.
   const blocks = phase === "complete" && text.length > 16_384 &&
     !/^ {0,3}\[[^\]]+\]:/m.test(text) && !parseSystemEnvelope(text)
