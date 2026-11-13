@@ -150,6 +150,8 @@ export interface EnhancerPreferences {
    * subset rather than a superset.
    */
   assistantMarkdown: boolean;
+  /** Case-insensitive regexes for a fence language whose reply is left to the host. */
+  nativeBlockLanguages: string[];
   /** Which look the markdown renderer uses. */
   markdownVariant: MarkdownVariantPreference;
   /**
@@ -233,6 +235,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   enhancedUserBubble: false,
   selectionActions: true,
   assistantMarkdown: true,
+  nativeBlockLanguages: [],
   markdownVariant: "document",
   rowLabelStyle: "icon",
   compactRowSpacing: true,
@@ -262,10 +265,15 @@ export function storedPart(preferences: EnhancerPreferences): StoredPreferences 
   return stored;
 }
 
+export function samePreferenceValue(a: unknown, b: unknown): boolean {
+  return a === b || (Array.isArray(a) && Array.isArray(b) &&
+    a.length === b.length && a.every((entry, index) => entry === b[index]));
+}
+
 /** Field-by-field equality of the stored part. */
 export function sameStored(a: StoredPreferences, b: StoredPreferences): boolean {
   for (const key of Object.keys(a) as Array<keyof StoredPreferences>) {
-    if (a[key] !== b[key]) return false;
+    if (!samePreferenceValue(a[key], b[key])) return false;
   }
   return Object.keys(a).length === Object.keys(b).length;
 }

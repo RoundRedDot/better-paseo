@@ -704,6 +704,13 @@ only their whole names, so `github` and `timeline` stay out.
 - Every local image in a reply is drawn, not only the first.
 - Completed `mermaid` code blocks use Paseo’s diagram renderer, including its source and
   fullscreen controls. The plugin shows source while an unfinished fence is streaming.
+- **Blocks handled by Paseo** is a list of case-insensitive regular expressions, empty by
+  default. Each is tested against the first language label of a fenced block, so `^drawio$`
+  matches ` ```drawio ` and ` ```DRAWIO title `; use `^` and `$` for a whole label. Fences inside
+  another code block or indented code do not count. A match hands the whole reply, including
+  its footer, to Paseo or another installed plugin, also while an unfinished fence is streaming.
+  Imported history checks reply prose, not tool output. Invalid patterns cannot be added and
+  are ignored if stored. With no entries, Mermaid keeps using Paseo’s renderer as above.
 - Turn **Plugin markdown for replies** off for Paseo’s own images and file links.
 
 | Table copy menu | Selected cell actions |
@@ -1017,6 +1024,7 @@ and hides the Tool calls, Spacing, Messages and Hover previews groups. The Tasks
 | Spacing | Tight reply | On | Reduces the gap from 16pt to 4pt when a finished reply is followed by a plugin row, including a checklist. Turn off if they overlap. |
 | Messages | Enhanced prompt bubble | Off | Keeps Copy visible and shows the newest turn's token usage. Readable pasted images are drawn; prompts with other attachments stay with Paseo. Changing it updates existing prompts too. |
 | Messages | Plugin markdown for replies | On | Off hands replies to Paseo, restoring its full footer and enabling host images and Paseo's file links. Mermaid diagrams work with plugin Markdown on. |
+| Messages | Blocks handled by Paseo | Empty | Case-insensitive regexes for the first fence language label; a matching reply and its footer go to Paseo or an installed plugin. Shared by clients on this host. |
 | Messages | Markdown style | Document | Document, Compact or Terminal (body in the code font). |
 | Messages | Selection toolbar | On | Web and desktop: Copy and Add to chat on selected text; the bar closes on scroll. |
 | Hover previews | Hover previews | On | Preview collapsed rows and paths on desktop hover; with block details off, long-press a collapsed row on a touch screen. |
@@ -1194,6 +1202,7 @@ The performance measurements above were made on Paseo 0.13.0 and have not been r
 | --- | --- |
 | Rows overlap, or a reply overlaps the row below | Turn off **Tight rows** or **Tight reply**. |
 | A reply needs a host image or Paseo's file links | Turn off **Plugin markdown for replies**. |
+| A fenced block needs another renderer | Add a pattern for its language to **Blocks handled by Paseo**, such as `^drawio$`. |
 | A selected table cell has no **Add to chat** action on a phone | Paseo does not yet let plugins write into the composer; **Copy selected** is always available. |
 | A prompt with an attachment should use Paseo's renderer | Turn off **Enhanced prompt bubble**. Attachments the plugin cannot render stay with Paseo automatically. |
 | Ctrl/Cmd+F misses old messages | Scroll up to load them, or hand replies back to Paseo as above. |
