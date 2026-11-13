@@ -35,7 +35,7 @@ import { SearchCoverageItems } from "./search-coverage";
 import { SearchQueryChip } from "./filter-bar";
 import { PhoneSearch } from "./phone-search";
 import { defaultLane, laneAfter, swallowsTap, swipeStep, tabsOverflow, type TabBox } from "./navigation";
-import { activeFilterCount, rememberLane, rememberedLane, resolveBoardParams } from "./params";
+import { activeFilterCount, rememberLane, rememberedLane, rememberPhoneLaneOffset, rememberedPhoneLaneOffset, rememberPhoneTabsOffset, rememberedPhoneTabsOffset, resolveBoardParams } from "./params";
 import { sameDetailsBoard, useDetailReads, useParentTitle } from "./details-sidebar";
 import { LANE_EMPTY_ICON, sortLabel } from "./strings";
 import { sortsLoadedOnly } from "./sort";
@@ -109,10 +109,25 @@ export function PhoneBoard(props: {
   }, []);
   const overflowing = tabsOverflow(boxes, barWidth, laneOrder.length);
   const tabsRef = useRef<NativeScrollView | null>(null);
+  const [initialTabsOffset] = useState(() => isNative() ? rememberedPhoneTabsOffset(hostId) : undefined);
+  const initialTab = useRef(lane);
+  const positionedTab = useRef<LaneId | null>(null);
   const activeTabX = boxes[lane]?.tab?.x;
   useEffect(() => {
-    if (overflowing && activeTabX !== undefined) tabsRef.current?.scrollTo?.({ x: Math.max(0, activeTabX - 16), animated: !reduced });
-  }, [overflowing, activeTabX, reduced]);
+    if (!overflowing || activeTabX === undefined) return;
+    if (!isNative()) {
+      tabsRef.current?.scrollTo?.({ x: Math.max(0, activeTabX - 16), animated: !reduced });
+      return;
+    }
+    if (positionedTab.current === lane) return;
+    if (positionedTab.current === null && initialTabsOffset !== undefined && lane === initialTab.current) {
+      positionedTab.current = lane;
+      return;
+    }
+    const animated = positionedTab.current !== null && !reduced;
+    positionedTab.current = lane;
+    tabsRef.current?.scrollTo?.({ x: Math.max(0, activeTabX - 16), animated });
+  }, [overflowing, activeTabX, reduced, lane, initialTabsOffset]);
 
   // The content switch: the old lane fades out moving 24 (120 ms) while the new one comes in from the other side (200 ms).
   const enterOpacity = useRef(new Animated.Value(1)).current;
@@ -424,6 +439,9 @@ export function PhoneBoard(props: {
         <ScrollView
           ref={tabsRef}
           horizontal
+          contentOffset={initialTabsOffset === undefined ? undefined : { x: initialTabsOffset, y: 0 }}
+          onScroll={(event) => { if (isNative()) rememberPhoneTabsOffset(hostId, event.nativeEvent.contentOffset.x); }}
+          scrollEventThrottle={16}
           scrollEnabled={overflowing}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1, minWidth: barWidth, paddingHorizontal: 8, paddingVertical: 4, gap: 4 }}
@@ -867,6 +885,7 @@ const PhoneLane = memo(function PhoneLane(props: {
   const [viewportHeight, setViewportHeight] = useState(0);
   // The list's content height without the end space it was measured with.
   const [contentHeight, setContentHeight] = useState(0);
+  const [initialOffset] = useState(() => isNative() ? rememberedPhoneLaneOffset(board.hostId, lane.id) : 0);
   const offset = useRef(0);
   const [atBottom, setAtBottom] = useState(false);
   const updateEdges = (y: number, height: number, viewport: number) => {
@@ -952,11 +971,16 @@ const PhoneLane = memo(function PhoneLane(props: {
     }}>
     <FlatList<TaskCard>
       ref={setList}
+      contentOffset={isNative() ? { x: 0, y: initialOffset } : undefined}
       onContentSizeChange={(_width, height) => {
         setContentHeight(height - endSpace);
         updateEdges(offset.current, height, viewportHeight);
       }}
-      onScroll={(event) => updateEdges(event.nativeEvent.contentOffset.y, event.nativeEvent.contentSize.height, event.nativeEvent.layoutMeasurement.height)}
+      onScroll={(event) => {
+        const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+        if (isNative()) rememberPhoneLaneOffset(board.hostId, lane.id, contentOffset.y);
+        updateEdges(contentOffset.y, contentSize.height, layoutMeasurement.height);
+      }}
       scrollEventThrottle={16}
       refreshing={refreshing}
       refreshControl={Platform.OS === "android" ? (

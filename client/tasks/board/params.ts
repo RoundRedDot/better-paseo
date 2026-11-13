@@ -176,6 +176,8 @@ interface HostSession {
   /** The phone lane picked by a tab press or a swipe; null until then. */
   lane: LaneId | null;
   collapsed: LaneId[];
+  phoneTabsOffset?: number;
+  phoneLaneOffsets: Partial<Record<LaneId, number>>;
 }
 
 const sessions = new Map<string, HostSession>();
@@ -191,6 +193,7 @@ function reviveSession(raw: unknown): HostSession {
     params: params && !isEmptyParams(params) ? decodeBoardParams(params) : EMPTY_PARAMS,
     lane: isLane(record.lane) ? record.lane : null,
     collapsed: Array.isArray(record.collapsed) ? record.collapsed.filter(isLane) : [],
+    phoneLaneOffsets: {},
   };
 }
 
@@ -271,6 +274,22 @@ export function rememberLane(hostId: string, lane: LaneId): void {
 
 export function rememberedLane(hostId: string): LaneId | null {
   return session(hostId).lane;
+}
+
+export function rememberPhoneTabsOffset(hostId: string, offset: number): void {
+  session(hostId).phoneTabsOffset = Math.max(0, offset);
+}
+
+export function rememberedPhoneTabsOffset(hostId: string): number | undefined {
+  return session(hostId).phoneTabsOffset;
+}
+
+export function rememberPhoneLaneOffset(hostId: string, lane: LaneId, offset: number): void {
+  session(hostId).phoneLaneOffsets[lane] = Math.max(0, offset);
+}
+
+export function rememberedPhoneLaneOffset(hostId: string, lane: LaneId): number {
+  return session(hostId).phoneLaneOffsets[lane] ?? 0;
 }
 
 export function rememberCollapsed(hostId: string, lanes: LaneId[]): void {

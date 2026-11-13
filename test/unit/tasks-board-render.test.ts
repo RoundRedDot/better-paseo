@@ -22,7 +22,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     const empty = props.ListEmptyComponent as React.ReactNode;
     return React.createElement(
       "FlatList",
-      { ref: props.ref, testID: props.testID, refreshing: props.refreshing, onRefresh: props.onRefresh, refreshControl: props.refreshControl, alwaysBounceVertical: props.alwaysBounceVertical, onContentSizeChange: props.onContentSizeChange, onScroll: props.onScroll, contentContainerStyle: props.contentContainerStyle, onScrollToIndexFailed: props.onScrollToIndexFailed, onEndReached: props.onEndReached, data: props.data, viewabilityConfigCallbackPairs: props.viewabilityConfigCallbackPairs },
+      { ref: props.ref, testID: props.testID, refreshing: props.refreshing, onRefresh: props.onRefresh, refreshControl: props.refreshControl, alwaysBounceVertical: props.alwaysBounceVertical, onContentSizeChange: props.onContentSizeChange, onScroll: props.onScroll, contentOffset: props.contentOffset, contentContainerStyle: props.contentContainerStyle, onScrollToIndexFailed: props.onScrollToIndexFailed, onEndReached: props.onEndReached, data: props.data, viewabilityConfigCallbackPairs: props.viewabilityConfigCallbackPairs },
       data.length
         ? data.map((item, index) => {
             host.rowRenders += 1;
@@ -6792,6 +6792,33 @@ describe("Tasks board, phone", () => {
       renderer = TestRenderer.create(screen(true));
     });
     expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
+  });
+
+  it.each(["ios", "android"])("restores the phone tabs and each lane after a screen remount on %s", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const scrollTo = vi.fn();
+    const create = () => TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "ScrollView" ? { scrollTo } : null });
+    const list = (id: string) => hostsById(`phone-lane-${id}`)[0]!.find((node) => (node.type as unknown) === "FlatList");
+    const tabs = () => hostParentOf(hostsById("phone-stat-running")[0]!)!;
+    const scroll = (id: string, y: number) => list(id).props.onScroll({ nativeEvent: { contentOffset: { x: 0, y }, contentSize: { height: 1800 }, layoutMeasurement: { height: 500 } } });
+    act(() => { renderer = create(); });
+    act(() => { scroll("needs_input", 240); scroll("running", 420); tabs().props.onScroll({ nativeEvent: { contentOffset: { x: 75, y: 0 } } }); });
+    act(() => pressable("Running 2").props.onPress());
+    act(() => renderer!.unmount());
+    scrollTo.mockClear();
+    act(() => { renderer = create(); });
+    expect(list("needs_input").props.contentOffset).toEqual({ x: 0, y: 240 });
+    expect(list("running").props.contentOffset).toEqual({ x: 0, y: 420 });
+    expect(tabs().props.contentOffset).toEqual({ x: 75, y: 0 });
+    const running = () => hostsById("phone-stat-running")[0]!;
+    const row = () => running().find((node) => node !== running() && typeof node.type === "string" && typeof node.props.onLayout === "function");
+    act(() => {
+      hostParentOf(tabs())!.props.onLayout({ nativeEvent: { layout: { width: 200 } } });
+      running().props.onLayout({ nativeEvent: { layout: { x: 80, width: 100 } } });
+      row().props.onLayout({ nativeEvent: { layout: { x: 0, width: 100 } } });
+    });
+    act(() => running().props.onLayout({ nativeEvent: { layout: { x: 90, width: 100 } } }));
+    expect(scrollTo).not.toHaveBeenCalledWith(expect.objectContaining({ animated: true }));
   });
 
   it.each(["ios", "android", "web"])("%s scrolls only when the selected tab is pressed again", (os) => {
