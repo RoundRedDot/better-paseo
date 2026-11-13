@@ -1522,9 +1522,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           ) : null}
         </View>
         {compactRequest && props.permissionButtons.length > 0 ? (
-          <ActionRow gap={GAP} stack={stackAnswers} testID="task-card-question-actions">
+          <ActionRow gap={GAP} stack={stackAnswers} stackFull={card.lane === "needs_input"} testID="task-card-question-actions">
             {props.permissionButtons.map((button) => (
-              <ActionButton key={button.key} button={button} tokens={tokens} compact keepLabel={keepsAnswerLabel(button, props.permissionButtons)}
+              <ActionButton key={button.key} button={button} tokens={tokens} compact keepLabel={card.lane === "needs_input" || keepsAnswerLabel(button, props.permissionButtons)} wrapOption={card.lane === "needs_input"}
                 disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}
                 hint={hint(`action-permission-${button.key}`, () => button.label)}
                 onPress={() => props.onPermission?.(card, button)} />
@@ -1533,14 +1533,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         ) : null}
         {answerRow ? (
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP }} testID="task-card-answer-row">
-            <ActionRow gap={GAP} stack={stackAnswers} style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0 }} testID="task-card-answer-actions">
+            <ActionRow gap={GAP} stack={stackAnswers} stackFull={card.lane === "needs_input"} style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0 }} testID="task-card-answer-actions">
               {props.permissionButtons.map((button) => (
                 <ActionButton
                   key={button.key}
                   button={button}
                   tokens={tokens}
                   compact={false}
-                  keepLabel={keepsAnswerLabel(button, props.permissionButtons)}
+                  keepLabel={card.lane === "needs_input" || keepsAnswerLabel(button, props.permissionButtons)}
+                  wrapOption={card.lane === "needs_input"}
                   disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}
                   hint={hint(`action-permission-${button.key}`, () => button.label)}
                   onPress={() => props.onPermission?.(card, button)}
@@ -2139,6 +2140,7 @@ export function ActionButton(props: {
   compact: boolean;
   /** Never fold to the icon (`keepsAnswerLabel`): wrap the label onto more lines instead. */
   keepLabel?: boolean;
+  wrapOption?: boolean;
   disabled?: boolean;
   hint?: string;
   onPress(): void;
@@ -2155,7 +2157,7 @@ export function ActionButton(props: {
       look={look}
       icon={button.kind === "question" ? "MessageCircleQuestion" : answer || option ? null : button.action.behavior === "allow" ? "Check" : "X"}
       labelOnly={option}
-      wrapLabel={!option && props.keepLabel === true}
+      wrapLabel={option ? props.wrapOption === true : props.keepLabel === true}
       tokens={props.tokens}
       compact={props.compact}
       disabled={props.disabled}

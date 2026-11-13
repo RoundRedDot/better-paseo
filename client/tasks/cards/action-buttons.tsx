@@ -86,7 +86,7 @@ export function CardButton(props: {
   const hasIcon = !!props.icon || props.glyph !== undefined || props.busy || answer || props.arrow;
   const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, baseHeight, 2 * (compact ? 12 : 10) + (hasIcon ? size + 4 : 0) + 1, forcedSquare, kind === "primary", props.labelOnly, props.wrapLabel);
   const square = fit.iconOnly;
-  const wrap = props.wrapLabel === true && !props.labelOnly;
+  const wrap = props.wrapLabel === true;
   return (
     <ActionPressable
       accessibilityRole="button"

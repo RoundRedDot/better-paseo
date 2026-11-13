@@ -1576,7 +1576,7 @@ describe("TaskCardView rows", () => {
     const box = (style: unknown) => {
       const flatStyle = flat(style);
       return {
-        height: flatStyle.height,
+        height: flatStyle.height ?? flatStyle.minHeight,
         radius: flatStyle.borderRadius ?? flatStyle.borderTopLeftRadius,
         padding: flatStyle.paddingHorizontal,
         gap: flatStyle.gap,
@@ -1658,7 +1658,7 @@ describe("TaskCardView rows", () => {
     expect(allow.height).toBeUndefined();
     expect(allow.flex).toBeUndefined();
     const label = byLabel(tree.root, "Allow").find((node) => (node.type as unknown) === "Text");
-    expect(label.props.numberOfLines).toBe(1);
+    expect(label.props.numberOfLines).toBeUndefined();
     expect(flat(label.props.style).flexShrink).toBe(0);
     // No flexWrap: on Android it left a phantom second row's height under the buttons.
     expect(flat(hostByTestId(tree.root, "task-card-actions").props.style).flexWrap).toBeUndefined();
@@ -5131,18 +5131,15 @@ describe("responsive task actions", () => {
     expect(actionIconOnly(120, sizes, 8)).toEqual([true, true, true]);
   });
 
-  // Allow leads the card's and the details' row but trails the phone sheet's
-  // (Deny, Allow): a narrow row gives up Deny's words first in all three.
-  it.each(["card", "phone card", "sidebar", "sheet"] as const)("keeps Allow's label after Deny folds on the %s", async (surface) => {
+  // The details surfaces keep their existing icon-folding behavior.
+  it.each(["sidebar", "sheet"] as const)("keeps Allow's label after Deny folds on the %s", async (surface) => {
     const card = sample("sample-input");
     const buttons = permissionButtons(card.permission!, "en");
     const shared = { card, theme: LIGHT, language: "en" as const, strings: BOARD_STRINGS.en.sidebar, permissionButtons: buttons, onPermission() {} };
-    const element = surface === "card" || surface === "phone card"
-      ? cardElement(card, { compact: surface === "phone card", language: "en", permissionButtons: buttons, onPermission() {} })
-      : surface === "sidebar" ? React.createElement(TaskDetailCards, { ...shared, now: NOW, touch: true }) : React.createElement(DetailActionBar, shared);
+    const element = surface === "sidebar" ? React.createElement(TaskDetailCards, { ...shared, now: NOW, touch: true }) : React.createElement(DetailActionBar, shared);
     const tree = await render(element);
     // A tool permission's answers take their own row under the divider on a phone too.
-    const rowId = { card: "task-card-answer-actions", "phone card": "task-card-question-actions", sidebar: "detail-permission-actions", sheet: "detail-action-bar" }[surface];
+    const rowId = { sidebar: "detail-permission-actions", sheet: "detail-action-bar" }[surface];
     const row = () => hostByTestId(tree.root, rowId);
     const labels = () => row().findAll((node) => (node.type as unknown) === "Text" && typeof node.props.onLayout === "function");
     await act(async () => {
@@ -5189,7 +5186,7 @@ describe("responsive task actions", () => {
     expect(answers.map((node) => node.props.accessibilityLabel)).toEqual(options);
     for (const [index, answer] of answers.entries()) {
       expect(texts(answer)).toEqual([options[index]]);
-      if (surface === "card" || surface === "phone card") expect(answer.find((node) => (node.type as unknown) === "Text").props).toMatchObject({ numberOfLines: 1, ellipsizeMode: "tail" });
+      if (surface === "card" || surface === "phone card") expect(answer.find((node) => (node.type as unknown) === "Text").props.numberOfLines).toBeUndefined();
       expect(icons(answer)).toEqual([]);
       await act(async () => answer.props.onPress());
     }
