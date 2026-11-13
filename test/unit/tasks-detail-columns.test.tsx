@@ -393,7 +393,7 @@ describe("details columns", () => {
     });
     await act(async () => messages.props.onLayout());
     expect(scrollTo).toHaveBeenLastCalledWith({ y: 320, animated: false });
-    expect(host(root, "detail-prompt-text").props.style).toMatchObject({ overflow: "hidden" });
+    expect(host(root, "detail-prompt-text").props.style).toMatchObject({ overflow: os === "web" ? "hidden" : "scroll" });
     expect(host(root, "detail-action-bar")).toBe(bar);
     scrollTo.mockClear();
     await act(async () => {
@@ -527,7 +527,7 @@ describe("details columns", () => {
       return <TaskDetailCards {...props(false)} columns={false} tabs firstPrompt={{ prompt: { state: "ready", text: first }, load() {} }} humanMessage={{ prompt: { state: "ready", text: human, position: { epoch: "epoch", seq: 0 } }, load() {} }} lastMessage={lastMessage} />;
     }
     await act(async () => { renderer = TestRenderer.create(<LiveDetails />); });
-    expect(host(renderer!.root, "detail-prompt-text").props.style).toMatchObject({ overflow: "hidden" });
+    expect(host(renderer!.root, "detail-prompt-text").props.style).toMatchObject({ overflow: "scroll" });
     expect(host(renderer!.root, "detail-prompt-more").props.accessibilityState.expanded).toBe(false);
     for (const id of ["detail-human", "detail-message"]) {
       expect(host(renderer!.root, `${id}-text`).props.style).toBeNull();
@@ -540,7 +540,7 @@ describe("details columns", () => {
     expect(host(renderer!.root, "detail-message-text").props.style).toBeNull();
     expect(refetch).toHaveBeenCalledOnce();
     await act(async () => host(renderer!.root, "detail-message-more").props.onPress());
-    expect(host(renderer!.root, "detail-message-text").props.style).toMatchObject({ overflow: "hidden" });
+    expect(host(renderer!.root, "detail-message-text").props.style).toMatchObject({ overflow: "scroll" });
   });
   it("keeps usage above activity and both expanded for failed tasks", async () => {
     const card = previewSampleCards(NOW).find((item) => item.id === "sample-failed")!;

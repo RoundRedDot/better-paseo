@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Pressable, View } from "react-native";
+import { Animated, Platform, Pressable, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { withAlpha } from "../../components/theme-tokens";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -11,6 +11,18 @@ import { cardStrings } from "./strings";
 import type { TaskTokens } from "./tokens";
 
 const FADE_STEPS = 6;
+/**
+ * The fold's clip must not size what it clips. Yoga hands a box's children its
+ * height limit (`maxHeight`), and Fabric's text measure clamps to that limit
+ * (iOS `TextLayoutManager`), so text measured under the fold read as one fold
+ * tall: the fold dropped, the text measured whole, the fold came back, and the
+ * fold and its row flickered without end, an opening fold re-measuring every
+ * frame as it grew. Yoga lays the children of a `scroll` box out at their own
+ * height, as a ScrollView's content; iOS and Android clip `scroll` as they
+ * clip `hidden` and no scroll view is created. A browser measures text without
+ * its box's limit, and would scroll a `scroll` box.
+ */
+const clipOverflow = () => (Platform.OS === "web" ? "hidden" as const : "scroll" as const);
 
 /**
  * Text that folds under a fade after `limit` lines, with the same
@@ -40,15 +52,17 @@ export function FoldedText(props: {
   const words = cardStrings(props.language).details;
   const [height, setHeight] = useState<number | null>(null);
   const progress = useRef(new Animated.Value(props.expanded ? 1 : 0)).current;
-  const target = useRef(props.expanded);
+  /** Where `progress` rests; null while an animation was cut short. */
+  const target = useRef<boolean | null>(props.expanded);
   const limit = props.limit * props.line;
   // Android's text box keeps a few font-padding pixels past its lines; count
   // whole lines so a title that just fits five stays whole.
-  const overflows = height !== null && Math.round(height / props.line) > props.limit;
+  const measured = height !== null;
+  const overflows = measured && Math.round(height / props.line) > props.limit;
   // Unmeasured text stays clamped: a long title must not paint open for a frame.
-  const long = props.long ?? (height === null || overflows);
+  const long = props.long ?? (!measured || overflows);
   useEffect(() => {
-    if (reduced || !long || height === null) {
+    if (reduced || !long || !measured) {
       target.current = props.expanded;
       progress.setValue(props.expanded ? 1 : 0);
       return;
@@ -56,13 +70,23 @@ export function FoldedText(props: {
     if (target.current === props.expanded) return;
     target.current = props.expanded;
     const animation = Animated.timing(progress, { toValue: props.expanded ? 1 : 0, duration: props.expanded ? 180 : 140, easing: MOTION.ease, useNativeDriver: false, isInteraction: false });
-    animation.start();
-    return () => animation.stop();
-  }, [props.expanded, long, reduced, progress, height]);
+    let done = false;
+    animation.start(({ finished }) => { done = finished; });
+    return () => {
+      if (done) return;
+      animation.stop();
+      // Run on from where it stopped: a new height must not leave the fold
+      // stuck partway, and a second press turns it around.
+      target.current = null;
+    };
+    // Keyed on whether the text is measured, not its height: the clip follows
+    // a new height through the interpolation below.
+  }, [props.expanded, long, reduced, progress, measured]);
   const folded = long && !props.expanded;
+  const overflow = clipOverflow();
   const style = !long || (props.expanded && (reduced || height === null)) ? null
-    : reduced || height === null ? { maxHeight: limit, overflow: "hidden" as const }
-    : { maxHeight: progress.interpolate({ inputRange: [0, 1], outputRange: [Math.min(limit, height), height] }), overflow: "hidden" as const };
+    : reduced || height === null ? { maxHeight: limit, overflow }
+    : { maxHeight: progress.interpolate({ inputRange: [0, 1], outputRange: [Math.min(limit, height), height] }), overflow };
   const total = props.total ?? (height === null ? 0 : Math.max(1, Math.round(height / props.line)));
   return (
     <View>

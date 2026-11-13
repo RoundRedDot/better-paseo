@@ -41,6 +41,12 @@ export interface YogaLayoutOptions {
    * only inside a word wider than the line (`wrapLines`), instead of by width alone.
    */
   wordWrap?: boolean;
+  /**
+   * Clamp a text's measured height to the height its box offers, as Fabric's
+   * iOS `TextLayoutManager` does (`layoutConstraints.clamp`): text under a
+   * `maxHeight` box measures no taller than the box.
+   */
+  clampText?: boolean;
 }
 
 /** Host element types that sit in a separate native layer, outside the row. */
@@ -209,7 +215,7 @@ export function measureHostTree(root: ReactTestInstance, options: YogaLayoutOpti
       const lineHeight = typeof style.lineHeight === "number" ? style.lineHeight : Math.ceil(fontSize * 1.25);
       const intrinsic = estimateTextWidth(textOf(instance), fontSize) * scale;
       const maxLines = typeof instance.props.numberOfLines === "number" && instance.props.numberOfLines > 0 ? instance.props.numberOfLines : Infinity;
-      node.setMeasureFunc((width, widthMode) => {
+      const measure = (width: number, widthMode: MeasureMode) => {
         const shown = widthMode === MeasureMode.Exactly ? width : widthMode === MeasureMode.AtMost ? Math.min(width, intrinsic) : intrinsic;
         const wrapping = options.wrapText && widthMode !== MeasureMode.Undefined && width > 0;
         if (wrapping && options.wordWrap && intrinsic > width + 0.5) {
@@ -219,6 +225,11 @@ export function measureHostTree(root: ReactTestInstance, options: YogaLayoutOpti
         }
         const lines = wrapping ? Math.min(maxLines, Math.max(1, Math.ceil(intrinsic / width))) : 1;
         return { width: shown, height: lineHeight * lines };
+      };
+      node.setMeasureFunc((width, widthMode, height, heightMode) => {
+        const size = measure(width, widthMode);
+        if (!options.clampText || heightMode === MeasureMode.Undefined) return size;
+        return { width: size.width, height: heightMode === MeasureMode.Exactly ? height : Math.min(size.height, height) };
       });
     } else {
       hostChildren(instance)

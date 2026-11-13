@@ -4062,7 +4062,7 @@ describe("TaskDetailCards", () => {
     expect(sections.map((node) => node.props.testID)).toEqual(["detail-location", "detail-prompt", "detail-activity", "detail-usage"]);
     const body = hostByTestId(tree.root, "detail-prompt-text");
     const size = Math.round(tree.root.findByType(MarkdownView).props.tokens.typography.content.size * 0.9);
-    expect(body.props.style).toMatchObject({ maxHeight: 10 * variantMetrics("document", size).bodyLineHeight, overflow: "hidden" });
+    expect(body.props.style).toMatchObject({ maxHeight: 10 * variantMetrics("document", size).bodyLineHeight, overflow: "scroll" });
     expect(texts(hostByTestId(tree.root, "detail-prompt"))).toEqual(["First prompt", "Check whether this issue is handled:", "The board\nThe sidebar\nThe sheet\nThe phone\nOne\nTwo\nThree\nFour\nFive", "Show all · 11 lines"]);
     await act(async () => hostByTestId(tree.root, "detail-prompt-more").props.onPress());
     expect(hostByTestId(tree.root, "detail-prompt-text").props.style).toBeNull();
@@ -4083,7 +4083,7 @@ describe("TaskDetailCards", () => {
     const card = { ...sample("sample-running"), title: "A generated title that runs well past five lines once the sidebar wraps it around the card" };
     const tree = await render(details(card, {}, "en"));
     // Folded before it is measured: a long title never paints open for a frame.
-    expect(flat(hostByTestId(tree.root, "detail-title-text").props.style)).toMatchObject({ maxHeight: 5 * 20, overflow: "hidden" });
+    expect(flat(hostByTestId(tree.root, "detail-title-text").props.style)).toMatchObject({ maxHeight: 5 * 20, overflow: "scroll" });
     expect(tree.root.findAll((node) => node.props.testID === "detail-title-more")).toHaveLength(0);
 
     // Measured at eight lines: the same fade and "Show all" row as the messages.
