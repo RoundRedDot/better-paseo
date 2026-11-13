@@ -32,6 +32,7 @@ interface ActionSlot {
   folded: ReadonlySet<string>;
   /** The row lays its buttons out one under another (`ActionRow`'s `stack`). */
   stacked: boolean;
+  fill: boolean;
   register(entry: Entry): () => void;
 }
 const ActionContext = createContext<ActionSlot | null>(null);
@@ -73,13 +74,22 @@ export function ActionRow(props: {
   stack?: boolean;
   /** Stack before folding any labels when the full row does not fit. */
   stackFull?: boolean;
+  /** Grow buttons to fill the row, or fill it when stacked. */
+  fill?: boolean;
+  /** Keep the last action on a separate line only if the whole row does not fit. */
+  splitLast?: boolean;
 }) {
   const [folded, setFolded] = useState<ReadonlySet<string>>(NO_FOLDS);
   const [stacked, setStacked] = useState(false);
+  const [lastOnOwnRow, setLastOnOwnRow] = useState(false);
+  const [lastTooWide, setLastTooWide] = useState(false);
+  const [groupWidths, setGroupWidths] = useState({ pair: 0, last: 0 });
   const stack = useRef(props.stack === true);
   stack.current = props.stack === true;
   const stackFull = useRef(props.stackFull === true);
   stackFull.current = props.stackFull === true;
+  const splitLast = useRef(props.splitLast === true);
+  splitLast.current = props.splitLast === true;
   const gap = props.gap ?? 8;
   const authored = StyleSheet.flatten(props.style);
   const padding = (authored?.paddingLeft ?? authored?.paddingHorizontal ?? authored?.padding ?? 0) as number;
@@ -94,7 +104,15 @@ export function ActionRow(props: {
     const total = sorted.reduce((sum, item, index) => sum + (modes[index] ? item.icon : item.full), 0) + Math.max(0, sorted.length - 1) * sizes.current.gap;
     // Stacked, every button has the row's width, so none needs to fold.
     const fullTotal = sorted.reduce((sum, item) => sum + item.full, 0) + Math.max(0, sorted.length - 1) * sizes.current.gap;
-    const tight = stackFull.current ? fullTotal > width + 0.5 : stack.current && total > width + 0.5;
+    const separate = splitLast.current && sorted.length === 3 && fullTotal > width + 0.5;
+    const pairTotal = sorted.slice(0, 2).reduce((sum, item) => sum + item.full, 0) + sizes.current.gap;
+    const tight = splitLast.current ? separate && pairTotal > width + 0.5 : stackFull.current ? fullTotal > width + 0.5 : stack.current && total > width + 0.5;
+    if (splitLast.current && sorted.length === 3) {
+      const last = sorted[2]!.full;
+      setGroupWidths((current) => current.pair === pairTotal && current.last === last ? current : { pair: pairTotal, last });
+    }
+    setLastOnOwnRow(separate);
+    setLastTooWide(separate && sorted[2]!.full > width + 0.5);
     setStacked(tight);
     const next = tight ? NO_FOLDS : new Set(sorted.filter((_, index) => modes[index]).map((item) => item.id));
     setFolded((current) => (sameIds(current, next) ? current : next.size === 0 ? NO_FOLDS : next));
@@ -113,17 +131,32 @@ export function ActionRow(props: {
     sizes.current.gap = gap;
     refold();
   }, [gap, refold]);
-  useLayoutEffect(() => { refold(); }, [props.stack, props.stackFull, refold]);
+  useLayoutEffect(() => { refold(); }, [props.stack, props.stackFull, props.fill, props.splitLast, refold]);
   // One value per slot while the fold holds, so a button draws again only when it folds or unfolds.
-  const slots = useMemo(() => new Map<number, ActionSlot>(), [folded, stacked, register]);
+  const children = actions(props.children);
+  const slots = useMemo(() => new Map<number, ActionSlot>(), [folded, stacked, lastTooWide, props.fill, props.splitLast, children.length, register]);
   const slot = (index: number) => {
     let value = slots.get(index);
     if (!value) {
-      value = { index, folded, stacked, register };
+      value = { index, folded, stacked: stacked || (props.splitLast === true && index === children.length - 1 && lastTooWide), fill: props.fill === true, register };
       slots.set(index, value);
     }
     return value;
   };
+  const renderChild = (child: ReactNode, index: number) => <ActionContext.Provider key={index} value={slot(index)}>{child}</ActionContext.Provider>;
+  if (props.splitLast) return (
+    <View testID={props.testID} onLayout={(event) => {
+      sizes.current.width = Math.max(0, event.nativeEvent.layout.width - padding - endPadding);
+      refold();
+    }} style={[{ flexDirection: lastOnOwnRow ? "column" : "row", width: "100%", minWidth: 0, alignSelf: "stretch", gap }, props.style]}>
+      <View style={{ flexDirection: stacked ? "column" : "row", gap, flexShrink: 0, ...(lastOnOwnRow ? { width: "100%" } : { flexGrow: 1, flexBasis: 0, minWidth: groupWidths.pair }) }}>
+        {children.slice(0, -1).map(renderChild)}
+      </View>
+      <View style={{ flexDirection: "row", flexShrink: 0, ...(lastOnOwnRow ? { width: "100%" } : { flexGrow: 1, flexBasis: 0, minWidth: groupWidths.last }) }}>
+        {children.slice(-1).map((child) => renderChild(child, children.length - 1))}
+      </View>
+    </View>
+  );
   return (
     <View
       testID={props.testID}
@@ -133,9 +166,7 @@ export function ActionRow(props: {
       }}
       style={[{ flexDirection: "row", width: "100%", minWidth: 0, alignSelf: "stretch", gap }, props.style, stacked ? { flexDirection: "column", alignItems: "stretch" } : null]}
     >
-      {actions(props.children).map((child, index) => (
-        <ActionContext.Provider key={index} value={slot(index)}>{child}</ActionContext.Provider>
-      ))}
+      {children.map(renderChild)}
     </View>
   );
 }
@@ -198,9 +229,13 @@ export function useActionFit(label: string, typography: string, iconWidth: numbe
     // key, so its true width cannot shrink: keep the widest reading.
     setMeasured((old) => old?.key === key && old.width >= width ? old : { key, width });
   } : undefined;
-  const style: ViewStyle | undefined = context ? iconOnly
-    ? { width: iconWidth, minWidth: iconWidth, flexGrow: 0, flexShrink: 0, paddingHorizontal: 0 }
-    : (labelOnly && !wrap) || (wrap && stacked) ? { minWidth: 0, flexShrink: 1 } : { minWidth: full ?? iconWidth, flexShrink: 0 } : undefined;
+  let style: ViewStyle | undefined;
+  if (context && iconOnly) style = { width: iconWidth, minWidth: iconWidth, flexGrow: 0, flexShrink: 0, paddingHorizontal: 0 };
+  else if (context?.fill && stacked) style = { width: "100%", minWidth: 0, flexGrow: 0, flexShrink: 1, flexBasis: "auto" };
+  else if (context?.fill && full !== null) style = { minWidth: full, flexGrow: 1, flexShrink: 0, flexBasis: 0 };
+  // Measure the whole label before constraining it to an equal share of the row.
+  else if (context && ((labelOnly && !wrap) || (wrap && stacked))) style = { minWidth: 0, flexShrink: 1 };
+  else if (context) style = { minWidth: full ?? iconWidth, flexShrink: 0 };
   // A wrapping label keeps its one-line width on a row, so it is measured whole; stacked, it may wrap.
   return { iconOnly, labelLayout, style, full, stacked, labelStyle: context ? { flexShrink: (labelOnly && !wrap) || (wrap && stacked) ? 1 : 0 } : undefined };
 }
