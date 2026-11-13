@@ -1,11 +1,11 @@
-// Charts and table rows for README.md and README-zh.md, one English and one Chinese copy of each.
+// Charts and table rows for docs/performance.md and docs/performance-zh.md, one English and one Chinese copy of each.
 //   node docs/perf/readme-charts.mjs
 // Reads the October 26 Paseo 0.13 raw runs under docs/bench/2026-10-26-paseo-013-948b8720/raw (local, not in
 // git; README_BENCH_RAW overrides the path, e.g. from a worktree) and writes docs/perf/readme/*.svg:
 //   web-cpu.<lang>.svg     Web main-thread task time, no plugin (Paseo 0.13.0) / Better Paseo
 //   ios-cpu.<lang>.svg     iOS Release: app-process CPU time per replay, native threads included
 //   web-memory.<lang>.svg  JS heap and DOM nodes after a forced GC, the scenarios that differ most
-// It also prints the README table rows (en, then zh) for every table in the performance section.
+// It also prints the performance document table rows (en, then zh) for every table in docs/performance*.md.
 // Every figure is the median of the five runs of one mode. Bars past the axis are clipped and
 // keep the real number as their label. The charts carry their own white card, so they stay
 // legible on GitHub's dark theme.
@@ -90,7 +90,7 @@ const GOOD = "#1e6b57";
 const BAD = "#b0392f";
 
 // File names are <platform>-<mode>-<fixture>-r<rep>.json. The candidate build ("cand") in the
-// same directory is not part of the README.
+// same directory is not part of the performance report.
 function load(dir) {
   const runs = readdirSync(path.join(RAW, dir))
     // Runs a driver rejected and retried are kept as <label>.rejected.json; they are not samples.
@@ -158,7 +158,7 @@ function delta(base, fork, t, { floor = 0 } = {}) {
 }
 
 // A solid arrow with a shaft, 11 wide and 13 tall, its box's top-left at (x, y):
-// up for a saving, down for a regression. The README tables use the same shape.
+// up for a saving, down for a regression. The performance tables use the same shape.
 function arrowPath(direction, x, y) {
   const up = [[5.5, 0], [11, 6.5], [7.5, 6.5], [7.5, 13], [3.5, 13], [3.5, 6.5], [0, 6.5]];
   const points = direction === "up" ? up : up.map(([px, py]) => [px, 13 - py]);
@@ -287,14 +287,14 @@ function memoryChart(t) {
 }
 
 mkdirSync(OUT, { recursive: true });
-// The arrows the README tables put before a percentage.
+// The arrows the performance document tables put before a percentage.
 for (const [direction, fill] of [["up", GOOD], ["down", BAD]]) {
   writeFileSync(
     path.join(OUT, `arrow-${direction}.svg`),
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 11 13" width="11" height="13"><path fill="${fill}" d="${arrowPath(direction, 0, 0)}"/></svg>\n`,
   );
 }
-// README table rows. `floor` is the half-second rule for whole Web replays; `format` the cell.
+// Performance document table rows. `floor` is the half-second rule for whole Web replays; `format` the cell.
 const fmtFixed = (digits) => (v) => v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 const TABLES = [
   { name: "web-cpu", get: (f, m) => web(f, m, task), format: fmtFixed(3), floor: 0.5 },
@@ -304,8 +304,8 @@ const TABLES = [
   { name: "ios-rows", get: (f, m) => ios(f, m, rowSum), format: fmtFixed(1) },
 ];
 const ARROW = {
-  up: '<img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;',
-  down: '<img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;',
+  up: '<img src="perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;',
+  down: '<img src="perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;',
 };
 function tableRows(table, lang) {
   const t = TEXT[lang];
