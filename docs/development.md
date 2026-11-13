@@ -1,5 +1,9 @@
 # Developing Better Paseo
 
+**English** | [简体中文](development-zh.md)
+
+[← Back to README](../README.md)
+
 ## Project structure
 
 ```text
@@ -37,6 +41,7 @@ npm install
 npm run typecheck
 npm test
 npm run check:hermes
+npm run build:client
 paseo plugin reload better-paseo
 ```
 
@@ -137,8 +142,8 @@ Code only leaves the startup path when it leaves the bundle.
 
 ## Media and benchmark production
 
-Video scripts, screenshot tooling, benchmark reports and raw samples are maintained separately in the private [better-paseo-media repository](https://github.com/RoundRedDot/better-paseo-media).
-The public README and gallery use final image assets hosted on this repository's GitHub Releases. Media and raw measurements are not part of a plugin checkout or install.
+Video scripts, screenshot tooling, and media production assets are maintained separately in the private [better-paseo-media repository](https://github.com/RoundRedDot/better-paseo-media).
+The public README and gallery use final image assets hosted on this repository's GitHub Releases. Media assets and raw benchmark measurements are not stored in Git or included in a plugin checkout/install; raw benchmark runs are kept in local, git-ignored directories.
 Unit-test fixtures and pure test helpers stay under `test/`, so plugin tests do not require access to the private repository.
 
 ## Plugin directory release information
