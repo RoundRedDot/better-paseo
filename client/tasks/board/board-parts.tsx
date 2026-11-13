@@ -267,7 +267,7 @@ export function LoadMoreRow(props: {
  * little as it fades in (`MOTION.enter*`). Decided at mount, so the first frame
  * that draws the card already has it at the start of its entrance.
  */
-function EnterOnMount({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+function EnterOnMount({ enabled, children, stretch }: { enabled: boolean; children: ReactNode; stretch?: boolean }) {
   const reduced = useReducedMotion();
   // Decided at mount: switching the wrapper later would remount the card.
   const play = useRef(enabled && !reduced).current;
@@ -291,7 +291,7 @@ function EnterOnMount({ enabled, children }: { enabled: boolean; children: React
     animation.start();
     return () => animation.stop();
   }, [play, t]);
-  return style ? <Animated.View style={style}>{children}</Animated.View> : <>{children}</>;
+  return style ? <Animated.View style={stretch ? [style, { flexGrow: 1 }] : style}>{children}</Animated.View> : <>{children}</>;
 }
 
 /** A `Pressable` whose style follows the pointer on web and on native pointers. */
@@ -384,6 +384,7 @@ function newOutline(theme: PluginTheme, lane: LaneId): ViewStyle {
 }
 
 export interface CardCellProps {
+  stretch?: boolean;
   card: TaskCard;
   board: BoardController;
   theme: PluginTheme;
@@ -433,10 +434,11 @@ export function CardCell(props: CardCellProps) {
   }, [requestIcon, projectId]);
   // The slot is what the lane motion measures; the card inside it is what moves.
   return (
-    <View ref={nodeRef} collapsable={false}>
-      <Animated.View style={motion ? { opacity: motion.opacity, transform: [{ translateX: motion.x }, { translateY: motion.y }] } : undefined}>
-        <EnterOnMount enabled={props.fresh}>
+    <View ref={nodeRef} collapsable={false} style={props.stretch ? { flexGrow: 1 } : undefined}>
+      <Animated.View style={[motion ? { opacity: motion.opacity, transform: [{ translateX: motion.x }, { translateY: motion.y }] } : undefined, props.stretch ? { flexGrow: 1 } : undefined]}>
+        <EnterOnMount enabled={props.fresh} stretch={props.stretch}>
           <TaskCardView
+            stretch={props.stretch}
             card={card}
             todo={todo}
             searchQuery={board.params.query.trim().toLowerCase()}

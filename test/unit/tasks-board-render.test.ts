@@ -48,6 +48,13 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     copyText: async () => {},
   };
 });
+// This suite retains the selectable column layout's geometry and interactions.
+// The default adaptive layout and resize behavior are covered in tasks-lane-scroll.test.tsx.
+vi.mock("../../client/tasks/board/desktop-board", async (original) => {
+  const actual = await original<typeof import("../../client/tasks/board/desktop-board")>();
+  return { ...actual, DesktopBoard: (props: React.ComponentProps<typeof actual.DesktopBoard>) => React.createElement(actual.DesktopBoard, { ...props, initialLayout: "lanes" }) };
+});
+
 const host = vi.hoisted(() => ({
   toast: vi.fn(),
   settings: null as Record<string, unknown> | null,
@@ -4542,9 +4549,10 @@ describe("Tasks board, lane widths", () => {
     const inline = () => hostsById("toolbar-lane-width");
     const button = () => pressable(strings.laneWidth.button(strings.laneWidth.names[deviceTasksStore().snapshot().values?.laneWidth ?? "default"]));
     const lay = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 28 } } }));
+    expect(end().findAll((node) => typeof node.type === "string" && node.props.testID === "tasks-flow-switch")).toHaveLength(1);
     expect(inline()).toHaveLength(0);
     expect(hostsById("lane-width-label")).toHaveLength(0);
-    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end()).indexOf(laneControl())).toBe(4);
+    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end()).indexOf(laneControl())).toBe(5);
     lay(controls(), 500);
     lay(group(), 1000);
     lay(end(), 650);
@@ -4568,7 +4576,7 @@ describe("Tasks board, lane widths", () => {
     expect(laneChildren.indexOf(label())).toBeLessThan(laneChildren.indexOf(inline()[0]!));
     const endGroups = () => end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end());
     expect(endGroups().filter((node) => node.props.testID).map((node) => node.props.testID)).toEqual([
-      "empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle", "board-switches-divider",
+      "tasks-flow-switch", "empty-lanes-toggle", "subtasks-toggle", "archived-lane-toggle", "board-switches-divider",
       "lane-width-control", "lane-width-divider", "done-window", "done-window-divider",
     ]);
     for (const id of ["board-switches-divider", "lane-width-divider", "done-window-divider"]) {
@@ -4579,7 +4587,7 @@ describe("Tasks board, lane widths", () => {
     expect(choices().map((node) => node.props.accessibilityLabel)).toEqual([strings.laneWidth.names.narrow, strings.laneWidth.names.default, strings.laneWidth.names.wide]);
     expect(choices().map((node) => node.findByType(LaneWidthMark).props.laneWidth)).toEqual(["narrow", "default", "wide"]);
     expect(choices().map((node) => node.props.accessibilityState.selected)).toEqual([false, true, false]);
-    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end()).indexOf(laneControl())).toBe(4);
+    expect(end().findAll((node) => typeof node.type === "string" && hostParentOf(node) === end()).indexOf(laneControl())).toBe(5);
     expect(StyleSheet.flatten(inline()[0]!.props.style).height).toBe(Math.round(28 * Math.max(1, base / 14)));
     await act(async () => choices()[2]!.props.onPress());
     expect(deviceTasksStore().snapshot().values?.laneWidth).toBe("wide");
@@ -6152,7 +6160,7 @@ describe("Tasks board, tablet filters", () => {
     const archived = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "toolbar-archived");
     // The folded web header keeps the filter bar's order: empty lanes, then the archived lane, then the filters.
     const header = renderer!.root.findByType(DesktopToolbar).findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID !== "sidebar-switch");
-    expect(header.map((node) => node.props.testID)).toEqual(["desktop-search-toggle", "empty-lanes-toggle", "toolbar-archived", "toolbar-filters", "desktop-toolbar-more"]);
+    expect(header.map((node) => node.props.testID)).toEqual(["desktop-search-toggle", "tasks-flow-switch", "empty-lanes-toggle", "toolbar-archived", "toolbar-filters", "desktop-toolbar-more"]);
     expect(textOf(archived())).toBe("");
     expect(archived().find((node) => (node.type as unknown) === "Icon").props.name).toBe("Archive");
     expect(hostsById("archived-lane-toggle")).toHaveLength(0);
@@ -6215,7 +6223,7 @@ describe("Tasks board, tablet filters", () => {
     expect(textOf(renderer!.root)).not.toContain("Open tabs only");
     expect(renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "filter-bar-more")).toHaveLength(0);
     // Search has its own switch; board visibility switches stay left of the lane width.
-    const barSwitches = new Set(["search-full-conversation-toggle", "archived-lane-toggle", "subtasks-toggle", "empty-groups-toggle"]);
+    const barSwitches = new Set(["search-full-conversation-toggle", "archived-lane-toggle", "subtasks-toggle", "empty-groups-toggle", "tasks-flow-switch"]);
     const switches = renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "switch");
     expect(switches.filter((node) => !barSwitches.has(node.props.testID))).toHaveLength(0);
     const end = renderer!.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-bar-end");

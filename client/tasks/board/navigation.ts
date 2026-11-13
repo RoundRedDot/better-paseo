@@ -257,3 +257,13 @@ export function boardLaneLayout(boardWidth: number, order: readonly LaneId[], co
   const contentWidth = Math.max(viewport, 2 * LANES.edge + Math.max(0, order.length - 1) * LANES.gap + lanesWidth);
   return { laneWidth, contentWidth, scroll: contentWidth > viewport };
 }
+
+/** Desktop flow sections use the space beside the details panel, including its scrollbar gutter. */
+export function flowLaneLayout(viewport: number, size: LaneWidth, count: number, scale = 1) {
+  const width = Math.max(1, viewport - 2 * LANES.edge - 16);
+  const minimum = LANE_SIZES[size].min * Math.max(1, scale);
+  const columns = Math.max(1, Math.floor((width + 12) / (minimum + 12)));
+  const slot = (width - (columns - 1) * 12) / columns;
+  const used = Math.max(1, Math.min(count, columns));
+  return { width: slot * used + (used - 1) * 12, columns: used };
+}

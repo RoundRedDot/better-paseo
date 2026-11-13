@@ -109,6 +109,7 @@ export const KEY_HINTS_MIN_WIDTH = 1200;
 export const DesktopToolbar = memo(DesktopToolbarView);
 
 function DesktopToolbarView(props: {
+  layoutSwitch?: ReactNode;
   board: BoardController;
   theme: PluginTheme;
   searchRef: Ref<NativeTextInput>;
@@ -287,6 +288,7 @@ function DesktopToolbarView(props: {
           <KeyHint text={strings.keys.search} theme={theme} last />
         </View>
       ) : null}
+      {props.layoutSwitch}
       {props.filters ? (
         <>
           <EmptyLanesButton emptyLanes={props.emptyLanes} strings={strings} theme={theme} />
@@ -538,6 +540,7 @@ const SORT_LABEL_MAX_WIDTH = 160;
 export const DesktopFilterBar = memo(DesktopFilterBarView);
 
 function DesktopFilterBarView(props: {
+  layoutSwitch?: ReactNode;
   board: BoardController;
   theme: PluginTheme;
   options: FilterOptions;
@@ -684,6 +687,7 @@ function DesktopFilterBarView(props: {
       <View testID="filter-bar-end" pointerEvents="box-none" onLayout={fit.box("end")} style={{ flexShrink: tablet ? 0 : 1, maxWidth: "100%", marginLeft: "auto", height: toolbarButtonSize(scale), flexDirection: "row", alignItems: "center", gap: TOOLBAR_GAP, zIndex: menu === "sort" || menu === "laneWidth" ? 2 : 1 }}>
         {tablet ? null : (
           <>
+            {props.layoutSwitch}
             {props.emptyLanes ? <EmptyLanesButton emptyLanes={props.emptyLanes} strings={strings} theme={theme} /> : null}
             {subtasksSwitch}
             {archivedSwitch}
