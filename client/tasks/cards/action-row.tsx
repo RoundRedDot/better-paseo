@@ -78,10 +78,22 @@ export function ActionRow(props: {
   fill?: boolean;
   /** With `fill`: keep the last action on a separate line only if the whole row does not fit. */
   splitLast?: boolean;
+  /**
+   * The row's buttons, by text: a row that mounts again with them (a card
+   * scrolled back into view, another card with the same answers) starts
+   * stacked or split as the last one ended, instead of on one line until
+   * its width arrives.
+   */
+  layoutKey?: string;
 }) {
   const [folded, setFolded] = useState<ReadonlySet<string>>(NO_FOLDS);
-  const [stacked, setStacked] = useState(false);
-  const [lastOnOwnRow, setLastOnOwnRow] = useState(false);
+  const [stacked, setStacked] = useState(() => props.layoutKey !== undefined && rowLayouts.get(props.layoutKey)?.stacked === true);
+  const [lastOnOwnRow, setLastOnOwnRow] = useState(() => props.layoutKey !== undefined && rowLayouts.get(props.layoutKey)?.lastOnOwnRow === true);
+  const layoutKey = useRef(props.layoutKey);
+  layoutKey.current = props.layoutKey;
+  const children = actions(props.children);
+  const count = useRef(children.length);
+  count.current = children.length;
   const stack = useRef(props.stack === true);
   stack.current = props.stack === true;
   const stackFull = useRef(props.stackFull === true);
@@ -107,6 +119,8 @@ export function ActionRow(props: {
     const tight = splitLast.current ? separate && pairTotal > width + 0.5 : stackFull.current ? fullTotal > width + 0.5 : stack.current && total > width + 0.5;
     setLastOnOwnRow(separate);
     setStacked(tight);
+    // Only with every button measured: one leaving as the row unmounts would forget the layout.
+    if (layoutKey.current !== undefined && sorted.length === count.current) rememberRowLayout(layoutKey.current, { stacked: tight, lastOnOwnRow: separate });
     const next = tight ? NO_FOLDS : new Set(sorted.filter((_, index) => modes[index]).map((item) => item.id));
     setFolded((current) => (sameIds(current, next) ? current : next.size === 0 ? NO_FOLDS : next));
   }, []);
@@ -126,7 +140,6 @@ export function ActionRow(props: {
   }, [gap, refold]);
   useLayoutEffect(() => { refold(); }, [props.stack, props.stackFull, props.fill, props.splitLast, refold]);
   // One value per slot while the fold holds, so a button draws again only when it folds or unfolds.
-  const children = actions(props.children);
   // The last slot's place depends on the count only when it may take a line of its own.
   const lastIndex = props.splitLast ? children.length - 1 : -1;
   const slots = useMemo(() => new Map<number, ActionSlot>(), [folded, stacked, lastOnOwnRow, props.fill, lastIndex, register]);
@@ -138,20 +151,29 @@ export function ActionRow(props: {
     }
     return value;
   };
-  // `splitLast` keeps every button a direct child of one wrapping row, in
-  // every mode: one line shares the room as a plain row does, a stacked
-  // button (`width: "100%"`) takes a line of its own, and a row that has not
-  // yet learnt its width wraps instead of drawing buttons over each other.
+  const rendered = children.map((child, index) => <ActionContext.Provider key={index} value={slot(index)}>{child}</ActionContext.Provider>);
+  const onLayout = (event: LayoutChangeEvent) => {
+    sizes.current.width = Math.max(0, event.nativeEvent.layout.width - padding - endPadding);
+    refold();
+  };
+  // No flexWrap: on Android its Yoga layout left a phantom second row's
+  // height under the buttons (4473e943). One line holds all three as
+  // siblings, sharing the spare room evenly; once they do not fit, only the
+  // last moves out to a line of its own (`width: "100%"`), so the first two
+  // keep their place and state.
+  if (props.splitLast) return (
+    <View testID={props.testID} onLayout={onLayout} style={[{ width: "100%", minWidth: 0, alignSelf: "stretch", gap }, props.style]}>
+      <View style={{ flexDirection: stacked ? "column" : "row", gap }}>{lastOnOwnRow ? rendered.slice(0, -1) : rendered}</View>
+      {lastOnOwnRow ? rendered.at(-1) : null}
+    </View>
+  );
   return (
     <View
       testID={props.testID}
-      onLayout={(event) => {
-        sizes.current.width = Math.max(0, event.nativeEvent.layout.width - padding - endPadding);
-        refold();
-      }}
-      style={[{ flexDirection: "row", width: "100%", minWidth: 0, alignSelf: "stretch", gap }, props.style, props.splitLast ? { flexWrap: "wrap" } : stacked ? { flexDirection: "column", alignItems: "stretch" } : null]}
+      onLayout={onLayout}
+      style={[{ flexDirection: "row", width: "100%", minWidth: 0, alignSelf: "stretch", gap }, props.style, stacked ? { flexDirection: "column", alignItems: "stretch" } : null]}
     >
-      {children.map((child, index) => <ActionContext.Provider key={index} value={slot(index)}>{child}</ActionContext.Provider>)}
+      {rendered}
     </View>
   );
 }
@@ -163,9 +185,22 @@ export function ActionRow(props: {
  */
 const labelWidths = new Map<string, number>();
 
-/** Tests: forget the measured labels. */
+/** Each `layoutKey`'s last layout, the oldest dropped past `ROW_LAYOUT_LIMIT`. */
+const rowLayouts = new Map<string, { stacked: boolean; lastOnOwnRow: boolean }>();
+const ROW_LAYOUT_LIMIT = 200;
+
+function rememberRowLayout(key: string, layout: { stacked: boolean; lastOnOwnRow: boolean }): void {
+  const known = rowLayouts.get(key);
+  if (known?.stacked === layout.stacked && known.lastOnOwnRow === layout.lastOnOwnRow) return;
+  rowLayouts.delete(key);
+  rowLayouts.set(key, layout);
+  if (rowLayouts.size > ROW_LAYOUT_LIMIT) rowLayouts.delete(rowLayouts.keys().next().value!);
+}
+
+/** Tests: forget the measured labels and rows. */
 export function resetActionWidths(): void {
   labelWidths.clear();
+  rowLayouts.clear();
 }
 
 /**
@@ -217,10 +252,13 @@ export function useActionFit(label: string, typography: string, iconWidth: numbe
   let style: ViewStyle | undefined;
   if (context && iconOnly) style = { width: iconWidth, minWidth: iconWidth, flexGrow: 0, flexShrink: 0, paddingHorizontal: 0 };
   else if (context?.fill && stacked) style = { width: "100%", minWidth: 0, flexGrow: 0, flexShrink: 1, flexBasis: "auto" };
-  else if (context?.fill && full !== null) style = { minWidth: full, flexGrow: 1, flexShrink: 0, flexBasis: 0 };
+  // From its whole label's width, never wider than its line: a width measured
+  // on a wider card wraps the label until the row learns its own width.
+  else if (context?.fill && full !== null) style = { minWidth: 0, flexGrow: 1, flexShrink: 1, flexBasis: full };
   // Measure the whole label before constraining it to an equal share of the row.
   else if (context && ((labelOnly && !wrap) || (wrap && stacked))) style = { minWidth: 0, flexShrink: 1 };
   else if (context) style = { minWidth: full ?? iconWidth, flexShrink: 0 };
   // A wrapping label keeps its one-line width on a row, so it is measured whole; stacked, it may wrap.
-  return { iconOnly, labelLayout, style, full, stacked, labelStyle: context ? { flexShrink: (labelOnly && !wrap) || (wrap && stacked) ? 1 : 0 } : undefined };
+  const wraps = wrap && (stacked || (context?.fill === true && full !== null));
+  return { iconOnly, labelLayout, style, full, stacked, labelStyle: context ? { flexShrink: (labelOnly && !wrap) || wraps ? 1 : 0 } : undefined };
 }

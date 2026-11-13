@@ -256,7 +256,9 @@ function overflows(frames: Map<ReactTestInstance, Frame>, textScale: number, bar
   return problems;
 }
 
-const styleOf = (node: ReactTestInstance) => Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean)) as { minWidth?: unknown };
+const styleOf = (node: ReactTestInstance) => Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean)) as { minWidth?: unknown; flexBasis?: unknown };
+/** The width a button starts from before its line's spare room: its numeric `minWidth` or `flexBasis`, whichever is larger. */
+const baseWidth = (node: ReactTestInstance) => Math.max(...[styleOf(node).minWidth, styleOf(node).flexBasis].map((value) => typeof value === "number" ? value : 0));
 
 /** A row's buttons line by line, top to bottom, each line left to right. */
 function buttonLines(frames: Map<ReactTestInstance, Frame>, bar: ReactTestInstance): Array<Array<{ node: ReactTestInstance; frame: Frame }>> {
@@ -269,18 +271,13 @@ function buttonLines(frames: Map<ReactTestInstance, Frame>, bar: ReactTestInstan
   return [...lines.entries()].sort(([a], [b]) => a - b).map(([, line]) => line.sort((a, b) => a.frame.left - b.frame.left));
 }
 
-/**
- * Buttons drawn over each other or out of the row. A button whose own
- * `minWidth` is wider than the row is let through: until the row's width
- * reaches it, nothing tells it to wrap its label.
- */
+/** Buttons drawn over each other or out of the row. */
 function collisions(frames: Map<ReactTestInstance, Frame>, bar: ReactTestInstance): string[] {
   const box = frames.get(bar)!;
   const buttons = actionButtons(bar).map((node) => ({ name: String(node.props.accessibilityLabel), node, frame: frames.get(node)! }));
   const problems: string[] = [];
-  for (const { name, node, frame } of buttons) {
-    const min = styleOf(node).minWidth;
-    if ((typeof min !== "number" || min <= box.width + 0.5) && (frame.left < box.left - 0.5 || frame.left + frame.width > box.left + box.width + 0.5)) problems.push(`${name} spans ${frame.left}..${frame.left + frame.width} in a ${box.width} row`);
+  for (const { name, frame } of buttons) {
+    if (frame.left < box.left - 0.5 || frame.left + frame.width > box.left + box.width + 0.5) problems.push(`${name} spans ${frame.left}..${frame.left + frame.width} in a ${box.width} row`);
   }
   for (const [index, a] of buttons.entries()) for (const b of buttons.slice(index + 1)) {
     const x = Math.min(a.frame.left + a.frame.width, b.frame.left + b.frame.width) - Math.max(a.frame.left, b.frame.left);
@@ -290,14 +287,22 @@ function collisions(frames: Map<ReactTestInstance, Frame>, bar: ReactTestInstanc
   return problems;
 }
 
-/** Lines that leave room at either end, or share their spare room (each button's width past its `minWidth`) unevenly. */
+/** Views under (and including) `bar` that wrap: on Android a wrapping row left a phantom second row's height under its buttons (4473e943). */
+function wrapping(bar: ReactTestInstance): string[] {
+  return [bar, ...bar.findAll((node) => typeof node.type === "string")].filter((node) => {
+    const wrap = (Object.assign({}, ...[node.props.style].flat(Infinity).filter(Boolean)) as { flexWrap?: string }).flexWrap;
+    return wrap !== undefined && wrap !== "nowrap";
+  }).map((node) => String(node.props.testID ?? node.props.accessibilityLabel ?? node.type));
+}
+
+/** Lines that leave room at either end, or share their spare room (each button's width past its `baseWidth`) unevenly. */
 function unevenLines(frames: Map<ReactTestInstance, Frame>, bar: ReactTestInstance): string[] {
   const box = frames.get(bar)!;
   return buttonLines(frames, bar).flatMap((line) => {
     const names = line.map(({ node }) => String(node.props.accessibilityLabel)).join(" | ");
     const problems: string[] = [];
     if (Math.abs(line[0]!.frame.left - box.left) > 0.5 || Math.abs(line.at(-1)!.frame.left + line.at(-1)!.frame.width - box.left - box.width) > 0.5) problems.push(`${names} does not span the row`);
-    const spare = line.map(({ node, frame }) => frame.width - (typeof styleOf(node).minWidth === "number" ? styleOf(node).minWidth as number : 0));
+    const spare = line.map(({ node, frame }) => frame.width - baseWidth(node));
     if (line.length > 1 && Math.max(...spare) - Math.min(...spare) > 1) problems.push(`${names} share their spare room as ${spare.map((value) => value.toFixed(1)).join(" / ")}`);
     return problems;
   });
@@ -830,7 +835,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
     const id = compact ? "task-card-question-actions" : "task-card-answer-actions";
     const answers = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
     for (const [width, mode] of [[600, "all"], [300, "all"], [240, "pair"], [190, "pair"], [120, "stack"], [300, "all"], [190, "pair"], [600, "all"]] as const) {
-      // The frame drawn at the new width before the row hears of it: wrapped, never overlapping.
+      // The frame drawn at the new width before the row hears of it: never overlapping or past the card.
       expect(collisions(measureHostTree(answers(), { width, textScale: 1, wrapText: true, wordWrap: true }), answers())).toEqual([]);
       const frames = await settleHostLayout(answers, { width, textScale: 1, wrapText: true, wordWrap: true });
       expect(unevenLines(frames, answers())).toEqual([]);
@@ -862,7 +867,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
   // A lane's card scrolled back into view mounts again, its labels' widths already known.
   const REMOUNT_LABELS = [["允许", "拒绝"], ["按此方案执行", "先不要改"], [...WIDE_CJK], [...WIDE_LATIN]] as const;
   it.each([true, false].flatMap((compact) => [300, 340, 390, 600].flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).flatMap((language) => REMOUNT_LABELS.map((_, set) => [compact, width, scale, language, set] as const))))))
-  ("remounts two options and View questions apart on its first frame, committing once when they fit (compact %s, %ipt, scale %f, %s, labels %i)", async (compact, width, textScale, language, set) => {
+  ("remounts two options and View questions as they settled, from its first frame and in one commit (compact %s, %ipt, scale %f, %s, labels %i)", async (compact, width, textScale, language, set) => {
     const labels = REMOUNT_LABELS[set]!;
     const card = choice([labels[0], labels[1]])();
     const options = { width, textScale, wrapText: true, wordWrap: true };
@@ -880,8 +885,10 @@ describe("phone card action bar under native (Yoga) layout", () => {
     await act(async () => { renderer = mount({ ...card, id: "another-question" }, () => { commits++; }); });
     const mounted = commits;
     expect(mounted).toBeGreaterThan(0);
-    // Its first frame, before any layout reaches the row.
-    expect(collisions(measureHostTree(answers(), options), answers())).toEqual([]);
+    // Its first frame, before any layout reaches the row, is the settled one.
+    const first = measureHostTree(answers(), options);
+    expect(collisions(first, answers())).toEqual([]);
+    expect(actionButtons(answers()).map((button) => first.get(button)!)).toEqual(settled);
     const frames = await settleHostLayout(answers, options);
     const buttons = actionButtons(answers());
     expect(buttons.map((button) => button.props.accessibilityLabel)).toEqual([labels[0], labels[1], language === "zh" ? "查看问题" : "View questions"]);
@@ -889,16 +896,70 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(collisions(frames, answers())).toEqual([]);
     expect(unevenLines(frames, answers())).toEqual([]);
     expect(overflows(frames, textScale, answers())).toEqual([]);
+    expect(wrapping(answers())).toEqual([]);
+    // Nothing about the row changes once its width is known: the mount was its only commit.
+    expect(commits - mounted).toBe(0);
     const lines = buttonLines(frames, answers());
     if (width === 600 && textScale === 1) expect(lines).toHaveLength(1);
-    if (lines.length === 1) {
-      // Nothing about the row changes once its width is known: the mount was its only commit.
-      expect(commits - mounted).toBe(0);
-    } else {
-      // View questions takes the last line alone; the options pair up above it or take a line each.
-      const order = lines.map((line) => line.map(({ node }) => buttons.indexOf(node)));
-      expect(order).toEqual(lines.length === 2 ? [[0, 1], [2]] : [[0], [1], [2]]);
-    }
+    // View questions takes the last line alone once all three do not fit; the options pair up above it or take a line each.
+    const order = lines.map((line) => line.map(({ node }) => buttons.indexOf(node)));
+    expect([[[0, 1, 2]], [[0, 1], [2]], [[0], [1], [2]]]).toContainEqual(order);
+  });
+
+  // Label widths are kept by text and type, not by the card's width: a card
+  // narrowed (a rotated phone, a split screen, a resized sidebar) or another
+  // mounting at that width starts from widths measured on a wider card.
+  const NARROWED = [...REMOUNT_LABELS.map((labels) => ({ name: labels.join(" / "), card: choice([labels[0], labels[1]]) })), { name: "Allow / Deny", card: () => kindCard("tool") }, { name: "a plan's three choices", card: () => kindCard("plan-resume") }];
+  it.each([true, false].flatMap((compact) => [240, 300, 340].flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).flatMap((language) => NARROWED.map((item) => [compact, width, scale, language, item.name] as const))))))
+  ("keeps answers measured at 600pt inside a narrower card, and draws them whole once it has settled there (compact %s, %ipt, scale %f, %s, %s)", async (compact, width, textScale, language, name) => {
+    const card = NARROWED.find((item) => item.name === name)!.card();
+    const wide = { width: 600, textScale, wrapText: true, wordWrap: true };
+    const narrow = { ...wide, width };
+    const id = compact ? "task-card-question-actions" : "task-card-answer-actions";
+    const answers = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    const mount = (shown: TaskCard) => TestRenderer.create(phoneCard(shown, language, { compact, onOpen() {}, permissionButtons: permissionButtons(shown.permission!, language, true) }));
+    // Before the row hears of its width, it is only kept inside the card with its buttons apart: a label may wrap tight for that frame.
+    const apart = (frames: Map<ReactTestInstance, Frame>) => {
+      expect(wrapping(answers())).toEqual([]);
+      expect(collisions(frames, answers())).toEqual([]);
+    };
+    const whole = (frames: Map<ReactTestInstance, Frame>) => {
+      apart(frames);
+      expect(overflows(frames, textScale, answers())).toEqual([]);
+      for (const button of actionButtons(answers())) for (const label of labelsOf(button)) {
+        const box = frames.get(button)!;
+        const frame = frames.get(label)!;
+        expect(frame.left).toBeGreaterThanOrEqual(box.left - 0.5);
+        expect(frame.left + frame.width).toBeLessThanOrEqual(box.left + box.width + 0.5);
+      }
+      expect(unevenLines(frames, answers())).toEqual([]);
+    };
+    const positions = (frames: Map<ReactTestInstance, Frame>) => actionButtons(answers()).map((button) => frames.get(button)!);
+    await act(async () => { renderer = mount(card); });
+    whole(await settleHostLayout(answers, wide));
+    await act(async () => renderer!.unmount());
+    // Another card mounting at the narrow width, all it knows from 600pt.
+    await act(async () => { renderer = mount({ ...card, id: "another-request" }); });
+    apart(measureHostTree(answers(), narrow));
+    whole(await settleHostLayout(answers, narrow));
+    // The same card widened and narrowed again: each frame before the row hears of the change.
+    apart(measureHostTree(answers(), wide));
+    whole(await settleHostLayout(answers, wide));
+    apart(measureHostTree(answers(), narrow));
+    const narrowFrames = await settleHostLayout(answers, narrow);
+    whole(narrowFrames);
+    const settled = positions(narrowFrames);
+    await act(async () => renderer!.unmount());
+    // Once a card has settled at the narrow width, the next to mount there draws that layout from its first frame.
+    await act(async () => { renderer = mount({ ...card, id: "third-request" }); });
+    const first = measureHostTree(answers(), narrow);
+    whole(first);
+    expect(positions(first)).toEqual(settled);
+    const frames = await settleHostLayout(answers, narrow);
+    whole(frames);
+    const buttons = actionButtons(answers());
+    const order = buttonLines(frames, answers()).map((line) => line.map(({ node }) => buttons.indexOf(node)));
+    if (card.permission?.kind === "question") expect([[[0, 1, 2]], [[0, 1], [2]], [[0], [1], [2]]]).toContainEqual(order);
   });
 
   it.each([true, false])("fills the row when View questions is the only action (compact %s)", async (compact) => {
@@ -993,6 +1054,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
     }
     expect(unevenLines(frames, row)).toEqual([]);
     expect(collisions(frames, row)).toEqual([]);
+    expect(wrapping(row)).toEqual([]);
     for (const [index, button] of children.entries()) {
       const box = frames.get(button)!;
       const label = labelsOf(button).find((node) => node.children.join("") === buttons[index]!.label);
