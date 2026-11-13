@@ -92,6 +92,17 @@ describe("task question dialog", () => {
     await act(async () => { store.open(current); tree = TestRenderer.create(render()); });
     return { store, fake, update: async (next: TaskCard) => { current = next; await act(async () => tree!.update(render())); } };
   }
+  it("shows a filled check for selected single choices and keeps multi choices square", async () => {
+    await mount(card({ questions: [question, { ...question, header: "Multi", multiSelect: true }] }));
+    expect(host("task-question-option-0-0").findAllByType("Icon" as never).map((node) => node.props.name)).toContain("Circle");
+    await act(async () => host("task-question-option-0-0").props.onPress());
+    const mark = host("task-question-option-0-0").findByProps({ testID: "question-selected-mark" });
+    expect(mark.props.style.backgroundColor).toBe(theme.colors.accent);
+    expect(mark.findByType("Icon" as never).props).toMatchObject({ name: "Check", color: theme.colors.accentForeground });
+    await act(async () => host("task-question-tab-1").props.onPress());
+    await act(async () => host("task-question-option-1-0").props.onPress());
+    expect(host("task-question-option-1-0").findAllByType("Icon" as never).map((node) => node.props.name)).toContain("SquareCheck");
+  });
   it("separates card navigation from question tabs and preserves each card draft", async () => {
     const first = card({ questions: [question, { ...question, header: "Second" }] });
     const second = { ...card(), id: "another", title: "Another task", permission: { ...card().permission!, requestId: "another-request" } };

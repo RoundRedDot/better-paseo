@@ -14,6 +14,7 @@ import { BrandMark, branchPillColors, neutralPillColors } from "./brand-mark";
 import { taskTokens } from "./tokens";
 import { useQuestionContext, type QuestionContext } from "../data/question-context";
 import { QuestionContextNote } from "./question-context-note";
+import { QuestionSelectionMark } from "../../components/question-selection-mark";
 
 export function TaskQuestionDialog(props: {
   store: QuestionDialogStore;
@@ -128,7 +129,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
                       texts: q.multiSelect ? state.draft.texts : { ...state.draft.texts, [index]: "" } });
                   }}
                   style={{ flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, minHeight: taskControlHeight(44, scale), borderWidth: 1, borderRadius: 8, borderColor: checked ? colors.accent : colors.border, backgroundColor: checked ? colors.surface2 : colors.surface0, opacity: disabled ? 0.6 : 1 }}>
-                  <View style={{ paddingTop: 2 }}><Icon name={q.multiSelect ? checked ? "SquareCheck" : "Square" : checked ? "CircleDot" : "Circle"} size={18} color={checked ? colors.accent : colors.foregroundMuted} /></View>
+                  <View style={{ paddingTop: 2 }}><QuestionSelectionMark multiSelect={q.multiSelect} selected={checked} size={18} accent={colors.accent} accentForeground={colors.accentForeground} muted={colors.foregroundMuted} /></View>
                   <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
                     <Text style={prose}>{option.label}</Text>
                     {option.description ? <Text style={meta}>{option.description}</Text> : null}

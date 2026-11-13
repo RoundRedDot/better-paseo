@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { QuestionSelectionMark } from "./question-selection-mark";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { radiusV2, space } from "./theme-tokens";
 import type { UserQuestionData } from "../tools/user-questions";
@@ -51,8 +51,8 @@ export function UserQuestions({ questions: data, tokens, rawBody, renderHeader, 
             style={[styles.option, { borderColor: selected ? tokens.accent : tokens.v2.borderSubtle,
               backgroundColor: selected ? tokens.v2.surface2 : "transparent" }]}>
             <View style={styles.mark}>
-              <Icon name={question.multiSelect ? selected ? "SquareCheck" : "Square" : selected ? "CircleDot" : "Circle"}
-                size={16} color={selected ? tokens.accent : tokens.foregroundMuted} />
+              <QuestionSelectionMark multiSelect={question.multiSelect} selected={selected} size={16}
+                accent={tokens.accent} accentForeground={tokens.accentForeground} muted={tokens.foregroundMuted} />
             </View>
             <View style={styles.optionText}>
               <SelectableText style={[prose, selected && styles.header]}>{option.label}</SelectableText>
