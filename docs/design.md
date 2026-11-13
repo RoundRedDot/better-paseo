@@ -899,6 +899,34 @@ apply to all three.
   a phone they fill a row at the card's bottom with Open tab last. A desktop permission card puts
   its answer buttons and footer on one row.
 
+### Request section
+
+A card that waits on a request names the request, then gives its answers.
+
+- The request's text starts at the card's edge, at most 2 lines: its kind in weight 600, a muted
+  ` · `, then its summary, in the card's block text. A tool shows its command or file; a plan
+  shows its title.
+- A plan's title is the first line of its Markdown, without a heading's `#`, a list marker or
+  emphasis (`planTitle` in `client/tasks/data/index.ts`). Claude's ExitPlanMode and Codex's plan
+  approval both carry the plan in `input.plan`, with `metadata.planText` as the fallback. Never show
+  the request's fixed description ("Review the proposed plan…") in place of the plan's title.
+- "View plan" (`查看计划`) ends the title's row: `FileText` 13 and the `sm` label in weight 500,
+  muted, `foreground` on hover, with no outline and no fill. It is a link to read the plan, not an
+  answer, so it never joins the answer row or takes an answer's look. It does not shrink; the
+  title gives up width first. Touch layouts widen its target with `hitSlop`, so the row does not
+  get taller.
+- "View plan" opens the whole plan as Markdown in the host's `Modal`, titled "Plan". The plan's
+  own first heading already repeats the title, so the dialog does not. On the card, the dialog
+  mounts outside the card's pressable, and the button stops its press, so neither selects the card.
+  The dialog belongs to the request it opened on: an answered plan or a newer one closes it.
+- The details' request block uses the same row: the request's icon, its kind, then "View plan". A
+  plan's title sits in the summary box as text in weight 500. Commands and files keep the code
+  face.
+- Changes to this row must still pass the Yoga layout case in
+  `test/unit/tasks-card-action-layout.test.ts`: "View plan" keeps its whole label inside the phone
+  card, the desktop card and the details at 240 to 387 pt and text scale 1 to 1.8, in Chinese and
+  English.
+
 ### Lanes
 
 - Widths follow the lane width presets in [tasks-board.md](tasks-board.md) (`LANE_SIZES`), with 8 between lanes and 12 at
