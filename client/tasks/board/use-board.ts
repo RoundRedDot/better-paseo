@@ -9,10 +9,11 @@ import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSetting
 import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, useUnreadControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl, type UnreadControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, openedTask, setTasksArchivedLane, useTasks, withSubagentCards, type TasksHandle } from "../data";
+import { hostApi, hostNotice as hostNoticeOf, routedPaseo, useBoardHosts, useMergedTasks, useRemoteReadFailures, useRemoteTasks, type BoardHosts, type HostNotice } from "../data/hosts";
 import { useSearchFirstPrompts, retrySearchPrompt, type SearchCoverageControl } from "../data/search-first-prompts";
 import { useSearchConversations } from "../data/search-conversations";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
-import { LANE_ORDER, boardLaneOrder, opensInPaseo, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
+import { LANE_ORDER, boardLaneOrder, opensInPaseo, remoteCard, turnRunning, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskPermission } from "../model";
 import { useDeviceTasksPreferences } from "../device-preferences";
 import { DEFAULT_CARD_TITLE_LINES, type CardTitleLineCount } from "../device-store";
 import { MOTION } from "./board-style";
@@ -74,8 +75,19 @@ export interface BoardController {
   defaults: BoardDefaults;
   filters: BoardFilters;
   tasks: TasksHandle;
-  /** The host's client, for what the details read on demand (a task's first prompt). */
+  /**
+   * The client for what the details read on demand (a task's first prompt):
+   * the board's host's, with each agent resolved on its own host while the
+   * board shows several (`routedPaseo`).
+   */
   paseo: PaseoApi;
+  /** The hosts the board shows; `multi` once more than one is configured. */
+  hosts: BoardHosts;
+  /**
+   * One quiet line naming the hosts whose cards are missing: offline or
+   * reconnecting, or online with a failed task read; null while all are read.
+   */
+  hostNotice: HostNotice | null;
   /** The lanes after the filter bar and search. */
   lanes: Record<LaneId, LaneModel>;
   /** First messages still loading or not covered by this search. Other metadata is searched for every card. */
@@ -226,6 +238,7 @@ export function useBoard(
   const language = useTasksLanguage();
   const strings = BOARD_STRINGS[language];
   const paseo = usePaseo();
+  const hosts = useBoardHosts(props.host);
   const hostToast = useToast();
   const [notice, setNotice] = useState<BoardNotice | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -307,8 +320,22 @@ export function useBoard(
   // Closed, the board's data stays warm a while, so a quick reopen sends nothing.
   // After a reconnect the last cards stand in until the store is ready.
   const visible = useBoardVisible(rootRef, compact);
+  // The availability probe asks this plugin's server, which sees only this host's directories: the board's own cards only.
   const availability = useTaskAvailability(useCarriedTasks(hostId, options, useTasks(paseo, options, lingerBoard)), visible, hostId);
-  const tasks = availability.tasks;
+  // Every other online host's cards, in the same lanes (`data/hosts.ts`). One host: the board's own data, as it was.
+  const remoteTasks = useRemoteTasks(hosts.remotes, options);
+  const merged = useMergedTasks(availability.tasks, hosts, remoteTasks);
+  // A remote host's failed read stays out of `tasks.error` (this host's toast): the host notice names it, and it is read again.
+  const failedHosts = useRemoteReadFailures(remoteTasks);
+  const tasks = merged.tasks;
+  const routes = useRef(merged.routes);
+  routes.current = merged.routes;
+  const routedApi = useMemo(() => routedPaseo(paseo, (agentId) => {
+    const serverId = routes.current.get(agentId);
+    return serverId ? hostApi(serverId) : null;
+  }), [paseo]);
+  // One host keeps the host's own client, which the sidebar row's reads share.
+  const agentApi = hosts.multi ? routedApi : paseo;
   const searchHistoryLoading = useSearchHistory(tasks, filters.query, visible, searchCancelled);
   useEffect(() => {
     if (tasks.error) toast.error(tasks.error);
@@ -362,7 +389,7 @@ export function useBoard(
   // Unarchive runs through the same CLI as Stop.
   const verifyUnarchive = useCallback((agentId: string) => latest.current.tasks.refreshParent(agentId), []);
   const unarchive = useUnarchiveControl({ available: stop.available, verify: verifyUnarchive, toast });
-  const archive = useArchiveControl({ paseo, toast });
+  const archive = useArchiveControl({ paseo: agentApi, toast });
   const titleUpdates = useTitleUpdateControl(paseo);
   // Follow automatic titles while their source tasks are running.
   const titleSettings = useSettings(TITLE_GENERATION_SETTINGS);
@@ -371,13 +398,14 @@ export function useBoard(
   useEffect(() => {
     if (!tasks.ready) return;
     const running = new Set<string>();
-    for (const [id, card] of tasks.byId) if (turnRunning(card)) running.add(id);
+    // Titles are this plugin server's: another host's cards are left out.
+    for (const [id, card] of tasks.byId) if (turnRunning(card) && !remoteCard(card)) running.add(id);
     if (turnsRunning.current) {
       for (const id of running) {
         if (!turnsRunning.current.has(id) && automaticTitles) titleUpdates.attach(id);
       }
       // Filtered subscriptions can remove a card before its next snapshot arrives.
-      for (const id of turnsRunning.current) if (!tasks.byId.has(id)) running.add(id);
+      for (const id of turnsRunning.current) if (!tasks.byId.has(id) && !routes.current.has(id)) running.add(id);
     }
     turnsRunning.current = running;
   }, [tasks.byId, tasks.ready, automaticTitles, titleUpdates]);
@@ -390,8 +418,8 @@ export function useBoard(
   // Every card the board can draw: the store's, with a card for each provider subagent.
   const unfiltered = useMemo(() => withSubagentCards(withStopReasons(titleLanes, stoppedIds, strings.stoppedManually)), [titleLanes, stoppedIds, strings.stoppedManually]);
   const [fullConversationSearch, setFullConversationSearchState] = useState(false);
-  const firstPrompts = useSearchFirstPrompts(paseo, unfiltered, filters.query, !searchCancelled && !fullConversationSearch);
-  const conversations = useSearchConversations(paseo, unfiltered, fullConversationSearch ? filters.query : "", !searchCancelled);
+  const firstPrompts = useSearchFirstPrompts(agentApi, unfiltered, filters.query, !searchCancelled && !fullConversationSearch);
+  const conversations = useSearchConversations(agentApi, unfiltered, fullConversationSearch ? filters.query : "", !searchCancelled);
   const search = fullConversationSearch ? conversations : firstPrompts;
   const filtered = useMemo(() => filterLanes(unfiltered, filters, search.messages), [unfiltered, filters, search.messages]);
   // The order is taken when the sort or the cards change, never on a clock
@@ -442,14 +470,20 @@ export function useBoard(
   }, []);
 
   // Callbacks read the latest values through a ref, so the memoized cards see stable functions.
-  const latest = useRef({ props, paseo, toast, stop, read, unread, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search });
-  latest.current = { props, paseo, toast, stop, read, unread, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search };
+  // `paseo` answers for any card's agent; `local` is the board's own host's, whose store holds the archived-lane switch.
+  const latest = useRef({ props, paseo: agentApi, local: paseo, toast, stop, read, unread, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search });
+  latest.current = { props, paseo: agentApi, local: paseo, toast, stop, read, unread, unarchive, archive, strings, tasks, lanes, availability, language, fullConversationSearch, search };
   const setFullConversationSearch = useCallback((on: boolean) => {
     setFullConversationSearchState(on);
     latest.current.toast.show(latest.current.strings.fullConversationToast(on));
   }, []);
   const write = useCallback((agentId: string, operation: TaskOperation, action: () => void) => {
     const current = latest.current;
+    // This plugin's server checks directories on its own host only; another host's agent goes straight to it.
+    if (routes.current.has(agentId)) {
+      action();
+      return;
+    }
     void current.availability.check(agentId, operation).then((issue) => {
       if (latest.current.paseo !== current.paseo) return;
       if (issue) {
@@ -464,10 +498,10 @@ export function useBoard(
   }, [updateDevice]);
   const setShowArchived = useCallback((on: boolean) => {
     // `useTasks` follows the setting afterwards and finds the lane already switched.
-    setTasksArchivedLane(latest.current.paseo, on);
+    setTasksArchivedLane(latest.current.local, on);
     void updateDevice({ showArchived: on }).catch(() => {
       // The setting kept its old value, which the switch showed: the lane goes back to it.
-      setTasksArchivedLane(latest.current.paseo, !on);
+      setTasksArchivedLane(latest.current.local, !on);
       latest.current.toast.error(latest.current.strings.archivedLane.saveFailed);
     });
   }, [updateDevice]);
@@ -496,9 +530,11 @@ export function useBoard(
     }
     const navigation = latest.current.props.navigation;
     if (!navigation) return;
-    navigation.openAgent({ agentId });
-    // Opened is seen: a task marked unread does not stay in review.
-    openedTask(latest.current.paseo, agentId);
+    // Another host's agent opens on that host, as Paseo's sidebar opens it.
+    const serverId = routes.current.get(agentId);
+    navigation.openAgent(serverId ? { agentId, serverId } : { agentId });
+    // Opened is seen: a task marked unread does not stay in review. The marks are this plugin server's, so this host's tasks only.
+    if (!serverId) openedTask(latest.current.local, agentId);
   }, []);
   const requestProjectIcon = useCallback((projectId: string) => latest.current.tasks.requestProjectIcon(projectId), []);
   const buttonsFor = useCallback((card: TaskCard) => buttonsIn(card, language), [language]);
@@ -506,7 +542,9 @@ export function useBoard(
   const questionDialog = questionDialogStore(paseo);
   const submitQuestions = useCallback(async (state: QuestionDialogState) => {
     const current = latest.current;
-    await submitQuestion(current.paseo, state, current.language, (id) => latest.current.paseo === current.paseo ? latest.current.tasks.byId.get(id) : undefined, (id) => current.availability.check(id, "permission"));
+    // This plugin's server checks directories on its own host only; another host's agent goes straight to it.
+    const check = (id: string) => (routes.current.has(id) ? Promise.resolve(undefined) : current.availability.check(id, "permission"));
+    await submitQuestion(current.paseo, state, current.language, (id) => latest.current.paseo === current.paseo ? latest.current.tasks.byId.get(id) : undefined, check);
   }, []);
   const stopAvailable = stop.available;
   const readAvailable = read.available;
@@ -565,6 +603,7 @@ export function useBoard(
     [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates, write, cardById, conversations.status, questionDialog],
   );
 
+  const hostNotice = useMemo(() => hostNoticeOf(hosts.away, failedHosts, language), [hosts.away, failedHosts, language]);
   const guardedRead = useMemo(() => ({ ...read, press: (card: TaskCard) => write(card.id, "read", () => read.press(card)) }), [read, write]);
   const guardedUnarchive = useMemo(() => ({ ...unarchive, press: (agentId: string) => write(agentId, "unarchive", () => unarchive.press(agentId)) }), [unarchive, write]);
   const guardedArchive = useMemo(() => ({ ...archive, press: (agentId: string) => write(agentId, "archive", () => archive.press(agentId)) }), [archive, write]);
@@ -586,7 +625,9 @@ export function useBoard(
     defaults,
     filters,
     tasks,
-    paseo,
+    paseo: agentApi,
+    hosts,
+    hostNotice,
     lanes,
     searchStatus: search.status,
     searchHistoryLoading,

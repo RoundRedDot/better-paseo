@@ -7,7 +7,8 @@
 A [Paseo](https://paseo.sh) plugin that redraws the chat timeline of every agent Paseo runs,
 whichever provider is behind it (Claude Code, Codex, Oh My Pi and the rest): tool calls, reasoning,
 replies, prompts, checklists and errors become compact, typed, syntax-aware rows that follow the
-active Paseo theme. It adds a **Tasks** board that lays out every agent on the host in lanes by state,
+active Paseo theme. It adds a **Tasks** board that lays out every agent in lanes by state, on this host
+and on every other host Paseo is connected to,
 and it is drawn for the device in your hand: a phone gets a details drawer you can pinch and a
 one-lane board you swipe through, an iPad gets floating and side panels and a board with a details
 sidebar or sheet. The performance section compares the timeline with Paseo's own.
@@ -49,8 +50,8 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
   [Block details](#block-details).
 - **Block-by-block streaming replies.** Finished Markdown blocks are cached while growing code and
   tables are repaired.
-- **Tasks board.** Every agent on the host by state (waiting, running, to review, done and
-  archived), with Paseo's label colours and project icons, Stop, Mark as read, Archive and
+- **Tasks board.** Every agent by state (waiting, running, to review, done and archived), from
+  every host Paseo is connected to, with Paseo's label colours and project icons, Stop, Mark as read, Archive and
   permission buttons on the card, and a details view with the running turn's clock and tokens, the
   first prompt, the last reply, subtasks and usage. See [Tasks board](#tasks-board).
 - **Follows Paseo.** Fonts, sizes, colours and language follow the host by default; settings are
@@ -848,12 +849,28 @@ panels close on a tap outside them, and Android's back button closes any form.
 ## Tasks board
 
 **Tasks** sits in the sidebar's top group (counting waiting · running · to review) and in the
-Command Center. It opens a board of every agent on the host in lanes, sorted the way the sidebar's
+Command Center. It opens a board of every agent in lanes, sorted the way the sidebar's
 workspace status sorts them: **waiting** (oldest wait first), **running** (longest first),
 **to review** (finished unread, or failed), **done** (last 24 hours by default, 50 at a time) and
 **archived** (archived agents, and those of archived workspaces, in the same window). A parent
 whose own turn has ended stays in running while a subtask still runs or waits, timed by their work;
 a failed parent stays in to review.
+
+### Several hosts
+
+When Paseo is connected to more than one host (Paseo 0.16 or later), the board shows the agents of
+every online host in the same lanes and order. A card from another host carries a small badge with
+that host's name, as Paseo's sidebar does; a filter by host joins the others. Open, preview and
+Archive act on the card's own host, and opening a remote card opens that agent in Paseo the way the
+sidebar does, which also marks it read there. Stop, Mark as read, Mark unread, Unarchive and the
+title actions run through this plugin's server, which reaches only its own host, so they are left
+out on another host's card. When a host goes offline or is reconnecting, its cards leave the board
+and one quiet line names it; they return when it is back. When a host stays online but its tasks
+cannot be read, the same line says so, since its cards may be missing or out of date; the board
+reads it again after 5 seconds, then at doubling intervals up to a minute, and the line goes once a
+read lands. The numbers on the sidebar's Tasks row
+still count this host's tasks only, and a search through whole conversations reads this host's cards only. With one host, or on a Paseo without the host APIs, the board is
+exactly as before.
 
 The board is on by default. Its switch heads both tabs of the settings page, and the Tasks tab
 follows it with a live preview of the board. Turned off, there is no sidebar entry or Command Center item, no agent
@@ -914,7 +931,7 @@ subscription, and the board's code is not fetched. Its options are listed under
 
 ### Filters, sort and keys
 
-- Filter by agent, label, project and workspace. The project and workspace menus have a search
+- Filter by agent, label, project and workspace, and by host when there are several. The project and workspace menus have a search
   field, each project shows its folder under its name, and picking a project picks all its
   workspaces. The search box matches titles and project, workspace and branch names. Several picks
   of one filter fold into one chip ("2 projects and 1 workspace selected") led by the filter's
@@ -938,7 +955,7 @@ subscription, and the board's code is not fetched. Its options are listed under
 
 A click or tap on a card opens it in the details. With no card chosen, the sidebar shows the lanes'
 counts after the filters, with the filters summed up beside the total, and groups the board by
-agent, label, project and workspace with their counts; a click on a group filters by it.
+agent, label, project and workspace (and host, with several) with their counts; a click on a group filters by it.
 
 The header carries the status, title, model, thinking level, mode and labels, and the actions:
 Open (or Open to answer for a question, first on desktop and last on touch), Stop, and Archive or
@@ -1160,6 +1177,8 @@ Archive needs no workaround: it uses the plugin API.
 
 | Cannot | Instead | Waiting on |
 | --- | --- | --- |
+| Stop, Mark as read, Mark unread, Unarchive or retitle another host's card. These go through the plugin's server, which reaches only its own daemon, and the API a plugin borrows for another host has no call to clear an agent's attention. | The buttons are left out on another host's card. Opening it in Paseo marks it read there, as the sidebar does. | not proposed upstream yet |
+| Open a file link, or read the live token count, in another host's card details. Revealing a file and reading a session's tokens go through the plugin's server, which would open or read a same-named path or agent on its own machine. | A file link in another host's card copies its path instead, and the details leave out the live token count. | not proposed upstream yet |
 | Open an archived task's tab. A plugin cannot pin the tab it opens, so Paseo drops an archived agent's tab and shows another of that workspace. | An archived task shows **Unarchive** where Open was; once it is back, Open works. Tasks of an archived workspace keep Open. | [#6382](https://github.com/getpaseo/paseo/pull/6382), open draft |
 
 ### Everywhere

@@ -90,12 +90,34 @@ function BoardContent(props: PluginScreenProps) {
       <View {...pluginRoot} style={{ flex: 1, backgroundColor: props.theme.colors.surface0 }}>
         <SearchCoverageProvider cancelled={board.searchCancelled} setCancelled={board.setSearchCancelled} cancelText={board.strings.cancelSearch} resumeText={board.strings.resumeSearch} stoppedText={board.strings.searchStopped} status={board.searchStatus} historyLoading={board.searchHistoryLoading} historyError={board.tasks.historyError} retryHistory={board.tasks.clearHistoryError} historyLoadingText={board.strings.historyLoading} historyFailedText={board.strings.historyFailed} query={board.params.query} strings={board.fullConversationSearch ? board.strings.conversationSearchCoverage : board.strings.searchCoverage} fullConversation={board.fullConversationSearch} onFullConversationChange={board.setFullConversationSearch} fullConversationLabel={board.strings.fullConversationSearch} fullConversationShortLabel={board.strings.fullConversationShort} fullConversationHint={board.strings.fullConversationHint(board.fullConversationSearch)}>
           <MenuBoundsContext.Provider value={rootRef}>
+            {board.hostNotice ? <HostNotice text={board.hostNotice.text} failed={board.hostNotice.failed} theme={props.theme} /> : null}
             {layout}
             <TaskQuestionDialog store={board.questionDialog} cardById={board.cardById} submit={board.submitQuestions} compact={compact} onOpen={board.callbacks.onOpen} theme={props.theme} language={board.language} />
           </MenuBoundsContext.Provider>
         </SearchCoverageProvider>
       </View>
     </TasksTypography>
+  );
+}
+
+/**
+ * One quiet line above the board while another Paseo host's cards are
+ * missing: it is offline or reconnecting, or online but its tasks could not
+ * be read (`failed`, with a warning mark). It goes once every host is read
+ * again (`data/hosts.ts`).
+ */
+function HostNotice(props: { text: string; failed: boolean; theme: PluginScreenProps["theme"] }) {
+  const colors = props.theme.colors;
+  return (
+    <View
+      accessibilityRole="summary"
+      accessibilityLiveRegion="polite"
+      testID="host-notice"
+      style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 4, borderBottomWidth: HAIRLINE, borderBottomColor: colors.border }}
+    >
+      <Icon name={props.failed ? "CircleAlert" : "CloudOff"} size={13} color={props.failed ? colors.statusWarning : colors.foregroundMuted} />
+      <Text numberOfLines={1} style={{ flex: 1, minWidth: 0, fontSize: F.sm, lineHeight: HOST_LINE.sm, color: colors.foregroundMuted }}>{props.text}</Text>
+    </View>
   );
 }
 

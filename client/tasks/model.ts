@@ -209,9 +209,33 @@ export interface TaskChild {
   waitingOnSubtasks?: boolean;
 }
 
+/**
+ * The Paseo host a card's agent runs on, set on every card while the board
+ * shows more than one host (`data/hosts.ts`), absent while it shows one.
+ */
+export interface TaskHost {
+  /** The host's server id, as `useHosts()` names it. */
+  id: string;
+  /** The host's name in Paseo's sidebar. */
+  label: string;
+  /**
+   * Another host than the one this plugin runs on. Its agent is read and
+   * changed through that host's own API: whatever goes through this plugin's
+   * server (Stop, Mark read and unread, Unarchive, titles) is left out.
+   */
+  remote: boolean;
+}
+
+/** The card's agent runs on another host than the board's own (`TaskHost.remote`). */
+export function remoteCard(card: { host?: TaskHost }): boolean {
+  return card.host?.remote === true;
+}
+
 export interface TaskCard {
   availability?: TaskAvailability;
   id: string;
+  /** Its host, while the board shows several; absent on a one-host board. */
+  host?: TaskHost;
   /** A new agent created by a Paseo schedule. */
   scheduled?: boolean;
   /** The agent's title, else a fallback such as the first prompt line or "Untitled". */
@@ -317,6 +341,8 @@ export interface BoardFilters {
   workspaceIds: string[];
   providers: string[];
   labels: string[];
+  /** Host server ids; a card without a host (a one-host board) is never left out by it. */
+  hosts?: string[];
   hideSubtasks: boolean;
 }
 

@@ -9,7 +9,7 @@ import { openPointLayer } from "../../web";
 import { getEnhancerPreferences } from "../../preferences";
 import { copiedToast, toolbarLabel } from "../../i18n/toolbar-strings";
 import { COPY_FAILED_MESSAGE } from "../../ui/copy-controller";
-import type { TaskCard } from "../model";
+import { remoteCard, type TaskCard } from "../model";
 import type { CardFilterKind, CardFilterState } from "../board/filter-options";
 import { cardStrings } from "./strings";
 import { TaskRenameDialog } from "./rename-dialog";
@@ -185,7 +185,10 @@ export function CardContextMenu(props: {
   const { point } = props;
   const copy = useMenuCopy();
   const [editing, setEditing] = useState(false);
-  const sections = cardMenuSections(props.card, props.strings, { ...props.actions, copy, rename: () => setEditing(true), iconColor: props.actions.iconColor ?? props.theme.colors.foregroundMuted });
+  // Another host's card: what this plugin's server does for its own host's agents (Stop, marks, Unarchive, titles) is left out.
+  const remote = remoteCard(props.card);
+  const actions = remote ? { ...props.actions, stop: undefined, read: undefined, unread: undefined, unarchive: undefined, autoTitle: undefined } : props.actions;
+  const sections = cardMenuSections(props.card, props.strings, { ...actions, copy, rename: remote ? undefined : () => setEditing(true), iconColor: actions.iconColor ?? props.theme.colors.foregroundMuted });
   const scale = useTasksFontScale();
   const window = useWindowDimensions();
   const anchorRef = useRef<View>(null);
