@@ -9,7 +9,7 @@ import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSetting
 import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, useUnreadControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl, type UnreadControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
 import { filterLanes, openedTask, setTasksArchivedLane, useTasks, withSubagentCards, type TasksHandle } from "../data";
-import { awayNotice, hostApi, routedPaseo, useBoardHosts, useMergedTasks, useRemoteTasks, type BoardHosts } from "../data/hosts";
+import { hostApi, hostNotice as hostNoticeOf, routedPaseo, useBoardHosts, useMergedTasks, useRemoteReadFailures, useRemoteTasks, type BoardHosts, type HostNotice } from "../data/hosts";
 import { useSearchFirstPrompts, retrySearchPrompt, type SearchCoverageControl } from "../data/search-first-prompts";
 import { useSearchConversations } from "../data/search-conversations";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -83,8 +83,11 @@ export interface BoardController {
   paseo: PaseoApi;
   /** The hosts the board shows; `multi` once more than one is configured. */
   hosts: BoardHosts;
-  /** One quiet line naming the hosts whose cards are missing (offline or reconnecting); null while all are read. */
-  hostNotice: string | null;
+  /**
+   * One quiet line naming the hosts whose cards are missing: offline or
+   * reconnecting, or online with a failed task read; null while all are read.
+   */
+  hostNotice: HostNotice | null;
   /** The lanes after the filter bar and search. */
   lanes: Record<LaneId, LaneModel>;
   /** First messages still loading or not covered by this search. Other metadata is searched for every card. */
@@ -320,7 +323,10 @@ export function useBoard(
   // The availability probe asks this plugin's server, which sees only this host's directories: the board's own cards only.
   const availability = useTaskAvailability(useCarriedTasks(hostId, options, useTasks(paseo, options, lingerBoard)), visible, hostId);
   // Every other online host's cards, in the same lanes (`data/hosts.ts`). One host: the board's own data, as it was.
-  const merged = useMergedTasks(availability.tasks, hosts, useRemoteTasks(hosts.remotes, options));
+  const remoteTasks = useRemoteTasks(hosts.remotes, options);
+  const merged = useMergedTasks(availability.tasks, hosts, remoteTasks);
+  // A remote host's failed read stays out of `tasks.error` (this host's toast): the host notice names it, and it is read again.
+  const failedHosts = useRemoteReadFailures(remoteTasks);
   const tasks = merged.tasks;
   const routes = useRef(merged.routes);
   routes.current = merged.routes;
@@ -597,7 +603,7 @@ export function useBoard(
     [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates, write, cardById, conversations.status, questionDialog],
   );
 
-  const hostNotice = useMemo(() => awayNotice(hosts.away, language), [hosts.away, language]);
+  const hostNotice = useMemo(() => hostNoticeOf(hosts.away, failedHosts, language), [hosts.away, failedHosts, language]);
   const guardedRead = useMemo(() => ({ ...read, press: (card: TaskCard) => write(card.id, "read", () => read.press(card)) }), [read, write]);
   const guardedUnarchive = useMemo(() => ({ ...unarchive, press: (agentId: string) => write(agentId, "unarchive", () => unarchive.press(agentId)) }), [unarchive, write]);
   const guardedArchive = useMemo(() => ({ ...archive, press: (agentId: string) => write(agentId, "archive", () => archive.press(agentId)) }), [archive, write]);

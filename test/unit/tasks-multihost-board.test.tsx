@@ -5,6 +5,8 @@
  */
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { LANE_ORDER } from "../../client/tasks/model";
+import { REMOTE_RETRY_MS } from "../../client/tasks/data/hosts";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
@@ -38,6 +40,18 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   };
 });
 const fixture = vi.hoisted(() => ({ settings: null as Record<string, unknown> | null }));
+const remoteStore = vi.hoisted(() => {
+  const store = {
+    healthy: null as unknown,
+    snapshot: null as unknown,
+    listeners: new Set<() => void>(),
+    set(next: unknown) {
+      store.snapshot = next;
+      for (const listener of [...store.listeners]) listener();
+    },
+  };
+  return store;
+});
 const apis = vi.hoisted(() => {
   const timeline = {
     refetch: () => Promise.resolve({ error: null, entries: [], epoch: "test", endCursor: null, window: { nextSeq: 0 } }),
@@ -95,12 +109,18 @@ vi.mock("../../client/tasks/data", async (importOriginal) => {
   };
   const own = handleOf("local-task");
   const remote = handleOf("remote-task");
+  // The other host's store as the test sets it: `remoteStore.set` swaps its snapshot and tells the board.
+  remoteStore.healthy = remote;
+  remoteStore.snapshot = remote;
   return {
     ...actual,
     useTasks: () => own,
     useTaskCounts: () => ({ ...own.counts, ready: true }),
-    subscribeRemoteTasks: () => () => {},
-    remoteTasksSnapshot: () => remote,
+    subscribeRemoteTasks: (_api: unknown, listener: () => void) => {
+      remoteStore.listeners.add(listener);
+      return () => remoteStore.listeners.delete(listener);
+    },
+    remoteTasksSnapshot: () => remoteStore.snapshot,
     setRemoteArchivedLane() {},
   };
 });
@@ -137,6 +157,8 @@ afterEach(() => {
   resetBoardSessions();
   resetTasksEnabled();
   openAgent.mockClear();
+  remoteStore.snapshot = remoteStore.healthy;
+  vi.useRealTimers();
 });
 
 /** Lays every View out at a desktop width, again while that mounts Views that wait for one. */
@@ -178,5 +200,43 @@ describe("a board with two hosts", () => {
     openAgent.mockClear();
     act(() => cardFor("local-task").props.onOpen("local-task"));
     expect(openAgent).toHaveBeenCalledWith({ agentId: "local-task" });
+  });
+
+  it("says when an online host's tasks could not be read, and clears it once a retry reads them", async () => {
+    vi.useFakeTimers();
+    type Handle = { lanes: Record<string, { cards: unknown[] }>; error: string | null; refresh: () => Promise<string> };
+    const healthy = remoteStore.healthy as Handle;
+    // The host stays online throughout (`HOSTS`): only its task read fails, then works again.
+    const refresh = vi.fn(async () => {
+      remoteStore.set(healthy);
+      return "done";
+    });
+    const empty = Object.fromEntries(LANE_ORDER.map((lane) => [lane, { ...healthy.lanes[lane], cards: [] }]));
+    remoteStore.snapshot = { ...healthy, lanes: empty, byId: new Map(), error: "remote list failed", refresh };
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <TasksBoardScreen
+          theme={theme as never}
+          host={{ id: "srv-own", label: "This Mac" }}
+          layout={{ compact: false, platform: "web" } as never}
+          navigation={{ openAgent, openWorkspace: vi.fn() } as never}
+          params={{}}
+        />,
+      );
+    });
+    layOut(1600);
+    await act(async () => {});
+    const notice = () => renderer!.root.findAll((node) => node.props.testID === "host-notice" && typeof node.type === "string");
+    const noticeText = () => notice().flatMap((node) => node.findAll((child) => (child.type as unknown) === "Text")).map((child) => child.props.children).join("");
+    expect(noticeText()).toBe("Couldn't load tasks from remote-box; some may be missing. Retrying.");
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Icon" && node.props.name === "CircleAlert").length).toBeGreaterThan(0);
+    expect(renderer!.root.findAll((node) => typeof node.type !== "string" && node.props.card?.id === "remote-task")).toHaveLength(0);
+    expect(refresh).not.toHaveBeenCalled();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(REMOTE_RETRY_MS);
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(notice()).toHaveLength(0);
+    expect(cardFor("remote-task").props.card.host).toEqual({ id: "srv-remote", label: "remote-box", remote: true });
   });
 });

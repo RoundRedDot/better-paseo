@@ -540,6 +540,10 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       const snapshot = { ...(sub.snapshot() as object), subscriptionId: sub.id };
       for (const observer of sub.observers) observer.snapshot(snapshot);
     },
+    /** Every live agent subscription reports `message` as an error, as one the daemon dropped does. */
+    failAgentSubscriptions(message = "subscription failed") {
+      for (const sub of agentSubs) for (const observer of sub.observers) observer.error?.(new Error(message));
+    },
     reconnectSubscriptions() {
       for (const sub of agentSubs) {
         if ("members" in sub) sub.members = new Set([...agents.values()].filter((agent) => matchesAgent(agent, sub.options)).map((agent) => agent.id));

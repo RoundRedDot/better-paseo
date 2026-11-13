@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import * as pluginClient from "@getpaseo/plugin/client";
 import type { PaseoApi } from "@getpaseo/client";
 import { LANE_ORDER, type BoardCounts, type LaneId, type LaneModel, type TaskCard, type TaskHost, type TaskLabel } from "../model";
@@ -294,7 +294,8 @@ export function hostMethods(read: () => MergeParts): HostMethods {
  *
  * Each lane holds every host's cards in the lane's own order (`laneCompare`),
  * so the board's sorts and filters apply as they do to one host's. A remote
- * host's error stays out: its notice is the host's state (`BoardHosts.away`).
+ * host's error stays out of the handle, whose error the board shows as a
+ * toast: the host notice names it instead (`useRemoteReadFailures`).
  * With one host the board's own data is returned as it is. `methods` are
  * the handle's calls (`hostMethods`); by default made for this merge alone.
  */
@@ -400,18 +401,147 @@ export function routedPaseo(own: PaseoApi, route: (agentId: string) => PaseoApi 
   });
 }
 
+// --- Read failures -----------------------------------------------------------
+
+/** How long after a remote host's task read fails the board reads it again; each failure doubles it, to `REMOTE_RETRY_MAX_MS`. */
+export const REMOTE_RETRY_MS = 5_000;
+export const REMOTE_RETRY_MAX_MS = 60_000;
+
+/** An online host whose tasks the board could not read: its cards may be missing or out of date. */
+export interface FailedHost {
+  id: string;
+  label: string;
+}
+
+const NO_FAILED: readonly FailedHost[] = [];
+
+interface FailureWatch {
+  label: string;
+  delay: number;
+  timer: ReturnType<typeof setTimeout> | null;
+  retrying: boolean;
+}
+
+/**
+ * The remote hosts whose task subscription or read failed while they stay
+ * online, for the host notice: the merged handle carries only the board's
+ * own error, and `BoardHosts.away` only connection states.
+ *
+ * A failed host's store is read again (`refresh`) after `REMOTE_RETRY_MS`,
+ * then at doubling intervals. A refresh clears the store's error as it
+ * starts, so a host stays listed until a retry lands, and the notice does
+ * not blink with each attempt. A host whose error clears otherwise (the
+ * board's own refresh) leaves the list; one that goes offline leaves it to
+ * the away notice.
+ */
+export function useRemoteReadFailures(remotes: readonly RemoteTasks[]): readonly FailedHost[] {
+  const [failed, setFailed] = useState<readonly FailedHost[]>(NO_FAILED);
+  const latest = useRef(remotes);
+  latest.current = remotes;
+  const control = useMemo(() => {
+    const watches = new Map<string, FailureWatch>();
+    let live = true;
+    const publish = () => {
+      if (!live) return;
+      const next = [...watches].map(([id, watch]) => ({ id, label: watch.label }));
+      setFailed((was) => (was.length === next.length && was.every((host, index) => host.id === next[index]!.id && host.label === next[index]!.label) ? was : next.length ? next : NO_FAILED));
+    };
+    const drop = (id: string, watch: FailureWatch) => {
+      if (watch.timer !== null) clearTimeout(watch.timer);
+      watches.delete(id);
+    };
+    const schedule = (id: string, watch: FailureWatch) => {
+      watch.timer = setTimeout(() => retry(id, watch), watch.delay);
+      watch.delay = Math.min(watch.delay * 2, REMOTE_RETRY_MAX_MS);
+    };
+    const retry = (id: string, watch: FailureWatch) => {
+      watch.timer = null;
+      const remote = latest.current.find((entry) => entry.host.id === id);
+      if (!remote || watches.get(id) !== watch) return;
+      watch.retrying = true;
+      void remote.tasks.refresh().catch((): TasksRefreshResult => "failed").then((result) => {
+        if (!live || watches.get(id) !== watch) return;
+        watch.retrying = false;
+        // The result, not the last drawn snapshot, says how the retry went: the
+        // store may have set its error again before the board drew it.
+        const error = latest.current.find((entry) => entry.host.id === id)?.tasks.error ?? null;
+        if (result === "failed" || (result === "done" && error !== null)) {
+          if (watch.timer === null) schedule(id, watch);
+        } else if (result === "done") {
+          drop(id, watch);
+          publish();
+        } else {
+          reconcile();
+        }
+      });
+    };
+    const reconcile = () => {
+      live = true;
+      const present = new Set(latest.current.map((remote) => remote.host.id));
+      for (const [id, watch] of [...watches]) if (!present.has(id)) drop(id, watch);
+      for (const remote of latest.current) {
+        const id = remote.host.id;
+        const watch = watches.get(id);
+        if (remote.tasks.error !== null) {
+          if (!watch) {
+            const added: FailureWatch = { label: remote.host.label, delay: REMOTE_RETRY_MS, timer: null, retrying: false };
+            watches.set(id, added);
+            schedule(id, added);
+          } else {
+            watch.label = remote.host.label;
+            if (watch.timer === null && !watch.retrying) schedule(id, watch);
+          }
+        } else if (watch && !watch.retrying) {
+          drop(id, watch);
+        }
+      }
+      publish();
+    };
+    const stop = () => {
+      live = false;
+      for (const [id, watch] of [...watches]) drop(id, watch);
+    };
+    return { reconcile, stop };
+  }, []);
+  useEffect(() => control.reconcile(), [remotes, control]);
+  useEffect(() => () => control.stop(), [control]);
+  return failed;
+}
+
 // --- Notice ------------------------------------------------------------------
+
+/** The host notice: which hosts' cards are missing, and whether a read failed (`failed`) rather than a connection. */
+export interface HostNotice {
+  text: string;
+  failed: boolean;
+}
+
+function listOf(names: string[], language: "en" | "zh"): string {
+  if (language === "zh") return names.join("、");
+  return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
 
 /** The quiet line naming the hosts whose cards are missing; null while every host is read. */
 export function awayNotice(away: BoardHosts["away"], language: "en" | "zh"): string | null {
   if (away.length === 0) return null;
   const names = away.map((host) => host.label);
   const connecting = away.every((host) => host.status === "connecting");
-  if (language === "zh") {
-    const list = names.join("、");
-    return connecting ? `正在重新连接 ${list}，连上后显示它的任务。` : `${list} 已离线，它的任务暂不显示。`;
-  }
-  const list = names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const list = listOf(names, language);
+  if (language === "zh") return connecting ? `正在重新连接 ${list}，连上后显示它的任务。` : `${list} 已离线，它的任务暂不显示。`;
   const its = names.length === 1 ? "its" : "their";
   return connecting ? `Reconnecting to ${list}; ${its} tasks return once connected.` : `${list} ${names.length === 1 ? "is" : "are"} offline; ${its} tasks are hidden for now.`;
+}
+
+/** The line naming online hosts whose task read failed; null while none did. */
+export function failedNotice(failed: readonly FailedHost[], language: "en" | "zh"): string | null {
+  if (failed.length === 0) return null;
+  const list = listOf(failed.map((host) => host.label), language);
+  return language === "zh" ? `读取 ${list} 的任务失败，部分任务可能缺失，正在重试。` : `Couldn't load tasks from ${list}; some may be missing. Retrying.`;
+}
+
+/** The board's host notice: offline or reconnecting hosts first, then online ones whose read failed; null while every host is read. */
+export function hostNotice(away: BoardHosts["away"], failed: readonly FailedHost[], language: "en" | "zh"): HostNotice | null {
+  const parts = [awayNotice(away, language), failedNotice(failed, language)].filter((part): part is string => part !== null);
+  if (parts.length === 0) return null;
+  return { text: parts.join(language === "zh" ? "" : " "), failed: failed.length > 0 };
 }

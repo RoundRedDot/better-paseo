@@ -865,7 +865,10 @@ Archive act on the card's own host, and opening a remote card opens that agent i
 sidebar does, which also marks it read there. Stop, Mark as read, Mark unread, Unarchive and the
 title actions run through this plugin's server, which reaches only its own host, so they are left
 out on another host's card. When a host goes offline or is reconnecting, its cards leave the board
-and one quiet line names it; they return when it is back. The numbers on the sidebar's Tasks row
+and one quiet line names it; they return when it is back. When a host stays online but its tasks
+cannot be read, the same line says so, since its cards may be missing or out of date; the board
+reads it again after 5 seconds, then at doubling intervals up to a minute, and the line goes once a
+read lands. The numbers on the sidebar's Tasks row
 still count this host's tasks only, and a search through whole conversations reads this host's cards only. With one host, or on a Paseo without the host APIs, the board is
 exactly as before.
 

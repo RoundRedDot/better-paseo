@@ -6,7 +6,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PaseoApi } from "@getpaseo/client";
 import { filterLanes, remoteTasksSnapshot, setLastTurnLoader, setReadMarksLoader, setSubagentLoader, subscribeRemoteTasks, withSubagentCards, type TasksHandle } from "../../client/tasks/data";
-import { awayNotice, boardHosts, hostMethods, mergeHostTasks, readHostApis, useMergedTasks, routedPaseo, scopedId, stampCard, unscopeId, type BoardHosts, type HostSummary, type RemoteTasks } from "../../client/tasks/data/hosts";
+import { REMOTE_RETRY_MS, awayNotice, boardHosts, hostMethods, hostNotice, mergeHostTasks, readHostApis, useMergedTasks, useRemoteReadFailures, useRemoteTasks, routedPaseo, scopedId, stampCard, unscopeId, type BoardHosts, type FailedHost, type HostSummary, type RemoteTasks } from "../../client/tasks/data/hosts";
 import { EMPTY_FILTERS, LANE_ORDER, remoteCard, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { activeChips, buildFilterOptions, clearedParams } from "../../client/tasks/board/filter-options";
@@ -337,6 +337,18 @@ describe("awayNotice", () => {
     expect(awayNotice([{ id: "a", label: "a-box", status: "offline" }, { id: "b", label: "b-box", status: "error" }], "en")).toBe("a-box and b-box are offline; their tasks are hidden for now.");
     expect(awayNotice([{ id: "a", label: "remote-box", status: "offline" }], "zh")).toBe("remote-box 已离线，它的任务暂不显示。");
   });
+
+  it("names an online host whose tasks could not be read, apart from an offline one", () => {
+    const failed = [{ id: "b", label: "b-box" }];
+    expect(hostNotice([], [], "en")).toBeNull();
+    expect(hostNotice([], failed, "en")).toEqual({ text: "Couldn't load tasks from b-box; some may be missing. Retrying.", failed: true });
+    expect(hostNotice([], failed, "zh")).toEqual({ text: "读取 b-box 的任务失败，部分任务可能缺失，正在重试。", failed: true });
+    expect(hostNotice([{ id: "a", label: "a-box", status: "offline" }], failed, "en")).toEqual({
+      text: "a-box is offline; its tasks are hidden for now. Couldn't load tasks from b-box; some may be missing. Retrying.",
+      failed: true,
+    });
+    expect(hostNotice([{ id: "a", label: "a-box", status: "offline" }], [], "en")).toEqual({ text: "a-box is offline; its tasks are hidden for now.", failed: false });
+  });
 });
 
 describe("remote store", () => {
@@ -376,5 +388,205 @@ describe("remote store", () => {
       release();
       vi.useRealTimers();
     }
+  });
+});
+
+describe("a remote host's failed read, while the host stays online", () => {
+  const OPTIONS = { doneWindow: "24h" as const, includeDone: true };
+  const REMOTE: FailedHost = { id: "srv-remote", label: "remote-box" };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The board's remote reads for one online host, as `useBoard` wires them; `failures` logs every list of failed hosts it drew. */
+  function watchRemote(api: PaseoApi) {
+    const online = [{ id: REMOTE.id, label: REMOTE.label, api }];
+    const seen = { failed: [] as readonly FailedHost[], tasks: [] as readonly RemoteTasks[], failures: [] as (readonly FailedHost[])[] };
+    function Probe(props: { remotes: typeof online }) {
+      const tasks = useRemoteTasks(props.remotes, OPTIONS);
+      const failed = useRemoteReadFailures(tasks);
+      seen.tasks = tasks;
+      seen.failed = failed;
+      seen.failures.push(failed);
+      return null;
+    }
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(Probe, { remotes: online }));
+    });
+    return {
+      seen,
+      cards: () => seen.tasks[0]!.tasks.lanes.running.cards.map((item) => item.id),
+      /** The host leaves the board's remotes (it went offline: the away notice names it then). */
+      leave: () => act(() => renderer.update(React.createElement(Probe, { remotes: [] }))),
+      unmount: () => act(() => renderer.unmount()),
+    };
+  }
+
+  const settle = (ms = 0) => act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+
+  function remoteFake() {
+    return createFakePaseo({
+      agents: [makeAgent({ id: "remote-run", workspaceId: "ws", status: "running", updatedAt: at(1), lastUserMessageAt: at(1) })],
+      workspaces: [makeWorkspace({ id: "ws", projectId: "prj", name: "app" })],
+    });
+  }
+  const statusList = (options: { filter?: { statuses?: string[] } }) => options.filter?.statuses?.includes("running") === true;
+
+  it("names the host when its first read fails, and drops it once a retry reads its tasks", async () => {
+    vi.useFakeTimers();
+    const fake = remoteFake();
+    fake.failNextAgentList(statusList, "remote list failed");
+    const probe = watchRemote(fake.paseo);
+    try {
+      await settle();
+      expect(probe.seen.tasks[0]!.tasks.error).toBe("remote list failed");
+      expect(probe.cards()).toEqual([]);
+      expect(probe.seen.failed).toEqual([REMOTE]);
+      // Nothing reads it again before the retry is due.
+      await settle(REMOTE_RETRY_MS - 1);
+      expect(probe.seen.failed).toEqual([REMOTE]);
+      // The retry is slow to answer: its refresh has cleared the store's error, and the host stays named until it lands.
+      const answer = fake.holdReady();
+      await settle(1);
+      expect(probe.seen.tasks[0]!.tasks.error).toBeNull();
+      expect(probe.seen.failed).toEqual([REMOTE]);
+      answer();
+      await settle();
+      expect(probe.seen.tasks[0]!.tasks.error).toBeNull();
+      expect(probe.cards()).toEqual(["remote-run"]);
+      expect(probe.seen.failed).toEqual([]);
+    } finally {
+      probe.unmount();
+    }
+  });
+
+  it("keeps the host named through a failed retry, without a blink, and backs off before the next", async () => {
+    vi.useFakeTimers();
+    const fake = remoteFake();
+    fake.failNextAgentList(statusList, "remote list failed");
+    fake.failNextAgentList(statusList, "remote list failed again");
+    const probe = watchRemote(fake.paseo);
+    try {
+      await settle();
+      expect(probe.seen.failed).toEqual([REMOTE]);
+      const firstNamed = probe.seen.failures.findIndex((failed) => failed.length > 0);
+      await settle(REMOTE_RETRY_MS);
+      expect(probe.seen.tasks[0]!.tasks.error).toBe("remote list failed again");
+      expect(probe.seen.failed).toEqual([REMOTE]);
+      const lists = () => fake.calls.filter((call) => call.method === "agents.list" && statusList(call.input as never)).length;
+      const before = lists();
+      // The next retry waits twice as long.
+      await settle(REMOTE_RETRY_MS);
+      expect(lists()).toBe(before);
+      await settle(REMOTE_RETRY_MS);
+      expect(lists()).toBe(before + 1);
+      expect(probe.cards()).toEqual(["remote-run"]);
+      expect(probe.seen.failed).toEqual([]);
+      // From the first failure to the recovery, the notice never went away in between.
+      const named = probe.seen.failures.slice(firstNamed);
+      const cleared = named.findIndex((failed) => failed.length === 0);
+      expect(cleared).toBeGreaterThan(0);
+      expect(named.slice(cleared).every((failed) => failed.length === 0)).toBe(true);
+    } finally {
+      probe.unmount();
+    }
+  });
+
+  it("keeps the host named when a retry fails before the board draws the store's new error", async () => {
+    vi.useFakeTimers();
+    const base = handle([]);
+    let answer!: (result: "failed") => void;
+    const refresh = vi.fn(() => new Promise<"failed">((resolve) => { answer = resolve; }));
+    const remote = { id: REMOTE.id, label: REMOTE.label, api: fakeApi("remote") };
+    const entry = (error: string | null): RemoteTasks => ({ host: remote, tasks: { ...base, error, refresh } });
+    const seen: (readonly FailedHost[])[] = [];
+    function Probe(props: { remotes: readonly RemoteTasks[] }) {
+      seen.push(useRemoteReadFailures(props.remotes));
+      return null;
+    }
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(React.createElement(Probe, { remotes: [entry("remote list failed")] }));
+    });
+    try {
+      await settle();
+      expect(seen.at(-1)).toEqual([REMOTE]);
+      await settle(REMOTE_RETRY_MS);
+      expect(refresh).toHaveBeenCalledTimes(1);
+      // The retry's refresh cleared the store's error, and the board drew that.
+      act(() => renderer.update(React.createElement(Probe, { remotes: [entry(null)] })));
+      expect(seen.at(-1)).toEqual([REMOTE]);
+      // The retry fails; the store's new error is not drawn yet.
+      await act(async () => {
+        answer("failed");
+        await Promise.resolve();
+      });
+      expect(seen.at(-1)).toEqual([REMOTE]);
+      act(() => renderer.update(React.createElement(Probe, { remotes: [entry("remote list failed again")] })));
+      expect(seen.every((failed, index) => index === 0 || failed.length === 1)).toBe(true);
+      // The next retry still waits twice as long.
+      await settle(REMOTE_RETRY_MS);
+      expect(refresh).toHaveBeenCalledTimes(1);
+      await settle(REMOTE_RETRY_MS);
+      expect(refresh).toHaveBeenCalledTimes(2);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it("names the host when its live subscription fails, and drops it once a retry reads it again", async () => {
+    vi.useFakeTimers();
+    const fake = remoteFake();
+    const probe = watchRemote(fake.paseo);
+    try {
+      await settle();
+      expect(probe.cards()).toEqual(["remote-run"]);
+      expect(probe.seen.failed).toEqual([]);
+      act(() => fake.failAgentSubscriptions("remote subscription dropped"));
+      await settle();
+      expect(probe.seen.tasks[0]!.tasks.error).toBe("remote subscription dropped");
+      expect(probe.seen.failed).toEqual([REMOTE]);
+      // The retry's new list carries what changed meanwhile.
+      fake.setAgentSilently(makeAgent({ id: "remote-new", workspaceId: "ws", status: "running", updatedAt: at(2), lastUserMessageAt: at(2) }));
+      await settle(REMOTE_RETRY_MS);
+      expect(probe.seen.tasks[0]!.tasks.error).toBeNull();
+      expect(probe.cards()).toEqual(expect.arrayContaining(["remote-run", "remote-new"]));
+      expect(probe.seen.failed).toEqual([]);
+    } finally {
+      probe.unmount();
+    }
+  });
+
+  it("drops the host when it leaves the board, and leaves no retry behind", async () => {
+    vi.useFakeTimers();
+    const fake = remoteFake();
+    fake.failNextAgentList(statusList, "remote list failed");
+    const probe = watchRemote(fake.paseo);
+    try {
+      await settle();
+      expect(probe.seen.failed).toEqual([REMOTE]);
+      probe.leave();
+      await settle();
+      expect(probe.seen.failed).toEqual([]);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      probe.unmount();
+    }
+  });
+
+  it("leaves no retry behind when the board closes", async () => {
+    vi.useFakeTimers();
+    const fake = remoteFake();
+    fake.failNextAgentList(statusList, "remote list failed");
+    const probe = watchRemote(fake.paseo);
+    await settle();
+    expect(probe.seen.failed).toEqual([REMOTE]);
+    probe.unmount();
+    await settle();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
