@@ -818,9 +818,9 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
           testID="detail-back"
           style={{ minHeight: touch ? 36 : 24, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}
         >
-          <Icon name="ArrowLeft" size={14} color={tokens.foregroundMuted} />
+          <Icon name="CornerLeftUp" size={14} color={tokens.foregroundMuted} />
           <Text numberOfLines={1} style={{ flex: 1, fontSize: small, color: tokens.foregroundMuted }}>
-            {props.strings.back(props.back.title)}
+            {props.back.title}
           </Text>
           {Platform.OS === "web" && !touch ? <KeyCap label="Esc" tokens={tokens} /> : null}
         </Pressable>

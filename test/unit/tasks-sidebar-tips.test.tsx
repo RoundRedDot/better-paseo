@@ -118,6 +118,17 @@ function details(language: "zh" | "en", id = "sample-running", overrides: Partia
 }
 
 describe("sidebar action tips", () => {
+  it.each(["zh", "en"] as const)("shows the parent title with the parent icon and returns on press in %s", async (language) => {
+    const onPress = vi.fn();
+    const props = details(language, "sample-running", { back: { title: "Parent", onPress } });
+    const root = await render(<TaskDetailCards {...props} />);
+    const button = host(root, "detail-back");
+    expect(button.find((node) => (node.type as unknown) === "Icon").props.name).toBe("CornerLeftUp");
+    expect(button.findAll((node) => (node.type as unknown) === "Text")[0]!.children).toEqual(["Parent"]);
+    expect(button.props.accessibilityLabel).toBe(props.strings.back("Parent"));
+    await act(async () => button.props.onPress());
+    expect(onPress).toHaveBeenCalledOnce();
+  });
   it("uses the toolbar's quiet rounded outline for both header buttons", async () => {
     const root = await render(<TaskDetailCards {...details("en", "sample-running", { onMenu() {} })} />);
     for (const id of ["detail-menu", "detail-close"]) {

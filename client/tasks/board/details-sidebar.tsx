@@ -255,7 +255,7 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
       sheetToggle={props.sheetToggle}
       onSheetClose={props.onSheetClose}
       questionActionsInHeader={props.questionActionsInHeader}
-      back={props.backId ? { title: props.backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null}
+      back={props.backId ? { title: props.backCard?.title ?? cardStrings(board.language).parentUnknown, onPress: () => dispatch({ type: "back" }) } : null}
       notice={notice}
       onJump={(agentId) => {
         dispatch({ type: "jump", id: agentId });

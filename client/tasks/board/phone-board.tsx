@@ -16,6 +16,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, taskControlHeight } from "../typography";
 import { EdgeActionBar, StatusIcon, TaskDetailCards, createDetailChrome, requestInSection, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
+import { cardStrings } from "../cards/strings";
 import { ActionPressable } from "../cards/action-pressable";
 import { LANE_STATUS, isHistoryLane, turnRunning, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { activeStopChildren } from "../actions/stop-targets";
@@ -599,7 +600,7 @@ export function PhoneBoard(props: {
                 onShow={showDetails}
                 selection={selection}
                 initialScroll={sheet?.kind === "details" ? sheet.initialScroll : undefined}
-                backTitle={backId ? backCard?.title ?? board.strings.back : undefined}
+                backTitle={backId ? backCard?.title ?? cardStrings(board.language).parentUnknown : undefined}
                 navigate={navigateDetails}
                 onOpen={openFromDetails}
               />
