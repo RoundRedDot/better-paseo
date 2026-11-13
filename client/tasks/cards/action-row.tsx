@@ -76,14 +76,12 @@ export function ActionRow(props: {
   stackFull?: boolean;
   /** Grow buttons to fill the row, or fill it when stacked. */
   fill?: boolean;
-  /** Keep the last action on a separate line only if the whole row does not fit. */
+  /** With `fill`: keep the last action on a separate line only if the whole row does not fit. */
   splitLast?: boolean;
 }) {
   const [folded, setFolded] = useState<ReadonlySet<string>>(NO_FOLDS);
   const [stacked, setStacked] = useState(false);
   const [lastOnOwnRow, setLastOnOwnRow] = useState(false);
-  const [lastTooWide, setLastTooWide] = useState(false);
-  const [groupWidths, setGroupWidths] = useState({ pair: 0, last: 0 });
   const stack = useRef(props.stack === true);
   stack.current = props.stack === true;
   const stackFull = useRef(props.stackFull === true);
@@ -107,12 +105,7 @@ export function ActionRow(props: {
     const separate = splitLast.current && sorted.length === 3 && fullTotal > width + 0.5;
     const pairTotal = sorted.slice(0, 2).reduce((sum, item) => sum + item.full, 0) + sizes.current.gap;
     const tight = splitLast.current ? separate && pairTotal > width + 0.5 : stackFull.current ? fullTotal > width + 0.5 : stack.current && total > width + 0.5;
-    if (splitLast.current && sorted.length === 3) {
-      const last = sorted[2]!.full;
-      setGroupWidths((current) => current.pair === pairTotal && current.last === last ? current : { pair: pairTotal, last });
-    }
     setLastOnOwnRow(separate);
-    setLastTooWide(separate && sorted[2]!.full > width + 0.5);
     setStacked(tight);
     const next = tight ? NO_FOLDS : new Set(sorted.filter((_, index) => modes[index]).map((item) => item.id));
     setFolded((current) => (sameIds(current, next) ? current : next.size === 0 ? NO_FOLDS : next));
@@ -134,29 +127,21 @@ export function ActionRow(props: {
   useLayoutEffect(() => { refold(); }, [props.stack, props.stackFull, props.fill, props.splitLast, refold]);
   // One value per slot while the fold holds, so a button draws again only when it folds or unfolds.
   const children = actions(props.children);
-  const slots = useMemo(() => new Map<number, ActionSlot>(), [folded, stacked, lastTooWide, props.fill, props.splitLast, children.length, register]);
+  // The last slot's place depends on the count only when it may take a line of its own.
+  const lastIndex = props.splitLast ? children.length - 1 : -1;
+  const slots = useMemo(() => new Map<number, ActionSlot>(), [folded, stacked, lastOnOwnRow, props.fill, lastIndex, register]);
   const slot = (index: number) => {
     let value = slots.get(index);
     if (!value) {
-      value = { index, folded, stacked: stacked || (props.splitLast === true && index === children.length - 1 && lastTooWide), fill: props.fill === true, register };
+      value = { index, folded, stacked: stacked || (index === lastIndex && lastOnOwnRow), fill: props.fill === true, register };
       slots.set(index, value);
     }
     return value;
   };
-  const renderChild = (child: ReactNode, index: number) => <ActionContext.Provider key={index} value={slot(index)}>{child}</ActionContext.Provider>;
-  if (props.splitLast) return (
-    <View testID={props.testID} onLayout={(event) => {
-      sizes.current.width = Math.max(0, event.nativeEvent.layout.width - padding - endPadding);
-      refold();
-    }} style={[{ flexDirection: lastOnOwnRow ? "column" : "row", width: "100%", minWidth: 0, alignSelf: "stretch", gap }, props.style]}>
-      <View style={{ flexDirection: stacked ? "column" : "row", gap, flexShrink: 0, ...(lastOnOwnRow ? { width: "100%" } : { flexGrow: 1, flexBasis: 0, minWidth: groupWidths.pair }) }}>
-        {children.slice(0, -1).map(renderChild)}
-      </View>
-      <View style={{ flexDirection: "row", flexShrink: 0, ...(lastOnOwnRow ? { width: "100%" } : { flexGrow: 1, flexBasis: 0, minWidth: groupWidths.last }) }}>
-        {children.slice(-1).map((child) => renderChild(child, children.length - 1))}
-      </View>
-    </View>
-  );
+  // `splitLast` keeps every button a direct child of one wrapping row, in
+  // every mode: one line shares the room as a plain row does, a stacked
+  // button (`width: "100%"`) takes a line of its own, and a row that has not
+  // yet learnt its width wraps instead of drawing buttons over each other.
   return (
     <View
       testID={props.testID}
@@ -164,9 +149,9 @@ export function ActionRow(props: {
         sizes.current.width = Math.max(0, event.nativeEvent.layout.width - padding - endPadding);
         refold();
       }}
-      style={[{ flexDirection: "row", width: "100%", minWidth: 0, alignSelf: "stretch", gap }, props.style, stacked ? { flexDirection: "column", alignItems: "stretch" } : null]}
+      style={[{ flexDirection: "row", width: "100%", minWidth: 0, alignSelf: "stretch", gap }, props.style, props.splitLast ? { flexWrap: "wrap" } : stacked ? { flexDirection: "column", alignItems: "stretch" } : null]}
     >
-      {children.map(renderChild)}
+      {children.map((child, index) => <ActionContext.Provider key={index} value={slot(index)}>{child}</ActionContext.Provider>)}
     </View>
   );
 }
