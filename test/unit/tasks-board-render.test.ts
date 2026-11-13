@@ -158,6 +158,7 @@ import { deviceTasksStore } from "../../client/tasks/device-preferences";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled, setTasksSettingsOpener } from "../../client/tasks/board/enabled";
 import { createFakePaseo, makeAgent } from "./helpers/fake-paseo";
+import { asExitPlan } from "./helpers/plan-request";
 import { TitleLoading } from "../../client/tasks/cards/title-loading";
 import { titleGenerationSettingsSchema, type TitleUpdateState } from "../../shared/title-generation";
 import { APP_SETTINGS_KEY, resetHostAppearanceForTests, setNativeSettingsReaderForTests, triggerHostAppearanceCheck } from "../../client/ui/tokens/host-appearance-shim";
@@ -459,6 +460,95 @@ describe("plan subscription", () => {
     host.settings = { ...DEFAULT_TASKS_SETTINGS, card: { ...DEFAULT_TASKS_SETTINGS.card, plan: true, subtasks: false } };
     act(() => renderer!.update(screen(false)));
     expect(todo.mock.calls.some((call) => call[2] === true)).toBe(true);
+  });
+});
+
+// A real Claude ExitPlanMode request (`helpers/plan-request`), on every surface
+// the board answers a request from: its section, divider and controls as a
+// tool permission's, and Implement and Reject sending the plan's own actions.
+describe("a real ExitPlanMode request on the board", () => {
+  type Surface = "desktop card" | "desktop sidebar" | "tablet sheet" | "phone card" | "phone sheet";
+  const SURFACES: Surface[] = ["desktop card", "desktop sidebar", "tablet sheet", "phone card", "phone sheet"];
+
+  async function mount(surface: Surface, respond: (options: unknown) => Promise<void>) {
+    const handle = (data as unknown as { __handle: data.TasksHandle }).__handle;
+    const saved = { lanes: handle.lanes, byId: handle.byId };
+    const plan = asExitPlan(handle.byId.get("sample-input")!);
+    handle.lanes = { ...handle.lanes, needs_input: { ...handle.lanes.needs_input, cards: handle.lanes.needs_input.cards.map((card) => card.id === plan.id ? plan : card) } };
+    handle.byId = new Map(handle.byId).set(plan.id, plan);
+    const ref = vi.spyOn(paseo.agents, "ref").mockReturnValue({ respondToPermission: respond, timeline: { refetch: async () => ({ entries: [] }), subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }) } } as never);
+    const timings = holdTimings();
+    const restore = () => { timings.restore(); ref.mockRestore(); handle.lanes = saved.lanes; handle.byId = saved.byId; };
+    try {
+      const phone = surface.startsWith("phone");
+      (globalThis as { __rnMockOS?: string }).__rnMockOS = surface.startsWith("desktop") ? "web" : "ios";
+      await act(async () => { renderer = TestRenderer.create(screen(phone)); });
+      if (!phone) layOut(surface === "tablet sheet" ? 600 : 1600);
+      const card = () => cards().find((node) => node.props.card.id === plan.id)!;
+      if (surface === "desktop card" || surface === "phone card") {
+        const view = hostsById(`task-card-${plan.id}`)[0]!;
+        return { plan, restore, root: view, answers: view.find((node) => typeof node.type === "string" && node.props.testID === (phone ? "task-card-question-actions" : "task-card-answer-actions")) };
+      }
+      await act(async () => card().props.onSelect(card().props.card));
+      if (surface === "tablet sheet") {
+        mountFrames();
+        timings.finish(timings.slide().at(-1)!);
+      }
+      const section = hostsById("detail-question-section")[0]!;
+      return { plan, restore, root: section, answers: section.find((node) => typeof node.type === "string" && node.props.testID === "detail-permission-actions") };
+    } catch (error) {
+      restore();
+      throw error;
+    }
+  }
+  const labels = (node: ReactTestInstance) => node.findAll((child) => typeof child.type === "string" && child.props.accessibilityRole === "button").map((child) => child.props.accessibilityLabel);
+
+  it.each(SURFACES)("lays it out as a tool permission's section on the %s and implements it in place", async (surface) => {
+    const respond = vi.fn(async () => {});
+    const mounted = await mount(surface, respond);
+    try {
+      expect(labels(mounted.answers)).toEqual(["Reject", "Implement"]);
+      expect(textOf(mounted.root)).toContain("Plan");
+      expect(textOf(mounted.root)).not.toContain("ExitPlanMode");
+      if (surface.endsWith("card")) {
+        // The divider says the plan waits for review; the task's Open sits above it (no Stop: this host has no CLI).
+        expect(textOf(mounted.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider"))).toContain("Awaiting review");
+        const controls = mounted.root.find((node) => typeof node.type === "string" && node.props.testID === (surface === "phone card" ? "task-card-actions" : "task-card-control-row"));
+        const nodes = mounted.root.findAll((node) => typeof node.type === "string");
+        expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(mounted.answers));
+        expect(labels(controls)).toEqual(["Open"]);
+      } else {
+        // No bottom bar: the task's controls on the row above the section, the plan's answers inside it.
+        expect(hostsById("detail-action-bar")).toHaveLength(0);
+        expect(StyleSheet.flatten(mounted.root.props.style).borderTopWidth).toBe(0.5);
+        const controls = hostsById("detail-question-controls")[0]!;
+        // Only the tablet sheet adds Close: the sidebar's corner and the phone sheet's header close those.
+        expect(controls.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.testID)).toEqual(
+          surface === "tablet sheet" ? ["detail-bar-open", "detail-bar-close"] : ["detail-bar-open"],
+        );
+      }
+      const implement = mounted.answers.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Implement");
+      await act(async () => { implement.props.onPress(); await Promise.resolve(); });
+      expect(respond).toHaveBeenCalledExactlyOnceWith({ requestId: mounted.plan.permission!.requestId, response: { behavior: "allow", selectedActionId: "implement" } });
+      expect(openAgent).not.toHaveBeenCalled();
+    } finally {
+      mounted.restore();
+    }
+  });
+
+  it.each(SURFACES)("rejects it from the %s and reports a failed answer", async (surface) => {
+    const respond = vi.fn(async () => { throw new Error("daemon offline"); });
+    const mounted = await mount(surface, respond);
+    try {
+      const reject = mounted.answers.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Reject");
+      await act(async () => { reject.props.onPress(); await Promise.resolve(); await Promise.resolve(); });
+      expect(respond).toHaveBeenCalledExactlyOnceWith({ requestId: mounted.plan.permission!.requestId, response: { behavior: "deny", selectedActionId: "reject", message: "Denied by user" } });
+      // A phone says it in the board's own notice, not the host toast over its header.
+      if (surface.startsWith("phone")) expect(textOf(hostsById("phone-board-notice")[0]!)).toBe(BOARD_STRINGS.en.answerFailed("daemon offline"));
+      else expect(host.toast).toHaveBeenLastCalledWith(BOARD_STRINGS.en.answerFailed("daemon offline"));
+    } finally {
+      mounted.restore();
+    }
   });
 });
 

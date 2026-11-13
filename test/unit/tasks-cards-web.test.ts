@@ -80,6 +80,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 });
 
 import "./helpers/quiet-renderer";
+import { asExitPlan } from "./helpers/plan-request";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { previewSampleCards as sampleCards } from "../../client/tasks/sample-cards";
@@ -588,17 +589,46 @@ describe("TaskCardView on web", () => {
     await act(async () => done.unmount());
   });
 
-  it("floats Open alone on a waiting mode request's hover, leaving Stop to the menu", async () => {
-    const onStop = vi.fn();
-    // A mode change keeps its block: only a question and a tool permission take the request section.
+  // Every request kind takes a tool permission's section: a real ExitPlanMode,
+  // a mode change and an unknown request too, each divider saying what it waits for.
+  it.each([
+    { kind: "plan", divider: "待确认", answers: ["拒绝", "实施"], controls: ["停止", "打开"] },
+    { kind: "plan-resume", divider: "待确认", answers: ["拒绝", "实施", "Implement with Bypass"], controls: ["停止", "打开"] },
+    { kind: "mode", divider: "待授权", answers: ["允许", "拒绝"], controls: ["停止", "打开"] },
+    // "去回答" opens the tab itself, so no Open beside Stop.
+    { kind: "other", divider: "待回答", answers: ["去回答"], controls: ["停止"] },
+  ] as const)("lays a $kind request out as a tool permission's section on the desktop", async ({ kind, divider, answers: labels, controls: controlLabels }) => {
     const input = sampleCards(NOW).find((item) => item.id === "sample-input")!;
-    const card = { ...input, permission: { ...input.permission!, kind: "mode" as const } };
-    const renderer = await render(React.createElement(TaskCardView, props("sample-input", { card, onStop })));
-    await act(async () => hovers.get("task-card-sample-input")!.enter());
-    const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-open-overlay");
-    expect(overlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["打开"]);
-    expect(renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toEqual([]);
-    expect(renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider")).toEqual([]);
+    const card: TaskCard = kind === "plan" || kind === "plan-resume" ? asExitPlan(input, { resume: kind === "plan-resume" }) : { ...input, permission: { ...input.permission!, kind, actions: [] } };
+    const onOpen = vi.fn();
+    const onStop = vi.fn();
+    const onPermission = vi.fn();
+    const buttons = permissionButtons(card.permission!, "zh", true);
+    const renderer = await render(React.createElement(TaskCardView, props(card.id, { card, onOpen, onStop, onPermission, permissionButtons: buttons })));
+    const host = (id: string) => renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === id);
+    const nodes = renderer.root.findAll((node) => typeof node.type === "string");
+    const controls = host("task-card-control-row")[0]!;
+    const request = host("task-card-permission")[0]!;
+    expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(request));
+    expect(controls.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(controlLabels);
+    expect(texts(request.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider"))).toEqual([divider, "·", "4m"]);
+    // A plan reads as one, not as the tool that asks for it; no icon beside it.
+    const title = request.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2);
+    if (kind === "plan" || kind === "plan-resume") expect(texts(title)).toEqual(["计划"]);
+    expect(title.parent!.findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(0);
+    const answers = request.find((node) => typeof node.type === "string" && node.props.testID === "task-card-answer-actions");
+    expect(answers.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(labels);
+    // Its wait sits on the divider, not after the answers.
+    expect(host("task-card-answer-row")[0]!.findAll((node) => node.props.testID === "task-card-footer")).toHaveLength(0);
+    await act(async () => hovers.get(`task-card-${card.id}`)!.enter());
+    expect(renderer.root.findAll((node) => typeof node.type === "string" && /^task-card-.*-overlay$/.test(String(node.props.testID)))).toEqual([]);
+    for (const [index, label] of labels.entries()) {
+      await act(async () => answers.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === label).props.onPress());
+      expect(onPermission).toHaveBeenLastCalledWith(card, buttons[index]);
+    }
+    expect(onOpen).not.toHaveBeenCalled();
+    await act(async () => controls.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止").props.onPress());
+    expect(onStop).toHaveBeenCalledWith(card, { withChildren: false });
     await act(async () => renderer.unmount());
   });
 
@@ -1098,7 +1128,7 @@ describe("TaskCardView hover layout", () => {
 
   it("moves nothing when the pointer enters a card, with or without a meta row", async () => {
     for (const fields of [CARD_PRESETS.full, CARD_PRESETS.minimal]) {
-      for (const [id, kind] of [["sample-running"], ["sample-child-1"], ["sample-input"], ["sample-input", "mode"]] as const) {
+      for (const [id, kind] of [["sample-running"], ["sample-child-1"], ["sample-input"], ["sample-input", "mode"], ["sample-input", "plan"], ["sample-input", "other"]] as const) {
         const base = sampleCards(NOW).find((item) => item.id === id)!;
         const card = kind ? { ...base, permission: { ...base.permission!, kind } } : base;
         const renderer = await render(
@@ -1109,14 +1139,13 @@ describe("TaskCardView hover layout", () => {
         );
         const before = layout(renderer.root);
         await act(async () => hovers.get(`task-card-${id}`)!.enter());
-        if (id === "sample-input" && !kind) {
-          // A tool permission's Stop and Open already sit on their row above its divider: hover floats nothing.
+        if (id === "sample-input") {
+          // A request's Stop and Open, of any kind, already sit on their row above its divider: hover floats nothing.
           expect(renderer.root.findAll((node) => typeof node.type === "string" && /^task-card-.*-overlay$/.test(String(node.props.testID)))).toEqual([]);
           expect(renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-control-row")).toHaveLength(1);
         } else {
-          // Stop (Open alone on a waiting mode request) is on screen, floating over the row's end.
-          const overlayID = id === "sample-input" ? "task-card-open-overlay" : "task-card-stop-overlay";
-          const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === overlayID);
+          // Stop is on screen, floating over the row's end.
+          const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-overlay");
           expect(flat(overlay.props.style).position).toBe("absolute");
         }
         expect(layout(renderer.root)).toEqual(before);

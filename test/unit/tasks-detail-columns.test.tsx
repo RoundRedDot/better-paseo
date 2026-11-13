@@ -36,6 +36,7 @@ import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { previewSampleCards } from "../../client/tasks/sample-cards";
+import { asExitPlan } from "./helpers/plan-request";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { TasksTypography, TasksTypographyScale, HOST_FONT } from "../../client/tasks/typography";
 import { variantMetrics } from "../../client/components/markdown/render/styles";
@@ -73,6 +74,9 @@ function props(children: boolean): TaskDetailCardsProps {
 }
 function host(root: ReactTestInstance, id: string) {
   return root.find((node) => typeof node.type === "string" && node.props.testID === id);
+}
+function texts(root: ReactTestInstance): string[] {
+  return root.findAll((node) => (node.type as unknown) === "Text").flatMap((node) => node.children.filter((child): child is string => typeof child === "string"));
 }
 function order(root: ReactTestInstance) {
   return root.findAll((node) => typeof node.type === "string" && ORDER.includes(node.props.testID)).map((node) => node.props.testID);
@@ -452,18 +456,32 @@ describe("details columns", () => {
     await act(async () => withUnread[0]!.props.onPress());
     expect(markUnread.press).toHaveBeenCalledWith(card);
   });
-  it.each(["plan", "mode", "other"] as const)("keeps a %s request's answers and stop actions in the footer", async (kind) => {
-    // Only a question and a tool permission are answered in their section.
+  // Every request kind, a real ExitPlanMode among them, answers in its section
+  // as a tool permission does, with Stop (and Open, but beside "Answer") above it.
+  it.each(["plan", "plan-resume", "mode", "other"] as const)("answers a %s request in its section and keeps Stop on the controls row above it", async (kind) => {
     const input = previewSampleCards(NOW).find((item) => item.id === "sample-input")!;
-    const card = { ...input, permission: { ...input.permission!, kind, actions: kind === "plan" ? [{ id: "implement", label: "Implement", behavior: "allow" as const, variant: "primary" as const }, { id: "reject", label: "Reject", behavior: "deny" as const, variant: null }] : [] } };
+    const card = kind === "plan" || kind === "plan-resume" ? asExitPlan(input, { resume: kind === "plan-resume" }) : { ...input, permission: { ...input.permission!, kind, actions: [] } };
     const stop = vi.fn();
-    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={() => {}} stop={{ phase: "idle", onPress: stop }} permissionButtons={permissionButtons(card.permission!, "en", true)} onPermission={() => {}} />); });
+    const onPermission = vi.fn();
+    const buttons = permissionButtons(card.permission!, "en", true);
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={() => {}} stop={{ phase: "idle", onPress: stop }} permissionButtons={buttons} onPermission={onPermission} />); });
     const root = renderer!.root;
-    expect(host(root, "detail-permission").findAll((node) => node.props.testID === "detail-permission-actions")).toHaveLength(0);
-    expect(root.findAll((node) => node.props.testID === "detail-question-section" || node.props.testID === "detail-question-controls")).toHaveLength(0);
-    const labels = host(root, "detail-action-bar").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
-    expect(labels).toEqual({ plan: ["Reject", "Implement", "Stop", "Open"], mode: ["Deny", "Allow", "Stop", "Open"], other: ["Answer", "Stop"] }[kind]);
-    await act(async () => host(root, "detail-bar-stop").props.onPress());
+    expect(root.findAll((node) => node.props.testID === "detail-action-bar")).toHaveLength(0);
+    expect(host(root, "detail-question-section").props.style).toMatchObject({ borderTopWidth: 0.5 });
+    const answers = host(host(root, "detail-question-section"), "detail-permission-actions").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    expect(answers.map((node) => node.props.accessibilityLabel)).toEqual({
+      plan: ["Reject", "Implement"], "plan-resume": ["Reject", "Implement", "Implement with Bypass"], mode: ["Allow", "Deny"], other: ["Answer"],
+    }[kind]);
+    // A plan reads as one, not as the tool that asks for it.
+    if (kind !== "mode" && kind !== "other") expect(texts(host(root, "detail-permission"))).toContain("Plan");
+    if (kind !== "mode" && kind !== "other") expect(texts(host(root, "detail-permission"))).not.toContain("ExitPlanMode");
+    const controls = host(root, "detail-question-controls");
+    expect(controls.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.testID)).toEqual(kind === "other" ? ["detail-bar-stop"] : ["detail-bar-stop", "detail-bar-open"]);
+    for (const [index, answer] of answers.entries()) {
+      await act(async () => answer.props.onPress());
+      expect(onPermission).toHaveBeenLastCalledWith(buttons[index]);
+    }
+    await act(async () => host(controls, "detail-bar-stop").props.onPress());
     expect(stop).toHaveBeenCalledOnce();
   });
   it("answers a tool permission in its section and keeps Stop on the controls row above it", async () => {

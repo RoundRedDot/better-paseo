@@ -28,6 +28,18 @@ export function requestLook(button: PermissionButton): CardButtonLook {
   return "plain";
 }
 
+/**
+ * Whether a request's answer must keep its words when its row runs out of
+ * room: a question's written option, or one of several answers drawn with the
+ * same Check or X (a plan's Implement and "Implement with Bypass"), which its
+ * icon alone could not tell apart. The others fold to their icon first.
+ */
+export function keepsAnswerLabel(button: PermissionButton, buttons: readonly PermissionButton[]): boolean {
+  if (button.answers) return true;
+  if (button.kind !== "respond") return false;
+  return buttons.filter((other) => other.kind === "respond" && !other.answers && other.action.behavior === button.action.behavior).length > 1;
+}
+
 export type CardButtonLook = "primary" | "plain" | "danger" | "answer" | "archive" | "read" | "unread";
 
 /**

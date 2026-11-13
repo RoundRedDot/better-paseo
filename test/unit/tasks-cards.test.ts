@@ -86,6 +86,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 });
 
 import "./helpers/quiet-renderer";
+import { asExitPlan, exitPlanPermission } from "./helpers/plan-request";
 import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { CARD_PRESETS, type CardSettings, type DensityPreset } from "../../shared/tasks-settings";
 import { previewSampleCards, sampleCards } from "../../client/tasks/sample-cards";
@@ -526,8 +527,7 @@ function sample(id: string): TaskCard {
 
 /**
  * The sample tool permission as another request kind. A mode change answers
- * with the same Allow and Deny, and keeps the request block and its bottom
- * bar: only a question and a tool permission take the request section.
+ * with the same Allow and Deny; every kind takes the request section.
  */
 function asKind(card: TaskCard, kind: "plan" | "mode" | "other"): TaskCard {
   return { ...card, permission: { ...card.permission!, kind } };
@@ -1642,13 +1642,17 @@ describe("TaskCardView rows", () => {
     expect(icons(byLabel(tree.root, "允许"))).toEqual(["Check"]);
   });
 
-  it("on a phone, keeps a mode request's action labels on one line, sized to their text, in one row", async () => {
-    // A mode change keeps Allow, Deny and Stop on one bar (a tool permission's are split; see below).
+  it("on a phone, keeps a mode request's action labels on one line, sized to their text, Stop alone on the bar above", async () => {
+    // A mode change answers under its divider as a tool permission does; no Open: Stop alone takes the bar, as on a running card.
     const card = asKind(sample("sample-input"), "mode");
     const buttons = permissionButtons(card.permission!, "en");
     const element = (stopPhase: StopPhase) =>
-      cardElement(card, { compact: true, language: "en", permissionButtons: buttons, onStop: () => {}, stopPhase });
+      cardElement(card, { compact: true, language: "en", permissionButtons: buttons, onStop: () => {}, onOpen: undefined, stopPhase });
     const tree = await render(element("idle"));
+    expect(texts(hostByTestId(tree.root, "task-card-question-actions"))).toEqual(["Allow", "Deny"]);
+    expect(texts(hostByTestId(tree.root, "task-card-actions"))).toEqual(["Stop"]);
+    expect(rows(tree.root, card.id).indexOf("task-card-actions")).toBeLessThan(rows(tree.root, card.id).indexOf("task-card-permission"));
+    expect(flat(hostByTestId(tree.root, "task-card-question-actions").props.style).flexWrap).toBeUndefined();
     const allow = flat(byLabel(tree.root, "Allow").props.style);
     expect(allow).toMatchObject({ minHeight: 32, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: 32 });
     expect(allow.height).toBeUndefined();
@@ -1676,31 +1680,39 @@ describe("TaskCardView rows", () => {
     expect(icons(confirm)).toEqual(["OctagonAlert"]);
   });
 
-  it("draws a mode request's summary, its buttons and the remaining count in its block", async () => {
-    const buttons: PermissionButton[] = [
-      { key: "allow", label: "允许", variant: "primary", kind: "respond", action: { behavior: "allow", id: null } },
-      { key: "deny", label: "拒绝", variant: "secondary", kind: "respond", action: { behavior: "deny", id: null } },
-    ];
+  // A mode change, a real ExitPlanMode and an unknown request take a tool permission's section.
+  it.each([
+    { kind: "mode", divider: "待授权", answers: ["允许", "拒绝"], controls: ["打开"] },
+    { kind: "plan", divider: "待确认", answers: ["拒绝", "实施"], controls: ["打开"] },
+    { kind: "other", divider: "待回答", answers: ["去回答"], controls: [] },
+  ] as const)("draws a $kind request's summary, its answers and the remaining count in its section", async ({ kind, divider, answers, controls }) => {
+    const base = sample("sample-input");
+    const card = kind === "plan" ? { ...asExitPlan(base), permission: { ...exitPlanPermission(), remaining: 1 } } : asKind(base, kind);
+    const buttons = permissionButtons(card.permission!, "zh", true);
     const onPermission = vi.fn();
     const onOpen = vi.fn();
-    const card = asKind(sample("sample-input"), "mode");
     const tree = await render(cardElement(card, { permissionButtons: buttons, onPermission, onOpen }));
     const all = texts(tree.root);
-    expect(all).toContain("Bash · npm run db:migrate -- --env staging");
+    expect(all).toContain(kind === "plan" ? "计划" : "Bash · npm run db:migrate -- --env staging");
+    expect(all).not.toContain("ExitPlanMode");
     expect(all).toContain("还有 1 条");
-    expect(all).toContain("等待 4m");
-    // The wait sits on the buttons' row, under the divider, not on a footer row above it.
-    expect(rows(tree.root, "sample-input")).not.toContain("task-card-footer");
-    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-footer"))).toEqual(["等待 4m"]);
-    // A tablet's Open takes a row of its own under the answer row.
-    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-control-row"))).toEqual(["打开"]);
-    // The buttons start at the card's edge, as its text does, not under the request's icon.
+    const request = hostByTestId(tree.root, "task-card-permission");
+    // The wait sits on the divider, not on a footer row above it nor after the answers.
+    expect(rows(tree.root, card.id)).not.toContain("task-card-footer");
+    expect(texts(hostByTestId(request, "task-card-question-divider"))).toEqual([divider, "·", "4m"]);
+    expect(hostByTestId(request, "task-card-answer-row").findAll((node) => node.props.testID === "task-card-footer")).toHaveLength(0);
+    // The controls row comes first, above the divider (an unknown request's "Answer" opens the tab, so it has none here).
+    if (controls.length > 0) {
+      expect(rows(tree.root, card.id).indexOf("task-card-control-row")).toBeLessThan(rows(tree.root, card.id).indexOf("task-card-permission"));
+      expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(controls);
+    } else expect(tree.root.findAll((node) => node.props.testID === "task-card-control-row")).toHaveLength(0);
+    // The divider names it: no icon beside the request's text, which starts at the card's edge.
+    const text = request.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2);
+    expect(icons(text.parent!)).toEqual([]);
     expect(flat(hostByTestId(tree.root, "task-card-answer-row").props.style).paddingLeft).toBeUndefined();
-    // Its block keeps the request's icon and has no divider.
-    expect(icons(hostByTestId(tree.root, "task-card-permission"))).toContain("ShieldCheck");
-    expect(tree.root.findAll((node) => node.props.testID === "task-card-question-divider")).toHaveLength(0);
-    byLabel(tree.root, "拒绝").props.onPress();
-    expect(onPermission).toHaveBeenCalledWith(card, buttons[1]);
+    expect(texts(hostByTestId(tree.root, "task-card-answer-actions"))).toEqual(answers);
+    byLabel(tree.root, answers.at(-1)!).props.onPress();
+    expect(onPermission).toHaveBeenCalledWith(card, buttons.at(-1));
     expect(onOpen).not.toHaveBeenCalled();
   });
 
@@ -2306,15 +2318,16 @@ describe("TaskCardView actions", () => {
     expect(texts(hostByTestId(done.root, "task-card-actions"))).toEqual(["打开"]);
     await act(async () => done.unmount());
 
-    // A mode request's Allow and Deny follow it; a question's "Answer" already opens the tab.
+    // A mode request's and a plan's answers sit under its divider too: Open keeps its label beside Stop.
     const input = asKind(sample("sample-input"), "mode");
-    const allow = await render(cardElement(input, { compact: true, permissionButtons: permissionButtons(input.permission!, "zh") }));
-    // Beside Allow and Deny it is a square icon, its label read out.
-    const square = byLabel(allow.root, "打开");
-    expect(texts(square)).toEqual([]);
-    expect(icons(square)).toEqual(["ArrowUpRight"]);
-    expect(flat(square.props.style)).toMatchObject({ width: 32, flexGrow: 0 });
-    await act(async () => allow.unmount());
+    for (const asking of [input, asExitPlan(sample("sample-input"))]) {
+      const allow = await render(cardElement(asking, { compact: true, onOpen, onStop: () => {}, permissionButtons: permissionButtons(asking.permission!, "zh") }));
+      expect(texts(hostByTestId(allow.root, "task-card-actions"))).toEqual(["停止", "打开"]);
+      expect(texts(hostByTestId(allow.root, "task-card-question-actions"))).toEqual(asking.permission!.kind === "plan" ? ["拒绝", "实施"] : ["允许", "拒绝"]);
+      expect(flat(byLabel(allow.root, "打开").props.style)).toMatchObject({ flexGrow: 1 });
+      expect(flat(hostByTestId(allow.root, "task-card-stop").props.style)).toMatchObject({ flexGrow: 0 });
+      await act(async () => allow.unmount());
+    }
     // A tool permission's Allow and Deny sit under its divider, as a question's options do: Open keeps its label beside Stop.
     const tool = sample("sample-input");
     const toolCard = await render(cardElement(tool, { compact: true, onOpen, onStop: () => {}, permissionButtons: permissionButtons(tool.permission!, "zh") }));

@@ -39,7 +39,7 @@ import { subtaskFinished } from "./details-format";
 import { ActionRow, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
 import { ActionPressable, useLiftPress, usePressCue } from "./action-pressable";
-import { buttonHue, cardButtonHeight, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_ICON, requestLook, webTransition } from "./action-style";
+import { buttonHue, cardButtonHeight, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_ICON, keepsAnswerLabel, requestLook, webTransition } from "./action-style";
 import { CardContextMenu } from "./card-menu";
 import { bindContextMenu, openToolbarDetailsLayer } from "../../web";
 import { ArchivedTag, parentTag } from "./archived-tag";
@@ -48,7 +48,7 @@ import type { CardFilterKind, CardFilterState } from "../board/filter-options";
 import { layoutMenu } from "../board/menu-model";
 import { BUTTON_LINE, buttonOutline } from "../board/board-style";
 import { tipChrome } from "./panel";
-import { cardStrings, subtaskSummary } from "./strings";
+import { cardStrings, requestDividerLabel, requestTitle, subtaskSummary } from "./strings";
 import { TagMark } from "./tag-mark";
 import { pillTint, readableOn, taskTokens, type TaskTokens } from "./tokens";
 import { mix, withAlpha } from "../../components/theme-tokens";
@@ -693,14 +693,14 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const canStop = (card.stoppable || activeChildren > 0) && !!props.onStop;
   const childrenOnly = !card.stoppable;
   const parentStop = canStop && !childrenOnly && activeChildren > 0;
-  // A question and a tool's permission take a section of their own: the task's
+  // Every waiting request, of any kind, takes a section of its own: the task's
   // controls (Stop, Open) on a row above a labelled divider, the request and
-  // its answers below it. A tool's Allow and Deny answer in place as a
-  // question's options do; only the divider's label tells them apart. A plan,
-  // a mode change or an unknown request keeps its block, with Stop in the menu.
-  const questionSection = layout.permission && card.permission?.kind === "question";
-  const toolSection = layout.permission && card.permission?.kind === "tool";
-  const requestSection = questionSection || toolSection;
+  // its answers below it. Only the divider's label (`requestDividerLabel`) and
+  // what an answer does differ: Allow, Deny and a plan's choices answer in
+  // place, a question's options as written, "View questions" opens its form
+  // and an unknown request's "Answer" opens the tab.
+  const requestSection = layout.permission;
+  const questionSection = requestSection && card.permission?.kind === "question";
   const footStop = canStop && (TOUCH || requestSection || card.lane !== "needs_input");
   const showStop = footStop && !compact && (TOUCH || requestSection || hovered || props.stopPhase !== "idle" || menuOpen);
   // Mark read takes Stop's place: a card is never both (Stop needs a running
@@ -720,8 +720,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const ownTab = !card.subagent;
   const canOpen = !compact && !!props.onOpen && (ownTab || parentOpens) && !(layout.permission && props.permissionButtons.some((button) => button.kind === "open"));
   const questionAnswerRow = layout.permission && props.permissionButtons.some((button) => button.kind === "question");
-  // A tool's control row stays put, as a question's does with "View questions": Open shows without hover.
-  const showOpen = canOpen && (questionAnswerRow || toolSection || TOUCH || hovered || showStop || showRead);
+  // A request's control row stays put, as a question's does with "View questions": Open shows without hover.
+  // A question answered only inline keeps its Open on hover, as before.
+  const showOpen = canOpen && (questionAnswerRow || (requestSection && !questionSection) || TOUCH || hovered || showStop || showRead);
   // An archived task has Unarchive where Open tab was: Paseo opens it only once it is back.
   const canUnarchive = card.archived === "agent" && !!props.onUnarchive;
   const unarchivePending = props.unarchivePending === true;
@@ -1281,9 +1282,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // own gaps above and below instead of overhanging the pills, and hovering
   // still moves nothing.
   const footHeight = stopSlot && !TOUCH ? taskControlHeight(buttonHeight, scale) : Math.round(m.footLine * scale);
-  // A desktop request's buttons take the footer in on their row: the wait sits
-  // beside the answer it waits for, as the details sidebar shows it, rather
-  // than above the divider with the buttons alone on a row of their own.
+  // A desktop request's answers take a row of their own under it. Its wait sits
+  // on the divider; only a minimal card's search summary leaves it here, after them.
   const answerRow = layout.permission && card.permission !== null && !compact && props.permissionButtons.length > 0;
   const unarchiveButton = (onPhone: boolean) => (
     <CardButton
@@ -1328,12 +1328,11 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       testID="task-card-archive"
     />
   );
-  const openParentButton = (onPhone: boolean, square = false) => (
+  const openParentButton = (onPhone: boolean) => (
     <CardButton
       label={strings.openParent}
       look="plain"
       icon="CornerLeftUp"
-      square={square}
       hint={hint("action-open-parent", () => strings.openParent)}
       tokens={tokens}
       compact={onPhone}
@@ -1364,7 +1363,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     </ActionRow>
   );
   if (parentStop) hint("stop-options", () => strings.stopOptions);
-  // On a question's or tool's divider the clock says it waits: the wait shows its length alone, the hover hint says the rest.
+  // On a request's divider the clock says it waits: the wait shows its length alone, the hover hint says the rest.
   const dividerWait = requestSection && !minimalSummary && timer?.tone === "warning";
   const footerContent =
     timer || stopSlot || promptNote ? (
@@ -1426,7 +1425,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         ) : null}
       </>
     ) : null;
-  // A question's or tool's wait shares the divider label, leaving the answer row clear.
+  // A request's wait shares the divider label, leaving the answer row clear.
   const dividerFoot = requestSection && !minimalSummary ? footerContent : null;
   const footer =
     footerContent && !answerRow && !dividerFoot ? (
@@ -1435,12 +1434,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       </View>
     ) : null;
   // A tablet's buttons always take a row of their own, at the bottom right
-  // under the timer (or under a request's answer row): beside the timer they
-  // ran off a narrow lane's card. Stop's menu opens downwards over the blocks
-  // below, so the row is raised.
+  // under the timer: beside the timer they ran off a narrow lane's card. A
+  // request's controls take that row on every card, above its divider. Stop's
+  // menu opens downwards over the blocks below, so the row is raised.
   const controlRow =
     showControl && (TOUCH || requestSection) ? (
-      <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: answerRow && !requestSection ? 0 : m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-control-row">
+      <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-control-row">
         {footControls(buttonHeight)}
       </View>
     ) : null;
@@ -1487,29 +1486,26 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const permissionSummary = permission ? summaryBeyondTitle(permission.title, permission.summary) : null;
   const permissionBlock =
     layout.permission && permission ? (
-      <View style={[block, requestSection ? { borderTopWidth: 0, paddingTop: 0, marginTop: m.rowGap } : null, { gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
-        {requestSection ? (
-          // As much room above and below the divider as any block keeps around its rule (the block's gap adds 8 below).
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: m.rowGap - 8 }} testID="task-card-question-divider">
-            <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
-              <Text numberOfLines={1} ellipsizeMode="tail" style={[text(11, 16, tokens.status.warning, "600"), { flexShrink: 1 }]}>{toolSection ? strings.awaitingApproval : strings.awaitingAnswer}</Text>
-              {dividerWait ? <Text style={text(11, 16, tokens.status.warning)}>·</Text> : null}
-              {dividerFoot ? (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, flexShrink: 0, paddingRight: 1 }} testID="task-card-footer">
-                  {dividerFoot}
-                </View>
-              ) : null}
-            </View>
-            <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />
+      // The divider replaces the block's rule. As much room above and below it
+      // as any block keeps around its rule (the block's gap adds 8 below).
+      <View style={[block, { borderTopWidth: 0, paddingTop: 0, marginTop: m.rowGap, gap: 8, zIndex: answerRow ? footerZ : undefined }]} testID="task-card-permission">
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: m.rowGap - 8 }} testID="task-card-question-divider">
+          <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
+            <Text numberOfLines={1} ellipsizeMode="tail" style={[text(11, 16, tokens.status.warning, "600"), { flexShrink: 1 }]}>{requestDividerLabel(permission.kind, strings)}</Text>
+            {dividerWait ? <Text style={text(11, 16, tokens.status.warning)}>·</Text> : null}
+            {dividerFoot ? (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: FOOT_GAP, flexShrink: 0, paddingRight: 1 }} testID="task-card-footer">
+                {dividerFoot}
+              </View>
+            ) : null}
           </View>
-        ) : null}
+          <View style={{ flex: 1, height: 0.5, backgroundColor: mix(look.border, tokens.status.warning, 0.12) }} />
+        </View>
+        {/* The divider names the request, so its text starts at the card's edge, over its answers. */}
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: GAP }}>
-          {!requestSection ? <View style={iconCell}>
-            <Icon name={permissionIcon(permission.kind)} size={m.icon + 1} color={tokens.status.warning} />
-          </View> : null}
           <Text numberOfLines={2} {...hintProps(asksQuestion ? hint("permission-question", () => [permission.title, permissionSummary].filter(Boolean).join(" · ")) : undefined)} style={[text(asksQuestion ? F.base : m.blockSize, asksQuestion ? HOST_LINE.base : m.blockLine, tokens.foreground), questionSection ? { fontSize: m.titleSize, lineHeight: m.titleLine } : null, { flex: 1 }]}>
-            <Text style={{ fontWeight: asksQuestion ? "500" : "600" }}>{permission.title}</Text>
+            <Text style={{ fontWeight: asksQuestion ? "500" : "600" }}>{requestTitle(permission, strings)}</Text>
             {permissionSummary ? <Text style={{ color: muted }}> · </Text> : null}
             {permissionSummary}
           </Text>
@@ -1520,7 +1516,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {compactRequest && props.permissionButtons.length > 0 ? (
           <ActionRow gap={GAP} testID="task-card-question-actions">
             {props.permissionButtons.map((button) => (
-              <ActionButton key={button.key} button={button} tokens={tokens} compact
+              <ActionButton key={button.key} button={button} tokens={tokens} compact keepLabel={keepsAnswerLabel(button, props.permissionButtons)}
                 disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}
                 hint={hint(`action-permission-${button.key}`, () => button.label)}
                 onPress={() => props.onPermission?.(card, button)} />
@@ -1536,6 +1532,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                   button={button}
                   tokens={tokens}
                   compact={false}
+                  keepLabel={keepsAnswerLabel(button, props.permissionButtons)}
                   disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}
                   hint={hint(`action-permission-${button.key}`, () => button.label)}
                   onPress={() => props.onPermission?.(card, button)}
@@ -1549,7 +1546,6 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             ) : null}
           </View>
         ) : null}
-        {answerRow && !requestSection ? controlRow : null}
       </View>
     ) : null;
 
@@ -1595,42 +1591,31 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     ) : null;
 
   // Phone action bar -------------------------------------------------------
+  // A request's answers sit under its divider (`task-card-question-actions`),
+  // so this bar only holds the task's own controls.
   const buttons = compact && layout.permission ? props.permissionButtons : [];
   // "Answer" already opens the tab, so it stands in for "Open tab". As in the
   // details sheet's bar, "Open tab" sits last, at the right, taking the room
-  // Stop or Mark read leaves, and beside Allow and Deny it is a square icon.
+  // Stop or Mark read leaves.
   const openTab = compact && !!props.onOpen && (ownTab || parentOpens) && !buttons.some((button) => button.kind === "open");
-  const openSquare = openTab && buttons.length > 0 && !compactRequest;
   // Stop is as wide as its label beside a button that opens the tab ("Open tab" or "Answer").
-  const stopHugs = (openTab && !openSquare) || buttons.some((button) => button.kind === "open");
+  const stopHugs = openTab || buttons.some((button) => button.kind === "open");
   const actionBar =
-    compact && (openTab || (!compactRequest && buttons.length > 0) || canStop || canRead || canUnread || canUnarchive || canArchive) ? (
+    compact && (openTab || canStop || canRead || canUnread || canUnarchive || canArchive) ? (
       // One row: no flexWrap, whose Yoga layout left a phantom second row's
       // height under the buttons on Android.
       <ActionRow style={{ marginTop: m.rowGap, zIndex: OVERLAY_ROW_Z }} testID="task-card-actions">
-        {(!compactRequest ? buttons : []).map((button) => (
-          <ActionButton
-            key={button.key}
-            button={button}
-            tokens={tokens}
-            compact
-            disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}
-            hint={hint(`action-permission-${button.key}`, () => button.label)}
-            onPress={() => props.onPermission?.(card, button)}
-          />
-        ))}
+        {/* Over a request's section, Stop's menu keeps its alignment to Stop's right edge, as on a question's card. */}
         {canStop ? <StopControl {...stop} compact hug={stopHugs} line={buttonHeight} menuLeft={openTab && buttons.length === 0} /> : null}
         {canRead ? <ReadControl {...read} compact hug={openTab} line={buttonHeight} /> : null}
         {canUnread ? unreadButton(true, openTab) : null}
         {canArchive ? archiveButton(true, openTab) : null}
-        {/* Beside Allow and Deny, where Open tab is a square, there is no room for it; a subagent's, its only one, is the square. */}
-        {openTab && parentOpens && (!openSquare || !ownTab) ? openParentButton(true, openSquare) : null}
+        {openTab && parentOpens ? openParentButton(true) : null}
         {openTab && ownTab ? (
           <CardButton
             label={strings.openTab}
             look="plain"
             arrow
-            square={openSquare}
             hint={hint("action-open", () => strings.openTab)}
             tokens={tokens}
             compact
@@ -1685,7 +1670,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const footRow = minimalSummary ? <View style={{ marginTop: m.rowGap, minHeight: footHeight, zIndex: footerZ, flexDirection: "row", alignItems: "center" }}><SearchHitSummary hits={searchHits} query={query} tokens={tokens} theme={theme} language={language} phone={compact} minimal rowHeight={footHeight} onOpenChange={setSearchOpen} promptNote={promptNote} onRetry={props.searchPrompt?.state === "error" && !props.searchPrompt.unavailable && !props.searchPromptUnavailable && !card.closed && props.onSearchPromptRetry ? () => props.onSearchPromptRetry?.(card) : undefined} />{footerContent}</View> : footer;
   // Below the title, in order. Each starts `m.rowGap` under the row above it,
   // except the search summary's 6 pt rule (`SearchHitSummary`).
-  const tailList = [pillRow, footRow, answerRow && !requestSection ? null : controlRow, compactRequest ? actionBar : null, permissionBlock, failure, todoList, subtaskList, compactRequest ? null : actionBar, hiddenHitsRow];
+  // A request's controls come before its section; any other card ends with them.
+  const tailList = [pillRow, footRow, controlRow, compactRequest ? actionBar : null, permissionBlock, failure, todoList, subtaskList, compactRequest ? null : actionBar, hiddenHitsRow];
   const firstTail = tailList.find((row) => row !== null);
   // A ticket with nothing below its title: an empty stub, one row gap tall,
   // takes the first row's place, so the notches, the rule and the tail's
@@ -1695,7 +1681,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     <>
       {pillRow}
       {footRow}
-      {answerRow && !requestSection ? null : controlRow}
+      {controlRow}
       {compactRequest ? actionBar : null}
       {permissionBlock}
       {failure}
@@ -1807,12 +1793,6 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   );
 }
 
-function permissionIcon(kind: string): string {
-  if (kind === "question" || kind === "other") return "MessageCircleQuestion";
-  if (kind === "plan") return "ListChecks";
-  if (kind === "mode") return "ShieldCheck";
-  return "Terminal";
-}
 
 // --- Pills ------------------------------------------------------------------
 
@@ -2146,6 +2126,8 @@ export function ActionButton(props: {
   button: PermissionButton;
   tokens: TaskTokens;
   compact: boolean;
+  /** Never fold to the icon (`keepsAnswerLabel`): truncate the label instead. */
+  keepLabel?: boolean;
   disabled?: boolean;
   hint?: string;
   onPress(): void;
@@ -2161,7 +2143,7 @@ export function ActionButton(props: {
       accessibilityLabel={button.label}
       look={look}
       icon={button.kind === "question" ? "MessageCircleQuestion" : answer || option ? null : button.action.behavior === "allow" ? "Check" : "X"}
-      labelOnly={option}
+      labelOnly={option || props.keepLabel === true}
       tokens={props.tokens}
       compact={props.compact}
       disabled={props.disabled}

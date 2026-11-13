@@ -11,6 +11,7 @@ import { permissionButtons, respondToPermission } from "../../client/tasks/actio
 import { cardStart, cardTimer, formatEnded } from "../../client/tasks/cards/card-time";
 import { at, createFakePaseo, makeAgent, makePlacement, makeWorkspace } from "./helpers/fake-paseo";
 import "./helpers/quiet-renderer";
+import { claudeExitPlanRequest, codexPlanRequest, exitPlanPermission } from "./helpers/plan-request";
 
 const storeNotificationProbe = vi.hoisted(() => ({ enabled: false, count: 0 }));
 vi.mock("react", async (importOriginal) => {
@@ -714,6 +715,48 @@ describe("Tasks data store", () => {
       await respondToPermission(fake.paseo, "asking", buttons[1]!, permission.requestId);
       expect(fake.permissionResponses).toEqual([{ agentId: "asking", requestId: "permission-item-1",
         response: { behavior: "allow", updatedInput: { answers: { "Question 1": labels[1] } } } }]);
+    } finally { mounted.unmount(); }
+  });
+
+  // Claude's ExitPlanMode, as its provider sends it: no title, Reject and
+  // Implement, and Implement with the resume mode when there is one. The cards
+  // show it as a plan (tasks-cards, tasks-card-action-layout, tasks-board-render).
+  it.each([false, true])("answers a real Claude ExitPlanMode request with its own actions (resume %s)", async (resume) => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("planning", { provider: "claude", status: "running", pendingPermissions: [claudeExitPlanRequest({ resume })] as never })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      const card = mounted.current.byId.get("planning")!;
+      expect(card.lane).toBe("needs_input");
+      expect(card.permission).toEqual(exitPlanPermission({ resume }));
+      const buttons = permissionButtons(card.permission!, "zh", true);
+      expect(buttons.map((button) => [button.label, button.kind, button.variant])).toEqual([
+        ["拒绝", "respond", "danger"], ["实施", "respond", "primary"], ...(resume ? [["Implement with Bypass", "respond", "secondary"]] : []),
+      ]);
+      for (const button of buttons) await respondToPermission(fake.paseo, "planning", button, card.permission!.requestId);
+      expect(fake.permissionResponses).toEqual([
+        { agentId: "planning", requestId: "permission-exit-plan", response: { behavior: "deny", selectedActionId: "reject", message: "Denied by user" } },
+        { agentId: "planning", requestId: "permission-exit-plan", response: { behavior: "allow", selectedActionId: "implement" } },
+        ...(resume ? [{ agentId: "planning", requestId: "permission-exit-plan", response: { behavior: "allow", selectedActionId: "implement_resume" } }] : []),
+      ]);
+    } finally { mounted.unmount(); }
+  });
+
+  it("answers a Codex plan approval with Dismiss and Implement", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("planning", { provider: "codex", status: "running", pendingPermissions: [codexPlanRequest()] as never })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      const permission = mounted.current.byId.get("planning")!.permission!;
+      expect(permission).toMatchObject({ kind: "plan", title: "Plan", summary: "Review the proposed plan before implementation starts." });
+      const buttons = permissionButtons(permission, "en", true);
+      expect(buttons.map((button) => button.label)).toEqual(["Dismiss", "Implement"]);
+      await respondToPermission(fake.paseo, "planning", buttons[0]!, permission.requestId);
+      expect(fake.permissionResponses).toEqual([{ agentId: "planning", requestId: "permission-codex-plan", response: { behavior: "deny", selectedActionId: "dismiss", message: "Denied by user" } }]);
     } finally { mounted.unmount(); }
   });
 

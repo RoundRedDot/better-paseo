@@ -33,6 +33,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 });
 
 import "./helpers/quiet-renderer";
+import { asExitPlan } from "./helpers/plan-request";
+import { unavailableTask } from "../../shared/task-availability";
 import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { CARD_PRESETS } from "../../shared/tasks-settings";
 import { previewSampleCards as sampleCards } from "../../client/tasks/sample-cards";
@@ -127,18 +129,31 @@ function parentAsking(): TaskCard {
 }
 
 /**
- * The sample tool permission as another request kind. A plan, a mode change
- * or an unknown request keeps its block and the phone's one-row bar; only a
- * question and a tool permission take the request section.
+ * The sample tool permission as another request kind: a plan is a real
+ * Claude ExitPlanMode request (`helpers/plan-request`). Every kind takes the
+ * request section a tool permission does.
  */
-function asKind(card: TaskCard, kind: "plan" | "mode" | "other"): TaskCard {
-  return {
-    ...card,
-    permission: { ...card.permission!, kind, actions: kind === "plan" ? [{ id: "implement", label: "Implement", behavior: "allow", variant: "primary" }, { id: "reject", label: "Reject", behavior: "deny", variant: null }] : [] },
-  };
+function asKind(card: TaskCard, kind: "plan" | "plan-resume" | "mode" | "other"): TaskCard {
+  if (kind === "plan" || kind === "plan-resume") return { ...asExitPlan(card, { resume: kind === "plan-resume" }), lane: card.lane, status: card.status };
+  return { ...card, permission: { ...card.permission!, kind, actions: [] } };
 }
 const modeInput = () => asKind(sample("sample-input"), "mode");
 const modeParentAsking = () => asKind(parentAsking(), "mode");
+type Kind = "tool" | "plan" | "plan-resume" | "mode" | "question" | "other";
+/** A waiting card of each kind: the sample tool permission, a real ExitPlanMode, a mode change, a Codex question, an unknown request. */
+function kindCard(kind: Kind): TaskCard {
+  return kind === "question" ? choice()() : kind === "tool" ? sample("sample-input") : asKind(sample("sample-input"), kind);
+}
+/** Each kind's answers, in the order the request sends them. */
+const ANSWERS: Record<Kind, Record<Language, string[]>> = {
+  tool: { zh: ["允许", "拒绝"], en: ["Allow", "Deny"] },
+  mode: { zh: ["允许", "拒绝"], en: ["Allow", "Deny"] },
+  plan: { zh: ["拒绝", "实施"], en: ["Reject", "Implement"] },
+  "plan-resume": { zh: ["拒绝", "实施", "Implement with Bypass"], en: ["Reject", "Implement", "Implement with Bypass"] },
+  question: { zh: ["允许", "拒绝", "查看问题"], en: ["允许", "拒绝", "View questions"] },
+  other: { zh: ["去回答"], en: ["Answer"] },
+};
+const KINDS: Kind[] = ["tool", "plan", "plan-resume", "mode", "question", "other"];
 
 /** A question card: "Answer" opens the tab, and Stop is as wide as its label beside it. */
 function question(): TaskCard {
@@ -163,19 +178,25 @@ interface Case {
   openMenu?: boolean;
   /** Lay wrapping labels (a question's written options) out on as many lines as they take. */
   wrap?: boolean;
+  /** The narrowest card that shows every label at the default text size, when not the reported phone's 340pt. */
+  fullFrom?: Partial<Record<Language, number>>;
 }
 
 const confirming: StopPhase = "confirming";
 const WIDE_CJK = ["从现在持续观察一小时再说", "回看最近一小时的日志即可"] as const;
 const WIDE_LATIN = ["Use the existing schema!", "Rebuild it from scratch."] as const;
 const CASES: Case[] = [
-  // The reported phone's one-row bar, as a mode request keeps it: Allow, Deny and Stop, no Open tab.
-  { name: "Allow, Deny and Stop", card: modeInput, expected: { zh: ["允许", "拒绝", "停止"], en: ["Allow", "Deny", "Stop"] } },
-  { name: "Allow, Deny, Stop and the Open square", card: modeInput, props: { onOpen: () => {} }, expected: { zh: ["允许", "拒绝", "停止"], en: ["Allow", "Deny", "Stop"] } },
-  { name: "Allow, Deny and an armed Stop", card: modeInput, props: { stopPhase: confirming }, expected: { zh: ["允许", "拒绝", "确认停止"], en: ["Allow", "Deny", "Confirm stop"] } },
-  { name: "Allow, Deny and a parent's Stop", card: modeParentAsking, expected: { zh: ["允许", "拒绝", "停止"], en: ["Allow", "Deny", "Stop"] } },
-  { name: "Allow, Deny and a parent's Stop with its menu open", card: modeParentAsking, openMenu: true, expected: { zh: ["允许", "拒绝", "停止"], en: ["Allow", "Deny", "Stop"] } },
-  { name: "a plan's Implement, Reject and Stop", card: () => asKind(sample("sample-input"), "plan"), expected: { zh: ["实施", "拒绝", "停止"], en: ["Implement", "Reject", "Stop"] } },
+  // Every request kind as a tool permission: its answers under the divider, Stop (and Open) on the bar above.
+  { name: "a mode request's Allow and Deny under Stop", card: modeInput, expected: { zh: ["允许", "拒绝", "停止"], en: ["Allow", "Deny", "Stop"] } },
+  { name: "a mode request's Allow and Deny under Stop and Open", card: modeInput, props: { onOpen: () => {} }, expected: { zh: ["允许", "拒绝", "停止", "打开"], en: ["Allow", "Deny", "Stop", "Open"] } },
+  { name: "a mode request's Allow and Deny under an armed Stop", card: modeInput, props: { stopPhase: confirming }, expected: { zh: ["允许", "拒绝", "确认停止"], en: ["Allow", "Deny", "Confirm stop"] } },
+  { name: "a mode request's Allow and Deny under a parent's Stop with its menu open", card: modeParentAsking, openMenu: true, expected: { zh: ["允许", "拒绝", "停止"], en: ["Allow", "Deny", "Stop"] } },
+  { name: "a real ExitPlanMode's Reject and Implement under Stop and Open", card: () => asKind(sample("sample-input"), "plan"), props: { onOpen: () => {} }, expected: { zh: ["拒绝", "实施", "停止", "打开"], en: ["Reject", "Implement", "Stop", "Open"] } },
+  // On the reported phone in English, Reject folds to its X (its label still read out); 387pt shows all three.
+  { name: "a real ExitPlanMode's three choices under Stop and Open", card: () => asKind(sample("sample-input"), "plan-resume"), props: { onOpen: () => {} }, fullFrom: { en: 387 }, expected: { zh: ["拒绝", "实施", "Implement with Bypass", "停止", "打开"], en: ["Reject", "Implement", "Implement with Bypass", "Stop", "Open"] } },
+  { name: "a real ExitPlanMode's choices under a parent's Stop with its menu open", card: () => asKind(parentAsking(), "plan"), openMenu: true, expected: { zh: ["拒绝", "实施", "停止"], en: ["Reject", "Implement", "Stop"] } },
+  // An unknown request's "Answer" opens the tab, so it stands in for Open.
+  { name: "an unknown request's Answer under Stop", card: () => asKind(sample("sample-input"), "other"), props: { onOpen: () => {} }, expected: { zh: ["去回答", "停止"], en: ["Answer", "Stop"] } },
   // A tool permission, as a question: Allow and Deny under its divider, Stop (and Open) on the bar above.
   { name: "a tool permission's Allow and Deny under Stop", card: () => sample("sample-input"), expected: { zh: ["允许", "拒绝", "停止"], en: ["Allow", "Deny", "Stop"] } },
   { name: "a tool permission's Allow and Deny under Stop and Open", card: () => sample("sample-input"), props: { onOpen: () => {} }, expected: { zh: ["允许", "拒绝", "停止", "打开"], en: ["Allow", "Deny", "Stop", "Open"] } },
@@ -284,9 +305,10 @@ describe("phone card action bar under native (Yoga) layout", () => {
   });
 
   it.each((["ios", "android"] as const).flatMap((os) => [300, 340].flatMap((width) => [1, 1.8].flatMap((scale) => (["zh", "en"] as const).map((language) => [os, width, scale, language] as const)))))
-  ("fits question and tool permission controls on %s at %ipt, scale %f, %s", async (os, width, textScale, language) => {
+  ("fits every request kind's controls on %s at %ipt, scale %f, %s", async (os, width, textScale, language) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
-    for (const card of [choice()(), sample("sample-input")]) {
+    for (const kind of KINDS) {
+      const card = kindCard(kind);
       await act(async () => {
         renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: React.createElement(DetailActionBar, {
           card, theme: THEME as never, language, strings: BOARD_STRINGS[language].sidebar,
@@ -297,8 +319,8 @@ describe("phone card action bar under native (Yoga) layout", () => {
       const controls = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-question-controls");
       const frames = await settleHostLayout(controls, { width, textScale });
       expect(overflows(frames, textScale, controls())).toEqual([]);
-      // Stop, Open and Close: the request's answers are not in this row.
-      expect(hostChildren(controls()).map((node) => node.props.testID)).toEqual(["detail-bar-stop", "detail-bar-open", "detail-bar-close"]);
+      // Stop, Open and Close: the request's answers are not in this row. An unknown request's "Answer" opens the tab instead.
+      expect(hostChildren(controls()).map((node) => node.props.testID)).toEqual(kind === "other" ? ["detail-bar-stop", "detail-bar-close"] : ["detail-bar-stop", "detail-bar-open", "detail-bar-close"]);
       await act(async () => renderer!.unmount());
       renderer = null;
     }
@@ -339,9 +361,9 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(controls().findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab")).toHaveLength(1);
   });
 
-  it.each([true, false].flatMap((compact) => WIDTHS.flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).map((language) => [compact, width, scale, language] as const)))))
-  ("centers the question divider's label and wait between its lines (compact %s) at %ipt, scale %f, %s", async (compact, width, textScale, language) => {
-    const card = choice()();
+  it.each((["question", "plan"] as const).flatMap((kind) => [true, false].flatMap((compact) => WIDTHS.flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).map((language) => [kind, compact, width, scale, language] as const))))))
+  ("centers a %s divider's label and wait between its lines (compact %s) at %ipt, scale %f, %s", async (kind, compact, width, textScale, language) => {
+    const card = kindCard(kind);
     await act(async () => {
       renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: phoneCard(card, language, {
         compact, onOpen() {}, permissionButtons: permissionButtons(card.permission!, language, true),
@@ -352,7 +374,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(overflows(frames, textScale, divider())).toEqual([]);
     const parts = hostChildren(divider());
     const box = frames.get(divider())!;
-    const label = labelsOf(divider()).find((node) => node.children.join("") === (language === "zh" ? "待回答" : "Awaiting answer"))!;
+    const label = labelsOf(divider()).find((node) => node.children.join("") === (kind === "plan" ? (language === "zh" ? "待确认" : "Awaiting review") : (language === "zh" ? "待回答" : "Awaiting answer")))!;
     const wait = divider().find((node) => typeof node.type === "string" && node.props.testID === "task-card-footer");
     expect(wait.props.testID).toBe("task-card-footer");
     expect(labelsOf(parts[1]!).map((node) => node.children.join(""))).toContain("·");
@@ -367,9 +389,9 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(waitText[0]!.props.accessibilityLabel).toMatch(language === "zh" ? /^已等待 / : /^Waiting for /);
   });
 
-  it.each([true, false].flatMap((compact) => (["zh", "en"] as const).map((language) => [compact, language] as const)))
-  ("keeps a block's row gap above and below the question divider (compact %s, %s)", async (compact, language) => {
-    const card = choice()();
+  it.each(KINDS.filter((kind) => kind !== "other").flatMap((kind) => [true, false].flatMap((compact) => (["zh", "en"] as const).map((language) => [kind, compact, language] as const))))
+  ("keeps a block's row gap above and below a %s divider (compact %s, %s)", async (kind, compact, language) => {
+    const card = kindCard(kind);
     await act(async () => {
       renderer = TestRenderer.create(phoneCard(card, language, { compact, onOpen() {}, permissionButtons: permissionButtons(card.permission!, language, true) }));
     });
@@ -449,58 +471,104 @@ describe("phone card action bar under native (Yoga) layout", () => {
     },
   );
 
-  it.each([true, false].flatMap((compact) => (["zh", "en"] as const).flatMap((language) => (["tool", "question"] as const).map((kind) => [compact, language, kind] as const))))(
-    "labels the divider by what the request waits for (compact %s, %s, %s)",
+  // Every request kind takes the same section; its divider says what it waits for.
+  it.each([true, false].flatMap((compact) => (["zh", "en"] as const).flatMap((language) => KINDS.map((kind) => [compact, language, kind] as const))))(
+    "labels the request divider by what it waits for (compact %s, %s, %s)",
     async (compact, language, kind) => {
-      const card = kind === "question" ? choice()() : sample("sample-input");
+      const card = kindCard(kind);
+      const onPermission = vi.fn();
       await act(async () => {
-        renderer = TestRenderer.create(phoneCard(card, language, { compact, onOpen() {}, permissionButtons: permissionButtons(card.permission!, language, true) }));
+        renderer = TestRenderer.create(phoneCard(card, language, { compact, onOpen() {}, onPermission, permissionButtons: permissionButtons(card.permission!, language, true) }));
       });
       const strings = cardStrings(language);
       const divider = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider");
+      const label = { tool: strings.awaitingApproval, mode: strings.awaitingApproval, plan: strings.awaitingReview, "plan-resume": strings.awaitingReview, question: strings.awaitingAnswer, other: strings.awaitingAnswer }[kind];
       const shown = labelsOf(divider).map((node) => node.children.join(""));
-      expect(shown).toContain(kind === "tool" ? strings.awaitingApproval : strings.awaitingAnswer);
-      expect(shown).not.toContain(kind === "tool" ? strings.awaitingAnswer : strings.awaitingApproval);
+      expect(shown).toContain(label);
+      for (const other of [strings.awaitingAnswer, strings.awaitingApproval, strings.awaitingReview].filter((text) => text !== label)) expect(shown).not.toContain(other);
+      // The divider names it: no icon beside the request's text, and a plan reads as one, not as its tool's name.
       const block = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-permission");
       const text = block.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2);
       expect(text.parent!.findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(0);
-    },
-  );
-
-  // Baseline: a plan, a mode change or an unknown request keeps its block, its icon and the bars it had.
-  it.each([true, false].flatMap((compact) => (["plan", "mode", "other"] as const).map((kind) => [compact, kind] as const)))(
-    "keeps a request's block and bar on the card (compact %s, %s)",
-    async (compact, kind) => {
-      const card = asKind(sample("sample-input"), kind);
-      const onPermission = vi.fn();
-      await act(async () => {
-        renderer = TestRenderer.create(phoneCard(card, "zh", { compact, onOpen() {}, onPermission, permissionButtons: permissionButtons(card.permission!, "zh", true) }));
-      });
-      const all = (id: string) => renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === id);
-      expect(all("task-card-question-divider")).toHaveLength(0);
-      expect(all("task-card-question-actions")).toHaveLength(0);
-      const block = all("task-card-permission")[0]!;
-      expect(block.findAll((node) => (node.type as unknown) === "Icon").map((node) => node.props.name)).toContain({ plan: "ListChecks", mode: "ShieldCheck", other: "MessageCircleQuestion" }[kind]);
-      const labels = { plan: ["实施", "拒绝"], mode: ["允许", "拒绝"], other: ["去回答"] }[kind];
-      // A phone keeps them on its one bar with Stop; a desktop card on the answer row inside the block, with the wait.
-      const bar = compact ? all("task-card-actions")[0]! : all("task-card-answer-actions")[0]!;
-      expect(bar.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel).slice(0, labels.length)).toEqual(labels);
-      if (compact) {
-        expect(all("task-card-actions")[0]!.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toHaveLength(1);
-        expect(all("task-card-open-tab")).toHaveLength(kind === "other" ? 0 : 1);
-        if (kind !== "other") expect(labelsOf(all("task-card-open-tab")[0]!)).toHaveLength(0);
-      } else {
-        expect(all("task-card-answer-row")[0]!.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-footer")).toHaveLength(1);
-      }
-      const first = bar.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === labels[0]);
+      if (kind === "plan" || kind === "plan-resume") expect(labelsOf(text).map((node) => node.children.join(""))).toContain(strings.planRequest);
+      expect(labelsOf(block).map((node) => node.children.join(""))).not.toContain("ExitPlanMode");
+      // Its answers sit under the divider; the task's controls (Stop, and Open but beside "Answer") above it.
+      const nodes = renderer!.root.findAll((node) => typeof node.type === "string");
+      const answers = block.find((node) => typeof node.type === "string" && node.props.testID === (compact ? "task-card-question-actions" : "task-card-answer-actions"));
+      expect(nodes.indexOf(divider)).toBeLessThan(nodes.indexOf(answers));
+      const labels = answers.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
+      expect(labels).toEqual(ANSWERS[kind][language]);
+      const controls = nodes.find((node) => node.props.testID === (compact ? "task-card-actions" : "task-card-control-row"))!;
+      expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(block));
+      expect(controls.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab")).toHaveLength(kind === "other" ? 0 : 1);
+      expect(controls.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toHaveLength(1);
+      expect(answers.findAll((node) => typeof node.type === "string" && (node.props.testID === "task-card-stop" || node.props.testID === "task-card-open-tab"))).toHaveLength(0);
+      // Each answer is the request's own.
+      const first = answers.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === labels[0]);
       await act(async () => first.props.onPress());
       expect(onPermission).toHaveBeenCalledWith(card, expect.objectContaining({ label: labels[0] }));
     },
   );
 
-  // Baseline: a question's phone Stop menu keeps its alignment (to Stop's right edge); a tool's matches it.
-  it.each(["question", "tool", "running"] as const)("keeps the phone Stop menu's alignment for a %s card", async (kind) => {
-    const card = kind === "question" ? choice()() : kind === "tool" ? sample("sample-input") : sample("sample-running");
+  // A real ExitPlanMode's choices answer it in place with the action each one names, on a phone or a desktop card.
+  it.each([true, false].flatMap((compact) => [["拒绝", { behavior: "deny", selectedActionId: "reject", message: "Denied by user" }], ["实施", { behavior: "allow", selectedActionId: "implement" }], ["Implement with Bypass", { behavior: "allow", selectedActionId: "implement_resume" }]].map(([label, response]) => [compact, label, response] as const)))(
+    "answers a real ExitPlanMode from its %s card's %s in place, without opening the tab or stopping",
+    async (compact, label, response) => {
+      const fake = createFakePaseo();
+      const card = kindCard("plan-resume");
+      const onOpen = vi.fn();
+      const onStop = vi.fn();
+      let submission: Promise<void> | undefined;
+      await act(async () => {
+        renderer = TestRenderer.create(phoneCard(card, "zh", {
+          compact, onOpen, onStop, permissionButtons: permissionButtons(card.permission!, "zh", true),
+          onPermission(given, button) { submission = respondToPermission(fake.paseo, given.id, button, given.permission!.requestId); },
+        }));
+      });
+      const answers = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === (compact ? "task-card-question-actions" : "task-card-answer-actions"));
+      const button = answers.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === label);
+      await act(async () => { button.props.onPress(); await submission; });
+      expect(fake.permissionResponses).toEqual([{ agentId: card.id, requestId: "permission-exit-plan", response }]);
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(onStop).not.toHaveBeenCalled();
+    },
+  );
+
+  // A host that cannot answer (checking, unreachable) disables every request's in-place answers,
+  // on the card and in the details, but not the ones that open the tab or the question form.
+  it.each(KINDS.flatMap((kind) => (["phone", "card", "details"] as const).map((surface) => [kind, surface] as const)))(
+    "disables a %s request's in-place answers on the %s while the host is unavailable",
+    async (kind, surface) => {
+      const card: TaskCard = { ...kindCard(kind), availability: unavailableTask({ code: "host_unavailable", detail: null }) };
+      const buttons = permissionButtons(card.permission!, "zh", true);
+      await act(async () => {
+        renderer = TestRenderer.create(surface === "details"
+          ? React.createElement(TaskDetailCards, { card, theme: THEME as never, language: "zh", strings: BOARD_STRINGS.zh.sidebar, now: NOW, touch: true, tabs: true, onSheetClose() {}, stop: { phase: "idle", onPress() {} }, onOpen() {}, onPermission() {}, permissionButtons: buttons })
+          : phoneCard(card, "zh", { compact: surface === "phone", onOpen() {}, onPermission() {}, permissionButtons: buttons }));
+      });
+      const id = surface === "details" ? "detail-permission-actions" : surface === "phone" ? "task-card-question-actions" : "task-card-answer-actions";
+      const answers = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+      const pressables = answers.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "button");
+      expect(pressables.map((node) => node.props.accessibilityLabel)).toEqual(buttons.map((button) => button.label));
+      expect(pressables.map((node) => node.props.disabled === true)).toEqual(buttons.map((button) => button.kind === "respond"));
+    },
+  );
+
+  // An unknown request's "Answer" opens the tab, as it always did, from under its divider.
+  it.each([true, false])("opens the tab from an unknown request's Answer (compact %s)", async (compact) => {
+    const card = kindCard("other");
+    const onPermission = vi.fn();
+    await act(async () => {
+      renderer = TestRenderer.create(phoneCard(card, "zh", { compact, onOpen() {}, onPermission, permissionButtons: permissionButtons(card.permission!, "zh", true) }));
+    });
+    const answers = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === (compact ? "task-card-question-actions" : "task-card-answer-actions"));
+    await act(async () => answers.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "去回答").props.onPress());
+    expect(onPermission).toHaveBeenCalledWith(card, expect.objectContaining({ kind: "open" }));
+  });
+
+  // Baseline: a question's phone Stop menu keeps its alignment (to Stop's right edge); every other request kind's matches it.
+  it.each([...KINDS, "running"] as const)("keeps the phone Stop menu's alignment for a %s card", async (kind) => {
+    const card = kind === "running" ? sample("sample-running") : kindCard(kind);
     await act(async () => {
       renderer = TestRenderer.create(phoneCard(card, "zh", { onOpen() {}, permissionButtons: card.permission ? permissionButtons(card.permission, "zh", true) : [] }));
     });
@@ -509,31 +577,37 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(stops[0]!.props.menuLeft).toBe(kind === "running");
   });
 
-  it.each((["question", "tool", "plan", "mode", "other"] as const).flatMap((kind) => (["sidebar", "sheet"] as const).map((surface) => [kind, surface] as const)))(
-    "answers a %s request where it did in the %s",
+  it.each(KINDS.flatMap((kind) => (["sidebar", "sheet"] as const).map((surface) => [kind, surface] as const)))(
+    "draws a %s request's section under a rule in the %s, its answers inside it and no bottom bar",
     async (kind, surface) => {
-      const card = kind === "question" ? choice()() : kind === "tool" ? sample("sample-input") : asKind(sample("sample-input"), kind);
+      const card = kindCard(kind);
       const buttons = permissionButtons(card.permission!, "zh", true);
+      const onPermission = vi.fn();
+      const onOpen = vi.fn();
       await act(async () => {
         renderer = TestRenderer.create(React.createElement(TaskDetailCards, {
           card, theme: THEME as never, language: "zh", strings: BOARD_STRINGS.zh.sidebar,
           now: NOW, touch: true, tabs: true, actions: surface === "sheet" ? false : undefined,
           questionActionsInHeader: surface === "sheet", onSheetClose() {},
-          stop: { phase: "idle", onPress() {} }, onOpen() {}, onPermission() {}, permissionButtons: buttons,
+          stop: { phase: "idle", onPress() {} }, onOpen, onPermission, permissionButtons: buttons,
         }));
       });
-      const all = (id: string) => renderer!.root.findAll((node) => typeof node.type === "string" && node.props.testID === id);
-      const section = kind === "question" || kind === "tool";
-      // A question and a tool permission: answers under the section's rule, controls above it, no bottom bar.
-      expect(all("detail-question-section")).toHaveLength(section ? 1 : 0);
-      expect(all("detail-question-controls")).toHaveLength(section ? 1 : 0);
-      expect(all("detail-permission-actions")).toHaveLength(section ? 1 : 0);
-      // A plan, a mode change or an unknown request: its answers in the sidebar's bottom bar; the phone sheet's board bar has them.
-      expect(all("detail-action-bar")).toHaveLength(!section && surface === "sidebar" ? 1 : 0);
-      if (!section && surface === "sidebar") {
-        const labels = all("detail-action-bar")[0]!.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
-        for (const button of buttons) expect(labels).toContain(button.label);
+      const nodes = renderer!.root.findAll((node) => typeof node.type === "string");
+      const section = nodes.find((node) => node.props.testID === "detail-question-section")!;
+      expect(Object.assign({}, ...[section.props.style].flat(Infinity).filter(Boolean)).borderTopWidth).toBe(0.5);
+      expect(nodes.filter((node) => node.props.testID === "detail-action-bar")).toHaveLength(0);
+      const controls = nodes.find((node) => node.props.testID === "detail-question-controls")!;
+      expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(section));
+      expect(controls.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.testID)).toEqual(kind === "other" ? ["detail-bar-stop", "detail-bar-close"] : ["detail-bar-stop", "detail-bar-open", "detail-bar-close"]);
+      const answers = section.find((node) => typeof node.type === "string" && node.props.testID === "detail-permission-actions");
+      const pressables = answers.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+      expect(pressables.map((node) => node.props.accessibilityLabel)).toEqual(buttons.map((button) => button.label));
+      if (kind === "plan" || kind === "plan-resume") expect(labelsOf(section).map((node) => node.children.join(""))).toContain("计划");
+      for (const [index, pressable] of pressables.entries()) {
+        await act(async () => pressable.props.onPress());
+        expect(onPermission).toHaveBeenLastCalledWith(buttons[index]);
       }
+      expect(onOpen).not.toHaveBeenCalled();
     },
   );
 
@@ -615,18 +689,19 @@ describe("phone card action bar under native (Yoga) layout", () => {
           const frames = await settle(item, language, width, textScale);
           expect(overflows(frames, textScale)).toEqual([]);
           // At the default text size the labels all show on the reported phone's width and wider.
+          // Any request's answers, a tool's Allow and Deny as a plan's choices or a question's options, take their own row.
           const kind = item.card().permission?.kind;
-          if (kind === "question" || kind === "tool") {
+          if (kind) {
             const answerFrames = await settleHostLayout(questionRow, { width, textScale, wrapText: item.wrap });
             expect(overflows(answerFrames, textScale, questionRow())).toEqual([]);
           }
-          if (textScale === 1 && width >= 340) {
-            const shown = kind === "question" || kind === "tool" ? labelsOf(questionRow()) : labelsOf(row());
+          if (textScale === 1 && width >= (item.fullFrom?.[language] ?? 340)) {
+            const shown = kind ? labelsOf(questionRow()) : labelsOf(row());
             const expected = kind === "question" ? item.expected[language].filter((label) => label !== "停止" && label !== "Stop")
-              : kind === "tool" ? item.expected[language].filter((label) => !CONTROL_LABELS.has(label)) : item.expected[language];
+              : kind ? item.expected[language].filter((label) => !CONTROL_LABELS.has(label)) : item.expected[language];
             expect(shown.map((text) => text.children.join(""))).toEqual(expected);
-            // A tool permission's Stop and Open keep the bar above its divider.
-            if (kind === "tool") expect(labelsOf(row()).map((text) => text.children.join(""))).toEqual(item.expected[language].filter((label) => CONTROL_LABELS.has(label)));
+            // Any other request's Stop and Open keep the bar above its divider.
+            if (kind && kind !== "question") expect(labelsOf(row()).map((text) => text.children.join(""))).toEqual(item.expected[language].filter((label) => CONTROL_LABELS.has(label)));
           }
         },
       );
@@ -654,14 +729,52 @@ describe("phone card action bar under native (Yoga) layout", () => {
     },
   );
 
-  it("shares a mode request's row between Allow, Deny and Stop instead of giving Stop all of it", async () => {
-    const frames = await settle(CASES[0]!, "zh", 340, 1);
-    const [allow, deny, stop] = hostChildren(row()).map((node) => frames.get(node)!);
-    // The three grow from their labels by the same share, so none takes the whole row.
-    expect(stop!.width).toBeLessThan(340 / 2);
-    expect(Math.abs(allow!.width - deny!.width)).toBeLessThanOrEqual(0.5);
-    expect(stop!.left + stop!.width).toBeCloseTo(340, 0);
+  it.each(["zh", "en"] as const)("shares a real ExitPlanMode's answer row between its three choices, with Stop and Open on the bar above in %s", async (language) => {
+    const plan = kindCard("plan-resume");
+    await act(async () => { renderer = TestRenderer.create(phoneCard(plan, language, { onOpen() {}, permissionButtons: permissionButtons(plan.permission!, language, true) })); });
+    const card = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${plan.id}`);
+    const frames = await settleHostLayout(card, { width: 340, textScale: 1 });
+    const answers = frames.get(questionRow())!;
+    const choices = hostChildren(questionRow()).map((node) => frames.get(node)!);
+    expect(choices).toHaveLength(3);
+    // Side by side, in the request's order, filling the row together.
+    expect(choices[0]!.left).toBeCloseTo(answers.left, 0);
+    for (const [index, choice] of choices.entries()) {
+      expect(choice.top).toBeCloseTo(choices[0]!.top, 0);
+      if (index > 0) expect(choice.left).toBeGreaterThan(choices[index - 1]!.left + choices[index - 1]!.width);
+    }
+    expect(choices[2]!.left + choices[2]!.width).toBeCloseTo(answers.left + answers.width, 0);
+    // Reject folds to its X first (its label still read out); both Implement choices keep their words.
+    expect(labelsOf(questionRow()).map((text) => text.children.join(""))).toEqual(ANSWERS["plan-resume"][language].slice(1));
+    expect(hostChildren(questionRow()).map((node) => node.props.accessibilityLabel)).toEqual(ANSWERS["plan-resume"][language]);
+    const [stop, open] = hostChildren(row()).map((node) => frames.get(node)!);
+    const divider = frames.get(renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider"))!;
+    expect(divider.top).toBeGreaterThan(Math.max(stop!.top + stop!.height, open!.top + open!.height));
+    expect(divider.top + divider.height).toBeLessThan(choices[0]!.top);
   });
+
+  // Two answers drawn with the same Check (Implement, "Implement with Bypass") never both fold to it:
+  // a narrow card or a large text size cuts the second one's words instead.
+  it.each([300, 340].flatMap((width) => [1, 1.8].flatMap((textScale) => (["zh", "en"] as const).map((language) => [width, textScale, language] as const))))(
+    "keeps both Implement choices' words on a %ipt card at text scale %f in %s",
+    async (width, textScale, language) => {
+      const plan = kindCard("plan-resume");
+      for (const compact of [true, false]) {
+        await act(async () => {
+          renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: phoneCard(plan, language, { compact, onOpen() {}, permissionButtons: permissionButtons(plan.permission!, language, true) }) }));
+        });
+        const answers = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === (compact ? "task-card-question-actions" : "task-card-answer-actions"));
+        const card = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${plan.id}`);
+        const frames = await settleHostLayout(card, { width, textScale });
+        expect(overflows(frames, textScale, answers())).toEqual([]);
+        const shown = labelsOf(answers()).map((text) => text.children.join(""));
+        expect(shown).toContain(ANSWERS["plan-resume"][language][1]);
+        expect(shown).toContain("Implement with Bypass");
+        await act(async () => renderer!.unmount());
+        renderer = null;
+      }
+    },
+  );
 
   it.each(["zh", "en"] as const)("shares a tool permission's answer row between Allow and Deny, with Stop and Open on the bar above in %s", async (language) => {
     await act(async () => { renderer = TestRenderer.create(phoneCard(sample("sample-input"), language, { onOpen() {} })); });

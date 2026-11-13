@@ -26,7 +26,7 @@ import type { FirstPrompt } from "../data/first-prompt";
 import type { LastHumanMessage } from "../data/last-human-message";
 import type { LastMessage } from "../data/last-message";
 import { formatClockTime, formatDuration, formatRelative, formatTokenTotal, since, tildePath } from "./format";
-import { cardStrings } from "./strings";
+import { cardStrings, requestTitle } from "./strings";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { TagMark } from "./tag-mark";
 import { SheetFoot, SheetScrollRoom, useAfterSheetMotion } from "../sheet-motion";
@@ -59,7 +59,7 @@ import { ActionRow, layoutCeil, useActionFit } from "./action-row";
 import { CardButton } from "./action-buttons";
 import { ActionPressable } from "./action-pressable";
 import { liftedButtonOutline, liftStyle, scaleStyle, surfaceLift } from "./surface-lift";
-import { arrowInset, buttonHue, CONFIRM_STOP_ICON, requestLook, webTransition, type CardButtonLook } from "./action-style";
+import { arrowInset, buttonHue, CONFIRM_STOP_ICON, keepsAnswerLabel, requestLook, webTransition, type CardButtonLook } from "./action-style";
 import { buttonOutline, MOTION } from "../board/board-style";
 import { useBreathing, useFlash } from "../board/breathing";
 import {
@@ -68,7 +68,6 @@ import {
   detailSections,
   replyBeforeHuman,
   requestInSection,
-  sectionRequest,
   errorLines,
   formatSpan,
   formatTurnClock,
@@ -182,7 +181,10 @@ export interface TaskDetailCardsProps extends TimeSource {
   compact?: boolean;
   onClose?(): void;
   onSheetClose?(): void;
-  /** Put a question's or a tool permission's controls beside it instead of in the sheet footer. */
+  /**
+   * Answer a waiting request, of any kind, under it, with the task's controls
+   * on a row of their own above its section, instead of in the sheet footer.
+   */
   questionActionsInHeader?: boolean;
   onMenu?(point: { x: number; y: number }): void;
   sheetToggle?: { full: boolean; label: string; onPress(): void };
@@ -941,8 +943,8 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
         </ActionRow>
       ) : null}
       {questionInHeader ? <DetailActionBar {...props} controlsOnly onClose={props.onSheetClose} /> : null}
-      {/* A question or a tool's permission starts a section under a rule, as on its card. */}
-      <View testID={sectionRequest(card) ? "detail-question-section" : undefined} style={{ marginTop: 12, ...(sectionRequest(card) ? { paddingTop: 12, borderTopWidth: 0.5, borderTopColor: tokens.border } : null) }}>
+      {/* A waiting request, of any kind, starts a section under a rule, as on its card. */}
+      <View testID={hero === "permission" ? "detail-question-section" : undefined} style={{ marginTop: 12, ...(hero === "permission" ? { paddingTop: 12, borderTopWidth: 0.5, borderTopColor: tokens.border } : null) }}>
         {hero === "turn" ? <RunningTurn {...props} /> : null}
         {hero === "permission" ? <PermissionBlock {...props} actions={questionInHeader ? true : props.actions} /> : null}
         {hero === "error" ? <ErrorBlock {...props} /> : null}
@@ -1023,7 +1025,7 @@ function PermissionBlock(props: Inner) {
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10 }}>
         <Icon name={PERMISSION_ICONS[permission.kind]} size={m.icon} color={tokens.status.warning} />
         <Text numberOfLines={2} style={{ flex: 1, fontSize: m.font, fontWeight: "500", color: tokens.foreground }}>
-          {permission.title}
+          {requestTitle(permission, cardStrings(props.language))}
         </Text>
         {permission.remaining > 0 ? <Text style={{ fontSize: small, color: tokens.foregroundMuted }}>{words.moreRequests(permission.remaining)}</Text> : null}
       </View>
@@ -1036,7 +1038,7 @@ function PermissionBlock(props: Inner) {
         <View testID="detail-permission-buttons" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
           <ActionRow style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0, ...(props.touch && Platform.OS !== "web" ? { paddingVertical: 4, alignItems: "center" } : null) }} testID="detail-permission-actions">
             {buttons.map((button) => (
-              <RequestButton key={button.key} button={button} tokens={tokens} disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")} height={props.touch ? 36 : 34} onPress={() => props.onPermission?.(button)} />
+              <RequestButton key={button.key} button={button} tokens={tokens} keepLabel={keepsAnswerLabel(button, buttons)} disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")} height={props.touch ? 36 : 34} onPress={() => props.onPermission?.(button)} />
             ))}
           </ActionRow>
           {waited !== null ? (
@@ -1054,7 +1056,7 @@ function PermissionBlock(props: Inner) {
 }
 
 /** The card's permission buttons, by `requestLook`: Allow's accent, Deny's danger, "Answer"'s amber, the rest plain. */
-function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; height: number; disabled?: boolean; onPress(): void }) {
+function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; height: number; disabled?: boolean; keepLabel?: boolean; onPress(): void }) {
   const { button, tokens } = props;
   const { hovered, hoverProps } = useHover();
   const hue = buttonHue(tokens, requestLook(button));
@@ -1062,7 +1064,9 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
   const height = taskControlHeight(props.height, scale);
   // A question's option is shown as written: no Check or X reads a meaning into it, and its label never folds.
   const option = !!button.answers;
-  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + (option ? 0 : 13 + 4) + 1, false, requestLook(button) === "primary", option);
+  // One of several answers with the same icon keeps its words too, cut at the end instead (`keepsAnswerLabel`).
+  const keep = !option && props.keepLabel === true;
+  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + (option ? 0 : 13 + 4) + 1, false, requestLook(button) === "primary", option || keep);
   const icon = option ? null : button.kind === "question" ? "MessageCircleQuestion" : button.kind === "open" ? "ArrowUpRight" : button.action.behavior === "allow" ? "Check" : "X";
   return (
     <Pressable
@@ -1094,7 +1098,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
       }}
     >
       {icon ? <Icon name={icon} size={13} color={hue.color} /> : null}
-      {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={option ? undefined : 1} style={{ flexShrink: option ? 1 : 0, ...(option ? { textAlign: "center" as const } : null), fontSize: F.sm, fontWeight: "500", color: hue.color }}>
+      {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={option ? undefined : 1} ellipsizeMode={keep ? "tail" : undefined} style={{ flexShrink: option || keep ? 1 : 0, ...(option ? { textAlign: "center" as const } : null), fontSize: F.sm, fontWeight: "500", color: hue.color }}>
         {button.label}
       </Text>}
     </Pressable>
@@ -2245,7 +2249,7 @@ export function DetailActionBar(props: {
   flushBottom?: boolean;
   /** The page still runs under this bar, so it casts the same edge the tabs do. */
   contentUnder?: boolean;
-  /** Only the task's controls (Stop, Open, Close), above a question or tool permission answered in its section. */
+  /** Only the task's controls (Stop, Open, Close), above a waiting request whose section holds its answers. */
   controlsOnly?: boolean;
 }) {
   const { card } = props;
@@ -2273,6 +2277,7 @@ export function DetailActionBar(props: {
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
   const pairedOpen = !!props.onClose && (ownOpen || parentOpens) && !answer;
   if (props.controlsOnly) {
+    // An unknown request's "Answer" already opens the tab.
     const showOpen = !buttons.some((button) => button.kind === "open");
     return (
       <ActionRow testID="detail-question-controls" style={{ marginTop: 12, justifyContent: "flex-end" }}>

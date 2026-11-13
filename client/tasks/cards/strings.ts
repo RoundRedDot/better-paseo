@@ -1,5 +1,5 @@
 import type { TasksLanguage } from "../i18n";
-import type { StatusKind, WorkspaceKind } from "../model";
+import type { PermissionKind, StatusKind, TaskPermission, WorkspaceKind } from "../model";
 
 /** The cards' own words; Chinese follows the prototype. */
 const en = {
@@ -30,6 +30,8 @@ const en = {
   openInWorkspace: "Open in workspace",
   awaitingAnswer: "Awaiting answer",
   awaitingApproval: "Awaiting approval",
+  awaitingReview: "Awaiting review",
+  planRequest: "Plan",
   openTab: "Open",
   stop: "Stop",
   stopChildren: "Stop subtasks",
@@ -293,6 +295,8 @@ const zh: CardStrings = {
   openInWorkspace: "在工作区中打开",
   awaitingAnswer: "待回答",
   awaitingApproval: "待授权",
+  awaitingReview: "待确认",
+  planRequest: "计划",
   openTab: "打开",
   stop: "停止",
   stopChildren: "停止子任务",
@@ -529,4 +533,25 @@ export function subtaskSummary(children: readonly { status: StatusKind }[], lang
     .map((kind) => `${counts.get(kind)} ${strings.status[kind]}`)
     .join(" · ");
   return strings.subtasks(children.length, parts);
+}
+
+/**
+ * What a waiting request's divider says it waits for: a question, or an
+ * unknown request answered in the tab, waits for an answer; a plan for its
+ * review (Implement or Reject); a tool or a mode change for approval.
+ */
+export function requestDividerLabel(kind: PermissionKind, strings: CardStrings): string {
+  if (kind === "question" || kind === "other") return strings.awaitingAnswer;
+  if (kind === "plan") return strings.awaitingReview;
+  return strings.awaitingApproval;
+}
+
+/**
+ * A request's title as the card and the details show it. A plan arrives
+ * named after its tool (Claude's "ExitPlanMode", Codex's "Plan"), which says
+ * nothing in either language, so it reads as the plan it is.
+ */
+export function requestTitle(permission: Pick<TaskPermission, "kind" | "title">, strings: CardStrings): string {
+  if (permission.kind === "plan" && (permission.title === "ExitPlanMode" || permission.title === "Plan")) return strings.planRequest;
+  return permission.title;
 }
