@@ -6,6 +6,7 @@ import {
   detailHero,
   detailSections,
   replyBeforeHuman,
+  requestInSection,
   formatShare,
   formatSpan,
   formatTurnClock,
@@ -17,6 +18,7 @@ import {
 } from "../../client/tasks/cards/detail-model";
 import { sortSubtasks, subtaskHeading, subtaskMeta, subtaskModels, subtaskTime, titlePrefix } from "../../client/tasks/cards/details-format";
 import { formatClockTime } from "../../client/tasks/cards/format";
+import type { PermissionButton } from "../../client/tasks/actions";
 
 const NOW = Date.parse("2026-10-20T09:00:00.000Z");
 const MINUTE = 60_000;
@@ -24,6 +26,20 @@ const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const sample = (id: string): TaskCard => previewSampleCards(NOW).find((card) => card.id === id)!;
 
 describe("details card model", () => {
+  it("answers every waiting request kind in its section once it has buttons, so the board leaves its bottom bar out", () => {
+    const input = sample("sample-input");
+    const buttons: PermissionButton[] = [{ key: "allow", label: "Allow", variant: "primary", kind: "respond", action: { behavior: "allow", id: null } }];
+    for (const kind of ["tool", "plan", "mode", "question", "other"] as const) {
+      const card: TaskCard = { ...input, permission: { ...input.permission!, kind } };
+      expect(requestInSection(card, buttons)).toBe(true);
+      // No buttons (a hidden card's preview): the bar, if any, keeps the controls.
+      expect(requestInSection(card, [])).toBe(false);
+    }
+    // A request outside the waiting lane leads nothing, so its buttons stay with the bar.
+    expect(requestInSection({ ...input, lane: "running" }, buttons)).toBe(false);
+    expect(requestInSection(sample("sample-running"), [])).toBe(false);
+  });
+
   it("leads with what each state needs first, and orders the sections after it", () => {
     expect(detailHero(sample("sample-running"))).toBe("turn");
     expect(detailHero(sample("sample-input"))).toBe("permission");

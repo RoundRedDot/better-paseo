@@ -1,6 +1,7 @@
 import type { FirstPrompt } from "../data/first-prompt";
 import type { LastHumanMessage } from "../data/last-human-message";
 import type { TasksLanguage } from "../i18n";
+import type { PermissionButton } from "../actions";
 import { turnRunning, type StatusKind, type TaskCard } from "../model";
 import { contextRatio, formatCost, formatDuration, formatRelative, formatTokens, since } from "./format";
 import { cardStrings } from "./strings";
@@ -23,6 +24,17 @@ export function detailHero(card: TaskCard): DetailHero {
   if (turnRunning(card)) return "turn";
   if (card.error) return "error";
   return "summary";
+}
+
+/**
+ * Whether a waiting request's answers sit in its own section, under the
+ * details' header and the task's controls (Stop, Open, Close), instead of in
+ * the sheet's bottom bar. Every kind does: a tool's Allow and Deny answer in
+ * place as a question's options do, so the board leaves its bottom bar out
+ * for the same cards the details draw the section for.
+ */
+export function requestInSection(card: TaskCard, buttons: readonly PermissionButton[]): boolean {
+  return detailHero(card) === "permission" && buttons.length > 0;
 }
 
 /**

@@ -3185,6 +3185,32 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it.each(["web", "ios", "android"])("on %s answers a tool permission in the sheet's request section, its controls and Close above it", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const timings = holdTimings();
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false)); });
+      layOut(600);
+      const card = cards().find((node) => node.props.card.id === "sample-input")!;
+      act(() => card.props.onSelect(card.props.card));
+      mountFrames();
+      timings.finish(timings.slide().at(-1)!);
+      // As a question's: no bottom bar; Open and Close on the row above the request, Allow and Deny under it.
+      expect(hostsById("detail-action-bar")).toHaveLength(0);
+      const controls = hostsById("detail-request-controls");
+      expect(controls).toHaveLength(1);
+      expect(controls[0]!.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.testID)).toEqual(["detail-bar-open", "detail-bar-close"]);
+      const section = hostsById("detail-request-section");
+      expect(section).toHaveLength(1);
+      expect(StyleSheet.flatten(section[0]!.props.style).borderTopWidth).toBe(0.5);
+      const answers = section[0]!.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-permission-actions");
+      expect(answers[0]!.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["Allow", "Deny"]);
+      expect(openAgent).not.toHaveBeenCalled();
+    } finally {
+      timings.restore();
+    }
+  });
+
   it.each(["web", "ios", "android"])("on %s keeps the sheet's action bar at the bottom of what shows, with one scroller giving up the room below", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const timings = holdTimings();
@@ -7287,10 +7313,28 @@ describe("Tasks board, phone", () => {
     expect(openAgent).not.toHaveBeenCalled();
   });
 
+  it.each(["ios", "android", "web"])("answers a tool permission in its section, with no bottom bar, in the %s phone sheet", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(true)); });
+    const input = cards().find((card) => card.props.card.id === "sample-input")!;
+    await act(async () => input.props.onSelect(input.props.card));
+    expect(renderer!.root.findByType(TaskDetailCards).props).toMatchObject({ requestActionsInHeader: true, actions: false });
+    // As a question's: Stop and Open above the request's section, Allow and Deny inside it.
+    expect(hostsById("detail-action-bar")).toHaveLength(0);
+    const controls = hostsById("detail-request-controls")[0]!;
+    expect(controls.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.testID)).toEqual(["detail-bar-open"]);
+    const answers = hostsById("detail-permission-actions")[0]!.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    expect(answers.map((node) => node.props.accessibilityLabel)).toEqual(["Allow", "Deny"]);
+    expect(openAgent).not.toHaveBeenCalled();
+  });
+
   it.each(["ios", "android", "web"])("shows message and info tabs with a pinned action bar in the %s phone sheet", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
-    await act(async () => cards()[0]!.props.onSelect(cards()[0]!.props.card));
+    // A running card: a waiting request answers in its section instead of a bar.
+    await act(async () => pressable("Running 2").props.onPress());
+    const running = cards().find((card) => card.props.card.id === "sample-running")!;
+    await act(async () => running.props.onSelect(running.props.card));
     const detail = renderer!.root.findByType(TaskDetailCards);
     expect(detail.props).toMatchObject({ touch: true, tabs: true, scrollHeader: true, actions: false });
     const content = renderer!.root.find((node) => (node.type as unknown) === "ModalContent");

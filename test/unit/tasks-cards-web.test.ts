@@ -193,7 +193,7 @@ describe("TaskCardView on web", () => {
     const question = nodes.find((node) => node.props.testID === "task-card-permission")!;
     const answers = nodes.find((node) => node.props.testID === "task-card-answer-actions")!;
     expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(question));
-    const divider = question.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider");
+    const divider = question.find((node) => typeof node.type === "string" && node.props.testID === "task-card-request-divider");
     expect(texts(divider)).toContain("待回答");
     expect(answers.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab")).toHaveLength(0);
     const open = controls.find((node) => typeof node.type === "string" && node.props.testID === "task-card-open-tab");
@@ -588,13 +588,34 @@ describe("TaskCardView on web", () => {
     await act(async () => done.unmount());
   });
 
-  it("floats Open alone on a waiting card's hover, leaving Stop to the menu", async () => {
+  it("lays a tool permission out as a question: Stop and Open above the divider, Allow and Deny below it", async () => {
+    const card = sampleCards(NOW).find((item) => item.id === "sample-input")!;
+    const onOpen = vi.fn();
     const onStop = vi.fn();
-    const renderer = await render(React.createElement(TaskCardView, props("sample-input", { onStop })));
-    await act(async () => hovers.get("task-card-sample-input")!.enter());
-    const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-open-overlay");
-    expect(overlay.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["打开"]);
-    expect(renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-stop")).toEqual([]);
+    const onPermission = vi.fn();
+    const buttons = permissionButtons(card.permission!, "zh", true);
+    const renderer = await render(React.createElement(TaskCardView, props(card.id, { onOpen, onStop, onPermission, permissionButtons: buttons })));
+    const host = (id: string) => renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === id);
+    const nodes = renderer.root.findAll((node) => typeof node.type === "string");
+    const controls = host("task-card-control-row")[0]!;
+    const request = host("task-card-permission")[0]!;
+    // Shown without hover, before the request; nothing floats over the footer.
+    expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(request));
+    expect(controls.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["停止", "打开"]);
+    const divider = request.find((node) => typeof node.type === "string" && node.props.testID === "task-card-request-divider");
+    expect(texts(divider)).toEqual(["待授权", "·", "4m"]);
+    const answers = request.find((node) => typeof node.type === "string" && node.props.testID === "task-card-answer-actions");
+    expect(answers.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(["允许", "拒绝"]);
+    await act(async () => hovers.get(`task-card-${card.id}`)!.enter());
+    expect(host("task-card-open-overlay")).toEqual([]);
+    expect(host("task-card-stop-overlay")).toEqual([]);
+    expect(host("task-card-open-tab")).toHaveLength(1);
+    // Allow answers in place; Stop and Open stay the task's.
+    await act(async () => answers.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "允许").props.onPress());
+    expect(onPermission).toHaveBeenCalledWith(card, buttons[0]);
+    expect(onOpen).not.toHaveBeenCalled();
+    await act(async () => controls.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "停止").props.onPress());
+    expect(onStop).toHaveBeenCalledWith(card, { withChildren: false });
     await act(async () => renderer.unmount());
   });
 
@@ -1072,10 +1093,15 @@ describe("TaskCardView hover layout", () => {
         );
         const before = layout(renderer.root);
         await act(async () => hovers.get(`task-card-${id}`)!.enter());
-        // Stop (Open alone on the waiting card) is on screen, floating over the row's end.
-        const overlayID = id === "sample-input" ? "task-card-open-overlay" : "task-card-stop-overlay";
-        const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === overlayID);
-        expect(flat(overlay.props.style).position).toBe("absolute");
+        if (id === "sample-input") {
+          // A request's Stop and Open are already on their row above its divider: hover floats nothing.
+          expect(renderer.root.findAll((node) => typeof node.type === "string" && /^task-card-.*-overlay$/.test(String(node.props.testID)))).toEqual([]);
+          expect(renderer.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-control-row")).toHaveLength(1);
+        } else {
+          // Stop is on screen, floating over the row's end.
+          const overlay = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-stop-overlay");
+          expect(flat(overlay.props.style).position).toBe("absolute");
+        }
         expect(layout(renderer.root)).toEqual(before);
         await act(async () => hovers.get(`task-card-${id}`)!.leave());
         expect(layout(renderer.root)).toEqual(before);
@@ -1213,7 +1239,7 @@ describe("TaskCardView hover hints", () => {
           },
         });
       });
-      const divider = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider");
+      const divider = renderer.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-request-divider");
       expect(texts(divider)).toEqual(["待回答", "·", "4m"]);
       await act(async () => listeners.get("pointerover")!({ pointerType: "mouse", target: mark("timer", { left: 300, top: 200, width: 40, height: 18 }) }));
       await act(async () => { vi.advanceTimersByTime(400); });

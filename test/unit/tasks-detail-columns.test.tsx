@@ -452,14 +452,20 @@ describe("details columns", () => {
     await act(async () => withUnread[0]!.props.onPress());
     expect(markUnread.press).toHaveBeenCalledWith(card);
   });
-  it("keeps permission and stop actions in the footer", async () => {
+  it("answers a tool permission in its section and keeps Stop on the controls row above it", async () => {
     const card = previewSampleCards(NOW).find((item) => item.id === "sample-input")!;
     const stop = vi.fn();
-    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={() => {}} stop={{ phase: "idle", onPress: stop }} permissionButtons={permissionButtons(card.permission!, "en")} onPermission={() => {}} />); });
+    const onPermission = vi.fn();
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={() => {}} stop={{ phase: "idle", onPress: stop }} permissionButtons={permissionButtons(card.permission!, "en")} onPermission={onPermission} />); });
     const root = renderer!.root;
-    expect(host(root, "detail-permission").findAll((node) => node.props.testID === "detail-permission-actions")).toHaveLength(0);
-    expect(host(root, "detail-action-bar").findAll((node) => node.props.accessibilityRole === "button").length).toBeGreaterThan(1);
-    await act(async () => host(root, "detail-bar-stop").props.onPress());
+    // As a question's: Allow and Deny under the request, no bottom bar.
+    const answers = host(root, "detail-permission-actions").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+    expect(answers.map((node) => node.props.accessibilityLabel)).toEqual(["Allow", "Deny"]);
+    expect(root.findAll((node) => node.props.testID === "detail-action-bar")).toHaveLength(0);
+    expect(host(root, "detail-request-section").props.style).toMatchObject({ borderTopWidth: 0.5 });
+    await act(async () => answers[1]!.props.onPress());
+    expect(onPermission).toHaveBeenCalledWith(expect.objectContaining({ kind: "respond", action: expect.objectContaining({ behavior: "deny" }) }));
+    await act(async () => host(host(root, "detail-request-controls"), "detail-bar-stop").props.onPress());
     expect(stop).toHaveBeenCalledOnce();
   });
   it("shows all three messages and remembers a manually collapsed section", async () => {

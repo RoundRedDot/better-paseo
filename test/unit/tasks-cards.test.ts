@@ -1617,9 +1617,14 @@ describe("TaskCardView rows", () => {
   it("on a phone, keeps the action labels on one line, sized to their text, in one row", async () => {
     const card = sample("sample-input");
     const buttons = permissionButtons(card.permission!, "en");
+    // No Open: Stop alone takes the controls row, as on a running card.
     const element = (stopPhase: StopPhase) =>
-      cardElement(card, { compact: true, language: "en", permissionButtons: buttons, onStop: () => {}, stopPhase });
+      cardElement(card, { compact: true, language: "en", permissionButtons: buttons, onStop: () => {}, onOpen: undefined, stopPhase });
     const tree = await render(element("idle"));
+    // Allow and Deny share their own row under the request; Stop has the controls row above it.
+    expect(texts(hostByTestId(tree.root, "task-card-request-actions"))).toEqual(["Allow", "Deny"]);
+    expect(texts(hostByTestId(tree.root, "task-card-actions"))).toEqual(["Stop"]);
+    expect(flat(hostByTestId(tree.root, "task-card-request-actions").props.style).flexWrap).toBeUndefined();
     const allow = flat(byLabel(tree.root, "Allow").props.style);
     expect(allow).toMatchObject({ minHeight: 32, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: 32 });
     expect(allow.height).toBeUndefined();
@@ -1659,14 +1664,19 @@ describe("TaskCardView rows", () => {
     const all = texts(tree.root);
     expect(all).toContain("Bash · npm run db:migrate -- --env staging");
     expect(all).toContain("还有 1 条");
-    expect(all).toContain("等待 4m");
-    // The wait sits on the buttons' row, under the divider, not on a footer row above it.
+    // As on a question's card: the task's controls come first, then the
+    // request's section, its divider naming what it waits for and how long.
+    const request = hostByTestId(tree.root, "task-card-permission");
     expect(rows(tree.root, "sample-input")).not.toContain("task-card-footer");
-    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-footer"))).toEqual(["等待 4m"]);
-    // A tablet's Open takes a row of its own under the answer row.
-    expect(texts(hostByTestId(hostByTestId(tree.root, "task-card-permission"), "task-card-control-row"))).toEqual(["打开"]);
-    // The buttons start at the card's edge, as its text does, not under the request's icon.
+    expect(rows(tree.root, "sample-input").indexOf("task-card-control-row")).toBeLessThan(rows(tree.root, "sample-input").indexOf("task-card-permission"));
+    expect(texts(hostByTestId(tree.root, "task-card-control-row"))).toEqual(["打开"]);
+    expect(texts(hostByTestId(request, "task-card-request-divider"))).toEqual(["待授权", "·", "4m"]);
+    expect(hostByTestId(request, "task-card-answer-row").findAll((node) => node.props.testID === "task-card-footer")).toHaveLength(0);
+    // The divider names the request, so its text starts at the card's edge, over its answers: no icon beside it.
+    const text = request.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2);
+    expect(icons(text.parent!)).toEqual([]);
     expect(flat(hostByTestId(tree.root, "task-card-answer-row").props.style).paddingLeft).toBeUndefined();
+    expect(texts(hostByTestId(tree.root, "task-card-answer-actions"))).toEqual(["允许", "拒绝"]);
     byLabel(tree.root, "拒绝").props.onPress();
     expect(onPermission).toHaveBeenCalledWith(card, buttons[1]);
     expect(onOpen).not.toHaveBeenCalled();
@@ -2196,7 +2206,7 @@ describe("TaskCardView actions", () => {
     expect(texts(controls)).toContain("打开");
     const question = hostByTestId(tree.root, "task-card-permission");
     // The divider centers the label and wait together between its lines.
-    const divider = hostByTestId(question, "task-card-question-divider");
+    const divider = hostByTestId(question, "task-card-request-divider");
     expect(texts(divider)).toEqual(["待回答", "·", "4m"]);
     expect(icons(divider)).toEqual(["Clock"]);
     expect(divider.findByType("Icon" as never).props.size).toBe(10);
@@ -2240,19 +2250,20 @@ describe("TaskCardView actions", () => {
     expect(texts(hostByTestId(done.root, "task-card-actions"))).toEqual(["打开"]);
     await act(async () => done.unmount());
 
-    // A permission's Allow and Deny follow it; a question's "Answer" already opens the tab.
+    // A permission's Allow and Deny sit under its divider, so Open keeps its
+    // label beside Stop, as on a running card; a question's "Answer" already opens the tab.
     const input = sample("sample-input");
-    const allow = await render(cardElement(input, { compact: true, permissionButtons: permissionButtons(input.permission!, "zh") }));
-    // Beside Allow and Deny it is a square icon, its label read out.
-    const square = byLabel(allow.root, "打开");
-    expect(texts(square)).toEqual([]);
-    expect(icons(square)).toEqual(["ArrowUpRight"]);
-    expect(flat(square.props.style)).toMatchObject({ width: 32, flexGrow: 0 });
+    const allow = await render(cardElement(input, { compact: true, onOpen, onStop: () => {}, permissionButtons: permissionButtons(input.permission!, "zh") }));
+    expect(texts(hostByTestId(allow.root, "task-card-actions"))).toEqual(["停止", "打开"]);
+    expect(texts(hostByTestId(allow.root, "task-card-request-actions"))).toEqual(["允许", "拒绝"]);
+    expect(flat(byLabel(allow.root, "打开").props.style)).toMatchObject({ flexGrow: 1 });
+    expect(flat(hostByTestId(allow.root, "task-card-stop").props.style)).toMatchObject({ flexGrow: 0 });
+    expect(rows(allow.root, input.id).indexOf("task-card-actions")).toBeLessThan(rows(allow.root, input.id).indexOf("task-card-permission"));
     await act(async () => allow.unmount());
     const question = { ...input, permission: { requestId: "q", kind: "question" as const, title: "Which database?", summary: null, actions: [], remaining: 0 } };
     const answer = await render(cardElement(question, { compact: true, onStop: () => {}, permissionButtons: permissionButtons(question.permission!, "zh") }));
     expect(texts(hostByTestId(answer.root, "task-card-actions"))).toEqual(["停止"]);
-    expect(texts(hostByTestId(answer.root, "task-card-question-actions"))).toEqual(["去回答"]);
+    expect(texts(hostByTestId(answer.root, "task-card-request-actions"))).toEqual(["去回答"]);
     expect(flat(hostByTestId(answer.root, "task-card-stop").props.style)).toMatchObject({ flexGrow: 0 });
     await act(async () => {
       const row = hostByTestId(answer.root, "task-card-actions");
@@ -4999,7 +5010,7 @@ describe("responsive task actions", () => {
       ? cardElement(card, { compact: surface === "phone card", language: "en", permissionButtons: buttons, onPermission() {} })
       : surface === "sidebar" ? React.createElement(TaskDetailCards, { ...shared, now: NOW, touch: true }) : React.createElement(DetailActionBar, shared);
     const tree = await render(element);
-    const rowId = { card: "task-card-answer-actions", "phone card": "task-card-actions", sidebar: "detail-permission-actions", sheet: "detail-action-bar" }[surface];
+    const rowId = { card: "task-card-answer-actions", "phone card": "task-card-request-actions", sidebar: "detail-permission-actions", sheet: "detail-action-bar" }[surface];
     const row = () => hostByTestId(tree.root, rowId);
     const labels = () => row().findAll((node) => (node.type as unknown) === "Text" && typeof node.props.onLayout === "function");
     await act(async () => {
@@ -5034,7 +5045,7 @@ describe("responsive task actions", () => {
       ? cardElement(card, { compact: surface === "phone card", language: "zh", permissionButtons: buttons, onPermission, onOpen() {}, onStop() {} })
       : surface === "sidebar" ? React.createElement(TaskDetailCards, { ...shared, now: NOW, touch: true }) : React.createElement(DetailActionBar, shared);
     const tree = await render(element);
-    const rowId = { card: "task-card-answer-actions", "phone card": "task-card-question-actions", sidebar: "detail-permission-actions", sheet: "detail-action-bar" }[surface];
+    const rowId = { card: "task-card-answer-actions", "phone card": "task-card-request-actions", sidebar: "detail-permission-actions", sheet: "detail-action-bar" }[surface];
     const row = () => hostByTestId(tree.root, rowId);
     await act(async () => {
       row().props.onLayout({ nativeEvent: { layout: { width: 60 } } });

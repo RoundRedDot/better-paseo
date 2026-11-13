@@ -14,7 +14,7 @@ import { FlatList, Icon, Modal, ScrollView } from "@getpaseo/plugin/client/react
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, taskControlHeight } from "../typography";
-import { EdgeActionBar, StatusIcon, TaskDetailCards, createDetailChrome, taskTokens, type CardCallbacks } from "../cards";
+import { EdgeActionBar, StatusIcon, TaskDetailCards, createDetailChrome, requestInSection, taskTokens, type CardCallbacks } from "../cards";
 import { panelChrome } from "../cards/panel";
 import { ActionPressable } from "../cards/action-pressable";
 import { LANE_STATUS, isHistoryLane, turnRunning, type LaneId, type LaneModel, type TaskCard } from "../model";
@@ -684,7 +684,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           scrollHeader
           indicatorOutside
           actions={false}
-          questionActionsInHeader
+          requestActionsInHeader
           clock={board.clock}
           onOpen={props.onOpen}
           stop={stop}
@@ -705,7 +705,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           onScrollEdge={noteEdge}
         />
       </View>
-      {card.permission?.kind !== "question" || board.buttonsFor(card).length === 0 ? <EdgeActionBar
+      {!requestInSection(card, board.buttonsFor(card)) ? <EdgeActionBar
         chrome={edge}
         scrollHeader
         flushBottom={Platform.OS === "ios"}
