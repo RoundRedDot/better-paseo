@@ -1036,7 +1036,7 @@ function PermissionBlock(props: Inner) {
       ) : null}
       {buttons.length > 0 ? (
         <View testID="detail-permission-buttons" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
-          <ActionRow style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0, ...(props.touch && Platform.OS !== "web" ? { paddingVertical: 4, alignItems: "center" } : null) }} testID="detail-permission-actions">
+          <ActionRow stack={buttons.some((button) => !button.answers && keepsAnswerLabel(button, buttons))} style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0, ...(props.touch && Platform.OS !== "web" ? { paddingVertical: 4, alignItems: "center" } : null) }} testID="detail-permission-actions">
             {buttons.map((button) => (
               <RequestButton key={button.key} button={button} tokens={tokens} keepLabel={keepsAnswerLabel(button, buttons)} disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")} height={props.touch ? 36 : 34} onPress={() => props.onPermission?.(button)} />
             ))}
@@ -1064,9 +1064,9 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
   const height = taskControlHeight(props.height, scale);
   // A question's option is shown as written: no Check or X reads a meaning into it, and its label never folds.
   const option = !!button.answers;
-  // One of several answers with the same icon keeps its words too, cut at the end instead (`keepsAnswerLabel`).
+  // One of several answers with the same icon keeps its words too (`keepsAnswerLabel`): its row stacks rather than cut them.
   const keep = !option && props.keepLabel === true;
-  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + (option ? 0 : 13 + 4) + 1, false, requestLook(button) === "primary", option || keep);
+  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + (option ? 0 : 13 + 4) + 1, false, requestLook(button) === "primary", option, keep);
   const icon = option ? null : button.kind === "question" ? "MessageCircleQuestion" : button.kind === "open" ? "ArrowUpRight" : button.action.behavior === "allow" ? "Check" : "X";
   return (
     <Pressable
@@ -1082,7 +1082,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
         const lift = surfaceLift(hovered && !props.disabled, pressed && !props.disabled);
         return {
           // A written option may wrap, so it grows taller rather than wider.
-          ...(option ? { minHeight: height, paddingVertical: 4 } : { height }),
+          ...(option || keep ? { minHeight: height, paddingVertical: 4 } : { height }),
           flexDirection: "row" as const,
           gap: 4,
           paddingHorizontal: 14,
@@ -1098,7 +1098,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
       }}
     >
       {icon ? <Icon name={icon} size={13} color={hue.color} /> : null}
-      {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={option ? undefined : 1} ellipsizeMode={keep ? "tail" : undefined} style={{ flexShrink: option || keep ? 1 : 0, ...(option ? { textAlign: "center" as const } : null), fontSize: F.sm, fontWeight: "500", color: hue.color }}>
+      {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={option || keep ? undefined : 1} style={{ flexShrink: option ? 1 : 0, ...fit.labelStyle, ...(option || keep ? { textAlign: "center" as const } : null), fontSize: F.sm, fontWeight: "500", color: hue.color }}>
         {button.label}
       </Text>}
     </Pressable>

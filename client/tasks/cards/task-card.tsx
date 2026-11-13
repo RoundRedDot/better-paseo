@@ -1484,6 +1484,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const asksQuestion = permission?.kind === "question" || permission?.kind === "other";
   const compactRequest = compact && requestSection;
   const permissionSummary = permission ? summaryBeyondTitle(permission.title, permission.summary) : null;
+  // Answers only their words tell apart stack when they do not fit side by side.
+  const stackAnswers = props.permissionButtons.some((button) => !button.answers && keepsAnswerLabel(button, props.permissionButtons));
   const permissionBlock =
     layout.permission && permission ? (
       // The divider replaces the block's rule. As much room above and below it
@@ -1514,7 +1516,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           ) : null}
         </View>
         {compactRequest && props.permissionButtons.length > 0 ? (
-          <ActionRow gap={GAP} testID="task-card-question-actions">
+          <ActionRow gap={GAP} stack={stackAnswers} testID="task-card-question-actions">
             {props.permissionButtons.map((button) => (
               <ActionButton key={button.key} button={button} tokens={tokens} compact keepLabel={keepsAnswerLabel(button, props.permissionButtons)}
                 disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}
@@ -1525,7 +1527,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         ) : null}
         {answerRow ? (
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: GAP }} testID="task-card-answer-row">
-            <ActionRow gap={GAP} style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0 }} testID="task-card-answer-actions">
+            <ActionRow gap={GAP} stack={stackAnswers} style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0 }} testID="task-card-answer-actions">
               {props.permissionButtons.map((button) => (
                 <ActionButton
                   key={button.key}
@@ -2126,7 +2128,7 @@ export function ActionButton(props: {
   button: PermissionButton;
   tokens: TaskTokens;
   compact: boolean;
-  /** Never fold to the icon (`keepsAnswerLabel`): truncate the label instead. */
+  /** Never fold to the icon (`keepsAnswerLabel`): wrap the label onto more lines instead. */
   keepLabel?: boolean;
   disabled?: boolean;
   hint?: string;
@@ -2143,7 +2145,8 @@ export function ActionButton(props: {
       accessibilityLabel={button.label}
       look={look}
       icon={button.kind === "question" ? "MessageCircleQuestion" : answer || option ? null : button.action.behavior === "allow" ? "Check" : "X"}
-      labelOnly={option || props.keepLabel === true}
+      labelOnly={option}
+      wrapLabel={!option && props.keepLabel === true}
       tokens={props.tokens}
       compact={props.compact}
       disabled={props.disabled}

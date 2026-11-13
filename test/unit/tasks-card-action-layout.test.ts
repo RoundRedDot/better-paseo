@@ -48,7 +48,7 @@ import { taskTokens } from "../../client/tasks/cards/tokens";
 import { createTitleUpdateControl } from "../../client/tasks/actions/title-update";
 import { TasksTypographyScale } from "../../client/tasks/typography";
 import { cardStrings } from "../../client/tasks/cards/strings";
-import { estimateTextWidth, hostChildren, settleHostLayout, type Frame } from "./helpers/yoga-host-layout";
+import { estimateTextWidth, hostChildren, settleHostLayout, wrapLines, type Frame } from "./helpers/yoga-host-layout";
 import { resetActionWidths } from "../../client/tasks/cards/action-row";
 import { DetailActionBar, TaskDetailCards } from "../../client/tasks/cards/detail-cards";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -729,7 +729,11 @@ describe("phone card action bar under native (Yoga) layout", () => {
     },
   );
 
-  it.each(["zh", "en"] as const)("shares a real ExitPlanMode's answer row between its three choices, with Stop and Open on the bar above in %s", async (language) => {
+  // On the reported 340pt phone a real ExitPlanMode's three choices fit side by
+  // side in Chinese, Reject folded to its X; in English the two Implement labels
+  // do not fit beside each other, so the choices stack, each across the row with
+  // its whole label. Stop and Open stay on the bar above the divider.
+  it.each([["zh", "row"], ["en", "stack"]] as const)("lays a real ExitPlanMode's three choices out in %s as a %s, with Stop and Open on the bar above", async (language, arrangement) => {
     const plan = kindCard("plan-resume");
     await act(async () => { renderer = TestRenderer.create(phoneCard(plan, language, { onOpen() {}, permissionButtons: permissionButtons(plan.permission!, language, true) })); });
     const card = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${plan.id}`);
@@ -737,42 +741,99 @@ describe("phone card action bar under native (Yoga) layout", () => {
     const answers = frames.get(questionRow())!;
     const choices = hostChildren(questionRow()).map((node) => frames.get(node)!);
     expect(choices).toHaveLength(3);
-    // Side by side, in the request's order, filling the row together.
-    expect(choices[0]!.left).toBeCloseTo(answers.left, 0);
-    for (const [index, choice] of choices.entries()) {
-      expect(choice.top).toBeCloseTo(choices[0]!.top, 0);
-      if (index > 0) expect(choice.left).toBeGreaterThan(choices[index - 1]!.left + choices[index - 1]!.width);
-    }
-    expect(choices[2]!.left + choices[2]!.width).toBeCloseTo(answers.left + answers.width, 0);
-    // Reject folds to its X first (its label still read out); both Implement choices keep their words.
-    expect(labelsOf(questionRow()).map((text) => text.children.join(""))).toEqual(ANSWERS["plan-resume"][language].slice(1));
     expect(hostChildren(questionRow()).map((node) => node.props.accessibilityLabel)).toEqual(ANSWERS["plan-resume"][language]);
+    if (arrangement === "row") {
+      // Side by side, in the request's order, filling the row together.
+      expect(choices[0]!.left).toBeCloseTo(answers.left, 0);
+      for (const [index, choice] of choices.entries()) {
+        expect(choice.top).toBeCloseTo(choices[0]!.top, 0);
+        if (index > 0) expect(choice.left).toBeGreaterThan(choices[index - 1]!.left + choices[index - 1]!.width);
+      }
+      expect(choices[2]!.left + choices[2]!.width).toBeCloseTo(answers.left + answers.width, 0);
+      // Reject folds to its X first (its label still read out); both Implement choices keep their words.
+      expect(labelsOf(questionRow()).map((text) => text.children.join(""))).toEqual(ANSWERS["plan-resume"][language].slice(1));
+    } else {
+      // One under another, in the request's order, each as wide as the row, every label drawn.
+      for (const [index, choice] of choices.entries()) {
+        expect(choice.left).toBeCloseTo(answers.left, 0);
+        expect(choice.width).toBeCloseTo(answers.width, 0);
+        if (index > 0) expect(choice.top).toBeGreaterThan(choices[index - 1]!.top + choices[index - 1]!.height);
+      }
+      expect(labelsOf(questionRow()).map((text) => text.children.join(""))).toEqual(ANSWERS["plan-resume"][language]);
+    }
     const [stop, open] = hostChildren(row()).map((node) => frames.get(node)!);
     const divider = frames.get(renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider"))!;
     expect(divider.top).toBeGreaterThan(Math.max(stop!.top + stop!.height, open!.top + open!.height));
     expect(divider.top + divider.height).toBeLessThan(choices[0]!.top);
   });
 
-  // Two answers drawn with the same Check (Implement, "Implement with Bypass") never both fold to it:
-  // a narrow card or a large text size cuts the second one's words instead.
-  it.each([300, 340].flatMap((width) => [1, 1.8].flatMap((textScale) => (["zh", "en"] as const).map((language) => [width, textScale, language] as const))))(
-    "keeps both Implement choices' words on a %ipt card at text scale %f in %s",
-    async (width, textScale, language) => {
+  // Only an ambiguous set stacks: a tool's Allow and Deny, a two-choice plan
+  // and a question's written options keep their one row on the narrowest card.
+  it.each((["tool", "plan", "mode", "question"] as const).flatMap((kind) => [true, false].map((compact) => [kind, compact] as const)))(
+    "keeps a %s request's answers on one row (compact %s) at 240pt, text scale 1.8",
+    async (kind, compact) => {
+      const card = kindCard(kind);
+      await act(async () => { renderer = TestRenderer.create(phoneCard(card, "en", { compact, onOpen() {}, permissionButtons: permissionButtons(card.permission!, "en", true) })); });
+      const id = compact ? "task-card-question-actions" : "task-card-answer-actions";
+      const answers = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+      const frames = await settleHostLayout(() => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.id}`), { width: 240, textScale: 1.8, wrapText: true, wordWrap: true });
+      const tops = hostChildren(answers()).map((node) => frames.get(node)!.top);
+      expect(new Set(tops.map((top) => Math.round(top))).size).toBe(1);
+      expect(Object.assign({}, ...[answers().props.style].flat(Infinity).filter(Boolean)).flexDirection).toBe("row");
+    },
+  );
+
+  // A plan's two Implement choices share the Check, so their words are all
+  // that tells them apart. On every surface, width, text size and language,
+  // each one's label box, as native Yoga lays it out with word wrapping
+  // (`wrapLines`), holds its whole label in whole words, inside its button:
+  // nothing is cut to "Implement…", so the two never read alike.
+  it.each((["phone", "card", "details"] as const).flatMap((surface) => [240, 300, 322, 340, 387].flatMap((width) => TEXT_SCALES.flatMap((textScale) => (["zh", "en"] as const).map((language) => [surface, width, textScale, language] as const)))))(
+    "shows both Implement choices in full, in whole words, on the %s at %ipt, text scale %f, %s",
+    async (surface, width, textScale, language) => {
       const plan = kindCard("plan-resume");
-      for (const compact of [true, false]) {
-        await act(async () => {
-          renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: phoneCard(plan, language, { compact, onOpen() {}, permissionButtons: permissionButtons(plan.permission!, language, true) }) }));
-        });
-        const answers = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === (compact ? "task-card-question-actions" : "task-card-answer-actions"));
-        const card = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${plan.id}`);
-        const frames = await settleHostLayout(card, { width, textScale });
-        expect(overflows(frames, textScale, answers())).toEqual([]);
-        const shown = labelsOf(answers()).map((text) => text.children.join(""));
-        expect(shown).toContain(ANSWERS["plan-resume"][language][1]);
-        expect(shown).toContain("Implement with Bypass");
-        await act(async () => renderer!.unmount());
-        renderer = null;
+      const buttons = permissionButtons(plan.permission!, language, true);
+      await act(async () => {
+        // The system text size scales every label in the layout (`textScale`), as on a device.
+        renderer = TestRenderer.create(surface === "details"
+          ? React.createElement(TaskDetailCards, { card: plan, theme: THEME as never, language, strings: BOARD_STRINGS[language].sidebar, now: NOW, touch: true, tabs: true, onSheetClose() {}, stop: { phase: "idle", onPress() {} }, onOpen() {}, onPermission() {}, permissionButtons: buttons })
+          : phoneCard(plan, language, { compact: surface === "phone", onOpen() {}, permissionButtons: buttons }));
+      });
+      const byId = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+      const rootId = surface === "details" ? "detail-permission" : `task-card-${plan.id}`;
+      const rowId = surface === "details" ? "detail-permission-actions" : surface === "phone" ? "task-card-question-actions" : "task-card-answer-actions";
+      const frames = await settleHostLayout(() => byId(rootId), { width, textScale, wrapText: true, wordWrap: true });
+      const row = byId(rowId);
+      const box = frames.get(byId(rootId))!;
+      const visible = new Map<string, string[]>();
+      for (const button of hostChildren(row)) {
+        const label = String(button.props.accessibilityLabel);
+        const frame = frames.get(button)!;
+        // Every answer stays inside the card or panel.
+        expect(frame.left).toBeGreaterThanOrEqual(box.left - 0.5);
+        expect(frame.left + frame.width).toBeLessThanOrEqual(box.left + box.width + 0.5);
+        if (!label.startsWith("Implement") && label !== "实施") continue;
+        const text = labelsOf(button).find((node) => node.children.join("") === label);
+        // Never folded to its icon alone.
+        expect(text, `${label} folded`).toBeDefined();
+        expect(text!.props.ellipsizeMode).toBeUndefined();
+        const textFrame = frames.get(text!)!;
+        const style = Object.assign({}, ...[text!.props.style].flat(Infinity).filter(Boolean)) as { fontSize: number; lineHeight?: number };
+        const lineHeight = style.lineHeight ?? Math.ceil(style.fontSize * 1.25);
+        const lines = wrapLines(label, style.fontSize, textFrame.width, textScale);
+        if (text!.props.numberOfLines === 1) expect(lines).toHaveLength(1);
+        // The box is tall enough for those lines, and they all sit inside the button.
+        expect(textFrame.height).toBeGreaterThanOrEqual(lines.length * lineHeight - 0.5);
+        expect(textFrame.left + textFrame.width).toBeLessThanOrEqual(frame.left + frame.width + 0.5);
+        expect(textFrame.top + textFrame.height).toBeLessThanOrEqual(frame.top + frame.height + 0.5);
+        // Whole words: the lines put back together are the label, no word split across two.
+        expect(lines.flatMap((line) => line.split(/\s+/))).toEqual(label.split(/\s+/));
+        visible.set(label, lines);
       }
+      // Both drawn, and they read differently.
+      const shown = [...visible.values()].map((lines) => lines.join("\n"));
+      expect(shown).toHaveLength(2);
+      expect(new Set(shown).size).toBe(2);
     },
   );
 

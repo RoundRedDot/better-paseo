@@ -42,6 +42,13 @@ export function CardButton(props: {
   hint?: string;
   /** A question's written option: no icon, so its label never folds away. */
   labelOnly?: boolean;
+  /**
+   * Never fold to the icon or cut the label: for an answer whose words alone
+   * tell it from another beside it with the same icon (a plan's Implement and
+   * "Implement with Bypass"). Its row stacks when it does not fit
+   * (`ActionRow`'s `stack`), and there the label wraps between words.
+   */
+  wrapLabel?: boolean;
   onPress(): void;
   testID?: string;
 }) {
@@ -77,8 +84,9 @@ export function CardButton(props: {
   const baseHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : cardButtonHeight();
   const height = taskControlHeight(baseHeight, scale);
   const hasIcon = !!props.icon || props.glyph !== undefined || props.busy || answer || props.arrow;
-  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, baseHeight, 2 * (compact ? 12 : 10) + (hasIcon ? size + 4 : 0) + 1, forcedSquare, kind === "primary", props.labelOnly);
+  const fit = useActionFit(props.label, `${scale}|${useWindowDimensions().fontScale}`, baseHeight, 2 * (compact ? 12 : 10) + (hasIcon ? size + 4 : 0) + 1, forcedSquare, kind === "primary", props.labelOnly, props.wrapLabel);
   const square = fit.iconOnly;
+  const wrap = props.wrapLabel === true && !props.labelOnly;
   return (
     <ActionPressable
       accessibilityRole="button"
@@ -99,7 +107,7 @@ export function CardButton(props: {
       style={({ pressed }) => ({
         // A phone's button grows with a large system font.
         ...(compact ? { minHeight: COMPACT_CARD_BUTTON_HEIGHT, paddingVertical: 4, flexGrow: 1, flexShrink: 0, flexBasis: "auto", minWidth: height }
-          : { height }),
+          : wrap ? { minHeight: height, paddingVertical: 2 } : { height }),
         ...(compact && props.hug ? { flexGrow: 0 } : null),
         ...(square ? { width: taskControlHeight(COMPACT_CARD_BUTTON_HEIGHT, scale), minWidth: 0, flexGrow: 0, flexShrink: 0 } : null),
         paddingHorizontal: square ? 0 : compact ? 12 : 10,
@@ -124,7 +132,7 @@ export function CardButton(props: {
         <Icon name={props.icon} size={size} color={color} />
       ) : null}
       {square ? null : (
-        <Text ref={labelRef} onLayout={fit.labelLayout} numberOfLines={1} ellipsizeMode={props.labelOnly ? "tail" : undefined} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
+        <Text ref={labelRef} onLayout={fit.labelLayout} numberOfLines={wrap ? undefined : 1} ellipsizeMode={props.labelOnly && !wrap ? "tail" : undefined} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
           {props.label}
         </Text>
       )}

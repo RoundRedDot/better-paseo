@@ -32,7 +32,9 @@ export function requestLook(button: PermissionButton): CardButtonLook {
  * Whether a request's answer must keep its words when its row runs out of
  * room: a question's written option, or one of several answers drawn with the
  * same Check or X (a plan's Implement and "Implement with Bypass"), which its
- * icon alone could not tell apart. The others fold to their icon first.
+ * icon alone could not tell apart: those never fold or cut their words, and
+ * their row stacks when they do not fit side by side (`ActionRow`'s `stack`).
+ * The others fold to their icon first.
  */
 export function keepsAnswerLabel(button: PermissionButton, buttons: readonly PermissionButton[]): boolean {
   if (button.answers) return true;
