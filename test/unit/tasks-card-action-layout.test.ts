@@ -268,6 +268,15 @@ describe("phone card action bar under native (Yoga) layout", () => {
       expect(overflows(frames, textScale)).toEqual([]);
       const answerFrames = await settleHostLayout(questionRow, { width, textScale, wrapText: true });
       expect(overflows(answerFrames, textScale, questionRow())).toEqual([]);
+      for (const button of actionButtons(questionRow())) {
+        const box = answerFrames.get(button)!;
+        for (const label of labelsOf(button)) {
+          const frame = answerFrames.get(label)!;
+          expect(frame.left).toBeGreaterThanOrEqual(box.left - 0.5);
+          expect(frame.left + frame.width).toBeLessThanOrEqual(box.left + box.width + 0.5);
+          expect(frame.top + frame.height).toBeLessThanOrEqual(box.top + box.height + 0.5);
+        }
+      }
       expect(questionRow().findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === (language === "zh" ? "查看问题" : "View questions"))).toHaveLength(1);
     },
   );
@@ -753,34 +762,83 @@ describe("phone card action bar under native (Yoga) layout", () => {
 
   // Short Allow and Deny labels still fit side by side on a narrow card.
   it.each((["tool", "mode"] as const).flatMap((kind) => [true, false].map((compact) => [kind, compact] as const)))(
-    "keeps a %s request's answers on one row (compact %s) at 240pt, text scale 1.8",
+    "keeps a %s request's answers on one row (compact %s) at 300pt, text scale 1.8",
     async (kind, compact) => {
       const card = kindCard(kind);
       await act(async () => { renderer = TestRenderer.create(phoneCard(card, "en", { compact, onOpen() {}, permissionButtons: permissionButtons(card.permission!, "en", true) })); });
       const id = compact ? "task-card-question-actions" : "task-card-answer-actions";
       const answers = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
-      const frames = await settleHostLayout(() => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.id}`), { width: 240, textScale: 1.8, wrapText: true, wordWrap: true });
+      const frames = await settleHostLayout(() => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.id}`), { width: 300, textScale: 1.8, wrapText: true, wordWrap: true });
       const tops = hostChildren(answers()).map((node) => frames.get(node)!.top);
       expect(new Set(tops.map((top) => Math.round(top))).size).toBe(1);
       expect(Object.assign({}, ...[answers().props.style].flat(Infinity).filter(Boolean)).flexDirection).toBe("row");
     },
   );
 
-  it.each([true, false])("keeps View questions on its own row and pairs answers when they fit (compact %s)", async (compact) => {
+  it.each([true, false])("fits all three actions or separates them as width changes (compact %s)", async (compact) => {
     const card = choice(["按此方案执行", "先不要改"])();
     await act(async () => { renderer = TestRenderer.create(phoneCard(card, "zh", { compact, onOpen() {}, permissionButtons: permissionButtons(card.permission!, "zh", true) })); });
     const id = compact ? "task-card-question-actions" : "task-card-answer-actions";
     const answers = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
-    for (const [width, stacked] of [[600, false], [240, false], [120, true], [600, false]] as const) {
+    for (const [width, mode] of [[600, "all"], [300, "all"], [240, "pair"], [190, "pair"], [120, "stack"], [600, "all"]] as const) {
       const frames = await settleHostLayout(answers, { width, textScale: 1, wrapText: true, wordWrap: true });
       const children = actionButtons(answers());
       expect(children).toHaveLength(3);
       expect(labelsOf(answers()).map((node) => node.children.join(""))).toEqual(["按此方案执行", "先不要改", "查看问题"]);
       const [first, second, view] = children.map((button) => frames.get(button)!);
-      if (stacked) expect(second!.top).toBeGreaterThan(first!.top + first!.height);
-      else expect(second!.top).toBeCloseTo(first!.top, 0);
-      expect(view!.top).toBeGreaterThan(second!.top + second!.height);
+      const rowFrame = frames.get(answers())!;
+      expect(overflows(frames, 1, answers())).toEqual([]);
+      expect(first!.left).toBeCloseTo(rowFrame.left, 0);
+      if (mode === "stack") {
+        expect(second!.top).toBeGreaterThan(first!.top + first!.height);
+        expect(first!.width).toBeCloseTo(rowFrame.width, 0);
+        expect(second!.width).toBeCloseTo(rowFrame.width, 0);
+      } else {
+        expect(second!.top).toBeCloseTo(first!.top, 0);
+        if (mode === "pair") expect(second!.left + second!.width).toBeCloseTo(rowFrame.left + rowFrame.width, 0);
+      }
+      if (mode === "all") {
+        expect(view!.top).toBeCloseTo(first!.top, 0);
+        expect(view!.left + view!.width).toBeCloseTo(rowFrame.left + rowFrame.width, 0);
+      } else {
+        expect(view!.top).toBeGreaterThan(second!.top + second!.height);
+        expect(view!.width).toBeCloseTo(rowFrame.width, 0);
+      }
     }
+  });
+
+  it.each([true, false])("fills the row when View questions is the only action (compact %s)", async (compact) => {
+    const card = question();
+    const buttons = permissionButtons(card.permission!, "zh", true);
+    expect(buttons.map((button) => button.kind)).toEqual(["question"]);
+    await act(async () => { renderer = TestRenderer.create(phoneCard(card, "zh", { compact, permissionButtons: buttons })); });
+    const id = compact ? "task-card-question-actions" : "task-card-answer-actions";
+    const row = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    const frames = await settleHostLayout(row, { width: 240, textScale: 1, wrapText: true });
+    const button = frames.get(actionButtons(row())[0]!)!;
+    expect(button.left).toBeCloseTo(frames.get(row())!.left, 0);
+    expect(button.width).toBeCloseTo(frames.get(row())!.width, 0);
+  });
+
+  it.each([true, false].flatMap((compact) => [240, 300, 600].flatMap((width) => [1, 1.8].flatMap((scale) => (["zh", "en"] as const).map((language) => [compact, width, scale, language] as const)))))
+  ("fills the answer area (compact %s, %ipt, scale %f, %s)", async (compact, width, textScale, language) => {
+    const card = choice(["按此方案执行", "先不要改"])();
+    await act(async () => { renderer = TestRenderer.create(phoneCard(card, language, { compact, onOpen() {}, permissionButtons: permissionButtons(card.permission!, language, true) })); });
+    const byId = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    const frames = await settleHostLayout(() => byId(`task-card-${card.id}`), { width, textScale, wrapText: true, wordWrap: true });
+    const row = byId(compact ? "task-card-question-actions" : "task-card-answer-actions");
+    const area = frames.get(row)!;
+    const divider = frames.get(byId("task-card-question-divider"))!;
+    expect(area.left).toBeCloseTo(divider.left, 0);
+    expect(area.width).toBeCloseTo(divider.width, 0);
+    const buttons = actionButtons(row).map((button) => frames.get(button)!);
+    if (width === 600 && textScale === 1) expect(new Set(buttons.map((button) => Math.round(button.top))).size).toBe(1);
+    for (const top of new Set(buttons.map((button) => Math.round(button.top)))) {
+      const line = buttons.filter((button) => Math.round(button.top) === top);
+      expect(line[0]!.left).toBeCloseTo(area.left, 0);
+      expect(line.at(-1)!.left + line.at(-1)!.width).toBeCloseTo(area.left + area.width, 0);
+    }
+    expect(overflows(frames, textScale, row)).toEqual([]);
   });
 
   it.each([true, false].flatMap((compact) => [240, 600].flatMap((width) => [1, 1.8].flatMap((scale) => (["zh", "en"] as const).map((language) => [compact, width, scale, language] as const)))))
@@ -793,16 +851,67 @@ describe("phone card action bar under native (Yoga) layout", () => {
     await act(async () => { renderer = TestRenderer.create(phoneCard(card, language, { compact, onPermission, permissionButtons: buttons })); });
     const id = compact ? "task-card-question-actions" : "task-card-answer-actions";
     const row = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
-    const frames = await settleHostLayout(row, { width, textScale, wrapText: true, wordWrap: true });
+    const root = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === `task-card-${card.id}`);
+    const frames = await settleHostLayout(root, { width, textScale, wrapText: true, wordWrap: true });
+    const divider = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider");
+    expect(frames.get(row())!.width).toBeCloseTo(frames.get(divider)!.width, 0);
     const children = actionButtons(row());
     expect(children.map((button) => button.props.accessibilityLabel)).toEqual(buttons.map((button) => button.label));
     const tops = children.map((button) => Math.round(frames.get(button)!.top));
-    for (const top of new Set(tops)) expect(tops.filter((value) => value === top).length).toBeLessThanOrEqual(2);
+    for (const top of new Set(tops)) {
+      const line = children.filter((_, index) => tops[index] === top).map((button) => frames.get(button)!);
+      expect(line.length).toBeLessThanOrEqual(2);
+      expect(line[0]!.left).toBeCloseTo(frames.get(row())!.left, 0);
+      expect(line.at(-1)!.left + line.at(-1)!.width).toBeCloseTo(frames.get(row())!.left + frames.get(row())!.width, 0);
+    }
     expect(tops[4]!).toBeGreaterThan(tops[3]!);
     expect(overflows(frames, textScale, row())).toEqual([]);
     for (const [index, button] of children.entries()) {
       await act(async () => button.props.onPress());
       expect(onPermission).toHaveBeenLastCalledWith(card, buttons[index]);
+    }
+  });
+
+  const answerCases = ["tool", "mode", "plan", "plan-resume", "question", "question-long", "view-only", "other", "four-actions"] as const;
+  it.each((["ios", "android"] as const).flatMap((os) => [true, false].flatMap((compact) => [200, 240, 300, 387, 600].flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).flatMap((language) => answerCases.map((kind) => [os, compact, width, scale, language, kind] as const)))))))
+  ("fits %s card answers (compact %s, %ipt, scale %f, %s, %s)", async (os, compact, width, textScale, language, kind) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const card = kind === "question-long" ? choice(language === "zh" ? [...WIDE_CJK] : [...WIDE_LATIN])()
+      : kind === "view-only" ? question() : kind === "four-actions" ? kindCard("plan-resume") : kindCard(kind);
+    const original = permissionButtons(card.permission!, language, true);
+    const buttons = kind === "four-actions" ? [...original, { ...original[0]!, key: "fourth", label: language === "zh" ? "第四项" : "Fourth" }] : original;
+    const onPermission = vi.fn();
+    await act(async () => { renderer = TestRenderer.create(phoneCard(card, language, { compact, onOpen() {}, onPermission, permissionButtons: buttons })); });
+    const byId = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+    const frames = await settleHostLayout(() => byId(`task-card-${card.id}`), { width, textScale, wrapText: true, wordWrap: true });
+    const row = byId(compact ? "task-card-question-actions" : "task-card-answer-actions");
+    const area = frames.get(row)!;
+    const children = actionButtons(row);
+    expect(children.map((button) => button.props.accessibilityLabel)).toEqual(buttons.map((button) => button.label));
+    expect(area.width).toBeCloseTo(frames.get(byId("task-card-question-divider"))!.width, 0);
+    const tops = children.map((button) => Math.round(frames.get(button)!.top));
+    for (const top of new Set(tops)) {
+      const line = children.filter((_, index) => tops[index] === top).map((button) => frames.get(button)!);
+      expect(line.length).toBeLessThanOrEqual(kind === "question" || kind === "question-long" ? 3 : 2);
+      expect(line[0]!.left).toBeCloseTo(area.left, 0);
+      expect(line.at(-1)!.left + line.at(-1)!.width).toBeCloseTo(area.left + area.width, 0);
+    }
+    for (const [index, button] of children.entries()) {
+      const box = frames.get(button)!;
+      const label = labelsOf(button).find((node) => node.children.join("") === buttons[index]!.label);
+      expect(label).toBeDefined();
+      const frame = frames.get(label!)!;
+      const style = Object.assign({}, ...[label!.props.style].flat(Infinity).filter(Boolean)) as { fontSize: number; lineHeight?: number };
+      const lines = wrapLines(buttons[index]!.label, style.fontSize, frame.width, textScale);
+      expect(label!.props.numberOfLines).toBeUndefined();
+      expect(frame.height).toBeGreaterThanOrEqual(lines.length * (style.lineHeight ?? Math.ceil(style.fontSize * 1.25)) - 0.5);
+      expect(frame.left).toBeGreaterThanOrEqual(box.left - 0.5);
+      expect(frame.left + frame.width).toBeLessThanOrEqual(box.left + box.width + 0.5);
+      expect(frame.top + frame.height).toBeLessThanOrEqual(box.top + box.height + 0.5);
+      if (os === "ios" && compact && width === 300 && textScale === 1 && language === "zh") {
+        await act(async () => button.props.onPress());
+        expect(onPermission).toHaveBeenLastCalledWith(card, buttons[index]);
+      }
     }
   });
 
