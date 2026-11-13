@@ -8,7 +8,7 @@ import type { PaseoApi } from "@getpaseo/client";
 import { DEFAULT_TASKS_SETTINGS, TASKS_SETTINGS, effectiveCard, type CardSettings, type LaneWidth, type TasksSettings } from "../../../shared/tasks-settings";
 import { permissionButtons, respondToPermission, useArchiveControl, useReadControl, useStopControl, useUnarchiveControl, useUnreadControl, type ArchiveControl, type PermissionButton, type ReadControl, type StopControl, type UnarchiveControl, type UnreadControl } from "../actions";
 import type { CardCallbacks, TaskClock } from "../cards";
-import { filterLanes, setTasksArchivedLane, useTasks, withSubagentCards, type TasksHandle } from "../data";
+import { filterLanes, openedTask, setTasksArchivedLane, useTasks, withSubagentCards, type TasksHandle } from "../data";
 import { useSearchFirstPrompts, retrySearchPrompt, type SearchCoverageControl } from "../data/search-first-prompts";
 import { useSearchConversations } from "../data/search-conversations";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -494,7 +494,11 @@ export function useBoard(
       latest.current.toast.show(latest.current.strings.archivedLane.cannotOpen);
       return;
     }
-    latest.current.props.navigation?.openAgent({ agentId });
+    const navigation = latest.current.props.navigation;
+    if (!navigation) return;
+    navigation.openAgent({ agentId });
+    // Opened is seen: a task marked unread does not stay in review.
+    openedTask(latest.current.paseo, agentId);
   }, []);
   const requestProjectIcon = useCallback((projectId: string) => latest.current.tasks.requestProjectIcon(projectId), []);
   const buttonsFor = useCallback((card: TaskCard) => buttonsIn(card, language), [language]);

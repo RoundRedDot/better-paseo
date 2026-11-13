@@ -576,6 +576,18 @@ describe("Tasks server unread RPC", () => {
     expect(after.unreads.map((mark) => mark.agentId)).toEqual(["agent-a", "agent-b"]);
   });
 
+  it("drops only the opened agents' unread marks, without the daemon", async () => {
+    const { host, connect } = daemonHost();
+    const handlers = await registerHandlers(host);
+    await expect(invoke(handlers, "tasks.unread", { agentIds: ["agent-a", "agent-b"] })).resolves.toEqual({ ok: true, error: null });
+    connect.mockClear();
+    await expect(invoke(handlers, "tasks.unread-clear", { agentIds: ["agent-a", "agent-c"] })).resolves.toEqual({ ok: true, error: null });
+    expect(connect).not.toHaveBeenCalled();
+    const { unreads } = await invoke<{ unreads: Array<{ agentId: string }> }>(handlers, "tasks.unreads", {});
+    expect(unreads.map((mark) => mark.agentId)).toEqual(["agent-b"]);
+    await expect(invoke(handlers, "tasks.unread-clear", { agentIds: ["bad/id"] })).resolves.toEqual({ ok: false, error: "Invalid agent ID." });
+  });
+
   it("writes nothing for a bad id, and does not connect when the daemon is unavailable", async () => {
     const { host, connect } = daemonHost();
     let handlers = await registerHandlers(host);

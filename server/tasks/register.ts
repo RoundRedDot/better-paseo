@@ -10,7 +10,7 @@ import { connectHostDaemon, createSubagentWatch, hasHostDaemon, type HostDaemon,
 import { iconThemeColor } from "./icon-color";
 import { createSessionTokenReader, type SessionTokenReader } from "./session-tokens";
 import { createParentOriginWatch, type ParentOriginWatch } from "./parent-origins";
-import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksParentOriginsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc, tasksUnreadRpc, tasksUnreadsRpc } from "../../shared/tasks-rpc";
+import { tasksCapabilitiesRpc, tasksChunkRpc, tasksLabelsRpc, tasksParentOriginsRpc, tasksProjectIconsRpc, tasksReadRpc, tasksReadsRpc, tasksRenameRpc, tasksStopRpc, tasksStoppedRpc, tasksSessionTokensRpc, tasksSubagentTimelineRpc, tasksSubagentsRpc, tasksUnarchiveRpc, tasksUnreadClearRpc, tasksUnreadRpc, tasksUnreadsRpc } from "../../shared/tasks-rpc";
 import { TASKS_CHUNK } from "../tasks-chunk";
 import { registerTitleGeneration } from "./title-generation";
 import { tasksAvailabilityRpc } from "../../shared/task-availability";
@@ -451,6 +451,12 @@ export function registerTasksServer(
       await unreads.mark(agentId);
     }
     void markDaemonUnread(host, agentIds).catch(() => {});
+    return { ok: true, error: null };
+  });
+  // Opened from the board: the agent was seen, so its unread mark goes. Opening it elsewhere in Paseo reaches no hook.
+  server.handle(tasksUnreadClearRpc, async ({ agentIds }) => {
+    if (!agentIds.every((agentId) => AGENT_ID_PATTERN.test(agentId))) return { ok: false, error: "Invalid agent ID." };
+    for (const agentId of agentIds) await unreads.clear(agentId);
     return { ok: true, error: null };
   });
   server.handle(tasksUnreadsRpc, async () => ({

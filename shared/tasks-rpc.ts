@@ -80,9 +80,22 @@ export const tasksUnreadRpc = defineRpc({
 });
 
 /**
+ * The board opened these agents in Paseo: their unread marks go, as Mark read
+ * would drop them, but the daemon is not asked to clear anything (opening the
+ * agent already does). Only the unread marks: a failure the board reads stays
+ * for Mark read. Clearing an agent without a mark is a no-op.
+ */
+export const tasksUnreadClearRpc = defineRpc({
+  name: "tasks.unread-clear",
+  input: z.object({ agentIds: z.array(z.string().min(1)).min(1).max(50) }),
+  output: z.object({ ok: z.boolean(), error: z.string().nullable() }),
+});
+
+/**
  * The agents marked unread through `tasks.unread`, with when. Kept like the
  * reads: in a file, until Mark read, the agent's next turn, or archive, 30
- * days at most. A mark older than the latest prompt does not move the card.
+ * days at most, or until the board opens the agent (`tasks.unread-clear`). A
+ * mark older than the latest prompt does not move the card.
  */
 export const tasksUnreadsRpc = defineRpc({
   name: "tasks.unreads",

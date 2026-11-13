@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, type TasksHandle } from "../../client/tasks/data";
+import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, setUnreadClearer, openedTask, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -955,6 +955,91 @@ describe("Tasks data store", () => {
     } finally {
       mounted.unmount();
       setUnreadMarksLoader(null);
+    }
+  });
+
+  it("drops the unread mark when the board opens the task, and keeps it if the server refuses", async () => {
+    // Marked unread on 11-10, opened later: the card must not come back to review.
+    const prompt = Date.now() - 10 * 60_000;
+    const iso = (ms: number) => new Date(ms).toISOString();
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("finished", { status: "closed", updatedAt: iso(prompt), lastUserMessageAt: iso(prompt) }),
+        activeAgent("other", { status: "closed", updatedAt: iso(prompt), lastUserMessageAt: iso(prompt) }),
+      ],
+      workspaces: [workspace()],
+    });
+    let server = [{ agentId: "finished", unreadAt: iso(prompt + 30_000) }, { agentId: "other", unreadAt: iso(prompt + 30_000) }];
+    const loader = vi.fn(async () => server);
+    let refuse = false;
+    let release!: () => void;
+    const clearer = vi.fn((agentIds: string[]) => new Promise<void>((resolve, reject) => {
+      release = () => {
+        if (refuse) reject(new Error("refused"));
+        else {
+          server = server.filter((mark) => !agentIds.includes(mark.agentId));
+          resolve();
+        }
+      };
+    }));
+    setUnreadMarksLoader(loader);
+    setUnreadClearer(clearer);
+    const settle = async () => {
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    };
+    const mounted = await mountTasks(fake, "all");
+    try {
+      await act(async () => {
+        mounted.current.refreshUnreads();
+        await settle();
+      });
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "review", status: "unread" });
+      const other = mounted.current.byId.get("other");
+      expect(other).toMatchObject({ lane: "review", status: "unread" });
+
+      await act(async () => {
+        openedTask(fake.paseo, "finished");
+        await settle();
+      });
+      // Out of review at once, before the server answers; the other card is untouched.
+      expect(clearer).toHaveBeenCalledWith(["finished"]);
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "done", status: "done" });
+      expect(mounted.current.byId.get("other")).toBe(other);
+
+      // A read that left before the clear landed still lists the mark: it does not move the card back.
+      await act(async () => {
+        mounted.current.refreshUnreads();
+        await settle();
+      });
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "done" });
+
+      await act(async () => {
+        release();
+        await settle();
+      });
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "done" });
+      await act(async () => {
+        mounted.current.refreshUnreads();
+        await settle();
+      });
+      expect(mounted.current.byId.get("finished")).toMatchObject({ lane: "done" });
+
+      // A server that refuses keeps its mark: the read after the failure puts the card back.
+      refuse = true;
+      await act(async () => {
+        openedTask(fake.paseo, "other");
+        await settle();
+      });
+      expect(mounted.current.byId.get("other")).toMatchObject({ lane: "done" });
+      await act(async () => {
+        release();
+        await settle();
+      });
+      expect(mounted.current.byId.get("other")).toMatchObject({ lane: "review", status: "unread" });
+    } finally {
+      mounted.unmount();
+      setUnreadMarksLoader(null);
+      setUnreadClearer(null);
     }
   });
 

@@ -442,6 +442,16 @@ export function setUnreadMarksLoader(next: UnreadMarksLoader | null): void {
   unreadMarksLoader = next;
 }
 
+/** `tasks.unread-clear`: drop these agents' unread marks, as the board opened them. Rejects on failure. */
+export type UnreadClearer = (agentIds: string[]) => Promise<void>;
+
+let unreadClearer: UnreadClearer | null = null;
+
+/** `contribute` sets the clearer; `openedTask` calls it each time the board opens an agent. */
+export function setUnreadClearer(next: UnreadClearer | null): void {
+  unreadClearer = next;
+}
+
 /** `tasks.parent-origins`: the parents whose archive detached a child, or null while `since` is still the server's version. */
 export type ParentOriginsLoader = (since?: string) => Promise<{ version: string; origins: ParentOrigin[] | null }>;
 
@@ -949,6 +959,7 @@ interface TaskStore {
   refreshParent(id: string): Promise<boolean | null>;
   refreshReads(): void;
   refreshUnreads(): void;
+  openedAgent(id: string): void;
   requestProjectIcon(projectId: string): void;
 }
 
@@ -1021,6 +1032,8 @@ function createStore(api: PaseoApi): TaskStore {
   const readMarks = new Map<string, number>();
   /** The server's unread marks (`tasks.unreads`), as epoch ms by agent. */
   const unreadMarks = new Map<string, number>();
+  /** Agents the board opened whose unread clear is still out (`openedAgent`). */
+  const clearingUnreads = new Map<string, number>();
   /** Failed parents asked for by id, once per version of the list. */
   const subagentParentsAsked = new Set<string>();
   const subscriptions = new Map<string, StoreSubscription>();
@@ -1978,7 +1991,8 @@ function createStore(api: PaseoApi): TaskStore {
       const next = new Map<string, number>();
       for (const mark of marks) {
         const at = Date.parse(mark.unreadAt);
-        if (Number.isFinite(at)) next.set(mark.agentId, at);
+        // A read that left before an open's clear landed still lists the mark.
+        if (Number.isFinite(at) && !clearingUnreads.has(mark.agentId)) next.set(mark.agentId, at);
       }
       const changed = new Set<string>();
       for (const [id, at] of next) if (unreadMarks.get(id) !== at) changed.add(id);
@@ -2894,6 +2908,35 @@ function createStore(api: PaseoApi): TaskStore {
     void readUnreads(generation);
   }
 
+  /**
+   * The board opened this agent in Paseo: it was seen, so its unread mark
+   * goes now and on the server. The server is asked every time, as the marks
+   * may not have been read yet; its marks are read again after, so a failed
+   * or older server puts the mark back.
+   */
+  function openedAgent(id: string): void {
+    const clearer = unreadClearer;
+    if (!clearer) return;
+    if (unreadMarks.delete(id)) {
+      batchUpdates(() => {
+        refreshFinalCard(id);
+        const parent = parentByChild.get(id);
+        if (parent) refreshFinalCard(parent);
+        syncSubagentParents();
+        notify();
+      });
+    }
+    const run = generation;
+    clearingUnreads.set(id, (clearingUnreads.get(id) ?? 0) + 1);
+    const settle = () => {
+      const left = (clearingUnreads.get(id) ?? 1) - 1;
+      if (left > 0) clearingUnreads.set(id, left);
+      else clearingUnreads.delete(id);
+      if (run === generation) void readUnreads(run);
+    };
+    void Promise.resolve().then(() => clearer([id])).then(settle, settle);
+  }
+
   function refreshParent(id: string): Promise<boolean | null> {
     if (!resolvedParents.has(id)) resolvedParents.set(id, { title: null, archived: null });
     const run = generation;
@@ -3145,6 +3188,7 @@ function createStore(api: PaseoApi): TaskStore {
     refreshParent,
     refreshReads,
     refreshUnreads,
+    openedAgent,
     requestProjectIcon,
   };
   return store;
@@ -3200,6 +3244,17 @@ export function setTasksArchivedLane(paseo: PaseoApi, on: boolean): void {
  */
 export function holdTasks(paseo: PaseoApi, reason: TasksHoldReason, ms: number | null): void {
   getStore(paseo).hold(reason, ms);
+}
+
+/**
+ * The board opened an agent in Paseo: drop its unread mark, so a task marked
+ * unread and then looked at does not come back to review. Without a store
+ * for this host the server is still told.
+ */
+export function openedTask(paseo: PaseoApi, agentId: string): void {
+  const store = stores.get(paseo);
+  if (store) store.openedAgent(agentId);
+  else void unreadClearer?.([agentId]).catch(() => {});
 }
 
 export function hasTasksHold(paseo: PaseoApi, reason: TasksHoldReason): boolean {

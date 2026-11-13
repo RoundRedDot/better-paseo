@@ -3788,9 +3788,11 @@ describe("Tasks board, desktop", () => {
     expect(cards()[0]!.props.onUnarchive).toEqual(expect.any(Function));
   });
 
-  it("does not open an archived task, whose tab Paseo would drop for another, and says why", () => {
+  it("does not open an archived task, whose tab Paseo would drop for another, and says why", async () => {
     const handle = (data as unknown as { __handle: { byId: Map<string, unknown> } }).__handle;
     const done = handle.byId.get("sample-done") as Record<string, unknown>;
+    const clearer = vi.fn(async () => {});
+    data.setUnreadClearer(clearer);
     handle.byId.set("archived-task", { ...done, id: "archived-task", lane: "archived", status: "archived", archived: "agent" });
     try {
       act(() => {
@@ -3801,10 +3803,17 @@ describe("Tasks board, desktop", () => {
       act(() => card.props.onOpen("archived-task"));
       expect(openAgent).not.toHaveBeenCalled();
       expect(host.toast).toHaveBeenCalledWith("Unarchive this task to open it in Paseo");
-      act(() => card.props.onOpen("sample-done"));
+      expect(clearer).not.toHaveBeenCalled();
+      await act(async () => {
+        card.props.onOpen("sample-done");
+        await Promise.resolve();
+      });
       expect(openAgent).toHaveBeenCalledWith({ agentId: "sample-done" });
+      // Opened is seen: a task marked unread does not come back to review.
+      expect(clearer).toHaveBeenCalledWith(["sample-done"]);
     } finally {
       handle.byId.delete("archived-task");
+      data.setUnreadClearer(null);
     }
   });
 
@@ -7772,6 +7781,22 @@ describe("Tasks sidebar entry", () => {
     expect(host.toast).toHaveBeenCalledWith("Cannot open task: navigation is unavailable in this client");
     expect(openAgent).not.toHaveBeenCalled();
     expect(consumeBoardOpen("host-1", token)).toBeUndefined();
+  });
+
+  it("clears the unread mark of a task the sidebar opens through the board", async () => {
+    const clearer = vi.fn(async () => {});
+    data.setUnreadClearer(clearer);
+    try {
+      const token = requestBoardOpen("host-1", "sample-done");
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TasksBoardScreen, { theme, host: { id: "host-1", label: "Local" }, layout: { compact: true, platform: "ios" }, params: { openRequest: token }, navigation: { openAgent, openWorkspace: vi.fn() } } as never));
+        await Promise.resolve();
+      });
+      expect(openAgent).toHaveBeenCalledWith({ agentId: "sample-done" });
+      expect(clearer).toHaveBeenCalledWith(["sample-done"]);
+    } finally {
+      data.setUnreadClearer(null);
+    }
   });
 
   it("draws needs input, running and review in that order with their lane icons", () => {
