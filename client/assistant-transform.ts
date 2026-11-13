@@ -30,7 +30,9 @@ function historyBlockRows(text: string): Array<{ text: string; listContinuation?
   return rows;
 }
 
-const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})\s*([A-Za-z0-9_-]*)/;
+// The language is the whole first word of the info string, so ```ui.json and
+// ```ui+json stay ordinary code blocks rather than handing the reply over.
+const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})\s*(\S*)/;
 
 /**
  * True when the reply opens a ```ui or ```app fence. Plugins like genui render

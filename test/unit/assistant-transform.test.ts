@@ -56,6 +56,9 @@ describe("ui fence yield", () => {
     expect(hasUiFence("Just **markdown**")).toBe(false);
     expect(hasUiFence("```ts\nconst one = 1;\n```")).toBe(false);
     expect(hasUiFence("```uish\nnot the ui language\n```")).toBe(false);
+    expect(hasUiFence("```ui.json\n{}\n```")).toBe(false);
+    expect(hasUiFence("```ui+json\n{}\n```")).toBe(false);
+    expect(hasUiFence("```app.html\n<b>hi</b>\n```")).toBe(false);
     expect(hasUiFence("Text with ```ui mid-line is not a fence")).toBe(false);
     expect(hasUiFence("~~~~\n```\nui\n```\n~~~~")).toBe(false);
   });
