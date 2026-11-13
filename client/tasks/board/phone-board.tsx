@@ -284,8 +284,8 @@ export function PhoneBoard(props: {
         switching && !reduced ? MOTION.laneMs + 20 : 0,
       );
     },
-    details(card) {
-      setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id }), scrollBack: [] });
+    details(card, _preview, parent) {
+      setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id, parent }), scrollBack: [] });
     },
   };
 

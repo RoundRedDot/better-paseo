@@ -427,17 +427,17 @@ export function DesktopBoard(props: {
   props.handlers.current = {
     reveal,
     // A long press on a compact or touch card: the same as a click.
-    details(card, preview) {
-      showCard(card, preview);
+    details(card, preview, parent) {
+      showCard(card, preview, parent);
     },
   };
 
   // A click, tap or keyboard preview puts a card in the sidebar.
   // Selecting a card brings a put-away sidebar up for the moment.
   const showCard = useCallback(
-    (card: TaskCard, preview = false) => {
+    (card: TaskCard, preview = false, parent?: string) => {
       if (!preview) setFocus(null);
-      dispatch({ type: "click", id: card.id });
+      dispatch({ type: "click", id: card.id, parent });
       const now = latest.current;
       if (!now.open) setShown("card");
       if (!now.narrow && now.preferred) return;

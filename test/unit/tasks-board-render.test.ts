@@ -3887,6 +3887,11 @@ describe("Tasks board, desktop", () => {
     expect(renderer!.root.findByType(TaskDetailCards).props.card.id).toBe("sample-child-1");
     expect(host.toast).not.toHaveBeenCalled();
     expect(openAgent).not.toHaveBeenCalled();
+    // The parent whose row it was is one press back, as after a jump from the parent's details.
+    expect(hostsById("detail-back")[0]!.props.accessibilityLabel).toContain(parent.props.card.title);
+    act(() => hostsById("detail-back")[0]!.props.onPress());
+    expect(renderer!.root.findByType(TaskDetailCards).props.card.id).toBe("sample-running");
+    expect(hostsById("detail-back")).toHaveLength(0);
   });
 
   it("hands the cards Unarchive when the host has the CLI", async () => {

@@ -142,7 +142,8 @@ export const NOTICE_MS = 4000;
 /** The layout's own answers to a parent link and a details request. */
 export interface BoardLayoutHandlers {
   reveal(agentId: string): void;
-  details(card: TaskCard, preview?: boolean): void;
+  /** `parent`: the card whose subtask row asked for these details, to go back to. */
+  details(card: TaskCard, preview?: boolean, parent?: string): void;
 }
 
 const NO_BUTTONS: PermissionButton[] = [];
@@ -525,7 +526,7 @@ export function useBoard(
       onReveal: (agentId, parentId) => {
         if (parentId && !findCard(latest.current.lanes, agentId)) {
           const card = cardById(agentId);
-          if (card) handlers.current?.details(card, true);
+          if (card) handlers.current?.details(card, true, parentId);
           else open(parentId);
           return;
         }

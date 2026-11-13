@@ -128,6 +128,17 @@ describe("sidebar selection", () => {
     expect(selectionReducer(jumped, { type: "click", id: "c" })).toEqual({ id: "c", tab: "messages", back: [] });
   });
 
+  it("keeps the parent to go back to when a card's subtask row shows the subtask", () => {
+    const shown = run({ type: "click", id: "a" }, { type: "click", id: "child", parent: "p" });
+    expect(shown).toEqual({ id: "child", tab: "messages", back: [{ id: "p", tab: "messages" }] });
+    expect(selectionReducer(shown, { type: "click", id: "child", parent: "p" })).toBe(shown);
+    expect(escapeStep(shown, false)).toBe("back");
+    expect(selectionReducer(shown, { type: "back" })).toEqual({ id: "p", tab: "messages", back: [] });
+    // A plain click on the same subtask drops the way back; a card is never its own parent.
+    expect(selectionReducer(shown, { type: "click", id: "child" })).toEqual({ id: "child", tab: "messages", back: [] });
+    expect(run({ type: "click", id: "p", parent: "p" })).toEqual({ id: "p", tab: "messages", back: [] });
+  });
+
   it("restores each page when going back, including through Esc", () => {
     let state = run({ type: "click", id: "a" }, { type: "tab", tab: "info" }, { type: "jump", id: "b" });
     expect(state.tab).toBe("messages");

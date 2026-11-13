@@ -93,8 +93,12 @@ export interface SidebarSelection {
 export const NO_SELECTION: SidebarSelection = { id: null, tab: "messages", back: [] };
 
 export type SelectionAction =
-  /** A click or tap on a card: the only way a board card reaches the sidebar. */
-  | { type: "click"; id: string }
+  /**
+   * A click or tap on a card: the only way a board card reaches the sidebar.
+   * `parent`: the card whose subtask row was pressed, kept to go back to, so
+   * a subtask shown from its parent's card has the parent one press away.
+   */
+  | { type: "click"; id: string; parent?: string }
   /** A parent or subtask link in the sidebar: shown, the current one kept to go back to. */
   | { type: "jump"; id: string }
   | { type: "tab"; tab: DetailTab }
@@ -103,9 +107,11 @@ export type SelectionAction =
 
 export function selectionReducer(state: SidebarSelection, action: SelectionAction): SidebarSelection {
   switch (action.type) {
-    case "click":
-      if (state.id === action.id && state.back.length === 0) return state;
-      return { id: action.id, tab: "messages", back: [] };
+    case "click": {
+      const parent = action.parent && action.parent !== action.id ? action.parent : undefined;
+      if (state.id === action.id && (parent ? state.back.length === 1 && state.back[0]!.id === parent : state.back.length === 0)) return state;
+      return { id: action.id, tab: "messages", back: parent ? [{ id: parent, tab: "messages" }] : [] };
+    }
     case "jump":
       if (state.id === action.id) return state;
       return { id: action.id, tab: "messages", back: state.id ? [...state.back, { id: state.id, tab: state.tab }].slice(-SIDEBAR.history) : state.back };
