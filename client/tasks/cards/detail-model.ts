@@ -27,14 +27,22 @@ export function detailHero(card: TaskCard): DetailHero {
 }
 
 /**
- * Whether a waiting request's answers sit in its own section, under the
- * details' header and the task's controls (Stop, Open, Close), instead of in
- * the sheet's bottom bar. Every kind does: a tool's Allow and Deny answer in
- * place as a question's options do, so the board leaves its bottom bar out
- * for the same cards the details draw the section for.
+ * The request kinds drawn in a section of their own, on the card and in the
+ * details: a question, and a tool's permission, whose Allow and Deny answer in
+ * place as a question's options do. A plan, a mode change or an unknown
+ * request keeps its block and the bottom bar.
+ */
+export function sectionRequest(card: TaskCard): boolean {
+  return card.permission?.kind === "question" || card.permission?.kind === "tool";
+}
+
+/**
+ * Whether a request's answers sit in its section, under the task's controls
+ * (Stop, Open, Close), instead of in the sheet's bottom bar: the board leaves
+ * its bottom bar out for the same cards the details answer in place.
  */
 export function requestInSection(card: TaskCard, buttons: readonly PermissionButton[]): boolean {
-  return detailHero(card) === "permission" && buttons.length > 0;
+  return sectionRequest(card) && buttons.length > 0;
 }
 
 /**

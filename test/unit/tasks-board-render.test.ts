@@ -3197,10 +3197,10 @@ describe("Tasks board, desktop", () => {
       timings.finish(timings.slide().at(-1)!);
       // As a question's: no bottom bar; Open and Close on the row above the request, Allow and Deny under it.
       expect(hostsById("detail-action-bar")).toHaveLength(0);
-      const controls = hostsById("detail-request-controls");
+      const controls = hostsById("detail-question-controls");
       expect(controls).toHaveLength(1);
       expect(controls[0]!.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.testID)).toEqual(["detail-bar-open", "detail-bar-close"]);
-      const section = hostsById("detail-request-section");
+      const section = hostsById("detail-question-section");
       expect(section).toHaveLength(1);
       expect(StyleSheet.flatten(section[0]!.props.style).borderTopWidth).toBe(0.5);
       const answers = section[0]!.findAll((node) => typeof node.type === "string" && node.props.testID === "detail-permission-actions");
@@ -7318,10 +7318,10 @@ describe("Tasks board, phone", () => {
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
     const input = cards().find((card) => card.props.card.id === "sample-input")!;
     await act(async () => input.props.onSelect(input.props.card));
-    expect(renderer!.root.findByType(TaskDetailCards).props).toMatchObject({ requestActionsInHeader: true, actions: false });
-    // As a question's: Stop and Open above the request's section, Allow and Deny inside it.
+    expect(renderer!.root.findByType(TaskDetailCards).props).toMatchObject({ questionActionsInHeader: true, actions: false });
+    // As a question's: Open above the request's section, Allow and Deny inside it.
     expect(hostsById("detail-action-bar")).toHaveLength(0);
-    const controls = hostsById("detail-request-controls")[0]!;
+    const controls = hostsById("detail-question-controls")[0]!;
     expect(controls.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.testID)).toEqual(["detail-bar-open"]);
     const answers = hostsById("detail-permission-actions")[0]!.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
     expect(answers.map((node) => node.props.accessibilityLabel)).toEqual(["Allow", "Deny"]);
@@ -7331,7 +7331,7 @@ describe("Tasks board, phone", () => {
   it.each(["ios", "android", "web"])("shows message and info tabs with a pinned action bar in the %s phone sheet", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     await act(async () => { renderer = TestRenderer.create(screen(true)); });
-    // A running card: a waiting request answers in its section instead of a bar.
+    // A running card: the waiting tool permission answers in its section instead of a bar.
     await act(async () => pressable("Running 2").props.onPress());
     const running = cards().find((card) => card.props.card.id === "sample-running")!;
     await act(async () => running.props.onSelect(running.props.card));

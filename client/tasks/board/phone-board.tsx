@@ -684,7 +684,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           scrollHeader
           indicatorOutside
           actions={false}
-          requestActionsInHeader
+          questionActionsInHeader
           clock={board.clock}
           onOpen={props.onOpen}
           stop={stop}

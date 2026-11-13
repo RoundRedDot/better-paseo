@@ -452,6 +452,20 @@ describe("details columns", () => {
     await act(async () => withUnread[0]!.props.onPress());
     expect(markUnread.press).toHaveBeenCalledWith(card);
   });
+  it.each(["plan", "mode", "other"] as const)("keeps a %s request's answers and stop actions in the footer", async (kind) => {
+    // Only a question and a tool permission are answered in their section.
+    const input = previewSampleCards(NOW).find((item) => item.id === "sample-input")!;
+    const card = { ...input, permission: { ...input.permission!, kind, actions: kind === "plan" ? [{ id: "implement", label: "Implement", behavior: "allow" as const, variant: "primary" as const }, { id: "reject", label: "Reject", behavior: "deny" as const, variant: null }] : [] } };
+    const stop = vi.fn();
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} card={card} columns={false} tabs onOpen={() => {}} stop={{ phase: "idle", onPress: stop }} permissionButtons={permissionButtons(card.permission!, "en", true)} onPermission={() => {}} />); });
+    const root = renderer!.root;
+    expect(host(root, "detail-permission").findAll((node) => node.props.testID === "detail-permission-actions")).toHaveLength(0);
+    expect(root.findAll((node) => node.props.testID === "detail-question-section" || node.props.testID === "detail-question-controls")).toHaveLength(0);
+    const labels = host(root, "detail-action-bar").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel);
+    expect(labels).toEqual({ plan: ["Reject", "Implement", "Stop", "Open"], mode: ["Deny", "Allow", "Stop", "Open"], other: ["Answer", "Stop"] }[kind]);
+    await act(async () => host(root, "detail-bar-stop").props.onPress());
+    expect(stop).toHaveBeenCalledOnce();
+  });
   it("answers a tool permission in its section and keeps Stop on the controls row above it", async () => {
     const card = previewSampleCards(NOW).find((item) => item.id === "sample-input")!;
     const stop = vi.fn();
@@ -462,10 +476,10 @@ describe("details columns", () => {
     const answers = host(root, "detail-permission-actions").findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
     expect(answers.map((node) => node.props.accessibilityLabel)).toEqual(["Allow", "Deny"]);
     expect(root.findAll((node) => node.props.testID === "detail-action-bar")).toHaveLength(0);
-    expect(host(root, "detail-request-section").props.style).toMatchObject({ borderTopWidth: 0.5 });
+    expect(host(root, "detail-question-section").props.style).toMatchObject({ borderTopWidth: 0.5 });
     await act(async () => answers[1]!.props.onPress());
     expect(onPermission).toHaveBeenCalledWith(expect.objectContaining({ kind: "respond", action: expect.objectContaining({ behavior: "deny" }) }));
-    await act(async () => host(host(root, "detail-request-controls"), "detail-bar-stop").props.onPress());
+    await act(async () => host(host(root, "detail-question-controls"), "detail-bar-stop").props.onPress());
     expect(stop).toHaveBeenCalledOnce();
   });
   it("shows all three messages and remembers a manually collapsed section", async () => {

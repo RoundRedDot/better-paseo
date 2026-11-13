@@ -7,6 +7,7 @@ import {
   detailSections,
   replyBeforeHuman,
   requestInSection,
+  sectionRequest,
   formatShare,
   formatSpan,
   formatTurnClock,
@@ -26,18 +27,18 @@ const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const sample = (id: string): TaskCard => previewSampleCards(NOW).find((card) => card.id === id)!;
 
 describe("details card model", () => {
-  it("answers every waiting request kind in its section once it has buttons, so the board leaves its bottom bar out", () => {
+  it("answers only a question or a tool permission in its section, so the board keeps the bar for the rest", () => {
     const input = sample("sample-input");
     const buttons: PermissionButton[] = [{ key: "allow", label: "Allow", variant: "primary", kind: "respond", action: { behavior: "allow", id: null } }];
     for (const kind of ["tool", "plan", "mode", "question", "other"] as const) {
       const card: TaskCard = { ...input, permission: { ...input.permission!, kind } };
-      expect(requestInSection(card, buttons)).toBe(true);
+      const section = kind === "question" || kind === "tool";
+      expect(sectionRequest(card)).toBe(section);
+      expect(requestInSection(card, buttons)).toBe(section);
       // No buttons (a hidden card's preview): the bar, if any, keeps the controls.
       expect(requestInSection(card, [])).toBe(false);
     }
-    // A request outside the waiting lane leads nothing, so its buttons stay with the bar.
-    expect(requestInSection({ ...input, lane: "running" }, buttons)).toBe(false);
-    expect(requestInSection(sample("sample-running"), [])).toBe(false);
+    expect(sectionRequest(sample("sample-running"))).toBe(false);
   });
 
   it("leads with what each state needs first, and orders the sections after it", () => {

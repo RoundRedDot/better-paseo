@@ -68,6 +68,7 @@ import {
   detailSections,
   replyBeforeHuman,
   requestInSection,
+  sectionRequest,
   errorLines,
   formatSpan,
   formatTurnClock,
@@ -181,12 +182,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   compact?: boolean;
   onClose?(): void;
   onSheetClose?(): void;
-  /**
-   * Answer a waiting request (a question, or a tool's Allow and Deny) under it,
-   * with the task's controls on a row of their own above its section, instead
-   * of in the sheet footer.
-   */
-  requestActionsInHeader?: boolean;
+  /** Put a question's or a tool permission's controls beside it instead of in the sheet footer. */
+  questionActionsInHeader?: boolean;
   onMenu?(point: { x: number; y: number }): void;
   sheetToggle?: { full: boolean; label: string; onPress(): void };
   /** Park the native indicator in the sheet's existing horizontal padding. The phone sheet has that padding and no `sheetToggle`. */
@@ -365,7 +362,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   });
   const edgeListener = useRef(props.onScrollEdge);
   edgeListener.current = props.onScrollEdge;
-  const requestInHeader = !!props.onPermission && requestInSection(card, props.permissionButtons ?? []) && (props.requestActionsInHeader === true || props.tabs === true && props.actions !== false);
+  const questionInHeader = !!props.onPermission && requestInSection(card, props.permissionButtons ?? []) && (props.questionActionsInHeader === true || props.tabs === true && props.actions !== false);
   const tabs = props.tabs === true;
   const scrollHeader = props.scrollHeader === true;
   useEffect(() => {
@@ -442,7 +439,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             {...detailScrollProps("inset")}
             testID="detail-tab-short-scroll"
           >
-            <DetailHeader {...props} requestActionsInHeader={requestInHeader} actions={false} m={m} tokens={tokens} now={now} time={time} gutter={gutter} hideStatus />
+            <DetailHeader {...props} questionActionsInHeader={questionInHeader} actions={false} m={m} tokens={tokens} now={now} time={time} gutter={gutter} hideStatus />
             {tabBar}
             {(["info", "messages"] as const).map((id) => (
               <DetailTabPage
@@ -473,7 +470,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
           </>
         ) : (
           <>
-            <DetailHeader {...props} requestActionsInHeader={requestInHeader} actions={false} m={m} tokens={tokens} now={now} time={time} />
+            <DetailHeader {...props} questionActionsInHeader={questionInHeader} actions={false} m={m} tokens={tokens} now={now} time={time} />
             {tabBar}
             <TabPages {...(!props.touch ? { style: { flex: 1, minHeight: 0 } } : {})}>
               <View style={props.touch ? { flex: 1, minHeight: 0, display: tab === "info" ? "flex" : "none" } : { position: "absolute", inset: 0, ...({ visibility: tab === "info" ? "visible" : "hidden" } as object) }}>
@@ -490,7 +487,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
             </TabPages>
           </>
         )}
-        {props.actions !== false && !requestInHeader ? (
+        {props.actions !== false && !questionInHeader ? (
           <SheetFoot card={{ background: tokens.card.background, border: tokens.card.border, radius: DETAIL_CARD.radius }}>
             <View testID="detail-action-bar-frame" style={{ paddingBottom: props.touch && props.sheetToggle && Platform.OS === "android" ? 6 : 10 }}><EdgeActionBar {...props} chrome={chrome} scrollHeader={scrollHeader} onClose={props.onSheetClose} sidebar smallTablet={!!(props.touch && props.sheetToggle && Platform.OS === "android")} /></View>
           </SheetFoot>
@@ -706,7 +703,7 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
   const iconSize = props.compact ? 12 : 11;
   const chipHeight = props.compact ? TOUCH_CARD.chip : DETAIL_CARD.chip;
   const hero = detailHero(card);
-  const requestInHeader = props.requestActionsInHeader === true && !!props.onPermission && requestInSection(card, props.permissionButtons ?? []);
+  const questionInHeader = props.questionActionsInHeader === true && !!props.onPermission && requestInSection(card, props.permissionButtons ?? []);
   const mode = card.modeLabel ? modeIcon(card.provider, card.modeLabel) : null;
   const stop = stopLabel(props);
   // An archived task can be brought back; one of an archived workspace has nothing of its own to unarchive.
@@ -943,11 +940,11 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
           {touch ? lead : null}
         </ActionRow>
       ) : null}
-      {requestInHeader ? <DetailActionBar {...props} controlsOnly onClose={props.onSheetClose} /> : null}
-      {/* A waiting request, of any kind, starts a section under a rule, as on its card. */}
-      <View testID={hero === "permission" ? "detail-request-section" : undefined} style={{ marginTop: 12, ...(hero === "permission" ? { paddingTop: 12, borderTopWidth: 0.5, borderTopColor: tokens.border } : null) }}>
+      {questionInHeader ? <DetailActionBar {...props} controlsOnly onClose={props.onSheetClose} /> : null}
+      {/* A question or a tool's permission starts a section under a rule, as on its card. */}
+      <View testID={sectionRequest(card) ? "detail-question-section" : undefined} style={{ marginTop: 12, ...(sectionRequest(card) ? { paddingTop: 12, borderTopWidth: 0.5, borderTopColor: tokens.border } : null) }}>
         {hero === "turn" ? <RunningTurn {...props} /> : null}
-        {hero === "permission" ? <PermissionBlock {...props} actions={requestInHeader ? true : props.actions} /> : null}
+        {hero === "permission" ? <PermissionBlock {...props} actions={questionInHeader ? true : props.actions} /> : null}
         {hero === "error" ? <ErrorBlock {...props} /> : null}
         {hero === "summary" ? <SummaryTiles tiles={summaryTiles(card, props.now, props.language)} tokens={tokens} touch={touch} /> : null}
       </View>
@@ -2228,8 +2225,6 @@ function OutlineButton(props: {
  * Under the phone's sheet: compact actions (36, radius 10).
  * Running: stop, then open the tab at the right. Asking: deny, allow as the
  * main button, and the tab shrunk to a square at the right. Otherwise: open the tab.
- * The board answers a waiting request in its section instead (`requestInSection`,
- * `controlsOnly` above it); the asking layout stays for a caller that draws none.
  */
 export function DetailActionBar(props: {
   card: TaskCard;
@@ -2250,7 +2245,7 @@ export function DetailActionBar(props: {
   flushBottom?: boolean;
   /** The page still runs under this bar, so it casts the same edge the tabs do. */
   contentUnder?: boolean;
-  /** Only the task's controls (Stop, Open, Close), above a waiting request whose section holds its answers. */
+  /** Only the task's controls (Stop, Open, Close), above a question or tool permission answered in its section. */
   controlsOnly?: boolean;
 }) {
   const { card } = props;
@@ -2278,10 +2273,9 @@ export function DetailActionBar(props: {
   const ordered = [...respond].sort((a, b) => (a.action.behavior === "allow" ? 1 : 0) - (b.action.behavior === "allow" ? 1 : 0));
   const pairedOpen = !!props.onClose && (ownOpen || parentOpens) && !answer;
   if (props.controlsOnly) {
-    // An unknown request's "Answer" already opens the tab.
     const showOpen = !buttons.some((button) => button.kind === "open");
     return (
-      <ActionRow testID="detail-request-controls" style={{ marginTop: 12, justifyContent: "flex-end" }}>
+      <ActionRow testID="detail-question-controls" style={{ marginTop: 12, justifyContent: "flex-end" }}>
         {stop && props.stop ? <BarButton tokens={tokens} sidebar={props.sidebar} icon={props.stop.phase === "confirming" ? CONFIRM_STOP_ICON : "Power"} look="danger" label={stop} busy={props.stop.phase === "stopping"} grow={false} onPress={props.stop.onPress} testID="detail-bar-stop" /> : null}
         {showOpen && parentOpens ? <BarButton tokens={tokens} sidebar={props.sidebar} icon="CornerLeftUp" label={cardText.openParent} grow={false} onPress={() => onOpen?.(card.parent!.id)} testID="detail-bar-open-parent" /> : null}
         {showOpen && ownOpen ? <BarButton tokens={tokens} sidebar={props.sidebar} arrow label={openText} grow={false} onPress={open} testID="detail-bar-open" /> : null}

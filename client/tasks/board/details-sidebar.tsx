@@ -142,7 +142,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
           touch={props.touch}
           sheetToggle={props.sheetToggle}
           onSheetClose={props.onSheetClose}
-          requestActionsInHeader={!tabs && !!props.onSheetClose}
+          questionActionsInHeader={!tabs && !!props.onSheetClose}
           actions={!tabs && props.onSheetClose ? false : undefined}
           scrollBody={!short && !columns && !tabs}
           columns={columns}
@@ -214,7 +214,7 @@ interface SidebarDetailsProps {
   touch: boolean;
   sheetToggle?: { full: boolean; label: string; onPress(): void };
   onSheetClose?(): void;
-  requestActionsInHeader?: boolean;
+  questionActionsInHeader?: boolean;
   actions: false | undefined;
   scrollBody: boolean;
   columns: boolean;
@@ -253,7 +253,7 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
       onMenu={(point) => props.onMenu(card.id, point)}
       sheetToggle={props.sheetToggle}
       onSheetClose={props.onSheetClose}
-      requestActionsInHeader={props.requestActionsInHeader}
+      questionActionsInHeader={props.questionActionsInHeader}
       back={props.backId ? { title: props.backCard?.title ?? board.strings.back, onPress: () => dispatch({ type: "back" }) } : null}
       notice={notice}
       onJump={(agentId) => {
