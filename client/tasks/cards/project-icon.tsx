@@ -57,9 +57,14 @@ export function projectViewKey(location: ProjectIconLocation, hostId?: string | 
 export type ProjectIconLocation = Pick<TaskLocation, "projectId" | "projectKey" | "projectName" | "projectIcon">;
 
 export function ProjectIcon(props: { location: ProjectIconLocation; size: number; hostId?: string | null }) {
+  return <ProjectIconContent key={props.location.projectIcon} {...props} />;
+}
+
+function ProjectIconContent(props: { location: ProjectIconLocation; size: number; hostId?: string | null }) {
+  const [failed, setFailed] = React.useState(false);
   const { location, size } = props;
-  if (location.projectIcon) {
-    return <Image source={{ uri: location.projectIcon }} style={{ width: size, height: size }} testID="project-icon-image" />;
+  if (location.projectIcon && !failed) {
+    return <Image source={{ uri: location.projectIcon }} onError={() => setFailed(true)} style={{ width: size, height: size }} testID="project-icon-image" />;
   }
   return (
     <View

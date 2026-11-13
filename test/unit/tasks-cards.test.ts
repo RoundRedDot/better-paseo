@@ -1855,6 +1855,16 @@ describe("ProjectIcon", () => {
     expect(flat(image.props.style).borderRadius).toBeUndefined();
   });
 
+  it("shows the generated phone icon when an image fails and retries a changed image", async () => {
+    const card = sample("sample-running");
+    const withIcon = (uri: string) => ({ ...card, location: { ...card.location, projectIcon: uri } });
+    const tree = await render(cardElement(withIcon("data:image/png;base64,AAAA"), { compact: true }));
+    await act(async () => hostByTestId(tree.root, "project-icon-image").props.onError());
+    expect(hostByTestId(tree.root, "project-icon-generated").find((node) => (node.type as unknown) === "Text").props.children).toBe("B");
+    await act(async () => tree.update(cardElement(withIcon("data:image/png;base64,BBBB"), { compact: true })));
+    expect(hostByTestId(tree.root, "project-icon-image").props.source.uri).toBe("data:image/png;base64,BBBB");
+  });
+
   it.each([false, true])("centres the project icon, status mark and start clock in one column (compact=%s)", async (compact) => {
     const tree = await render(cardElement(sample("sample-running"), { compact }));
     // The nearest host View around a node that sets a width: the column cell it is centred in.
