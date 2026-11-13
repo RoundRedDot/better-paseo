@@ -1,5 +1,8 @@
 import type { PluginClientContext, PluginTimelineTransformerContribution } from "@getpaseo/plugin/client";
 import { z } from "zod";
+import { LiveTurnWorkRenderer } from "./client/components/turn-work";
+import { followTurnWorkProjection, projectTurnWork, resetTurnWorkProjection, type TurnWorkSourceIdentity } from "./client/state/turn-work-projection";
+import { configureTurnWorkObservations } from "./client/state/turn-footers";
 import { contributeSettingsScreen } from "./client/settings-screen";
 import { removeEmbeddedFonts, setEmbeddedFontLoader } from "./client/components/embed-fonts";
 import { installChatFind } from "./client/components/chat-find";
@@ -53,6 +56,10 @@ export default function contribute(client: PluginClientContext) {
   const addChatTransformer = <ItemType extends PluginTimelineTransformerContribution["query"]["itemType"]>(
     contribution: PluginTimelineTransformerContribution<ItemType>,
   ) => followChat(() => client.addTimelineTransformer(contribution));
+  const removeWorkObservations = followChat(() => followPreference("autoCollapseTurnWork", () => {
+    configureTurnWorkObservations(getEnhancerPreferences().autoCollapseTurnWork);
+    return () => configureTurnWorkObservations(false);
+  }));
 
   // The embedded Inter faces are read from the daemon and installed on first
   // use by a reader who picks them (`ensureEmbeddedFonts`); unloading
@@ -74,11 +81,15 @@ export default function contribute(client: PluginClientContext) {
   const removeSettings = contributeSettingsScreen(client);
 
   // Live chat timeline interception: render real tool calls, reasoning, and todos with enhanced UI.
-  const removeToolTransformer = addChatTransformer({
+  const removeToolTransformer = followTurnWorkProjection(() => addChatTransformer({
     id: "omp-enhanced-tool-call",
     query: { itemType: "tool_call" },
-    transform: transformToolCall,
-  });
+    transform(input) {
+      const result = transformToolCall(input);
+      return getEnhancerPreferences().autoCollapseTurnWork
+        ? projectTurnWork(input.item, input.phase, result, input as typeof input & Partial<TurnWorkSourceIdentity>) : result;
+    },
+  }));
 
   // Drawn by the tool row renderer, as a row like a call's.
   const removeCompactionTransformer = addChatTransformer({
@@ -92,6 +103,7 @@ export default function contribute(client: PluginClientContext) {
     version: 1,
     schema: z.object({
       name: z.string(),
+      workSource: z.object({ agentId: z.string(), sourceId: z.string(), sourceCursor: z.object({ epoch: z.string(), seq: z.number() }) }).optional(),
       status: z.string(),
       detail: z.record(z.string(), z.unknown()).optional(),
       callId: z.string().optional(),
@@ -105,12 +117,13 @@ export default function contribute(client: PluginClientContext) {
     Component: LiveToolCallRenderer,
   });
 
-  const removeReasoningTransformer = addChatTransformer({
+  const removeReasoningTransformer = followTurnWorkProjection(() => addChatTransformer({
     id: "omp-enhanced-reasoning",
     query: { itemType: "reasoning" },
-    transform({ item, phase }) {
+    transform(input) {
+      const { item, phase } = input;
       if (item.type !== "reasoning") return undefined;
-      return {
+      const result = {
         items: [
           {
             type: "plugin" as const,
@@ -123,17 +136,26 @@ export default function contribute(client: PluginClientContext) {
           },
         ],
       };
+      return getEnhancerPreferences().autoCollapseTurnWork
+        ? projectTurnWork(item, phase, result, input as typeof input & Partial<TurnWorkSourceIdentity>) : result;
     },
-  });
+  }));
 
   const removeReasoningRenderer = client.addTimelineRenderer({
     kind: "omp-reasoning",
     version: 1,
     schema: z.object({
       text: z.string(),
+      workSource: z.object({ agentId: z.string(), sourceId: z.string(), sourceCursor: z.object({ epoch: z.string(), seq: z.number() }) }).optional(),
       phase: z.string().optional(),
     }),
     Component: LiveReasoningRenderer,
+  });
+
+  const removeWorkRenderer = client.addTimelineRenderer({
+    kind: "omp-turn-work", version: 1,
+    schema: z.object({ groupKey: z.string(), anchor: z.string(), count: z.number(), failed: z.number() }),
+    Component: LiveTurnWorkRenderer,
   });
 
   const removeTodoTransformer = addChatTransformer({
@@ -311,6 +333,9 @@ export default function contribute(client: PluginClientContext) {
     removeToolRenderer();
     removeReasoningTransformer();
     removeReasoningRenderer();
+    removeWorkRenderer();
+    removeWorkObservations();
+    resetTurnWorkProjection();
     removeTodoTransformer();
     removeTodoRenderer();
     removeUserTransformer();

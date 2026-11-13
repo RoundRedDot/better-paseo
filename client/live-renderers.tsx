@@ -60,6 +60,8 @@ import {
 } from "./state/render-equality";
 import { noteTimelineRowShown } from "./state/startup-settled";
 import { useHeldRow } from "./ui/hidden-row";
+import { TurnWorkItem } from "./components/turn-work";
+import type { TurnWorkSourceIdentity } from "./state/turn-work-projection";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -68,6 +70,7 @@ function toJsonValue(value: unknown): JsonValue {
 }
 
 export interface LiveToolCallPayload {
+  workSource?: TurnWorkSourceIdentity;
   agentMessage?: import("./tools/agent-message").AgentMessage;
   name: string;
   status: string;
@@ -81,6 +84,7 @@ export interface LiveToolCallPayload {
 }
 
 export interface LiveReasoningPayload {
+  workSource?: TurnWorkSourceIdentity;
   text: string;
   phase?: string;
 }
@@ -908,7 +912,7 @@ function SenderlessAgentMessage(props: PluginTimelineItemProps<LiveToolCallPaylo
   return <ToolCallMemo {...rest} item={item} />;
 }
 
-export function LiveToolCallRenderer(props: PluginTimelineItemProps<LiveToolCallPayload>) {
+function ToolCallRendererContent(props: PluginTimelineItemProps<LiveToolCallPayload>) {
   const held = useHeldRow({ compact: props.layout.compact, window: true });
   if (held) return held;
   const data = props.item.data;
@@ -920,12 +924,25 @@ export function LiveToolCallRenderer(props: PluginTimelineItemProps<LiveToolCall
   </BlockPlacement>;
 }
 
-export function LiveReasoningRenderer(props: PluginTimelineItemProps<LiveReasoningPayload>) {
+export function LiveToolCallRenderer(props: PluginTimelineItemProps<LiveToolCallPayload>) {
+  const data = props.item.data;
+  return <TurnWorkItem {...props} sourceKey={data.callId ? `tool:${data.callId}` : null} workSource={data.workSource}>
+    <ToolCallRendererContent {...props} />
+  </TurnWorkItem>;
+}
+
+function ReasoningRendererContent(props: PluginTimelineItemProps<LiveReasoningPayload>) {
   const held = useHeldRow({ compact: props.layout.compact, window: true });
   if (held) return held;
   return <BlockPlacement agentId={props.agentId} timestamp={props.timestamp} kind="thought">
     <ChatComposerContext.Provider value={props.composer}><ReasoningMemo {...props} /></ChatComposerContext.Provider>
   </BlockPlacement>;
+}
+
+export function LiveReasoningRenderer(props: PluginTimelineItemProps<LiveReasoningPayload>) {
+  return <TurnWorkItem {...props} sourceKey={`thought:${props.item.data.text}`} workSource={props.item.data.workSource}>
+    <ReasoningRendererContent {...props} />
+  </TurnWorkItem>;
 }
 
 export function LiveTodoRenderer(props: PluginTimelineItemProps<LiveTodoPayload>) {
