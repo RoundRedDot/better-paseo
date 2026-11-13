@@ -867,7 +867,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
   // A lane's card scrolled back into view mounts again, its labels' widths already known.
   const REMOUNT_LABELS = [["允许", "拒绝"], ["按此方案执行", "先不要改"], [...WIDE_CJK], [...WIDE_LATIN]] as const;
   it.each([true, false].flatMap((compact) => [300, 340, 390, 600].flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).flatMap((language) => REMOUNT_LABELS.map((_, set) => [compact, width, scale, language, set] as const))))))
-  ("remounts two options and View questions as they settled, from its first frame and in one commit (compact %s, %ipt, scale %f, %s, labels %i)", async (compact, width, textScale, language, set) => {
+  ("remounts two options and View questions apart from its first frame, as they settled and in one commit when they fit one line (compact %s, %ipt, scale %f, %s, labels %i)", async (compact, width, textScale, language, set) => {
     const labels = REMOUNT_LABELS[set]!;
     const card = choice([labels[0], labels[1]])();
     const options = { width, textScale, wrapText: true, wordWrap: true };
@@ -885,10 +885,11 @@ describe("phone card action bar under native (Yoga) layout", () => {
     await act(async () => { renderer = mount({ ...card, id: "another-question" }, () => { commits++; }); });
     const mounted = commits;
     expect(mounted).toBeGreaterThan(0);
-    // Its first frame, before any layout reaches the row, is the settled one.
+    // Its first frame, before any layout reaches the row: always apart and inside the card.
     const first = measureHostTree(answers(), options);
     expect(collisions(first, answers())).toEqual([]);
-    expect(actionButtons(answers()).map((button) => first.get(button)!)).toEqual(settled);
+    expect(wrapping(answers())).toEqual([]);
+    const firstFrames = actionButtons(answers()).map((button) => first.get(button)!);
     const frames = await settleHostLayout(answers, options);
     const buttons = actionButtons(answers());
     expect(buttons.map((button) => button.props.accessibilityLabel)).toEqual([labels[0], labels[1], language === "zh" ? "查看问题" : "View questions"]);
@@ -897,10 +898,16 @@ describe("phone card action bar under native (Yoga) layout", () => {
     expect(unevenLines(frames, answers())).toEqual([]);
     expect(overflows(frames, textScale, answers())).toEqual([]);
     expect(wrapping(answers())).toEqual([]);
-    // Nothing about the row changes once its width is known: the mount was its only commit.
-    expect(commits - mounted).toBe(0);
     const lines = buttonLines(frames, answers());
     if (width === 600 && textScale === 1) expect(lines).toHaveLength(1);
+    if (lines.length === 1) {
+      // With its labels' widths known, one line is drawn whole from the first frame, and the mount is its only commit.
+      expect(firstFrames).toEqual(settled);
+      expect(commits - mounted).toBe(0);
+    } else {
+      // Separating them waits for the row's width: one more commit, after its first onLayout.
+      expect(commits - mounted).toBeGreaterThan(0);
+    }
     // View questions takes the last line alone once all three do not fit; the options pair up above it or take a line each.
     const order = lines.map((line) => line.map(({ node }) => buttons.indexOf(node)));
     expect([[[0, 1, 2]], [[0, 1], [2]], [[0], [1], [2]]]).toContainEqual(order);
@@ -911,7 +918,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
   // mounting at that width starts from widths measured on a wider card.
   const NARROWED = [...REMOUNT_LABELS.map((labels) => ({ name: labels.join(" / "), card: choice([labels[0], labels[1]]) })), { name: "Allow / Deny", card: () => kindCard("tool") }, { name: "a plan's three choices", card: () => kindCard("plan-resume") }];
   it.each([true, false].flatMap((compact) => [240, 300, 340].flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).flatMap((language) => NARROWED.map((item) => [compact, width, scale, language, item.name] as const))))))
-  ("keeps answers measured at 600pt inside a narrower card, and draws them whole once it has settled there (compact %s, %ipt, scale %f, %s, %s)", async (compact, width, textScale, language, name) => {
+  ("keeps answers measured at 600pt inside a narrower card from the first frame, and whole once its width arrives (compact %s, %ipt, scale %f, %s, %s)", async (compact, width, textScale, language, name) => {
     const card = NARROWED.find((item) => item.name === name)!.card();
     const wide = { width: 600, textScale, wrapText: true, wordWrap: true };
     const narrow = { ...wide, width };
@@ -950,13 +957,14 @@ describe("phone card action bar under native (Yoga) layout", () => {
     whole(narrowFrames);
     const settled = positions(narrowFrames);
     await act(async () => renderer!.unmount());
-    // Once a card has settled at the narrow width, the next to mount there draws that layout from its first frame.
+    // A card mounting once another has settled at the narrow width: apart from its first frame, and as that one once its width arrives.
     await act(async () => { renderer = mount({ ...card, id: "third-request" }); });
     const first = measureHostTree(answers(), narrow);
-    whole(first);
-    expect(positions(first)).toEqual(settled);
+    apart(first);
     const frames = await settleHostLayout(answers, narrow);
     whole(frames);
+    expect(positions(frames)).toEqual(settled);
+    if (buttonLines(frames, answers()).length === 1) expect(positions(first)).toEqual(settled);
     const buttons = actionButtons(answers());
     const order = buttonLines(frames, answers()).map((line) => line.map(({ node }) => buttons.indexOf(node)));
     if (card.permission?.kind === "question") expect([[[0, 1, 2]], [[0, 1], [2]], [[0], [1], [2]]]).toContainEqual(order);

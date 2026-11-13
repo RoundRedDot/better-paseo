@@ -1502,7 +1502,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     const id = onPhone ? "task-card-question-actions" : "task-card-answer-actions";
     const style: ViewStyle | undefined = onPhone ? undefined : { width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0 };
     const renderRow = (buttons: PermissionButton[]) => (
-      <ActionRow key={buttons[0]!.key} gap={GAP} stack={stackAnswers} stackFull={card.lane === "needs_input"} fill={card.lane === "needs_input"} splitLast={inlineQuestion} layoutKey={card.lane === "needs_input" ? `${onPhone ? "phone" : "card"}\n${buttons.map((button) => `${button.kind}:${button.label}`).join("\n")}` : undefined} testID={answerGroups.length === 1 ? id : undefined} style={answerGroups.length === 1 ? style : undefined}>
+      <ActionRow key={buttons[0]!.key} gap={GAP} stack={stackAnswers} stackFull={card.lane === "needs_input"} fill={card.lane === "needs_input"} splitLast={inlineQuestion} testID={answerGroups.length === 1 ? id : undefined} style={answerGroups.length === 1 ? style : undefined}>
         {buttons.map((button) => (
           <ActionButton key={button.key} button={button} tokens={tokens} compact={onPhone} keepLabel={card.lane === "needs_input" || keepsAnswerLabel(button, props.permissionButtons)} wrapOption={card.lane === "needs_input"}
             disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")}

@@ -78,22 +78,10 @@ export function ActionRow(props: {
   fill?: boolean;
   /** With `fill`: keep the last action on a separate line only if the whole row does not fit. */
   splitLast?: boolean;
-  /**
-   * The row's buttons, by text: a row that mounts again with them (a card
-   * scrolled back into view, another card with the same answers) starts
-   * stacked or split as the last one ended, instead of on one line until
-   * its width arrives.
-   */
-  layoutKey?: string;
 }) {
   const [folded, setFolded] = useState<ReadonlySet<string>>(NO_FOLDS);
-  const [stacked, setStacked] = useState(() => props.layoutKey !== undefined && rowLayouts.get(props.layoutKey)?.stacked === true);
-  const [lastOnOwnRow, setLastOnOwnRow] = useState(() => props.layoutKey !== undefined && rowLayouts.get(props.layoutKey)?.lastOnOwnRow === true);
-  const layoutKey = useRef(props.layoutKey);
-  layoutKey.current = props.layoutKey;
-  const children = actions(props.children);
-  const count = useRef(children.length);
-  count.current = children.length;
+  const [stacked, setStacked] = useState(false);
+  const [lastOnOwnRow, setLastOnOwnRow] = useState(false);
   const stack = useRef(props.stack === true);
   stack.current = props.stack === true;
   const stackFull = useRef(props.stackFull === true);
@@ -119,8 +107,6 @@ export function ActionRow(props: {
     const tight = splitLast.current ? separate && pairTotal > width + 0.5 : stackFull.current ? fullTotal > width + 0.5 : stack.current && total > width + 0.5;
     setLastOnOwnRow(separate);
     setStacked(tight);
-    // Only with every button measured: one leaving as the row unmounts would forget the layout.
-    if (layoutKey.current !== undefined && sorted.length === count.current) rememberRowLayout(layoutKey.current, { stacked: tight, lastOnOwnRow: separate });
     const next = tight ? NO_FOLDS : new Set(sorted.filter((_, index) => modes[index]).map((item) => item.id));
     setFolded((current) => (sameIds(current, next) ? current : next.size === 0 ? NO_FOLDS : next));
   }, []);
@@ -140,6 +126,7 @@ export function ActionRow(props: {
   }, [gap, refold]);
   useLayoutEffect(() => { refold(); }, [props.stack, props.stackFull, props.fill, props.splitLast, refold]);
   // One value per slot while the fold holds, so a button draws again only when it folds or unfolds.
+  const children = actions(props.children);
   // The last slot's place depends on the count only when it may take a line of its own.
   const lastIndex = props.splitLast ? children.length - 1 : -1;
   const slots = useMemo(() => new Map<number, ActionSlot>(), [folded, stacked, lastOnOwnRow, props.fill, lastIndex, register]);
@@ -185,22 +172,9 @@ export function ActionRow(props: {
  */
 const labelWidths = new Map<string, number>();
 
-/** Each `layoutKey`'s last layout, the oldest dropped past `ROW_LAYOUT_LIMIT`. */
-const rowLayouts = new Map<string, { stacked: boolean; lastOnOwnRow: boolean }>();
-const ROW_LAYOUT_LIMIT = 200;
-
-function rememberRowLayout(key: string, layout: { stacked: boolean; lastOnOwnRow: boolean }): void {
-  const known = rowLayouts.get(key);
-  if (known?.stacked === layout.stacked && known.lastOnOwnRow === layout.lastOnOwnRow) return;
-  rowLayouts.delete(key);
-  rowLayouts.set(key, layout);
-  if (rowLayouts.size > ROW_LAYOUT_LIMIT) rowLayouts.delete(rowLayouts.keys().next().value!);
-}
-
-/** Tests: forget the measured labels and rows. */
+/** Tests: forget the measured labels. */
 export function resetActionWidths(): void {
   labelWidths.clear();
-  rowLayouts.clear();
 }
 
 /**
