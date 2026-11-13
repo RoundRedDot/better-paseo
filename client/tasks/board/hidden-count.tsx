@@ -64,6 +64,12 @@ export function hiddenExampleCard(language: "en" | "zh"): TaskCard {
  */
 export function HiddenCount({ tasks, theme, language, fields, compact = false, hostId, onClearFilters, clearLabel = language === "zh" ? "清除筛选" : "Clear filters" }: { tasks: readonly TaskCard[]; theme: PluginTheme; language: "en" | "zh"; fields: CardSettings; compact?: boolean; hostId?: string; onClearFilters?(): void; clearLabel?: string }) {
   const [open, setOpen] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const scrollMetrics = useRef({ content: 0, viewport: 0, offset: 0 });
+  const updateShadow = () => {
+    const { content, viewport, offset } = scrollMetrics.current;
+    setHasMore(viewport > 0 && content - viewport - offset > 1);
+  };
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const title = language === "zh" ? "被隐藏的任务" : "Hidden tasks";
   const groups = (["needs_input", "running", "review"] as const).map((lane) => ({
@@ -99,7 +105,7 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
     node?.setAttribute("title", `${label}\n${names}`);
   }, [label, names]);
   return <View {...(Platform.OS === "web" ? { onClick: (event: React.MouseEvent) => event.stopPropagation() } : {})}>
-    <Pressable ref={anchor} testID="hidden-tasks-count" accessibilityRole="button" accessibilityLabel={label} onPress={() => setOpen(true)} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+    <Pressable ref={anchor} testID="hidden-tasks-count" accessibilityRole="button" accessibilityLabel={label} onPress={() => { scrollMetrics.current = { content: 0, viewport: 0, offset: 0 }; setHasMore(false); setOpen(true); }} hitSlop={8} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
       <View style={{ width: 14, height: 14, alignItems: "center", justifyContent: "center" }}>
         <View style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: taskTokens(theme).card.archiveBorder }} />
       </View>
@@ -107,8 +113,8 @@ export function HiddenCount({ tasks, theme, language, fields, compact = false, h
     </Pressable>
     {open ? <Modal title={title} open onOpenChange={setOpen}>
       <Modal.Content scrollable={!onClearFilters} contentContainerStyle={onClearFilters ? { paddingHorizontal: 0, paddingTop: 0, paddingBottom: compact ? 16 : 24, gap: 0, flex: 1, minHeight: 0 } : { gap: 16 }}>
-        {onClearFilters ? <ScrollView testID="hidden-tasks-scroll" style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, gap: 16 }}>{body}</ScrollView> : body}
-        {onClearFilters ? <View testID="hidden-tasks-actions" style={{ paddingTop: 12, paddingHorizontal: touch ? 16 : 24, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface0, boxShadow: `0px -5px 8px -4px rgba(0, 0, 0, ${taskTokens(theme).isDark ? 0.36 : 0.14})`, flexDirection: "row", ...(touch ? null : { justifyContent: "flex-end" }) }}>
+        {onClearFilters ? <ScrollView testID="hidden-tasks-scroll" onLayout={(event) => { scrollMetrics.current.viewport = event.nativeEvent.layout.height; updateShadow(); }} onContentSizeChange={(_width, height) => { scrollMetrics.current.content = height; updateShadow(); }} onScroll={(event) => { scrollMetrics.current.offset = event.nativeEvent.contentOffset.y; updateShadow(); }} scrollEventThrottle={16} style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, paddingBottom: 16, gap: 16 }}>{body}</ScrollView> : body}
+        {onClearFilters ? <View testID="hidden-tasks-actions" style={{ paddingTop: 12, paddingHorizontal: touch ? 16 : 24, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface0, boxShadow: hasMore ? `0px -5px 8px -4px rgba(0, 0, 0, ${taskTokens(theme).isDark ? 0.36 : 0.14})` : undefined, flexDirection: "row", ...(touch ? null : { justifyContent: "flex-end" }) }}>
           <Pressable testID="hidden-tasks-clear-filters" accessibilityRole="button" accessibilityLabel={clearLabel} onPress={() => { setOpen(false); onClearFilters(); }} style={touch ? { flex: 1, minHeight: taskControlHeight(44, scale), paddingHorizontal: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 22, borderWidth: 1, borderColor: theme.colors.border } : { minHeight: taskControlHeight(32, scale), paddingHorizontal: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 12, backgroundColor: theme.colors.accent }}>
             <Text style={{ fontSize: HOST_FONT.base, lineHeight: HOST_LINE.base, color: touch ? theme.colors.foreground : theme.colors.accentForeground }}>{clearLabel}</Text>
           </Pressable>
