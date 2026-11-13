@@ -19,7 +19,7 @@ import { footerModel } from "../../state/footer-model";
 import { MARK_IDS } from "../../components/marks";
 import { normalizeProvider } from "../../components/provider-logo";
 import { parseTaskQuestions } from "../question-form";
-import { classifyAgent } from "../agent-state-bucket";
+import { classifyAgent, readNeedsYou } from "../agent-state-bucket";
 import { resolveTasksLanguage } from "../i18n";
 import { fallbackLabelColor } from "../label-colors";
 import { subagentModel, subagentType } from "../subagent-type";
@@ -804,7 +804,9 @@ function buildBaseCard(
 ): TaskCard {
   const { agent, placement } = entry;
   const pendingPermissions = agent.pendingPermissions ?? [];
+  const needsYou = readNeedsYou(agent.labels);
   const classification = classifyAgent({
+    needsYou: needsYou !== null,
     status: agent.status,
     pendingPermissionCount: pendingPermissions.length,
     requiresAttention: agent.requiresAttention,
@@ -923,6 +925,7 @@ function buildBaseCard(
           remaining: Math.max(0, pendingPermissions.length - 1),
         }
       : null,
+    needsYou: classification.lane === "needs_input" && pendingPermissions.length === 0 ? needsYou : null,
     parent: null,
     children: [],
     openTab: Object.entries(agent.labels ?? {}).some(([key, value]) => key.startsWith("paseo.open-agent-tab.") && value === "true"),

@@ -101,6 +101,33 @@ async function mountTasks(fake: Fake, doneWindow: "24h" | "7d" | "all" = "24h", 
   return { get current() { return current; }, renderer, unmount: () => act(() => renderer.unmount()) };
 }
 
+it("puts an idle agent with a paseo.needs-you label in needs_input, and clears it when the label goes", async () => {
+  const fake = createFakePaseo({
+    agents: [
+      activeAgent("held", { status: "idle", labels: { "paseo.needs-you": "Approve the deploy" } }),
+      activeAgent("plain", { status: "idle", labels: {} }),
+    ],
+    workspaces: [workspace()],
+  });
+  const mounted = await mountTasks(fake);
+  try {
+    const held = mounted.current.byId.get("held")!;
+    expect(held.lane).toBe("needs_input");
+    expect(held.status).toBe("needs_input");
+    expect(held.needsYou).toBe("Approve the deploy");
+    expect(held.permission).toBeNull();
+    expect(mounted.current.byId.get("plain")?.lane).not.toBe("needs_input");
+    await act(async () => {
+      fake.upsertAgent(activeAgent("held", { status: "idle", labels: {}, updatedAt: recentIso(0) }));
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    });
+    expect(mounted.current.byId.get("held")?.lane).not.toBe("needs_input");
+    expect(mounted.current.byId.get("held")?.needsYou).toBeNull();
+  } finally {
+    mounted.unmount();
+  }
+});
+
 it("identifies scheduled agents from their own schedule label", async () => {
   const fake = createFakePaseo({
     agents: [

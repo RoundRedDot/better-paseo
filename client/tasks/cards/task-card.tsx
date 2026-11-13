@@ -1684,7 +1684,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // Below the title, in order. Each starts `m.rowGap` under the row above it,
   // except the search summary's 6 pt rule (`SearchHitSummary`).
   // A request's controls come before its section; any other card ends with them.
-  const tailList = [pillRow, footRow, controlRow, compactRequest ? actionBar : null, permissionBlock, failure, todoList, subtaskList, compactRequest ? null : actionBar, hiddenHitsRow];
+  const needsYouBlock = !permission && card.lane === "needs_input" && card.needsYou ? (
+    <View style={[block, { gap: 8 }]} testID="task-card-needs-you">
+      <Text numberOfLines={2} style={text(m.blockSize, m.blockLine, tokens.status.warning, "600")}>{card.needsYou}</Text>
+    </View>
+  ) : null;
+  const tailList = [pillRow, footRow, controlRow, compactRequest ? actionBar : null, permissionBlock, needsYouBlock, failure, todoList, subtaskList, compactRequest ? null : actionBar, hiddenHitsRow];
   const firstTail = tailList.find((row) => row !== null);
   // A ticket with nothing below its title: an empty stub, one row gap tall,
   // takes the first row's place, so the notches, the rule and the tail's
@@ -1697,6 +1702,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       {controlRow}
       {compactRequest ? actionBar : null}
       {permissionBlock}
+      {needsYouBlock}
       {failure}
       {todoList}
       {subtaskList}
