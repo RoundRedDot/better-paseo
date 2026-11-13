@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyAgent, deriveAgentStateBucket } from "../../client/tasks/agent-state-bucket";
+import { classifyAgent, deriveAgentStateBucket, readNeedsYou } from "../../client/tasks/agent-state-bucket";
 
 // The cases of upstream `packages/protocol/src/agent-state-bucket.test.ts`.
 describe("deriveAgentStateBucket (copied from @getpaseo/protocol)", () => {
@@ -74,5 +74,36 @@ describe("classifyAgent", () => {
   it("still lets a permission or an error outrank initializing", () => {
     expect(classifyAgent({ status: "initializing", pendingPermissionCount: 1 }).lane).toBe("needs_input");
     expect(classifyAgent({ status: "initializing", attentionReason: "error" }).status).toBe("failed");
+  });
+});
+
+describe("paseo.needs-you label", () => {
+  const needs = { lane: "needs_input", status: "needs_input" };
+
+  it("puts an idle agent in needs_input, finished or read", () => {
+    expect(classifyAgent({ status: "idle", needsYou: true })).toEqual(needs);
+    expect(classifyAgent({ status: "idle", needsYou: true, requiresAttention: true, attentionReason: "finished" })).toEqual(needs);
+  });
+
+  it("does not override running, error or a settled error", () => {
+    expect(classifyAgent({ status: "running", needsYou: true })).toEqual({ lane: "running", status: "running" });
+    expect(classifyAgent({ status: "error", needsYou: true })).toEqual({ lane: "review", status: "failed" });
+    expect(classifyAgent({ status: "idle", needsYou: true, requiresAttention: true, attentionReason: "error" })).toEqual({ lane: "review", status: "failed" });
+  });
+
+  it("clears when the label is gone", () => {
+    expect(classifyAgent({ status: "idle", needsYou: false })).toEqual({ lane: "done", status: "done" });
+  });
+});
+
+describe("readNeedsYou", () => {
+  it("reads the reason, collapsing whitespace", () => {
+    expect(readNeedsYou({ "paseo.needs-you": "  Approve the\n deploy " })).toBe("Approve the deploy");
+  });
+
+  it("is null for a missing or blank label", () => {
+    expect(readNeedsYou(undefined)).toBeNull();
+    expect(readNeedsYou({})).toBeNull();
+    expect(readNeedsYou({ "paseo.needs-you": "   " })).toBeNull();
   });
 });

@@ -249,6 +249,8 @@ export interface TaskCard {
   /** Stopped from the board and not run since: drawn with the solid stop square. */
   stoppedManually?: boolean;
   permission: TaskPermission | null;
+  /** The reason in the agent's `paseo.needs-you` label while it holds the card in needs_input without a permission. */
+  needsYou?: string | null;
   parent: TaskParentRef | null;
   /** Direct children only; grandchildren unfold on the child's own card. */
   children: TaskChild[];

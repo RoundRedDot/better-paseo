@@ -52,6 +52,17 @@ export interface TaskClassificationInput extends AgentStateBucketInput {
   lastError?: string | null;
   lastUserMessageAt?: string | null;
   hasActiveTurn?: boolean;
+  /** The agent carries a non-blank `paseo.needs-you` label (see `readNeedsYou`). */
+  needsYou?: boolean;
+}
+
+/** The agent label another plugin or script sets to ask for a human without a pending permission. */
+export const NEEDS_YOU_LABEL = "paseo.needs-you";
+
+/** The reason held in the `paseo.needs-you` label, or null when it is absent or blank. */
+export function readNeedsYou(labels: Readonly<Record<string, string>> | undefined | null): string | null {
+  const value = labels?.[NEEDS_YOU_LABEL]?.replace(/\s+/g, " ").trim();
+  return value ? value : null;
 }
 
 /**
@@ -63,10 +74,13 @@ export interface TaskClassificationInput extends AgentStateBucketInput {
  * still carries `lastError` is failed even once its attention is cleared or the
  * daemon restarted: the daemon clears the error when a turn starts, completes
  * or is canceled, and restores it with the agent, but leaves it idle, not
- * `error` (a Codex usage limit, an Antigravity quota).
+ * `error` (a Codex usage limit, an Antigravity quota). And an idle agent
+ * labelled `paseo.needs-you` is in needs_input without a pending permission.
  */
 export function classifyAgent(input: TaskClassificationInput): TaskClassification {
   const bucket = deriveAgentStateBucket(input);
+  // Running, error and a real permission keep their own state; removing the label clears this one.
+  if (input.needsYou && input.status === "idle" && (bucket === "done" || bucket === "attention")) return BY_BUCKET.needs_input;
   const restoring = input.status === "initializing" && !!input.lastUserMessageAt && !input.hasActiveTurn;
   if (bucket === "done" && input.status === "initializing" && !restoring) return BY_BUCKET.running;
   if ((bucket === "done" || bucket === "attention") && input.lastError && (input.status === "idle" || input.status === "closed" || restoring)) {
