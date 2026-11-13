@@ -228,6 +228,8 @@ export default function contribute(client: PluginClientContext) {
         if (item.type !== "assistant_message") return undefined;
         if (!getEnhancerPreferences().assistantMarkdown) return undefined;
         if (!item.text.trim()) return undefined;
+        // Leave ```ui / ```app replies to the genui plugin, which renders them live.
+        if (/^ {0,3}(`{3,}|~{3,})\s*(ui|app)\s*$/im.test(item.text)) return undefined;
         return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
       },
     }),
