@@ -29,4 +29,16 @@ describe("path press shell command", () => {
     expect(shellOpenCommand("win32", "C:\\repo\\a.ts", file())).toEqual({ command: "explorer.exe", args: ["/select,C:\\repo\\a.ts"], windowsVerbatimArguments: true });
     expect(shellOpenCommand("linux", "/repo/a.ts", file())).toEqual({ command: "xdg-open", args: ["/repo"] });
   });
+
+  it.each(["C:/repo/a.ts", "C:\\repo/a.ts"])("uses Windows separators when selecting %s in Explorer", (target) => {
+    expect(shellOpenCommand("win32", target, file())).toEqual({
+      command: "explorer.exe", args: ["/select,C:\\repo\\a.ts"], windowsVerbatimArguments: true,
+    });
+  });
+
+  it("uses Windows separators when opening a folder in Explorer", () => {
+    expect(shellOpenCommand("win32", "C:/repo/src", folder)).toEqual({
+      command: "explorer.exe", args: ["C:\\repo\\src"], windowsVerbatimArguments: true,
+    });
+  });
 });

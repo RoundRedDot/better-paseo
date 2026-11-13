@@ -31,7 +31,9 @@ export function shellOpenCommand(
 ): { command: string; args: string[]; windowsVerbatimArguments?: boolean } {
   const isDirectory = entry.isDirectory();
   if (platform === "win32") {
-    return { command: "explorer.exe", args: isDirectory ? [target] : [`/select,${target}`], windowsVerbatimArguments: true };
+    // Explorer requires backslashes even though Node accepts forward slashes.
+    const windowsTarget = target.replace(/\//g, "\\");
+    return { command: "explorer.exe", args: isDirectory ? [windowsTarget] : [`/select,${windowsTarget}`], windowsVerbatimArguments: true };
   }
   if (platform === "darwin") {
     return { command: "open", args: launches(target, entry) ? ["-R", target] : [target] };
