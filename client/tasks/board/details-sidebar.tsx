@@ -15,6 +15,7 @@ import { SheetFoot, SheetScrollRoom } from "../sheet-motion";
 import { useFirstPrompt } from "../data/first-prompt";
 import { lastHumanMessageVersion, useLastHumanMessage } from "../data/last-human-message";
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
+import { detailsShowNote, useQuestionContext } from "../data/question-context";
 import { useSessionTokens } from "../data/session-tokens";
 import { useSubagentTimeline } from "../data/subagent-timeline";
 import { FILTER_GROUP_ORDER, FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption, type ShownFilterOptions } from "./filter-options";
@@ -240,7 +241,7 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
   const notice: DetailNotice | null = props.shown
     ? null
     : { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams((params) => ({ ...clearedParams(params), hideSubtasks: false })) } };
-  const { firstPrompt, humanMessage, lastMessage, sessionTokens } = useDetailReads(board, card);
+  const { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext } = useDetailReads(board, card);
   return (
     <TaskDetailCards
       key={props.tabs ? card.id : undefined}
@@ -266,6 +267,7 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
       sessionTokens={sessionTokens}
       humanMessage={humanMessage}
       lastMessage={lastMessage}
+      questionContext={questionContext}
       actions={props.actions}
       scrollBody={props.scrollBody}
       columns={props.columns}
@@ -330,7 +332,10 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
     },
     subagent !== undefined,
   );
-  return subagent ? { ...subagentReads, humanMessage: null, sessionTokens: null } : { firstPrompt, humanMessage, lastMessage, sessionTokens };
+  const asking = agent?.lane === "needs_input" && agent.permission?.kind === "question" ? agent.permission : null;
+  const questionRead = useQuestionContext(board.paseo, agent?.id ?? "", asking);
+  const questionContext = asking && detailsShowNote(questionRead.context, lastMessage.prompt) ? questionRead : null;
+  return subagent ? { ...subagentReads, humanMessage: null, sessionTokens: null, questionContext: null } : { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext };
 }
 
 /**

@@ -708,13 +708,30 @@ describe("Tasks data store", () => {
     const mounted = await mountTasks(fake, "24h", false);
     try {
       const permission = mounted.current.byId.get("asking")!.permission!;
-      expect(permission).toMatchObject({ requestId: "permission-item-1", kind: "question", summary: title,
+      // Codex builds the request id from the question's timeline row: the dialog reads the text before it.
+      expect(permission).toMatchObject({ requestId: "permission-item-1", kind: "question", summary: title, callId: "item-1",
         questions: [{ id: "0", header: "Question 1", question: title, multiSelect: false, options: labels.map((label) => ({ label })) }] });
       const buttons = permissionButtons(permission, "zh");
       expect(buttons.map((button) => [button.label, button.kind])).toEqual(labels.map((label) => [label, "respond"]));
       await respondToPermission(fake.paseo, "asking", buttons[1]!, permission.requestId);
       expect(fake.permissionResponses).toEqual([{ agentId: "asking", requestId: "permission-item-1",
         response: { behavior: "allow", updatedInput: { answers: { "Question 1": labels[1] } } } }]);
+    } finally { mounted.unmount(); }
+  });
+
+  // Claude's provider names the AskUserQuestion's tool use in the metadata; the request id is a fresh uuid.
+  it("keeps a Claude question's tool use id as its call id", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("asking", { provider: "claude", status: "running", pendingPermissions: [{
+        id: "permission-6b1f", provider: "claude", name: "AskUserQuestion", kind: "question", title: "Question",
+        input: { questions: [{ header: "Scope", question: "Change both?", options: [{ label: "Yes" }, { label: "No" }], multiSelect: false }] },
+        metadata: { toolUseId: "toolu_01ABC" },
+      }] })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.byId.get("asking")!.permission).toMatchObject({ requestId: "permission-6b1f", name: "AskUserQuestion", callId: "toolu_01ABC" });
     } finally { mounted.unmount(); }
   });
 

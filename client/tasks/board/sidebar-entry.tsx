@@ -168,7 +168,7 @@ function CountedTasksRow(props: PluginSidebarItemProps & { label: string; mode: 
         </View>
       </TasksTypography>
     ) : undefined;
-  return <><TasksRow {...props} trailing={trailing} /><TaskQuestionDialog store={dialog} cardById={(id) => latestCards.current.find((card) => card.id === id)} submit={submit} cards={cards} compact={props.layout.compact} theme={props.theme} language={language} onOpen={(id) => {
+  return <><TasksRow {...props} trailing={trailing} /><TaskQuestionDialog store={dialog} paseo={paseo} cardById={(id) => latestCards.current.find((card) => card.id === id)} submit={submit} cards={cards} compact={props.layout.compact} theme={props.theme} language={language} onOpen={(id) => {
     const card = latestCards.current.find((item) => item.id === id);
     const token = requestBoardOpen(props.host.id, card?.subagent ? card.parent?.id ?? id : id);
     dialog.close();

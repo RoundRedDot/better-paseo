@@ -152,6 +152,12 @@ export interface TaskPermission {
   body?: string;
   questions?: import("./question-form").TaskQuestion[];
   name?: string;
+  /**
+   * A question's tool call in the timeline: Claude's `metadata.toolUseId`,
+   * else the request id past Codex's `permission-` prefix. The question
+   * dialog reads the text the agent wrote right before that row.
+   */
+  callId?: string;
   /** The request's own buttons; empty means draw Allow and Deny. */
   actions: TaskPermissionAction[];
   remaining: number;

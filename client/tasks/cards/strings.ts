@@ -11,6 +11,7 @@ const en = {
     unsupported: "This request cannot be answered reliably through the host form protocol. No answer will be submitted here.",
     codexComma: "Codex synchronous multi-select answers cannot contain commas: the host would split your custom answer.",
     failed: (error: string) => `Could not send answer: ${error}`,
+    context: "Agent note", contextLoading: "Reading the agent's note", contextError: "Couldn't read the agent's note", contextRetry: "Retry", copyContext: "Copy agent note",
   },
   searchHits: {
     fields: { title: "Title", prompt: "First message", conversation: "Conversation", pr: "PR", label: "Label", branch: "Branch", folder: "Folder", project: "Project", workspace: "Workspace", path: "Path", model: "Model ID", id: "Task ID" },
@@ -277,6 +278,7 @@ const zh: CardStrings = {
     unsupported: "宿主表单协议无法可靠表达此请求，当前弹窗不会提交答案。",
     codexComma: "Codex 同步多选的自定义回答不能包含逗号，宿主会将回答拆分。",
     failed: (error) => `发送回答失败：${error}`,
+    context: "Agent 说明", contextLoading: "正在读取 Agent 说明", contextError: "没能读取 Agent 说明", contextRetry: "重试", copyContext: "复制 Agent 说明",
   },
   searchHits: {
     fields: { title: "标题", prompt: "首条消息", conversation: "会话内容", pr: "PR", label: "标签", branch: "分支", folder: "文件夹", project: "项目", workspace: "工作区", path: "路径", model: "模型 ID", id: "任务 ID" },

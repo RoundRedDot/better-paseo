@@ -12,6 +12,8 @@ import { ProjectIcon } from "./project-icon";
 import { StatusIcon } from "./status-icon";
 import { BrandMark, branchPillColors, neutralPillColors } from "./brand-mark";
 import { taskTokens } from "./tokens";
+import { useQuestionContext, type QuestionContext } from "../data/question-context";
+import { QuestionContextNote } from "./question-context-note";
 
 export function TaskQuestionDialog(props: {
   store: QuestionDialogStore;
@@ -22,6 +24,8 @@ export function TaskQuestionDialog(props: {
   compact?: boolean;
   onOpen?(id: string): void;
   cards?: TaskCard[];
+  /** Reads the agent's note above the question; none without it. */
+  paseo?: Parameters<typeof useQuestionContext>[0];
 }) {
   const key = useSyncExternalStore(props.store.subscribe, () => props.store.get()?.key, () => props.store.get()?.key);
   if (!key) return null;
@@ -46,7 +50,9 @@ function QuestionDialogContent(props: Parameters<typeof TaskQuestionDialog>[0] &
   return <QuestionDialogBody {...props} state={state} />;
 }
 
-export function TaskInlineQuestions(props: { card: TaskCard; source: QuestionDialogStore; submit(state: QuestionDialogState): Promise<void>; theme: PluginTheme; language: TasksLanguage; compact?: boolean }) {
+export function TaskInlineQuestions(props: { card: TaskCard; source: QuestionDialogStore; submit(state: QuestionDialogState): Promise<void>; theme: PluginTheme; language: TasksLanguage; compact?: boolean;
+  /** The agent's note, read by the details; left out when the details already show it as the latest reply. */
+  context?: { context: QuestionContext; retry(): void } | null }) {
   const key = questionRequestKey(props.card);
   const store = useMemo(() => {
     const next = props.source.fork();
@@ -55,12 +61,14 @@ export function TaskInlineQuestions(props: { card: TaskCard; source: QuestionDia
   }, [key, props.source]);
   const state = useSyncExternalStore(store.subscribe, store.get, store.get);
   if (!state) return null;
-  return <QuestionDialogBody key={key} store={store} state={state} cardById={() => props.card} submit={props.submit} theme={props.theme} language={props.language} compact={props.compact} inline />;
+  return <QuestionDialogBody key={key} store={store} state={state} cardById={() => props.card} submit={props.submit} theme={props.theme} language={props.language} compact={props.compact} context={props.context} inline />;
 }
 
-function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { state: QuestionDialogState; inline?: boolean }) {
+function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { state: QuestionDialogState; inline?: boolean; context?: { context: QuestionContext; retry(): void } | null }) {
   const state = props.state;
   const card = props.cardById(state.agentId);
+  // The dialog reads the note itself; the details pass theirs in.
+  const ownContext = useQuestionContext(props.inline ? undefined : props.paseo, state.agentId, state.permission);
   const [index, setIndex] = useState(0);
   const [inputFocused, setInputFocused] = useState(false);
   const [openHovered, setOpenHovered] = useState(false);
@@ -102,6 +110,8 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
                 {card.location.branch ? <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99, backgroundColor: branch.background }}><Icon name="GitBranch" size={14} color={branch.icon} /><Text style={[meta, { color: branch.text }]}>{card.location.branch}</Text></View> : null}
               </View>
             </View> : null}
+            {props.inline ? props.context ? <QuestionContextNote read={props.context} theme={props.theme} language={props.language} compact={props.compact} /> : null
+              : <QuestionContextNote read={ownContext} theme={props.theme} language={props.language} compact={props.compact} />}
             {multiple ? <ScrollView horizontal showsHorizontalScrollIndicator={false}><View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border }}>
               {questions!.map((q, i) => <Pressable key={i} testID={`task-question-tab-${i}`} accessibilityRole="tab" accessibilityState={{ selected: i === index }} onPress={() => selectQuestion(i)} style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: i === index ? colors.accent : "transparent" }}><Text style={[meta, { color: i === index ? colors.foreground : colors.foregroundMuted, fontWeight: "600" }]}>{words.question(i + 1)}{answered[i] ? " ✓" : ""}</Text></Pressable>)}
             </View></ScrollView> : null}

@@ -370,6 +370,13 @@ export function planTitle(text: string): string | null {
   return title || null;
 }
 
+/** The question's tool call id: Claude names it in the metadata, Codex builds the request id from it. */
+function questionCallId(permission: PaseoAgent["pendingPermissions"][number]): string | undefined {
+  const toolUseId = permission.metadata?.toolUseId;
+  if (typeof toolUseId === "string" && toolUseId) return toolUseId;
+  return permission.id.startsWith("permission-") ? permission.id.slice("permission-".length) : undefined;
+}
+
 function firstPermissionSummary(permission: PaseoAgent["pendingPermissions"][number]): string | null {
   const input = permission.input as Record<string, unknown> | undefined;
   const detail = permission.detail as Record<string, unknown> | undefined;
@@ -906,7 +913,7 @@ function buildBaseCard(
           title: permission.title ?? permission.name,
           summary: firstPermissionSummary(permission),
           ...(plan ? { body: plan } : {}),
-          ...(permission.kind === "question" ? { name: permission.name, questions: parseTaskQuestions(permission.input) } : {}),
+          ...(permission.kind === "question" ? { name: permission.name, callId: questionCallId(permission), questions: parseTaskQuestions(permission.input) } : {}),
           actions: (permission.actions ?? []).map((action) => ({
             id: action.id,
             label: action.label,

@@ -8,7 +8,7 @@ import { revealPathRpc } from "../../../shared/file-rpc";
 import { openLink } from "../../components/open-link";
 import { MarkdownView } from "../../components/markdown/markdown-view";
 import { variantMetrics } from "../../components/markdown/render/styles";
-import { mix, useThemeTokens, withAlpha } from "../../components/theme-tokens";
+import { mix, useThemeTokens } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
 import { HoverPreviewContext } from "../../ui/hover-preview";
@@ -83,6 +83,8 @@ import { detailGutter, detailScrollProps, outsideIndicator } from "./detail-scro
 import { sectionClosed, useSectionChoices, useSearchSectionChoices } from "./detail-collapse";
 import { prepareSubtaskToggle, SubtaskPanel } from "./subtask-panel";
 import { tipProps } from "./card-hints";
+import { FoldedText } from "./folded-text";
+import type { QuestionContext } from "../data/question-context";
 import { AvailabilityTag } from "./availability-tag";
 import { highlightText } from "./search-highlight";
 import { detailSearchHits, searchRanges, taskSearchHits } from "../data/search-hits";
@@ -213,6 +215,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   humanMessage?: { prompt: LastHumanMessage; load(): void } | null;
   /** The agent's latest reply, read from its timeline's tail; absent leaves the section out. */
   lastMessage?: { prompt: LastMessage; load(): void } | null;
+  /** What the agent wrote before its pending question, above the inline answer; absent when the latest reply already shows it. */
+  questionContext?: { context: QuestionContext; retry(): void } | null;
   /** A running task's whole session's tokens, from the provider's session files; absent leaves them out of the running turn. */
   sessionTokens?: SessionTokens | null;
   /** Unarchive for an archived parent, and for an archived card itself; absent where this host cannot. */
@@ -465,7 +469,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
                 }}
               >
                 {(id === "info" ? info : messages).map((section, index) => sectionView(section, index > 0))}
-                {id === "messages" ? <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} /> : null}
+                {id === "messages" ? <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} context={props.questionContext} /> : null}
               </DetailTabPage>
             ))}
           </SheetScrollView>
@@ -484,7 +488,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
               <View style={props.touch ? { flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" } : { position: "absolute", inset: 0, ...({ visibility: tab === "messages" ? "visible" : "hidden" } as object) }}>
                 <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("messages", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("messages", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("messages", { content: height })} testID="detail-tab-messages-scroll">
                   {messages.map((section, index) => sectionView(section, index > 0))}
-                  <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} />
+                  <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} context={props.questionContext} />
                 </ScrollView>
               </View>
             </TabPages>
@@ -512,7 +516,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
         <View style={{ flex: 1, minWidth: 0 }}>
           <ScrollView key={`${card.id}-sections`} style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 2, paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-column-sections">
             {rightOrder.map((section, index) => sectionView(section, index > 0))}
-            <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} />
+            <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} context={props.questionContext} />
           </ScrollView>
         </View>
       </View>
@@ -524,10 +528,10 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
       {props.scrollBody ? (
         <ScrollView key={card.id} style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-body-scroll">
           {sections}
-          <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} />
+          <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} context={props.questionContext} />
         </ScrollView>
       ) : (
-        <View style={{ paddingBottom: 4 }}>{sections}<PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} /></View>
+        <View style={{ paddingBottom: 4 }}>{sections}<PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} context={props.questionContext} /></View>
       )}
     </View>
   );
@@ -577,12 +581,12 @@ export function EdgeActionBar(props: React.ComponentProps<typeof DetailActionBar
   return <DetailActionBar {...bar} contentUnder={under} />;
 }
 
-function PendingQuestions({ card, tokens, language, theme, compact, submit, source }: { card: TaskCard; tokens: TaskTokens; language: TasksLanguage; theme: PluginTheme; compact?: boolean; submit?: (state: QuestionDialogState) => Promise<void>; source?: QuestionDialogStore }) {
+function PendingQuestions({ card, tokens, language, theme, compact, submit, source, context }: { card: TaskCard; tokens: TaskTokens; language: TasksLanguage; theme: PluginTheme; compact?: boolean; submit?: (state: QuestionDialogState) => Promise<void>; source?: QuestionDialogStore; context?: { context: QuestionContext; retry(): void } | null }) {
   const questions = card.lane === "needs_input" ? card.permission?.questions : undefined;
   if (!questions?.length) return null;
   if (submit && source) return <View testID="detail-pending-questions" style={{ paddingTop: 12 }}>
     <Text style={{ paddingHorizontal: 12, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }}>{language === "zh" ? "待回答问题" : "Questions awaiting an answer"}</Text>
-    <TaskInlineQuestions card={card} source={source} submit={submit} theme={theme} language={language} compact={compact} />
+    <TaskInlineQuestions card={card} source={source} submit={submit} theme={theme} language={language} compact={compact} context={context} />
   </View>;
   return <View testID="detail-pending-questions" style={{ paddingHorizontal: 12, paddingVertical: 12, gap: 12 }}>
     <Text style={{ fontSize: F.sm, fontWeight: "600", color: tokens.foreground }}>{language === "zh" ? "待回答问题" : "Questions awaiting an answer"}</Text>
@@ -1809,7 +1813,6 @@ function repeatsFirstPrompt(human: LastHumanMessage | undefined, first: FirstPro
 const PROMPT_LINES = 10;
 /** A card's title folds after five lines; anything shorter stays whole. */
 const TITLE_LINES = 5;
-const FADE_STEPS = 6;
 
 /**
  * Text read from the task's timeline: the first prompt in full (the title
@@ -1913,85 +1916,6 @@ function TimelineTextBody(props: Inner & {
       </View>
       {streaming ? <ReplyLoading tokens={tokens} language={props.language} /> : null}
       {props.waitingAfter ? <ReplyLoading tokens={tokens} language={props.language} waiting id="detail-human-working" /> : null}
-    </View>
-  );
-}
-
-/**
- * Text that folds under a fade after `limit` lines, with the same
- * "Show all · N lines" row under it as every message body. A caller that knows
- * the text's line count passes `long` and `total`; the card's title leaves
- * both out, so the fold measures the laid-out text: a title that fits stays
- * whole, and a narrower sidebar folds sooner.
- */
-function FoldedText(props: {
-  id: string;
-  language: TasksLanguage;
-  tokens: TaskTokens;
-  /** One line's height, already scaled as the text is. */
-  line: number;
-  limit: number;
-  expanded: boolean;
-  /** Whether the text overflows the fold; measured when absent. */
-  long?: boolean;
-  /** The text's line count; measured when absent. */
-  total?: number;
-  fadeColor: string;
-  touch?: boolean;
-  onToggle(): void;
-  children: React.ReactNode;
-}) {
-  const reduced = useReducedMotion();
-  const words = cardStrings(props.language).details;
-  const [height, setHeight] = useState<number | null>(null);
-  const progress = useRef(new Animated.Value(props.expanded ? 1 : 0)).current;
-  const target = useRef(props.expanded);
-  const limit = props.limit * props.line;
-  // Android's text box keeps a few font-padding pixels past its lines; count
-  // whole lines so a title that just fits five stays whole.
-  const overflows = height !== null && Math.round(height / props.line) > props.limit;
-  // Unmeasured text stays clamped: a long title must not paint open for a frame.
-  const long = props.long ?? (height === null || overflows);
-  useEffect(() => {
-    if (reduced || !long || height === null) {
-      target.current = props.expanded;
-      progress.setValue(props.expanded ? 1 : 0);
-      return;
-    }
-    if (target.current === props.expanded) return;
-    target.current = props.expanded;
-    const animation = Animated.timing(progress, { toValue: props.expanded ? 1 : 0, duration: props.expanded ? 180 : 140, easing: MOTION.ease, useNativeDriver: false, isInteraction: false });
-    animation.start();
-    return () => animation.stop();
-  }, [props.expanded, long, reduced, progress, height]);
-  const folded = long && !props.expanded;
-  const style = !long || (props.expanded && (reduced || height === null)) ? null
-    : reduced || height === null ? { maxHeight: limit, overflow: "hidden" as const }
-    : { maxHeight: progress.interpolate({ inputRange: [0, 1], outputRange: [Math.min(limit, height), height] }), overflow: "hidden" as const };
-  const total = props.total ?? (height === null ? 0 : Math.max(1, Math.round(height / props.line)));
-  return (
-    <View>
-      <Animated.View style={style} testID={`${props.id}-text`}>
-        <View testID={`${props.id}-measure`} onLayout={(event) => setHeight(event.nativeEvent.layout.height)}>
-          {props.children}
-        </View>
-        {folded ? (
-          // A heading or code block cuts the last line anywhere: fade it out.
-          <View testID={`${props.id}-fade`} pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: props.line, flexDirection: "column" }}>
-            {Array.from({ length: FADE_STEPS }, (_, step) => (
-              <View key={step} style={{ flex: 1, backgroundColor: withAlpha(props.fadeColor, (step + 1) / FADE_STEPS) }} />
-            ))}
-          </View>
-        ) : null}
-      </Animated.View>
-      {long && total > 0 ? (
-        <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: props.expanded }} {...tipProps(props.expanded ? words.showLess : words.showAll(total))} onPress={props.onToggle} hitSlop={4} testID={`${props.id}-more`} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Icon name={props.expanded ? "ChevronsUp" : "ChevronsDown"} size={14} color={props.tokens.foregroundMuted} />
-            <Text style={{ fontSize: F.sm, color: props.tokens.foregroundMuted }}>{props.expanded ? words.showLess : words.showAll(total)}</Text>
-          </Pressable>
-        </View>
-      ) : null}
     </View>
   );
 }

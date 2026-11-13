@@ -643,7 +643,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
   const { card, board, theme, index } = props;
   const colors = theme.colors;
   useParentTitle(board, card);
-  const { firstPrompt, humanMessage, lastMessage, sessionTokens } = useDetailReads(board, card);
+  const { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext } = useDetailReads(board, card);
   const step = (delta: number) => {
     const next = delta < 0 ? props.previousId : props.nextId;
     if (next) props.onShow(next);
@@ -697,6 +697,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           firstPrompt={firstPrompt}
           humanMessage={humanMessage}
           lastMessage={lastMessage}
+          questionContext={questionContext}
           sessionTokens={sessionTokens}
           unarchive={board.unarchive.available ? board.unarchive : null}
           archive={board.archive}
