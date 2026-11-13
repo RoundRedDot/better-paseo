@@ -6,6 +6,7 @@ import { setSessionTokensLoader } from "../data/session-tokens";
 import { setSubagentTimelineLoader } from "../data/subagent-timeline";
 import { conversationSearchRpc } from "../../../shared/conversation-search";
 import { setConversationSearchLoader } from "../data/search-conversations";
+import { startErrorDismissals } from "../data/error-dismissals";
 
 /**
  * The Tasks code the board, its sidebar entry and its settings draw with:
@@ -24,6 +25,7 @@ export { BetterPaseoSettingsPage } from "../../settings-page";
 
 /** Points the data layer at this host's plugin server; returns the cleanup. */
 export function startTasksData(client: PluginClientContext): () => void {
+  const stopErrorDismissals = startErrorDismissals(client);
   // Cards time the last turn from the server's record of it.
   setLastTurnLoader((agentIds) => client.rpc(lastTurnsRpc, { agentIds }).then((result) => result.turns));
   // Provider subagents (Claude's Agent tool) come from the server, which reads them off the daemon.
@@ -48,6 +50,7 @@ export function startTasksData(client: PluginClientContext): () => void {
   setSubagentTimelineLoader((input) => client.rpc(tasksSubagentTimelineRpc, input));
   setConversationSearchLoader((input) => client.rpc(conversationSearchRpc, input));
   return () => {
+    stopErrorDismissals();
     setLastTurnLoader(null);
     setSubagentLoader(null);
     setReadMarksLoader(null);

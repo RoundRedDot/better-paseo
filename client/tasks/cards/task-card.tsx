@@ -1,7 +1,7 @@
 import React, { memo, useMemo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { densityOf, labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
@@ -57,6 +57,7 @@ import { AvailabilityCorner, shownIssue } from "./availability-tag";
 import { taskOperationIssue } from "../availability";
 import { CutCardSurface } from "./cut-card-surface";
 import { TicketHead, TicketTail, type TicketLook } from "./ticket-card-surface";
+import { useErrorDismissal } from "../data/error-dismissals";
 
 import type { SearchPrompt } from "../data/search-first-prompts";
 import { searchBreadcrumb, searchBranch, searchLabels, searchSnippet, taskSearchHits } from "../data/search-hits";
@@ -585,6 +586,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const preferred = useTasksLanguage();
   const language = props.language ?? preferred;
   const strings = cardStrings(language);
+  const toast = useToast();
+  const [errorDismissed, dismissError] = useErrorDismissal(card);
   const titleUpdate = useTitleUpdateState(props.titleUpdates, card.id);
   // The title streams in under the sweep, then holds until the rename reaches the card.
   const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
@@ -1448,7 +1451,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const errorNow = props.now ?? Date.now();
   const failureAction = card.error && !card.stoppedManually ? errorAction(card.error, language, cardErrorReset(card.error, errorNow) !== null) : null;
   const failureColor = failed || (!card.stoppedManually && /^\s*api error\b/i.test(card.error ?? "")) ? tokens.danger : muted;
-  const failure = layout.failure ? (
+  const failure = layout.failure && (!errorDismissed || card.stoppedManually) ? (
     <View
       style={[
         block,
@@ -1469,6 +1472,12 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         <Text numberOfLines={3} style={text(m.blockSize, m.blockLine, failureColor)}>{formatCardError(card.error!, card.provider, language, errorNow)}</Text>
         {failureAction ? <Text testID="task-card-error-action" style={[text(m.blockSize, m.blockLine, muted), { marginTop: 4 }]}>{failureAction}</Text> : null}
       </View>
+      {!card.stoppedManually && !card.subagent ? (
+        <Pressable accessibilityRole="button" accessibilityLabel={strings.dismissTaskError} hitSlop={8} style={{ minWidth: taskControlHeight(compact ? 44 : 28, scale), minHeight: taskControlHeight(compact ? 44 : 28, scale), alignItems: "center", justifyContent: "center" }} onPress={(event) => {
+          event.stopPropagation();
+          void dismissError().catch((error: unknown) => toast.error(`${strings.dismissTaskErrorFailed}: ${error instanceof Error ? error.message : String(error)}`));
+        }}><Icon name="X" size={m.icon} color={failureColor} /></Pressable>
+      ) : null}
     </View>
   ) : null;
 

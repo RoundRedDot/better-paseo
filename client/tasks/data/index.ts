@@ -1244,6 +1244,8 @@ function createStore(api: PaseoApi): TaskStore {
             .sort((left, right) => compareText(left.title, right.title))
         : [],
     }, subagentsByParent.get(id)), readAt, latestFailure(id)), unreadMarks.get(id), readAt)), archivedKind);
+    const failureAt = latestFailure(id);
+    if (Number.isFinite(failureAt)) next.errorOccurredAt = failureAt;
     const previous = cards.get(id);
     if (shallowCardEqual(previous, next)) return false;
     cards.set(id, next);

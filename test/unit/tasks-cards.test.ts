@@ -10,6 +10,8 @@ import React from "react";
 import { PixelRatio, StyleSheet, View } from "react-native";
 import { hostChildren, measureHostTree } from "./helpers/yoga-host-layout";
 import { TodoRow } from "../../client/tasks/cards/todo-row";
+import { startErrorDismissals } from "../../client/tasks/data/error-dismissals";
+import type { PluginClientContext } from "@getpaseo/plugin/client";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -1464,6 +1466,23 @@ describe("TaskCardView rows", () => {
     const mark = tree.root.find((node) => (node.type as unknown) === "Icon" && node.props.name === "CircleX");
     expect(mark.props.color).toBe("#6b6b75");
     expect(icons(tree.root)).not.toContain("Square");
+  });
+
+  it("dismisses the current error without changing the task and shows a later error", async () => {
+    const rpc = vi.fn(async (contract: { name: string }, input: { agentId: string; error: string }) =>
+      contract.name === "tasks.error-dismissals" ? { entries: [] } : { ...input, dismissedAt: Date.now() });
+    let stop!: () => void;
+    await act(async () => { stop = startErrorDismissals({ rpc } as unknown as PluginClientContext); });
+    const card = sample("sample-failed");
+    const tree = await render(cardElement(card));
+    await act(async () => {
+      byLabel(tree.root, "关闭错误提示").props.onPress({ stopPropagation() {} });
+    });
+    expect(tree.root.findAll((node) => node.props.testID === "task-card-reason")).toHaveLength(0);
+    expect(card.status).toBe("failed");
+    await act(async () => { tree.update(cardElement({ ...card, error: "A new error" })); });
+    expect(hostByTestId(tree.root, "task-card-reason")).toBeDefined();
+    await act(async () => { tree.unmount(); stop(); });
   });
 
   it.each([LIGHT, DARK])("draws API errors in danger red on a done card", async (theme) => {

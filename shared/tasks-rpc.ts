@@ -1,6 +1,18 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
+const errorDismissalSchema = z.object({ agentId: z.string(), error: z.string(), dismissedAt: z.number() });
+export const tasksErrorDismissalsRpc = defineRpc({
+  name: "tasks.error-dismissals",
+  input: z.object({}),
+  output: z.object({ entries: z.array(errorDismissalSchema) }),
+});
+export const tasksDismissErrorRpc = defineRpc({
+  name: "tasks.dismiss-error",
+  input: z.object({ agentId: z.string().min(1).max(256), error: z.string().min(1) }),
+  output: errorDismissalSchema,
+});
+
 /**
  * The Tasks board's server RPCs.
  *

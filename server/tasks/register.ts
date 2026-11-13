@@ -17,6 +17,8 @@ import { tasksAvailabilityRpc } from "../../shared/task-availability";
 import { createTaskAvailability, taskDirectoryIssue, taskIssueError, taskUpdateIssue, taskUpdateState } from "./availability";
 import { conversationSearchRpc } from "../../shared/conversation-search";
 import { searchConversationPage } from "./conversation-search";
+import { createErrorDismissals } from "./error-dismissals";
+import { tasksDismissErrorRpc, tasksErrorDismissalsRpc } from "../../shared/tasks-rpc";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
@@ -388,6 +390,9 @@ export function registerTasksServer(
   parentOrigins: ParentOriginWatch = createParentOriginWatch(),
   unreads = createStopMarks(unreadMarksPath()),
 ): void {
+  const errorDismissals = createErrorDismissals();
+  server.handle(tasksErrorDismissalsRpc, async () => ({ entries: await errorDismissals.list() }));
+  server.handle(tasksDismissErrorRpc, ({ agentId, error }) => errorDismissals.dismiss(agentId, error));
   server.registerSettings(TASKS_SETTINGS);
   const titleSettings = registerTitleGeneration(server, (agentId, title) => renameAgent(host, agentId, title), host.available, async (agentId) => {
     const daemon = await host.connect();

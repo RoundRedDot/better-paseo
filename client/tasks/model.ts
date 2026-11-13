@@ -236,6 +236,8 @@ export interface TaskCard {
   usage: TaskUsage | null;
   /** `lastError`, or "Stopped manually" after a stop from the board; review and done lanes only. */
   error: string | null;
+  /** Latest known turn or provider-subagent failure, in epoch milliseconds. */
+  errorOccurredAt?: number;
   /** Stopped from the board and not run since: drawn with the solid stop square. */
   stoppedManually?: boolean;
   permission: TaskPermission | null;
