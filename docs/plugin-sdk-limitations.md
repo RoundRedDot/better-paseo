@@ -3,8 +3,8 @@
 First measured against `@getpaseo/plugin` 0.8.0 and the Paseo 0.8.0 desktop build; entries 15–18
 were added on 2026-10-20 while planning a Tasks board. Every entry was re-checked on 2026-10-23
 against `@getpaseo/plugin` 0.12.0 and 0.13.0-beta.1 and Paseo `origin/main`. Each entry names the
-evidence and the workaround this plugin uses; the user-facing summary is the README's
-[What a plugin cannot do](../README.md#what-a-plugin-cannot-do).
+evidence and the workaround this plugin uses; the user-facing summary is
+[What a plugin cannot do](limitations.md).
 
 1. **No file navigation.** Timeline renderer props are exactly `{agentId, theme, host, layout,
    timestamp, item}`, with no `navigation`. Navigation exists only on screens and panels:

@@ -10,7 +10,7 @@ replies, prompts, checklists and errors become compact, typed, syntax-aware rows
 active Paseo theme. It adds a **Tasks** board that lays out every agent on the host in lanes by state,
 and it is drawn for the device in your hand: a phone gets a details drawer you can pinch and a
 one-lane board you swipe through, an iPad gets floating and side panels and a board with a details
-sidebar or sheet. The performance section compares the timeline with Paseo's own.
+sidebar or sheet. The performance section compares timeline performance against native Paseo, with full measurements in [Performance Benchmarks](docs/performance.md).
 
 https://github.com/user-attachments/assets/493499a2-411f-45bb-9274-d33c92255099
 
@@ -20,7 +20,7 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 
 <sub>No player in the GitHub app? [Open the tasks video](https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/better-paseo-promo-v14-tasks-web.mp4).</sub>
 
-<img alt="Better Paseo, a Paseo plugin: the Tasks board on a desktop window, with a failed subtask card, a parent card with its subtasks expanded and a dashed read-only subagent card, beside a chat timeline on an iPhone" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--hero-cover.png">
+<img alt="Better Paseo: the Tasks board with approval and question cards beside a phone-sized chat timeline" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/hero-cover-v2-en.png">
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--tasks-board-dark.png"><img alt="The Tasks board: every agent in lanes by state, including a failed subtask card with its error, a parent card with its subtasks expanded and a dashed read-only subagent card, and the sidebar's counts by state and groups by agent" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--tasks-board-light.png"></picture>
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--timeline-dark.png"><img alt="A chat timeline of compact tool rows and a checklist, with an edit's diff open in the block details side panel" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--images--timeline-light.png"></picture>
@@ -28,7 +28,9 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 > Better Paseo is a fork of [ABorakati/beautiful-chat](https://github.com/ABorakati/beautiful-chat),
 > continued from `42b61d8` (2026-09-23). It keeps Beautiful Chat's cards except the Eval, Ask,
 > Task and approval cards, which current Paseo never feeds a plugin (see
-> [Compatibility](#compatibility)). This README describes what the fork adds and how it performs.
+> [Known Limitations](docs/limitations.md)). This README describes what the fork adds and how it performs.
+
+> **Requirement:** Requires Paseo `>=0.14.0`. Install via `paseo plugin install roundreddot/better-paseo` (see [Installation Guide](docs/install.md)).
 
 ## Highlights
 
@@ -37,7 +39,7 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
   lane at a time on a phone and lanes with a details sidebar, panel or sheet on a tablet. See
   [Phones and iPad](#phones-and-ipad).
 
-- **Measured performance.** Against Paseo 0.13.0, 220 serial Web and iOS replays (five runs per cell) show 66% less Web main-thread time on the long reply, 16.189 seconds down to 5.520. Details in [Performance](#performance).
+- **Measured performance.** Against Paseo 0.13.0, 220 serial Web and iOS replays (five runs per cell) show 66% less Web main-thread time on the long reply, 16.189 seconds down to 5.520. Details in [Performance](#performance) and [full benchmarks](docs/performance.md).
 
 - **One row per tool call.** Calls start collapsed to a 26pt row with a typed summary and stay
   open or closed across completion, history and remounts.
@@ -58,37 +60,6 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 - **Light on reconnect.** The client ships minified and the Tasks board loads only when it is on,
   so the plugin catalog Paseo sends on every reconnect fell from 1,977 KB to 722 KB (measured on a
   Paseo 0.12 daemon when the change landed, 2026-10-23).
-
-- **Measured memory.** Across the Web scenarios, Better Paseo uses 5.1–13.2 MB more post-GC JavaScript heap than no plugin. See [Memory comparison](#memory-comparison).
-
-## Install
-
-```bash
-paseo plugin install roundreddot/better-paseo
-```
-
-Paseo `>=0.14.0` is required; the published performance measurements use Paseo 0.13.0. See
-[Compatibility](#compatibility) for older and pre-release versions. Open **Settings → Plugins →
-Better Paseo** (the page is titled **Settings**) to configure it. That command installs from the
-plugin marketplace, which pins a reviewed revision of this GitHub repository and builds the client
-on install. Updates follow that pin, not the default branch:
-
-```bash
-paseo plugin update better-paseo        # reviews the update and asks
-paseo plugin update better-paseo --yes  # applies it without asking
-```
-
-To run the repository's default branch instead, replace the marketplace install with the Git
-source. A plugin ID holds one source, so remove it first; removing also deletes this plugin's saved
-settings, so note them and set them again after installing:
-
-```bash
-paseo plugin remove better-paseo
-paseo plugin install github:RoundRedDot/better-paseo
-```
-
-The Git source tracks the repository's default branch (`main`), so the same `paseo plugin update`
-later picks up a pushed commit.
 
 ---
 
@@ -158,7 +129,7 @@ plugin treats that session as having a pointer as well.
   in portrait and the side panel in landscape, and a 13-inch iPad gets the side panel already in
   portrait; by the same thresholds a Split View window under 600pt falls back to the drawer. Paseo hands plugins only full-screen modals on
   iOS and Android, so a tap outside the panel closes it (see
-  [What a plugin cannot do](#what-a-plugin-cannot-do)).
+  [What a plugin cannot do](docs/limitations.md)).
 - **Touch sizes, then pointer sizes.** The details header is 52pt with 36pt buttons and the toolbar
   44pt while you use your fingers. Once a trackpad hovers a row, they shrink to the desktop's 44pt
   and 36pt, a click expands a row in place, and the row's hover actions appear; long press still
@@ -193,158 +164,42 @@ them.
 
 ## Performance
 
-### Web
+Tested revision `948b8720` against Paseo 0.13.0 on a Mac Studio (Apple M5 Max, 18 cores, 64 GB, macOS 27.0.1) across 220 serial replays in 11 scenarios; measurements have not been repeated on 0.14.0 (iOS tests conducted on simulator and do not establish physical-device performance):
 
-Measured on 2026-10-26 and 27 on a Mac Studio with an Apple M5 Max, 18 cores, 64 GB and macOS 27.0.1, against Paseo 0.13.0 (React Native 0.86; replies are still drawn by react-native-enriched-markdown). The tested Better Paseo revision was 948b8720, built through the plugin install flow; the running minified bundle was verified on every run. Web and iOS each covered 11 scenarios × 2 configurations (no plugin and Better Paseo) × 5 runs: 110 per platform, 220 total, serially with configuration order rotated by scenario. The clean bench daemon held one workspace and one agent. A batch started only on a quiet machine: no other simulator booted, no other build running, and at least 90% CPU idle over a minute; one-minute load at run completion ranged from 1 to 7 on Web (median 2) and from 1.0 to 8.3 on iOS (median 1.7). Web used Chrome 156.0.8078.48 at 1280×900. Tasks and Block details were enabled by default. The later commits up to this README, 948b8720..8802deb8, change only the Tasks board's phone search and filter sheet and its search index, not the timeline. 50143ce1 then changes the iOS timeline: a reply that is still streaming draws its prose as plain text and switches to native text views when it settles, which in a separate interleaved iOS long-reply A/B (n=5, not on the quiet gate above) lowered app CPU from 12.35 to 11.01 seconds. The tables are the 220-run results for 948b8720 and were not re-measured for 50143ce1.
+- **66% less Web main-thread task time on long replies:** Whole-replay task duration dropped from 16.189s to 5.520s; across 11 scenarios, 9 improved, 1 was even, and 1 was higher.
+- **95% less Web timeline-row render time on long replies:** Host React Profiler row render time dropped from 8,887.4ms to 438.7ms.
+- **Web history replay overhead:** Main-thread task time increased by 37% (1.075s vs 0.784s; fresh arrays on host agent updates are [one known source](docs/performance.md#method-and-limits)).
+- **Streaming layout shift (CLS):** Long reply CLS dropped 100% (0.000015 vs 0.053955); across 11 scenarios, 2 improved, 3 were even, and 6 had regressions (Better Paseo absolute readings remain at or below 0.031).
+- **iOS whole-app CPU time:** Dropped 54% on long replies (11.76s vs 25.56s, with frame drops down from 894 to 15); across 11 scenarios, 4 improved, 6 were even, and 1 was higher.
+- **Measured memory:** Across the Web scenarios, Better Paseo uses 5.1–13.2 MB more post-GC JavaScript heap than no plugin.
 
 ![Web main-thread time](docs/perf/readme/web-cpu.en.svg)
 
-Whole-replay main-thread Task time versus no plugin: 9 lower, 1 even and 1 higher. A change under 10% is even; if both whole-replay times are below 0.5 seconds, it is also even. On the long reply, Task time was 16.189 seconds without the plugin and 5.520 seconds with Better Paseo, a 66% reduction.
-
-| Scenario | No plugin | Better Paseo | vs no plugin |
-| --- | ---: | ---: | :--- |
-| Code block streaming | 3.789 | **2.351** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;38% |
-| Large diff | 0.368 | **0.328** | even |
-| History replay | 0.784 | **1.075** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;37% |
-| Long reply | 16.189 | **5.520** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;66% |
-| Mixed turn | 1.514 | **1.221** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;19% |
-| 20 file reads | 1.077 | **0.945** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;12% |
-| Reasoning, prose | 2.985 | **1.737** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;42% |
-| Reasoning, sections | 2.586 | **1.470** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;43% |
-| Large shell log | 0.943 | **0.657** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;30% |
-| Table streaming | 2.783 | **1.651** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;41% |
-| Growing tool log | 1.736 | **1.450** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;16% |
-
-Total timeline-row render time (host Profiler allRows.sum, milliseconds), versus no plugin: 9 lower, 0 even and 2 higher.
-
-| Scenario | No plugin | Better Paseo | vs no plugin |
-| --- | ---: | ---: | :--- |
-| Code block streaming | 1,247.1 | **222.5** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;82% |
-| Large diff | 27.6 | **19.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;31% |
-| History replay | 147.0 | **236.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;61% |
-| Long reply | 8,887.4 | **438.7** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;95% |
-| Mixed turn | 164.6 | **89.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;46% |
-| 20 file reads | 120.7 | **87.7** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;27% |
-| Reasoning, prose | 493.7 | **132.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;73% |
-| Reasoning, sections | 457.5 | **120.1** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;74% |
-| Large shell log | 26.2 | **17.0** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;35% |
-| Table streaming | 886.4 | **147.8** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;83% |
-| Growing tool log | 56.8 | **94.3** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;66% |
-
-### Streaming layout shift
-
-Cumulative layout shift (CLS) for the same Web runs; lower is better and values are shown to six decimal places. The 0.5-second rule does not apply. Percentages can magnify tiny baselines, so read the absolute values too; values below 0.002 are generally hard to see. Versus no plugin: 2 lower, 3 even and 6 higher.
-
-| Scenario | No plugin | Better Paseo | vs no plugin |
-| --- | ---: | ---: | :--- |
-| Code block streaming | 0.001168 | **0.030875** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;2543% |
-| Large diff | 0.000015 | **0.000015** | even |
-| History replay | 0.000015 | **0.000347** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;2278% |
-| Long reply | 0.053955 | **0.000015** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;100% |
-| Mixed turn | 0.002791 | **0.026655** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;855% |
-| 20 file reads | 0.000015 | **0.000793** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5335% |
-| Reasoning, prose | 0.000015 | **0.000778** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5235% |
-| Reasoning, sections | 0.000015 | **0.000778** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;5235% |
-| Large shell log | 0.000015 | **0.000015** | even |
-| Table streaming | 0.045756 | **0.016243** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;65% |
-| Growing tool log | 0.000015 | **0.000015** | even |
-
-### iOS
-
-Paseo 0.13.0 Release simulator build on an iPhone 17 Pro / iOS 26.5 simulator, cold-launched for every sample, with the React profiling renderer for the row probe. Paseo 0.13 lays out Markdown on native threads, so the main iOS metric is whole-app-process CPU time over the replay. These simulator measurements do not establish physical-device performance. During the iOS batch, a restart of the simulator service from outside the bench shut down every simulator; rounds 1 and 2 were set aside and re-run in full under the same quiet checks, with a check that the simulator stayed up through every sample. Seven samples, all without the plugin, ended in a crash of the Paseo app and were run again, so every cell has five complete samples.
-
-![iOS app CPU time](docs/perf/readme/ios-cpu.en.svg)
-
-Whole-app CPU time versus no plugin: 4 lower, 6 even and 1 higher. On the long reply, the host used 25.56 seconds and Better Paseo 11.76 seconds (54% less). The frame probe recorded medians of 894 dropped frames on the host and 15 with Better Paseo; the longest frames were 155.1 ms and 47.9 ms. History replay is bimodal on iOS, its app CPU depending on how many frames the replay draws: all ten samples of this round fell in the low mode, while those of the earlier Paseo 0.12 round all fell in the high one. iOS seconds are therefore not comparable across rounds; compare the ratios within a round.
-
-| Scenario | No plugin | Better Paseo | vs no plugin |
-| --- | ---: | ---: | :--- |
-| Code block streaming | 4.54 | **4.23** | even |
-| Large diff | 0.55 | **0.50** | even |
-| History replay | 0.38 | **0.58** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;53% |
-| Long reply | 25.56 | **11.76** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;54% |
-| Mixed turn | 2.04 | **1.90** | even |
-| 20 file reads | 1.50 | **1.63** | even |
-| Reasoning, prose | 3.40 | **3.31** | even |
-| Reasoning, sections | 2.98 | **2.54** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;15% |
-| Large shell log | 1.32 | **0.92** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;30% |
-| Table streaming | 3.10 | **2.98** | even |
-| Growing tool log | 2.80 | **2.33** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;17% |
-
-JavaScript timeline-row render time (host Profiler allRows.sum, milliseconds), versus no plugin: 3 lower, 0 even and 8 higher. Paseo performs Markdown layout on native threads, so this JavaScript-only probe does not represent total app CPU.
-
-| Scenario | No plugin | Better Paseo | vs no plugin |
-| --- | ---: | ---: | :--- |
-| Code block streaming | 647.2 | **407.6** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;37% |
-| Large diff | 11.9 | **45.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;286% |
-| History replay | 34.7 | **82.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;137% |
-| Long reply | 13,968.3 | **798.9** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;94% |
-| Mixed turn | 107.6 | **168.8** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;57% |
-| 20 file reads | 101.0 | **175.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;74% |
-| Reasoning, prose | 144.5 | **215.1** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;49% |
-| Reasoning, sections | 133.1 | **179.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;35% |
-| Large shell log | 12.0 | **40.9** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;241% |
-| Table streaming | 358.6 | **285.2** | <img src="docs/perf/readme/arrow-up.svg" width="11" height="13" alt="better">&ensp;20% |
-| Growing tool log | 87.9 | **144.5** | <img src="docs/perf/readme/arrow-down.svg" width="11" height="13" alt="worse">&ensp;64% |
-
-Green ⬆ is lower; red ⬇ is higher. Percentages use unrounded medians. `history-100` is a fixture name, not 100 actual provider turns; it is labelled “History replay”. `tool-expanded-streaming` performs no expand action and is labelled “Growing tool log”.
-
-**Method and limits.** Web main-thread time is CDP TaskDuration for a whole replay; the row table is the sum of the host React Profiler row timings. iOS app CPU covers the whole process, including native threads; iOS row timings cover JavaScript work only. Every table uses the median of five runs per cell; percentage changes use unrounded medians. Changes under 10% are even; for whole Web replays, both sides below 0.5 seconds are also even. CLS has no 0.5-second floor; use its six-decimal absolute values because percentages can grow around near-zero baselines. The comparison with Beautiful Chat 42b61d8 was measured on Paseo 0.11.2 and was not repeated on 0.12 or 0.13. Tasks and Block details were on by default. Separate A/B runs on Paseo 0.12, not repeated on 0.13, showed Tasks increased Web history-replay main-thread time from 0.885 to 0.941 seconds (+6%), and increased JS heap by about 1.3–2.1 MB across the paired fixtures; iOS history-replay app CPU changed about 2%. Turning Block details off reduced iOS JavaScript row time by 12–17% in three fixtures, while app CPU changed only about 2–4%. One known source of history-replay overhead is that each host agent update supplies a fresh `features` array even when it is unchanged, making the whole agent view and row-render callbacks render again whether Tasks is on or off; reported upstream as [getpaseo/paseo#7773](https://github.com/getpaseo/paseo/issues/7773) with a fix in [#7774](https://github.com/getpaseo/paseo/pull/7774), which is still open, so Paseo 0.13.0 behaves the same way.
-
 ### Where the time goes
 
-- **Skip unchanged rows.** Semantic theme/data comparisons let unchanged cards skip rendering.
-- **Parse replies incrementally.** Finished Markdown blocks are cached; only the growing tail is
-  repaired. Long replies split into blocks that the native host can virtualize; Copy retains the
-  full source.
-- **Draw tool bodies on demand.** Collapsed rows do not mount their bodies. Completed code requests
-  daemon highlighting; large code and terminal output render in batches with a Show all control.
-- **Reduce continuous animation work.** The Web running dot uses CSS and stops for Reduced Motion;
-  decorative shadows, blur and breathing loops are removed.
-- **Send less on reconnect.** Paseo sends every plugin's client bundle again each time an app
-  reconnects, and behind the relay a phone decrypts it in JavaScript. The install step minifies the
-  client, and the Tasks board, its sidebar entry and its settings tab are a separate 304 KB chunk
-  fetched once per app launch while the board is on and never while it is off: the catalog on a
-  Paseo 0.12 daemon fell from 1,977 KB to 722 KB. Brand marks and Inter are delivered on demand,
-  and the client source stays ASCII for Hermes one-byte strings.
+- **Skip unchanged rows.** Semantic theme and data comparisons let unchanged cards skip rendering entirely.
+- **Parse replies incrementally.** Finished Markdown blocks are cached; only the growing tail is repaired during streaming. Long replies split into blocks that the native host can virtualize; Copy retains full source.
+- **Draw tool bodies on demand.** Collapsed rows do not mount their bodies. Completed code requests daemon highlighting; large code and terminal output render in batches with a Show all control.
+- **Reduce continuous animation work.** The Web running dot uses CSS and stops for Reduced Motion; decorative shadows, blur and breathing loops are removed.
+- **Send less on reconnect.** The client ships minified and the Tasks board loads only when enabled (cutting reconnect catalog payload from 1,977 KB to 722 KB on a Paseo 0.12 daemon). Brand marks and Inter are delivered on demand, and client source stays ASCII for Hermes one-byte strings.
 
----
-
-## Memory comparison
-
-2026-10-26 Web production-profiling runs; each value is the median of five post-GC readings, from the same replay matrix as the main-thread table. This is JavaScript heap, not total process or app memory. Differences are Better Paseo minus no plugin, in MB; the 10% even rule does not apply. Better Paseo used 5.1–13.2 MB more heap across the listed scenarios.
-
-![Web JavaScript heap and DOM nodes](docs/perf/readme/web-memory.en.svg)
-
-| Scenario | No plugin | Better Paseo | Difference |
-| --- | ---: | ---: | ---: |
-| Code block streaming | 83.9 | **89.0** | +5.1 |
-| Large diff | 78.3 | **86.6** | +8.2 |
-| History replay | 85.8 | **99.1** | +13.2 |
-| Long reply | 83.8 | **96.4** | +12.6 |
-| Mixed turn | 80.6 | **90.2** | +9.6 |
-| 20 file reads | 81.6 | **92.1** | +10.6 |
-| Reasoning, prose | 79.4 | **87.4** | +8.0 |
-| Reasoning, sections | 79.3 | **87.0** | +7.7 |
-| Large shell log | 78.9 | **87.3** | +8.4 |
-| Table streaming | 80.4 | **89.0** | +8.6 |
-| Growing tool log | 81.2 | **91.6** | +10.4 |
-
-Raw Web samples from this round are kept in the local, git-ignored docs/bench/2026-10-26-paseo-013-948b8720 archive; they are not stored in git.
+> [!NOTE]
+> For complete measurement methodology, testing conditions, simulator limits, and full 11-scenario comparison tables for Web, iOS, CLS, and JavaScript heap, see the dedicated [Performance Benchmarks](docs/performance.md) documentation.
 
 ---
 
 ## Timeline
 
-Screenshots taken on 2026-10-26 and 27. The desktop board and timeline shots and the cover come
-from `948b8720` on Paseo 0.13.0's web app; the phone and iPad shots were taken or rechecked at
+The cover shows `d53fe171`, a development revision after 1.5.5, in the Paseo 0.15.4 web app;
+its phone-sized timeline is also the web app, not a native iOS screenshot. Other screenshots were
+taken on 2026-10-26 and 27. The desktop board and timeline shots come from `948b8720` on Paseo
+0.13.0's web app; the phone and iPad shots were taken or rechecked at
 `8802deb8` on Paseo 0.13.0 Release builds on iOS 26.5 simulators (iPhone 17 Pro, 11-inch and
 13-inch iPad). `948b8720..8802deb8` changes only the phone search and filter sheet, which the
 desktop shots do not show. Card and setting screenshots come from the offline Web showcase and were
 rechecked at `948b8720`; where nothing had changed, the earlier capture was kept. All data is
-sample fixture data. Every screenshot defaults to light
-and switches to dark with the reader's theme. Performance versions and conditions are identified
-above. [Capture manifest](docs/images/screenshots.json).
+sample fixture data. The other screenshots default to light
+and switches to dark with the reader's theme. Performance versions and conditions are identified in [Performance](#performance) (full details in [Performance Benchmarks](docs/performance.md)).
 
 Everything below is on top of what Beautiful Chat already drew: typed tool cards, Shiki
 highlighting, image reads, opening files and the plugin's own find bar.
@@ -388,7 +243,7 @@ plugins as plain text and `task` arrives as a sub-agent item. If `ask` also carr
   for readability.
 - When a background sub-agent from an earlier turn keeps reporting, Paseo 0.12 can append a second
   copy of a tool row; the plugin hides such copies (see
-  [Paseo issues the plugin works around](#paseo-issues-the-plugin-works-around)).
+  [Paseo issues the plugin works around](docs/limitations.md#paseo-issues-the-plugin-works-around)).
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--questions-dark.png"><img alt="Structured question transcript with recorded answers" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--questions-light.png"></picture>
 
@@ -765,7 +620,7 @@ bubble** switches eligible prompts to the plugin's bubble: an always-visible cop
 the newest prompt while this client watches its turn, the turn's token usage. It draws images when
 it can extract a supported image source; a prompt with an attachment it cannot render stays with
 Paseo. Released Paseo does not hand plugins its rewind menu, so the plugin's bubble has none (see
-[What a plugin cannot do](#what-a-plugin-cannot-do)).
+[What a plugin cannot do](docs/limitations.md)).
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--user-dark.png"><img alt="Prompt bubble" src="https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/media--docs--images--user-light.png"></picture>
 
@@ -872,7 +727,7 @@ subscription, and the board's code is not fetched. Its options are listed under
   long it has run) and the card's buttons. Which fields show is set by **Card density**.
 - Label colours follow Paseo's label definitions, and project icons are the ones Paseo shows in its
   sidebar. On Paseo 0.12 the plugin's server reads both from the daemon itself; see
-  [What a plugin cannot do](#what-a-plugin-cannot-do).
+  [What a plugin cannot do](docs/limitations.md).
 - The status marks are Paseo's own sidebar marks. A failed card is tinted red. The timer of a
   finished turn comes from the turn's recorded end, so opening an old agent's tab does not stretch
   it, and a Claude turn that ended on an error (a session limit, an invalid key) counts as failed.
@@ -1107,7 +962,7 @@ the path, resolved against the agent's working directory, on the daemon's machin
 
 On a touch device the same press copies the absolute path, with a toast, since a phone cannot reach
 the daemon machine's screen. Paseo's own file panel is out of reach for now; see
-[What a plugin cannot do](#what-a-plugin-cannot-do).
+[What a plugin cannot do](docs/limitations.md).
 
 Better Paseo never reads a path that names a network share or a Windows device. `\\host\share`,
 `//host/share`, `\??\`, `\\?\` and `\\.\` are refused before the daemon touches the filesystem, for
@@ -1117,108 +972,20 @@ turned the path into an absolute share path. A refused path stays plain text or 
 
 ---
 
-## What a plugin cannot do
+## Documentation
 
-Better Paseo draws only what the Paseo plugin SDK lets a plugin draw. The items below are things
-you might expect that it cannot do, or does only by going around the SDK, on released Paseo (checked against `@getpaseo/plugin` 0.12.0
-and 0.13.0-beta.1 on 2026-10-23), what it does instead, and the upstream change each one waits
-for. Upstream states are as of the same date.
+- **[Installation Guide](docs/install.md):** Marketplace install, updates, Git tracking, and version requirements.
+- **[Performance Benchmarks](docs/performance.md):** 220 serial replays across 11 scenarios comparing main-thread time, row render time, CLS, and JS heap.
+- **[Known Limitations](docs/limitations.md):** Host constraints, SDK limitations, upstream workarounds, and compatibility.
+- **[Troubleshooting](docs/troubleshooting.md):** Solutions for row spacing, search, turn timing, reconnection, and update issues.
+- **[Development Guide](docs/development.md):** Project structure, Hermes build verification, and release workflow.
 
-### In the timeline
+## Follow
 
-| Cannot | Instead | Waiting on |
-| --- | --- | --- |
-| Open a pressed file in Paseo's file panel. Plugins get no navigation to a file; 0.13 lets a plugin add a file viewer, but still not open a file. | Desktop opens it in its default app or reveals it in Finder or Explorer; touch copies the path ([Opening files](#opening-files)). | [getpaseo/paseo#7318](https://github.com/getpaseo/paseo/pull/7318), open |
-| Show the images pasted into a prompt. Paseo strips them from the item a plugin receives. | **Enhanced prompt bubble** is off by default, so Paseo keeps the prompt and its images; when on, a prompt with an attachment the plugin cannot draw stays with Paseo. | [#6736](https://github.com/getpaseo/paseo/pull/6736), open draft |
-| Offer Paseo's rewind menu on the plugin's prompt bubble, or its Fork action on the plugin's reply footer. A plugin replaces a row whole and cannot borrow the host's menus. | Turn **Enhanced prompt bubble** off for rewind, **Plugin markdown for replies** off for Fork. | [#6677](https://github.com/getpaseo/paseo/pull/6677) (rewind), [#7462](https://github.com/getpaseo/paseo/pull/7462) (fork), open |
-| Let Paseo's Ctrl/Cmd+F reveal a row the plugin drew. | The plugin's own find bar, over loaded messages ([Finding text](#finding-text)). | nothing filed |
-| Space its rows like Paseo's native tool rows. Paseo puts a 16pt gap under each plugin row. | **Tight rows** and **Tight reply** take most of it back where it is safe. | [#6602](https://github.com/getpaseo/paseo/pull/6602), open |
-| Follow a font change in Paseo's Appearance settings live. Paseo does not share its font settings with plugins. | Web and desktop read the font Paseo saved on that computer; iOS and Android use the system monospace at 12px under Follow Paseo. | not proposed upstream yet |
-| Offer **Add to chat** for a table selection on iOS and Android. Plugins cannot write into Paseo's composer. | **Copy selected**. On web the plugin inserts the text into the composer itself. | not proposed upstream yet |
-| Pin the current prompt, or an open card's header, to the top while you scroll. | The plugin side is ready and turns on once Paseo offers it. | not proposed upstream yet |
-| Group several calls into one "Read 12 files" row. Paseo folds runs of calls under its Summary tool-call display, but skips plugin rows. | Rows stay one per call. | [Discussion #7687](https://github.com/getpaseo/paseo/discussions/7687), open |
-| Scroll a 5,000-line block quickly (about 30 s to open on a development-build simulator). | Long output folds to 12 lines and renders in batches. | no host API |
-| Show token figures for turns from before the plugin was installed. Paseo keeps usage only on live events. | The plugin's server records every turn's start, end, error and usage from the moment it runs, so turns since then show figures on any client. | [#7000](https://github.com/getpaseo/paseo/pull/7000) (turn timing), open |
-| Leave the timeline usable behind the details panel on iOS and Android. A plugin overlay there is a full-screen modal. | The floating and side panels close on a tap outside; on web they are not modal. | nothing filed |
+Follow along for release updates and news:
 
-### On the Tasks board
-
-Several board features have no plugin API yet. They work on released Paseo 0.12 because the
-plugin's server goes around the SDK: it runs Paseo's CLI on the daemon's machine, or opens its own
-connection to the daemon through the client modules Paseo installs. These are stopgaps; each
-switches to an official API once Paseo has one.
-
-| Feature | How it works today | Waiting on |
-| --- | --- | --- |
-| Label colours and project icons | The plugin's server reads the label definitions and project icons from the daemon (`tasks.labels`, `tasks.project-icons`). The board asks the plugin API first, so on a Paseo that exposes them it uses the official calls by itself. If neither answers, labels take a colour picked by their name and projects a generated initial. | [#7482](https://github.com/getpaseo/paseo/pull/7482), open ([Discussion #7481](https://github.com/getpaseo/paseo/discussions/7481)) |
-| Stop | Runs `paseo agent stop`; hidden where the CLI is not found. | nothing filed |
-| Unarchive | Runs `paseo agent reload`; hidden where the CLI is not found. | nothing filed |
-| Mark as read | Clears the agent's attention over the server's own daemon connection; hidden where that connection is unavailable. | [#7647](https://github.com/getpaseo/paseo/pull/7647) (a CLI command), open |
-| Provider sub-agent cards | The server reads a session's sub-agents from the daemon and follows their updates; without the connection the board shows none. | nothing filed |
-
-Archive needs no workaround: it uses the plugin API.
-
-| Cannot | Instead | Waiting on |
-| --- | --- | --- |
-| Open an archived task's tab. A plugin cannot pin the tab it opens, so Paseo drops an archived agent's tab and shows another of that workspace. | An archived task shows **Unarchive** where Open was; once it is back, Open works. Tasks of an archived workspace keep Open. | [#6382](https://github.com/getpaseo/paseo/pull/6382), open draft |
-
-### Everywhere
-
-| Cannot | Instead | Waiting on |
-| --- | --- | --- |
-| Keep a plugin screen while the phone is disconnected. Paseo removes every plugin when the connection drops and sends all their bundles again on reconnect, so an open board shows "This plugin surface is unavailable." until it is back. | The board returns with its cards, lane and filters; the bundle is minified and the board loads on demand, so the catalog fell from 1,977 KB to 722 KB (measured on a Paseo 0.12 daemon when the change landed). | [#7088](https://github.com/getpaseo/paseo/issues/7088) (issue), [#6731](https://github.com/getpaseo/paseo/pull/6731), [#6732](https://github.com/getpaseo/paseo/pull/6732), open |
-| Keep a setting per device. Plugin settings are host-wide only. | Every client of a daemon shares one set, the drawer's pinch size included. | nothing filed |
-
-The SDK constraints met while building the plugin, with evidence and workarounds, are listed for
-developers in [`docs/plugin-sdk-limitations.md`](docs/plugin-sdk-limitations.md).
-
-### Paseo issues the plugin works around
-
-| Issue | What the plugin does | Fix |
-| --- | --- | --- |
-| A background sub-agent from an earlier turn makes Paseo 0.12 draw a later tool call twice. | Hides the copies and the gap they leave. | [#7541](https://github.com/getpaseo/paseo/issues/7541) / [#7543](https://github.com/getpaseo/paseo/pull/7543), open |
-| A Claude turn that hits the session limit (or an invalid key) ends as a normal reply, and the agent looks done. | The Tasks board files it under to review as failed, with its error. | [#7636](https://github.com/getpaseo/paseo/issues/7636) / [#7637](https://github.com/getpaseo/paseo/pull/7637), open |
-| Grok and Cursor histories reload without per-message times. | Hides an elapsed time under one second for those providers; live turns keep theirs. | provider-side |
-
-### Compatibility
-
-Better Paseo requires Paseo 0.14.0 or later. The Tasks board uses its background-workspace
-discovery API to keep a parent running while its hidden child tasks are still active.
-The performance measurements above were made on Paseo 0.13.0 and have not been repeated on 0.14.0.
-
----
-
-## Troubleshooting
-
-| Symptom | What to do |
-| --- | --- |
-| Rows overlap, or a reply overlaps the row below | Turn off **Tight rows** or **Tight reply**. |
-| A reply needs a host image or Paseo's file links | Turn off **Plugin markdown for replies**. |
-| A selected table cell has no **Add to chat** action on a phone | Paseo does not yet let plugins write into the composer; **Copy selected** is always available. |
-| A prompt with an attachment should use Paseo's renderer | Turn off **Enhanced prompt bubble**. Attachments the plugin cannot render stay with Paseo automatically. |
-| Ctrl/Cmd+F misses old messages | Scroll up to load them, or hand replies back to Paseo as above. |
-| Token figures are missing on an old turn | The plugin's server records usage for every completed turn from when it was installed; turns before that, failed or cancelled turns, and turns whose provider reported no figures have none. The latest turn can also recover usage from the daemon's snapshot. |
-| Pinched text in the drawer is too large or small on another phone | The size is shared by every client of the daemon; pinch again, or press **Reset** on the badge. |
-| Grok and Cursor replayed turns have no elapsed time in the Copy toolbar or turn details | Upstream tool issue: when the daemon reloads a Grok or Cursor history, the records carry no per-message timestamps, so every replayed record shares the load time or differs by 1 ms, producing a misleading `0s`. Better Paseo hides an elapsed time under one second for the `grok` and `cursor` providers; turns they run live keep their elapsed time. This is based on the provider, not the model name. |
-| A phone shows "This plugin surface is unavailable." | The app lost its connection; the screen returns when it reconnects ([#7088](https://github.com/getpaseo/paseo/issues/7088)). |
-| Nothing changed after pushing a fix | A marketplace install only picks up a revision published there: wait for the next pin and run `paseo plugin update better-paseo`. A Git-source install follows the default branch, so the same command picks up the push. Switching from the marketplace to the Git source means removing the plugin first, which also deletes its saved settings ([Install](#install)). |
-
-## Development
-
-```bash
-npm install
-npm run typecheck
-npm test
-npm run check:hermes
-npm run build:client
-paseo plugin reload better-paseo
-```
-
-`npm run check:hermes` compiles and runs the client bundle in Hermes, the engine the iOS and Android
-apps use, both as written and as the minified install build with its Tasks chunk; code that works
-on web can still fail there and drop the whole plugin. `npm run build:client` prints the sizes of
-the install build. The rules the check enforces, the project layout, and how to rebuild the
-screenshots and charts are in [`docs/development.md`](docs/development.md).
+- **Xiaohongshu:** [Profile](https://www.xiaohongshu.com/user/profile/63ba8f1d000000002702971c)
+- **X (Twitter):** [@tlittlefan](https://x.com/tlittlefan)
 
 ## License
 
