@@ -341,9 +341,40 @@ function taskLabels(workspace: PaseoWorkspace | undefined, colorNames: ReadonlyM
     .map((name) => ({ name, color: colorNames.get(name) ?? fallbackLabelColor(name) }));
 }
 
+/**
+ * A plan's text, as the request carries it: Claude's ExitPlanMode and Codex's
+ * plan approval both put the Markdown in `input.plan` (and `metadata.planText`).
+ */
+function planText(permission: PaseoAgent["pendingPermissions"][number]): string | null {
+  if (permission.kind !== "plan") return null;
+  const input = permission.input as Record<string, unknown> | undefined;
+  const metadata = (permission as { metadata?: Record<string, unknown> }).metadata;
+  for (const text of [input?.plan, metadata?.planText]) if (typeof text === "string" && text.trim()) return text;
+  return null;
+}
+
+/**
+ * A plan's title: its first line, without the heading's "#", a list item's
+ * marker or emphasis. "# Ship it" reads "Ship it".
+ */
+export function planTitle(text: string): string | null {
+  const line = text.split(/\r?\n/).find((value) => value.trim())?.trim();
+  if (!line) return null;
+  const title = line
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/\s+#+\s*$/, "")
+    .replace(/^(?:[-*+]|\d+[.)])\s+/, "")
+    .replace(/(\*\*|__|`)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return title || null;
+}
+
 function firstPermissionSummary(permission: PaseoAgent["pendingPermissions"][number]): string | null {
   const input = permission.input as Record<string, unknown> | undefined;
   const detail = permission.detail as Record<string, unknown> | undefined;
+  const plan = planText(permission);
+  if (plan) return planTitle(plan);
   if (permission.kind === "question" && Array.isArray(input?.questions)) {
     const questions = input.questions.flatMap((value: unknown) => {
       if (!value || typeof value !== "object" || Array.isArray(value)) return [];
@@ -805,6 +836,7 @@ function buildBaseCard(
   const hasGitState = workspace ? workspace.gitRuntime != null : placement?.checkout.isGit === true;
   const pullRequest = workspace?.githubRuntime?.pullRequest;
   const permission = pendingPermissions[0];
+  const plan = permission ? planText(permission) : null;
 
   return {
     id: agent.id,
@@ -873,6 +905,7 @@ function buildBaseCard(
             : "other",
           title: permission.title ?? permission.name,
           summary: firstPermissionSummary(permission),
+          ...(plan ? { body: plan } : {}),
           ...(permission.kind === "question" ? { name: permission.name, questions: parseTaskQuestions(permission.input) } : {}),
           actions: (permission.actions ?? []).map((action) => ({
             id: action.id,

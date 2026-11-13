@@ -612,9 +612,9 @@ describe("TaskCardView on web", () => {
     expect(nodes.indexOf(controls)).toBeLessThan(nodes.indexOf(request));
     expect(controls.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(controlLabels);
     expect(texts(request.find((node) => typeof node.type === "string" && node.props.testID === "task-card-question-divider"))).toEqual([divider, "·", "4m"]);
-    // A plan reads as one, not as the tool that asks for it; no icon beside it.
+    // A plan reads as one, by its title, not as the tool that asks for it; no icon beside it.
     const title = request.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2);
-    if (kind === "plan" || kind === "plan-resume") expect(texts(title)).toEqual(["计划"]);
+    if (kind === "plan" || kind === "plan-resume") expect(texts(title).sort()).toEqual([" · ", "Ship the request layout", "计划"]);
     expect(title.parent!.findAll((node) => (node.type as unknown) === "Icon")).toHaveLength(0);
     const answers = request.find((node) => typeof node.type === "string" && node.props.testID === "task-card-answer-actions");
     expect(answers.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.accessibilityLabel)).toEqual(labels);

@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, setUnreadClearer, openedTask, type TasksHandle } from "../../client/tasks/data";
+import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, setUnreadClearer, openedTask, planTitle, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -752,11 +752,36 @@ describe("Tasks data store", () => {
     const mounted = await mountTasks(fake, "24h", false);
     try {
       const permission = mounted.current.byId.get("planning")!.permission!;
-      expect(permission).toMatchObject({ kind: "plan", title: "Plan", summary: "Review the proposed plan before implementation starts." });
+      // The plan's first line names it, not the request's fixed description; "View plan" opens the whole text.
+      expect(permission).toMatchObject({ kind: "plan", title: "Plan", summary: "Section every request", body: "1. Section every request" });
       const buttons = permissionButtons(permission, "en", true);
       expect(buttons.map((button) => button.label)).toEqual(["Dismiss", "Implement"]);
       await respondToPermission(fake.paseo, "planning", buttons[0]!, permission.requestId);
       expect(fake.permissionResponses).toEqual([{ agentId: "planning", requestId: "permission-codex-plan", response: { behavior: "deny", selectedActionId: "dismiss", message: "Denied by user" } }]);
+    } finally { mounted.unmount(); }
+  });
+
+  // The card names a plan by its first line; the whole plan opens from "View plan".
+  it.each([
+    ["# 把左右键同按新规则同步到 luoph-mini\n\n## Context\n本机已改好", "把左右键同按新规则同步到 luoph-mini"],
+    ["\n\n## **Ship** the `layout` ##\nsteps", "Ship the layout"],
+    ["- Section every request\n- Test it", "Section every request"],
+    ["2) Test it", "Test it"],
+    ["Plain   first\tline\nsecond", "Plain first line"],
+    ["  \n\n", null],
+    ["#", "#"],
+  ])("titles the plan %j as %j", (text, title) => {
+    expect(planTitle(text)).toBe(title);
+  });
+
+  it("reads a plan from its metadata when the input carries none", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("planning", { provider: "claude", status: "running", pendingPermissions: [{ ...claudeExitPlanRequest(), input: { plan: "  \n" }, metadata: { planText: "# From metadata" } }] as never })],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountTasks(fake, "24h", false);
+    try {
+      expect(mounted.current.byId.get("planning")!.permission).toMatchObject({ summary: "From metadata", body: "# From metadata" });
     } finally { mounted.unmount(); }
   });
 

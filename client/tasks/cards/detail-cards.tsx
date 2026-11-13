@@ -27,6 +27,7 @@ import type { LastHumanMessage } from "../data/last-human-message";
 import type { LastMessage } from "../data/last-message";
 import { formatClockTime, formatDuration, formatRelative, formatTokenTotal, since, tildePath } from "./format";
 import { cardStrings, requestTitle } from "./strings";
+import { PlanViewButton, TaskPlanDialog } from "./plan-dialog";
 import { taskTokens, type TaskTokens } from "./tokens";
 import { TagMark } from "./tag-mark";
 import { SheetFoot, SheetScrollRoom, useAfterSheetMotion } from "../sheet-motion";
@@ -1020,6 +1021,11 @@ function PermissionBlock(props: Inner) {
   const small = F.sm;
   const waited = since(card.timing.attentionAt, props.now) ?? since(card.timing.turnStartedAt, props.now);
   const buttons = props.actions !== false && props.onPermission ? (props.permissionButtons ?? []) : [];
+  // A plan's summary is its title, set as text; any other is the command, file or question as written.
+  const plan = permission.kind === "plan";
+  const prose = permission.kind === "question" || plan;
+  // "View plan": the plan request it was opened on, so a newer plan closes it.
+  const [planOpen, setPlanOpen] = useState<string | null>(null);
   return (
     <View testID="detail-permission" style={{ borderWidth: 1, borderColor: tokens.border, borderRadius: 10, backgroundColor: colors.sunk }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10 }}>
@@ -1028,11 +1034,17 @@ function PermissionBlock(props: Inner) {
           {requestTitle(permission, cardStrings(props.language))}
         </Text>
         {permission.remaining > 0 ? <Text style={{ fontSize: small, color: tokens.foregroundMuted }}>{words.moreRequests(permission.remaining)}</Text> : null}
+        {permission.body ? (
+          <PlanViewButton tokens={tokens} language={props.language} lineHeight={HOST_LINE.base} onPress={() => setPlanOpen(permission.requestId)} testID="detail-view-plan" />
+        ) : null}
       </View>
       {permission.summary ? (
         <View style={{ marginHorizontal: 12, marginTop: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, borderWidth: 1, borderColor: tokens.border, backgroundColor: tokens.card.background }}>
-          <Text style={{ fontSize: permission.kind === "question" ? F.base : F.sm, lineHeight: permission.kind === "question" ? HOST_LINE.base : CODE_LINE, fontFamily: MONO, color: tokens.foreground }}>{permission.summary}</Text>
+          <Text style={{ fontSize: prose ? F.base : F.sm, lineHeight: prose ? HOST_LINE.base : CODE_LINE, fontFamily: plan ? undefined : MONO, fontWeight: plan ? "500" : undefined, color: tokens.foreground }}>{permission.summary}</Text>
         </View>
+      ) : null}
+      {planOpen !== null && planOpen === permission.requestId && permission.body ? (
+        <TaskPlanDialog text={permission.body} theme={props.theme} language={props.language} touch={props.touch === true} onClose={() => setPlanOpen(null)} />
       ) : null}
       {buttons.length > 0 ? (
         <View testID="detail-permission-buttons" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>

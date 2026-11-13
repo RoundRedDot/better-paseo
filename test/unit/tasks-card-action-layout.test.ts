@@ -837,6 +837,41 @@ describe("phone card action bar under native (Yoga) layout", () => {
     },
   );
 
+  // "View plan" shares the plan title's row: it keeps its whole label inside the card, and the title takes what is left.
+  it.each((["phone", "card", "details"] as const).flatMap((surface) => [240, 300, 340, 387].flatMap((width) => TEXT_SCALES.flatMap((textScale) => (["zh", "en"] as const).map((language) => [surface, width, textScale, language] as const)))))(
+    "keeps View plan whole beside the plan's title on the %s at %ipt, text scale %f, %s",
+    async (surface, width, textScale, language) => {
+      const plan = kindCard("plan");
+      const buttons = permissionButtons(plan.permission!, language, true);
+      await act(async () => {
+        renderer = TestRenderer.create(surface === "details"
+          ? React.createElement(TaskDetailCards, { card: plan, theme: THEME as never, language, strings: BOARD_STRINGS[language].sidebar, now: NOW, touch: true, tabs: true, onSheetClose() {}, stop: { phase: "idle", onPress() {} }, onOpen() {}, onPermission() {}, permissionButtons: buttons })
+          : phoneCard(plan, language, { compact: surface === "phone", onOpen() {}, permissionButtons: buttons }));
+      });
+      const byId = (id: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
+      const rootId = surface === "details" ? "detail-permission" : `task-card-${plan.id}`;
+      const frames = await settleHostLayout(() => byId(rootId), { width, textScale, wrapText: true, wordWrap: true });
+      const box = frames.get(byId(rootId))!;
+      const view = byId(surface === "details" ? "detail-view-plan" : "task-card-view-plan");
+      const frame = frames.get(view)!;
+      expect(frame.left).toBeGreaterThanOrEqual(box.left - 0.5);
+      expect(frame.left + frame.width).toBeLessThanOrEqual(box.left + box.width + 0.5);
+      const label = labelsOf(view).find((node) => node.children.join("") === cardStrings(language).viewPlan)!;
+      const labelFrame = frames.get(label)!;
+      const fontSize = (Object.assign({}, ...[label.props.style].flat(Infinity).filter(Boolean)) as { fontSize: number }).fontSize;
+      // Whole, on one line, inside its button.
+      expect(labelFrame.width).toBeGreaterThanOrEqual(estimateTextWidth(cardStrings(language).viewPlan, fontSize) * textScale - 0.5);
+      expect(labelFrame.left + labelFrame.width).toBeLessThanOrEqual(frame.left + frame.width + 0.5);
+      // The title sits before it, on the same row, and keeps some width.
+      let row = view.parent!;
+      while (typeof row.type !== "string") row = row.parent!;
+      const title = hostChildren(row).find((node) => node.props.numberOfLines === 2)!;
+      expect(frames.get(title)!.top).toBeLessThan(frame.top + frame.height);
+      expect(frames.get(title)!.left + frames.get(title)!.width).toBeLessThanOrEqual(frame.left + 0.5);
+      expect(frames.get(title)!.width).toBeGreaterThan(40);
+    },
+  );
+
   it.each(["zh", "en"] as const)("shares a tool permission's answer row between Allow and Deny, with Stop and Open on the bar above in %s", async (language) => {
     await act(async () => { renderer = TestRenderer.create(phoneCard(sample("sample-input"), language, { onOpen() {} })); });
     const card = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "task-card-sample-input");

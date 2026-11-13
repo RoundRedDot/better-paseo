@@ -146,8 +146,10 @@ export interface TaskPermission {
   requestId: string;
   kind: PermissionKind;
   title: string;
-  /** The command or file the request is about, one line; null when none. */
+  /** The command or file the request is about, one line; null when none. A plan's is its title. */
   summary: string | null;
+  /** A plan's whole text, in Markdown, for "View plan"; absent for every other request. */
+  body?: string;
   questions?: import("./question-form").TaskQuestion[];
   name?: string;
   /** The request's own buttons; empty means draw Allow and Deny. */

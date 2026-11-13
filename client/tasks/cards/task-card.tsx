@@ -41,6 +41,7 @@ import { CardButton } from "./action-buttons";
 import { ActionPressable, useLiftPress, usePressCue } from "./action-pressable";
 import { buttonHue, cardButtonHeight, COMPACT_CARD_BUTTON_HEIGHT, CONFIRM_STOP_ICON, keepsAnswerLabel, requestLook, webTransition } from "./action-style";
 import { CardContextMenu } from "./card-menu";
+import { PlanViewButton, TaskPlanDialog } from "./plan-dialog";
 import { bindContextMenu, openToolbarDetailsLayer } from "../../web";
 import { ArchivedTag, parentTag } from "./archived-tag";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
@@ -640,6 +641,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const [metaFit, setMetaFit] = useState({ row: 0, text: 0, tag: 0 });
   // Right click and tablet long press keep their window point.
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | "touch" | null>(null);
+  // "View plan": the plan request it was opened on, so a newer plan closes it.
+  const [planOpen, setPlanOpen] = useState<string | null>(null);
   useLayoutEffect(
     () =>
       bindContextMenu(rootRef.current, (point, target) => {
@@ -1514,6 +1517,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           {permission.remaining > 0 ? (
             <Text style={[text(m.blockSize - 1, m.blockLine, muted), tabular]}>{strings.more(permission.remaining)}</Text>
           ) : null}
+          {permission.body ? (
+            <PlanViewButton tokens={tokens} language={language} lineHeight={m.blockLine} onPress={() => setPlanOpen(permission.requestId)} testID="task-card-view-plan" />
+          ) : null}
         </View>
         {compactRequest && props.permissionButtons.length > 0 ? (
           <ActionRow gap={GAP} stack={stackAnswers} testID="task-card-question-actions">
@@ -1760,6 +1766,9 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         )}
         {WEB ? <CardHints root={rootRef} texts={hintTexts} theme={theme} color={tokens.foreground} /> : null}
       </Pressable>
+      {planOpen !== null && planOpen === permission?.requestId && permission.body ? (
+        <TaskPlanDialog text={permission.body} theme={theme} language={language} touch={compact || TOUCH} onClose={() => setPlanOpen(null)} />
+      ) : null}
       {menuAt ? (
         <CardContextMenu
           point={menuAt === "touch" ? null : menuAt}

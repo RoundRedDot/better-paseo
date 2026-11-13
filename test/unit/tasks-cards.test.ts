@@ -1693,7 +1693,7 @@ describe("TaskCardView rows", () => {
     const onOpen = vi.fn();
     const tree = await render(cardElement(card, { permissionButtons: buttons, onPermission, onOpen }));
     const all = texts(tree.root);
-    expect(all).toContain(kind === "plan" ? "计划" : "Bash · npm run db:migrate -- --env staging");
+    expect(all).toContain(kind === "plan" ? "计划 · Ship the request layout" : "Bash · npm run db:migrate -- --env staging");
     expect(all).not.toContain("ExitPlanMode");
     expect(all).toContain("还有 1 条");
     const request = hostByTestId(tree.root, "task-card-permission");
@@ -1714,6 +1714,50 @@ describe("TaskCardView rows", () => {
     byLabel(tree.root, answers.at(-1)!).props.onPress();
     expect(onPermission).toHaveBeenCalledWith(card, buttons.at(-1));
     expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  // The card names the plan by its title; "View plan" opens the whole plan, and its press does not choose the card.
+  it("titles a plan request and opens the whole plan from View plan", async () => {
+    const card = asExitPlan(sample("sample-input"));
+    const onSelect = vi.fn();
+    const onPermission = vi.fn();
+    const tree = await render(cardElement(card, { permissionButtons: permissionButtons(card.permission!, "zh", true), onPermission, onSelect }));
+    const planDialogs = () => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-plan-dialog");
+    const request = hostByTestId(tree.root, "task-card-permission");
+    const title = request.find((node) => typeof node.type === "string" && node.props.numberOfLines === 2);
+    expect(texts(title)).toEqual(["计划 · Ship the request layout"]);
+    // The button sits on the title's row, after the title, and keeps its width.
+    const view = byLabel(request, "查看计划");
+    let row = view.parent!;
+    while (!texts(row).includes("计划 · Ship the request layout")) row = row.parent!;
+    expect(flat(row.props.style)).toMatchObject({ flexDirection: "row" });
+    expect(texts(row)).toEqual(["计划 · Ship the request layout", "查看计划"]);
+    expect(flat(view.props.style)).toMatchObject({ flexShrink: 0 });
+    expect(planDialogs()).toHaveLength(0);
+    const stopPropagation = vi.fn();
+    await act(async () => view.props.onPress({ stopPropagation }));
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onPermission).not.toHaveBeenCalled();
+    const dialog = hostByTestId(tree.root, "task-plan-dialog");
+    expect(tree.root.find((node) => (node.type as unknown) === "Modal").props.title).toBe("计划");
+    expect(dialog.findAllByType(MarkdownView)[0]!.props.text).toBe("# Ship the request layout\n1. Section every request\n2. Test it");
+    // Outside the card's pressable: a press in the dialog never reaches the card.
+    expect(hostByTestId(tree.root, `task-card-${card.id}`).findAll((node) => node.props.testID === "task-plan-dialog")).toHaveLength(0);
+    // Closing it, and a newer plan in its place, both leave it closed.
+    await act(async () => tree.root.find((node) => (node.type as unknown) === "Modal").props.onOpenChange(false));
+    expect(planDialogs()).toHaveLength(0);
+    await act(async () => byLabel(hostByTestId(tree.root, "task-card-permission"), "查看计划").props.onPress({ stopPropagation }));
+    expect(planDialogs()).toHaveLength(1);
+    const newer = asExitPlan(card, { id: "permission-newer-plan" });
+    await act(async () => tree.update(cardElement(newer, { permissionButtons: permissionButtons(newer.permission!, "zh", true), onPermission, onSelect })));
+    expect(planDialogs()).toHaveLength(0);
+  });
+
+  it("offers View plan only on a plan request", async () => {
+    const card = sample("sample-input");
+    const tree = await render(cardElement(card, { permissionButtons: permissionButtons(card.permission!, "zh", true) }));
+    expect(tree.root.findAll((node) => node.props.testID === "task-card-view-plan")).toHaveLength(0);
   });
 
   it("lays a tool permission out as a question: controls above its divider, Allow and Deny under it", async () => {
@@ -4350,6 +4394,17 @@ describe("TaskDetailCards", () => {
     // The phone's bar carries them instead.
     await act(async () => tree.update(details(card, { onPermission, permissionButtons: permissionButtons(card.permission!, "zh"), actions: false })));
     expect(hostByTestId(tree.root, "detail-permission").findAll((node) => node.props.testID === "detail-permission-buttons")).toEqual([]);
+  });
+
+  it("names a plan in the details by its title, as text, with View plan opening the whole plan", async () => {
+    const card = asExitPlan(sample("sample-input"));
+    const tree = await render(details(card, { onPermission: vi.fn(), permissionButtons: permissionButtons(card.permission!, "zh", true) }));
+    const block = hostByTestId(tree.root, "detail-permission");
+    expect(texts(block).slice(0, 3)).toEqual(["计划", "查看计划", "Ship the request layout"]);
+    const summary = block.find((node) => typeof node.type === "string" && node.props.children === "Ship the request layout");
+    expect(flat(summary.props.style).fontFamily).toBeUndefined();
+    await act(async () => byLabel(block, "查看计划").props.onPress({ stopPropagation: vi.fn() }));
+    expect(hostByTestId(tree.root, "task-plan-dialog").findAllByType(MarkdownView)[0]!.props.text).toContain("1. Section every request");
   });
 
   it("puts the phone's actions in a bar: stop then open while running, open last while asking", async () => {

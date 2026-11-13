@@ -46,7 +46,8 @@ export function exitPlanPermission(options: { id?: string; resume?: boolean } = 
     requestId: request.id,
     kind: "plan",
     title: "ExitPlanMode",
-    summary: null,
+    summary: "Ship the request layout",
+    body: request.input.plan,
     actions: request.actions.map(({ id, label, behavior, variant }) => ({ id, label, behavior, variant })),
     remaining: 0,
   };
