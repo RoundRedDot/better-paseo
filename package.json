@@ -1,7 +1,7 @@
 {
   "name": "better-paseo",
-  "version": "1.5.5",
-  "build": 202611131123,
+  "version": "1.5.6",
+  "build": 202611141549,
   "private": true,
   "description": "Paseo plugin: every agent on one board, on phone, iPad and desktop, plus a clearer, faster chat timeline",
   "license": "MIT",
