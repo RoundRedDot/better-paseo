@@ -83,7 +83,7 @@ so it reads the same on any card. The transient lane/reply flash uses an animate
 
 Tasks has two hover treatments:
 
-- Lane cards and their action buttons keep `surfaceLift` in `client/tasks/cards/surface-lift.ts`: a fine pointer deepens the shadow, and a phone or iPad press deepens the shadow and scales to 1.03. Reduced motion omits the scale. The subtask cell is the exception and uses the shared fill below.
+- Lane cards and their action buttons keep `surfaceLift` in `client/tasks/cards/surface-lift.ts`: a fine pointer deepens the shadow, and a phone or iPad press deepens the shadow and scales to 1.03. Reduced motion omits the scale. The subtask cell and error-dismiss button are exceptions and use the shared fill below.
 - Other interactive Tasks controls, including toolbar controls on desktop, phone and iPad, details, filters, menus and subtask cells, mix their actual underlying or selected surface toward the theme foreground by 5% on hover and 8% on press (`hoverFill` in `client/tasks/hover-fill.ts`). They do not add a hover shadow or scale. Selection, semantic colours and disabled state remain visible; disabled controls do not receive the fill. Badge rings and slash cutouts follow the resulting background.
 - A pointer on an iPad can show hover; touch shows the press state. The colour mix follows the active theme, including dark themes.
 - Menu chrome (`menuChrome`): `surface0`, hairline border, hover foreground 5%,

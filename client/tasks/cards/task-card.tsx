@@ -5,6 +5,7 @@ import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, laneTitle, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { densityOf, labelLimitCount, type CardSettings } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
+import { hoverFill } from "../hover-fill";
 import { liftedButtonOutline, liftStyle, scaleStyle, surfaceLift, type SurfaceLift } from "./surface-lift";
 import { useCopy } from "../../ui/use-copy";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
@@ -571,11 +572,11 @@ function EdgeFade(props: { color: string }) {
   );
 }
 
-function ErrorDismissButton(props: { label: string; size: number; iconSize: number; color: string; tokens: TaskTokens; onPress(event: GestureResponderEvent): void }) {
+function ErrorDismissButton(props: { label: string; size: number; iconSize: number; color: string; background: string; tokens: TaskTokens; onPress(event: GestureResponderEvent): void }) {
   const { hovered, hoverProps } = useHover();
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={props.label} hitSlop={8} {...hoverProps} onPress={props.onPress}
-      style={({ pressed }) => [{ minWidth: props.size, minHeight: props.size, borderRadius: 4, alignItems: "center", justifyContent: "center" }, liftStyle(props.tokens, surfaceLift(hovered, pressed)), webTransition]}>
+      style={({ pressed }) => [{ minWidth: props.size, minHeight: props.size, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.background, props.tokens.foreground, hovered, pressed, "transparent") }, webTransition]}>
       <Icon name="X" size={props.iconSize} color={props.color} />
     </Pressable>
   );
@@ -1488,7 +1489,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {failureAction ? <Text testID="task-card-error-action" style={[text(m.blockSize, m.blockLine, muted), { marginTop: 4 }]}>{failureAction}</Text> : null}
       </View>
       {!card.stoppedManually && !card.subagent ? (
-        <ErrorDismissButton label={strings.dismissTaskError} size={taskControlHeight(compact ? 44 : 28, scale)} iconSize={m.icon} color={failureColor} tokens={tokens} onPress={(event) => {
+        <ErrorDismissButton label={strings.dismissTaskError} size={taskControlHeight(compact ? 44 : 28, scale)} iconSize={m.icon} color={failureColor} background={background} tokens={tokens} onPress={(event) => {
           event.stopPropagation();
           void dismissError().catch((error: unknown) => toast.error(`${strings.dismissTaskErrorFailed}: ${error instanceof Error ? error.message : String(error)}`));
         }} />

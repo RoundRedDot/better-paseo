@@ -1,3 +1,4 @@
+import { hoverFill } from "../../client/tasks/hover-fill";
 import { actionIconOnly } from "../../client/tasks/cards/action-row";
 import { nativeProseText } from "./helpers/native-prose-text";
 /**
@@ -1477,9 +1478,11 @@ describe("TaskCardView rows", () => {
       const button = () => byLabel(tree.root, "关闭错误提示");
       expect(flat(button().props.style).boxShadow).toBeUndefined();
       await act(async () => button().props.onHoverIn());
-      expect(flat(button().props.style).boxShadow).toBeTruthy();
-      await act(async () => button().props.onHoverOut());
+      const tokens = buildTaskTokens(theme.colors);
+      expect(flat(button().props.style).backgroundColor).toBe(hoverFill(tokens.card.failed, tokens.foreground, true, false));
       expect(flat(button().props.style).boxShadow).toBeUndefined();
+      await act(async () => button().props.onHoverOut());
+      expect(flat(button().props.style).backgroundColor).toBe("transparent");
     } finally {
       if (saved === undefined) delete platform.__rnMockOS;
       else platform.__rnMockOS = saved;

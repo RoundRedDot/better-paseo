@@ -252,6 +252,20 @@ describe("TaskCardView on web", () => {
     expect(button().props.style.boxShadow).not.toContain(tokens.card.buttonShadowHover);
     await act(async () => renderer.unmount());
   });
+  it("uses the card surface for error-dismiss hover", async () => {
+    const tokens = taskTokens(THEME);
+    const card = { ...sampleCards(NOW).find((item) => item.id === "sample-failed")!, error: "API error: limit reached" };
+    const renderer = await render(React.createElement(TaskCardView, props(card.id, { card, current: true })));
+    const button = () => renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "关闭错误提示");
+    const style = () => Object.assign({}, ...[button().props.style].flat(Infinity).filter(Boolean));
+    expect(style().backgroundColor).toBe("transparent");
+    await act(async () => button().props.onHoverIn());
+    expect(style().backgroundColor).toBe(hoverFill(tokens.card.current, tokens.foreground, true, false));
+    expect(style().boxShadow).toBeUndefined();
+    await act(async () => button().props.onHoverOut());
+    expect(style().backgroundColor).toBe("transparent");
+    await act(async () => renderer.unmount());
+  });
   it("uses the shared fill for bottom action bar hover", async () => {
     const tokens = taskTokens(THEME);
     const card = sampleCards(NOW).find((item) => item.id === "sample-running")!;
