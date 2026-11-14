@@ -53,6 +53,7 @@ import { BoardTips, CardHints } from "../../client/tasks/cards/card-hints";
 import { TASK_MONO } from "../../client/tasks/typography";
 import { resetSectionChoices } from "../../client/tasks/cards/detail-collapse";
 import { TaskDetailCards, type TaskDetailCardsProps } from "../../client/tasks/cards/detail-cards";
+import { detailColors } from "../../client/tasks/cards/detail-charts";
 import { cardStrings } from "../../client/tasks/cards/strings";
 import { taskTokens } from "../../client/tasks/cards/tokens";
 import { LANE_ORDER } from "../../client/tasks/model";
@@ -127,11 +128,19 @@ describe("sidebar action tips", () => {
     expect(button.findAll((node) => (node.type as unknown) === "Text")[0]!.children).toEqual(["Parent"]);
     expect(button.props.accessibilityLabel).toBe(props.strings.back("Parent"));
     await act(async () => button.props.onHoverIn());
-    expect(StyleSheet.flatten(host(root, "detail-back").props.style).backgroundColor).toBe("rgba(128, 128, 128, 0.15)");
+    expect(StyleSheet.flatten(host(root, "detail-back").props.style).backgroundColor).toBe(detailColors(taskTokens(THEME)).rowHover);
     await act(async () => host(root, "detail-back").props.onHoverOut());
     expect(StyleSheet.flatten(host(root, "detail-back").props.style).backgroundColor).toBe("transparent");
     await act(async () => button.props.onPress());
     expect(onPress).toHaveBeenCalledOnce();
+  });
+  it("uses the shared detail row hover in a dark theme", async () => {
+    const theme = { colors: { ...THEME.colors, surface0: "#17171a", surface1: "#222225", surface2: "#303033", foreground: "#f0f0f0" } };
+    const root = await render(<TaskDetailCards {...details("en", "sample-running", { theme })} />);
+    await act(async () => host(root, "detail-back").props.onHoverIn());
+    expect(StyleSheet.flatten(host(root, "detail-back").props.style).backgroundColor).toBe(detailColors(taskTokens(theme)).rowHover);
+    await act(async () => host(root, "detail-back").props.onHoverOut());
+    expect(StyleSheet.flatten(host(root, "detail-back").props.style).backgroundColor).toBe("transparent");
   });
   it("uses the toolbar's quiet rounded outline for both header buttons", async () => {
     const root = await render(<TaskDetailCards {...details("en", "sample-running", { onMenu() {} })} />);

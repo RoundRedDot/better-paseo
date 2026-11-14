@@ -73,7 +73,7 @@ so it reads the same on any card. The transient lane/reply flash uses an animate
 | `highlight` | card → accent | 8% / 12% | a card the board just pointed at, for 1 s, with an accent border |
 | `failed`, `failedHover`, `failedBorder` | card → danger; border → danger | 5% / 8%; 8% / 12%; 35% / 40% | a failed card stays `failed`; `failedHover` is kept |
 | `pillFill`, `pillBorder`, `buttonBorder` | card → foreground; border → foreground | 3.5% / 6%; 5% / 8%; 5% / 20% | neutral pills, outlines |
-| `rowHover`, `rowPress`, `sunk`, `track` (`detailColors`) | card → foreground | 5%, 8%, 2.5%, 9% | detail rows, hero blocks, bars |
+| `rowHover`, `rowPress`, `sunk`, `track` (`detailColors`) | card → foreground | 5%, 8%, 2.5%, 9% | detail rows, hero blocks, bars; the detail back row shares `rowHover` |
 | Lane panel (`boardPalette`) | `surface1` dark; halfway `surface1` → `surface2` light | `panelHover` is `surface2`, unused as a fill | lanes |
 
 - When states stack on a card, the first applies: highlighted, current, failed, rest. Hover and an open menu do not change the fill.

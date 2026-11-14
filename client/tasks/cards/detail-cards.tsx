@@ -818,7 +818,7 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
           onPress={props.back.onPress}
           {...backHoverProps}
           testID="detail-back"
-          style={{ minHeight: touch ? 36 : 24, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2, borderRadius: 6, backgroundColor: backHovered ? "rgba(128, 128, 128, 0.15)" : "transparent" }}
+          style={{ minHeight: touch ? 36 : 24, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2, borderRadius: 6, backgroundColor: backHovered ? detailColors(tokens).rowHover : "transparent" }}
         >
           <Icon name="CornerLeftUp" size={14} color={tokens.foregroundMuted} />
           <Text numberOfLines={1} style={{ flex: 1, fontSize: small, color: tokens.foregroundMuted }}>
