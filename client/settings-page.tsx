@@ -1,12 +1,12 @@
 import { useRpc } from "@getpaseo/plugin/client";
 import { updateCheckRpc } from "../shared/update-check";
-import { hasAgentUpdate } from "../shared/agent-updates";
+import { hasAgentUpdate, type AgentUpdate } from "../shared/agent-updates";
 import { useAgentUpdates } from "./agent-updates";
 import { recordPluginUpdate, useKnownPluginUpdate } from "./tasks/board/update-indicator";
 import { openTerminalRpc, updateCommand } from "../shared/open-terminal";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
-import { copyText, TextInput } from "@getpaseo/plugin/client/react-native";
+import { copyText, Icon, TextInput } from "@getpaseo/plugin/client/react-native";
 import { DETAILS_FONT_SIZE_DEFAULT, DETAILS_FONT_SIZE_MIN, DETAILS_FONT_SIZE_MAX, clampDetailsFontSize } from "../shared/preferences-settings";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { codeSurface, itemRootFont } from "./components/host-font-escape";
@@ -56,6 +56,7 @@ import type { SyncStatus } from "./state/preference-sync";
 import { resolveLanguage, type SettingsLanguagePreference } from "./i18n/settings-strings";
 import { SETTINGS_STRINGS, type SettingsStrings } from "./i18n/settings-page-strings";
 import { describeMonoSource } from "./settings-mono-source";
+import { ProviderLogo, providerBrand } from "./components/provider-logo";
 
 /** What the settings page says about the daemon store, or null when all is well. */
 function storageHint(sync: SyncStatus, t: SettingsStrings): string | null {
@@ -597,16 +598,16 @@ function VersionResult({ state, look, language, updateAvailable }: {
   const { t, tokens } = look;
   const labelStyle = [settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }];
   return <View style={{ gap: space.sm, marginTop: space.xs }}>
-    {[
+    <View style={styles.versionLines}>{[
       { label: t.versionInstalled, version: state.versions.status === "available" ? state.versions.current : null, revision: state.current },
       { label: t.versionDirectory, version: state.versions.status === "available" ? state.versions.latest : null, revision: state.latest },
-    ].map((entry) => <View key={entry.label} style={{ flexDirection: "row", alignItems: "flex-start", gap: space.md }}>
-      <Text style={[labelStyle, { width: tokens.typography.ui.size * (language === "zh" ? 4 : 9) }]}>{entry.label}</Text>
-      <View style={{ flex: 1, flexDirection: "row", flexWrap: "wrap", columnGap: space.sm, alignItems: "baseline" }}>
+    ].map((entry) => <View key={entry.label} style={styles.versionLine}>
+      <Text style={labelStyle}>{entry.label}</Text>
+      <View style={{ flexShrink: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", columnGap: space.sm, alignItems: "baseline" }}>
         {entry.version ? <Text {...(codeSurface as object)} style={[settingsTextStyle(tokens, -1), { color: tokens.foreground, fontFamily: tokens.fontMono, fontWeight: "500" }]}>{entry.version}</Text> : null}
         <Text {...(codeSurface as object)} style={[settingsTextStyle(tokens, -1), { color: entry.version ? tokens.foregroundMuted : tokens.foreground, fontFamily: tokens.fontMono }]}>{entry.version ? `(${entry.revision.slice(0, 7)})` : entry.revision.slice(0, 7)}</Text>
       </View>
-    </View>)}
+    </View>)}</View>
     <View style={{ gap: 2, marginTop: space.xs }}>
       <Text style={[labelStyle, { color: tokens.foreground, fontWeight: updateAvailable ? "500" : "400" }]}>{state.matches ? t.versionUpToDate : updateAvailable ? t.versionNewAvailable : t.versionAvailable}</Text>
       <Text style={labelStyle}>{t.versionChecked(new Date(state.checkedAt).toLocaleString(language === "zh" ? "zh-CN" : "en-US", { year: new Date(state.checkedAt).getFullYear() === new Date().getFullYear() ? undefined : "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }))}</Text>
@@ -620,40 +621,83 @@ function UpdateDot({ look }: { look: PageLook }) {
   return <View testID="version-item-update-dot" accessible={false} style={{ width: 6, height: 6, borderRadius: 3, alignSelf: "center", backgroundColor: look.tokens.danger }} />;
 }
 
-function AgentVersionSection({ look, agents, host }: { look: PageLook; agents: ReturnType<typeof useAgentUpdates>; host: PluginSurfaceProps["host"] }) {
-  const t = look.t;
+function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }) {
+  const [expanded, setExpanded] = useState(false);
   const { copied, copy } = useCopy();
-  const text = { ...settingsTextStyle(look.tokens, -1), color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi };
+  const { t, tokens, compact } = look;
+  const text = { ...settingsTextStyle(tokens, -1), color: tokens.foregroundMuted, fontFamily: tokens.fontUi };
   const methods = { npm: "npm", homebrew: "Homebrew", native: t.agentNative, unknown: t.agentUnknownMethod };
-  const statuses = { available: t.versionBadge, current: t.versionUpToDate, error: t.agentCheckFailed, unknown: t.agentUnknownVersion };
-  return <Section title={t.agentVersions} look={look}>
-    <SettingRow title={t.agentUpdates} description={`${t.agentHost}: ${host.label}`} first look={look}
-      control={<PlainButton label={agents.state.state === "checking" ? look.t.versionChecking : t.agentCheck} loading={agents.state.state === "checking"} disabled={agents.state.state === "checking"} onPress={() => { void agents.run(); }} look={look} />} />
-    {agents.state.entries.map((entry) => <View key={entry.provider} testID={`agent-version-${entry.provider}`} style={{ padding: space.lg, gap: space.sm, borderTopWidth: 1, borderTopColor: look.tokens.v2.border }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
-        <Text style={{ ...settingsTextStyle(look.tokens), color: look.tokens.foreground, fontFamily: look.tokens.fontUi, fontWeight: "500" }}>{entry.label}</Text>
-        {entry.updateAvailable ? <UpdateDot look={look} /> : null}
+  const statuses = { available: t.agentUpdateTo(entry.latest ?? "—"), current: t.versionUpToDate, error: t.agentCheckFailed, unknown: t.agentUnknownVersion };
+  const status = statuses[entry.status];
+  const statusColor = entry.status === "available" ? tokens.danger : entry.status === "error" || entry.status === "unknown" ? tokens.warning : tokens.foregroundMuted;
+  const brand = providerBrand(entry.provider);
+  return <View testID={`agent-version-${entry.provider}`} style={{ borderTopWidth: 1, borderTopColor: tokens.v2.border }}>
+    <Pressable
+      testID={`agent-version-toggle-${entry.provider}`}
+      accessibilityRole="button"
+      accessibilityLabel={`${entry.label}, ${methods[entry.method]}, ${t.versionInstalled}: ${entry.current ?? "—"}, ${status}`}
+      accessibilityHint={t.agentDetailsHint}
+      accessibilityState={{ expanded }}
+      aria-expanded={expanded}
+      onPress={() => setExpanded(!expanded)}
+      style={({ pressed }) => [styles.agentSummary, { paddingVertical: compact ? 11 : 14, backgroundColor: pressed ? tokens.v2.surface2 : "transparent" }]}
+    >
+      <View accessible={false} style={styles.agentLogo}>
+        <ProviderLogo provider={entry.provider} size={compact ? 24 : 26} color={brand.monochrome ? tokens.foreground : undefined} />
       </View>
-      <Text style={text}>{methods[entry.method]}</Text>
-      <Text selectable style={{ ...text, fontFamily: look.tokens.fontMono }}>{entry.executable ?? t.agentUnknownExecutable}</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.lg }}>
-        <Text style={text}>{look.t.versionInstalled}: {entry.current ?? "—"}</Text>
-        <Text style={text}>{look.t.versionDirectory}: {entry.latest ?? "—"}</Text>
+      <View style={styles.agentIdentity}>
+        <View style={styles.agentNameLine}>
+          <Text style={[styles.agentName, settingsTextStyle(tokens), { color: tokens.foreground, fontFamily: tokens.fontUi, fontWeight: "500" }]}>{entry.label}</Text>
+          {entry.method !== "unknown" ? <Text style={[styles.agentMethod, settingsTextStyle(tokens, -3), { color: tokens.foregroundMuted, borderColor: tokens.v2.border, fontFamily: tokens.fontUi }]}>{methods[entry.method]}</Text> : null}
+          {entry.updateAvailable ? <UpdateDot look={look} /> : null}
+        </View>
+        <Text numberOfLines={1} ellipsizeMode="middle" style={[text, { fontFamily: tokens.fontMono }]}>{entry.executable ?? t.agentUnknownExecutable}</Text>
       </View>
-      <Text style={text}>{statuses[entry.status]}</Text>
-      {entry.issue ? <Text style={text}>{t.agentIssues[entry.issue]}</Text> : null}
+      <View style={[styles.agentState, { width: compact ? 104 : 160 }]}>
+        <Text style={[text, { color: tokens.foreground, fontFamily: tokens.fontMono, textAlign: "right" }]}>{entry.current ?? "—"}</Text>
+        <Text style={[text, { color: statusColor, textAlign: "right" }]}>{status}</Text>
+      </View>
+      <Icon name={expanded ? "ChevronDown" : "ChevronRight"} size={14} color={tokens.foregroundSubtle} />
+    </Pressable>
+    {expanded ? <View testID={`agent-version-details-${entry.provider}`} style={[styles.agentDetails, { paddingLeft: compact ? space.lg : 58 }]}>
+      <Text selectable style={[text, { fontFamily: tokens.fontMono }]}>{entry.executable ?? t.agentUnknownExecutable}</Text>
+      <View style={styles.agentDetailLine}>
+        <Text style={text}>{t.versionInstalled}: {entry.current ?? "—"}</Text>
+        <Text style={text}>{t.versionDirectory}: {entry.latest ?? "—"}</Text>
+        <Text style={text}>{t.agentInstallMethod}: {methods[entry.method]}</Text>
+      </View>
       {entry.latest ? <Text style={text}>{t.agentLatestSource}</Text> : null}
-      {entry.status === "available" ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
-        <PlainButton label={t.versionWorkspaceTerminal} disabled onPress={() => {}} look={look} />
-        {entry.command ? <PlainButton label={copied ? look.t.versionCommandCopied : look.t.versionCopyCommand} onPress={() => { void copy(entry.command!); }} look={look} /> : null}
+      {entry.issue ? <Text accessibilityRole="alert" style={[text, { color: tokens.warning }]}>{t.agentIssues[entry.issue]}</Text> : null}
+      {entry.status === "available" ? <>
+        <View style={styles.agentDetailLine}>
+          <PlainButton label={t.versionWorkspaceTerminal} disabled onPress={() => {}} look={look} />
+          {entry.command ? <PlainButton label={copied ? t.versionCommandCopied : t.versionCopyCommand} onPress={() => { void copy(entry.command!); }} look={look} /> : null}
+        </View>
+        {entry.command ? <Text selectable style={[text, { fontFamily: tokens.fontMono }]}>{entry.command}</Text> : <Text style={text}>{t.agentOriginalInstaller}</Text>}
+        <Text style={text}>{t.versionWorkspaceTerminalUnavailable}</Text>
+      </> : null}
+    </View> : null}
+  </View>;
+}
+
+function AgentVersionSection({ look, agents, host }: { look: PageLook; agents: ReturnType<typeof useAgentUpdates>; host: PluginSurfaceProps["host"] }) {
+  const { t, tokens } = look;
+  const text = { ...settingsTextStyle(tokens, -1), color: tokens.foregroundMuted, fontFamily: tokens.fontUi };
+  return <View style={{ gap: space.sm }}>
+    <Section title={t.agentVersions} look={look}>
+      <SettingRow title={t.agentUpdates} description={`${t.agentHost}: ${host.label}`} first look={look}
+        control={<PlainButton label={agents.state.state === "checking" ? t.versionChecking : t.versionCheck} accessibilityLabel={t.agentCheck} loading={agents.state.state === "checking"} disabled={agents.state.state === "checking"} onPress={() => { void agents.run(); }} look={look} />} />
+      {agents.state.entries.length > 0 ? <View style={styles.agentColumns}>
+        <Text style={[text, { flex: 1 }]}>{t.agentEnabledCount(agents.state.entries.length)}</Text>
+        <Text style={text}>{t.versionInstalled}</Text>
       </View> : null}
-      {entry.status === "available" && entry.command ? <Text selectable style={{ ...text, fontFamily: look.tokens.fontMono }}>{entry.command}</Text> : null}
-      {entry.status === "available" && !entry.command ? <Text style={text}>{t.agentOriginalInstaller}</Text> : null}
-    </View>)}
-    {agents.state.state === "failed" ? <SectionNote look={look} text={t.agentSnapshotFailed} /> : null}
-    {agents.state.state === "done" && agents.state.entries.length === 0 ? <SectionNote look={look} text={t.agentEmpty} /> : null}
+      {agents.state.entries.map((entry) => <AgentVersionRow key={entry.provider} entry={entry} look={look} />)}
+      {agents.state.state === "failed" ? <SectionNote look={look} text={t.agentSnapshotFailed} /> : null}
+      {agents.state.state === "done" && agents.state.entries.length === 0 ? <SectionNote look={look} text={t.agentEmpty} /> : null}
+    </Section>
+    <SectionNote look={look} text={t.agentDetailsHint} />
     <SectionNote look={look} text={t.versionWorkspaceTerminalUnavailable} />
-  </Section>;
+  </View>;
 }
 
 function VersionSection({ look, language, version, autoUpdateCheck, native, agents, host, knownUpdate }: { look: PageLook; language: "en" | "zh"; version: ReturnType<typeof useVersionCheck>; autoUpdateCheck: boolean; native: boolean; agents: ReturnType<typeof useAgentUpdates>; host: PluginSurfaceProps["host"]; knownUpdate: boolean }) {
@@ -683,7 +727,7 @@ function VersionSection({ look, language, version, autoUpdateCheck, native, agen
   <Section title={t.versionTitle} look={look}>
     <SettingRow title={t.versionAutoCheck} description={t.versionAutoCheckDescription} first look={look}
       control={<Toggle value={autoUpdateCheck} onChange={(autoUpdateCheck) => updateEnhancerPreferences({ autoUpdateCheck })} label={t.versionAutoCheck} look={look} />} />
-    <SettingRow title={t.versionInfo} description={description} stacked look={look}
+    <SettingRow title={t.versionInfo} description={description} look={look}
       control={<View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>{updateAvailable ? <UpdateDot look={look} /> : null}<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} disabled={state.state === "checking" || state.state === "starting"} loading={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} /></View>} />
   </Section>
   {(updateAvailable || orderUnknown) && state.state === "done" ? <Section title={orderUnknown ? t.versionMarketCommand : t.versionUpdateCommand} look={look}>
@@ -706,15 +750,15 @@ function VersionSection({ look, language, version, autoUpdateCheck, native, agen
       </View>
   </Section> : null}
   {state.state === "done" ? <Section title={t.releaseNotesTitle} look={look}>
-    <View style={{ paddingHorizontal: 18, paddingVertical: 20 }}>
+    <View style={{ paddingHorizontal: space.lg, paddingVertical: look.compact ? 11 : 14 }}>
       {state.notes.status === "available"
-        ? <View style={{ gap: 24 }}>
-            {state.notes.releases.map((release) => <View key={release.version} style={{ gap: 12 }}>
-              <Text style={[settingsTextStyle(look.tokens, 3), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi, fontWeight: "600" }]}>{release.version}</Text>
+        ? <View style={{ gap: space.lg }}>
+            {state.notes.releases.map((release) => <View key={release.version} style={{ gap: space.sm }}>
+              <Text style={[settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi, fontWeight: "600" }]}>{release.version}</Text>
               <View style={{ gap: 8 }}>
-                {release[language].map((item, index) => <View key={index} style={{ flexDirection: "row", alignItems: "flex-start", gap: 13 }}>
-                  <View style={{ width: 5, height: 5, borderRadius: 3, marginTop: Math.round((look.tokens.typography.ui.size + 1) * 1.56 / 2 - 2.5), backgroundColor: look.tokens.foregroundMuted }} />
-                  <Text style={{ flex: 1, minWidth: 0, color: look.tokens.foreground, fontFamily: look.tokens.fontUi, fontSize: look.tokens.typography.ui.size + 1, lineHeight: Math.round((look.tokens.typography.ui.size + 1) * 1.56) }}>{item}</Text>
+                {release[language].map((item, index) => <View key={index} style={{ flexDirection: "row", alignItems: "flex-start", gap: space.sm }}>
+                  <View style={{ width: 5, height: 5, borderRadius: 3, marginTop: Math.round((look.tokens.typography.ui.size - 1) * 1.4 / 2 - 2.5), backgroundColor: look.tokens.foregroundMuted }} />
+                  <Text style={{ flex: 1, minWidth: 0, color: look.tokens.foreground, fontFamily: look.tokens.fontUi, ...settingsTextStyle(look.tokens, -1) }}>{item}</Text>
                 </View>)}
               </View>
             </View>)}
@@ -1308,6 +1352,18 @@ const styles = {
     optionsColumn: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: space.xl },
     previewColumn: { flexGrow: 0, flexShrink: 0, flexBasis: "44%", minWidth: 380, maxWidth: 640 },
     options: { gap: space.xl },
+    versionLines: { flexDirection: "row", flexWrap: "wrap", columnGap: space.xl, rowGap: space.sm },
+    versionLine: { flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", gap: space.sm, minWidth: 0, maxWidth: "100%", flexShrink: 1 },
+    agentSummary: { flexDirection: "row", alignItems: "center", paddingHorizontal: space.lg, gap: space.sm, minHeight: 68 },
+    agentLogo: { width: 26, flexShrink: 0, alignItems: "center" },
+    agentIdentity: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, gap: space.xs },
+    agentNameLine: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 7 },
+    agentName: { flexShrink: 1 },
+    agentMethod: { borderWidth: 1, borderRadius: radiusV2.chip, paddingHorizontal: space.xs, paddingVertical: 2 },
+    agentState: { maxWidth: "38%", flexShrink: 0, gap: 2 },
+    agentDetails: { paddingHorizontal: space.lg, paddingBottom: space.lg, gap: space.sm },
+    agentDetailLine: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
+    agentColumns: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.lg, paddingRight: 38, paddingVertical: space.sm },
     sectionWithNote: { gap: space.sm },
     controlLine: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.md },
     stepper: { flexDirection: "row", alignItems: "center", gap: space.xs },

@@ -1,3 +1,6 @@
+import { measureHostTree } from "./helpers/yoga-host-layout";
+import { ProviderLogo } from "../../client/components/provider-logo";
+import type { AgentUpdate } from "../../shared/agent-updates";
 import { resetUpdateIndicatorsForTests } from "../../client/tasks/board/update-indicator";
 import { resetAgentUpdatesForTests } from "../../client/agent-updates";
 import { deviceTasksStore } from "../../client/tasks/device-preferences";
@@ -903,6 +906,7 @@ it("shows agent-only updates for the selected host and explains the workspace te
     expect(textOf(r.root)).toContain("Selected host: Host A");
     expect(textOf(r.root)).toContain("/owned/bin/codex");
     expect(textOf(r.root)).toContain("1.2.0");
+    act(() => byTestID(r, "agent-version-toggle-codex")[0]!.props.onPress());
     expect(button(r, "Update in Paseo terminal").props.disabled).toBe(true);
     expect(textOf(r.root)).toContain("cannot navigate plugins to an exact workspace terminal");
     expect(button(r, "Check agent updates")).toBeTruthy();
@@ -928,6 +932,7 @@ it("retains confirmed plugin and agent dots through rechecks and transport error
   try {
     await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false }, host: { id: "retain-host", label: "Retain" } })); });
     expect(byTestID(r, "version-item-update-dot")).toHaveLength(2);
+    act(() => byTestID(r, "agent-version-toggle-codex")[0]!.props.onPress());
     expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.agentIssues.npm_runtime_unverified);
     state.rpc.mockResolvedValue({ state: "checking" });
     state.agents.mockResolvedValue({ state: "checking", entries: [], error: null });
@@ -955,7 +960,10 @@ it.each(["en", "zh"] as const)("renders specific structured agent failure causes
   let r!: Renderer;
   try {
     await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false }, host: { id: `issues-${language}`, label: "Issues" } })); });
-    for (const code of codes) expect(textOf(r.root)).toContain(SETTINGS_STRINGS[language].agentIssues[code]);
+    for (const code of codes) {
+      act(() => byTestID(r, `agent-version-toggle-${code}`)[0]!.props.onPress());
+      expect(textOf(r.root)).toContain(SETTINGS_STRINGS[language].agentIssues[code]);
+    }
   } finally { act(() => r?.unmount()); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }
 });
 
@@ -969,5 +977,160 @@ it.each(["en", "zh"] as const)("explains plugin and selected-host Agent automati
     const copy = SETTINGS_STRINGS[language].versionAutoCheckDescription;
     expect(textOf(r.root)).toContain(copy);
     for (const term of language === "en" ? ["selected host", "plugin directory", "Agent CLIs", "24 hours"] : ["所选主机", "插件市场", "Agent CLI", "24 小时"]) expect(copy).toContain(term);
+  } finally { act(() => r?.unmount()); }
+});
+
+
+const layoutAgent: AgentUpdate = {
+  provider: "codex", label: "Codex", executable: "/Users/example/.nvm/versions/node/v24.18.0/bin/codex",
+  current: "1.0.0", latest: "1.2.0", method: "npm", status: "available", updateAvailable: true,
+  issue: "npm_runtime_unverified", command: null,
+};
+
+it.each(["en", "zh"] as const)("keeps compact Agent status summaries accurate and details accessible in %s", async (language) => {
+  makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
+  state.rpc.mockResolvedValue({ state: "idle" });
+  const t = SETTINGS_STRINGS[language];
+  const entries: AgentUpdate[] = [
+    layoutAgent,
+    { ...layoutAgent, provider: "claude", label: "Claude", status: "current", updateAvailable: false, method: "native", latest: "1.0.0", issue: null },
+    { ...layoutAgent, provider: "grok", label: "Grok", status: "unknown", updateAvailable: false, method: "unknown", latest: null, issue: "release_source_unknown" },
+    { ...layoutAgent, provider: "omp", label: "Oh My Pi", status: "error", updateAvailable: true, latest: null, issue: "latest_fetch_failed" },
+  ];
+  state.agents.mockResolvedValue({ state: "done", entries, error: null });
+  let r!: Renderer;
+  try {
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "ios", compact: true }, host: { id: `summary-${language}`, label: "Selected" } })); });
+    expect(r.root.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(entries.map((entry) => entry.provider));
+    expect(textOf(r.root)).toContain(t.agentEnabledCount(4));
+    expect(byTestID(r, "version-item-update-dot")).toHaveLength(2);
+    for (const [index, status] of [t.agentUpdateTo("1.2.0"), t.versionUpToDate, t.agentUnknownVersion, t.agentCheckFailed].entries()) {
+      const entry = entries[index]!;
+      const row = byTestID(r, `agent-version-${entry.provider}`)[0]!;
+      const toggle = byTestID(r, `agent-version-toggle-${entry.provider}`)[0]!;
+      expect(textOf(row)).toContain(status);
+      expect(toggle.props.accessibilityRole).toBe("button");
+      expect(toggle.props.accessibilityState.expanded).toBe(false);
+      expect(byTestID(r, `agent-version-details-${entry.provider}`)).toHaveLength(0);
+      act(() => toggle.props.onPress());
+      expect(toggle.props["aria-expanded"]).toBe(true);
+      const details = byTestID(r, `agent-version-details-${entry.provider}`)[0]!;
+      expect(textOf(details)).toContain(t.agentInstallMethod);
+      if (entry.issue) expect(textOf(details)).toContain(t.agentIssues[entry.issue]);
+      if (entry.status === "available") {
+        expect(textOf(details)).toContain(t.agentOriginalInstaller);
+        expect(textOf(details)).toContain(t.versionWorkspaceTerminalUnavailable);
+        expect(details.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === t.versionWorkspaceTerminal)[0]!.props.disabled).toBe(true);
+      }
+      act(() => toggle.props.onPress());
+      expect(byTestID(r, `agent-version-details-${entry.provider}`)).toHaveLength(0);
+    }
+    // A retained availability dot must not turn a failed check into a successful comparison.
+    expect(textOf(byTestID(r, "agent-version-omp")[0]!)).not.toContain(t.agentUpdateTo("—"));
+  } finally { act(() => r?.unmount()); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }
+});
+
+it("keeps plugin and Agent checks independent and resets disclosure when changing hosts", async () => {
+  makeSettings(); setSettingsTab("version");
+  state.rpc.mockReset(); state.rpc.mockResolvedValue({ state: "idle" });
+  state.agents.mockReset(); state.agents.mockResolvedValue({ state: "done", entries: [layoutAgent], error: null });
+  let r!: Renderer;
+  const page = (id: string) => React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web" as const, compact: false }, host: { id, label: id } });
+  try {
+    await act(async () => { r = TestRenderer.create(page("layout-host-a")); });
+    act(() => byTestID(r, "agent-version-toggle-codex")[0]!.props.onPress());
+    expect(byTestID(r, "agent-version-details-codex")).toHaveLength(1);
+    await act(async () => { r.update(page("layout-host-b")); });
+    expect(byTestID(r, "agent-version-details-codex")).toHaveLength(0);
+    state.rpc.mockClear(); state.agents.mockClear();
+    state.agents.mockResolvedValue({ state: "checking", entries: [layoutAgent], error: null });
+    await act(async () => button(r, SETTINGS_STRINGS.en.agentCheck).props.onPress());
+    expect(state.agents).toHaveBeenCalledWith({ action: "check" });
+    expect(state.rpc).not.toHaveBeenCalled();
+    expect(button(r, SETTINGS_STRINGS.en.agentCheck).props.accessibilityState).toEqual({ disabled: true, busy: true });
+    expect(button(r, SETTINGS_STRINGS.en.versionCheck).props.disabled).toBe(false);
+    state.agents.mockClear();
+    state.rpc.mockResolvedValue({ state: "checking" });
+    await act(async () => button(r, SETTINGS_STRINGS.en.versionCheck).props.onPress());
+    expect(state.rpc).toHaveBeenCalledWith({ action: "check" });
+    expect(state.agents).not.toHaveBeenCalled();
+  } finally { act(() => r?.unmount()); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }
+});
+
+it("copies only an Agent's verified command from its expanded details", async () => {
+  makeSettings(); setSettingsTab("version");
+  state.rpc.mockResolvedValue({ state: "idle" });
+  state.copyText.mockClear();
+  const command = "claude update";
+  state.agents.mockResolvedValue({ state: "done", entries: [{ ...layoutAgent, provider: "claude", label: "Claude", command, issue: null, method: "native" }], error: null });
+  let r!: Renderer;
+  try {
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "ios", compact: true }, host: { id: "copy-agent", label: "Copy" } })); });
+    expect(r.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === SETTINGS_STRINGS.en.versionCopyCommand)).toHaveLength(0);
+    act(() => byTestID(r, "agent-version-toggle-claude")[0]!.props.onPress());
+    await act(async () => button(r, SETTINGS_STRINGS.en.versionCopyCommand).props.onPress());
+    expect(state.copyText).toHaveBeenCalledWith(command);
+    expect(button(r, SETTINGS_STRINGS.en.versionCommandCopied)).toBeTruthy();
+  } finally { act(() => r?.unmount()); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }
+});
+
+it.each([
+  ["en", true, 320, 1, false], ["zh", true, 320, 1.4, true],
+  ["en", true, 390, 1.4, true], ["zh", true, 390, 1, false],
+  ["en", false, 720, 1, true], ["zh", false, 1000, 1.4, false],
+] as const)("contains long Agent paths and centered dots (%s compact=%s width=%s scale=%s dark=%s)", async (language, compact, width, textScale, dark) => {
+  makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
+  state.rpc.mockResolvedValue({ state: "idle" });
+  const executable = "/Users/example/" + "very-long-directory/".repeat(15) + "codex";
+  state.agents.mockResolvedValue({ state: "done", entries: [{ ...layoutAgent, executable }], error: null });
+  const selectedTheme = dark ? { colors: { ...theme.colors, surface0: "#141416", surface1: "#1c1c1f", surface2: "#252529", foreground: "#f4f4f5", foregroundMuted: "#a1a1aa", border: "#37373e" } } : theme;
+  let r!: Renderer;
+  try {
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: selectedTheme as never, layout: { platform: compact ? "ios" : "web", compact }, host: { id: `geometry-${language}-${width}`, label: "Selected" } })); });
+    const row = byTestID(r, "agent-version-codex")[0]!;
+    const summary = byTestID(r, "agent-version-toggle-codex")[0]!;
+    const options = { width, textScale, wrapText: true, wordWrap: true };
+    const frames = measureHostTree(row, options);
+    for (const [node, frame] of frames) {
+      expect(frame.left, `${String(node.type)} left`).toBeGreaterThanOrEqual(0);
+      expect(frame.left + frame.width, `${String(node.type)} right`).toBeLessThanOrEqual(width + 0.5);
+    }
+    const path = summary.find((node) => typeof node.type === "string" && node.props.children === executable);
+    expect(path.props.numberOfLines).toBe(1);
+    expect(frames.get(path)!.width).toBeGreaterThan(0);
+    const dot = byTestID(r, "version-item-update-dot")[0]!;
+    const dotFrame = frames.get(dot)!;
+    const nameFrame = frames.get(summary.find((node) => typeof node.type === "string" && node.props.children === "Codex"))!;
+    expect(dotFrame.width).toBe(6); expect(dotFrame.height).toBe(6);
+    expect(Math.abs(dotFrame.top + 3 - (nameFrame.top + nameFrame.height / 2))).toBeLessThanOrEqual(0.5);
+    act(() => summary.props.onPress());
+    const expandedFrames = measureHostTree(row, options);
+    for (const frame of expandedFrames.values()) expect(frame.left + frame.width).toBeLessThanOrEqual(width + 0.5);
+    const details = byTestID(r, "agent-version-details-codex")[0]!;
+    const fullPath = details.find((node) => typeof node.type === "string" && node.props.children === executable);
+    expect(fullPath.props.selectable).toBe(true);
+    expect(fullPath.props.numberOfLines).toBeUndefined();
+  } finally { act(() => r?.unmount()); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }
+});
+
+
+it.each([["en", true, 320], ["zh", true, 390], ["en", false, 1000], ["zh", false, 1000]] as const)("keeps plugin version numbers visible beside their labels (%s compact=%s width=%s)", async (language, compact, width) => {
+  makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
+  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "1".repeat(40), matches: true, checkedAt: 1,
+    versions: { status: "available", current: "1.5.6", latest: "1.5.6", currentBuild: 202611140000, latestBuild: 202611140000 }, notes: { status: "missing" } });
+  let r!: Renderer;
+  try {
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: compact ? "ios" : "web", compact }, host: { id: `plugin-geometry-${language}`, label: "Selected" } })); });
+    const section = r.root.findAllByType(Section)[0]!;
+    const hostSection = section.find((node) => typeof node.type === "string");
+    const frames = measureHostTree(hostSection, { width, wrapText: true, wordWrap: true });
+    const versions = section.findAll((node) => typeof node.type === "string" && node.props.children === "1.5.6");
+    expect(versions).toHaveLength(2);
+    for (const version of versions) {
+      const frame = frames.get(version)!;
+      expect(frame.width).toBeGreaterThan(15);
+      expect(frame.left + frame.width).toBeLessThanOrEqual(width);
+    }
+    if (!compact) expect(frames.get(versions[0]!)!.top).toBe(frames.get(versions[1]!)!.top);
   } finally { act(() => r?.unmount()); }
 });
