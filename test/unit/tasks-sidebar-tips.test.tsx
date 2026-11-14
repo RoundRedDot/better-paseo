@@ -126,6 +126,10 @@ describe("sidebar action tips", () => {
     expect(button.find((node) => (node.type as unknown) === "Icon").props.name).toBe("CornerLeftUp");
     expect(button.findAll((node) => (node.type as unknown) === "Text")[0]!.children).toEqual(["Parent"]);
     expect(button.props.accessibilityLabel).toBe(props.strings.back("Parent"));
+    await act(async () => button.props.onHoverIn());
+    expect(StyleSheet.flatten(host(root, "detail-back").props.style).backgroundColor).toBe("rgba(128, 128, 128, 0.15)");
+    await act(async () => host(root, "detail-back").props.onHoverOut());
+    expect(StyleSheet.flatten(host(root, "detail-back").props.style).backgroundColor).toBe("transparent");
     await act(async () => button.props.onPress());
     expect(onPress).toHaveBeenCalledOnce();
   });

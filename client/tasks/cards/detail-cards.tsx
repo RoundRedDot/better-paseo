@@ -692,6 +692,7 @@ function DetailStatusRow(props: Inner & { fixed?: boolean }) {
 
 function DetailHeader(props: Inner & { hideStatus?: boolean }) {
   const { card, m, tokens, touch = false } = props;
+  const { hovered: backHovered, hoverProps: backHoverProps } = useHover();
   const titleUpdate = useTitleUpdateState(props.titleUpdates, card.id);
   const streamedTitle = titleUpdate.state === "running" ? titleUpdate.text?.replace(/\s+/g, " ").trim() : undefined;
   const shownTitle = useRevealedTitle(streamedTitle || (titleUpdate.state === "done" ? titleUpdate.title : card.title), Boolean(streamedTitle) || titleUpdate.state === "done");
@@ -815,8 +816,9 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
           accessibilityLabel={props.strings.back(props.back.title)}
           {...tipProps(props.strings.back(props.back.title))}
           onPress={props.back.onPress}
+          {...backHoverProps}
           testID="detail-back"
-          style={{ minHeight: touch ? 36 : 24, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}
+          style={{ minHeight: touch ? 36 : 24, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2, borderRadius: 6, backgroundColor: backHovered ? "rgba(128, 128, 128, 0.15)" : "transparent" }}
         >
           <Icon name="CornerLeftUp" size={14} color={tokens.foregroundMuted} />
           <Text numberOfLines={1} style={{ flex: 1, fontSize: small, color: tokens.foregroundMuted }}>
