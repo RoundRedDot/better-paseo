@@ -1,3 +1,4 @@
+import { HoverControl } from "../hover-control";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Animated, Modal, Platform, Pressable, View, useWindowDimensions } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -5,10 +6,9 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { TaskText as Text, taskControlHeight, useTasksFontScale } from "../typography";
 import { panelChrome } from "../cards/panel";
 import { taskTokens } from "../cards/tokens";
-import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
 import { usePressCue } from "../cards/action-pressable";
 import { useHover } from "../../ui/use-hover";
-import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { hoverFill } from "../hover-fill";
 import { openToolbarDetailsLayer } from "../../web";
 import { SearchSpinner, useSearchCoverage } from "./search-loading";
 
@@ -59,7 +59,6 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
   const window = useWindowDimensions();
   const { hovered, hoverProps } = useHover(anchor);
   const loadedPress = usePressCue(hovered);
-  const reduced = useReducedMotion();
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const cancel = () => clearTimeout(timer.current);
   useEffect(() => {
@@ -97,7 +96,6 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
   const danger = taskTokens(props.theme).danger;
   const toggle = () => { cancel(); setOpen((value) => !value); };
   const textStyle = { fontSize: 13, lineHeight: 18, color: colors.foregroundMuted, fontVariant: ["tabular-nums" as const] };
-  const loadedLift = surfaceLift(hovered, loadedPress.pressed, reduced, "control", loadedPress.input);
   const explanation = <View testID="search-coverage-popover" role="dialog" accessibilityLabel={strings.title} style={{ ...panelChrome(props.theme), borderRadius: 10, padding: 6 }}>
     <View style={{ paddingHorizontal: 8, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
       <Text style={{ fontSize: 12, fontWeight: "600", color: colors.foregroundMuted }}>{strings.title}</Text>
@@ -116,9 +114,9 @@ export function SearchCoverageItems(props: { theme: PluginTheme; phone?: boolean
     {showsNotice && context.historyError ? <View testID="search-history-failure" style={{ flexDirection: "row", alignItems: "center", gap: props.compact ? 0 : 6, paddingHorizontal: props.compact ? 0 : 8 }}>
       {props.compact ? null : <Icon name="CircleAlert" size={15} color={danger} />}
       {!props.compact || props.compactLabels ? <Text numberOfLines={1} style={[textStyle, { flexShrink: 0 }]}>{props.compact ? props.compactLabels?.failed : context.historyFailedText}</Text> : null}
-      <Pressable accessibilityRole="button" accessibilityLabel={strings.retry} accessibilityHint={props.compact ? context.historyFailedText : undefined} hitSlop={props.phone ? { top: 6, bottom: 6, left: 6, right: 6 } : undefined} onPress={context.retryHistory} style={{ minWidth: props.compact ? target : undefined, minHeight: props.compact ? target : props.phone ? 32 : 24, alignItems: "center", justifyContent: "center" }}>{props.compact ? <Icon name="RotateCw" size={14} color={danger} /> : <Text style={textStyle}>{strings.retry}</Text>}</Pressable>
+      <HoverControl base={colors.surface0} foreground={colors.foreground} accessibilityRole="button" accessibilityLabel={strings.retry} accessibilityHint={props.compact ? context.historyFailedText : undefined} hitSlop={props.phone ? { top: 6, bottom: 6, left: 6, right: 6 } : undefined} onPress={context.retryHistory} style={{ minWidth: props.compact ? target : undefined, minHeight: props.compact ? target : props.phone ? 32 : 24, alignItems: "center", justifyContent: "center" }}>{props.compact ? <Icon name="RotateCw" size={14} color={danger} /> : <Text style={textStyle}>{strings.retry}</Text>}</HoverControl>
     </View> : null}
-    {showsBadge && counts.pending && (!props.compact || !context.cancelled) ? <Pressable testID="search-coverage-loaded" accessibilityRole="button" accessibilityLabel={strings.loaded(counts.loaded)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={loadedPress.guard(toggle)} onPressIn={loadedPress.onPressIn} onPressOut={loadedPress.onPressOut} onTouchStart={loadedPress.onTouchStart} onTouchMove={loadedPress.onTouchMove} onTouchEnd={loadedPress.onTouchEnd} onTouchCancel={loadedPress.onTouchCancel} style={{ flexDirection: "row", alignItems: "center", gap: badge ? 5 : 6, paddingHorizontal: badge ? 2 : 8, height: props.compact ? target : badge ? 24 : "100%", borderRadius: badge ? 5 : 7, overflow: "hidden", backgroundColor: open ? colors.surface1 : "transparent", ...liftStyle(() => taskTokens(props.theme), loadedLift), ...scaleStyle(loadedLift.scale) }}>
+    {showsBadge && counts.pending && (!props.compact || !context.cancelled) ? <Pressable testID="search-coverage-loaded" accessibilityRole="button" accessibilityLabel={strings.loaded(counts.loaded)} accessibilityState={{ expanded: open }} hitSlop={props.phone ? { top: 6, bottom: 6 } : undefined} onPress={loadedPress.guard(toggle)} onPressIn={loadedPress.onPressIn} onPressOut={loadedPress.onPressOut} onTouchStart={loadedPress.onTouchStart} onTouchMove={loadedPress.onTouchMove} onTouchEnd={loadedPress.onTouchEnd} onTouchCancel={loadedPress.onTouchCancel} style={{ flexDirection: "row", alignItems: "center", gap: badge ? 5 : 6, paddingHorizontal: badge ? 2 : 8, height: props.compact ? target : badge ? 24 : "100%", borderRadius: badge ? 5 : 7, overflow: "hidden", backgroundColor: hoverFill(open ? colors.surface1 : colors.surface0, colors.foreground, hovered, loadedPress.pressed, open ? colors.surface1 : "transparent") }}>
       <SearchSpinner size={13} color={colors.foregroundMuted} />
       <Text numberOfLines={1} style={badge ? { ...textStyle, fontSize: 12, flexShrink: 1 } : textStyle}>{badge ? String(counts.loaded) : strings.loaded(counts.loaded)}</Text>
       <Icon name="Info" size={badge ? 13 : 14} color={colors.foregroundMuted} />

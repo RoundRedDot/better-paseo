@@ -1,3 +1,4 @@
+import { HoverControl } from "../hover-control";
 import React, { memo, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Animated,
@@ -366,7 +367,7 @@ export function PhoneBoard(props: {
         </Text>
         {board.params.sort ? (
           // A non-default sort says so, as the desktop sort button's label does; it opens the sheet.
-          <HoverPressable
+          <HoverPressable hoverTheme={theme}
             lift="toolbar"
             accessibilityRole="button"
             accessibilityLabel={`${strings.sort}: ${sortLabel(board.params.sort, strings)}`}
@@ -456,7 +457,7 @@ export function PhoneBoard(props: {
             // The status counts as the lane switch, one line each: a segmented
             // control on the panel's track, the shown lane's cell raised as a card.
             return (
-              <Pressable
+              <HoverControl base={on ? cardLook.background : palette.panel} foreground={colors.foreground} rest={on ? cardLook.background : "transparent"}
                 key={id}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: on }}
@@ -503,7 +504,7 @@ export function PhoneBoard(props: {
                     ) : null}
                   </View>
                 </View>
-              </Pressable>
+              </HoverControl>
             );
           })}
 
@@ -752,7 +753,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
 
 function SheetStep(props: { icon: string; label: string; disabled: boolean; onPress(): void; theme: PluginTheme }) {
   return (
-    <Pressable
+    <HoverControl base={props.theme.colors.surface0} foreground={props.theme.colors.foreground}
       accessibilityRole="button"
       accessibilityLabel={props.label}
       accessibilityState={{ disabled: props.disabled }}
@@ -762,7 +763,7 @@ function SheetStep(props: { icon: string; label: string; disabled: boolean; onPr
       style={{ width: 44, height: 40, alignItems: "center", justifyContent: "center", opacity: props.disabled ? 0.35 : 1 }}
     >
       <Icon name={props.icon} size={20} color={props.theme.colors.foreground} />
-    </Pressable>
+    </HoverControl>
   );
 }
 
@@ -1088,13 +1089,13 @@ const PhoneLane = memo(function PhoneLane(props: {
           style={{ marginTop: 36 }}
         >
           {filtered ? (
-            <Pressable
+            <HoverControl base={boardPalette(theme).panel} foreground={colors.foreground}
               accessibilityRole="button"
               onPress={() => board.setParams(clearedParams)}
               style={{ marginTop: 6, height: 36, paddingHorizontal: 16, borderRadius: 18, borderWidth: HAIRLINE, borderColor: colors.border, justifyContent: "center" }}
             >
               <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.clearFilters}</Text>
-            </Pressable>
+            </HoverControl>
           ) : null}
         </BoardEmptyState>
       }

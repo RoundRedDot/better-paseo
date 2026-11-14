@@ -27,6 +27,8 @@ import { BOARD_STRINGS } from "../../client/tasks/board/strings";
 import { permissionButtons } from "../../client/tasks/actions";
 import { TasksTypographyScale } from "../../client/tasks/typography";
 import { RoundButton } from "../../client/tasks/board/board-parts";
+import { hoverFill } from "../../client/tasks/hover-fill";
+import { HoverControl } from "../../client/tasks/hover-control";
 
 const motion = vi.hoisted(() => ({ reduced: false }));
 vi.mock("../../client/ui/use-reduced-motion", () => ({
@@ -87,8 +89,31 @@ function release(button: ReactTestInstance) {
   act(() => { button.props.onPressOut?.({}); button.props.onTouchEnd?.({}); });
 }
 
+describe("shared Tasks feedback", () => {
+  it.each([
+    ["light", "#ffffff", "#1b1b1f"],
+    ["dark", "#303033", "#f0f0f0"],
+    ["selected", "#dfe8ff", "#1b1b1f"],
+  ])("mixes the actual %s surface on hover and press", async (_name, base, foreground) => {
+    const root = await render(<HoverControl base={base} foreground={foreground} rest={base} onPress={() => {}} />);
+    const button = root.findByType(Pressable);
+    expect(style(button, false).backgroundColor).toBe(base);
+    act(() => button.props.onHoverIn({}));
+    expect(style(button, false).backgroundColor).toBe(hoverFill(base, foreground, true, false));
+    expect(style(button, true).backgroundColor).toBe(hoverFill(base, foreground, true, true));
+    act(() => button.props.onHoverOut({}));
+    expect(style(button, false).backgroundColor).toBe(base);
+  });
+  it("does not paint feedback on disabled controls", async () => {
+    const root = await render(<HoverControl base="#ffffff" foreground="#1b1b1f" disabled onPress={() => {}} />);
+    const button = root.findByType(Pressable);
+    act(() => button.props.onHoverIn({}));
+    expect(style(button, true).backgroundColor).toBe("transparent");
+  });
+});
+
 describe("mobile toolbar feedback", () => {
-  it.each(["ios", "android"])("keeps the shadow without scaling under reduced motion on %s", async (os) => {
+  it.each(["ios", "android"])("uses the shared press fill without scaling under reduced motion on %s", async (os) => {
     vi.stubGlobal("__rnMockOS", os);
     vi.useFakeTimers();
     motion.reduced = true;
@@ -97,7 +122,7 @@ describe("mobile toolbar feedback", () => {
     const button = root.findByType(Pressable);
     hold(button);
     expect(StyleSheet.flatten(button.props.style).transform).toBeUndefined();
-    expect(StyleSheet.flatten(button.find((node) => (node.type as unknown) === "View").props.style).boxShadow).toBe(tokens.card.buttonShadowHover);
+    expect(StyleSheet.flatten(button.find((node) => (node.type as unknown) === "View").props.style).backgroundColor).toBe(hoverFill(theme.colors.surface0, theme.colors.foreground, false, true));
     release(button);
     expect(StyleSheet.flatten(button.find((node) => (node.type as unknown) === "View").props.style).boxShadow).toBeFalsy();
   });
@@ -423,13 +448,13 @@ describe("phone sheet action size", () => {
       const rest = StyleSheet.flatten(button.props.style);
       expect(rest).toMatchObject({ height: Math.round(36 * factor), borderRadius: tablet ? 8 : 10 });
       expect(rest.boxShadow).toBeFalsy();
-      // A finger held still: a bar button wider than it shows the raised shadow; the square Open is covered.
+      // A finger held still receives the same theme-relative fill on every control.
       hold(button);
       const held = StyleSheet.flatten(button.props.style);
-      expect(held.backgroundColor).toBe(rest.backgroundColor);
-      expect(held.boxShadow).toBe(button.props.testID === "detail-bar-open" ? undefined : tokens.card.buttonShadowHover);
+      expect(held.backgroundColor).toBe(hoverFill(tokens.card.background, tokens.foreground, false, true));
+      expect(held.boxShadow ?? "").not.toContain(tokens.card.buttonShadowHover);
       release(button);
-      expect(StyleSheet.flatten(button.props.style).boxShadow).toBeFalsy();
+      expect(StyleSheet.flatten(button.props.style).backgroundColor).toBe(rest.backgroundColor);
       const icons = button.findAll((node) => (node.type as unknown) === "Icon");
       expect(icons.every((icon) => icon.props.size === 16)).toBe(true);
     }

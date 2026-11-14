@@ -5,6 +5,8 @@
  * groups there; every button is a leaf.
  */
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
+import { detailColors } from "../../client/tasks/cards/detail-charts";
+import { hoverFill } from "../../client/tasks/hover-fill";
 import React from "react";
 import { readFileSync } from "node:fs";
 
@@ -250,7 +252,7 @@ describe("TaskCardView on web", () => {
     expect(button().props.style.boxShadow).not.toContain(tokens.card.buttonShadowHover);
     await act(async () => renderer.unmount());
   });
-  it("deepens the bottom action bar's shadow on hover without a fill", async () => {
+  it("uses the shared fill for bottom action bar hover", async () => {
     const tokens = taskTokens(THEME);
     const card = sampleCards(NOW).find((item) => item.id === "sample-running")!;
     const element = (phase: "idle" | "stopping") => React.createElement(DetailActionBar, {
@@ -270,15 +272,15 @@ describe("TaskCardView on web", () => {
     expect(String(look("detail-bar-open").boxShadow)).not.toContain(tokens.card.buttonShadowHover);
     expect(look("detail-bar-open").transitionProperty).toBe("background-color, border-color, box-shadow, color, opacity");
     await act(async () => button("detail-bar-open").props.onHoverIn());
-    expect(look("detail-bar-open").backgroundColor).toBe(tokens.card.background);
-    expect(String(look("detail-bar-open").boxShadow)).toContain(tokens.card.buttonShadowHover);
+    expect(look("detail-bar-open").backgroundColor).toBe(detailColors(tokens).rowHover);
+    expect(String(look("detail-bar-open").boxShadow)).not.toContain(tokens.card.buttonShadowHover);
     expect(String(look("detail-bar-open").boxShadow)).toContain("inset");
     await act(async () => button("detail-bar-open").props.onHoverOut());
     expect(look("detail-bar-open").backgroundColor).toBe(tokens.card.background);
     expect(String(look("detail-bar-open").boxShadow)).not.toContain(tokens.card.buttonShadowHover);
     await act(async () => button("detail-bar-stop").props.onHoverIn());
-    expect(look("detail-bar-stop").backgroundColor).toBe(tokens.card.background);
-    expect(String(look("detail-bar-stop").boxShadow)).toContain(tokens.card.buttonShadowHover);
+    expect(look("detail-bar-stop").backgroundColor).toBe(detailColors(tokens).rowHover);
+    expect(String(look("detail-bar-stop").boxShadow)).not.toContain(tokens.card.buttonShadowHover);
     await act(async () => renderer.update(element("stopping")));
     await act(async () => button("detail-bar-stop").props.onHoverIn());
     expect(look("detail-bar-stop").backgroundColor).toBe(tokens.card.background);
@@ -764,7 +766,13 @@ describe("TaskCardView on web", () => {
         .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Measure the sidebar ring 运行中")
         .find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "在工作区中打开");
     expect(jump().props.disabled).toBe(true);
+    const row = () => root.find((node) => typeof node.type === "string" && node.props.testID === "subtask-sample-child-1");
+    const backdrop = row().props.style.backgroundColor;
     await act(async () => hovers.get("subtask-sample-child-1")!.enter());
+    expect(row().props.style.backgroundColor).toBe(hoverFill(backdrop, taskTokens(THEME).foreground, true, false));
+    await act(async () => row().props.onPressIn());
+    expect(row().props.style.backgroundColor).toBe(hoverFill(backdrop, taskTokens(THEME).foreground, true, true));
+    await act(async () => row().props.onPressOut());
     expect(jump().props.disabled).toBe(false);
     expect(jump().props.style.opacity).toBe(1);
     jump().props.onPress();

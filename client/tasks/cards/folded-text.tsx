@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Platform, Pressable, View } from "react-native";
+import { Animated, Platform, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import { withAlpha } from "../../components/theme-tokens";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
+import { HoverControl } from "../hover-control";
 import { MOTION } from "../board/board-style";
 import type { TasksLanguage } from "../i18n";
 import { TaskText as Text, HOST_FONT as F } from "../typography";
@@ -105,10 +106,10 @@ export function FoldedText(props: {
       </Animated.View>
       {long && total > 0 ? (
         <View style={{ minHeight: props.touch ? 36 : 28, flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Pressable accessibilityRole="button" accessibilityState={{ expanded: props.expanded }} {...tipProps(props.expanded ? words.showLess : words.showAll(total))} onPress={props.onToggle} hitSlop={4} testID={`${props.id}-more`} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <HoverControl base={props.fadeColor} foreground={props.tokens.foreground} accessibilityRole="button" accessibilityState={{ expanded: props.expanded }} {...tipProps(props.expanded ? words.showLess : words.showAll(total))} onPress={props.onToggle} hitSlop={4} testID={`${props.id}-more`} style={{ flexDirection: "row", alignItems: "center", gap: 4, borderRadius: 6 }}>
             <Icon name={props.expanded ? "ChevronsUp" : "ChevronsDown"} size={14} color={props.tokens.foregroundMuted} />
             <Text style={{ fontSize: F.sm, color: props.tokens.foregroundMuted }}>{props.expanded ? words.showLess : words.showAll(total)}</Text>
-          </Pressable>
+          </HoverControl>
         </View>
       ) : null}
     </View>

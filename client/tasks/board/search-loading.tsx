@@ -6,6 +6,7 @@ import type { BoardStrings } from "./strings";
 import { TaskText as Text, taskControlHeight, useTasksFontScale } from "../typography";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { useHover } from "../../ui/use-hover";
+import { hoverFill } from "../hover-fill";
 import { taskTokens } from "../cards/tokens";
 import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
 import { usePressCue } from "../cards/action-pressable";
@@ -187,7 +188,7 @@ export function SearchCancelToggle({ theme, iconSize, iconColor = theme.colors.f
   const { context, counts } = useSearchCoverage();
   const loading = !context?.cancelled && (counts.pending > 0 || context?.historyLoading === true);
   if (!context?.query.trim() || !context.setCancelled || (!loading && !context.cancelled)) return null;
-  return <HoverPressable lift="toolbar" testID="search-cancel-toggle" accessibilityRole="button" accessibilityLabel={context.cancelled ? context.resumeText : context.cancelText} accessibilityHint={context.cancelled ? context.stoppedText : undefined} {...tipProps(context.cancelled ? context.resumeText : context.cancelText)} onPress={() => context.setCancelled?.(!context.cancelled)} hitSlop={6} style={(hovered, pressed, source) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", ...liftStyle(() => taskTokens(theme), surfaceLift(hovered, pressed, undefined, "toolbar", source)) })}>
+  return <HoverPressable hoverTheme={theme} lift="toolbar" testID="search-cancel-toggle" accessibilityRole="button" accessibilityLabel={context.cancelled ? context.resumeText : context.cancelText} accessibilityHint={context.cancelled ? context.stoppedText : undefined} {...tipProps(context.cancelled ? context.resumeText : context.cancelText)} onPress={() => context.setCancelled?.(!context.cancelled)} hitSlop={6} style={(hovered, pressed, source) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", ...liftStyle(() => taskTokens(theme), surfaceLift(hovered, pressed, undefined, "toolbar", source)) })}>
       <Icon name={context.cancelled ? "Play" : "Square"} size={iconSize} color={iconColor} />
     </HoverPressable>;
 }
@@ -215,12 +216,12 @@ export function FullConversationSwitch({ theme, compact, iconSize: requestedIcon
   const on = context?.fullConversation === true;
   const toggle = () => context?.onFullConversationChange?.(!on);
   if (!context?.onFullConversationChange) return null;
-  const lift = surfaceLift(hovered, press.pressed, reduced, "toolbar", press.input);
+
   const outlined = !compact && Platform.OS === "web";
   return <Pressable testID="search-full-conversation-toggle" accessibilityRole="button" accessibilityLabel={context.fullConversationLabel}
     accessibilityState={{ selected: on }} aria-pressed={on} {...tipProps(context.fullConversationHint)} onPress={press.guard(toggle)} hitSlop={4} {...hoverProps}
     onPressIn={press.onPressIn} onPressOut={press.onPressOut} onTouchStart={press.onTouchStart} onTouchMove={press.onTouchMove} onTouchEnd={press.onTouchEnd} onTouchCancel={press.onTouchCancel}
-    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: outlined ? 1 : 0, borderColor: hovered ? theme.colors.border : "transparent", borderRadius: 7, backgroundColor: theme.colors.surface0, ...liftStyle(() => taskTokens(theme), lift, outlined ? { border: hovered ? theme.colors.border : "transparent" } : {}), ...scaleStyle(lift.scale) }}>
+    style={{ flexShrink: 0, width: size, height: size, alignItems: "center", justifyContent: "center", borderWidth: outlined ? 1 : 0, borderColor: "transparent", borderRadius: 7, backgroundColor: hoverFill(theme.colors.surface0, theme.colors.foreground, hovered, press.pressed) }}>
     <Icon icon={on ? FULL_TEXT_SEARCH_ICON : OUTLINE_SEARCH_ICON} size={iconSize} color={theme.colors.foreground} />
   </Pressable>;
 }

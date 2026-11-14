@@ -22,6 +22,7 @@ import { sameSort, type BoardSort, type SortKey } from "./sort";
 import { sortOrderLabel } from "./strings";
 import type { BoardController } from "./use-board";
 import { tasksSettingsOpener } from "./enabled";
+import { HoverControl } from "../hover-control";
 
 /**
  * The phone's filters (prototype 04 sheet), drawn inside the host's bottom
@@ -247,23 +248,23 @@ export function FilterSheetBody(props: {
         </View>
       </ScrollView>
       <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: 16, flexDirection: "row", gap: 10, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
-        <Pressable
+        <HoverControl base={colors.surface0} foreground={colors.foreground}
           accessibilityRole="button"
           onPress={() => setParams(clearedParams)}
           testID="filter-sheet-reset"
           style={{ height: 44, paddingHorizontal: 18, borderRadius: 22, borderWidth: HAIRLINE, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
         >
           <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.reset}</Text>
-        </Pressable>
-        <Pressable
+        </HoverControl>
+        <HoverControl base={colors.accent} foreground={colors.foreground} rest={colors.accent}
           accessibilityRole="button"
           onPress={props.onDone}
           style={{ flex: 1, height: 44, borderRadius: 22, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" }}
         >
           <Text style={{ fontSize: F.base, fontWeight: "600", color: colors.accentForeground, fontVariant: ["tabular-nums"] }}>{strings.show(board.total)}</Text>
-        </Pressable>
+        </HoverControl>
         {openSettings ? (
-          <Pressable
+          <HoverControl base={colors.surface0} foreground={colors.foreground}
             accessibilityRole="button"
             accessibilityLabel={strings.openSettings}
             onPress={() => { props.onDone(); openSettings(); }}
@@ -271,7 +272,7 @@ export function FilterSheetBody(props: {
             style={{ height: 44, paddingHorizontal: 18, borderRadius: 22, borderWidth: HAIRLINE, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
           >
             <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.settings}</Text>
-          </Pressable>
+          </HoverControl>
         ) : null}
       </View>
     </View>
@@ -310,9 +311,9 @@ function SheetSearch(props: { value: string; onChange(text: string): void; place
         }}
       />
       {props.value ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={props.clear} testID="filter-sheet-search-clear" hitSlop={10} onPress={() => props.onChange("")}>
+        <HoverControl base={colors.surface0} foreground={colors.foreground} accessibilityRole="button" accessibilityLabel={props.clear} testID="filter-sheet-search-clear" hitSlop={10} onPress={() => props.onChange("")}>
           <Icon name="X" size={15} color={colors.foregroundMuted} />
-        </Pressable>
+        </HoverControl>
       ) : null}
     </View>
   );
@@ -375,11 +376,11 @@ function CollapsibleContent({ open, children, testID }: { open: boolean; childre
 
 function CollapsibleTitle(props: { text: string; icon: string; theme: PluginTheme; open: boolean; onPress(): void; testID: string; first?: boolean }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={props.text} accessibilityState={{ expanded: props.open }} onPress={props.onPress} testID={props.testID} style={{ paddingTop: props.first ? 0 : 16, paddingBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
+    <HoverControl base={props.theme.colors.surface0} foreground={props.theme.colors.foreground} accessibilityRole="button" accessibilityLabel={props.text} accessibilityState={{ expanded: props.open }} onPress={props.onPress} testID={props.testID} style={{ paddingTop: props.first ? 0 : 16, paddingBottom: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
       <Icon name={props.icon} size={16} color={props.theme.colors.foregroundMuted} />
       <Text style={{ flex: 1, fontSize: F.sm, fontWeight: "500", color: props.theme.colors.foregroundMuted }}>{props.text}</Text>
       <Icon name={props.open ? "ChevronUp" : "ChevronDown"} size={16} color={props.theme.colors.foregroundMuted} />
-    </Pressable>
+    </HoverControl>
   );
 }
 
@@ -396,7 +397,7 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
   const scale = useTasksFontScale();
   const on = props.option.on;
   return (
-    <Pressable
+    <HoverControl base={on ? taskTokens(props.theme).accentSoft : colors.surface0} foreground={colors.foreground} rest={on ? taskTokens(props.theme).accentSoft : "transparent"}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: on }}
       onPress={props.onPress}
@@ -421,7 +422,7 @@ function Chip(props: { option: FilterOption; theme: PluginTheme; onPress(): void
       {props.hideCount ? null : (
         <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{props.option.count}</Text>
       )}
-    </Pressable>
+    </HoverControl>
   );
 }
 
@@ -430,7 +431,7 @@ function ToggleRow(props: { icon: string; label: string; hint?: string; on: bool
   const colors = props.theme.colors;
   const spaceKeys = useSwitchSpace(props.onPress);
   return (
-    <Pressable
+    <HoverControl base={colors.surface0} foreground={colors.foreground}
       accessibilityRole="switch"
       accessibilityLabel={props.label}
       aria-checked={props.on}
@@ -446,7 +447,7 @@ function ToggleRow(props: { icon: string; label: string; hint?: string; on: bool
         {props.hint ? <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.sm, color: colors.foregroundMuted }}>{props.hint}</Text> : null}
       </View>
       <SwitchTrack value={props.on} colors={colors} />
-    </Pressable>
+    </HoverControl>
   );
 }
 
@@ -515,7 +516,7 @@ function SortDrillDown({ board, theme }: { board: BoardController; theme: Plugin
 function SortRow(props: { icon: string; label: string; hint?: string; checked?: boolean; drills?: boolean; theme: PluginTheme; onPress(): void }) {
   const colors = props.theme.colors;
   return (
-    <Pressable
+    <HoverControl base={colors.surface0} foreground={colors.foreground}
       accessibilityRole="menuitem"
       accessibilityState={{ checked: props.checked }}
       onPress={props.onPress}
@@ -526,6 +527,6 @@ function SortRow(props: { icon: string; label: string; hint?: string; checked?: 
       {props.hint ? <Text style={{ fontSize: F.base, color: colors.foregroundMuted }}>{props.hint}</Text> : null}
       {props.checked ? <Icon name="Check" size={18} color={colors.accent} /> : null}
       {props.drills ? <Icon name="ChevronRight" size={16} color={colors.foregroundMuted} /> : null}
-    </Pressable>
+    </HoverControl>
   );
 }

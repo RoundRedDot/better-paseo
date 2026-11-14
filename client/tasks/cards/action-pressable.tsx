@@ -226,6 +226,8 @@ type ActionPressableProps = PressableProps & {
   /** A free-standing grow instead of the lift (`useActionPressMotion`), while `motion` is on. */
   pressedScale?: number;
   motion?: boolean;
+  /** Keep the press cue without the card-style scale animation. */
+  flat?: boolean;
 };
 
 /**
@@ -238,7 +240,7 @@ export function ActionPressable(props: ActionPressableProps) {
   return <LiftPressable {...props} />;
 }
 
-function LiftPressable({ lift = "control", motion: _motion, pressedScale: _scale, style, ...props }: ActionPressableProps) {
+function LiftPressable({ lift = "control", motion: _motion, pressedScale: _scale, flat = false, style, ...props }: ActionPressableProps) {
   const [hovered, setHovered] = useState(false);
   const press = useLiftPress(hovered, lift, !props.disabled);
   return (
@@ -255,12 +257,12 @@ function LiftPressable({ lift = "control", motion: _motion, pressedScale: _scale
       onTouchEnd={(event) => { press.onTouchEnd(event); props.onTouchEnd?.(event); }}
       onTouchCancel={(event) => { press.onTouchCancel(event); props.onTouchCancel?.(event); }}
       // One flat style, as a plain Pressable's: the inset joins whatever the control draws.
-      style={StyleSheet.flatten([typeof style === "function" ? style({ pressed: press.pressed && !props.disabled }) : style, press.style])}
+      style={StyleSheet.flatten([typeof style === "function" ? style({ pressed: press.pressed && !props.disabled }) : style, flat ? undefined : press.style])}
     />
   );
 }
 
-function GrowPressable({ motion = true, pressedScale, style, lift: _lift, ...props }: ActionPressableProps & { pressedScale: number }) {
+function GrowPressable({ motion = true, pressedScale, style, lift: _lift, flat: _flat, ...props }: ActionPressableProps & { pressedScale: number }) {
   const feedback = useActionPressMotion(motion && !props.disabled, pressedScale);
   if (!motion) return <Pressable {...props} style={style} />;
   return (

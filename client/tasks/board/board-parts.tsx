@@ -1,11 +1,12 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { Animated, Platform, Pressable, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import type { DoneWindow } from "../../../shared/tasks-settings";
 import { DONE_WINDOWS } from "../../../shared/tasks-settings";
 import { useHover } from "../../ui/use-hover";
+import { hoverFill } from "../hover-fill";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { liftStyle, scaleStyle, surfaceLift, type LiftSize, type PressInput } from "../cards/surface-lift";
 import { usePressCue } from "../cards/action-pressable";
@@ -138,7 +139,7 @@ export function Segments<T extends string>(props: {
         const on = window === props.value;
         const inner = (props.stretch ? taskControlHeight(36, scale) : outer) - 6;
         return (
-          <HoverPressable
+          <HoverPressable hoverTheme={props.theme}
             key={window}
             accessibilityRole="radio"
             accessibilityState={{ selected: on }}
@@ -233,7 +234,7 @@ export function LoadMoreRow(props: {
       <Text style={{ flex: 1, fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
         {props.sortedLoadedOnly ? props.strings.sortedAmong(props.shown) : props.strings.shown(props.shown)}
       </Text>
-      <HoverPressable
+      <HoverPressable hoverTheme={props.theme}
         accessibilityRole="button"
         disabled={props.loading}
         onPress={props.onPress}
@@ -334,16 +335,17 @@ export function HoverPressable(
     /** What the lift treats it as (`LiftSize`); false keeps its size on every press. */
     lift?: boolean | LiftSize;
     /** `pressed` is the press cue: at once for a pointer, after a still 100 ms for a finger (`usePressCue`). */
+    hoverTheme: PluginTheme;
     style(hovered: boolean, pressed: boolean, input: PressInput): StyleProp<ViewStyle>;
   },
 ) {
-  const { style, onPress, onLongPress, onPressIn, onPressOut, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, lift: liftAs = true, ...rest } = props;
+  const { style, onPress, onLongPress, onPressIn, onPressOut, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, lift: _lift, hoverTheme, ...rest } = props;
   const { hovered, hoverProps } = useHover();
-  const reduced = useReducedMotion();
   const press = usePressCue(hovered, !rest.disabled);
-  const visual = style(hovered, press.pressed, press.input);
-  const lift = scaleStyle(liftAs === false ? 1 : surfaceLift(hovered, press.pressed, reduced, liftAs === true ? "control" : liftAs, press.input).scale);
-  const flat = visual && typeof visual === "object" && !Array.isArray(visual) ? { ...visual, ...lift } : [visual, lift];
+  const visual = StyleSheet.flatten(style(false, false, press.input));
+  const resting = visual.backgroundColor as string | undefined;
+  const base = resting && resting !== "transparent" ? resting : hoverTheme.colors.surface0;
+  const flat = { ...visual, backgroundColor: hoverFill(base, hoverTheme.colors.foreground, hovered && !rest.disabled, press.pressed, resting ?? "transparent") };
   return (
     <Pressable
       {...rest}
@@ -831,8 +833,8 @@ export function RoundButton(props: {
   const icon = props.iconSize ?? Math.round(size / 2);
   const { hovered, hoverProps } = useHover();
   const press = usePressCue(hovered, !props.disabled);
-  const lift = surfaceLift(hovered, press.pressed, undefined, "toolbar", press.input);
-  const line = props.quietOutline && Platform.OS === "web" && !hovered ? "transparent" : props.active ? colors.accent : colors.border;
+  const line = props.quietOutline && Platform.OS === "web" ? "transparent" : props.active ? colors.accent : colors.border;
+  const fill = hoverFill(colors.surface0, colors.foreground, hovered && !props.disabled, press.pressed, "transparent");
   return (
     <Pressable
       accessibilityRole="button"
@@ -850,7 +852,7 @@ export function RoundButton(props: {
       {...hoverProps}
       hitSlop={pad || Platform.OS === "web" ? 0 : 4}
       testID={props.testID}
-      style={[{ width: size + 2 * pad, height: size + 2 * pad, alignItems: "center", justifyContent: "center", opacity: props.disabled ? 0.4 : 1 }, scaleStyle(lift.scale), props.style]}
+      style={[{ width: size + 2 * pad, height: size + 2 * pad, alignItems: "center", justifyContent: "center", opacity: props.disabled ? 0.4 : 1 }, props.style]}
     >
       <View
         style={{
@@ -859,15 +861,14 @@ export function RoundButton(props: {
           borderRadius: props.quietOutline && Platform.OS === "web" ? 7 : size / 2,
           borderWidth: props.borderless ? 0 : HAIRLINE,
           borderColor: line,
-          ...(props.toggle ? { backgroundColor: "transparent" } : null),
-          ...(props.disabled ? { boxShadow: undefined } : liftStyle(() => taskTokens(props.theme), lift, props.borderless ? {} : { border: line, hued: !!props.active })),
+          backgroundColor: fill,
           alignItems: "center",
           justifyContent: "center",
         }}
       >
         {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : <Icon name={props.icon} size={icon} color={props.borderless && props.active ? colors.accent : colors.foreground} />}
-        {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={colors.surface0} /> : null}
-        <CornerBadge count={props.cornerBadge ?? 0} theme={props.theme} style={{ bottom: 0, right: 0 }} testID={props.testID ? `${props.testID}-count` : undefined} />
+        {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={fill === "transparent" ? colors.surface0 : fill} /> : null}
+        <CornerBadge count={props.cornerBadge ?? 0} theme={props.theme} ringColor={fill === "transparent" ? colors.surface0 : fill} style={{ bottom: 0, right: 0 }} testID={props.testID ? `${props.testID}-count` : undefined} />
       </View>
       {props.badge ? (
         <View

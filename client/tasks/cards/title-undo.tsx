@@ -10,8 +10,9 @@ import { taskControlHeight, useTasksFontScale } from "../typography";
 import { tipProps } from "./card-hints";
 import { cardStrings } from "./strings";
 import type { TaskTokens } from "./tokens";
+import { hoverFill } from "../hover-fill";
 
-export function TitleUndo(props: { agentId: string; control?: TitleUpdateControl; tokens: TaskTokens; language: TasksLanguage; touch: boolean; fadeColor?: string; fadeHeight?: number }) {
+export function TitleUndo(props: { agentId: string; control?: TitleUpdateControl; tokens: TaskTokens; language: TasksLanguage; touch: boolean; fadeColor?: string; fadeHeight?: number; unifiedHover?: boolean }) {
   const item = useTitleUndoState(props.control, props.agentId);
   const visible = item?.ready === true;
   const reduced = useReducedMotion();
@@ -19,6 +20,7 @@ export function TitleUndo(props: { agentId: string; control?: TitleUpdateControl
   const opacity = useRef(new Animated.Value(0)).current;
   const toast = useToast();
   const { hovered, hoverProps } = useHover();
+  const [pressed, setPressed] = useState(false);
   const surface = useRef(Symbol("title-undo")).current;
   const scale = useTasksFontScale();
   const size = taskControlHeight(props.touch ? 44 : 30, scale);
@@ -46,11 +48,12 @@ export function TitleUndo(props: { agentId: string; control?: TitleUpdateControl
       testID={`task-title-undo-${props.agentId}`} {...tipProps(strings.undoTitle)}
       onHoverIn={() => { hoverProps.onHoverIn(); props.control?.enterUndo(props.agentId, surface); }}
       onHoverOut={() => { hoverProps.onHoverOut(); props.control?.leaveUndo(props.agentId, surface); }}
+      onPressIn={() => setPressed(true)} onPressOut={() => setPressed(false)}
       onPress={(event) => {
         event.stopPropagation();
         void props.control?.undoTitle(props.agentId).catch((error: unknown) => toast.error(strings.renameFailed(error instanceof Error ? error.message : String(error))));
       }}
-      style={{ width: size, height: size, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hovered ? mix(props.fadeColor ?? props.tokens.card.background, props.tokens.foreground, props.tokens.isDark ? 0.1 : 0.07) : "transparent" }}>
+      style={{ width: size, height: size, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: props.unifiedHover ? hoverFill(props.fadeColor ?? props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") : hovered ? mix(props.fadeColor ?? props.tokens.card.background, props.tokens.foreground, props.tokens.isDark ? 0.1 : 0.07) : "transparent" }}>
       <Icon name="Undo2" size={props.touch ? 20 : 18} color={hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
     </Pressable>
   </Animated.View>;

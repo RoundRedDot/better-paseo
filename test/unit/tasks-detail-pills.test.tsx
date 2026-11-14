@@ -14,7 +14,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 vi.mock("../../client/components/markdown/markdown-view", () => ({ MarkdownView: () => null }));
 
 import { TaskDetailCards } from "../../client/tasks/cards/detail-cards";
-import { Chip } from "../../client/tasks/cards/detail-charts";
+import { Chip, detailColors } from "../../client/tasks/cards/detail-charts";
 import { pillStyle } from "../../client/tasks/cards/task-card";
 import { taskTokens } from "../../client/tasks/cards/tokens";
 import { BOARD_STRINGS } from "../../client/tasks/board/strings";
@@ -63,7 +63,7 @@ describe("detail pill sizes", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it.each(["web", "ios", "android"])("follows the board's lift on %s", async (os) => {
+  it.each(["web", "ios", "android"])("uses the shared hover fill on %s", async (os) => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     vi.stubGlobal("__rnMockOS", os);
     const tokens = taskTokens(THEME);
@@ -71,31 +71,14 @@ describe("detail pill sizes", () => {
       renderer = TestRenderer.create(<Chip tokens={tokens} text="Model" tip="Model" height={20} font={11} />);
     });
     const chip = renderer!.root.find((node) => (node.type as unknown) === "Pressable");
-    expect(StyleSheet.flatten(chip.props.style).boxShadow).toBeUndefined();
-    expect(StyleSheet.flatten(chip.props.style).backgroundColor).toBe(tokens.card.background);
     const style = () => StyleSheet.flatten(chip.props.style);
-    await act(async () => chip.props.onHoverIn());
-    // Desktop hover: the line steps and the shadow rises. An iPad's hover paints nothing.
-    expect(style().boxShadow).toBe(os === "web" ? tokens.card.buttonShadowHover : undefined);
-    expect(style().borderColor).toBe(os === "web" ? tokens.borderStrong : tokens.card.pillBorder);
     expect(style().backgroundColor).toBe(tokens.card.background);
+    await act(async () => chip.props.onHoverIn());
+    expect(style()).toMatchObject({ borderColor: tokens.card.pillBorder, backgroundColor: detailColors(tokens).rowHover });
+    expect(style().boxShadow).toBeUndefined();
     expect(style().transform).toBeUndefined();
-    // A pointer's press (desktop, or a trackpad whose hover came first) keeps the line, drops the shadow and insets.
-    await act(async () => chip.props.onPressIn());
-    expect(style()).toMatchObject({ borderColor: tokens.borderStrong, backgroundColor: tokens.card.background, transform: [{ scale: 0.96 }] });
-    expect(style().boxShadow).toBeUndefined();
-    await act(async () => chip.props.onPressOut());
     await act(async () => chip.props.onHoverOut());
-    expect(style().boxShadow).toBeUndefined();
-    expect(style().borderColor).toBe(tokens.card.pillBorder);
-    if (os !== "web") {
-      // A finger covers the chip: it shows nothing and keeps its size.
-      await act(async () => chip.props.onPressIn());
-      expect(style()).toMatchObject({ borderColor: tokens.card.pillBorder, backgroundColor: tokens.card.background });
-      expect(style().boxShadow).toBeUndefined();
-      expect(style().transform).toBeUndefined();
-      await act(async () => chip.props.onPressOut());
-    }
+    expect(style().backgroundColor).toBe(tokens.card.background);
   });
 
   it.each([

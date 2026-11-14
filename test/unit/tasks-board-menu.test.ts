@@ -216,10 +216,10 @@ describe("menu geometry and keys", () => {
 
 describe("menu chrome", () => {
   it.each([
-    // Linear's #f1f1f1 on white, from the theme's foreground over its surface.
-    ["Paseo light", LIGHT, "#f1f1f2"],
-    ["Paseo dark", DARK, "#2a2d2c"],
-    ["sepia light", SEPIA, "#f0ebe1"],
+    // The shared 5% foreground mix follows each theme.
+    ["Paseo light", LIGHT, "#f3f3f3"],
+    ["Paseo dark", DARK, "#232625"],
+    ["sepia light", SEPIA, "#f1ece2"],
   ] as const)("follows the %s theme", (_name, colors, hover) => {
     const chrome = menuChrome(theme(colors));
     expect(chrome.background).toBe(colors.surface0);

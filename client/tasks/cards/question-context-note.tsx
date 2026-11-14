@@ -8,6 +8,7 @@ import { useThemeTokens } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
 import { HoverPreviewContext } from "../../ui/hover-preview";
 import { useCopy } from "../../ui/use-copy";
+import { HoverControl } from "../hover-control";
 import type { QuestionContext } from "../data/question-context";
 import type { TasksLanguage } from "../i18n";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontAdjustment } from "../typography";
@@ -51,9 +52,9 @@ function NoteError(props: NoteProps) {
   return <View testID="task-question-note-error" style={{ flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28 }}>
     <Icon name="MessageSquareText" size={14} color={colors.foregroundMuted} />
     <Text style={meta}>{words.contextError}</Text>
-    <Pressable accessibilityRole="button" onPress={props.read.retry} hitSlop={6} testID="task-question-note-retry">
+    <HoverControl base={colors.surface0} foreground={colors.foreground} {...tipProps(words.contextRetry)} accessibilityRole="button" onPress={props.read.retry} hitSlop={6} testID="task-question-note-retry" style={{ borderRadius: 6 }}>
       <Text style={[meta, { color: colors.accent, fontWeight: "600" }]}>{words.contextRetry}</Text>
-    </Pressable>
+    </HoverControl>
   </View>;
 }
 
@@ -79,10 +80,10 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
       <Text style={[meta, { color: colors.foreground, fontWeight: "600" }]}>{words.context}</Text>
       {Number.isFinite(at) ? <Text numberOfLines={1} style={[meta, { flexShrink: 1 }]}>· {formatRelative(Date.now() - at, props.language)}</Text> : null}
       <View style={{ flex: 1 }} />
-      {ready ? <Pressable accessibilityRole="button" accessibilityLabel={words.copyContext} {...tipProps(words.copyContext)} onPress={() => { void copy(ready.text, { label: "Copy agent note" }); }}
+      {ready ? <HoverControl base={colors.surface0} foreground={colors.foreground} accessibilityRole="button" accessibilityLabel={words.copyContext} {...tipProps(words.copyContext)} onPress={() => { void copy(ready.text, { label: "Copy agent note" }); }}
         hitSlop={4} testID="task-question-note-copy" style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
         <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : colors.foregroundMuted} />
-      </Pressable> : null}
+      </HoverControl> : null}
     </View>
     {ready ? <View style={box}>
       <FoldedText id="task-question-note" language={props.language} tokens={tokens} line={line} limit={props.compact ? NOTE_LINES.compact : NOTE_LINES.wide}

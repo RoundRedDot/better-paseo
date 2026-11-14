@@ -15,6 +15,8 @@ import { taskTokens } from "./tokens";
 import { useQuestionContext, type QuestionContext } from "../data/question-context";
 import { QuestionContextNote } from "./question-context-note";
 import { QuestionSelectionMark } from "../../components/question-selection-mark";
+import { HoverControl } from "../hover-control";
+import { tipProps } from "./card-hints";
 
 export function TaskQuestionDialog(props: {
   store: QuestionDialogStore;
@@ -36,9 +38,9 @@ export function TaskQuestionDialog(props: {
   return <Modal title={cardStrings(props.language).questions.title} open onOpenChange={(open) => { if (!open) props.store.close(); }}>
     <Modal.Content scrollable={false} contentContainerStyle={{ flex: 1, minHeight: 0, padding: 0, gap: 0 }}>
       {cards.length > 1 && index >= 0 ? <View testID="task-question-card-pager" style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 8 }}>
-        <Pressable testID="task-question-previous-card" accessibilityRole="button" accessibilityLabel={props.language === "zh" ? "上一个任务" : "Previous task"} disabled={index === 0 || state?.pending} onPress={() => props.store.open(cards[index - 1]!)}><Icon name="ChevronLeft" size={18} color={props.theme.colors.foregroundMuted} /></Pressable>
+        <HoverControl base={props.theme.colors.surface0} foreground={props.theme.colors.foreground} testID="task-question-previous-card" accessibilityRole="button" accessibilityLabel={props.language === "zh" ? "上一个任务" : "Previous task"} disabled={index === 0 || state?.pending} onPress={() => props.store.open(cards[index - 1]!)}><Icon name="ChevronLeft" size={18} color={props.theme.colors.foregroundMuted} /></HoverControl>
         <Text style={{ color: props.theme.colors.foregroundMuted }}>{props.language === "zh" ? `任务 ${index + 1} / ${cards.length}` : `Task ${index + 1} / ${cards.length}`}</Text>
-        <Pressable testID="task-question-next-card" accessibilityRole="button" accessibilityLabel={props.language === "zh" ? "下一个任务" : "Next task"} disabled={index === cards.length - 1 || state?.pending} onPress={() => props.store.open(cards[index + 1]!)}><Icon name="ChevronRight" size={18} color={props.theme.colors.foregroundMuted} /></Pressable>
+        <HoverControl base={props.theme.colors.surface0} foreground={props.theme.colors.foreground} testID="task-question-next-card" accessibilityRole="button" accessibilityLabel={props.language === "zh" ? "下一个任务" : "Next task"} disabled={index === cards.length - 1 || state?.pending} onPress={() => props.store.open(cards[index + 1]!)}><Icon name="ChevronRight" size={18} color={props.theme.colors.foregroundMuted} /></HoverControl>
       </View> : null}
       <QuestionDialogContent key={key} {...props} requestKey={key} />
     </Modal.Content>
@@ -72,7 +74,6 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
   const ownContext = useQuestionContext(props.inline ? undefined : props.paseo, state.agentId, state.permission);
   const [index, setIndex] = useState(0);
   const [inputFocused, setInputFocused] = useState(false);
-  const [openHovered, setOpenHovered] = useState(false);
   const scroll = useRef<React.ElementRef<typeof ScrollView>>(null);
   const revealInput = useCallback(() => {
     if (Platform.OS !== "web") scroll.current?.scrollToEnd({ animated: true });
@@ -98,13 +99,13 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
   const meta = { fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: colors.foregroundMuted };
   const content = <>
             {multiple && props.compact ? <View testID="task-question-pager" style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 2 }}>
-              <Pressable accessibilityRole="button" accessibilityLabel={words.previous} disabled={index === 0} onPress={() => selectQuestion(index - 1)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", opacity: index === 0 ? 0.4 : 1 }}><Icon name="ChevronLeft" size={18} color={colors.foregroundMuted} /></Pressable>
+              <HoverControl base={colors.surface0} foreground={colors.foreground} {...tipProps(words.previous)} accessibilityRole="button" accessibilityLabel={words.previous} disabled={index === 0} onPress={() => selectQuestion(index - 1)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", opacity: index === 0 ? 0.4 : 1 }}><Icon name="ChevronLeft" size={18} color={colors.foregroundMuted} /></HoverControl>
               <Text style={[meta, { textAlign: "center" }]}>{words.answered(answered.filter(Boolean).length, answered.length)}</Text>
-              <Pressable accessibilityRole="button" accessibilityLabel={words.next} disabled={index === questions!.length - 1} onPress={() => selectQuestion(index + 1)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", opacity: index === questions!.length - 1 ? 0.4 : 1 }}><Icon name="ChevronRight" size={18} color={colors.foregroundMuted} /></Pressable>
+              <HoverControl base={colors.surface0} foreground={colors.foreground} {...tipProps(words.next)} accessibilityRole="button" accessibilityLabel={words.next} disabled={index === questions!.length - 1} onPress={() => selectQuestion(index + 1)} style={{ width: 36, height: 36, alignItems: "center", justifyContent: "center", opacity: index === questions!.length - 1 ? 0.4 : 1 }}><Icon name="ChevronRight" size={18} color={colors.foregroundMuted} /></HoverControl>
             </View> : null}
             {card && !props.inline ? <View testID="task-question-context" style={{ padding: 12, gap: 8, borderRadius: 10, borderWidth: 1, borderColor: tokens.card.border, backgroundColor: tokens.card.background, boxShadow: tokens.card.shadow }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><ProjectIcon location={card.location} size={16} /><Text numberOfLines={1} style={[meta, { flex: 1 }]}>{[card.location.projectName, card.location.workspaceTitle ?? card.location.workspaceName].filter(Boolean).join(" › ")}</Text>
-                {props.onOpen ? <Pressable testID="task-question-open" accessibilityRole="button" accessibilityLabel={cardStrings(props.language).openTab} onPress={() => props.onOpen?.(card.id)} onHoverIn={() => setOpenHovered(true)} onHoverOut={() => setOpenHovered(false)} style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 6, borderColor: openHovered ? colors.border : "transparent", backgroundColor: openHovered ? colors.surface2 : "transparent" }}><Icon name="ArrowUpRight" size={16} color={colors.foregroundMuted} /></Pressable> : null}
+                {props.onOpen ? <HoverControl base={colors.surface0} foreground={colors.foreground} testID="task-question-open" accessibilityRole="button" accessibilityLabel={cardStrings(props.language).openTab} onPress={() => props.onOpen?.(card.id)} style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 6, borderColor: "transparent" }}><Icon name="ArrowUpRight" size={16} color={colors.foregroundMuted} /></HoverControl> : null}
               </View>
               <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}><StatusIcon kind={card.status} size={16} height={HOST_LINE.base} theme={props.theme} animated={false} /><Text selectable style={[prose, { flex: 1, fontWeight: "600" }]}>{card.title}</Text></View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99, backgroundColor: neutral.background }}><BrandMark provider={card.provider} size={14} tokens={tokens} /><Text style={[meta, { color: neutral.text }]}>{[card.providerLabel, card.modelLabel, card.thinkingLabel].filter(Boolean).join(" · ")}</Text></View>
@@ -114,14 +115,14 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
             {props.inline ? props.context ? <QuestionContextNote read={props.context} theme={props.theme} language={props.language} compact={props.compact} /> : null
               : <QuestionContextNote read={ownContext} theme={props.theme} language={props.language} compact={props.compact} />}
             {multiple ? <ScrollView horizontal showsHorizontalScrollIndicator={false}><View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border }}>
-              {questions!.map((q, i) => <Pressable key={i} testID={`task-question-tab-${i}`} accessibilityRole="tab" accessibilityState={{ selected: i === index }} onPress={() => selectQuestion(i)} style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: i === index ? colors.accent : "transparent" }}><Text style={[meta, { color: i === index ? colors.foreground : colors.foregroundMuted, fontWeight: "600" }]}>{words.question(i + 1)}{answered[i] ? " ✓" : ""}</Text></Pressable>)}
+              {questions!.map((q, i) => <HoverControl base={colors.surface0} foreground={colors.foreground} key={i} testID={`task-question-tab-${i}`} accessibilityRole="tab" accessibilityState={{ selected: i === index }} onPress={() => selectQuestion(i)} style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: i === index ? colors.accent : "transparent" }}><Text style={[meta, { color: i === index ? colors.foreground : colors.foregroundMuted, fontWeight: "600" }]}>{words.question(i + 1)}{answered[i] ? " ✓" : ""}</Text></HoverControl>)}
             </View></ScrollView> : null}
             {questions?.map((q, i) => i !== index ? null : <View key={i} testID="task-question-field" style={{ gap: 10 }}>
               <Text style={meta}>{q.header} · {q.options.length ? q.multiSelect ? words.multiple : words.single : words.text}</Text>
               <Text selectable style={[prose, { fontWeight: "600" }]}>{q.question}</Text>
               {q.options.map((option, optionIndex) => {
                 const checked = state.draft.selections[index]?.includes(optionIndex) === true;
-                return <Pressable key={optionIndex} testID={`task-question-option-${index}-${optionIndex}`} accessibilityRole={q.multiSelect ? "checkbox" : "radio"}
+                return <HoverControl base={checked ? colors.surface2 : colors.surface0} foreground={colors.foreground} rest={checked ? colors.surface2 : colors.surface0} key={optionIndex} testID={`task-question-option-${index}-${optionIndex}`} accessibilityRole={q.multiSelect ? "checkbox" : "radio"}
                   accessibilityLabel={option.label} accessibilityState={{ checked, disabled }} disabled={disabled}
                   onPress={() => {
                     const previous = state.draft.selections[index] ?? [];
@@ -133,9 +134,9 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
                   <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
                     <Text style={prose}>{option.label}</Text>
                     {option.description ? <Text style={meta}>{option.description}</Text> : null}
-                    {option.preview ? <QuestionPreview text={option.preview} language={props.language} color={colors.foreground} accent={colors.accent} /> : null}
+                    {option.preview ? <QuestionPreview text={option.preview} language={props.language} color={colors.foreground} accent={colors.accent} background={checked ? colors.surface2 : colors.surface0} /> : null}
                   </View>
-                </Pressable>;
+                </HoverControl>;
               })}
               {questionTextInput(q) ? <QuestionTextInput testID={`task-question-input-${index}`} accessibilityLabel={q.question} placeholder={q.placeholder ?? (q.options.length ? words.other : words.text)}
                 value={state.draft.texts[index] ?? ""} editable={!disabled} secureTextEntry={q.isSecret} multiline={!q.isSecret}
@@ -158,15 +159,15 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
           {props.inline ? <View style={{ padding: 16, gap: 20 }}>{content}</View> : <ScrollView ref={scroll} onLayout={() => { if (inputFocused) revealInput(); }} style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 16, gap: 20 }} keyboardShouldPersistTaps="handled">{content}</ScrollView>}
           <View testID="task-question-actions" style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
             {multiple && !props.compact ? <Text testID="task-question-answer-count" style={[meta, { alignSelf: "center", marginRight: "auto" }]}>{words.answered(answered.filter(Boolean).length, answered.length)}</Text> : null}
-            <Pressable testID="task-question-close" accessibilityRole="button" disabled={state.pending} onPress={props.inline ? props.store.reset : props.store.close}
+            <HoverControl base={colors.surface2} foreground={colors.foreground} rest={colors.surface2} {...tipProps(state.submitted ? words.close : cardStrings(props.language).cancelTitle)} testID="task-question-close" accessibilityRole="button" disabled={state.pending} onPress={props.inline ? props.store.reset : props.store.close}
               style={{ ...(props.compact ? { flexGrow: 1, flexBasis: 0 } : { marginLeft: "auto" }), minWidth: 100, minHeight: taskControlHeight(44, scale), padding: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface2 }}>
               <Text style={prose}>{state.submitted ? words.close : cardStrings(props.language).cancelTitle}</Text>
-            </Pressable>
-            {!state.submitted ? <Pressable testID="task-question-submit" accessibilityRole="button" accessibilityState={{ disabled: !(canSubmit || canAdvance), busy: state.pending }} disabled={!(canSubmit || canAdvance)}
+            </HoverControl>
+            {!state.submitted ? <HoverControl base={colors.accent} foreground={colors.foreground} rest={colors.accent} {...tipProps(canAdvance ? words.next : words.submit)} testID="task-question-submit" accessibilityRole="button" accessibilityState={{ disabled: !(canSubmit || canAdvance), busy: state.pending }} disabled={!(canSubmit || canAdvance)}
               onPress={() => { if (canAdvance) { const next = answered.findIndex((value, i) => i > index && !value); selectQuestion(next < 0 ? answered.findIndex((value) => !value) : next); return; } void props.store.submit(props.submit, props.cards); }}
               style={{ ...(props.compact ? { flexGrow: 1, flexBasis: 0 } : {}), minWidth: 100, minHeight: taskControlHeight(44, scale), padding: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent, opacity: canSubmit || canAdvance ? 1 : 0.5 }}>
               {state.pending ? <ActivityIndicator color={colors.accentForeground} /> : <Text style={[prose, { color: colors.accentForeground }]}>{canAdvance ? words.next : words.submit}</Text>}
-            </Pressable> : null}
+            </HoverControl> : null}
           </View>
         </View>
       </TasksTypography>;
@@ -189,15 +190,15 @@ function QuestionTextInput({ borderColor, focusColor, onFocusChange, onReveal, s
     style={[style, { borderColor: focused ? focusColor : borderColor }]} />;
 }
 
-function QuestionPreview({ text, language, color, accent }: { text: string; language: TasksLanguage; color: string; accent: string }) {
+function QuestionPreview({ text, language, color, accent, background }: { text: string; language: TasksLanguage; color: string; accent: string; background: string }) {
   const [expanded, setExpanded] = useState(false);
   const long = text.length > 240 || text.split("\n").length > 4;
   const words = cardStrings(language).questions;
   return <View style={{ gap: 4 }}>
     <Text testID="task-question-preview" numberOfLines={long && !expanded ? 4 : undefined} style={{ fontSize: F.base, lineHeight: HOST_LINE.base, color }}>{text}</Text>
-    {long ? <Pressable testID="task-question-preview-toggle" accessibilityRole="button" accessibilityState={{ expanded }}
+    {long ? <HoverControl base={background} foreground={color} testID="task-question-preview-toggle" accessibilityRole="button" accessibilityState={{ expanded }}
       onPress={(event) => { event.stopPropagation(); setExpanded(!expanded); }} style={{ alignSelf: "flex-start", paddingVertical: 4 }}>
       <Text style={{ fontSize: F.sm, lineHeight: HOST_LINE.smRead, color: accent }}>{expanded ? words.collapsePreview : words.expandPreview}</Text>
-    </Pressable> : null}
+    </HoverControl> : null}
   </View>;
 }

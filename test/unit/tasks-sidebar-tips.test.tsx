@@ -142,15 +142,15 @@ describe("sidebar action tips", () => {
     await act(async () => host(root, "detail-back").props.onHoverOut());
     expect(StyleSheet.flatten(host(root, "detail-back").props.style).backgroundColor).toBe("transparent");
   });
-  it("uses the toolbar's quiet rounded outline for both header buttons", async () => {
+  it("uses the shared hover fill for both header buttons", async () => {
     const root = await render(<TaskDetailCards {...details("en", "sample-running", { onMenu() {} })} />);
     for (const id of ["detail-menu", "detail-close"]) {
       const button = () => host(root, id);
       expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderColor: "transparent" });
       await act(async () => button().props.onHoverIn());
-      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: taskTokens(THEME).borderStrong, boxShadow: taskTokens(THEME).card.buttonShadowHover });
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: "transparent", backgroundColor: detailColors(taskTokens(THEME)).rowHover });
       await act(async () => button().props.onHoverOut());
-      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderColor: "transparent", boxShadow: undefined });
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderColor: "transparent", backgroundColor: "transparent" });
     }
   });
   it("opens the selected card menu at the header button", async () => {
@@ -469,7 +469,7 @@ describe("sidebar action tips", () => {
     expect(iconSizes()).toEqual([18, 18, 18, 18]);
     const filter = root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "checkbox");
     expect(tip(filter)).toBe("Claude");
-    const controlHover = taskTokens(THEME).card.controlHover;
+    const controlHover = detailColors(taskTokens(THEME)).rowHover;
     const tab = host(root, "sidebar-group-tab-FolderKanban");
     await act(async () => tab.props.onHoverIn());
     expect(tab.props.style).toMatchObject({ backgroundColor: controlHover });

@@ -24,6 +24,7 @@ import { modeIcon, THINKING_ICON } from "./mode-icons";
 import { cardStrings } from "./strings";
 import type { TaskTokens } from "./tokens";
 import { bindContextMenu } from "../../web";
+import { hoverFill } from "../hover-fill";
 
 /** One design for expanded board cards, the details sidebar and the mobile sheet. */
 export interface SubtaskRowProps extends TimeSource {
@@ -49,6 +50,7 @@ export interface SubtaskRowProps extends TimeSource {
   onOpen?(): void;
   onContextMenu?(point: { x: number; y: number }): void;
   titleUpdates?: TitleUpdateControl;
+  unifiedUndo?: boolean;
 }
 
 export function SubtaskRow(props: SubtaskRowProps) {
@@ -60,7 +62,8 @@ export function SubtaskRow(props: SubtaskRowProps) {
   const web = Platform.OS === "web";
   const showOpen = !!props.onOpen && (touch || !web || hovered || child.kind === "provider");
   const prefix = props.testIDPrefix ?? "subtask";
-  const fill = hovered && props.onPress ? tokens.card.controlHover : props.backdrop;
+  const [pressed, setPressed] = useState(false);
+  const fill = hoverFill(props.backdrop, tokens.foreground, hovered && !!props.onPress, pressed && !!props.onPress);
   const line = Math.round(HOST_LINE.smRead * scale);
   const target = touch ? 32 : 22;
   const titleUpdate = useTitleUpdateState(props.titleUpdates, child.id);
@@ -90,6 +93,8 @@ export function SubtaskRow(props: SubtaskRowProps) {
       {...tipProps(props.onPress ? props.pressTip : undefined)}
       disabled={!props.onPress && !props.onOpen}
       onPress={props.onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       onLongPress={props.onLongPress}
       delayLongPress={450}
       ref={rowRef}
@@ -146,7 +151,7 @@ export function SubtaskRow(props: SubtaskRowProps) {
         ) : null}
         {(undoVisible || undoSlot) ? (
           <View pointerEvents="box-none" style={{ position: "absolute", right: props.onOpen ? target + 4 : 0, top: (line - taskControlHeight(touch ? 44 : 30, scale)) / 2 }}>
-            <TitleUndo agentId={child.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} fadeColor={fill} fadeHeight={line} />
+            <TitleUndo agentId={child.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} fadeColor={fill} fadeHeight={line} unifiedHover={props.unifiedUndo} />
           </View>
         ) : null}
       </View>

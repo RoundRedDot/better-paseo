@@ -1699,7 +1699,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
 
   if (props.collapsed) {
     return clip(
-      <HoverPressable
+      <HoverPressable hoverTheme={theme}
         ref={pillRef}
         lift={false}
         accessibilityRole="button"
@@ -1749,7 +1749,7 @@ function DesktopLaneView(props: DesktopLaneProps) {
         {isHistoryLane(lane.id) ? (
           <Text style={{ fontSize: F.sm, color: colors.foregroundMuted }}>{strings.windows[board.params.doneWindow ?? board.defaults.doneWindow]}</Text>
         ) : null}
-        <HoverPressable
+        <HoverPressable hoverTheme={theme}
           accessibilityRole="button"
           accessibilityLabel={strings.collapse}
           {...collapseTap.pressIn}

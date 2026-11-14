@@ -105,8 +105,7 @@ function isDark(color: string): boolean {
 }
 
 /**
- * The menu's colours from the host theme. Linear's #f1f1f1 hover on white is
- * the foreground at about 5.5%; a dark surface needs a little more to read.
+ * The menu's colours from the host theme. Rows use the shared 5% hover fill.
  * The shadow is the one fixed colour (the theme has no shadow token): soft
  * and wide on light, deeper on dark where a light shadow vanishes.
  */
@@ -120,7 +119,7 @@ export function menuChrome(theme: PluginTheme): MenuChrome {
     chrome = {
       background: colors.surface0,
       border: colors.border,
-      hover: mix(colors.surface0, colors.foreground, dark ? 0.08 : 0.055),
+      hover: mix(colors.surface0, colors.foreground, 0.05),
       shadow: dark
         ? "0px 4px 24px rgba(0, 0, 0, 0.45), 0px 1px 3px rgba(0, 0, 0, 0.3)"
         : "0px 4px 24px rgba(0, 0, 0, 0.08), 0px 1px 3px rgba(0, 0, 0, 0.04)",

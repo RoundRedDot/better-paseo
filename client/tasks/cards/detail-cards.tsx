@@ -13,6 +13,8 @@ import { useEnhancerPreferences } from "../../preferences";
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
 import { HoverPreviewContext } from "../../ui/hover-preview";
 import { useHover } from "../../ui/use-hover";
+import { hoverFill } from "../hover-fill";
+import { HoverControl } from "../hover-control";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { useInputCapabilities } from "../../ui/use-input-capabilities";
 import { useCopy } from "../../ui/use-copy";
@@ -640,8 +642,8 @@ function DetailTab(props: { id: "info" | "messages"; selected: boolean; tokens: 
       accessibilityState={{ selected: props.selected }}
       onPress={props.onPress}
       style={({ pressed }) => {
-        const lift = surfaceLift(hovered, pressed);
-        return { flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 30 : 32, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, backgroundColor: props.selected ? props.tokens.surface2 : "transparent", flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 4, paddingHorizontal: 6, ...liftStyle(props.tokens, lift, { border: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder }), ...scaleStyle(lift.scale) };
+        const base = props.selected ? props.tokens.surface2 : props.tokens.card.background;
+        return { flex: 1, minWidth: 0, height: taskControlHeight(props.touch ? 30 : 32, scale), borderRadius: 999, borderWidth: StyleSheet.hairlineWidth, borderColor: props.selected ? props.tokens.surface2 : props.tokens.card.pillBorder, backgroundColor: hoverFill(base, props.tokens.foreground, hovered, pressed, props.selected ? base : "transparent"), flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 4, paddingHorizontal: 6 };
       }}
     >
       <Icon name={props.id === "info" ? "Info" : "MessageSquare"} size={props.touch ? 12 : 14} color={color} />
@@ -818,7 +820,7 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
           onPress={props.back.onPress}
           {...backHoverProps}
           testID="detail-back"
-          style={{ minHeight: touch ? 36 : 24, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2, borderRadius: 6, backgroundColor: backHovered ? detailColors(tokens).rowHover : "transparent" }}
+          style={({ pressed }) => ({ minHeight: touch ? 36 : 24, flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2, borderRadius: 6, backgroundColor: hoverFill(tokens.card.background, tokens.foreground, backHovered, pressed, "transparent") })}
         >
           <Icon name="CornerLeftUp" size={14} color={tokens.foregroundMuted} />
           <Text numberOfLines={1} style={{ flex: 1, fontSize: small, color: tokens.foregroundMuted }}>
@@ -834,9 +836,9 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
             {props.notice.text}
           </Text>
           {props.notice.action ? (
-            <Pressable accessibilityRole="button" {...tipProps(props.notice.action.label)} onPress={props.notice.action.onPress} hitSlop={6}>
+            <HoverControl base={tokens.surface1} foreground={tokens.foreground} accessibilityRole="button" {...tipProps(props.notice.action.label)} onPress={props.notice.action.onPress} hitSlop={6}>
               <Text style={{ fontSize: small, fontWeight: "500", color: tokens.accentText }}>{props.notice.action.label}</Text>
-            </Pressable>
+            </HoverControl>
           ) : null}
         </View>
       ) : null}
@@ -863,7 +865,7 @@ function DetailHeader(props: Inner & { hideStatus?: boolean }) {
               </FoldedText>}
         </View>
         <View pointerEvents="box-none" style={{ position: "absolute", right: 0, top: 0 }}>
-          <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} fadeColor={tokens.card.background} />
+          <TitleUndo agentId={card.id} control={props.titleUpdates} tokens={tokens} language={props.language} touch={touch} fadeColor={tokens.card.background} unifiedHover />
         </View>
       </View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 }} testID="detail-agent">
@@ -1041,7 +1043,7 @@ function PermissionBlock(props: Inner) {
         </Text>
         {permission.remaining > 0 ? <Text style={{ fontSize: small, color: tokens.foregroundMuted }}>{words.moreRequests(permission.remaining)}</Text> : null}
         {permission.body ? (
-          <PlanViewButton tokens={tokens} language={props.language} lineHeight={HOST_LINE.base} onPress={() => setPlanOpen(permission.requestId)} testID="detail-view-plan" />
+          <PlanViewButton unifiedHover tokens={tokens} language={props.language} lineHeight={HOST_LINE.base} onPress={() => setPlanOpen(permission.requestId)} testID="detail-view-plan" />
         ) : null}
       </View>
       {permission.summary ? (
@@ -1097,7 +1099,6 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
       onPress={props.onPress}
       {...hoverProps}
       style={({ pressed }) => {
-        const lift = surfaceLift(hovered && !props.disabled, pressed && !props.disabled);
         return {
           // A written option may wrap, so it grows taller rather than wider.
           ...(option || keep ? { minHeight: height, paddingVertical: 4 } : { height }),
@@ -1105,13 +1106,12 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
           gap: 4,
           paddingHorizontal: 14,
           borderRadius: 6,
-          ...liftedButtonOutline(tokens, hue.border, requestLook(button) === "plain", lift),
+          ...buttonOutline(hue.border),
           opacity: props.disabled ? 0.5 : 1,
-          backgroundColor: tokens.card.background,
+          backgroundColor: hoverFill(tokens.card.background, tokens.foreground, hovered && !props.disabled, pressed && !props.disabled),
           alignItems: "center" as const,
           justifyContent: "center" as const,
           ...fit.style,
-          ...scaleStyle(lift.scale),
         };
       }}
     >
@@ -1151,7 +1151,7 @@ function ErrorBlock(props: Inner) {
         <Icon name={stopped ? "OctagonX" : "CircleAlert"} size={m.icon} color={stopped ? tokens.foregroundMuted : tokens.danger} />
         <Text style={{ flex: 1, fontSize: m.font, fontWeight: "500", color: tokens.foreground }}>{stopped ? words.stoppedTitle : words.failedTitle}</Text>
         {body ? (
-          <Pressable
+          <HoverControl base={stopped ? colors.sunk : colors.errorFill} foreground={tokens.foreground}
             accessibilityRole="button"
             accessibilityLabel={words.copyError}
             {...tipProps(words.copyError)}
@@ -1160,7 +1160,7 @@ function ErrorBlock(props: Inner) {
             style={{ width: 24, height: 24, marginRight: -6, alignItems: "center", justifyContent: "center", borderRadius: 6 }}
           >
             <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
-          </Pressable>
+          </HoverControl>
         ) : null}
       </View>
       {body ? (
@@ -1216,21 +1216,21 @@ function Section(props: Inner & { section: DetailSection; replyStreaming: boolea
       {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginLeft: m.padH, marginRight: m.padH - gutter, backgroundColor: tokens.card.border }} /> : null}
       <View style={{ paddingTop: 4, paddingBottom: bottom, paddingLeft: m.padH - 6, paddingRight: m.padH - 6 - gutter }}>
         {messageSection ? (
-          <Pressable {...ROW_ROLE} accessibilityLabel={props.closed ? words.expand(title) : words.collapse(title)} {...tipProps(props.closed ? words.expand(title) : words.collapse(title))} accessibilityState={{ expanded: !props.closed }} onPress={toggle} testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6 }}>
+          <HoverControl base={tokens.card.background} foreground={tokens.foreground} {...ROW_ROLE} accessibilityLabel={props.closed ? words.expand(title) : words.collapse(title)} {...tipProps(props.closed ? words.expand(title) : words.collapse(title))} accessibilityState={{ expanded: !props.closed }} onPress={toggle} testID={`${testID}-heading`} style={{ flexDirection: "row", alignItems: "center", paddingLeft: 6, borderRadius: 6 }}>
             <View style={{ width: 23, height: 24, paddingLeft: 5, alignItems: "flex-start", justifyContent: "center" }}>
               <Icon name={section === "message" ? "MessageSquareText" : section === "human" ? "Send" : "MessageCircle"} size={14} color={tokens.foregroundMuted} />
             </View>
             <Text style={{ flex: 1, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
             {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
             {read?.prompt.state === "ready" ? (
-              <Pressable accessibilityRole="button" accessibilityLabel={copyLabel} {...tipProps(copyLabel)} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} hitSlop={4} testID={`${testID}-copy`} style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
+              <HoverControl base={tokens.card.background} foreground={tokens.foreground} accessibilityRole="button" accessibilityLabel={copyLabel} {...tipProps(copyLabel)} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} hitSlop={4} testID={`${testID}-copy`} style={{ width: 32, height: 32, borderRadius: 6, alignItems: "center", justifyContent: "center" }}>
                 <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
-              </Pressable>
+              </HoverControl>
             ) : null}
             <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
               <SectionChevron closed={props.closed} color={tokens.foregroundMuted} />
             </View>
-          </Pressable>
+          </HoverControl>
         ) : (
           <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryTip={messageTime ? formatFullStamp(new Date(at)) : undefined} trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined} closed={props.closed} language={props.language} onPress={toggle} />
         )}
@@ -1290,7 +1290,7 @@ function SectionHeading(props: { m: Metrics; tokens: TaskTokens; title: string; 
       accessibilityState={{ expanded: !props.closed }}
       onPress={props.onPress}
       {...hoverProps}
-      style={{ height: taskControlHeight(m.heading, scale), paddingHorizontal: 6, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 4 }}
+      style={({ pressed }) => ({ height: taskControlHeight(m.heading, scale), paddingHorizontal: 6, borderRadius: 6, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: hoverFill(tokens.card.background, tokens.foreground, hovered, pressed, "transparent") })}
     >
       <Text style={{ fontSize: font, fontWeight: "500", color }}>{props.title}</Text>
       <SectionChevron closed={props.closed} color={color} />
@@ -1673,7 +1673,7 @@ function PropertyRow(props: {
       ref={rowRef}
       {...(Platform.OS === "web" ? null : hoverProps)}
       testID={props.testID}
-      style={({ pressed }) => ({ ...style, backgroundColor: hovered || pressed ? colors.rowHover : "transparent" })}
+      style={({ pressed }) => ({ ...style, backgroundColor: pressed ? colors.rowPress : hovered ? colors.rowHover : "transparent" })}
     >
       {content}
     </Pressable>
@@ -1693,8 +1693,7 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
       }}
       {...hoverProps}
       style={({ pressed }) => {
-        const lift = surfaceLift(hovered, pressed);
-        return { width: 24, height: 24, borderRadius: 5, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: "transparent", ...liftStyle(props.tokens, lift), ...scaleStyle(lift.scale) };
+        return { width: 24, height: 24, borderRadius: 5, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: hoverFill(props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") };
       }}
     >
       <Icon name={props.icon} size={14} color={hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
@@ -1732,6 +1731,7 @@ function Subtasks(props: Inner) {
           titleUpdates={props.titleUpdates}
           touch={props.touch === true || Platform.OS !== "web"}
           backdrop={tokens.card.background}
+          unifiedUndo
           testIDPrefix="detail-subtask"
           muted={mixed && child.status === "done"}
           {...time}
@@ -1882,9 +1882,9 @@ function TimelineTextBody(props: Inner & {
       <View style={{ minHeight: props.touch ? 36 : 28, paddingHorizontal: 6, flexDirection: "row", alignItems: "center", gap: 8 }} testID={`${id}-state`}>
         {note ? <Text style={{ flexShrink: 1, fontSize: small, color: tokens.foregroundMuted }}>{note}</Text> : null}
         {retry ? (
-          <Pressable accessibilityRole="button" {...tipProps(words.promptLoad)} onPress={first.load} hitSlop={6} testID={`${id}-load`}>
+          <HoverControl base={tokens.card.background} foreground={tokens.foreground} accessibilityRole="button" {...tipProps(words.promptLoad)} onPress={first.load} hitSlop={6} testID={`${id}-load`}>
             <Text style={{ fontSize: small, fontWeight: "500", color: tokens.accentText }}>{words.promptLoad}</Text>
-          </Pressable>
+          </HoverControl>
         ) : null}
       </View>
     );
@@ -2046,19 +2046,17 @@ export function RoundIcon(props: { icon: string; label: string; size: number; ic
       {...hoverProps}
       testID={props.testID}
       style={({ pressed }) => {
-        const lift = surfaceLift(hovered, pressed);
+        const base = props.active ? props.tokens.surface2 : props.tokens.card.background;
         return {
           width: props.size,
           height: props.size,
           marginVertical: -(props.size - 18) / 2,
           borderRadius: Platform.OS === "web" ? 7 : props.size / 2,
           borderWidth: Platform.OS === "web" ? StyleSheet.hairlineWidth : 0,
-          borderColor: hovered ? props.tokens.border : "transparent",
+          borderColor: "transparent",
           alignItems: "center" as const,
           justifyContent: "center" as const,
-          backgroundColor: props.active ? props.tokens.surface2 : "transparent",
-          ...liftStyle(props.tokens, lift, Platform.OS === "web" ? { border: hovered ? props.tokens.border : "transparent" } : {}),
-          ...scaleStyle(lift.scale),
+          backgroundColor: hoverFill(base, props.tokens.foreground, hovered, pressed, props.active ? base : "transparent"),
         };
       }}
     >
@@ -2112,7 +2110,7 @@ function OutlineButton(props: {
   const chrome = 2 * (props.grow ? 10 : 12) + (leading ? 15 : 0) + (props.hint ? hintWidth : 0) + (props.trailing ? 14 : 0) + (pieces - 1) * gap + 1;
   const fit = useActionFit(props.label, `${scale}|${props.font}|${useWindowDimensions().fontScale}`, props.height, chrome);
   return (
-    <ActionPressable lift={props.grow ? "row" : "control"}
+    <ActionPressable flat lift={props.grow ? "row" : "control"}
       accessibilityRole="button"
       accessibilityLabel={props.label}
       hitSlop={Platform.OS !== "web" ? 4 : undefined}
@@ -2129,8 +2127,8 @@ function OutlineButton(props: {
         height: taskControlHeight(props.height, scale),
         paddingHorizontal: props.grow ? 10 : 12,
         borderRadius: 8,
-        ...liftedButtonOutline(tokens, hue.border, look === "plain", surfaceLift(hovered, pressed && !disabled, undefined, props.grow ? "row" : "control")),
-        backgroundColor: tokens.card.background,
+        ...buttonOutline(hue.border),
+        backgroundColor: hoverFill(tokens.card.background, tokens.foreground, hovered, pressed && !disabled),
         flexDirection: "row" as const,
         alignItems: "center" as const,
         gap,
@@ -2389,7 +2387,7 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; glyph?: (color: s
   // A bar button spans its share of the bar, wider than a finger; a square one is covered by it.
   const liftAs = square || props.grow === false ? "control" : "row";
   return (
-    <ActionPressable lift={liftAs}
+    <ActionPressable flat lift={liftAs}
       accessibilityRole="button"
       accessibilityLabel={props.label}
       hitSlop={Platform.OS !== "web" ? 4 : undefined}
@@ -2406,8 +2404,8 @@ function BarButton(props: { tokens: TaskTokens; icon?: string; glyph?: (color: s
         flexShrink: square ? 0 : 1,
         paddingHorizontal: square ? 0 : padding,
         borderRadius: compact ? 8 : 10,
-        ...liftedButtonOutline(tokens, hue.border, look === "plain", surfaceLift(hovered, pressed && !disabled, undefined, liftAs)),
-        backgroundColor: tokens.card.background,
+        ...buttonOutline(hue.border),
+        backgroundColor: hoverFill(tokens.card.background, tokens.foreground, hovered, pressed && !disabled),
         opacity: disabled ? 0.6 : 1,
         flexDirection: "row",
         alignItems: "center",

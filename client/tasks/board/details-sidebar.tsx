@@ -8,6 +8,8 @@ import { useHover } from "../../ui/use-hover";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { liftStyle, scaleStyle, surfaceLift } from "../cards/surface-lift";
 import { usePressCue } from "../cards/action-pressable";
+import { hoverFill } from "../hover-fill";
+import { HoverControl } from "../hover-control";
 import { BrandMark, DETAIL_CARD, DetailActionBar, DetailCard, detailGutter, detailScrollProps, outsideIndicator, ProjectIcon, requestInSection, StatusIcon, TagMark, TaskDetailCards, taskTokens, tildePath, type DetailNotice, type TaskTokens } from "../cards";
 import { LANE_STATUS, turnRunning, type LaneId, type TaskCard } from "../model";
 import { activeStopChildren } from "../actions/stop-targets";
@@ -430,9 +432,7 @@ function StatCell(props: {
   const labelKey = `${props.label}|${scale}`;
   const hideLabel = headingWidth !== null && labelSize?.key === labelKey && labelSize.width + 13 + 5 > headingWidth + 0.5;
   const { hovered, hoverProps } = useHover();
-  const reduced = useReducedMotion();
   const press = usePressCue(hovered);
-  const lift = surfaceLift(hovered, press.pressed, reduced, "capsule", press.input);
   const alert = props.lane === "needs_input" && (props.count ?? 0) > 0;
   const countStyle = { fontSize: props.countSize, lineHeight: HOST_LINE.base, fontWeight: "600" as const, color: alert ? tokens.warning : tokens.foreground, fontVariant: ["tabular-nums" as const] };
   return (
@@ -459,10 +459,8 @@ function StatCell(props: {
           paddingBottom: props.touch ? 2 : 6,
           borderRadius: 8,
           borderWidth: StyleSheet.hairlineWidth,
-          backgroundColor: "transparent",
-          // Transparent at rest; the needs-input alert's warning line keeps its hue.
-          ...liftStyle(tokens, lift, { border: alert ? tokens.warning : "transparent", hued: alert }),
-          ...scaleStyle(lift.scale),
+          backgroundColor: hoverFill(tokens.card.background, tokens.foreground, hovered, press.pressed, "transparent"),
+          borderColor: alert ? tokens.warning : "transparent",
           gap: 2,
         };
       }}
@@ -609,9 +607,9 @@ function GroupCard(props: { board: BoardController; options: ShownFilterOptions;
             style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: tokens.foreground, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }}
           />
           {query ? (
-            <Pressable testID="sidebar-groups-search-clear" accessibilityRole="button" accessibilityLabel={board.strings.menuSearch.clear} {...tipProps(board.strings.menuSearch.clear)} hitSlop={6} style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center" }} onPress={() => setQueries((previous) => ({ ...previous, [kind]: "" }))}>
+            <HoverControl base={tokens.card.background} foreground={tokens.foreground} testID="sidebar-groups-search-clear" accessibilityRole="button" accessibilityLabel={board.strings.menuSearch.clear} {...tipProps(board.strings.menuSearch.clear)} hitSlop={6} style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center" }} onPress={() => setQueries((previous) => ({ ...previous, [kind]: "" }))}>
               <Icon name="X" size={13} color={tokens.foregroundMuted} />
-            </Pressable>
+            </HoverControl>
           ) : null}
         </View>
       </View>
@@ -718,7 +716,7 @@ function Segment(props: {
           borderRadius: 999,
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: props.on ? tokens.surface2 : tokens.card.pillBorder,
-          backgroundColor: props.on ? tokens.surface2 : hovered || pressed ? tokens.card.controlHover : "transparent",
+          backgroundColor: hoverFill(props.on ? tokens.surface2 : tokens.card.background, tokens.foreground, hovered, pressed, props.on ? tokens.surface2 : "transparent"),
           flexDirection: "row" as const,
           alignItems: "center" as const,
           justifyContent: "center" as const,
@@ -757,7 +755,9 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
   const scale = useTasksFontScale();
   const { hovered, hoverProps } = useHover();
   // The tag hole follows the row background on hover.
-  const fill = row.on ? tokens.surface2 : hovered ? tokens.card.controlHover : tokens.card.background;
+  const [pressed, setPressed] = useState(false);
+  const base = row.on ? tokens.surface2 : tokens.card.background;
+  const fill = hoverFill(base, tokens.foreground, hovered, pressed);
   return (
     <Pressable
       accessibilityRole="checkbox"
@@ -765,6 +765,8 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
       accessibilityLabel={`${row.label}${row.detail ? ` ${row.detail}` : ""} ${row.count}`}
       {...tipProps(`${row.label}${row.detail ? ` · ${row.detail}` : ""}`)}
       onPress={row.toggle}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       {...hoverProps}
       style={({ pressed }) => {
         return {
@@ -778,7 +780,7 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
           flexDirection: "row",
           alignItems: "center",
           gap: 10,
-          backgroundColor: row.on ? tokens.surface2 : hovered || pressed ? tokens.card.controlHover : "transparent",
+          backgroundColor: hoverFill(base, tokens.foreground, hovered, pressed, row.on ? tokens.surface2 : "transparent"),
         };
       }}
     >

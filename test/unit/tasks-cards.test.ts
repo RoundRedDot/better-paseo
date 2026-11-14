@@ -4412,7 +4412,7 @@ describe("TaskDetailCards", () => {
     expect(flat(byLabel(tree.root, "允许").props.style)).toMatchObject({ backgroundColor: card0.background, borderColor: card0.primaryBorder, borderWidth: 0.5 });
     expect(flat(byLabel(tree.root, "拒绝").props.style)).toMatchObject({ backgroundColor: card0.background, borderColor: taskTokens(LIGHT).danger });
     await act(async () => byLabel(tree.root, "允许").props.onHoverIn());
-    expect(flat(byLabel(tree.root, "允许").props.style).backgroundColor).toBe(card0.background);
+    expect(flat(byLabel(tree.root, "允许").props.style).backgroundColor).toBe(detailColors(taskTokens(LIGHT)).rowHover);
     await act(async () => byLabel(tree.root, "允许").props.onPress());
     expect(onPermission).toHaveBeenCalledWith(expect.objectContaining({ kind: "respond" }));
     // The phone's bar carries them instead.
@@ -4720,12 +4720,8 @@ describe("TaskDetailCards", () => {
       const tokens = taskTokens(LIGHT);
       expect(background).toBe(tokens.card.background);
       await act(async () => chip.props.onHoverIn());
-      expect(flat(hostByTestId(tree.root, id).props.style).backgroundColor).toBe(background);
+      expect(flat(hostByTestId(tree.root, id).props.style).backgroundColor).toBe(detailColors(tokens).rowHover);
       expect(flat(hostByTestId(tree.root, id).props.style).boxShadow).toBeUndefined();
-      await act(async () => chip.props.onPressIn());
-      expect(flat(hostByTestId(tree.root, id).props.style).backgroundColor).toBe(background);
-      expect(flat(hostByTestId(tree.root, id).props.style).boxShadow).toBeUndefined();
-      await act(async () => chip.props.onPressOut());
       await act(async () => chip.props.onHoverOut());
       expect(flat(hostByTestId(tree.root, id).props.style).backgroundColor).toBe(background);
       expect(flat(hostByTestId(tree.root, id).props.style).boxShadow).toBeUndefined();

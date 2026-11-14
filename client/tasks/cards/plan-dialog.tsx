@@ -7,6 +7,7 @@ import { useThemeTokens } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
 import { HoverPreviewContext } from "../../ui/hover-preview";
 import { useHover } from "../../ui/use-hover";
+import { hoverFill } from "../hover-fill";
 import type { TasksLanguage } from "../i18n";
 import { TaskText as Text, HOST_FONT as F, useTasksFontAdjustment } from "../typography";
 import { cardStrings } from "./strings";
@@ -23,6 +24,7 @@ export function PlanViewButton(props: {
   /** The title line's height: the button sits on its first line. */
   lineHeight: number;
   onPress(): void;
+  unifiedHover?: boolean;
   testID?: string;
 }) {
   const { hovered, hoverProps } = useHover();
@@ -39,7 +41,7 @@ export function PlanViewButton(props: {
         event.stopPropagation();
         props.onPress();
       }}
-      style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: props.lineHeight, flexShrink: 0 }}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 4, minHeight: props.lineHeight, flexShrink: 0, borderRadius: 6, backgroundColor: props.unifiedHover ? hoverFill(props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") : "transparent" })}
       testID={props.testID}
     >
       <Icon name="FileText" size={13} color={color} />

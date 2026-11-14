@@ -154,6 +154,7 @@ import { readSidebarPreference, resetSidebarPreference, writeSidebarPreference }
 import { MOTION } from "../../client/tasks/board/board-style";
 import { ACTIVE_LANE_ORDER as LANE_ORDER, type TaskCard } from "../../client/tasks/model";
 import { BrandMark, DetailActionBar, PiMark, TagMark, TaskCardView, TaskDetailCards, taskTokens } from "../../client/tasks/cards";
+import { hoverFill } from "../../client/tasks/hover-fill";
 import { deviceTasksStore } from "../../client/tasks/device-preferences";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS } from "../../shared/tasks-settings";
 import { resetTasksEnabled, setTasksSettingsOpener } from "../../client/tasks/board/enabled";
@@ -1004,7 +1005,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     }
   });
 
-  it("shows desktop toolbar outlines only on hover and enlarges their icons", () => {
+  it("shows the shared desktop toolbar hover fill and keeps icon sizes", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     act(() => { renderer = TestRenderer.create(screen(false)); });
     layOut(2400);
@@ -1018,7 +1019,7 @@ describe("Tasks search coverage and centred toolbar", () => {
       };
       expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7, width: 30, height: 30 });
       act(() => button().props.onHoverIn());
-      expect(outline(), id).toMatchObject({ borderColor: id === "empty-lanes-toggle" ? "#e2e2e6" : taskTokens(theme).borderStrong, borderRadius: 7, width: 30, height: 30 });
+      expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7, width: 30, height: 30, backgroundColor: id === "empty-lanes-toggle" ? "transparent" : hoverFill(taskTokens(theme).surface0, taskTokens(theme).foreground, true, false) });
       act(() => button().props.onHoverOut());
       expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7 });
       if (id !== "sidebar-switch") expect(button().find((node) => (node.type as unknown) === "Icon").props.size, id).toBe(17);
@@ -1037,7 +1038,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(toggle.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(false));
     expect(toggle.props.accessibilityState.selected).toBe(false);
     act(() => toggle.props.onHoverIn());
-    expect(StyleSheet.flatten(hostsById("search-full-conversation-toggle")[0]!.props.style).boxShadow).toBe(taskTokens(theme).card.buttonShadowHover);
+    expect(StyleSheet.flatten(hostsById("search-full-conversation-toggle")[0]!.props.style).backgroundColor).toBe(hoverFill(taskTokens(theme).surface0, taskTokens(theme).foreground, true, false));
     act(() => toggle.props.onHoverOut());
     expect(StyleSheet.flatten(hostsById("search-full-conversation-toggle")[0]!.props.style).boxShadow).toBeUndefined();
     act(() => toggle.props.onPress());
@@ -5456,23 +5457,23 @@ describe("mobile toolbar press feedback", () => {
     const event = { nativeEvent: { pageX: 100, pageY: 100, identifier: 0 } };
     for (const id of ids) {
       const button = () => hostsById(id)[0]!;
-      const shadow = () => phone && id !== "phone-sort-hint"
-        ? StyleSheet.flatten(button().find((node) => (node.type as unknown) === "View").props.style).boxShadow
-        : StyleSheet.flatten(button().props.style).boxShadow;
-      expect(shadow(), id).toBeFalsy();
+      const fill = () => phone && id !== "phone-sort-hint"
+        ? StyleSheet.flatten(button().find((node) => (node.type as unknown) === "View").props.style).backgroundColor
+        : StyleSheet.flatten(button().props.style).backgroundColor;
+      const rest = fill();
       await act(async () => { button().props.onPressIn(event); button().props.onTouchStart(event); });
       await act(async () => { await vi.advanceTimersByTimeAsync(100); });
-      expect(StyleSheet.flatten(button().props.style).transform, id).toEqual([{ scale: 1.03 }]);
-      expect(shadow(), id).toBeTruthy();
+      expect(StyleSheet.flatten(button().props.style).transform, id).toBeUndefined();
+      expect(fill(), id).toBe(hoverFill(taskTokens(theme).surface0, taskTokens(theme).foreground, false, true));
       await act(async () => { button().props.onPressOut(event); button().props.onTouchEnd(event); });
-      expect(shadow(), id).toBeFalsy();
+      expect(fill(), id).toBe(rest);
     }
     const toggle = () => hostsById(phone ? "phone-subtasks" : "subtasks-toggle")[0]!;
     const before = toggle().props.accessibilityState.selected;
     await act(async () => { toggle().props.onPressIn(event); toggle().props.onTouchStart(event); toggle().props.onTouchMove({ nativeEvent: { ...event.nativeEvent, pageY: 108 } }); toggle().props.onPressOut(event); toggle().props.onTouchEnd(event); toggle().props.onPress(event); });
     expect(toggle().props.accessibilityState.selected).toBe(before);
     await act(async () => { toggle().props.onPressIn(event); toggle().props.onTouchStart(event); toggle().props.onPressOut(event); toggle().props.onTouchEnd(event); });
-    expect(StyleSheet.flatten(toggle().props.style).transform).toEqual([{ scale: 1.03 }]);
+    expect(StyleSheet.flatten(toggle().props.style).transform).toBeUndefined();
     await act(async () => toggle().props.onPress(event));
     expect(toggle().props.accessibilityState.selected).toBe(!before);
     await act(async () => { await vi.advanceTimersByTimeAsync(100); });
@@ -5484,8 +5485,8 @@ describe("mobile toolbar press feedback", () => {
       for (const id of ["phone-search-clear", "search-full-conversation-toggle"]) {
         const button = () => hostsById(id)[0]!;
         await act(async () => { button().props.onPressIn(event); button().props.onTouchStart(event); await vi.advanceTimersByTimeAsync(100); });
-        expect(StyleSheet.flatten(button().props.style).transform, id).toEqual([{ scale: 1.03 }]);
-        expect(StyleSheet.flatten(button().props.style).boxShadow, id).toBeTruthy();
+        expect(StyleSheet.flatten(button().props.style).transform, id).toBeUndefined();
+        expect(StyleSheet.flatten(button().props.style).backgroundColor, id).toBe(hoverFill(taskTokens(theme).surface0, taskTokens(theme).foreground, false, true));
         await act(async () => { button().props.onPressOut(event); button().props.onTouchEnd(event); });
       }
     }

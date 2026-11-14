@@ -5,6 +5,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { HAIRLINE, devicePixel } from "./board-style";
 import { taskTokens } from "../cards/tokens";
+import { hoverFill } from "../hover-fill";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { DROPDOWN_REVEAL } from "../../ui/tokens/motion";
 import {
@@ -532,7 +533,8 @@ function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginThe
   const scale = useTasksFontScale();
   const colors = props.theme.colors;
   const danger = item.danger && !item.disabled ? taskTokens(props.theme).danger : null;
-  const fill = props.active ? chrome.hover : chrome.background;
+  const [pressed, setPressed] = useState(false);
+  const fill = hoverFill(chrome.background, colors.foreground, props.active && !item.disabled, pressed && !item.disabled);
   const leading: ReactNode =
     typeof item.leading === "function" ? item.leading(fill) : item.leading ?? (item.icon ? <Icon name={item.icon} size={MENU.icon} color={danger ?? colors.foregroundMuted} /> : null);
   return (
@@ -542,6 +544,8 @@ function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginThe
       accessibilityState={{ disabled: item.disabled, checked: item.checked, expanded: item.submenu ? props.active : undefined }}
       disabled={item.disabled}
       onHoverIn={props.onHover}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       onPress={props.onPress}
       style={{
         height: menuRowHeight(item, scale),
@@ -551,7 +555,7 @@ function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginThe
         flexDirection: "row",
         alignItems: "center",
         gap: MENU.gap,
-        backgroundColor: props.active ? chrome.hover : "transparent",
+        backgroundColor: props.active || pressed ? fill : "transparent",
       }}
     >
       {leading}

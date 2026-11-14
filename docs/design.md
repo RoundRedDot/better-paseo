@@ -68,7 +68,7 @@ so it reads the same on any card. The transient lane/reply flash uses an animate
 | Token | Mix | Light / dark | Used for |
 | --- | --- | --- | --- |
 | `hoverBackground` | card → foreground | 4% | kept; a card does not paint it on hover or with its menu open |
-| `controlHover` | card → foreground | 7% / 10% | kept for contrast and subtask rows; buttons do not paint it on hover or press |
+| `controlHover` | card → foreground | 7% / 10% | kept for card action contrast; subtask rows use the shared 5% / 8% fill |
 | `current`, `currentBorder` | card → accent; border → accent | 7% / 10%; 45% | the card shown in the details |
 | `highlight` | card → accent | 8% / 12% | a card the board just pointed at, for 1 s, with an accent border |
 | `failed`, `failedHover`, `failedBorder` | card → danger; border → danger | 5% / 8%; 8% / 12%; 35% / 40% | a failed card stays `failed`; `failedHover` is kept |
@@ -77,18 +77,16 @@ so it reads the same on any card. The transient lane/reply flash uses an animate
 | Lane panel (`boardPalette`) | `surface1` dark; halfway `surface1` → `surface2` light | `panelHover` is `surface2`, unused as a fill | lanes |
 
 - When states stack on a card, the first applies: highlighted, current, failed, rest. Hover and an open menu do not change the fill.
-- Card shadow: `0 1 2` at 6% (18% dark) at rest, `0 2 6` at 14% (38% dark) while a desktop card is hovered or its menu is open, and while a phone or iPad card is pressed. Buttons and capsules use that same deeper shadow (`buttonShadowHover`).
+- Card shadow: `0 1 2` at 6% (18% dark) at rest, `0 2 6` at 14% (38% dark) while a desktop card is hovered or its menu is open, and while a phone or iPad card is pressed. Buttons inside lane cards use that same deeper shadow (`buttonShadowHover`).
 
 ### Lift
 
-Cards, the sidebar's capsules, and the board's buttons share one treatment (`surfaceLift` in `client/tasks/cards/surface-lift.ts`). It adds no colour fill.
+Tasks has two hover treatments:
 
-- On desktop web, a fine pointer (`(hover: hover) and (pointer: fine)`) deepens the shadow while hovered. Nothing scales.
-- On a phone, a touch browser, and an iPad (the app, trackpad included), the deeper shadow and a scale of 1.03 happen only while pressed. Hover, including an iPad pointer, does not.
-- Reduced motion skips the scale and keeps the shadow. Action buttons animate the scale over 100 ms; the other controls snap.
-- Phone and tablet toolbar buttons show the press shadow and 1.03 scale after a finger stays still for 100 ms; a quick tap shows the cue briefly after release. A scroll or pan cancels it. Reduced motion keeps the shadow without the scale.
-- A selected, open, current, expanded, or on fill stays where the control has one. The stop chevron keeps its danger wash while its menu is open. An expanded pill keeps its 6% wash. Chat rows, menu rows, detail property rows, subtask rows, and the lane panel are outside this treatment.
-- Menu chrome (`menuChrome`): `surface0`, hairline border, hover foreground 5.5% (8% dark),
+- Lane cards and their action buttons keep `surfaceLift` in `client/tasks/cards/surface-lift.ts`: a fine pointer deepens the shadow, and a phone or iPad press deepens the shadow and scales to 1.03. Reduced motion omits the scale. The subtask cell is the exception and uses the shared fill below.
+- Other interactive Tasks controls, including toolbar controls on desktop, phone and iPad, details, filters, menus and subtask cells, mix their actual underlying or selected surface toward the theme foreground by 5% on hover and 8% on press (`hoverFill` in `client/tasks/hover-fill.ts`). They do not add a hover shadow or scale. Selection, semantic colours and disabled state remain visible; disabled controls do not receive the fill. Badge rings and slash cutouts follow the resulting background.
+- A pointer on an iPad can show hover; touch shows the press state. The colour mix follows the active theme, including dark themes.
+- Menu chrome (`menuChrome`): `surface0`, hairline border, hover foreground 5%,
   shadow `0 4 24` and `0 1 3` at 8% and 4% (45% and 30% dark). `panelChrome` reuses it.
 - Chat rows have no surface at rest: `surface1` hovered, `surface2` pressed or held. The chat's
   `surface1` and `surface2` are the foreground at 2.5% and 4.5% (3% and 6% dark) over the page.
@@ -146,8 +144,7 @@ rule: put its movement behind `motionDuration` and keep at most a short fade.
 - Hover comes from capability, not screen size: `useInputCapabilities` reports hover from
   `(hover: hover) and (pointer: fine)` on the web and from a real hover on native (an iPad
   pointer); touch is a coarse pointer or no hover. Every hover affordance has a touch equivalent:
-  a persistent button, a long press or a tap. The [lift](#lift) is separate: an iPad pointer still
-  lifts on press, not on hover.
+  a persistent button, a long press or a tap. The [hover treatment](#lift) follows the pointer capability and the control context.
 - The board picks its touch sizes by platform: any native client is touch (`TOUCH`,
   `Platform.OS !== "web"`), so an iPad draws desktop lanes with touch targets. The phone layout
   (`compact`) is a separate switch.
@@ -549,8 +546,7 @@ Unarchive, Open tab. None is ever filled with its hue.
 
 - **At rest** only the border, the label and the icon carry the button's colour. The fill is
   the surface under it: transparent on the card, the card colour in the sidebar and the bar.
-- **Hovered or pressed** follows [Lift](#lift): the shadow deepens, and a phone or iPad also
-  grows to 1.03 while pressed. The fill does not change. A desktop hover does not scale.
+- **Hovered or pressed** follows [Lift](#lift): lane-card buttons keep their shadow treatment; sidebar and action-bar buttons use the shared 5% hover / 8% press fill.
 - **Armed**, "Confirm stop" keeps Stop's colours exactly; its words change and its icon turns from
   Lucide's `Power` to `OctagonAlert` (`CONFIRM_STOP_ICON`), the stop sign asking for the second
   press. It keeps that icon when its label folds on a narrow row.
@@ -911,7 +907,7 @@ A card that waits on a request names the request, then gives its answers.
   approval both carry the plan in `input.plan`, with `metadata.planText` as the fallback. Never show
   the request's fixed description ("Review the proposed plan…") in place of the plan's title.
 - "View plan" (`查看计划`) ends the title's row: `FileText` 13 and the `sm` label in weight 500,
-  muted, `foreground` on hover, with no outline and no fill. It is a link to read the plan, not an
+  muted, `foreground` on hover, with no outline. On cards it has no hover fill; in details it uses the shared fill. It is a link to read the plan, not an
   answer, so it never joins the answer row or takes an answer's look. It does not shrink; the
   title gives up width first. Touch layouts widen its target with `hitSlop`, so the row does not
   get taller.
@@ -1007,7 +1003,7 @@ A card that waits on a request names the request, then gives its answers.
 - Round buttons (`RoundButton`) are a 36 circle in a 44 target with a hairline, an accent border
   when active, and a badge at least 20 high on the accent with a 2 pt `surface0` ring. The persistent Subtasks and Archived switches use the icon-only selection treatment above.
 - Desktop toolbar icon buttons with `quietOutline` use radius 7 and a transparent hairline at
-  rest; hovering reveals the theme border and the shared button shadow without a fill.
+  rest; hover and press use the shared fill while retaining the transparent outline.
 - An on/off switch in a toolbar is a round button whose icon tells the state; Archived is struck
   through while the lane is hidden. Segmented controls (`Segments`) are 28 high on the desktop
   (radius 6, inner 4), 32 and fully round on a phone, the chosen cell on `surface2`.
@@ -1132,8 +1128,7 @@ A card that waits on a request names the request, then gives its answers.
 - A title longer than five lines folds under the same fade and "Show all · N lines" row as the
   message bodies below it, and opens folded. The fold measures the laid-out title, so a title that
   fits stays whole and a narrow column folds sooner; the title's line height is the scaled base step.
-- On web, the card menu and close icons use the toolbar's radius-7 quiet outline and hover
-  shadow. Native keeps round icon buttons and follows the touch press treatment.
+- On web, the detail menu and close icons use the toolbar's radius-7 quiet outline and shared hover fill. Native keeps round icon buttons and uses the shared press fill.
 - Hero blocks (the running turn, a permission request, an error, the last turn's summary) are
   `sunk` boxes of radius 10 with a 1 pt border; an error box is the danger at 6% with a border at
   28%. Values are 2xl in the turn hero and lg in summary tiles.
