@@ -1023,11 +1023,11 @@ describe("Tasks search coverage and centred toolbar", () => {
           : button();
         return StyleSheet.flatten(node.props.style);
       };
-      expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7, width: 30, height: 30 });
+      expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 15, width: 30, height: 30 });
       act(() => button().props.onHoverIn());
-      expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7, width: 30, height: 30, backgroundColor: id === "empty-lanes-toggle" ? "transparent" : hoverFill(taskTokens(theme).surface0, taskTokens(theme).foreground, true, false) });
+      expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 15, width: 30, height: 30, backgroundColor: id === "empty-lanes-toggle" ? "transparent" : hoverFill(taskTokens(theme).surface0, taskTokens(theme).foreground, true, false) });
       act(() => button().props.onHoverOut());
-      expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 7 });
+      expect(outline(), id).toMatchObject({ borderColor: "transparent", borderRadius: 15 });
       if (id !== "sidebar-switch") expect(button().find((node) => (node.type as unknown) === "Icon").props.size, id).toBe(17);
     }
     expect(StyleSheet.flatten(hostsById("panel-mark")[0]!.props.style)).toMatchObject({ width: 16, height: 13 });
@@ -1040,7 +1040,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(field.findAll((node) => node.props.testID === "search-full-conversation-toggle")).toHaveLength(0);
     const toggle = hostsById("search-full-conversation-toggle")[0]!;
     // The fixture uses a 15/14 font scale, so the 28-point button rounds to 30.
-    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ width: 30, height: 30, borderRadius: 7 });
+    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ width: 30, height: 30, borderRadius: 15 });
     expect(toggle.props.dataSet?.bctip).toBe(BOARD_STRINGS.en.fullConversationHint(false));
     expect(toggle.props.accessibilityState.selected).toBe(false);
     act(() => toggle.props.onHoverIn());
@@ -5658,7 +5658,7 @@ describe("F2: tablet overlays outside toolbar AX bounds", () => {
     expect(hostsById("tablet-search-toggle")).toHaveLength(0);
     expect(hostsById("tablet-toolbar-search")).toHaveLength(1);
     expect(hostParentOf(hostsById("tablet-toolbar-search-group")[0]!)?.props.testID).toBe("tablet-toolbar-start");
-    expect(StyleSheet.flatten(hostsById("search-full-conversation-toggle")[0]!.props.style)).toMatchObject({ borderWidth: 0, borderRadius: 7 });
+    expect(StyleSheet.flatten(hostsById("search-full-conversation-toggle")[0]!.props.style)).toMatchObject({ borderWidth: 0, borderRadius: 16 });
     const fullSearchIcon = hostsById("search-full-conversation-toggle")[0]!.findAll((node) => node.props.icon?.svg)[0]!;
     expect(fullSearchIcon.props.size).toBe(18);
   });
@@ -5891,8 +5891,8 @@ describe("Tasks board, tablet filters", () => {
     for (const button of buttons) {
       const style = StyleSheet.flatten(button.props.style);
       expect(style.height).toBe(Math.round(32 * Math.max(1, base / 14)));
-      expect(style.minWidth).toBe(Math.round(32 * Math.max(1, base / 14)));
-      expect(style.borderRadius).toBe(7);
+      expect(style.width).toBe(Math.round(32 * Math.max(1, base / 14)));
+      expect(style.borderRadius).toBe(style.height / 2);
       const icon = button.find((node) => button.props.testID === "sidebar-switch" ? typeof node.type === "string" && node.props.testID === "panel-mark" : (node.type as unknown) === "Icon");
       expect(StyleSheet.flatten(hostParentOf(icon)!.props.style)).toMatchObject({ width: 18, height: 18 });
     }

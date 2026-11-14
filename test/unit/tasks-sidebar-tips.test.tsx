@@ -146,9 +146,9 @@ describe("sidebar action tips", () => {
     const root = await render(<TaskDetailCards {...details("en", "sample-running", { onMenu() {} })} />);
     for (const id of ["detail-menu", "detail-close"]) {
       const button = () => host(root, id);
-      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderColor: "transparent" });
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: StyleSheet.flatten(button().props.style).width / 2, borderColor: "transparent" });
       await act(async () => button().props.onHoverIn());
-      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 7, borderWidth: StyleSheet.hairlineWidth, borderColor: "transparent", backgroundColor: detailColors(taskTokens(THEME)).rowHover });
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: StyleSheet.flatten(button().props.style).width / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: "transparent", backgroundColor: detailColors(taskTokens(THEME)).rowHover });
       await act(async () => button().props.onHoverOut());
       expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderColor: "transparent", backgroundColor: "transparent" });
     }
@@ -353,6 +353,7 @@ describe("sidebar action tips", () => {
       expect(rows().map((row) => row.props.accessibilityLabel)).toEqual([label]);
       await act(async () => input().props.onChangeText("missing"));
       expect(rows()).toHaveLength(0);
+      expect(StyleSheet.flatten(host(root, "sidebar-groups-search-clear").props.style)).toMatchObject({ width: 20, height: 20, borderRadius: 10 });
       await act(async () => host(root, "sidebar-groups-search-clear").props.onPress());
       expect(input().props.value).toBe("");
       expect(rows()).toHaveLength(2);

@@ -53,7 +53,7 @@ export function TitleUndo(props: { agentId: string; control?: TitleUpdateControl
         event.stopPropagation();
         void props.control?.undoTitle(props.agentId).catch((error: unknown) => toast.error(strings.renameFailed(error instanceof Error ? error.message : String(error))));
       }}
-      style={{ width: size, height: size, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: props.unifiedHover ? hoverFill(props.fadeColor ?? props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") : hovered ? mix(props.fadeColor ?? props.tokens.card.background, props.tokens.foreground, props.tokens.isDark ? 0.1 : 0.07) : "transparent" }}>
+      style={{ width: size, height: size, borderRadius: size / 2, alignItems: "center", justifyContent: "center", backgroundColor: props.unifiedHover ? hoverFill(props.fadeColor ?? props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") : hovered ? mix(props.fadeColor ?? props.tokens.card.background, props.tokens.foreground, props.tokens.isDark ? 0.1 : 0.07) : "transparent" }}>
       <Icon name="Undo2" size={props.touch ? 20 : 18} color={hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
     </Pressable>
   </Animated.View>;

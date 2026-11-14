@@ -257,7 +257,7 @@ export function ToolbarItem({
         {...hoverProps}
         style={({ pressed }) => [
           styles.button,
-          sized && { width: metrics.button, height: metrics.button, borderRadius: radiusV2.block },
+          sized && { width: metrics.button, height: metrics.button, borderRadius: metrics.button / 2 },
           Platform.OS === "web" && onPress && styles.pointer,
           outlined && styles.outlined,
           outlined && { borderColor: tokens.v2.border },
@@ -461,14 +461,14 @@ const styles = StyleSheet.create({
   button: {
     width: 24,
     height: 24,
-    borderRadius: radiusV2.chip,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
   pointer: { cursor: "pointer" } as ViewStyle,
   // A standalone button takes the floating controls' frame (float.ts), so the
   // table's touch button matches the menu a pointer opens.
-  outlined: { width: FLOAT.control, height: FLOAT.control, borderWidth: 1, borderRadius: FLOAT.radius },
+  outlined: { width: FLOAT.control, height: FLOAT.control, borderWidth: 1, borderRadius: FLOAT.control / 2 },
   disabled: { opacity: 0.35 },
   tooltipSlot: {
     position: "absolute",

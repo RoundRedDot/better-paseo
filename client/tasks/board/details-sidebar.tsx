@@ -607,7 +607,7 @@ function GroupCard(props: { board: BoardController; options: ShownFilterOptions;
             style={{ flex: 1, minWidth: 0, padding: 0, fontSize: Math.round(F.base * scale), color: tokens.foreground, ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null) }}
           />
           {query ? (
-            <HoverControl base={tokens.card.background} foreground={tokens.foreground} testID="sidebar-groups-search-clear" accessibilityRole="button" accessibilityLabel={board.strings.menuSearch.clear} {...tipProps(board.strings.menuSearch.clear)} hitSlop={6} style={{ width: 20, height: 20, alignItems: "center", justifyContent: "center" }} onPress={() => setQueries((previous) => ({ ...previous, [kind]: "" }))}>
+            <HoverControl base={tokens.card.background} foreground={tokens.foreground} testID="sidebar-groups-search-clear" accessibilityRole="button" accessibilityLabel={board.strings.menuSearch.clear} {...tipProps(board.strings.menuSearch.clear)} hitSlop={6} style={{ width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" }} onPress={() => setQueries((previous) => ({ ...previous, [kind]: "" }))}>
               <Icon name="X" size={13} color={tokens.foregroundMuted} />
             </HoverControl>
           ) : null}

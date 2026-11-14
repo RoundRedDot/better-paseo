@@ -1157,7 +1157,7 @@ function ErrorBlock(props: Inner) {
             {...tipProps(words.copyError)}
             onPress={() => void copy(text, { label: "Copy error" })}
             hitSlop={6}
-            style={{ width: 24, height: 24, marginRight: -6, alignItems: "center", justifyContent: "center", borderRadius: 6 }}
+            style={{ width: 24, height: 24, marginRight: -6, alignItems: "center", justifyContent: "center", borderRadius: 12 }}
           >
             <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
           </HoverControl>
@@ -1223,7 +1223,7 @@ function Section(props: Inner & { section: DetailSection; replyStreaming: boolea
             <Text style={{ flex: 1, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
             {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
             {read?.prompt.state === "ready" ? (
-              <HoverControl base={tokens.card.background} foreground={tokens.foreground} accessibilityRole="button" accessibilityLabel={copyLabel} {...tipProps(copyLabel)} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} hitSlop={4} testID={`${testID}-copy`} style={{ width: 32, height: 32, borderRadius: 6, alignItems: "center", justifyContent: "center" }}>
+              <HoverControl base={tokens.card.background} foreground={tokens.foreground} accessibilityRole="button" accessibilityLabel={copyLabel} {...tipProps(copyLabel)} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} hitSlop={4} testID={`${testID}-copy`} style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
                 <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
               </HoverControl>
             ) : null}
@@ -1693,7 +1693,7 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
       }}
       {...hoverProps}
       style={({ pressed }) => {
-        return { width: 24, height: 24, borderRadius: 5, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: hoverFill(props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") };
+        return { width: 24, height: 24, borderRadius: 12, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: hoverFill(props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") };
       }}
     >
       <Icon name={props.icon} size={14} color={hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
@@ -2051,7 +2051,7 @@ export function RoundIcon(props: { icon: string; label: string; size: number; ic
           width: props.size,
           height: props.size,
           marginVertical: -(props.size - 18) / 2,
-          borderRadius: Platform.OS === "web" ? 7 : props.size / 2,
+          borderRadius: props.size / 2,
           borderWidth: Platform.OS === "web" ? StyleSheet.hairlineWidth : 0,
           borderColor: "transparent",
           alignItems: "center" as const,

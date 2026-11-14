@@ -1496,6 +1496,10 @@ describe("TaskCardView rows", () => {
     await act(async () => { stop = startErrorDismissals({ rpc } as unknown as PluginClientContext); });
     const card = sample("sample-failed");
     const tree = await render(cardElement(card));
+    const dismiss = byLabel(tree.root, "关闭错误提示");
+    const style = flat(typeof dismiss.props.style === "function" ? dismiss.props.style({ pressed: false }) : dismiss.props.style);
+    expect(style.width).toBe(style.height);
+    expect(style.borderRadius).toBe(Number(style.width) / 2);
     await act(async () => {
       byLabel(tree.root, "关闭错误提示").props.onPress({ stopPropagation() {} });
     });

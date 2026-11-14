@@ -408,7 +408,7 @@ function SidebarSwitch(props: { open: boolean; sheet: boolean; onToggle(): void;
       style={{
         width: size,
         height: size,
-        borderRadius: Platform.OS === "web" ? 7 : size / 2,
+        borderRadius: size / 2,
         borderWidth: HAIRLINE,
         backgroundColor: hoverFill(colors.surface0, colors.foreground, hovered, press.pressed),
         borderColor: line,
@@ -462,7 +462,7 @@ function BarSwitch(props: { icon: string; on: boolean; onPress(): void; label: s
         width: size,
         height: size,
         flexShrink: 0,
-        borderRadius: Platform.OS === "web" ? 7 : size / 2,
+        borderRadius: size / 2,
         borderWidth: HAIRLINE,
         backgroundColor: background,
         borderColor: line,
@@ -991,7 +991,7 @@ function ClearButton(props: { label: string; onPress(): void; theme: PluginTheme
       {...tipProps(props.label)}
       onPress={props.onPress}
       hitSlop={props.touch ? { top: 8, bottom: 8, left: 4, right: 4 } : undefined}
-      style={(hovered, pressed) => ({ width: 20, height: 20, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", ...liftStyle(() => taskTokens(props.theme), surfaceLift(hovered, pressed)) })}
+      style={(hovered, pressed) => ({ width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: "transparent", ...liftStyle(() => taskTokens(props.theme), surfaceLift(hovered, pressed)) })}
     >
       <Icon name="X" size={12} color={colors.foregroundMuted} />
     </HoverPressable>

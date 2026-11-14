@@ -576,7 +576,7 @@ function ErrorDismissButton(props: { label: string; size: number; iconSize: numb
   const { hovered, hoverProps } = useHover();
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={props.label} hitSlop={8} {...hoverProps} onPress={props.onPress}
-      style={({ pressed }) => [{ minWidth: props.size, minHeight: props.size, borderRadius: 4, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.background, props.tokens.foreground, hovered, pressed, "transparent") }, webTransition]}>
+      style={({ pressed }) => [{ width: props.size, height: props.size, borderRadius: props.size / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.background, props.tokens.foreground, hovered, pressed, "transparent") }, webTransition]}>
       <Icon name="X" size={props.iconSize} color={props.color} />
     </Pressable>
   );

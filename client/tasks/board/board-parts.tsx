@@ -858,7 +858,7 @@ export function RoundButton(props: {
         style={{
           width: size,
           height: size,
-          borderRadius: props.quietOutline && Platform.OS === "web" ? 7 : size / 2,
+          borderRadius: size / 2,
           borderWidth: props.borderless ? 0 : HAIRLINE,
           borderColor: line,
           backgroundColor: fill,

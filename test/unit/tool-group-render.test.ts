@@ -153,6 +153,8 @@ describe("grouped tool card presentation", () => {
       })); });
       const button = renderer.root.find((node) => (node.type as unknown) === "Pressable");
       expect(texts(renderer.root)).not.toContain("Copy path");
+      const buttonStyle = StyleSheet.flatten(typeof button.props.style === "function" ? button.props.style({ pressed: false }) : button.props.style);
+      expect(buttonStyle).toMatchObject({ width: 24, height: 24, borderRadius: 12 });
       act(() => button.props.onHoverIn());
       act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
       expect(texts(renderer.root)).toContain("Copy path");
