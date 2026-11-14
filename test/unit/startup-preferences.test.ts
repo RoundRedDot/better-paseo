@@ -173,7 +173,7 @@ describe("preferences read while the plugin loads", () => {
 
   it("reprojects history when the timeline level changes", async () => {
     const { contribute, preferences } = await load();
-    const plugin = fakeClient(() => Promise.resolve({ status: "ready", revision: "r1", values: {} }));
+    const plugin = fakeClient(() => Promise.resolve({ status: "ready", revision: "r1", values: { timelineLevel: "detailed" } }));
     const cleanup = contribute(plugin.client as never);
     await flush();
     const first = plugin.active("omp-enhanced-tool-call")[0]!;

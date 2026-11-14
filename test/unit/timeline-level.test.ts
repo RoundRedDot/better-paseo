@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import { showToolAtLevel } from "../../client/tools/timeline-level";
-import { parsePreferences } from "../../client/preferences";
+import { DEFAULT_PREFERENCES, parsePreferences } from "../../client/preferences";
 
 function call(name: string, detail: ToolCallTimelineItem["detail"], status: ToolCallTimelineItem["status"] = "completed"): ToolCallTimelineItem {
   return { type: "tool_call", name, callId: "1", status, error: null, detail };
 }
 
 describe("timeline levels", () => {
-  it("defaults old installations to detailed and preserves choices", () => {
-    expect(parsePreferences({}).timelineLevel).toBe("detailed");
+  it("defaults to standard and preserves saved choices", () => {
+    expect(DEFAULT_PREFERENCES.timelineLevel).toBe("standard");
+    expect(parsePreferences({}).timelineLevel).toBe("standard");
+    expect(parsePreferences({ timelineLevel: "invalid" }).timelineLevel).toBe("standard");
+    expect(parsePreferences({ timelineLevel: "detailed" }).timelineLevel).toBe("detailed");
     expect(parsePreferences({ timelineLevel: "simple" }).timelineLevel).toBe("simple");
     expect(parsePreferences({ timelineLevel: "standard" }).timelineLevel).toBe("standard");
   });

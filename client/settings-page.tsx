@@ -864,7 +864,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
               <Pressable key={value} accessibilityRole="radio" aria-checked={preferences.timelineLevel === value} accessibilityState={{ checked: preferences.timelineLevel === value }} onPress={() => updateEnhancerPreferences({ timelineLevel: value })}
                 style={{ flex: 1, minWidth: 0, padding: 10, gap: 6, borderWidth: 1, borderRadius: 8, borderColor: preferences.timelineLevel === value ? tokens.accent : tokens.v2.border }}>
                 <View style={{ gap: 4 }} accessible={false}>{[0, 1, 2].map((line) => <View key={line} style={{ width: line === 1 ? "65%" : "90%", height: 3, borderRadius: 2, backgroundColor: value === "simple" && line === 1 ? tokens.v2.border : value === "standard" && line === 1 ? tokens.accent : tokens.foregroundMuted }} />)}</View>
-                <Text style={{ color: tokens.foreground, fontFamily: tokens.fontUi }}>{label}{value === "detailed" ? ` · ${t.timelineDefault}` : ""}</Text>
+                <Text style={{ color: tokens.foreground, fontFamily: tokens.fontUi }}>{label}{value === "standard" ? ` · ${t.timelineDefault}` : ""}</Text>
                 <Text style={{ color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 11 }}>{description}</Text>
               </Pressable>
             ))}
