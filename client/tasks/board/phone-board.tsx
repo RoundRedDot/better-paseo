@@ -135,9 +135,12 @@ export function PhoneBoard(props: {
   const leaveOpacity = useRef(new Animated.Value(0)).current;
   const leaveX = useRef(new Animated.Value(0)).current;
   const [leaving, setLeaving] = useState<{ lane: LaneId; cards: TaskCard[] } | null>(null);
+  // The native pager's page turn, started before the render that shows the lane is drawn.
+  const turnPager = useRef<((index: number) => void) | null>(null);
   const select = useCallback(
     (next: LaneId) => {
       const from = defaultLane(board.lanes.needs_input.cards.length, chosen);
+      turnPager.current?.(laneOrder.indexOf(next));
       rememberLane(hostId, next);
       setChosen(next);
       if (next === from || reduced || isNative()) return;
@@ -527,6 +530,7 @@ export function PhoneBoard(props: {
               locked={pagerLocked}
               onDrag={markSwiped}
               onSettle={settle}
+              turn={turnPager}
             />
           ) : (
           <Animated.View style={{ flex: 1, opacity: enterOpacity, transform: [{ translateX: enterX }] }}>
@@ -786,6 +790,8 @@ export const LanePager = memo(function LanePager(props: {
   onDrag(): void;
   /** The pager came to rest on another lane. */
   onSettle(lane: LaneId): void;
+  /** Set to a function that turns the pager to a page at once, before the board draws the lane. */
+  turn?: RefObject<((index: number) => void) | null>;
 }) {
   const { lane, board, theme, onSettle } = props;
   // The pages beside the shown one take a board update in a later render
@@ -811,6 +817,24 @@ export const LanePager = memo(function LanePager(props: {
     resting.current = { index, width: at };
     pagerRef.current?.scrollTo?.({ x: index * width, y: 0, animated });
   }, [index, width, measured, props.reduced]);
+  // A tab next to the shown one: the page turns natively from the press, while the board
+  // draws the lane, instead of after that render (some 200 ms on a slow phone). Its page is
+  // already mounted beside the shown one; the render then finds the pager resting there.
+  const { turn, reduced } = props;
+  useLayoutEffect(() => {
+    if (!turn) return;
+    const go = (next: number) => {
+      const was = resting.current;
+      if (reduced || !measured || was.width !== width || Math.abs(was.index - next) !== 1) return;
+      resting.current = { index: next, width };
+      pagerRef.current?.scrollTo?.({ x: next * width, y: 0, animated: true });
+    };
+    turn.current = go;
+    return () => { if (turn.current === go) turn.current = null; };
+  }, [turn, reduced, measured, width]);
+  // A page that comes beside the shown one mounts in a later, interruptible render, so the
+  // render that settles on a lane only draws what was already on screen.
+  const near = useDeferredValue(index);
   const settleAt = useCallback(
     (x: number) => {
       if (width <= 0) return;
@@ -849,7 +873,7 @@ export const LanePager = memo(function LanePager(props: {
     >
       {order.map((id, at) => (
         <View key={id} testID={`phone-lane-${id}`} style={{ width, height: "100%" }}>
-          {Math.abs(at - index) <= 1 ? (
+          {at === index || Math.abs(at - index) === 1 && Math.abs(at - near) <= 1 ? (
             <PhoneLane
               lane={(at === index ? board : besideBoard).lanes[id]}
               board={at === index ? board : besideBoard}
@@ -883,8 +907,11 @@ const PhoneLane = memo(function PhoneLane(props: {
   const { lane, board, theme } = props;
   const [refreshing, setRefreshing] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(0);
-  // The list's content height without the end space it was measured with.
-  const [contentHeight, setContentHeight] = useState(0);
+  // The list's content height without the end space it was measured with. Each batch of
+  // mounted rows changes it, so it is kept off render: only whether the list is taller
+  // than two screens (the scroll actions show) draws the lane again.
+  const contentHeight = useRef(0);
+  const [tall, setTall] = useState(false);
   const [initialOffset] = useState(() => isNative() ? rememberedPhoneLaneOffset(board.hostId, lane.id) : 0);
   // iOS sets a mount's contentOffset before the list can emit events, so the list would lay out its
   // window and report the cards on screen from 0. It is restored by a scroll after mount instead,
@@ -972,7 +999,7 @@ const PhoneLane = memo(function PhoneLane(props: {
     );
   }
   const filtered = activeFilterCount(board.params, board.defaults) > 0;
-  const scrollActions = props.active !== false && viewportHeight > 0 && contentHeight > viewportHeight * 2;
+  const scrollActions = props.active !== false && viewportHeight > 0 && tall;
   const endSpace = scrollActions ? LANE_END_SPACE_WITH_ACTIONS : LANE_END_SPACE;
   // A history lane with more pages ends at its loaded cards, and reaching them loads one more page as scrolling there does.
   const loadedEnd = isHistoryLane(lane.id) && (lane.hasMore || lane.loading);
@@ -985,14 +1012,16 @@ const PhoneLane = memo(function PhoneLane(props: {
     <View style={{ flex: 1, minHeight: 0 }} onLayout={(event: LayoutChangeEvent) => {
       const height = event.nativeEvent.layout.height;
       setViewportHeight(height);
-      updateEdges(offset.current, contentHeight + endSpace, height);
+      setTall(contentHeight.current > height * 2);
+      updateEdges(offset.current, contentHeight.current + endSpace, height);
     }}>
     <FlatList<TaskCard>
       ref={setList}
       // Android reports this offset with a scroll event once it applies it.
       contentOffset={Platform.OS === "android" ? { x: 0, y: initialOffset } : undefined}
       onContentSizeChange={(_width, height) => {
-        setContentHeight(height - endSpace);
+        contentHeight.current = height - endSpace;
+        setTall(height - endSpace > viewportHeight * 2);
         updateEdges(offset.current, height, viewportHeight);
       }}
       onScroll={(event) => {
@@ -1042,7 +1071,9 @@ const PhoneLane = memo(function PhoneLane(props: {
           if (scrollTimer.current === null) scrollRetry.current = null;
         }, 100);
       }}
-      onEndReachedThreshold={0.5}
+      // Two screens ahead: on a slow phone the list mounts its rows for most of a fling, so the
+      // next page is asked while there are still rows to show, not once the fling reached the end.
+      onEndReachedThreshold={2}
       onEndReached={() => {
         if (!board.params.query.trim() && props.active !== false && isHistoryLane(lane.id) && lane.hasMore && !lane.loading) board.tasks.loadMoreDone();
       }}
@@ -1098,7 +1129,7 @@ const PhoneLane = memo(function PhoneLane(props: {
         {!atBottom ? <ActionPressable motion pressedScale={isNative() ? 1.1 : 1.03} testID="phone-scroll-bottom" accessibilityRole="button" accessibilityLabel={loadedEnd ? strings.scrollLoadedEnd : strings.scrollBottom} onPress={() => {
           cancelScroll();
           if (count === 0) return;
-          listRef.current?.scrollToOffset({ offset: Math.max(0, contentHeight + endSpace - viewportHeight), animated: !reduced });
+          listRef.current?.scrollToOffset({ offset: Math.max(0, contentHeight.current + endSpace - viewportHeight), animated: !reduced });
         }} style={{ width: SCROLL_ACTION.size, height: SCROLL_ACTION.size, borderRadius: SCROLL_ACTION.size / 2, borderWidth: HAIRLINE, borderColor: colors.border, backgroundColor: colors.surface0, alignItems: "center", justifyContent: "center", ...(Platform.OS === "web" ? { boxShadow: "0 3px 10px rgba(0, 0, 0, 0.2)" } : { elevation: 8, shadowColor: "#000", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }) }}>
           <Icon name="ArrowDownToLine" size={22} color={colors.foreground} />
         </ActionPressable> : null}

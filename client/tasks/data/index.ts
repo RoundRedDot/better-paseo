@@ -2899,6 +2899,8 @@ function createStore(api: PaseoApi): TaskStore {
           if (current) searchPages.keys.add(key);
           else { searchPages.keys.clear(); searchPages.cursor = doneCursor; searchPages.tail = doneTailAt; }
         }
+        // The page and the end of its loading in one board update: each update draws every lane again.
+        loadingDone = false;
         notify();
       });
     }).catch((caught: unknown) => {
@@ -2908,7 +2910,7 @@ function createStore(api: PaseoApi): TaskStore {
       historyError = caught instanceof Error ? caught.message : String(caught);
       notify();
     }).finally(() => {
-      if (!isCurrent(run)) return;
+      if (!isCurrent(run) || !loadingDone) return;
       loadingDone = false;
       notify();
     });

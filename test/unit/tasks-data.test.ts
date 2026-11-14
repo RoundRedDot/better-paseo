@@ -13,10 +13,11 @@ import { at, createFakePaseo, makeAgent, makePlacement, makeWorkspace } from "./
 import "./helpers/quiet-renderer";
 import { claudeExitPlanRequest, codexPlanRequest, exitPlanPermission } from "./helpers/plan-request";
 
-const storeNotificationProbe = vi.hoisted(() => ({ enabled: false, count: 0 }));
+const storeNotificationProbe = vi.hoisted(() => ({ enabled: false, count: 0, snapshots: [] as unknown[] }));
 vi.mock("react", async (importOriginal) => {
   const react = await importOriginal<typeof import("react")>();
   const wrappedSubscriptions = new WeakMap<object, unknown>();
+  const latestGets = new WeakMap<object, () => unknown>();
   return {
     ...react,
     useSyncExternalStore: (
@@ -24,10 +25,14 @@ vi.mock("react", async (importOriginal) => {
       getSnapshot: Parameters<typeof react.useSyncExternalStore>[1],
       getServerSnapshot?: Parameters<typeof react.useSyncExternalStore>[2],
     ) => {
+      latestGets.set(subscribe, getSnapshot);
       let wrapped = wrappedSubscriptions.get(subscribe) as typeof subscribe | undefined;
       if (!wrapped) {
         wrapped = (onStoreChange) => subscribe(() => {
-          if (storeNotificationProbe.enabled) storeNotificationProbe.count += 1;
+          if (storeNotificationProbe.enabled) {
+            storeNotificationProbe.count += 1;
+            storeNotificationProbe.snapshots.push(latestGets.get(subscribe)?.());
+          }
           onStoreChange();
         });
         wrappedSubscriptions.set(subscribe, wrapped);
@@ -639,6 +644,65 @@ describe("Tasks data store refresh", () => {
       });
       expect(mounted.current.byId.get("review")?.title).toBe("Live review");
       expect(mounted.current.byId.get("run")?.title).toBe("Live run");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("lands a done page and the end of its loading in one board update", async () => {
+    const done = Array.from({ length: 120 }, (_, index) => activeAgent("done-" + index, { status: "idle", requiresAttention: false, updatedAt: recentIso((index + 1) * 1_000) }));
+    const fake = createFakePaseo({ agents: done });
+    const mounted = await mountTasks(fake, "all");
+    try {
+      expect(mounted.current.lanes.done.cards).toHaveLength(50);
+      storeNotificationProbe.snapshots = [];
+      storeNotificationProbe.enabled = true;
+      await act(async () => {
+        mounted.current.loadMoreDone();
+        await flush();
+      });
+      storeNotificationProbe.enabled = false;
+      // What the board was told at each store notify (React batches the renders themselves).
+      const told = (storeNotificationProbe.snapshots as Array<Partial<TasksHandle> | undefined>)
+        .filter((value): value is TasksHandle => Boolean(value?.lanes))
+        .map((value) => ({ cards: value.lanes.done.cards.length, loading: value.lanes.done.loading }))
+        .filter((entry, index, all) => index === 0 || entry.cards !== all[index - 1]!.cards || entry.loading !== all[index - 1]!.loading);
+      // Loading starts, then the page comes with loading off: no update shows the new cards still loading.
+      expect(told).toEqual([
+        { cards: 50, loading: true },
+        { cards: 100, loading: false },
+      ]);
+    } finally {
+      storeNotificationProbe.enabled = false;
+      storeNotificationProbe.snapshots = [];
+      mounted.unmount();
+    }
+  });
+
+  it("ends a failed done page's loading, and can load it again", async () => {
+    const done = Array.from({ length: 120 }, (_, index) => activeAgent("done-" + index, { status: "idle", requiresAttention: false, updatedAt: recentIso((index + 1) * 1_000) }));
+    const fake = createFakePaseo({ agents: done });
+    const mounted = await mountTasks(fake, "all");
+    const agentsApi = fake.paseo.agents as { list: (options: { subscribe?: unknown }) => Promise<unknown> };
+    const list = agentsApi.list.bind(agentsApi);
+    try {
+      agentsApi.list = async (options) => {
+        if (!options.subscribe) throw new Error("offline");
+        return list(options);
+      };
+      await act(async () => {
+        mounted.current.loadMoreDone();
+        await flush();
+      });
+      expect(mounted.current.lanes.done.loading).toBe(false);
+      expect(mounted.current.lanes.done.cards).toHaveLength(50);
+      agentsApi.list = list;
+      await act(async () => {
+        mounted.current.loadMoreDone();
+        await flush();
+      });
+      expect(mounted.current.lanes.done.loading).toBe(false);
+      expect(mounted.current.lanes.done.cards).toHaveLength(100);
     } finally {
       mounted.unmount();
     }

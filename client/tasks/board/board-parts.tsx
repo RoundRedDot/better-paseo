@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Animated, Platform, Pressable, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -402,31 +402,114 @@ export interface CardCellProps {
 
 /**
  * One card in a lane: the card, its fade-in, its lane motion, and its project icon request.
- * It re-renders with the board, not with the clock; `TaskCardView`'s own
- * memo skips the cards a board update does not change.
+ * It reads what this card shows from the board and hands it on as plain
+ * values: a board update (a page landing, a loading flag, a read elsewhere)
+ * gives every lane's rows a new board, and the memoized cell under it draws
+ * again only when a value of its own changed. `TaskCardView`'s own memo then
+ * skips the clock ticks that do not change its text.
  */
 export function CardCell(props: CardCellProps) {
-  const { card, board, register } = props;
-  const todo = useTodoSummary(board.paseo, card.id, board.visible && !card.subagent && !card.closed && board.fields.plan, !props.copy);
+  const { card, board } = props;
+  const query = board.params.query.trim();
+  const parent = card.subagent && card.parent ? board.cardById(card.parent.id) : undefined;
+  return (
+    <CardCellView
+      card={card}
+      theme={props.theme}
+      compact={props.compact}
+      focused={props.focused ?? false}
+      current={props.current}
+      fresh={props.fresh}
+      register={props.register}
+      copy={props.copy ?? false}
+      callbacks={props.callbacks ?? board.callbacks}
+      paseo={board.paseo}
+      hostId={board.hostId}
+      visible={board.visible}
+      todoOn={board.visible && !card.subagent && !card.closed && board.fields.plan}
+      query={query}
+      searchStatus={board.searchStatus}
+      searchPromptUnavailable={Boolean(card.closed || card.subagent && (!card.parent || !parent || parent.closed))}
+      requestIcon={board.requestIcon}
+      fields={board.fields}
+      titleLines={board.titleLines === "all" ? null : Number(board.titleLines)}
+      todoExpanded={board.expandedTodo.has(card.id)}
+      setTodoExpanded={board.setTodoExpanded}
+      subtasksExpanded={board.expandedSubtasks.has(card.id)}
+      setSubtasksExpanded={board.setSubtasksExpanded}
+      permissionButtons={board.buttonsFor(card)}
+      stopPhase={board.stop.phase(card.id)}
+      readPending={board.read.pending(card.id)}
+      unreadPending={board.unread?.pending(card.id) ?? false}
+      unarchivePending={board.unarchive.pending(card.id)}
+      archivePending={board.archive.pending(card.id)}
+      highlighted={board.highlighted === card.id}
+      clock={board.clock}
+      language={board.language}
+    />
+  );
+}
+
+interface CardCellViewProps {
+  card: TaskCard;
+  theme: PluginTheme;
+  compact: boolean;
+  focused: boolean;
+  current?: boolean;
+  fresh: boolean;
+  register?(agentId: string, node: unknown): void;
+  copy: boolean;
+  callbacks: CardCallbacks;
+  paseo: BoardController["paseo"];
+  hostId: string;
+  visible: boolean;
+  todoOn: boolean;
+  /** The board's search, trimmed; empty when it does not search. */
+  query: string;
+  searchStatus: BoardController["searchStatus"];
+  searchPromptUnavailable: boolean;
+  requestIcon: BoardController["requestIcon"];
+  fields: BoardController["fields"];
+  titleLines: number | null;
+  todoExpanded: boolean;
+  setTodoExpanded: BoardController["setTodoExpanded"];
+  subtasksExpanded: boolean;
+  setSubtasksExpanded: BoardController["setSubtasksExpanded"];
+  permissionButtons: ReturnType<BoardController["buttonsFor"]>;
+  stopPhase: ReturnType<BoardController["stop"]["phase"]>;
+  readPending: boolean;
+  unreadPending: boolean;
+  unarchivePending: boolean;
+  archivePending: boolean;
+  highlighted: boolean;
+  clock: BoardController["clock"];
+  language: BoardController["language"];
+}
+
+const noSubscription = () => () => {};
+
+const CardCellView = memo(function CardCellView(props: CardCellViewProps) {
+  const { card, register, query, searchStatus } = props;
+  const todo = useTodoSummary(props.paseo, card.id, props.todoOn, !props.copy);
   const searchPrompt = useSyncExternalStore(
-    board.params.query.trim() ? board.searchStatus.subscribe : () => () => {},
-    () => board.params.query.trim() ? board.searchStatus.prompt(card) : undefined,
+    query ? searchStatus.subscribe : noSubscription,
+    () => query ? searchStatus.prompt(card) : undefined,
     () => undefined,
   );
   const nodeRef = useRef<View>(null);
   const [arrival, setArrival] = useState(0);
   const onArrive = useCallback(() => setArrival((key) => key + 1), []);
-  const flashOpacity = useFlash(board.visible ? arrival : 0);
+  const flashOpacity = useFlash(props.visible ? arrival : 0);
   // A new task, once seen: its outline breathes in its lane's colour.
-  const outline = useNewCardOutline(board.hostId, card, props.copy ?? false);
-  const motion = useCardMotion(card.id, nodeRef, props.copy ?? false, onArrive);
+  const outline = useNewCardOutline(props.hostId, card, props.copy);
+  const motion = useCardMotion(card.id, nodeRef, props.copy, onArrive);
   useEffect(() => {
     if (!register) return;
     register(card.id, nodeRef.current);
     return () => register(card.id, null);
   }, [register, card.id]);
   // Rendered cards only, once per project while the icon is missing; the data layer dedupes the fetch.
-  const { requestIcon } = board;
+  const { requestIcon } = props;
   const projectId = card.location.projectIcon === null ? card.location.projectId : null;
   useEffect(() => {
     if (requestIcon && projectId) requestIcon(projectId);
@@ -439,32 +522,32 @@ export function CardCell(props: CardCellProps) {
           <TaskCardView
             card={card}
             todo={todo}
-            searchQuery={board.params.query.trim().toLowerCase()}
+            searchQuery={query.toLowerCase()}
             searchPrompt={searchPrompt}
-            searchPromptUnavailable={Boolean(card.closed || card.subagent && (!card.parent || !board.cardById(card.parent.id) || board.cardById(card.parent.id)!.closed))}
-            fields={board.fields}
-            titleLines={board.titleLines === "all" ? null : Number(board.titleLines)}
+            searchPromptUnavailable={props.searchPromptUnavailable}
+            fields={props.fields}
+            titleLines={props.titleLines}
             theme={props.theme}
             compact={props.compact}
-            todoExpanded={board.expandedTodo.has(card.id)}
-            onTodoExpandedChange={board.setTodoExpanded}
-            subtasksExpanded={board.expandedSubtasks.has(card.id)}
-            onSubtasksExpandedChange={board.setSubtasksExpanded}
-            permissionButtons={board.buttonsFor(card)}
-            stopPhase={board.stop.phase(card.id)}
-            readPending={board.read.pending(card.id)}
-            unreadPending={board.unread?.pending(card.id) ?? false}
-            unarchivePending={board.unarchive.pending(card.id)}
-            archivePending={board.archive.pending(card.id)}
-            focused={props.focused ?? false}
+            todoExpanded={props.todoExpanded}
+            onTodoExpandedChange={props.setTodoExpanded}
+            subtasksExpanded={props.subtasksExpanded}
+            onSubtasksExpandedChange={props.setSubtasksExpanded}
+            permissionButtons={props.permissionButtons}
+            stopPhase={props.stopPhase}
+            readPending={props.readPending}
+            unreadPending={props.unreadPending}
+            unarchivePending={props.unarchivePending}
+            archivePending={props.archivePending}
+            focused={props.focused}
             focusId={props.copy ? undefined : `task-card-${card.id}`}
             current={props.current}
-            highlighted={board.highlighted === card.id}
-            clock={board.clock}
-            language={board.language}
-            animated={board.visible}
-            hostId={board.hostId}
-            {...(props.callbacks ?? board.callbacks)}
+            highlighted={props.highlighted}
+            clock={props.clock}
+            language={props.language}
+            animated={props.visible}
+            hostId={props.hostId}
+            {...props.callbacks}
           />
         </EnterOnMount>
         <Animated.View
@@ -482,7 +565,7 @@ export function CardCell(props: CardCellProps) {
       </Animated.View>
     </View>
   );
-}
+});
 
 /**
  * The ids a lane has not shown before, so only a card that arrives (a status

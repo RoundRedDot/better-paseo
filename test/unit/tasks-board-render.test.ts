@@ -1986,6 +1986,33 @@ describe("Tasks board, desktop", () => {
     }
   });
 
+  it("draws again only the cells whose own card or state changed when the board updates", () => {
+    act(() => {
+      renderer = TestRenderer.create(screen(false));
+    });
+    layOut(2400);
+    const handle = (data as unknown as { __handle: { lanes: Record<string, { cards: TaskCard[] }> } }).__handle;
+    const original = handle.lanes;
+    // A cell's own hooks run once per drawn cell: count them.
+    const cells = vi.spyOn(todoSummary, "useTodoSummary");
+    try {
+      // A page lands in one lane: the list draws its rows, but the cards already shown stay as they were.
+      const running = original.running!;
+      handle.lanes = { ...original, running: { ...running, cards: running.cards.slice(1) } };
+      act(() => renderer!.update(screen(false)));
+      expect(running.cards.length).toBeGreaterThan(1);
+      expect(cells).not.toHaveBeenCalled();
+      // One card renamed: only its cell draws.
+      const [first, ...rest] = handle.lanes.running!.cards;
+      handle.lanes = { ...handle.lanes, running: { ...handle.lanes.running!, cards: [{ ...first!, title: "Renamed" }, ...rest] } };
+      act(() => renderer!.update(screen(false)));
+      expect(cells.mock.calls.map((call) => call[1])).toEqual([first!.id]);
+    } finally {
+      cells.mockRestore();
+      handle.lanes = original;
+    }
+  });
+
   it("keeps the cards' fields across a settings read-back that leaves them as they were", () => {
     act(() => {
       renderer = TestRenderer.create(screen(false));
@@ -6911,6 +6938,44 @@ describe("Tasks board, phone", () => {
     expect(pressable("Review 2").props.accessibilityState).toEqual({ selected: true });
     act(() => pager().props.onScrollEndDrag({ nativeEvent: { contentOffset: { x: 390, y: 0 } } }));
     expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
+  });
+
+  it("does not draw a lane's rows again as its list grows, unless it crosses two screens", () => {
+    act(() => { renderer = TestRenderer.create(screen(true)); });
+    const list = () => renderer!.root.findAll((node) => (node.type as unknown) === "FlatList")[0]!;
+    act(() => hostParentOf(list())!.props.onLayout({ nativeEvent: { layout: { height: 500 } } }));
+    act(() => list().props.onContentSizeChange(390, 600));
+    let rows = host.rowRenders;
+    // Each batch of mounted rows changes the measured height; the lane stays as it is drawn.
+    for (const height of [700, 820, 990]) act(() => list().props.onContentSizeChange(390, height));
+    expect(host.rowRenders).toBe(rows);
+    expect(hostsById("phone-scroll-actions")).toHaveLength(0);
+    // Past two screens the scroll actions show: that draws once.
+    rows = host.rowRenders;
+    act(() => list().props.onContentSizeChange(390, 1100));
+    expect(hostsById("phone-scroll-actions")).toHaveLength(1);
+    expect(host.rowRenders).toBeGreaterThan(rows);
+  });
+
+  it("turns the native pager to a tab beside the shown one from the press, before the board draws that lane", () => {
+    const scrollTo = vi.fn();
+    act(() => {
+      renderer = TestRenderer.create(screen(true), { createNodeMock: (element) => (element.props as { testID?: string }).testID === "phone-lane-pager" ? { scrollTo } : null });
+    });
+    const pager = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "phone-lane-pager");
+    act(() => pager().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 600 } } }));
+    scrollTo.mockClear();
+    let selectedAtTurn: unknown;
+    scrollTo.mockImplementation(() => { selectedAtTurn = pressable("Running 2").props.accessibilityState; });
+    act(() => pressable("Running 2").props.onPress());
+    // The page turn started while the old lane was still the board's; the render found the pager there.
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ x: 390, y: 0, animated: true });
+    expect(selectedAtTurn).toEqual({ selected: false });
+    expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
+    // A tab two lanes away is not mounted beside it: it jumps once the board draws it.
+    scrollTo.mockClear();
+    act(() => hostsById("phone-stat-done")[0]!.props.onPress());
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ x: 390 * 3, y: 0, animated: false });
   });
 
   it.each(["ios", "android", "web"])("%s shows the bottom shortcut only when the active lane exceeds two viewports, and ends the list clear of it", (os) => {
