@@ -1468,6 +1468,24 @@ describe("TaskCardView rows", () => {
     expect(icons(tree.root)).not.toContain("Square");
   });
 
+  it.each([LIGHT, DARK])("shows and clears hover feedback on the error dismiss button", async (theme) => {
+    const platform = globalThis as { __rnMockOS?: string };
+    const saved = platform.__rnMockOS;
+    platform.__rnMockOS = "web";
+    try {
+      const tree = await render(cardElement(sample("sample-failed"), { theme }));
+      const button = () => byLabel(tree.root, "关闭错误提示");
+      expect(flat(button().props.style).boxShadow).toBeUndefined();
+      await act(async () => button().props.onHoverIn());
+      expect(flat(button().props.style).boxShadow).toBeTruthy();
+      await act(async () => button().props.onHoverOut());
+      expect(flat(button().props.style).boxShadow).toBeUndefined();
+    } finally {
+      if (saved === undefined) delete platform.__rnMockOS;
+      else platform.__rnMockOS = saved;
+    }
+  });
+
   it("dismisses the current error without changing the task and shows a later error", async () => {
     const rpc = vi.fn(async (contract: { name: string }, input: { agentId: string; error: string }) =>
       contract.name === "tasks.error-dismissals" ? { entries: [] } : { ...input, dismissedAt: Date.now() });

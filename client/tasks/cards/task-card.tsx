@@ -571,6 +571,16 @@ function EdgeFade(props: { color: string }) {
   );
 }
 
+function ErrorDismissButton(props: { label: string; size: number; iconSize: number; color: string; tokens: TaskTokens; onPress(event: GestureResponderEvent): void }) {
+  const { hovered, hoverProps } = useHover();
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={props.label} hitSlop={8} {...hoverProps} onPress={props.onPress}
+      style={({ pressed }) => [{ minWidth: props.size, minHeight: props.size, borderRadius: 4, alignItems: "center", justifyContent: "center" }, liftStyle(props.tokens, surfaceLift(hovered, pressed)), webTransition]}>
+      <Icon name="X" size={props.iconSize} color={props.color} />
+    </Pressable>
+  );
+}
+
 // --- The card -----------------------------------------------------------------
 
 function TaskCardViewImpl(given: TaskCardViewProps) {
@@ -1478,10 +1488,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {failureAction ? <Text testID="task-card-error-action" style={[text(m.blockSize, m.blockLine, muted), { marginTop: 4 }]}>{failureAction}</Text> : null}
       </View>
       {!card.stoppedManually && !card.subagent ? (
-        <Pressable accessibilityRole="button" accessibilityLabel={strings.dismissTaskError} hitSlop={8} style={{ minWidth: taskControlHeight(compact ? 44 : 28, scale), minHeight: taskControlHeight(compact ? 44 : 28, scale), alignItems: "center", justifyContent: "center" }} onPress={(event) => {
+        <ErrorDismissButton label={strings.dismissTaskError} size={taskControlHeight(compact ? 44 : 28, scale)} iconSize={m.icon} color={failureColor} tokens={tokens} onPress={(event) => {
           event.stopPropagation();
           void dismissError().catch((error: unknown) => toast.error(`${strings.dismissTaskErrorFailed}: ${error instanceof Error ? error.message : String(error)}`));
-        }}><Icon name="X" size={m.icon} color={failureColor} /></Pressable>
+        }} />
       ) : null}
     </View>
   ) : null;
