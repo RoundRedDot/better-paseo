@@ -22,9 +22,14 @@
  * - `monoFontFamily` (string; "" means the platform default stack, i.e. unset),
  *   `uiBaseFontSize` (number; floored and clamped to 10–21, default 14),
  *   `codeFontSize` (number; the host floors it and clamps it to 9–22, default
- *   12), and `contentFontSize` (number; floored and clamped to 10–21). When
+ *   12), `contentFontSize` (number; floored and clamped to 10–21) and
+ *   `syntaxTheme` (one of the eight ids in `PASEO_SYNTAX_THEMES`). When
  *   content size is absent, `uiBaseFontSize` is used, which is what the host
  *   itself does before it rewrites the blob.
+ *
+ * `syntaxTheme` is read for code colours, not typography: Paseo hands plugins
+ * eleven theme colours and no syntax palette (`toPluginTheme` drops it), so the
+ * setting is the only way a plugin block can draw the theme the reader picked.
  * It never writes to the host's storage.
  *
  * Validation mirrors the host's own (`sanitizeFontFamily`,
@@ -68,6 +73,32 @@ export const RECHECK_MS = 500;
 /** One trailing look after a trigger, for a host write that lands late. */
 const TRAILING_MS = 600;
 
+/** The ids Paseo's Appearance → Syntax theme control offers (`packages/app/src/theme`). */
+export const PASEO_SYNTAX_THEMES = [
+  "github",
+  "catppuccin",
+  "dracula",
+  "tokyo-night",
+  "one",
+  "nord",
+  "gruvbox",
+  "solarized",
+] as const;
+
+export type PaseoSyntaxThemeId = (typeof PASEO_SYNTAX_THEMES)[number];
+
+/** What the host falls back to (`syntaxTheme`'s schema default and `.catch()`). */
+export const DEFAULT_SYNTAX_THEME: PaseoSyntaxThemeId = "one";
+
+const SYNTAX_THEME_IDS = new Set<string>(PASEO_SYNTAX_THEMES);
+
+/** The stored id when it names a theme Paseo knows, otherwise undefined. */
+export function parseSyntaxTheme(value: unknown): PaseoSyntaxThemeId | undefined {
+  return typeof value === "string" && SYNTAX_THEME_IDS.has(value)
+    ? (value as PaseoSyntaxThemeId)
+    : undefined;
+}
+
 /** What Paseo's Appearance settings say, as far as the plugin uses it. */
 export interface HostAppearance {
   /** Interface size, independent of the content and code controls. */
@@ -78,6 +109,8 @@ export interface HostAppearance {
   codeFontSize?: number;
   /** Reading size in px, floored and clamped like the host does; absent when unreadable. */
   contentFontSize?: number;
+  /** The chosen Syntax theme; absent when the blob names no theme Paseo knows. */
+  syntaxTheme?: PaseoSyntaxThemeId;
 }
 
 /** Same rules as the host's `sanitizeFontFamily`; "" and invalid both mean unset. */
@@ -133,6 +166,8 @@ export function parseAppSettings(raw: string | null): HostAppearance | null {
   // still follows the control.
   const content = clampContentSize(record.contentFontSize) ?? clampContentSize(record.uiBaseFontSize);
   if (content !== undefined) appearance.contentFontSize = content;
+  const syntaxTheme = parseSyntaxTheme(record.syntaxTheme);
+  if (syntaxTheme !== undefined) appearance.syntaxTheme = syntaxTheme;
   return appearance;
 }
 
@@ -355,7 +390,8 @@ function sameAppearance(a: HostAppearance | null, b: HostAppearance | null): boo
     a.monoFontFamily === b.monoFontFamily &&
     a.codeFontSize === b.codeFontSize &&
     a.uiBaseFontSize === b.uiBaseFontSize &&
-    a.contentFontSize === b.contentFontSize
+    a.contentFontSize === b.contentFontSize &&
+    a.syntaxTheme === b.syntaxTheme
   );
 }
 
@@ -442,6 +478,28 @@ export function useHostAppearance(enabled: boolean, hostTheme: unknown): HostApp
     if (enabled) triggerHostAppearanceCheck();
   }, [enabled, hostTheme]);
   return enabled ? value : null;
+}
+
+/**
+ * The Syntax theme Paseo's Appearance settings name, or the host's own default
+ * when the blob is unreadable or names nothing known.
+ *
+ * Unlike `useHostAppearance` this is never switched off: the SDK gives plugins
+ * no syntax palette at all, so there is no H1-style host channel that could
+ * make this read redundant. It shares that store, its subscription, its
+ * throttle and its triggers, so it costs one look per 500 ms at most.
+ */
+export function useHostSyntaxTheme(hostTheme: unknown): PaseoSyntaxThemeId {
+  const syntaxTheme = useSyncExternalStore(
+    subscribe,
+    () => snapshot()?.syntaxTheme ?? null,
+    () => null,
+  );
+  // A new theme prop means the host applied a change: look again, throttled.
+  useEffect(() => {
+    triggerHostAppearanceCheck();
+  }, [hostTheme]);
+  return syntaxTheme ?? DEFAULT_SYNTAX_THEME;
 }
 
 /** Test seam: how many times a raw settings string was parsed. */

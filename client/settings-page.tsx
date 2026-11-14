@@ -10,7 +10,7 @@ import { codeSurface, itemRootFont } from "./components/host-font-escape";
 import { radiusV2, space, buildThemeTokens, inlineCodeColor, type ExtendedThemeTokens } from "./components/theme-tokens";
 import { ensureEmbeddedFonts } from "./components/embed-fonts";
 import { pluginRoot } from "./components/focus-ring";
-import { useHostAppearance } from "./ui/tokens/host-appearance-shim";
+import { useHostAppearance, useHostSyntaxTheme } from "./ui/tokens/host-appearance-shim";
 import { useHostLanguageVersion } from "./i18n/host-language";
 import { surfaceProps } from "./components/view-props";
 import {
@@ -698,12 +698,15 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
   const hostTypography = useMemo(() => readHostTypography(theme) !== null, [theme]);
   // Content size follows Paseo's Appearance settings on native as well as web.
   const appearance = useHostAppearance(!hostTypography, theme);
+  // The preview's `const` is painted in the reader's syntax palette, so it has to
+  // read the same setting the timeline does.
+  const syntaxTheme = useHostSyntaxTheme(theme);
   const tokens = useMemo(
     () => {
       ensureEmbeddedFonts(preferences, platform);
-      return buildThemeTokens(theme.colors, preferences, { platform, theme, appearance });
+      return buildThemeTokens(theme.colors, preferences, { platform, theme, appearance, syntaxTheme });
     },
-    [preferences, theme, platform, appearance],
+    [preferences, theme, platform, appearance, syntaxTheme],
   );
   const look = useMemo<PageLook>(() => ({ tokens, compact, t }), [tokens, compact, t]);
 
@@ -722,11 +725,11 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
   // the platform monospace and inline code without a fill.
   const mobileTokens = useMemo(() => {
     if (native) return null;
-    const ios = buildThemeTokens(theme.colors, preferences, { platform: "ios", theme });
+    const ios = buildThemeTokens(theme.colors, preferences, { platform: "ios", theme, syntaxTheme });
     // iOS names its monospace `ui-monospace`, which Chromium (Electron
     // included) does not know: it would draw the code in a serif face.
     return { ...ios, fontMono: `${ios.fontMono}, ${DEFAULT_WEB_MONO_STACK}` };
-  }, [native, preferences, theme]);
+  }, [native, preferences, theme, syntaxTheme]);
   const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
   const pinned = !(mobileTokens !== null && previewDevice === "mobile");
   const preview = (

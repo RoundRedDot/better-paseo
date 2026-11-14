@@ -10,12 +10,17 @@ import { openSystemTerminal } from "./server/open-terminal";
 import { PREFERENCES_SETTINGS } from "./shared/preferences-settings";
 import { revealPathRpc } from "./shared/file-rpc";
 import { embeddedFontsRpc } from "./shared/font-rpc";
-import { type HighlightLine, type HighlightToken, highlightRpc } from "./shared/highlight-rpc";
+import {
+  type HighlightLine,
+  type HighlightToken,
+  highlightRpc,
+} from "./shared/highlight-rpc";
 import { imageRpc } from "./shared/image-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
 import { isNetworkOrDevicePath } from "./shared/network-path";
 import { perfDumpRpc } from "./shared/perf-rpc";
 import { EMBEDDED_FONTS } from "./server/font-data";
+import { LIGHT_SYNTAX_THEMES } from "./server/light-syntax-themes";
 import { MARK_BITMAPS } from "./server/mark-bitmaps";
 import { writePerfDump } from "./server/perf-dump";
 import { registerTasksServer } from "./server/tasks/register";
@@ -144,8 +149,69 @@ function openWithShell(target: string, entry: PathEntry): void {
   child.unref();
 }
 
+/**
+ * The pair a client that names no Paseo syntax theme gets, which is what every
+ * daemon before this setting did.
+ */
 const DARK_THEME = "github-dark-default";
 const LIGHT_THEME = "github-light-default";
+
+/** One Shiki theme: the name it registers under, and how to fetch its data. */
+type ThemeSource = [name: string, load: () => Promise<unknown>];
+/** The dark and light theme of one Paseo syntax family. */
+type ThemePair = readonly [dark: ThemeSource, light: ThemeSource];
+
+// esbuild cannot follow a computed specifier, so every theme carries its own
+// literal import; none of them runs until a request names that theme.
+const GITHUB: ThemePair = [
+  [DARK_THEME, () => import("@shikijs/themes/github-dark-default")],
+  [LIGHT_THEME, () => import("@shikijs/themes/github-light-default")],
+];
+
+/**
+ * Paseo's Appearance > Syntax theme ids, as the Shiki theme for each scheme.
+ *
+ * The id names the palette family; the scheme comes from the client, because
+ * one daemon serves readers in light and dark at the same time. Shiki 4.4.3
+ * ships no light flavour for Tokyo Night, Nord or Dracula: Alucard (Dracula's
+ * own light half) and Tokyo Night Light are official palettes vendored from their
+ * published sources, and Nord reads `polar`, the third-party Polar theme. No
+ * family falls back any more.
+ *
+ * A vendored theme needs no import — its data is already in this build, so its
+ * loader only hands it over.
+ */
+const SYNTAX_THEMES: Record<string, ThemePair> = {
+  github: GITHUB,
+  one: [
+    ["one-dark-pro", () => import("@shikijs/themes/one-dark-pro")],
+    ["one-light", () => import("@shikijs/themes/one-light")],
+  ],
+  catppuccin: [
+    ["catppuccin-mocha", () => import("@shikijs/themes/catppuccin-mocha")],
+    ["catppuccin-latte", () => import("@shikijs/themes/catppuccin-latte")],
+  ],
+  gruvbox: [
+    ["gruvbox-dark-medium", () => import("@shikijs/themes/gruvbox-dark-medium")],
+    ["gruvbox-light-medium", () => import("@shikijs/themes/gruvbox-light-medium")],
+  ],
+  solarized: [
+    ["solarized-dark", () => import("@shikijs/themes/solarized-dark")],
+    ["solarized-light", () => import("@shikijs/themes/solarized-light")],
+  ],
+  "tokyo-night": [
+    ["tokyo-night", () => import("@shikijs/themes/tokyo-night")],
+    ["tokyo-night-light", async () => LIGHT_SYNTAX_THEMES["tokyo-night-light"]],
+  ],
+  nord: [
+    ["nord", () => import("@shikijs/themes/nord")],
+    ["polar", async () => LIGHT_SYNTAX_THEMES.polar],
+  ],
+  dracula: [
+    ["dracula", () => import("@shikijs/themes/dracula")],
+    ["alucard", async () => LIGHT_SYNTAX_THEMES.alucard],
+  ],
+};
 
 /**
  * Tokenising runs on the daemon's event loop, so a runaway tool output would
@@ -246,6 +312,8 @@ interface HighlightEngine {
   highlighter: Highlighter;
   /** Every grammar name and alias the highlighter answers to. */
   loaded: Set<string>;
+  /** Shiki theme names this engine can highlight with. */
+  themes: Set<string>;
 }
 
 let enginePromise: Promise<HighlightEngine> | null = null;
@@ -300,7 +368,24 @@ async function buildEngine(): Promise<HighlightEngine> {
     langs,
     engine: regex.createJavaScriptRegexEngine({ forgiving: true }),
   });
-  return { highlighter, loaded: new Set(highlighter.getLoadedLanguages()) };
+  return {
+    highlighter,
+    loaded: new Set(highlighter.getLoadedLanguages()),
+    themes: new Set(highlighter.getLoadedThemes()),
+  };
+}
+
+/**
+ * Loads `theme` into the engine if a reader asked for it before. Themes come and
+ * go as readers switch, so loading is lazy and never undone.
+ */
+async function ensureTheme(engine: HighlightEngine, theme: string, load: () => Promise<unknown>): Promise<void> {
+  if (engine.themes.has(theme)) return;
+  const mod = await load();
+  // Handing the module over is what Shiki expects from a dynamic import; the
+  // type says the same, it just cannot name the theme fields through `shiki`.
+  await engine.highlighter.loadTheme(mod as unknown as Parameters<Highlighter["loadTheme"]>[0]);
+  engine.themes.add(theme);
 }
 
 function getEngine(): Promise<HighlightEngine> {
@@ -411,7 +496,8 @@ function toLines(tokenLines: readonly (readonly ShikiToken[])[]): HighlightLine[
  *
  * A chat timeline mounts the same code block again on every re-render and on
  * every scroll back, so without this the daemon re-tokenises text it has
- * already seen. The key covers everything that changes the output. Map
+ * already seen. The key covers everything that changes the output, the theme
+ * included: two readers can ask about the same block in two palettes. Map
  * iteration yields the oldest insertion first, which is the entry to evict.
  */
 const CACHE_LIMIT = 200;
@@ -441,7 +527,6 @@ function tokenize(
   highlighter: Highlighter,
   code: string,
   lang: string | null,
-  dark: boolean,
   theme: string,
 ): HighlightLine[] {
   if (lang === null) return plainLines(code);
@@ -455,7 +540,7 @@ function tokenize(
     return plainLines(code);
   }
 
-  const key = `${dark ? "d" : "l"}:${lang}:${fnv1a(code)}`;
+  const key = `${theme}:${lang}:${fnv1a(code)}`;
   const cached = cache.get(key);
   if (cached !== undefined) return cached;
 
@@ -549,16 +634,23 @@ export default function contribute(server: PluginServerContext) {
   });
 
   server.handle(highlightRpc, async (input) => {
-    const theme = input.dark ? DARK_THEME : LIGHT_THEME;
+    // An id this daemon's table does not know, and a client that names no id at
+    // all, both draw with the GitHub pair.
+    const scheme = input.dark ? 0 : 1;
+    const [theme, load] =
+      (input.syntaxTheme === undefined ? undefined : SYNTAX_THEMES[input.syntaxTheme])?.[scheme] ?? GITHUB[scheme];
     try {
-      const { highlighter, loaded } = await getEngine();
-      const language = resolveLanguage(loaded, input.language, input.filename);
-      const lines = tokenize(highlighter, input.code, language, input.dark, theme);
+      const engine = await getEngine();
+      // A reader may switch syntax theme while this daemon runs, so the theme
+      // is loaded on request rather than with the engine.
+      await ensureTheme(engine, theme, load);
+      const language = resolveLanguage(engine.loaded, input.language, input.filename);
+      const lines = tokenize(engine.highlighter, input.code, language, theme);
 
       let diffLines: HighlightLine[] | undefined;
       if (input.diffBodyCode !== undefined) {
-        const diffLanguage = input.filename ? resolveLanguage(loaded, undefined, input.filename) : null;
-        diffLines = tokenize(highlighter, input.diffBodyCode, diffLanguage, input.dark, theme);
+        const diffLanguage = input.filename ? resolveLanguage(engine.loaded, undefined, input.filename) : null;
+        diffLines = tokenize(engine.highlighter, input.diffBodyCode, diffLanguage, theme);
       }
 
       return {
