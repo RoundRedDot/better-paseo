@@ -1082,6 +1082,7 @@ it.each([
   makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
   state.rpc.mockResolvedValue({ state: "idle" });
   const executable = "/Users/example/" + "very-long-directory/".repeat(15) + "codex";
+  const displayPath = "~/" + "very-long-directory/".repeat(15) + "codex";
   state.agents.mockResolvedValue({ state: "done", entries: [{ ...layoutAgent, executable }], error: null });
   const selectedTheme = dark ? { colors: { ...theme.colors, surface0: "#141416", surface1: "#1c1c1f", surface2: "#252529", foreground: "#f4f4f5", foregroundMuted: "#a1a1aa", border: "#37373e" } } : theme;
   let r!: Renderer;
@@ -1095,7 +1096,7 @@ it.each([
       expect(frame.left, `${String(node.type)} left`).toBeGreaterThanOrEqual(0);
       expect(frame.left + frame.width, `${String(node.type)} right`).toBeLessThanOrEqual(width + 0.5);
     }
-    const path = summary.find((node) => typeof node.type === "string" && node.props.children === executable);
+    const path = summary.find((node) => typeof node.type === "string" && node.props.children === displayPath);
     expect(path.props.numberOfLines).toBe(1);
     expect(frames.get(path)!.width).toBeGreaterThan(0);
     const dot = byTestID(r, "version-item-update-dot")[0]!;
@@ -1107,7 +1108,7 @@ it.each([
     const expandedFrames = measureHostTree(row, options);
     for (const frame of expandedFrames.values()) expect(frame.left + frame.width).toBeLessThanOrEqual(width + 0.5);
     const details = byTestID(r, "agent-version-details-codex")[0]!;
-    const fullPath = details.find((node) => typeof node.type === "string" && node.props.children === executable);
+    const fullPath = details.find((node) => typeof node.type === "string" && node.props.children === displayPath);
     expect(fullPath.props.selectable).toBe(true);
     expect(fullPath.props.numberOfLines).toBeUndefined();
   } finally { act(() => r?.unmount()); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }

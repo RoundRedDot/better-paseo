@@ -57,6 +57,7 @@ import { resolveLanguage, type SettingsLanguagePreference } from "./i18n/setting
 import { SETTINGS_STRINGS, type SettingsStrings } from "./i18n/settings-page-strings";
 import { describeMonoSource } from "./settings-mono-source";
 import { ProviderLogo, providerBrand } from "./components/provider-logo";
+import { tildePath } from "./tasks/cards/format";
 
 /** What the settings page says about the daemon store, or null when all is well. */
 function storageHint(sync: SyncStatus, t: SettingsStrings): string | null {
@@ -631,6 +632,7 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
   const status = statuses[entry.status];
   const statusColor = entry.status === "available" ? tokens.danger : entry.status === "error" || entry.status === "unknown" ? tokens.warning : tokens.foregroundMuted;
   const brand = providerBrand(entry.provider);
+  const executable = entry.executable ? tildePath(entry.executable) : t.agentUnknownExecutable;
   return <View testID={`agent-version-${entry.provider}`} style={{ borderTopWidth: 1, borderTopColor: tokens.v2.border }}>
     <Pressable
       testID={`agent-version-toggle-${entry.provider}`}
@@ -651,7 +653,7 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
           {entry.method !== "unknown" ? <Text style={[styles.agentMethod, settingsTextStyle(tokens, -3), { color: tokens.foregroundMuted, borderColor: tokens.v2.border, fontFamily: tokens.fontUi }]}>{methods[entry.method]}</Text> : null}
           {entry.updateAvailable ? <UpdateDot look={look} /> : null}
         </View>
-        <Text numberOfLines={1} ellipsizeMode="middle" style={[text, { fontFamily: tokens.fontMono }]}>{entry.executable ?? t.agentUnknownExecutable}</Text>
+        <Text numberOfLines={1} ellipsizeMode="middle" style={[text, { fontFamily: tokens.fontMono }]}>{executable}</Text>
       </View>
       <View style={[styles.agentState, { width: compact ? 104 : 160 }]}>
         <Text style={[text, { color: tokens.foreground, fontFamily: tokens.fontMono, textAlign: "right" }]}>{entry.current ?? "—"}</Text>
@@ -660,7 +662,7 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
       <Icon name={expanded ? "ChevronDown" : "ChevronRight"} size={14} color={tokens.foregroundSubtle} />
     </Pressable>
     {expanded ? <View testID={`agent-version-details-${entry.provider}`} style={[styles.agentDetails, { paddingLeft: compact ? space.lg : 58 }]}>
-      <Text selectable style={[text, { fontFamily: tokens.fontMono }]}>{entry.executable ?? t.agentUnknownExecutable}</Text>
+      <Text selectable style={[text, { fontFamily: tokens.fontMono }]}>{executable}</Text>
       <View style={styles.agentDetailLine}>
         <Text style={text}>{t.versionInstalled}: {entry.current ?? "—"}</Text>
         <Text style={text}>{t.versionDirectory}: {entry.latest ?? "—"}</Text>
