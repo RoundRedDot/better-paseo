@@ -151,6 +151,7 @@ describe("sidebar action tips", () => {
       const fill = () => host(root, `${id}-fill`);
       const icon = button().find((node) => (node.type as unknown) === "Icon");
       const diameter = Math.round(icon.props.size * 1.7);
+      expect(fill().find((node) => (node.type as unknown) === "Icon")).toBe(icon);
       expect(StyleSheet.flatten(fill().props.style)).toMatchObject({ width: diameter, height: diameter, borderRadius: diameter / 2, backgroundColor: detailColors(taskTokens(THEME)).rowHover });
       expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderWidth: StyleSheet.hairlineWidth, borderColor: "transparent" });
       await act(async () => button().props.onHoverOut());

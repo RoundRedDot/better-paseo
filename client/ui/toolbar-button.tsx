@@ -273,12 +273,17 @@ export function ToolbarItem({
           pressedStyle?.({ pressed }),
         ]}
       >
-        {({ pressed }) => <>
-          {iconSize !== undefined && onPress && (!disabled && (hovered || pressed) || iconBackground !== undefined) ? <View pointerEvents="none" testID="toolbar-icon-fill"
-            style={{ position: "absolute", width: iconHoverSize(iconSize), height: iconHoverSize(iconSize), borderRadius: iconHoverSize(iconSize) / 2,
-              backgroundColor: !disabled && (hovered || pressed) ? hoverColor : iconBackground ?? "transparent" }} /> : null}
-          {typeof children === "function" ? children({ hovered }) : children}
-        </>}
+        {({ pressed }) => {
+          const content = typeof children === "function" ? children({ hovered }) : children;
+          return iconSize !== undefined && onPress && (!disabled && (hovered || pressed) || iconBackground !== undefined) ? (
+            <View pointerEvents="none" testID="toolbar-icon-fill"
+              style={{ width: iconHoverSize(iconSize), height: iconHoverSize(iconSize), borderRadius: iconHoverSize(iconSize) / 2,
+                alignItems: "center", justifyContent: "center",
+                backgroundColor: !disabled && (hovered || pressed) ? hoverColor : iconBackground ?? "transparent" }}>
+              {content}
+            </View>
+          ) : content;
+        }}
       </Pressable>
       {pressedOpen && Platform.OS !== "web" ? (
         <AnchoredToolbarDetails anchor={anchorRef} close={closeDetails} width={detailsWidth} tokens={tokens}>{details}</AnchoredToolbarDetails>

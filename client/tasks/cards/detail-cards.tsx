@@ -2067,12 +2067,11 @@ export function RoundIcon(props: { icon: string; label: string; size: number; ic
           backgroundColor: props.active ? base : "transparent",
       }}
     >
-      {({ pressed }) => <>
-        <View pointerEvents="none" testID={props.testID ? `${props.testID}-fill` : undefined}
-          style={{ position: "absolute", width: fillSize, height: fillSize, borderRadius: fillSize / 2,
-            backgroundColor: hoverFill(base, props.tokens.foreground, hovered, pressed, "transparent") }} />
+      {({ pressed }) => <View pointerEvents="none" testID={props.testID ? `${props.testID}-fill` : undefined}
+        style={{ width: fillSize, height: fillSize, borderRadius: fillSize / 2, alignItems: "center", justifyContent: "center",
+          backgroundColor: hoverFill(base, props.tokens.foreground, hovered, pressed, "transparent") }}>
         <Icon name={props.icon} size={props.iconSize} color={props.active ? props.tokens.accent : hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
-      </>}
+      </View>}
     </Pressable>
   );
 }

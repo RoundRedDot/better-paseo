@@ -38,6 +38,15 @@ async function pressCopy(element: React.ReactElement) {
 }
 
 describe("copy toast", () => {
+  it("keeps the copy icon above its circular hover background", () => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(CopyButton, { text: "a", tokens })); });
+    const button = renderer.root.find((node) => (node.type as unknown) === "Pressable");
+    act(() => button.props.onHoverIn());
+    expect(renderer.root.findByProps({ testID: "copy-icon-fill" }).findByProps({ name: "Copy" })).toBeDefined();
+    act(() => renderer.unmount());
+  });
+
   it("names what each button copied, so two copies are told apart", async () => {
     updateEnhancerPreferences({ language: "en" });
     try {

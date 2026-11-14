@@ -156,6 +156,7 @@ describe("grouped tool card presentation", () => {
     expect(renderer.root.findAllByProps({ testID: "toolbar-icon-fill" })).toHaveLength(0);
     act(() => button.props.onHoverIn());
     expect(StyleSheet.flatten(fill().props.style)).toMatchObject({ width: diameter, height: diameter, borderRadius: diameter / 2, backgroundColor: tokens.v2.surface2 });
+    expect(fill().findByProps({ name: "Copy" })).toBeDefined();
     act(() => button.props.onPress());
     expect(onPress).toHaveBeenCalledOnce();
     act(() => button.props.onHoverOut());

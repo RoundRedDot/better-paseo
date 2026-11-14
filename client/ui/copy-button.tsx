@@ -60,9 +60,11 @@ export function CopyButton({
       ]}
     >
       {({ pressed }) => <>
-      {!showLabel && (hovered || pressed) ? <View pointerEvents="none" testID="copy-icon-fill" style={{ position: "absolute", width: iconHoverSize(ICON), height: iconHoverSize(ICON), borderRadius: iconHoverSize(ICON) / 2,
-        backgroundColor: pressed ? tokens.v2.surface2 : hovered ? tokens.v2.surface1 : "transparent" }} /> : null}
-      <View style={styles.icon}>
+      <View pointerEvents="none" testID={!showLabel && (hovered || pressed) ? "copy-icon-fill" : undefined}
+        style={[styles.icon, !showLabel && (hovered || pressed) && {
+          width: iconHoverSize(ICON), height: iconHoverSize(ICON), borderRadius: iconHoverSize(ICON) / 2,
+          backgroundColor: pressed ? tokens.v2.surface2 : tokens.v2.surface1,
+        }]}>
         <Icon name={copied ? "Check" : "Copy"} size={ICON} color={color} />
       </View>
       {showLabel ? (
