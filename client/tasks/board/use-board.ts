@@ -504,7 +504,7 @@ export function useBoard(
   const requestProjectIcon = useCallback((projectId: string) => latest.current.tasks.requestProjectIcon(projectId), []);
   const buttonsFor = useCallback((card: TaskCard) => buttonsIn(card, language), [language]);
   const hasNavigation = props.navigation !== undefined;
-  const questionDialog = questionDialogStore(paseo);
+  const questionDialog = useMemo(() => questionDialogStore(paseo).fork(), [paseo]);
   const submitQuestions = useCallback(async (state: QuestionDialogState) => {
     const current = latest.current;
     await submitQuestion(current.paseo, state, current.language, (id) => latest.current.paseo === current.paseo ? latest.current.tasks.byId.get(id) : undefined, (id) => current.availability.check(id, "permission"));

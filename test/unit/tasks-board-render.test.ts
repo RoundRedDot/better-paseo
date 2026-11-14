@@ -560,6 +560,34 @@ describe("a real ExitPlanMode request on the board", () => {
 });
 
 describe("card question dialog integration", () => {
+  it("opens one dialog when multiple board instances share a client", async () => {
+    const handle = (data as unknown as { __handle: data.TasksHandle }).__handle;
+    const saved = { lanes: handle.lanes, byId: handle.byId };
+    const card: TaskCard = { ...handle.lanes.needs_input.cards[0]!, id: "multi-board-dialog", permission: {
+      requestId: "multi-board-request", kind: "question", name: "request_user_input_async", title: "Question", summary: "Confirm?", actions: [], remaining: 0,
+      questions: [{ header: "Question 1", question: "Confirm?", multiSelect: false, options: [{ label: "Keep" }, { label: "Reject" }], allowOther: true }],
+    } };
+    handle.lanes = { ...handle.lanes, needs_input: { ...handle.lanes.needs_input, cards: [card] } };
+    handle.byId = new Map(handle.byId).set(card.id, card);
+    try {
+      await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null, screen(false), screen(false), screen(false))); });
+      layOut(1600);
+      const views = renderer!.root.findAllByType(TaskCardView).filter((node) => node.props.card.id === card.id);
+      expect(views).toHaveLength(3);
+      const button = views[0]!.props.permissionButtons.find((entry: { kind: string }) => entry.kind === "question");
+      await act(async () => views[0]!.props.onPermission(card, button));
+      expect(hostsById("task-question-dialog")).toHaveLength(1);
+      await act(async () => hostsById("task-question-option-0-1")[0]!.props.onPress());
+      await act(async () => hostsById("task-question-close")[0]!.props.onPress());
+      await act(async () => views[1]!.props.onPermission(card, button));
+      expect(hostsById("task-question-dialog")).toHaveLength(1);
+      expect(hostsById("task-question-submit")[0]!.props.disabled).toBe(false);
+    } finally {
+      handle.lanes = saved.lanes;
+      handle.byId = saved.byId;
+    }
+  });
+
   it.each([false, true].flatMap((phone) => [false, true].map((stale) => [phone, stale] as const)))("opens from the board card without navigation and rejects stale submissions (phone=%s, stale=%s)", async (phone, stale) => {
     const handle = (data as unknown as { __handle: data.TasksHandle }).__handle;
     const saved = { lanes: handle.lanes, byId: handle.byId };
