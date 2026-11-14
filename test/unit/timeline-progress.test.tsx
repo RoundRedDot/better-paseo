@@ -1,0 +1,31 @@
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
+import { afterEach, expect, it, vi } from "vitest";
+import "./helpers/quiet-renderer";
+vi.mock("react-native", () => import("./helpers/rn-mock"));
+import { TimelineProgress, type TimelineProgressProps } from "../../client/timeline-progress";
+import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+const call = (id: string): ToolCallTimelineItem => ({ type: "tool_call", callId: id, name: "Bash", status: "running", error: null, detail: { type: "shell", command: id } });
+const props = { agentId: "a", host: { id: "h", label: "H" }, layout: { compact: false, platform: "web" as const }, theme: { colors: { foregroundMuted: "#666" } } } as TimelineProgressProps;
+afterEach(() => { vi.useRealTimers(); resetEnhancerPreferences(); });
+it("delays short calls, combines parallel calls, and holds the last label briefly", () => {
+  vi.useFakeTimers();
+  updateEnhancerPreferences({ timelineLevel: "simple", language: "en" });
+  let tree!: TestRenderer.ReactTestRenderer;
+  act(() => { tree = TestRenderer.create(<TimelineProgress {...props} activeCalls={[call("npm test")]} />); });
+  expect(tree.toJSON()).toBeNull();
+  act(() => { vi.advanceTimersByTime(400); });
+  expect(JSON.stringify(tree.toJSON())).toContain("Running command · npm test");
+  act(() => tree.update(<TimelineProgress {...props} activeCalls={[call("a"), call("b")]} />));
+  act(() => { vi.advanceTimersByTime(80); });
+  expect(JSON.stringify(tree.toJSON())).toContain("Running 2 steps");
+  act(() => tree.update(<TimelineProgress {...props} activeCalls={[]} />));
+  act(() => { vi.advanceTimersByTime(299); });
+  expect(tree.toJSON()).not.toBeNull();
+  act(() => { vi.advanceTimersByTime(1); });
+  expect(tree.toJSON()).toBeNull();
+  act(() => tree.unmount());
+});

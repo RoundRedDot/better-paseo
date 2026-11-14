@@ -54,6 +54,21 @@ describe("the settings preview outside a workspace panel", () => {
     act(() => renderer.unmount());
   });
 
+  it("marks removed steps before hiding them and highlights newly shown steps", () => {
+    vi.useFakeTimers();
+    const props = { tokens, preferences: { ...DEFAULT_PREFERENCES }, compact: false, t: SETTINGS_STRINGS.en };
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(SettingsPreview, props)); });
+    act(() => { renderer.update(React.createElement(SettingsPreview, { ...props, preferences: { ...props.preferences, timelineLevel: "simple" } })); });
+    expect(renderer.root.findAllByProps({ testID: "preview-transition-hide" }).length).toBeGreaterThan(0);
+    act(() => { vi.advanceTimersByTime(650); });
+    expect(renderer.root.findAllByProps({ testID: "preview-transition-hide" })).toHaveLength(0);
+    act(() => { renderer.update(React.createElement(SettingsPreview, props)); });
+    expect(renderer.root.findAllByProps({ testID: "preview-transition-show" }).length).toBeGreaterThan(0);
+    act(() => { vi.advanceTimersByTime(650); renderer.unmount(); });
+    vi.useRealTimers();
+  });
+
   it("still asks the host for the agent's title in a timeline preview", () => {
     host.inPanel = true;
     host.agentCalls = 0;

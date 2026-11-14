@@ -816,6 +816,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
   const nativeChoices = platform === "web" ? [] : NATIVE_MONO_CHOICES[platform];
   const previews = preferences.hoverPreview;
   const chat = preferences.chatEnabled;
+  const [showTools, setShowTools] = useState(false);
 
   // The web page also previews a phone: iOS rows at a phone's width, with
   // the platform monospace and inline code without a fill.
@@ -857,6 +858,17 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           look={look}
           first
         />
+        {chat ? <SettingRow title={t.timelineTitle} description={t.timelineDescription} look={look} stacked
+          control={<View accessibilityRole="radiogroup" accessibilityLabel={t.timelineTitle} style={{ flexDirection: "row", gap: 8 }}>
+            {([ ["simple", t.timelineSimple, t.timelineSimpleDescription], ["standard", t.timelineStandard, t.timelineStandardDescription], ["detailed", t.timelineDetailed, t.timelineDetailedDescription] ] as const).map(([value, label, description]) => (
+              <Pressable key={value} accessibilityRole="radio" aria-checked={preferences.timelineLevel === value} accessibilityState={{ checked: preferences.timelineLevel === value }} onPress={() => updateEnhancerPreferences({ timelineLevel: value })}
+                style={{ flex: 1, minWidth: 0, padding: 10, gap: 6, borderWidth: 1, borderRadius: 8, borderColor: preferences.timelineLevel === value ? tokens.accent : tokens.v2.border }}>
+                <View style={{ gap: 4 }} accessible={false}>{[0, 1, 2].map((line) => <View key={line} style={{ width: line === 1 ? "65%" : "90%", height: 3, borderRadius: 2, backgroundColor: value === "simple" && line === 1 ? tokens.v2.border : value === "standard" && line === 1 ? tokens.accent : tokens.foregroundMuted }} />)}</View>
+                <Text style={{ color: tokens.foreground, fontFamily: tokens.fontUi }}>{label}{value === "detailed" ? ` · ${t.timelineDefault}` : ""}</Text>
+                <Text style={{ color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 11 }}>{description}</Text>
+              </Pressable>
+            ))}
+          </View>} /> : null}
         <SettingRow
           title={t.languageTitle}
           description={<SettingsTips items={t.languageTips} look={look} />}
@@ -977,7 +989,10 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         {hostTypography ? null : <SectionNote text={native ? t.paseoFontsNative : t.paseoFontsWeb} look={look} />}
       </View>
 
-      <Section title={t.sectionTools} look={look} hidden={!chat}>
+      {chat && preferences.timelineLevel === "simple" && !showTools ? <Section title={t.sectionTools} look={look}>
+        <SettingRow title={t.sectionTools} description={t.toolsSimpleNote} control={<PlainButton label={t.toolsAdjust} look={look} onPress={() => setShowTools(true)} />} look={look} first />
+      </Section> : null}
+      <Section title={t.sectionTools} look={look} hidden={!chat || (preferences.timelineLevel === "simple" && !showTools)}>
         <SettingRow
           title={t.blockSizeTitle}
           description={t.blockSizeDescription(BLOCK_FONT_SIZE_MIN, BLOCK_FONT_SIZE_MAX)}

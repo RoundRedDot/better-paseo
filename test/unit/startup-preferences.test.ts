@@ -73,6 +73,7 @@ function fakeClient(read: () => unknown) {
       };
     },
     addTimelineRenderer: () => () => {},
+    addTimelineFooter: () => () => {},
     addSlashCommand: () => () => {},
   };
   const active = (id: string) => registrations.filter((entry) => entry.id === id && !entry.removed);
@@ -169,6 +170,20 @@ describe("preferences read while the plugin loads", () => {
 
     cleanup();
     expect(plugin.registrations.every((entry) => entry.removed)).toBe(true);
+  });
+
+  it("reprojects history when the timeline level changes", async () => {
+    const { contribute, preferences } = await load();
+    const plugin = fakeClient(() => Promise.resolve({ status: "ready", revision: "r1", values: {} }));
+    const cleanup = contribute(plugin.client as never);
+    await flush();
+    const first = plugin.active("omp-enhanced-tool-call")[0]!;
+    const input = { item: { type: "tool_call", name: "Read", callId: "1", status: "completed", error: null, detail: { type: "read", filePath: "a" } }, phase: "complete" };
+    expect(first.transform(input)).toMatchObject({ items: [expect.anything()] });
+    preferences.updateEnhancerPreferences({ timelineLevel: "simple" });
+    expect(first.removed).toBe(true);
+    expect(plugin.active("omp-enhanced-tool-call")[0]!.transform(input)).toEqual({ items: [] });
+    cleanup();
   });
 
   it("registers nothing again when the record matches the defaults", async () => {

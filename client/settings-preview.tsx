@@ -1,5 +1,5 @@
-import React, { useContext, useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Animated, StyleSheet, Text, View } from "react-native";
 import type { ExtendedThemeTokens } from "./components/theme-tokens";
 import { radiusV2, space } from "./components/theme-tokens";
 import { ToolCallout, ToolPreviewContent } from "./components/tool-callouts";
@@ -16,7 +16,8 @@ import { formatPath, pathRootsFor } from "./paths/format-path";
 import { pluginRoot } from "./components/focus-ring";
 import { PathContext, type PathContextValue } from "./ui/path-text";
 import { PreviewPanelSample } from "./ui/hover-preview";
-import type { EnhancerPreferences } from "./preferences";
+import { useReducedMotion } from "./ui/use-reduced-motion";
+import type { EnhancerPreferences, TimelineLevel } from "./preferences";
 import type { TaskListData } from "../shared/contracts";
 import type { SettingsStrings } from "./i18n/settings-page-strings";
 
@@ -84,6 +85,7 @@ const FAILED = call(
   },
   "failed",
 );
+
 const TESTS = call("preview-test", "Bash", {
   type: "shell",
   command: "npm test -- format-path",
@@ -133,9 +135,17 @@ function HostReply({ text, tokens }: { text: string; tokens: ExtendedThemeTokens
 }
 
 /** One timeline item with the gap the host leaves under it. */
-function Item({ gap, children }: { gap: number; children: React.ReactNode }) {
-  return <View style={{ marginBottom: gap }}>{children}</View>;
+function Item({ gap, children, highlight, opacity, accent }: { gap: number; children: React.ReactNode; highlight?: "hide" | "show"; opacity?: Animated.Value; accent?: string }) {
+  return <View style={{ marginBottom: gap, overflow: "hidden" }}>{children}
+    {highlight ? <Animated.View testID={`preview-transition-${highlight}`} pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: highlight === "show" ? opacity : 1 }]}>
+      {highlight === "show" ? <View style={[StyleSheet.absoluteFill, { backgroundColor: accent, opacity: 0.12 }]} /> :
+        <View style={[StyleSheet.absoluteFill, { overflow: "hidden" }]}>{Array.from({ length: 80 }, (_, index) => <View key={index} style={{ position: "absolute", left: index * 18 - 40, top: -100, height: 500, width: 5, transform: [{ rotate: "-45deg" }], backgroundColor: accent, opacity: 0.12 }} />)}</View>}
+    </Animated.View> : null}
+  </View>;
 }
+
+const LEVEL_ORDER: Record<TimelineLevel, number> = { simple: 0, standard: 1, detailed: 2 };
+
 
 export function SettingsPreview({
   tokens,
@@ -148,6 +158,33 @@ export function SettingsPreview({
   compact: boolean;
   t: SettingsStrings;
 }) {
+  const reducedMotion = useReducedMotion();
+  const [displayLevel, setDisplayLevel] = useState(preferences.timelineLevel);
+  const displayed = useRef(displayLevel);
+  const [transition, setTransition] = useState<{ from: TimelineLevel; to: TimelineLevel } | null>(null);
+  const opacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const from = displayed.current;
+    const to = preferences.timelineLevel;
+    if (from === to) { setTransition(null); return; }
+    if (reducedMotion) { displayed.current = to; setDisplayLevel(to); setTransition(null); return; }
+    setTransition({ from, to });
+    if (LEVEL_ORDER[to] > LEVEL_ORDER[from]) {
+      displayed.current = to;
+      setDisplayLevel(to);
+      opacity.setValue(1);
+      Animated.timing(opacity, { toValue: 0, duration: 650, useNativeDriver: true }).start();
+    }
+    const timer = setTimeout(() => { displayed.current = to; setDisplayLevel(to); setTransition(null); }, 650);
+    return () => clearTimeout(timer);
+  }, [preferences.timelineLevel, reducedMotion, opacity]);
+  const highlight = (minimum: number): "hide" | "show" | undefined => {
+    if (!transition) return undefined;
+    const before = LEVEL_ORDER[transition.from] >= minimum;
+    const after = LEVEL_ORDER[transition.to] >= minimum;
+    return before === after ? undefined : after ? "show" : "hide";
+  };
+  const question = useMemo(() => classifyTool({ callId: "preview-question", name: "request_user_input", status: "completed", detail: { type: "plain_text", text: "" }, questionData: { questions: [{ question: t.timelinePreviewQuestion, options: [{ label: t.timelinePreviewYes }, { label: t.timelinePreviewNo }] }] } }), [t]);
   const thought = useMemo(() => segmentReasoning(t.previewThought), [t]);
   const paths = useMemo<PathContextValue>(() => ({ ...PATHS, mode: preferences.pathDisplay }), [preferences.pathDisplay]);
   const rowGap = preferences.compactRowSpacing ? COMPACT_GAP : HOST_GAP;
@@ -190,7 +227,7 @@ export function SettingsPreview({
               <HostBubble text={t.previewPrompt} tokens={tokens} />
             )}
           </Item>
-          <Item gap={rowGap}>
+          {LEVEL_ORDER[displayLevel] >= 2 ? <Item gap={rowGap} highlight={highlight(2)} opacity={opacity} accent={tokens.accent}>
             <ReasoningCard
               segmentation={thought}
               streaming={false}
@@ -202,13 +239,14 @@ export function SettingsPreview({
               storeKey="settings-preview:thought"
               copyText={reasoningText(thought)}
             />
-          </Item>
+          </Item> : null}
           <Item gap={replyGap}>{reply(t.previewLead)}</Item>
+          <Item gap={HOST_GAP}><ToolCallout data={question} tokens={tokens} compact={compact} /></Item>
           {/* Paseo's own gap under a plan: the row options do not apply to it. */}
-          <Item gap={HOST_GAP}>
+          {LEVEL_ORDER[displayLevel] >= 1 ? <Item gap={HOST_GAP} highlight={highlight(1)} opacity={opacity} accent={tokens.accent}>
             <TaskList data={plan} tokens={tokens} compact={compact} />
-          </Item>
-          <Item gap={rowGap}>
+          </Item> : null}
+          {LEVEL_ORDER[displayLevel] >= 2 ? <Item gap={rowGap} highlight={highlight(2)} opacity={opacity} accent={tokens.accent}>
             <ToolCallout data={READ} tokens={tokens} compact={compact} />
             {preferences.hoverPreview ? (
               <View style={styles.openPanel}>
@@ -218,17 +256,17 @@ export function SettingsPreview({
                 <OpenPanel tokens={tokens} compact={compact} />
               </View>
             ) : null}
-          </Item>
-          <Item gap={rowGap}>
+          </Item> : null}
+          {LEVEL_ORDER[displayLevel] >= 1 ? <Item gap={rowGap} highlight={highlight(1)} opacity={opacity} accent={tokens.accent}>
             <ToolCallout data={EDIT} tokens={tokens} compact={compact} />
-          </Item>
-          <Item gap={rowGap}>
+          </Item> : null}
+          {LEVEL_ORDER[displayLevel] >= 1 ? <Item gap={rowGap} highlight={highlight(1)} opacity={opacity} accent={tokens.accent}>
             {/* Remounted when the option changes: the start state is read once. */}
             <ToolCallout key={String(failedOpen)} data={FAILED} tokens={tokens} compact={compact} defaultExpanded={failedOpen} />
-          </Item>
-          <Item gap={HOST_GAP}>
+          </Item> : null}
+          {LEVEL_ORDER[displayLevel] >= 2 ? <Item gap={HOST_GAP} highlight={highlight(2)} opacity={opacity} accent={tokens.accent}>
             <ToolCallout data={TESTS} tokens={tokens} compact={compact} />
-          </Item>
+          </Item> : null}
           <View>
             {reply(t.previewReply)}
             <AssistantFooter text={t.previewReply} at={DONE} tokens={tokens} compact={compact} />

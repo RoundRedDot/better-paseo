@@ -32,6 +32,7 @@ const LEGACY_INLINE_CODE_COLORS: Readonly<Record<string, (typeof INLINE_CODE_COL
 
 export const UI_FONTS = ["host", "inter", "system"] as const;
 export const MONO_FONTS = ["host", "custom"] as const;
+export const TIMELINE_LEVELS = ["simple", "standard", "detailed"] as const;
 export const TOOL_DETAILS = ["collapsed", "expand-failed"] as const;
 export const PATH_DISPLAYS = ["relative", "absolute"] as const;
 export const ROW_LABEL_STYLES = ["icon", "label", "both"] as const;
@@ -153,6 +154,7 @@ export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrate
   previewLineNumbers: flag(true),
   previewStripes: flag(true),
   chatEnabled: flag(true),
+  timelineLevel: z.enum(TIMELINE_LEVELS).catch("detailed"),
   enhancedUserBubble: flag(false),
   selectionActions: flag(true),
   assistantMarkdown: flag(true),

@@ -1,5 +1,6 @@
 import type { PluginClientContext, PluginTimelineTransformerContribution } from "@getpaseo/plugin/client";
 import { z } from "zod";
+import type React from "react";
 import { contributeSettingsScreen } from "./client/settings-screen";
 import { removeEmbeddedFonts, setEmbeddedFontLoader } from "./client/components/embed-fonts";
 import { installChatFind } from "./client/components/chat-find";
@@ -12,6 +13,8 @@ import { perfSlashCommand } from "./client/debug/perf-command";
 import { loadMark } from "./client/debug/load-marks";
 import { scheduleLoadTraceDump } from "./client/debug/load-trace";
 import { transformCompaction, transformToolCall } from "./client/tools/transform";
+import { showToolAtLevel } from "./client/tools/timeline-level";
+import { TimelineProgress, type TimelineProgressProps } from "./client/timeline-progress";
 import { transformNotification } from "./client/notice-transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
 import { assistantRows, hasUiFence } from "./client/assistant-transform";
@@ -73,19 +76,29 @@ export default function contribute(client: PluginClientContext) {
   // options and the Tasks board's as its two halves.
   const removeSettings = contributeSettingsScreen(client);
 
+  // The footer contract is supplied by the companion Paseo host change.
+  const footerClient = client as PluginClientContext & { addTimelineFooter(contribution: { id: string; Component: (props: TimelineProgressProps) => React.ReactNode }): () => void };
+  const removeTimelineFooter = footerClient.addTimelineFooter({ id: "better-paseo-progress", Component: TimelineProgress });
+
   // Live chat timeline interception: render real tool calls, reasoning, and todos with enhanced UI.
-  const removeToolTransformer = addChatTransformer({
+  const removeToolTransformer = followPreference("timelineLevel", () => addChatTransformer({
     id: "omp-enhanced-tool-call",
     query: { itemType: "tool_call" },
-    transform: transformToolCall,
-  });
+    transform(input) {
+      if (!showToolAtLevel(input.item, getEnhancerPreferences().timelineLevel)) return { items: [] };
+      return transformToolCall(input);
+    },
+  }));
 
   // Drawn by the tool row renderer, as a row like a call's.
-  const removeCompactionTransformer = addChatTransformer({
+  const removeCompactionTransformer = followPreference("timelineLevel", () => addChatTransformer({
     id: "omp-enhanced-compaction",
     query: { itemType: "compaction" },
-    transform: transformCompaction,
-  });
+    transform(input) {
+      if (getEnhancerPreferences().timelineLevel === "simple") return { items: [] };
+      return transformCompaction(input);
+    },
+  }));
 
   const removeToolRenderer = client.addTimelineRenderer({
     kind: "omp-tool-call",
@@ -105,11 +118,12 @@ export default function contribute(client: PluginClientContext) {
     Component: LiveToolCallRenderer,
   });
 
-  const removeReasoningTransformer = addChatTransformer({
+  const removeReasoningTransformer = followPreference("timelineLevel", () => addChatTransformer({
     id: "omp-enhanced-reasoning",
     query: { itemType: "reasoning" },
     transform({ item, phase }) {
       if (item.type !== "reasoning") return undefined;
+      if (getEnhancerPreferences().timelineLevel !== "detailed") return { items: [] };
       return {
         items: [
           {
@@ -124,7 +138,7 @@ export default function contribute(client: PluginClientContext) {
         ],
       };
     },
-  });
+  }));
 
   const removeReasoningRenderer = client.addTimelineRenderer({
     kind: "omp-reasoning",
@@ -136,11 +150,12 @@ export default function contribute(client: PluginClientContext) {
     Component: LiveReasoningRenderer,
   });
 
-  const removeTodoTransformer = addChatTransformer({
+  const removeTodoTransformer = followPreference("timelineLevel", () => addChatTransformer({
     id: "omp-enhanced-todo",
     query: { itemType: "todo" },
     transform({ item, phase }) {
       if (item.type !== "todo") return undefined;
+      if (getEnhancerPreferences().timelineLevel === "simple") return { items: [] };
       return {
         items: [
           {
@@ -155,7 +170,7 @@ export default function contribute(client: PluginClientContext) {
         ],
       };
     },
-  });
+  }));
 
   const removeTodoRenderer = client.addTimelineRenderer({
     kind: "omp-todo",
@@ -311,6 +326,7 @@ export default function contribute(client: PluginClientContext) {
     removeFocusRing();
     removeChatFind();
     removeNotificationTransformer();
+    removeTimelineFooter();
     removeToolTransformer();
     removeCompactionTransformer();
     removeToolRenderer();

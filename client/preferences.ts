@@ -78,6 +78,7 @@ export type MarkdownVariantPreference = "document" | "compact" | "terminal";
  */
 export type MonoFontPreference = "host" | "custom";
 /** Tool cards start collapsed; `expand-failed` opens failed ones by default. */
+export type TimelineLevel = "simple" | "standard" | "detailed";
 export type ToolDetailPreference = "collapsed" | "expand-failed";
 export type PathDisplayPreference = "relative" | "absolute";
 export type RowLabelStylePreference = "icon" | "label" | "both";
@@ -128,6 +129,7 @@ export interface EnhancerPreferences {
   previewStripes: boolean;
   /** Draw the chat with the plugin. Off leaves every chat row to Paseo; the Tasks board does not depend on it. */
   chatEnabled: boolean;
+  timelineLevel: TimelineLevel;
   /**
    * Paseo maps a stream item to the plugin timeline item before any transformer
    * runs, and that mapping carries only the text. Pasted images therefore never
@@ -232,6 +234,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   previewLineNumbers: true,
   previewStripes: true,
   chatEnabled: true,
+  timelineLevel: "detailed",
   enhancedUserBubble: false,
   selectionActions: true,
   assistantMarkdown: true,
