@@ -2,10 +2,11 @@ import React, { useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
-import { radiusV2, space } from "../components/theme-tokens";
+import { space } from "../components/theme-tokens";
 import { unselectable } from "../components/selection";
 import { useCopy, type CopyFeedback } from "./use-copy";
 import { useHover } from "./use-hover";
+import { iconHoverSize } from "./icon-hover-size";
 import { UI_SCALE } from "./tokens/typography";
 
 /** Visual box; `hitSlop` brings the touch target to 32 (plan §3.8, §3.11). */
@@ -54,10 +55,13 @@ export function CopyButton({
       style={({ pressed }) => [
         styles.button,
         showLabel && styles.withLabel,
-        hovered && { backgroundColor: tokens.v2.surface1 },
-        pressed && { backgroundColor: tokens.v2.surface2 },
+        showLabel && hovered && { backgroundColor: tokens.v2.surface1 },
+        showLabel && pressed && { backgroundColor: tokens.v2.surface2 },
       ]}
     >
+      {({ pressed }) => <>
+      {!showLabel && (hovered || pressed) ? <View pointerEvents="none" testID="copy-icon-fill" style={{ position: "absolute", width: iconHoverSize(ICON), height: iconHoverSize(ICON), borderRadius: iconHoverSize(ICON) / 2,
+        backgroundColor: pressed ? tokens.v2.surface2 : hovered ? tokens.v2.surface1 : "transparent" }} /> : null}
       <View style={styles.icon}>
         <Icon name={copied ? "Check" : "Copy"} size={ICON} color={color} />
       </View>
@@ -69,6 +73,7 @@ export function CopyButton({
           {copied ? "Copied" : label}
         </Text>
       ) : null}
+      </>}
     </Pressable>
   );
 }
@@ -77,7 +82,7 @@ const styles = StyleSheet.create({
   button: {
     minWidth: BOX,
     height: BOX,
-    borderRadius: radiusV2.chip,
+    borderRadius: BOX / 2,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

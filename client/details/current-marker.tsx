@@ -5,7 +5,7 @@ import { useMarkerPhase } from "./details-store";
 import { useReducedMotion } from "../ui/use-reduced-motion";
 
 /** The store owns the 1.2 s linger; the mounted row owns its final fade. */
-export function CurrentMarker({ agentId, id, tokens }: { agentId: string; id: string; tokens: ExtendedThemeTokens }) {
+export function CurrentMarker({ agentId, id, tokens, radius }: { agentId: string; id: string; tokens: ExtendedThemeTokens; radius: number }) {
   const phase = useMarkerPhase(agentId, id);
   const [visible, setVisible] = useState(phase !== "off");
   const hide = useCallback(() => setVisible(false), []);
@@ -15,12 +15,13 @@ export function CurrentMarker({ agentId, id, tokens }: { agentId: string; id: st
   // Replayed rows need only the marker selector until one is selected.
   // Draw immediately on selection, and keep the body through its final fade.
   if (phase === "off" && !visible) return null;
-  return <VisibleMarker phase={phase} tokens={tokens} onHidden={hide} />;
+  return <VisibleMarker phase={phase} tokens={tokens} radius={radius} onHidden={hide} />;
 }
 
-function VisibleMarker({ phase, tokens, onHidden }: {
+function VisibleMarker({ phase, tokens, radius, onHidden }: {
   phase: "off" | "on" | "linger";
   tokens: ExtendedThemeTokens;
+  radius: number;
   onHidden(): void;
 }) {
   const [opacity] = useState(() => new Animated.Value(1));
@@ -40,7 +41,7 @@ function VisibleMarker({ phase, tokens, onHidden }: {
     ?? mix(tokens.v2.surface0, tokens.accent, 0.1);
   return (
     <Animated.View testID="details-current-marker" pointerEvents="none"
-      style={[StyleSheet.absoluteFill, { borderRadius: 6, backgroundColor: accentSoft, opacity }]}>
+      style={[StyleSheet.absoluteFill, { borderRadius: radius, backgroundColor: accentSoft, opacity }]}>
       <View style={{ position: "absolute", left: 0, top: 5, bottom: 5, width: 2, backgroundColor: tokens.accent }} />
     </Animated.View>
   );

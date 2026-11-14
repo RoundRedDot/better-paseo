@@ -5,23 +5,25 @@
  * shadow and corner radius are also the hover preview panel's.
  *
  * The frame is a rounded rectangle 30 tall, its items 24 tall like a preview
- * toolbar's buttons, inset 2 from its inner edge; an item's radius is the
- * frame's minus 3. The edge is a light border that never darkens, and the
+ * toolbar's buttons, inset 2 from its inner edge; items use pill-shaped feedback.
+ * The edge is a light border that never darkens, and the
  * shadow lifts the frame off the content under it.
  */
 import { mix, radiusV2, type ExtendedThemeTokens } from "../../components/theme-tokens";
 import { cssShadow } from "./css-shadow";
 
+const ITEM_HEIGHT = 24;
+
 export const FLOAT = {
   /** The frame's height, its border included; also the closed table control's side. */
   control: 30,
-  item: 24,
+  item: ITEM_HEIGHT,
   /** Between an item and the frame's inner edge, and between two items. */
   inset: 2,
   /** The hover preview panel's radius, so every overlay has one corner. */
   radius: radiusV2.overlay,
-  /** The frame's radius less its border and inset, so the corners nest. */
-  itemRadius: radiusV2.overlay - 3,
+  /** Half the item height for pill-shaped hover and press feedback. */
+  itemRadius: ITEM_HEIGHT / 2,
   iconSize: 14,
   iconText: 6,
 } as const;

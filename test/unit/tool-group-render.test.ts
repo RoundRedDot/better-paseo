@@ -30,7 +30,7 @@ await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
 const { StyleSheet } = await import("./helpers/rn-mock");
 const { ToolCallout, previewCopyActions } = await import("../../client/components/tool-callouts");
-const { ToolbarButton, TOOLBAR_TOOLTIP_MS } = await import("../../client/ui/toolbar-button");
+const { ToolbarButton, ToolbarMetricsContext, TOOLBAR_TOOLTIP_MS } = await import("../../client/ui/toolbar-button");
 const { HoverPreviewHeader } = await import("../../client/ui/hover-preview");
 const { updateEnhancerPreferences } = await import("../../client/preferences");
 const { classifyTool } = await import("../../client/tools/classify");
@@ -142,6 +142,25 @@ describe("grouped tool card presentation", () => {
     expect(shown(preview.root)).toEqual(["second"]);
     expect(copies()).toEqual(["Copy path", "Copy patch", "Copy new content"]);
     act(() => { preview.unmount(); renderer.unmount(); });
+  });
+
+  it.each([[24, 14], [28, 16], [36, 18]])("scales the icon feedback inside the unchanged %i target", (target, icon) => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    const onPress = vi.fn();
+    act(() => { renderer = TestRenderer.create(React.createElement(ToolbarMetricsContext.Provider, { value: { button: target, icon } },
+      React.createElement(ToolbarButton, { icon: "Copy", label: "Copy", onPress, tokens }))); });
+    const button = renderer.root.find((node) => (node.type as unknown) === "Pressable");
+    const fill = () => renderer.root.findByProps({ testID: "toolbar-icon-fill" });
+    const diameter = Math.round(icon * 1.7);
+    expect(StyleSheet.flatten(button.props.style)).toMatchObject({ width: target, height: target });
+    expect(renderer.root.findAllByProps({ testID: "toolbar-icon-fill" })).toHaveLength(0);
+    act(() => button.props.onHoverIn());
+    expect(StyleSheet.flatten(fill().props.style)).toMatchObject({ width: diameter, height: diameter, borderRadius: diameter / 2, backgroundColor: tokens.v2.surface2 });
+    act(() => button.props.onPress());
+    expect(onPress).toHaveBeenCalledOnce();
+    act(() => button.props.onHoverOut());
+    expect(renderer.root.findAllByProps({ testID: "toolbar-icon-fill" })).toHaveLength(0);
+    act(() => renderer.unmount());
   });
 
   it("names a toolbar button once a pointer rests on it", () => {
@@ -264,7 +283,7 @@ describe("grouped tool card presentation", () => {
       const button = renderer.root.find((node) => (node.type as unknown) === "Pressable");
       act(() => button.props.onHoverIn());
       act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS); });
-      const slot = renderer.root.find((node) => (node.type as unknown) === "View" && node.props.pointerEvents === "none");
+      const slot = renderer.root.find((node) => (node.type as unknown) === "View" && node.props.pointerEvents === "none" && node.props.testID !== "toolbar-icon-fill");
       const style = StyleSheet.flatten(slot.props.style);
       expect(style.right).toBe(0);
       expect(style.left).toBeUndefined();

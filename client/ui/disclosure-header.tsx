@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type TextProps } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
-import { radiusV2, space } from "../components/theme-tokens";
+import { space } from "../components/theme-tokens";
 import { selectableTextStyle, unselectable } from "../components/selection";
 import { selectionSurface } from "../components/selection-actions";
 import { surfaceProps } from "../components/view-props";
@@ -531,12 +531,12 @@ export function DisclosureHeader({
                 {...(pointerProps as object)}
                 style={({ pressed: pressedState }) => [
                   styles.row,
-                  { height },
+                  { height, borderRadius: height / 2 },
                   hovered && { backgroundColor: tokens.v2.surface1 },
                   (pressedState || (detailsEnabled && (menuOpen || actionsActive || pressed))) && { backgroundColor: tokens.v2.surface2 },
                 ]}
               >
-                {detailsEnabled && hasMarker.current ? <CurrentMarker agentId={placement!.agentId} id={previewKey!} tokens={tokens} /> : null}
+                {detailsEnabled && hasMarker.current ? <CurrentMarker agentId={placement!.agentId} id={previewKey!} tokens={tokens} radius={height / 2} /> : null}
                 <View style={styles.slot}>
                   {showChevron ? (
                     <Icon
@@ -636,7 +636,6 @@ const styles = StyleSheet.create({
     gap: DISCLOSURE_HEADER.gap,
     paddingHorizontal: DISCLOSURE_HEADER.paddingX,
     marginHorizontal: -DISCLOSURE_HEADER.bleed,
-    borderRadius: radiusV2.block,
   },
   slot: {
     width: DISCLOSURE_HEADER.iconSlot,

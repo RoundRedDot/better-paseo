@@ -148,9 +148,13 @@ describe("sidebar action tips", () => {
       const button = () => host(root, id);
       expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: StyleSheet.flatten(button().props.style).width / 2, borderColor: "transparent" });
       await act(async () => button().props.onHoverIn());
-      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: StyleSheet.flatten(button().props.style).width / 2, borderWidth: StyleSheet.hairlineWidth, borderColor: "transparent", backgroundColor: detailColors(taskTokens(THEME)).rowHover });
+      const fill = () => host(root, `${id}-fill`);
+      const icon = button().find((node) => (node.type as unknown) === "Icon");
+      const diameter = Math.round(icon.props.size * 1.7);
+      expect(StyleSheet.flatten(fill().props.style)).toMatchObject({ width: diameter, height: diameter, borderRadius: diameter / 2, backgroundColor: detailColors(taskTokens(THEME)).rowHover });
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderWidth: StyleSheet.hairlineWidth, borderColor: "transparent" });
       await act(async () => button().props.onHoverOut());
-      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderColor: "transparent", backgroundColor: "transparent" });
+      expect(StyleSheet.flatten(fill().props.style).backgroundColor).toBe("transparent");
     }
   });
   it("opens the selected card menu at the header button", async () => {

@@ -39,6 +39,7 @@ import { DetailsShellContext, type BlockEntry, type DetailsShellValue } from "..
 import { copySlots, foldCopies } from "../../client/details/chrome/copy-overflow";
 import { backToLatestText } from "../../client/details/chrome/back-to-latest";
 import { DetailsHeader } from "../../client/details/chrome/details-header";
+import { StyleSheet } from "./helpers/rn-mock";
 import { seedMarkBitmaps } from "../../client/components/marks";
 import { classifyTool } from "../../client/tools/classify";
 import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
@@ -420,6 +421,10 @@ describe("copy overflow", () => {
     act(() => find(root, "More").props.onPress());
     const menu = byId(root, "details-copy-menu");
     expect(labels(menu)).toEqual(["Copy output", "Copy command and output"]);
+    const item = find(menu, "Copy output");
+    expect(StyleSheet.flatten(item.props.style)).toMatchObject({ minHeight: 36, borderRadius: 18 });
+    act(() => item.props.onHoverIn());
+    expect(StyleSheet.flatten(find(menu, "Copy output").props.style).backgroundColor).toBe(tokens.v2.surface2);
     await act(async () => find(menu, "Copy output").props.onPress());
     expect(clipboard.copyText).toHaveBeenLastCalledWith(expect.stringContaining("vite v5.4.8 building for production..."));
     expect(hosts(root, "details-copy-menu")).toHaveLength(0);

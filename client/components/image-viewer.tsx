@@ -16,7 +16,7 @@ import { SafeInset } from "../ui/safe-inset";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { SpokenLabelsContext, ToolbarItem, TooltipAlignContext } from "../ui/toolbar-button";
-import { radiusV2, space } from "./theme-tokens";
+import { space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import {
   FIT_TRANSFORM,
@@ -453,7 +453,7 @@ interface ToolbarAction {
 
 /**
  * The preview toolbars' button (`ToolbarItem`), for its hover name and spoken
- * label, in the viewer's own look: a filled square that reads on the black
+ * label, in the viewer's own look: a filled circle that reads on the black
  * backdrop, larger on a phone.
  */
 function ToolbarButton({ action, tokens }: { action: ToolbarAction; tokens: ExtendedThemeTokens }) {
@@ -464,9 +464,10 @@ function ToolbarButton({ action, tokens }: { action: ToolbarAction; tokens: Exte
       onPress={action.onPress}
       hitSlop={IS_WEB ? 4 : 6}
       tokens={tokens}
+      iconSize={GLYPH_SIZE}
+      iconBackground={tokens.v2.surface2}
+      buttonStyle={styles.button}
       pressedStyle={({ pressed }) => [
-        styles.button,
-        { backgroundColor: tokens.v2.surface2 },
         action.disabled && styles.disabled,
         pressed && styles.pressed,
       ]}
@@ -513,7 +514,7 @@ const styles = StyleSheet.create({
     height: BUTTON_SIZE,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: radiusV2.chip,
+    borderRadius: BUTTON_SIZE / 2,
   },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.7 },

@@ -6,6 +6,7 @@ import { radiusV2, space } from "../components/theme-tokens";
 import { unselectable } from "../components/selection";
 import { useCopy } from "./use-copy";
 import { useHover } from "./use-hover";
+import { iconHoverSize } from "./icon-hover-size";
 import { UI_SCALE } from "./tokens/typography";
 import { cssShadow } from "./tokens/css-shadow";
 import { FLOAT, floatShadow } from "./tokens/float";
@@ -110,7 +111,7 @@ interface ToolbarButtonProps {
  */
 export function ToolbarButton({ icon, color, tokens, ...props }: ToolbarButtonProps) {
   const metrics = useContext(ToolbarMetricsContext);
-  return <ToolbarItem {...props} tokens={tokens}>
+  return <ToolbarItem {...props} tokens={tokens} iconSize={metrics.icon}>
     <Icon name={icon} size={metrics.icon} color={color ?? tokens.foregroundMuted} />
   </ToolbarItem>;
 }
@@ -143,14 +144,18 @@ export function ToolbarItem({
   onLongPress,
   onLayout,
   pressedStyle,
+  iconSize,
+  iconBackground,
 }: Omit<ToolbarButtonProps, "icon" | "color" | "onPress"> & {
   /** Or drawn from the hover state, for an icon that brightens under the pointer. */
   children: ReactNode | ((state: { hovered: boolean }) => ReactNode);
   onPress?: () => void;
+  iconSize?: number;
+  iconBackground?: string;
   buttonStyle?: StyleProp<ViewStyle>;
   /**
-   * Applied last, over the toolbar's own disabled and hover looks: a button
-   * with a look of its own (the image viewer's filled squares) keeps it.
+   * Applied last, over the toolbar's own disabled and hover looks, for a
+   * button with its own pressed appearance.
    */
   pressedStyle?: (state: { pressed: boolean }) => StyleProp<ViewStyle>;
   hitSlop?: number;
@@ -263,12 +268,17 @@ export function ToolbarItem({
           outlined && { borderColor: tokens.v2.border },
           buttonStyle,
           disabled && styles.disabled,
-          onPress && !disabled && hovered && { backgroundColor: hoverColor },
-          onPress && !disabled && pressed && { backgroundColor: hoverColor },
+          iconSize === undefined && onPress && !disabled && hovered && { backgroundColor: hoverColor },
+          iconSize === undefined && onPress && !disabled && pressed && { backgroundColor: hoverColor },
           pressedStyle?.({ pressed }),
         ]}
       >
-        {typeof children === "function" ? children({ hovered }) : children}
+        {({ pressed }) => <>
+          {iconSize !== undefined && onPress && (!disabled && (hovered || pressed) || iconBackground !== undefined) ? <View pointerEvents="none" testID="toolbar-icon-fill"
+            style={{ position: "absolute", width: iconHoverSize(iconSize), height: iconHoverSize(iconSize), borderRadius: iconHoverSize(iconSize) / 2,
+              backgroundColor: !disabled && (hovered || pressed) ? hoverColor : iconBackground ?? "transparent" }} /> : null}
+          {typeof children === "function" ? children({ hovered }) : children}
+        </>}
       </Pressable>
       {pressedOpen && Platform.OS !== "web" ? (
         <AnchoredToolbarDetails anchor={anchorRef} close={closeDetails} width={detailsWidth} tokens={tokens}>{details}</AnchoredToolbarDetails>

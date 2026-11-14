@@ -20,6 +20,7 @@ import { bindDetailsEscape, bindTouchDismiss } from "../../web";
 import { useEnhancerPreferences } from "../../preferences";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
 import { usePreviewEntrance } from "../../ui/use-preview-entrance";
+import { useHover } from "../../ui/use-hover";
 import { DROPDOWN_REVEAL } from "../../ui/tokens/motion";
 
 interface Registered {
@@ -141,25 +142,20 @@ function CopyMenu({ items, tokens, close }: { items: readonly CopyOverflowItem[]
   return (
     <View testID="details-copy-menu" accessibilityRole="menu" style={styles.menu}>
       {items.map((item) => (
-        <Pressable
-          key={item.label}
-          accessibilityRole="menuitem"
-          accessibilityLabel={toolbarLabel(item.label, language)}
-          onPress={() => {
-            item.copy();
-            close();
-          }}
-          style={({ pressed }) => [styles.item, Platform.OS === "web" && styles.pointer, pressed && { backgroundColor: tokens.v2.surface2 }]}
-        >
-          <Icon name={item.icon} size={16} color={tokens.foregroundMuted} />
-          <Text selectable={false} numberOfLines={1}
-            style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-            {toolbarLabel(item.label, language)}
-          </Text>
-        </Pressable>
+        <CopyMenuItem key={item.label} item={item} label={toolbarLabel(item.label, language)} tokens={tokens} close={close} />
       ))}
     </View>
   );
+}
+
+function CopyMenuItem({ item, label, tokens, close }: { item: CopyOverflowItem; label: string; tokens: ExtendedThemeTokens; close(): void }) {
+  const { hovered, hoverProps } = useHover();
+  return <Pressable accessibilityRole="menuitem" accessibilityLabel={label} {...hoverProps}
+    onPress={() => { item.copy(); close(); }}
+    style={({ pressed }) => [styles.item, Platform.OS === "web" && styles.pointer, (hovered || pressed) && { backgroundColor: tokens.v2.surface2 }]}>
+    <Icon name={item.icon} size={16} color={tokens.foregroundMuted} />
+    <Text selectable={false} numberOfLines={1} style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{label}</Text>
+  </Pressable>;
 }
 
 function menuLook(tokens: ExtendedThemeTokens) {
@@ -181,7 +177,7 @@ const styles = StyleSheet.create({
     transformOrigin: "right top",
   },
   menu: { paddingVertical: space.xs },
-  item: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 36, paddingHorizontal: space.md },
+  item: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 36, borderRadius: 18, paddingHorizontal: space.md },
   pointer: { cursor: "pointer" } as object,
   label: { flexShrink: 1, fontSize: 14 },
 });

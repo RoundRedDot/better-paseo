@@ -53,7 +53,7 @@ outside scrolling clips and within the viewport.
   (`client/components/theme-tokens.ts`).
 - The board keeps its own constants and does not read `space` or `radiusV2`: card 8
   (`CARD_RADIUS`), lane panel 5 (`PANEL_RADIUS`), detail card 12 (`DETAIL_CARD`), menu 12
-  (`MENU.radius`), control rows 6, tablet toolbar buttons 7.
+  (`MENU.radius`), control rows 6, and circular icon-only toolbar buttons.
 - Lines: borders, dividers and pills are a hairline (`HAIRLINE`); action buttons are 0.5
   (`BUTTON_LINE`, see [Buttons](#look)); a dashed subagent card and a card's inner block divider
   are 1. `devicePixel()` gives one device pixel on the web.
@@ -308,7 +308,7 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
 | Part | Rule |
 | --- | --- |
 | Height | 26 desktop, 28 touch; a 44 hit area on touch |
-| Bleed | 8 into the gutter on each side, padded 8 back; radius 6 |
+| Bleed | 8 into the gutter on each side, padded 8 back; radius half the row height |
 | Icon slot | 16 wide plus a 2 trailing pad around a 14 icon; text starts at 24 (`textColumn`) |
 | Verb | 13/18, weight 500 |
 | Target | 12/18 mono, cut in the middle at 72 characters (40 compact) |
@@ -332,7 +332,7 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
   pointer the chevron replaces the icon while the row is hovered; an open row keeps a down chevron
   unless its icon reports status. A row with nothing to open is inert: it does not light up and
   its text is selectable. `rowLabelStyle` may hide the verb or the icon; the slot stays, so the
-  text column never moves.
+  text column never moves. The current-row marker uses the same half-height radius.
 - **Expanding**: tools start collapsed. A failure opens when the reader chose to expand failures,
   and a child agent that needs permission always opens. The body is a `surface1` slab, radius 6,
   padded 8 × 12, 2 above and 6 below, with no frame; a permission or warning body adds a 1 pt
@@ -342,7 +342,8 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
 - **Row actions**: with a pointer, copy buttons overlay the end of the target on the row's hover
   fill, so the meta never moves, and their tips open above. On touch the actions show at the row's
   end only while it is open; a collapsed row opens its menu on a long press (500 ms; a 10 pt move
-  cancels), which the web's context menu also opens.
+  cancels), which the web's context menu also opens. Menu rows use a half-height radius for
+  hover and press feedback.
 
 ### Thoughts, todos and messages
 
@@ -388,8 +389,9 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
   its temporary success icon.
 - Tables: a 1 pt frame, radius 6; the header row on `surface2` with muted weight-500 text;
   all-numeric columns right-aligned; sideways scroll with the indicator shown only while
-  scrolling. The copy control is a 30 square at the top left (radius 12); on the web it opens to
-  Copy as Markdown and Copy as image.
+  scrolling. The copy control sits at the top left: on the web the expandable 30 pt frame
+  has radius 12 and opens to Copy as Markdown and Copy as image; the standalone 30 pt
+  control is circular. Their action feedback follows the icon and row rules below.
 - Paths (`PathText`): a pointer press reveals the file, and hovering shows the full path after
   400 ms with an underline; a tap copies the absolute path with a toast.
 - Images: a `surfaceCode` card with a 28 header and a show/hide toggle, the canvas on `surface0`,
@@ -422,8 +424,11 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
   150 ms after the pointer leaves; it spans the content column 6 below the row, above it when
   below has no room, at most 360 tall. Native opens it pinned on a long press. Its toolbar ends
   with Maximize and Open in panel.
-- Copy buttons are a 24 box with a 14 icon and a 32 hit area, and show a plain check for 1.2 s.
-  Toolbar buttons are 24 with 14 icons and a tip after 400 ms.
+- Icon-only buttons in timeline blocks, expanded content, previews and details use a circular
+  hover and press fill with diameter `round(icon size × 1.7)`, centered within the unchanged
+  target. This includes copy and toolbar actions; their labelled menu rows use pill-shaped feedback.
+  The default copy button has a 14 icon in a 24 box and a 32 hit area, and shows a plain check
+  for 1.2 s. Toolbar hints appear after 400 ms.
 
 ## Colour
 
@@ -945,7 +950,7 @@ A card that waits on a request names the request, then gives its answers.
 | Toolbar | Height | Targets | Contents |
 | --- | --- | --- | --- |
 | Desktop (`DesktopToolbar`, `DesktopFilterBar`) | 48, then a wrapping filter bar of at least 44 | 28 | search 320 wide (radius 6, 13 icon), the centred total at base weight 600, round switches; filter menu buttons and chips of radius 6 |
-| Tablet (`TabletToolbar`) | 40 | 32 | see [tasks-board.md](tasks-board.md); buttons radius 7, no selected fill for two-state icons and `surface1` for expanded menus |
+| Tablet (`TabletToolbar`) | 40 | 32 | see [tasks-board.md](tasks-board.md); icon buttons are circular, with no selected fill for two-state icons and `surface1` for expanded menus |
 | Phone header (`phone-board.tsx`) | at least 52 | round buttons | the total at lg weight 600, a 28 sort pill, then Search, Subtasks, Archived, Filters |
 
 - Board toolbar actions and detail header menu/close buttons share `TASK_TOOLBAR_METRICS`
@@ -1002,7 +1007,7 @@ A card that waits on a request names the request, then gives its answers.
   surface. Menu expansion, menu selections and segmented controls retain their own treatment.
 - Round buttons (`RoundButton`) are a 36 circle in a 44 target with a hairline, an accent border
   when active, and a badge at least 20 high on the accent with a 2 pt `surface0` ring. The persistent Subtasks and Archived switches use the icon-only selection treatment above.
-- Desktop toolbar icon buttons with `quietOutline` use radius 7 and a transparent hairline at
+- Desktop toolbar icon buttons with `quietOutline` are circular with a transparent hairline at
   rest; hover and press use the shared fill while retaining the transparent outline.
 - An on/off switch in a toolbar is a round button whose icon tells the state; Archived is struck
   through while the lane is hidden. Segmented controls (`Segments`) are 28 high on the desktop
@@ -1128,13 +1133,16 @@ A card that waits on a request names the request, then gives its answers.
 - A title longer than five lines folds under the same fade and "Show all · N lines" row as the
   message bodies below it, and opens folded. The fold measures the laid-out title, so a title that
   fits stays whole and a narrow column folds sooner; the title's line height is the scaled base step.
-- On web, the detail menu and close icons use the toolbar's radius-7 quiet outline and shared hover fill. Native keeps round icon buttons and uses the shared press fill.
+- The detail menu and close icon buttons keep their circular targets; hover and press use a
+  centered circle of diameter `round(icon size × 1.7)`. Web keeps the transparent hairline.
 - Hero blocks (the running turn, a permission request, an error, the last turn's summary) are
   `sunk` boxes of radius 10 with a 1 pt border; an error box is the danger at 6% with a border at
   28%. Values are 2xl in the turn hero and lg in summary tiles.
 - Sections are divided by a hairline inset 12; a heading is a radius-6 row whose chevron turns −90°
   when closed and whose muted text turns `foreground` on hover. A message heading ends with the
-  message's own time, and its tip gives the full timestamp.
+  message's own time, and its tip gives the full timestamp. Its Copy button keeps a 32 pt
+  target with a centered circular hover and press fill sized to `round(icon size × 1.7)`;
+  the 14 pt icon therefore has a 24 pt fill. The same rule applies to all three message headings.
 - Message bodies sit in a `sunk` box of radius 8 and fold after 4 lines or 240 characters under a
   fade; while the timeline is read they breathe as a skeleton instead of saying Loading.
 - While a visible, open agent is running, assistant-message events and subscription recovery

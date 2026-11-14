@@ -159,7 +159,7 @@ function RowMenuItem(props: { label: string; icon: string; height: number; iconS
   const block = tokens.typography.block;
   return (
     <Pressable ref={ref} accessibilityRole="menuitem" accessibilityLabel={props.label} onPress={props.onPress} {...hoverProps}
-      style={({ pressed }) => ({ height: props.height, marginHorizontal: 6, paddingHorizontal: 8, borderRadius: 6,
+      style={({ pressed }) => ({ height: props.height, marginHorizontal: 6, paddingHorizontal: 8, borderRadius: props.height / 2,
         flexDirection: "row", alignItems: "center", gap: 8,
         backgroundColor: pressed || hovered ? tokens.v2.surface2 : "transparent" })}>
       <View style={{ flexShrink: 0 }}>{props.icon === "BottomSheet" ? (

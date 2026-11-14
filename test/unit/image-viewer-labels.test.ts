@@ -174,11 +174,15 @@ describe("the image viewer's hover names", () => {
     act(() => renderer.unmount());
   });
 
-  it("keeps the buttons' look: 24 square on web, surface2, muted icon turning foreground on hover", () => {
+  it("keeps the button targets and uses an icon-sized circular surface, brightening on hover", () => {
     const renderer = render();
     const zoomIn = buttons(renderer)[0]!;
     const style = StyleSheet.flatten(zoomIn.props.style) as Record<string, unknown>;
-    expect(style).toMatchObject({ width: 24, height: 24, backgroundColor: tokens.v2.surface2 });
+    expect(style).toMatchObject({ width: 24, height: 24 });
+    const fill = StyleSheet.flatten(zoomIn.findByProps({ testID: "toolbar-icon-fill" }).props.style);
+    expect(fill).toMatchObject({ width: 24, height: 24, borderRadius: 12, backgroundColor: tokens.v2.surface2 });
+    const disabledFill = StyleSheet.flatten(buttons(renderer)[2]!.findByProps({ testID: "toolbar-icon-fill" }).props.style);
+    expect(disabledFill.backgroundColor).toBe(tokens.v2.surface2);
     expect(iconColor(zoomIn)).toBe(tokens.foregroundMuted);
     act(() => zoomIn.props.onHoverIn());
     expect(iconColor(buttons(renderer)[0]!)).toBe(tokens.foreground);

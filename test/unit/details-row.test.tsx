@@ -95,6 +95,17 @@ afterEach(() => {
 });
 
 describe("details row press zones and registration", () => {
+  it.each([false, true])("rounds the row using its rendered height (compact=%s)", (compact) => {
+    const toggle = vi.fn();
+    render(header({ compact, onToggle: toggle }));
+    const expectedHeight = compact ? tokens.typography.block.rowHeight.compact : tokens.typography.block.rowHeight.desktop;
+    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ height: expectedHeight, borderRadius: expectedHeight / 2 });
+    act(() => row().props.onHoverIn());
+    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: expectedHeight / 2, backgroundColor: tokens.v2.surface1 });
+    act(() => row().props.onPressIn());
+    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: expectedHeight / 2, backgroundColor: tokens.v2.surface2 });
+    act(() => row().props.onPressOut());
+  });
   it("registers, updates the render thunk and releases only on unmount", () => {
     render(header());
     expect(state.register).toHaveBeenCalledTimes(1);
@@ -165,6 +176,11 @@ describe("details row press zones and registration", () => {
     act(() => row().props.onLongPress()); expect(menuLabels()).toEqual([]);
     act(() => row().props.onTouchStart({ nativeEvent: { pageX: 50, pageY: 200 } }));
     act(() => row().props.onLongPress()); expect(menuLabels()).toHaveLength(3);
+    const item = buttons("Copy command")[0]!;
+    const itemStyle = StyleSheet.flatten(item.props.style);
+    expect(itemStyle.borderRadius).toBe(Number(itemStyle.height) / 2);
+    act(() => item.props.onHoverIn());
+    expect(StyleSheet.flatten(buttons("Copy command")[0]!.props.style).backgroundColor).toBe(tokens.v2.surface2);
     expect(StyleSheet.flatten(row().props.style).backgroundColor).toBe(tokens.v2.surface2);
     expect(renderer!.root.findByType("Modal" as never).props.animationType).toBe("none");
     act(() => buttons("Close menu")[0]!.props.onPress());
@@ -373,8 +389,10 @@ describe("current marker", () => {
     expect(StyleSheet.flatten(overlay!.props.style).backgroundColor).toBeUndefined();
     act(() => button.props.onHoverIn());
     const look = StyleSheet.flatten(button.props.style);
-    expect(look).toMatchObject({ width: 24, height: 24, alignItems: "center", justifyContent: "center", backgroundColor: tokens.surface2 });
-    expect(look.backgroundColor).toMatch(/^rgba\(/);
+    expect(look).toMatchObject({ width: 24, height: 24, alignItems: "center", justifyContent: "center" });
+    const fill = StyleSheet.flatten(button.findByProps({ testID: "toolbar-icon-fill" }).props.style);
+    expect(fill).toMatchObject({ width: 24, height: 24, borderRadius: 12, backgroundColor: tokens.surface2 });
+    expect(fill.backgroundColor).toMatch(/^rgba\(/);
   });
   it.each([[false, 200], [true, 120]] as const)("mounts only on selection and preserves close, fade and reopening (reduced=%s)", (reduced, duration) => {
     vi.useFakeTimers(); state.reduced = reduced;
@@ -387,6 +405,7 @@ describe("current marker", () => {
     expect(instances()).toHaveLength(1);
     const instance = instances()[0];
     expect(painted()).toHaveLength(1);
+    expect(StyleSheet.flatten(painted()[0]!.props.style).borderRadius).toBe(Number(StyleSheet.flatten(row().props.style).height) / 2);
     act(() => { state.current = null; state.linger = "call:preview"; state.marker = "linger"; renderer!.update(wrap(header())); });
     expect(painted()).toHaveLength(1);
     expect(timing).not.toHaveBeenCalled();
@@ -407,10 +426,10 @@ describe("current marker", () => {
   });
 
   it("does not initialize animation preferences until the row is selected", () => {
-    render(<CurrentMarker agentId="agent" id="row" tokens={tokens} />);
+    render(<CurrentMarker agentId="agent" id="row" tokens={tokens} radius={14} />);
     expect(renderer!.toJSON()).toBeNull();
     expect(useReducedMotion).not.toHaveBeenCalled();
-    act(() => { state.marker = "on"; renderer!.update(wrap(<CurrentMarker agentId="agent" id="row" tokens={tokens} />)); });
+    act(() => { state.marker = "on"; renderer!.update(wrap(<CurrentMarker agentId="agent" id="row" tokens={tokens} radius={14} />)); });
     expect(renderer!.root.findAllByProps({ testID: "details-current-marker" })).not.toHaveLength(0);
     expect(useReducedMotion).toHaveBeenCalled();
   });
@@ -418,12 +437,12 @@ describe("current marker", () => {
   it("keeps on and linger, then fades for 200 ms on off", () => {
     vi.useFakeTimers(); state.marker = "on";
     const timing = vi.spyOn(Animated, "timing");
-    render(<CurrentMarker agentId="agent" id="row" tokens={tokens} />);
+    render(<CurrentMarker agentId="agent" id="row" tokens={tokens} radius={14} />);
     const marker = () => renderer!.root.findAll((node) => String(node.type) === "Animated.View" && node.props.testID === "details-current-marker");
-    expect(marker()).toHaveLength(1); expect(StyleSheet.flatten(marker()[0]!.props.style)).toMatchObject({ backgroundColor: "#e6e6ff", borderRadius: 6 });
-    act(() => { state.marker = "linger"; renderer!.update(wrap(<CurrentMarker agentId="agent" id="row" tokens={tokens} />)); });
+    expect(marker()).toHaveLength(1); expect(StyleSheet.flatten(marker()[0]!.props.style)).toMatchObject({ backgroundColor: "#e6e6ff", borderRadius: 14 });
+    act(() => { state.marker = "linger"; renderer!.update(wrap(<CurrentMarker agentId="agent" id="row" tokens={tokens} radius={14} />)); });
     expect(marker()).toHaveLength(1); expect(timing).not.toHaveBeenCalled();
-    act(() => { state.marker = "off"; renderer!.update(wrap(<CurrentMarker agentId="agent" id="row" tokens={tokens} />)); });
+    act(() => { state.marker = "off"; renderer!.update(wrap(<CurrentMarker agentId="agent" id="row" tokens={tokens} radius={14} />)); });
     expect(timing).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ duration: 200, toValue: 0 }));
     act(() => { vi.advanceTimersByTime(199); }); expect(marker()).toHaveLength(1);
     act(() => { vi.advanceTimersByTime(1); }); expect(marker()).toHaveLength(0); timing.mockRestore();

@@ -515,7 +515,8 @@ describe("Markdown table copy", () => {
       });
       act(() => { buttons()[0]!.props.onHoverIn(); });
       // The frame's edge stays light on hover: only the fill marks it.
-      expect(StyleSheet.flatten(buttons()[0]!.props.style)).toMatchObject({ borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface2 });
+      expect(StyleSheet.flatten(buttons()[0]!.props.style)).toMatchObject({ borderColor: tokens.v2.border });
+      expect(StyleSheet.flatten(buttons()[0]!.findByProps({ testID: "toolbar-icon-fill" }).props.style)).toMatchObject({ width: 24, height: 24, borderRadius: 12, backgroundColor: tokens.v2.surface2 });
       act(() => { vi.advanceTimersByTime(TOOLBAR_TOOLTIP_MS - 1); });
       expect(labels()).toHaveLength(0);
       act(() => { vi.advanceTimersByTime(1); });

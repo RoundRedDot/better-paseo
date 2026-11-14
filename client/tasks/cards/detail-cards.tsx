@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useEffect, useLayoutEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { createDetailChrome, useDetailChrome, type DetailChrome, type DetailChromeState } from "./detail-chrome";
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
 import { Icon, ScrollView as SheetScrollView, useToast } from "@getpaseo/plugin/client/react-native";
@@ -13,6 +13,7 @@ import { useEnhancerPreferences } from "../../preferences";
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
 import { HoverPreviewContext } from "../../ui/hover-preview";
 import { useHover } from "../../ui/use-hover";
+import { iconHoverSize } from "../../ui/icon-hover-size";
 import { hoverFill } from "../hover-fill";
 import { HoverControl } from "../hover-control";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -1151,16 +1152,8 @@ function ErrorBlock(props: Inner) {
         <Icon name={stopped ? "OctagonX" : "CircleAlert"} size={m.icon} color={stopped ? tokens.foregroundMuted : tokens.danger} />
         <Text style={{ flex: 1, fontSize: m.font, fontWeight: "500", color: tokens.foreground }}>{stopped ? words.stoppedTitle : words.failedTitle}</Text>
         {body ? (
-          <HoverControl base={stopped ? colors.sunk : colors.errorFill} foreground={tokens.foreground}
-            accessibilityRole="button"
-            accessibilityLabel={words.copyError}
-            {...tipProps(words.copyError)}
-            onPress={() => void copy(text, { label: "Copy error" })}
-            hitSlop={6}
-            style={{ width: 24, height: 24, marginRight: -6, alignItems: "center", justifyContent: "center", borderRadius: 12 }}
-          >
-            <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
-          </HoverControl>
+          <DetailCopyButton label={words.copyError} tokens={tokens} copied={copied} base={stopped ? colors.sunk : colors.errorFill}
+            target={24} hitSlop={6} marginRight={-6} onPress={() => void copy(text, { label: "Copy error" })} />
         ) : null}
       </View>
       {body ? (
@@ -1173,6 +1166,21 @@ function ErrorBlock(props: Inner) {
 }
 
 // ---- Sections --------------------------------------------------------------
+
+function DetailCopyButton(props: { label: string; tokens: TaskTokens; copied: boolean; testID?: string; base?: string; target?: number; hitSlop?: number; marginRight?: number; onPress(event: GestureResponderEvent): void }) {
+  const { hovered, hoverProps } = useHover();
+  const iconSize = 14;
+  const fillSize = iconHoverSize(iconSize);
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={props.label} {...tipProps(props.label)} {...hoverProps}
+      onPress={props.onPress} hitSlop={props.hitSlop ?? 4} testID={props.testID}
+      style={{ width: props.target ?? 32, height: props.target ?? 32, marginRight: props.marginRight, alignItems: "center", justifyContent: "center" }}>
+      {({ pressed }) => <View pointerEvents="none" testID={props.testID ? `${props.testID}-fill` : undefined} style={{ width: fillSize, height: fillSize, borderRadius: fillSize / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.base ?? props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") }}>
+        <Icon name={props.copied ? "Check" : "Copy"} size={iconSize} color={props.copied ? props.tokens.success : props.tokens.foregroundMuted} />
+      </View>}
+    </Pressable>
+  );
+}
 
 function Section(props: Inner & { section: DetailSection; replyStreaming: boolean; waitingAfterHuman: boolean; closed: boolean; divider: boolean; onToggleSection(closed: boolean): void }) {
   const { card, m, tokens, section, gutter = 0 } = props;
@@ -1223,9 +1231,7 @@ function Section(props: Inner & { section: DetailSection; replyStreaming: boolea
             <Text style={{ flex: 1, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
             {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
             {read?.prompt.state === "ready" ? (
-              <HoverControl base={tokens.card.background} foreground={tokens.foreground} accessibilityRole="button" accessibilityLabel={copyLabel} {...tipProps(copyLabel)} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} hitSlop={4} testID={`${testID}-copy`} style={{ width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" }}>
-                <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : tokens.foregroundMuted} />
-              </HoverControl>
+              <DetailCopyButton label={copyLabel} tokens={tokens} copied={copied} testID={`${testID}-copy`} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} />
             ) : null}
             <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
               <SectionChevron closed={props.closed} color={tokens.foregroundMuted} />
@@ -1682,6 +1688,8 @@ function PropertyRow(props: {
 
 function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onPress(): void }) {
   const { hovered, hoverProps } = useHover();
+  const iconSize = 14;
+  const fillSize = iconHoverSize(iconSize);
   return (
     <Pressable
       accessibilityRole="button"
@@ -1692,11 +1700,11 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
         props.onPress();
       }}
       {...hoverProps}
-      style={({ pressed }) => {
-        return { width: 24, height: 24, borderRadius: 12, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: hoverFill(props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") };
-      }}
+      style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center" }}
     >
-      <Icon name={props.icon} size={14} color={hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
+      {({ pressed }) => <View pointerEvents="none" style={{ width: fillSize, height: fillSize, borderRadius: fillSize / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") }}>
+        <Icon name={props.icon} size={iconSize} color={hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
+      </View>}
     </Pressable>
   );
 }
@@ -2036,6 +2044,8 @@ function KeyCap(props: { label: string; tokens: TaskTokens }) {
 /** A header icon button, matching the toolbar's quiet outline on web. */
 export function RoundIcon(props: { icon: string; label: string; size: number; iconSize: number; tokens: TaskTokens; active?: boolean; onPress(): void; testID?: string }) {
   const { hovered, hoverProps } = useHover();
+  const fillSize = iconHoverSize(props.iconSize);
+  const base = props.active ? props.tokens.surface2 : props.tokens.card.background;
   return (
     <Pressable
       accessibilityRole="button"
@@ -2045,9 +2055,7 @@ export function RoundIcon(props: { icon: string; label: string; size: number; ic
       onPress={props.onPress}
       {...hoverProps}
       testID={props.testID}
-      style={({ pressed }) => {
-        const base = props.active ? props.tokens.surface2 : props.tokens.card.background;
-        return {
+      style={{
           width: props.size,
           height: props.size,
           marginVertical: -(props.size - 18) / 2,
@@ -2056,11 +2064,15 @@ export function RoundIcon(props: { icon: string; label: string; size: number; ic
           borderColor: "transparent",
           alignItems: "center" as const,
           justifyContent: "center" as const,
-          backgroundColor: hoverFill(base, props.tokens.foreground, hovered, pressed, props.active ? base : "transparent"),
-        };
+          backgroundColor: props.active ? base : "transparent",
       }}
     >
-      <Icon name={props.icon} size={props.iconSize} color={props.active ? props.tokens.accent : hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
+      {({ pressed }) => <>
+        <View pointerEvents="none" testID={props.testID ? `${props.testID}-fill` : undefined}
+          style={{ position: "absolute", width: fillSize, height: fillSize, borderRadius: fillSize / 2,
+            backgroundColor: hoverFill(base, props.tokens.foreground, hovered, pressed, "transparent") }} />
+        <Icon name={props.icon} size={props.iconSize} color={props.active ? props.tokens.accent : hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
+      </>}
     </Pressable>
   );
 }
