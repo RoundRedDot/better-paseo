@@ -133,7 +133,7 @@ export function Segmented<T extends string>({
             >
               {option.label}
             </Text>
-            {option.badge ? <View testID="update-badge" accessible={false} style={{ position: "absolute", right: 4, top: 4, width: 6, height: 6, borderRadius: 3, backgroundColor: tokens.danger }} /> : null}
+            {option.badge ? <View testID="update-badge" accessible={false} style={{ marginLeft: 6, width: 6, height: 6, borderRadius: 3, alignSelf: "center", backgroundColor: tokens.danger }} /> : null}
           </Pressable>
         );
       })}
@@ -394,6 +394,7 @@ const styles = StyleSheet.create({
   },
   segmentedFill: { alignSelf: "stretch" },
   segment: {
+    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: space.md,

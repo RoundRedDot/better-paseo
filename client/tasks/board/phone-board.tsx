@@ -31,6 +31,10 @@ import { liftStyle, surfaceLift } from "../cards/surface-lift";
 import { pillDirection, useSeenCards, useTrackNewCards, useUnseenCards, useUnseenLanes } from "./new-cards";
 import { LaneMotionLayer, LaneMotionProvider, scrollNode, useLaneCovered, useLaneMotion, useLaneTarget } from "./lane-motion";
 import { buildFilterOptions, clearedParams } from "./filter-options";
+import { useUpdateIndicator } from "./update-indicator";
+import { tasksSettingsOpener } from "./enabled";
+import { SETTINGS_STRINGS } from "../../i18n/settings-page-strings";
+import { useTasksLanguage } from "../i18n";
 import { FilterSheetBody } from "./filter-sheet";
 import { SearchCoverageItems } from "./search-coverage";
 import { SearchQueryChip } from "./filter-bar";
@@ -92,6 +96,8 @@ export function PhoneBoard(props: {
   // Counted only while the sheet shows them: a filter pressed on the board does not count every card again.
   const filtersOpen = sheet?.kind === "filters";
   const options = useMemo(() => (filtersOpen ? buildFilterOptions(tasks, board.params) : null), [filtersOpen, tasks, board.params]);
+  const updateAvailable = useUpdateIndicator(hostId, board.visible) && !!tasksSettingsOpener();
+  const updateLabel = SETTINGS_STRINGS[useTasksLanguage()].versionBadge;
   const badge = activeFilterCount(board.params, board.defaults);
   const { doneWindow, filters } = resolveBoardParams(board.params, board.defaults);
 
@@ -420,7 +426,10 @@ export function PhoneBoard(props: {
             onPress={() => board.setShowArchived(!board.showArchived)}
             testID="phone-archived"
           />
-          <RoundButton icon="MoreVertical" iconSize={22} borderless style={{ marginLeft: -6 }} label={strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
+          <View testID="phone-more-container" style={{ width: 44, height: 44, marginLeft: -6 }}>
+            <RoundButton icon="MoreVertical" iconSize={22} borderless label={updateAvailable ? `${strings.more}, ${updateLabel}` : strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
+            {updateAvailable ? <View testID="phone-more-update-dot" pointerEvents="none" style={{ position: "absolute", top: "50%", marginTop: -3, left: 3, width: 6, height: 6, borderRadius: 3, backgroundColor: taskTokens(theme).danger }} /> : null}
+          </View>
         </View>
       </View>
       <PhoneSearch
@@ -604,7 +613,7 @@ export function PhoneBoard(props: {
       <Modal title={strings.more} open={sheet?.kind === "filters"} onOpenChange={(open) => !open && setSheet(null)}>
         <Modal.Content contentContainerStyle={SHEET_FILTER_BODY} scrollable={false}>
           <TasksTypography theme={theme}>
-            {sheet?.kind === "filters" && options ? <FilterSheetBody board={board} theme={theme} options={options} phone hideSubtasksToggle showEmptyGroupsToggle focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
+            {sheet?.kind === "filters" && options ? <FilterSheetBody board={board} theme={theme} options={options} updateAvailable={updateAvailable} phone hideSubtasksToggle showEmptyGroupsToggle focus={sheet.focus} onDone={() => setSheet(null)} /> : null}
           </TasksTypography>
         </Modal.Content>
       </Modal>

@@ -5,7 +5,7 @@ import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", async (original) => {
-  const rpc = async () => ({ state: "idle" });
+  const rpc = async () => ({ state: "idle", entries: [], error: null });
   return { ...await original<object>(), useRpc: () => rpc };
 });
 vi.mock("@getpaseo/plugin/client/react-native", async () => {

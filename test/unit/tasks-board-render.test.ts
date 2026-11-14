@@ -1,3 +1,5 @@
+import { resetUpdateIndicatorsForTests } from "../../client/tasks/board/update-indicator";
+import { resetAgentUpdatesForTests } from "../../client/agent-updates";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
@@ -58,6 +60,7 @@ const host = vi.hoisted(() => ({
   countScope: null as unknown,
   canStop: false,
   updateState: { state: "idle" } as unknown,
+  agentUpdates: { state: "idle", entries: [], error: null } as unknown,
   save: vi.fn(async (_values: unknown, _revision: string) => true),
   reload: vi.fn(async () => {}),
   /** Rows a lane's list drew, counted by the FlatList mock. */
@@ -75,7 +78,7 @@ const paseo = vi.hoisted(() => ({
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => paseo,
-  useRpc: (contract: { name: string }) => (input: { agentIds?: string[] }) => Promise.resolve(contract.name === "tasks.availability" ? { entries: input.agentIds!.map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) } : contract.name === "settings.update-check" ? host.updateState : { stop: host.canStop }),
+  useRpc: (contract: { name: string }) => (input: { agentIds?: string[] }) => Promise.resolve(contract.name === "tasks.availability" ? { entries: input.agentIds!.map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) } : contract.name === "settings.agent-updates" ? host.agentUpdates : contract.name === "settings.update-check" ? host.updateState : { stop: host.canStop }),
   useSettings: (definition: { id: string }) => {
     const values = definition.id === "title-generation" ? host.titleSettings : host.settings;
     return values ? { status: "ready", values, revision: "1", saving: false, saveError: null, save: host.save, reload: host.reload } : { status: "loading" };
@@ -423,12 +426,15 @@ function renderFocusBoard() {
 }
 
 beforeEach(() => {
+  resetUpdateIndicatorsForTests();
+  resetAgentUpdatesForTests();
   resetHostAppearanceForTests();
   host.settings = { ...DEFAULT_TASKS_SETTINGS };
   host.titleSettings = null;
   host.counts = null;
   host.canStop = false;
   host.updateState = { state: "idle" };
+  host.agentUpdates = { state: "idle", entries: [], error: null };
   host.rowRenders = 0;
   host.laneRowRenders = {};
   host.liveTasks = null;
@@ -1226,6 +1232,21 @@ describe("Tasks search coverage and centred toolbar", () => {
       expect(hostsById("desktop-more-update-dot")).toHaveLength(0);
       expect(hostsById("desktop-settings-update-dot")).toHaveLength(0);
     }
+  });
+
+  it("aggregates agent-only updates into centered 6px desktop indicators", async () => {
+    setTasksSettingsOpener(vi.fn());
+    host.agentUpdates = { state: "done", entries: [{ provider: "codex", status: "available", updateAvailable: true }], error: null };
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    const dot = hostsById("desktop-more-update-dot")[0]!;
+    expect(dot.props.style).toMatchObject({ width: 6, height: 6, top: "50%", marginTop: -3 });
+    act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
+    expect(hostsById("desktop-settings-update-dot")[0]!.props.style).toMatchObject({ width: 6, height: 6, alignSelf: "center" });
+    host.agentUpdates = { state: "done", entries: [{ provider: "codex", status: "current", updateAvailable: false }], error: null };
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(hostsById("desktop-more-update-dot")).toHaveLength(0);
   });
 
   it("does not show desktop update indicators on mobile", async () => {
@@ -6566,6 +6587,39 @@ describe("Tasks board, the 1 s clock", () => {
 });
 
 describe("Tasks board, phone", () => {
+  it.each(["ios", "android"].flatMap((os) => ["en", "zh"].flatMap((language) => [14, 21].map((base) => ({ os, language, base })))))
+  ("$os $language UI $base keeps phone update dots centered without replacing the filter badge", async ({ os, language, base }) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    updateEnhancerPreferences({ language: language as "en" | "zh" });
+    const openSettings = vi.fn(); setTasksSettingsOpener(openSettings);
+    host.agentUpdates = { state: "done", entries: [{ provider: "codex", status: "available", updateAvailable: true }], error: null };
+    await act(async () => { renderer = TestRenderer.create(screen(true, { agent: "codex" }, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
+    const anchor = hostsById("phone-more-container")[0]!;
+    const more = hostsById("phone-more")[0]!;
+    // The existing active-filter count remains visible alongside the separate update indicator.
+    expect(textOf(more)).toContain("1");
+    const badgeText = more.find((node) => (node.type as unknown) === "Text" && node.props.children === 1);
+    const badge = hostParentOf(badgeText)!;
+    const dot = hostsById("phone-more-update-dot")[0]!;
+    const frames = measureHostTree(anchor, { width: 44 });
+    const point = frames.get(dot)!; const count = frames.get(badge)!;
+    expect(point.width).toBe(6); expect(point.height).toBe(6);
+    expect(point.top + 3).toBe(22);
+    expect(point.left + point.width <= count.left || point.top >= count.top + count.height).toBe(true);
+    act(() => more.props.onPress());
+    const settings = hostsById("filter-sheet-settings")[0]!;
+    const settingsDot = hostsById("filter-sheet-settings-update-dot")[0]!;
+    const footer = hostsById("filter-sheet-footer")[0]!;
+    const layout = measureHostTree(footer, { width: 390 });
+    const button = layout.get(settings)!; const indicator = layout.get(settingsDot)!;
+    expect(indicator.width).toBe(6); expect(indicator.height).toBe(6);
+    expect(indicator.top + 3).toBe(button.top + button.height / 2);
+    expect(indicator.left).toBeGreaterThanOrEqual(button.left);
+    expect(indicator.left + 6).toBeLessThanOrEqual(button.left + button.width);
+    expect(button.left + button.width).toBeLessThanOrEqual(390);
+    act(() => settings.props.onPress()); expect(openSettings).toHaveBeenCalledOnce();
+  });
+
   it("puts settings to the right of reset and opens it", () => {
     const openSettings = vi.fn();
     setTasksSettingsOpener(openSettings);

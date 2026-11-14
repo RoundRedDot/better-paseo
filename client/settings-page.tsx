@@ -1,5 +1,8 @@
 import { useRpc } from "@getpaseo/plugin/client";
-import { hasUpdate, updateCheckRpc } from "../shared/update-check";
+import { updateCheckRpc } from "../shared/update-check";
+import { hasAgentUpdate } from "../shared/agent-updates";
+import { useAgentUpdates } from "./agent-updates";
+import { recordPluginUpdate, useKnownPluginUpdate } from "./tasks/board/update-indicator";
 import { openTerminalRpc, updateCommand } from "../shared/open-terminal";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
@@ -542,7 +545,7 @@ function ResetButton({ look }: { look: PageLook }) {
   );
 }
 
-function useVersionCheck() {
+function useVersionCheck(hostId: string) {
   const check = useRpc(updateCheckRpc);
   const [state, setState] = useState<Awaited<ReturnType<typeof check>> | { state: "starting" }>({ state: "idle" });
   const started = useRef(false);
@@ -550,29 +553,35 @@ function useVersionCheck() {
     let active = true;
     void check({ action: "status" }).then((result) => {
       if (!active || started.current) return;
+      recordPluginUpdate(hostId, result);
       setState(result);
     }).catch(() => { if (active && !started.current) setState({ state: "failed" }); });
     return () => { active = false; };
-  }, [check]);
+  }, [check, hostId]);
   useEffect(() => {
     if (state.state === "starting") return;
     let active = true;
     const timer = setTimeout(() => {
       void check({ action: "status" }).then((result) => {
-        if (active) setState(result);
+        if (active) { recordPluginUpdate(hostId, result); setState(result); }
       }).catch(() => { if (active) setState({ state: "failed" }); });
     }, state.state === "checking" ? 2000 : 30_000);
     return () => { active = false; clearTimeout(timer); };
-  }, [check, state]);
+  }, [check, state, hostId]);
   async function run() {
     started.current = true;
     setState({ state: "starting" });
     try {
       if (state.state === "failed") {
         const previous = await check({ action: "status" });
-        if (previous.state === "checking" || previous.state === "done") return setState(previous);
+        if (previous.state === "checking" || previous.state === "done") {
+          recordPluginUpdate(hostId, previous);
+          return setState(previous);
+        }
       }
-      setState(await check({ action: "check" }));
+      const result = await check({ action: "check" });
+      recordPluginUpdate(hostId, result);
+      setState(result);
     }
     catch { setState({ state: "failed" }); }
   }
@@ -607,13 +616,53 @@ function VersionResult({ state, look, language, updateAvailable }: {
   </View>;
 }
 
-function VersionSection({ look, language, version, autoUpdateCheck, native }: { look: PageLook; language: "en" | "zh"; version: ReturnType<typeof useVersionCheck>; autoUpdateCheck: boolean; native: boolean }) {
+function UpdateDot({ look }: { look: PageLook }) {
+  return <View testID="version-item-update-dot" accessible={false} style={{ width: 6, height: 6, borderRadius: 3, alignSelf: "center", backgroundColor: look.tokens.danger }} />;
+}
+
+function AgentVersionSection({ look, agents, host }: { look: PageLook; agents: ReturnType<typeof useAgentUpdates>; host: PluginSurfaceProps["host"] }) {
+  const t = look.t;
+  const { copied, copy } = useCopy();
+  const text = { ...settingsTextStyle(look.tokens, -1), color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi };
+  const methods = { npm: "npm", homebrew: "Homebrew", native: t.agentNative, unknown: t.agentUnknownMethod };
+  const statuses = { available: t.versionBadge, current: t.versionUpToDate, error: t.agentCheckFailed, unknown: t.agentUnknownVersion };
+  return <Section title={t.agentVersions} look={look}>
+    <SettingRow title={t.agentUpdates} description={`${t.agentHost}: ${host.label}`} first look={look}
+      control={<PlainButton label={agents.state.state === "checking" ? look.t.versionChecking : t.agentCheck} loading={agents.state.state === "checking"} disabled={agents.state.state === "checking"} onPress={() => { void agents.run(); }} look={look} />} />
+    {agents.state.entries.map((entry) => <View key={entry.provider} testID={`agent-version-${entry.provider}`} style={{ padding: space.lg, gap: space.sm, borderTopWidth: 1, borderTopColor: look.tokens.v2.border }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+        <Text style={{ ...settingsTextStyle(look.tokens), color: look.tokens.foreground, fontFamily: look.tokens.fontUi, fontWeight: "500" }}>{entry.label}</Text>
+        {entry.updateAvailable ? <UpdateDot look={look} /> : null}
+      </View>
+      <Text style={text}>{methods[entry.method]}</Text>
+      <Text selectable style={{ ...text, fontFamily: look.tokens.fontMono }}>{entry.executable ?? t.agentUnknownExecutable}</Text>
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.lg }}>
+        <Text style={text}>{look.t.versionInstalled}: {entry.current ?? "—"}</Text>
+        <Text style={text}>{look.t.versionDirectory}: {entry.latest ?? "—"}</Text>
+      </View>
+      <Text style={text}>{statuses[entry.status]}</Text>
+      {entry.issue ? <Text style={text}>{t.agentIssues[entry.issue]}</Text> : null}
+      {entry.latest ? <Text style={text}>{t.agentLatestSource}</Text> : null}
+      {entry.status === "available" ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
+        <PlainButton label={t.versionWorkspaceTerminal} disabled onPress={() => {}} look={look} />
+        {entry.command ? <PlainButton label={copied ? look.t.versionCommandCopied : look.t.versionCopyCommand} onPress={() => { void copy(entry.command!); }} look={look} /> : null}
+      </View> : null}
+      {entry.status === "available" && entry.command ? <Text selectable style={{ ...text, fontFamily: look.tokens.fontMono }}>{entry.command}</Text> : null}
+      {entry.status === "available" && !entry.command ? <Text style={text}>{t.agentOriginalInstaller}</Text> : null}
+    </View>)}
+    {agents.state.state === "failed" ? <SectionNote look={look} text={t.agentSnapshotFailed} /> : null}
+    {agents.state.state === "done" && agents.state.entries.length === 0 ? <SectionNote look={look} text={t.agentEmpty} /> : null}
+    <SectionNote look={look} text={t.versionWorkspaceTerminalUnavailable} />
+  </Section>;
+}
+
+function VersionSection({ look, language, version, autoUpdateCheck, native, agents, host, knownUpdate }: { look: PageLook; language: "en" | "zh"; version: ReturnType<typeof useVersionCheck>; autoUpdateCheck: boolean; native: boolean; agents: ReturnType<typeof useAgentUpdates>; host: PluginSurfaceProps["host"]; knownUpdate: boolean }) {
   const { state, run } = version;
   const { copied, copy } = useCopy();
   const openTerminal = useRpc(openTerminalRpc);
   const [terminalStatus, setTerminalStatus] = useState<"idle" | "opening" | "opened" | "unsupported" | "failed" | "copyFailed">("idle");
   const t = look.t;
-  const updateAvailable = state.state !== "starting" && hasUpdate(state);
+  const updateAvailable = knownUpdate;
   const orderUnknown = state.state === "done" && !state.matches && (state.versions.status === "unavailable" || state.versions.current === null || state.versions.latest === null || state.versions.currentBuild === null || state.versions.latestBuild === null);
   const command = state.state === "done" ? updateCommand() : "";
   async function goToUpdate() {
@@ -635,7 +684,7 @@ function VersionSection({ look, language, version, autoUpdateCheck, native }: { 
     <SettingRow title={t.versionAutoCheck} description={t.versionAutoCheckDescription} first look={look}
       control={<Toggle value={autoUpdateCheck} onChange={(autoUpdateCheck) => updateEnhancerPreferences({ autoUpdateCheck })} label={t.versionAutoCheck} look={look} />} />
     <SettingRow title={t.versionInfo} description={description} stacked look={look}
-      control={<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} disabled={state.state === "checking" || state.state === "starting"} loading={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} />} />
+      control={<View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>{updateAvailable ? <UpdateDot look={look} /> : null}<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} disabled={state.state === "checking" || state.state === "starting"} loading={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} /></View>} />
   </Section>
   {(updateAvailable || orderUnknown) && state.state === "done" ? <Section title={orderUnknown ? t.versionMarketCommand : t.versionUpdateCommand} look={look}>
       <View style={{ paddingHorizontal: space.lg, paddingVertical: look.compact ? 11 : 14, gap: space.sm }}>
@@ -647,6 +696,7 @@ function VersionSection({ look, language, version, autoUpdateCheck, native }: { 
           </SelectableText>
         </CommandBand>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }}>
+          <PlainButton label={t.versionWorkspaceTerminal} disabled onPress={() => {}} look={look} />
           <PlainButton label={copied ? t.versionCommandCopied : orderUnknown ? t.versionCopyMarketCommand : t.versionCopyCommand} onPress={() => { void copy(command); }} look={look} />
           {!native && !orderUnknown ? <PlainButton label={t.versionOpenTerminal} disabled={terminalStatus === "opening"} loading={terminalStatus === "opening"} onPress={() => { void goToUpdate(); }} look={look} /> : null}
         </View>
@@ -674,6 +724,7 @@ function VersionSection({ look, language, version, autoUpdateCheck, native }: { 
           </Text>}
     </View>
   </Section> : null}
+  <AgentVersionSection look={look} agents={agents} host={host} />
   </>;
 }
 
@@ -682,8 +733,10 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
   const preferences = useEnhancerPreferences();
   // The selected settings section persists across page mounts.
   const tab = useSettingsTab();
-  const version = useVersionCheck();
-  const updateAvailable = version.state.state !== "starting" && hasUpdate(version.state);
+  const version = useVersionCheck(host.id);
+  const knownUpdate = useKnownPluginUpdate(host.id);
+  const agents = useAgentUpdates(host.id);
+  const updateAvailable = knownUpdate || hasAgentUpdate(agents.state);
   // The settings screen reads (and, through the store, saves) the daemon
   // record itself, so it works with no chat open.
   const sync = usePreferenceSettings();
@@ -1197,7 +1250,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
       </View>
 
       {tab === "version" ? (
-        <VersionSection look={look} language={resolveLanguage(preferences.language)} version={version} autoUpdateCheck={preferences.autoUpdateCheck} native={native} />
+        <VersionSection key={host.id} look={look} language={resolveLanguage(preferences.language)} version={version} autoUpdateCheck={preferences.autoUpdateCheck} native={native} agents={agents} host={host} knownUpdate={knownUpdate} />
       ) : tab === "tasks" ? (
         <TasksSettingsPanel look={look} theme={theme} side={side} hostId={host?.id} />
       ) : side ? (

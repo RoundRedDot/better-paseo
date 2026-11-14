@@ -1,3 +1,5 @@
+import { resetUpdateIndicatorsForTests } from "../../client/tasks/board/update-indicator";
+import { resetAgentUpdatesForTests } from "../../client/agent-updates";
 import { deviceTasksStore } from "../../client/tasks/device-preferences";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TASKS_SETTINGS as STOCK_SETTINGS, applyDensity, effectiveCard } from "../../shared/tasks-settings";
@@ -9,9 +11,9 @@ const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...
 // a hand edit makes the density custom, the preview follows the switches,
 // reset asks first, and an unusable record offers a reset.
 
-const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh", rpc: vi.fn(async (): Promise<unknown> => ({ state: "idle" })), copyText: vi.fn(async () => {}), openTerminal: vi.fn(async (): Promise<unknown> => ({ status: "opened" })) }));
+const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh", rpc: vi.fn(async (): Promise<unknown> => ({ state: "idle" })), copyText: vi.fn(async () => {}), agents: vi.fn(async (): Promise<unknown> => ({ state: "idle", entries: [], error: null })), openTerminal: vi.fn(async (): Promise<unknown> => ({ status: "opened" })) }));
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client", () => ({ useSettings: (definition: { id: string }) => definition.id === "title-generation" ? { status: "loading", reload: vi.fn() } : state.current, useRpc: (definition: { name: string }) => definition.name === "settings.open-terminal" ? state.openTerminal : state.rpc }));
+vi.mock("@getpaseo/plugin/client", () => ({ useSettings: (definition: { id: string }) => definition.id === "title-generation" ? { status: "loading", reload: vi.fn() } : state.current, useRpc: (definition: { name: string }) => definition.name === "settings.agent-updates" ? state.agents : definition.name === "settings.open-terminal" ? state.openTerminal : state.rpc }));
 vi.mock("@getpaseo/plugin/client/ui", () => ({
   SettingsSelect: "SettingsSelect", TextInput: "TextInput",
   SidebarRow: () => { throw new Error("SidebarRow must render inside a sidebar item"); },
@@ -160,6 +162,8 @@ it("hides keyboard settings on native phones", () => {
 });
 
 beforeEach(() => {
+  resetUpdateIndicatorsForTests();
+  resetAgentUpdatesForTests();
   state.previews = [];
   state.language = "en";
   resetTasksEnabled();
@@ -782,11 +786,12 @@ it.each([
     SETTINGS_STRINGS.en.versionTitle,
     SETTINGS_STRINGS.en.versionUpdateCommand,
     SETTINGS_STRINGS.en.releaseNotesTitle,
+    "Agent versions",
   ]);
   expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionCommandHint);
   expect(textOf(r.root)).toContain(command);
   expect(textOf(r.root.findByType(CommandBand))).toBe(`$ ${command}`);
-  expect(r.root.findAll((node) => node.props.accessibilityLabel === "Go to update")).toHaveLength(0);
+  expect(r.root.findAll((node) => node.props.accessibilityLabel === "Open system Terminal")).toHaveLength(0);
   expect(textOf(r.root)).toContain("Paseo does not yet let plugins open its terminal from settings.");
   await act(async () => { button(r, "Copy update command").props.onPress(); });
   expect(state.copyText).toHaveBeenCalledWith(command);
@@ -805,6 +810,7 @@ it.each(["1.0.1", "1.0.0"])("does not offer an update when the directory version
   expect(r.root.findAllByType(Section).map((section) => section.props.title)).toEqual([
     SETTINGS_STRINGS.en.versionTitle,
     SETTINGS_STRINGS.en.releaseNotesTitle,
+    "Agent versions",
   ]);
   expect(r.root.findAll((node) => node.props.accessibilityLabel === "Copy update command")).toHaveLength(0);
   const toggle = byLabel(r, "Automatically check for updates");
@@ -839,7 +845,7 @@ it.each(["opened", "unsupported", "failed"] as const)("opens the host terminal a
   state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.1.1", currentBuild: 202610311637, latestBuild: 202610311700 }, notes: { status: "missing" } });
   let r!: Renderer;
   await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
-  await act(async () => { button(r, "Go to update").props.onPress(); });
+  await act(async () => { button(r, "Open system Terminal").props.onPress(); });
   expect(state.copyText).toHaveBeenCalledWith("paseo plugin update better-paseo");
   expect(state.openTerminal).toHaveBeenCalledWith({ source: "git", latest: "2".repeat(40) });
   expect(state.copyText.mock.invocationCallOrder[0]!).toBeLessThan(state.openTerminal.mock.invocationCallOrder[0]!);
@@ -861,7 +867,7 @@ it("does not open a terminal when copying fails", async () => {
   state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.1", latest: "1.1.1", currentBuild: 202610311637, latestBuild: 202610311700 }, notes: { status: "missing" } });
   let r!: Renderer;
   await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
-  await act(async () => { button(r, "Go to update").props.onPress(); });
+  await act(async () => { button(r, "Open system Terminal").props.onPress(); });
   expect(state.openTerminal).not.toHaveBeenCalled();
   expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionCopyFailed);
   act(() => r.unmount());
@@ -882,6 +888,86 @@ it("explains when a revision has no version mapping while displaying known versi
   expect(byTestID(r, "update-badge")).toHaveLength(0);
   expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.versionMarketCommandHint);
   expect(button(r, SETTINGS_STRINGS.en.versionCopyMarketCommand)).toBeTruthy();
-  expect(r.root.findAll((node) => node.props.accessibilityLabel === "Go to update")).toHaveLength(0);
+  expect(r.root.findAll((node) => node.props.accessibilityLabel === "Open system Terminal")).toHaveLength(0);
   act(() => r.unmount());
+});
+
+it("shows agent-only updates for the selected host and explains the workspace terminal capability gap", async () => {
+  makeSettings(); setSettingsTab("version");
+  state.rpc.mockResolvedValue({ state: "idle" });
+  state.agents.mockResolvedValue({ state: "done", error: null, entries: [{ provider: "codex", label: "Codex", executable: "/owned/bin/codex", current: "1.0.0", latest: "1.2.0", status: "available", updateAvailable: true, method: "npm", issue: null, command: null }] });
+  let r!: Renderer;
+  try {
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false }, host: { id: "agent-host-a", label: "Host A" } })); });
+    expect(byTestID(r, "update-badge")).toHaveLength(1);
+    expect(textOf(r.root)).toContain("Selected host: Host A");
+    expect(textOf(r.root)).toContain("/owned/bin/codex");
+    expect(textOf(r.root)).toContain("1.2.0");
+    expect(button(r, "Update in Paseo terminal").props.disabled).toBe(true);
+    expect(textOf(r.root)).toContain("cannot navigate plugins to an exact workspace terminal");
+    expect(button(r, "Check agent updates")).toBeTruthy();
+    expect(byTestID(r, "version-item-update-dot")[0]!.props.style).toMatchObject({ width: 6, height: 6, alignSelf: "center" });
+    state.agents.mockResolvedValue({ state: "done", entries: [], error: null });
+    await act(async () => { r.update(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false }, host: { id: "agent-host-b", label: "Host B" } })); });
+    expect(textOf(r.root)).toContain("Selected host: Host B");
+    expect(textOf(r.root)).not.toContain("/owned/bin/codex");
+    expect(byTestID(r, "update-badge")).toHaveLength(0);
+    await act(async () => { button(r, "Check agent updates").props.onPress(); });
+    expect(state.agents).toHaveBeenCalledWith({ action: "check" });
+  } finally { act(() => r?.unmount()); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }
+});
+
+it("retains confirmed plugin and agent dots through rechecks and transport errors, then clears on a conclusive result", async () => {
+  vi.useFakeTimers();
+  makeSettings(); setSettingsTab("version");
+  const installed = { state: "done", source: "git", current: "1".repeat(40), latest: "2".repeat(40), matches: false, checkedAt: 1, versions: { status: "available", current: "1.0.0", latest: "1.2.0", currentBuild: 202611010000, latestBuild: 202611020000 }, notes: { status: "missing" } };
+  state.rpc.mockResolvedValue(installed);
+  const row = { provider: "codex", label: "Codex", executable: "/owned/codex", current: "1.0.0", latest: "1.2.0", method: "npm", command: null, status: "available", updateAvailable: true, issue: "npm_runtime_unverified" };
+  state.agents.mockResolvedValue({ state: "done", entries: [row], error: null });
+  let r!: Renderer;
+  try {
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false }, host: { id: "retain-host", label: "Retain" } })); });
+    expect(byTestID(r, "version-item-update-dot")).toHaveLength(2);
+    expect(textOf(r.root)).toContain(SETTINGS_STRINGS.en.agentIssues.npm_runtime_unverified);
+    state.rpc.mockResolvedValue({ state: "checking" });
+    state.agents.mockResolvedValue({ state: "checking", entries: [], error: null });
+    await act(async () => { button(r, "Check for updates").props.onPress(); button(r, "Check agent updates").props.onPress(); });
+    expect(byTestID(r, "version-item-update-dot")).toHaveLength(2);
+    expect(byTestID(r, "update-badge")).toHaveLength(1);
+    state.rpc.mockRejectedValue(new Error("PRIVATE_DIAGNOSTIC"));
+    state.agents.mockRejectedValue(new Error("PRIVATE_DIAGNOSTIC"));
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+    expect(byTestID(r, "version-item-update-dot")).toHaveLength(2);
+    expect(textOf(r.root)).not.toContain("PRIVATE_DIAGNOSTIC");
+    state.rpc.mockResolvedValue({ ...installed, matches: true });
+    state.agents.mockResolvedValue({ state: "done", entries: [{ ...row, status: "current", updateAvailable: false }], error: null });
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(byTestID(r, "version-item-update-dot")).toHaveLength(0);
+    expect(byTestID(r, "update-badge")).toHaveLength(0);
+  } finally { act(() => r?.unmount()); vi.useRealTimers(); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }
+});
+
+it.each(["en", "zh"] as const)("renders specific structured agent failure causes in %s", async (language) => {
+  makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
+  state.rpc.mockResolvedValue({ state: "idle" });
+  const codes = Object.keys(SETTINGS_STRINGS[language].agentIssues) as Array<keyof typeof SETTINGS_STRINGS.en.agentIssues>;
+  state.agents.mockResolvedValue({ state: "done", error: null, entries: codes.map((issue) => ({ provider: issue, label: issue, executable: null, current: null, latest: null, method: "unknown", status: "error", updateAvailable: false, command: null, issue })) });
+  let r!: Renderer;
+  try {
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false }, host: { id: `issues-${language}`, label: "Issues" } })); });
+    for (const code of codes) expect(textOf(r.root)).toContain(SETTINGS_STRINGS[language].agentIssues[code]);
+  } finally { act(() => r?.unmount()); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }
+});
+
+it.each(["en", "zh"] as const)("explains plugin and selected-host Agent automatic checks in %s", async (language) => {
+  makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
+  state.rpc.mockResolvedValue({ state: "idle" });
+  state.agents.mockResolvedValue({ state: "idle", entries: [], error: null });
+  let r!: Renderer;
+  try {
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false }, host: { id: `auto-description-${language}`, label: "Selected" } })); });
+    const copy = SETTINGS_STRINGS[language].versionAutoCheckDescription;
+    expect(textOf(r.root)).toContain(copy);
+    for (const term of language === "en" ? ["selected host", "plugin directory", "Agent CLIs", "24 hours"] : ["所选主机", "插件市场", "Agent CLI", "24 小时"]) expect(copy).toContain(term);
+  } finally { act(() => r?.unmount()); }
 });

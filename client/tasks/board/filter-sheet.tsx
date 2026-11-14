@@ -22,6 +22,8 @@ import { sameSort, type BoardSort, type SortKey } from "./sort";
 import { sortOrderLabel } from "./strings";
 import type { BoardController } from "./use-board";
 import { tasksSettingsOpener } from "./enabled";
+import { SETTINGS_STRINGS } from "../../i18n/settings-page-strings";
+import { useTasksLanguage } from "../i18n";
 import { HoverControl } from "../hover-control";
 
 /**
@@ -36,6 +38,7 @@ export function FilterSheetBody(props: {
   theme: PluginTheme;
   options: FilterOptions;
   onDone(): void;
+  updateAvailable?: boolean;
   /** Phones keep the subtasks switch in their toolbar. */
   hideSubtasksToggle?: boolean;
   /** Use pill-shaped agent and label options on phones. */
@@ -61,6 +64,7 @@ export function FilterSheetBody(props: {
   const colors = theme.colors;
   const strings = board.strings;
   const openSettings = tasksSettingsOpener();
+  const updateLabel = SETTINGS_STRINGS[useTasksLanguage()].versionBadge;
   const { setParams, defaults } = board;
   const resolved = resolveBoardParams(board.params, defaults);
   const shown = shownFilterOptions(options, board.showEmptyGroups);
@@ -266,12 +270,13 @@ export function FilterSheetBody(props: {
         {openSettings ? (
           <HoverControl base={colors.surface0} foreground={colors.foreground}
             accessibilityRole="button"
-            accessibilityLabel={strings.openSettings}
+            accessibilityLabel={props.updateAvailable ? `${strings.openSettings}, ${updateLabel}` : strings.openSettings}
             onPress={() => { props.onDone(); openSettings(); }}
             testID="filter-sheet-settings"
             style={{ height: 44, paddingHorizontal: 18, borderRadius: 22, borderWidth: HAIRLINE, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
           >
             <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.settings}</Text>
+            {props.updateAvailable ? <View testID="filter-sheet-settings-update-dot" pointerEvents="none" style={{ position: "absolute", right: 6, top: "50%", marginTop: -3, width: 6, height: 6, borderRadius: 3, backgroundColor: taskTokens(theme).danger }} /> : null}
           </HoverControl>
         ) : null}
       </View>
