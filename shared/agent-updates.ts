@@ -3,6 +3,7 @@ import { z } from "zod";
 
 const agentUpdate = z.object({
   provider: z.string(), label: z.string(), executable: z.string().nullable(),
+  releasePackage: z.string().nullable().optional(),
   current: z.string().nullable(), latest: z.string().nullable(),
   method: z.enum(["npm", "homebrew", "native", "unknown"]),
   status: z.enum(["available", "current", "unknown", "error"]),

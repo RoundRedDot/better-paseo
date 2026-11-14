@@ -668,7 +668,7 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
         <Text style={text}>{t.versionDirectory}: {entry.latest ?? "—"}</Text>
         <Text style={text}>{t.agentInstallMethod}: {methods[entry.method]}</Text>
       </View>
-      {entry.latest ? <Text style={text}>{t.agentLatestSource}</Text> : null}
+      {entry.latest ? <Text style={text}>{entry.releasePackage ? t.agentLatestPackage(entry.releasePackage) : t.agentLatestSource}</Text> : null}
       {entry.issue ? <Text accessibilityRole="alert" style={[text, { color: tokens.warning }]}>{t.agentIssues[entry.issue]}</Text> : null}
       {entry.status === "available" ? <>
         <View style={styles.agentDetailLine}>

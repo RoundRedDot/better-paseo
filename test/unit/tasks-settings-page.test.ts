@@ -987,6 +987,18 @@ const layoutAgent: AgentUpdate = {
   issue: "npm_runtime_unverified", command: null,
 };
 
+it.each(["en", "zh"] as const)("names the package actually used for a custom Agent check in %s", async (language) => {
+  makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
+  state.rpc.mockResolvedValue({ state: "idle" });
+  state.agents.mockResolvedValue({ state: "done", error: null, entries: [{ ...layoutAgent, provider: "antigravity", label: "Antigravity", releasePackage: "agy-acp-bridge" }] });
+  let r!: Renderer;
+  try {
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false }, host: { id: `source-${language}`, label: "Host" } })); });
+    act(() => byTestID(r, "agent-version-toggle-antigravity")[0]!.props.onPress());
+    expect(textOf(r.root)).toContain(SETTINGS_STRINGS[language].agentLatestPackage("agy-acp-bridge"));
+  } finally { act(() => r?.unmount()); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }
+});
+
 it.each(["en", "zh"] as const)("keeps compact Agent status summaries accurate and details accessible in %s", async (language) => {
   makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
   state.rpc.mockResolvedValue({ state: "idle" });

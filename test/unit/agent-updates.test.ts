@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgentUpdateCheck, identifyInstallation, parseAgentDiagnostic } from "../../server/agent-updates";
+import { createAgentUpdateCheck, customReleasePackage, identifyInstallation, parseAgentDiagnostic } from "../../server/agent-updates";
 import { hasAgentUpdate, agentUpdatesRpc } from "../../shared/agent-updates";
 
 const directories: string[] = [];
@@ -159,15 +159,63 @@ it.each([
   ["oh-my-pi v17.0.0", "17.0.0"],
   ["grok 1.0.77 (abcdef123456)", "1.0.77"],
   ["grok 1.0.77", "1.0.77"],
+  ["grok 1.0.77 (abcdef123456) [stable]", "1.0.77"],
 ])("recognizes the verified provider version format %s", (raw, version) => {
   expect(parseAgentDiagnostic(diagnostic("/selected/provider", raw))).toEqual({ executable: "/selected/provider", current: version });
 });
 
 it.each([
   "omp/18.20.0-beta.1", "grok 1.0.77-alpha.1 (abcdef123)",
+  "grok 1.0.77 (abcdef123456) [beta]",
   "Using Node v22.0.0", "grok 1.0.77 (PRIVATE_TOKEN)", "unverified-cli 1.0.77",
 ])("keeps unsupported, noisy or unverified version output unknown: %s", (raw) => {
   expect(parseAgentDiagnostic(diagnostic("/selected/provider", raw)).current).toBeNull();
+});
+
+it("recognizes only verified custom binaries and absolute wrappers", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "better-paseo-release-source-")); directories.push(dir);
+  const home = await realpath(dir);
+  const root = join(home, "lib/node_modules/@openai/codex");
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, "package.json"), JSON.stringify({ name: "@openai/codex", version: "1.0.0" }));
+  await writeFile(join(root, "codex.js"), "");
+  const codex = join(home, "codex"); await symlink(join(root, "codex.js"), codex);
+  const wrapper = join(home, "codex-newapi");
+  await writeFile(wrapper, `#!/bin/sh\nset -eu\nexport EXAMPLE=1\nexec "${codex}" "$@"\n`);
+  expect(await customReleasePackage("codex-newapi", wrapper, "1.0.0", home)).toBe("@openai/codex");
+  expect(await customReleasePackage("codex-newapi", wrapper, "1.0.1", home)).toBeNull();
+  expect(await customReleasePackage("custom-provider", wrapper, "1.0.0", home)).toBe("@openai/codex");
+  await writeFile(wrapper, `#!/bin/sh\nPATH=/other\nexec "${codex}" "$@"\n`);
+  expect(await customReleasePackage("codex-newapi", wrapper, "1.0.0", home)).toBeNull();
+  await writeFile(wrapper, "#!/bin/sh\nexec codex \"$@\"\n");
+  expect(await customReleasePackage("codex-newapi", wrapper, "1.0.0", home)).toBeNull();
+  const bridgeRoot = join(home, "lib/node_modules/agy-acp-bridge");
+  await mkdir(bridgeRoot, { recursive: true });
+  await writeFile(join(bridgeRoot, "package.json"), JSON.stringify({ name: "agy-acp-bridge", version: "0.3.4" }));
+  await writeFile(join(bridgeRoot, "index.js"), "");
+  const bridge = join(home, "agy-acp-bridge"); await symlink(join(bridgeRoot, "index.js"), bridge);
+  await writeFile(wrapper, `#!/bin/sh\nset -eu\nexec "${bridge}" "$@"\n`);
+  expect(await customReleasePackage("antigravity", wrapper, "0.3.4", home)).toBe("agy-acp-bridge");
+  await writeFile(wrapper, "#!/bin/sh\nexec agy-acp-bridge \"$@\"\n");
+  expect(await customReleasePackage("antigravity", wrapper, "0.3.4", home)).toBeNull();
+  const downloads = join(home, ".grok/downloads"); await mkdir(downloads, { recursive: true });
+  const grok = join(downloads, "grok-1.0.77-macos-aarch64"); await writeFile(grok, "");
+  expect(await customReleasePackage("grok", grok, "1.0.77", home)).toBe("@xai-official/grok");
+  expect(await customReleasePackage("grok", grok, "1.0.78", home)).toBeNull();
+  const grokRoot = join(home, "lib/node_modules/@xai-official/grok");
+  await mkdir(grokRoot, { recursive: true });
+  await writeFile(join(grokRoot, "package.json"), JSON.stringify({ name: "@xai-official/grok", version: "1.0.77" }));
+  await writeFile(join(grokRoot, "index.js"), "");
+  expect(await customReleasePackage("grok", join(grokRoot, "index.js"), "1.0.77", home)).toBe("@xai-official/grok");
+});
+
+it("compares custom providers only after release ownership is verified", async () => {
+  const paseo = api([entry("grok", true, "custom")], async () => ({ diagnostic: diagnostic("/selected/grok", "grok 1.0.77 (abcdef123456) [stable]") }));
+  const customSource = vi.fn(async () => "@xai-official/grok");
+  const check = createAgentUpdateCheck({ fetchVersion, identify, customSource });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ provider: "grok", current: "1.0.77", latest: "1.2.0", releasePackage: "@xai-official/grok", status: "available" });
+  expect(customSource).toHaveBeenCalledWith("grok", "/selected/grok", "1.0.77");
 });
 
 it("compares actual OMP and Grok diagnostic versions against their official stable dist-tags", async () => {
