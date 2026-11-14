@@ -804,6 +804,8 @@ export const LanePager = memo(function LanePager(props: {
   const width = size?.width || window.width;
   const order = board.laneOrder;
   const index = order.indexOf(lane);
+  // Native offset prop updates jump immediately; later turns and resizes use scrollTo.
+  const [initialOffset] = useState(() => ({ x: index * width, y: 0 }));
   const pagerRef = useRef<NativeScrollView | null>(null);
   // The page the pager rests on, and the width it was placed at; -1 until
   // laid out, when it is placed once more without animating.
@@ -855,7 +857,7 @@ export const LanePager = memo(function LanePager(props: {
       nestedScrollEnabled
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      contentOffset={{ x: index * width, y: 0 }}
+      contentOffset={initialOffset}
       onLayout={(event: LayoutChangeEvent) => {
         const next = event.nativeEvent.layout;
         setSize((was) => (was && was.width === next.width ? was : { width: next.width }));

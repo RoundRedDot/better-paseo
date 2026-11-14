@@ -143,7 +143,7 @@ import { CardCell, RollingCount, RollingTotal, SlashMark, WindowSegments } from 
 import { createLaneMotionStore, LaneMotionLayer, LaneMotionProvider } from "../../client/tasks/board/lane-motion";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";
 import { contributeTasks } from "../../client/tasks/contribute";
-import { boardClearCount, consumeBoardOpen, encodeBoardParams, lastBoardParams, rememberBoardParams, rememberBoardRoute, rememberCollapsed, rememberedCollapsed, requestBoardClear, requestBoardOpen, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
+import { boardClearCount, consumeBoardOpen, encodeBoardParams, lastBoardParams, rememberBoardParams, rememberBoardRoute, rememberCollapsed, rememberLane, rememberedCollapsed, requestBoardClear, requestBoardOpen, resetBoardSessions, EMPTY_PARAMS, type BoardParams } from "../../client/tasks/board/params";
 import { TabletToolbar } from "../../client/tasks/board/tablet-toolbar";
 import { DesktopFilterBar as DesktopFilterBarMemo, DesktopToolbar as DesktopToolbarMemo } from "../../client/tasks/board/filter-bar";
 import { LaneWidthMark } from "../../client/tasks/board/lane-width-mark";
@@ -6957,13 +6957,15 @@ describe("Tasks board, phone", () => {
     expect(host.rowRenders).toBeGreaterThan(rows);
   });
 
-  it("turns the native pager to a tab beside the shown one from the press, before the board draws that lane", () => {
+  it.each(["ios", "android"])("%s keeps the press-started pager animation free of subsequent offset prop writes", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const scrollTo = vi.fn();
-    act(() => {
+    await act(async () => {
       renderer = TestRenderer.create(screen(true), { createNodeMock: (element) => (element.props as { testID?: string }).testID === "phone-lane-pager" ? { scrollTo } : null });
     });
     const pager = () => renderer!.root.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "phone-lane-pager");
     act(() => pager().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 600 } } }));
+    const initialOffset = pager().props.contentOffset;
     scrollTo.mockClear();
     let selectedAtTurn: unknown;
     scrollTo.mockImplementation(() => { selectedAtTurn = pressable("Running 2").props.accessibilityState; });
@@ -6972,10 +6974,42 @@ describe("Tasks board, phone", () => {
     expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ x: 390, y: 0, animated: true });
     expect(selectedAtTurn).toEqual({ selected: false });
     expect(pressable("Running 2").props.accessibilityState).toEqual({ selected: true });
+    // Both native implementations apply changed offset props without animation.
+    // Observe the prop after the selected-lane render as well as the earlier command.
+    expect(pager().props.contentOffset).toEqual(initialOffset);
     // A tab two lanes away is not mounted beside it: it jumps once the board draws it.
     scrollTo.mockClear();
     act(() => hostsById("phone-stat-done")[0]!.props.onPress());
     expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ x: 390 * 3, y: 0, animated: false });
+    expect(pager().props.contentOffset).toEqual(initialOffset);
+  });
+
+  it.each(["ios", "android"])("%s initializes a remembered pager lane and uses commands for layout changes and swipe settlement", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    rememberLane("host-1", "done");
+    const scrollTo = vi.fn();
+    await act(async () => {
+      renderer = TestRenderer.create(screen(true), { createNodeMock: (element) => (element.props as { testID?: string }).testID === "phone-lane-pager" ? { scrollTo } : null });
+    });
+    const pager = () => hostsById("phone-lane-pager")[0]!;
+    const layout = (width: number, height = 600) => act(() => pager().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height } } }));
+    const initialOffset = pager().props.contentOffset;
+    expect(initialOffset).toEqual({ x: 390 * 3, y: 0 });
+    expect(scrollTo).not.toHaveBeenCalled();
+    layout(360);
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ x: 360 * 3, y: 0, animated: false });
+    expect(pager().props.contentOffset).toEqual(initialOffset);
+    scrollTo.mockClear();
+    layout(360, 590);
+    expect(scrollTo).not.toHaveBeenCalled();
+    // The native swipe is already at its destination; state must not send it another command.
+    act(() => pager().props.onMomentumScrollEnd({ nativeEvent: { contentOffset: { x: 360 * 2, y: 0 } } }));
+    expect(pressable("Review 2").props.accessibilityState).toEqual({ selected: true });
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(pager().props.contentOffset).toEqual(initialOffset);
+    layout(844, 390);
+    expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ x: 844 * 2, y: 0, animated: false });
+    expect(pager().props.contentOffset).toEqual(initialOffset);
   });
 
   it.each(["ios", "android", "web"])("%s shows the bottom shortcut only when the active lane exceeds two viewports, and ends the list clear of it", (os) => {
@@ -7065,7 +7099,8 @@ describe("Tasks board, phone", () => {
     }
   });
 
-  it("jumps without animation when reduced motion is on", () => {
+  it.each(["ios", "android"])("%s jumps without animation when reduced motion is on", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     let onReduce: (enabled: boolean) => void = () => {};
     const addListener = AccessibilityInfo.addEventListener;
     const subscription = vi.spyOn(AccessibilityInfo, "addEventListener").mockImplementation(((name: string, listener: (enabled: boolean) => void) => {
@@ -7076,7 +7111,15 @@ describe("Tasks board, phone", () => {
     try {
       const scrollToOffset = vi.fn();
       const scrollToIndex = vi.fn();
-      act(() => { renderer = TestRenderer.create(screen(true), { createNodeMock: (element) => element.type === "FlatList" ? { scrollToOffset, scrollToIndex } : null }); });
+      const scrollTo = vi.fn();
+      await act(async () => { renderer = TestRenderer.create(screen(true), { createNodeMock: (element) => {
+        if ((element.props as { testID?: string }).testID === "phone-lane-pager") return { scrollTo };
+        return element.type === "FlatList" ? { scrollToOffset, scrollToIndex } : null;
+      } }); });
+      const pager = () => hostsById("phone-lane-pager")[0]!;
+      const initialOffset = pager().props.contentOffset;
+      act(() => pager().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 600 } } }));
+      scrollTo.mockClear();
       act(() => onReduce(true));
       const list = renderer!.root.findAll((node) => (node.type as unknown) === "FlatList")[0]!;
       act(() => hostParentOf(list)!.props.onLayout({ nativeEvent: { layout: { height: 500 } } }));
@@ -7088,6 +7131,9 @@ describe("Tasks board, phone", () => {
       expect(scrollToOffset).toHaveBeenCalledWith({ offset: 0, animated: false });
       expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 938, animated: false });
       expect(scrollToIndex).not.toHaveBeenCalled();
+      act(() => pressable("Running 2").props.onPress());
+      expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ x: 390, y: 0, animated: false });
+      expect(pager().props.contentOffset).toEqual(initialOffset);
     } finally {
       act(() => onReduce(false));
       subscription.mockRestore();
