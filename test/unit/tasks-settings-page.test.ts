@@ -1016,11 +1016,16 @@ it.each(["en", "zh"] as const)("keeps compact Agent status summaries accurate an
     expect(r.root.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(entries.map((entry) => entry.provider));
     expect(textOf(r.root)).toContain(t.agentEnabledCount(4));
     expect(byTestID(r, "version-item-update-dot")).toHaveLength(2);
-    for (const [index, status] of [t.agentUpdateTo("1.2.0"), t.versionUpToDate, t.agentUnknownVersion, t.agentCheckFailed].entries()) {
+    const statuses = language === "zh"
+      ? ["可更新至 1.2.0", "已经是最新版本", "版本信息未知", "检查失败，请重试"]
+      : ["Update to 1.2.0", "Already up to date", "Version information unknown", "Check failed. Retry"];
+    for (const [index, status] of statuses.entries()) {
       const entry = entries[index]!;
       const row = byTestID(r, `agent-version-${entry.provider}`)[0]!;
       const toggle = byTestID(r, `agent-version-toggle-${entry.provider}`)[0]!;
       expect(textOf(row)).toContain(status);
+      expect(row.findAll((node) => typeof node.type === "string" && node.props.children === status)).toHaveLength(1);
+      expect(toggle.props.accessibilityLabel.endsWith(status)).toBe(true);
       expect(toggle.props.accessibilityRole).toBe("button");
       expect(toggle.props.accessibilityState.expanded).toBe(false);
       expect(byTestID(r, `agent-version-details-${entry.provider}`)).toHaveLength(0);

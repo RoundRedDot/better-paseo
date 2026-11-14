@@ -629,7 +629,7 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
   const text = { ...settingsTextStyle(tokens, -1), color: tokens.foregroundMuted, fontFamily: tokens.fontUi };
   const methods = { npm: "npm", homebrew: "Homebrew", native: t.agentNative, unknown: t.agentUnknownMethod };
   const statuses = { available: t.agentUpdateTo(entry.latest ?? "—"), current: t.versionUpToDate, error: t.agentCheckFailed, unknown: t.agentUnknownVersion };
-  const status = statuses[entry.status];
+  const status = statuses[entry.status].replace(/[.\u3002]+$/, "");
   const statusColor = entry.status === "available" ? tokens.danger : entry.status === "error" || entry.status === "unknown" ? tokens.warning : tokens.foregroundMuted;
   const brand = providerBrand(entry.provider);
   const executable = entry.executable ? tildePath(entry.executable) : t.agentUnknownExecutable;
