@@ -1,6 +1,5 @@
 import type { PluginClientContext, PluginTimelineTransformerContribution } from "@getpaseo/plugin/client";
 import { z } from "zod";
-import type React from "react";
 import { contributeSettingsScreen } from "./client/settings-screen";
 import { removeEmbeddedFonts, setEmbeddedFontLoader } from "./client/components/embed-fonts";
 import { installChatFind } from "./client/components/chat-find";
@@ -14,7 +13,6 @@ import { loadMark } from "./client/debug/load-marks";
 import { scheduleLoadTraceDump } from "./client/debug/load-trace";
 import { transformCompaction, transformToolCall } from "./client/tools/transform";
 import { showToolAtLevel } from "./client/tools/timeline-level";
-import { TimelineProgress, type TimelineProgressProps } from "./client/timeline-progress";
 import { transformNotification } from "./client/notice-transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
 import { assistantRows, hasUiFence } from "./client/assistant-transform";
@@ -75,10 +73,6 @@ export default function contribute(client: PluginClientContext) {
   // Configuration lives in the host Settings area: one page, with the chat
   // options and the Tasks board's as its two halves.
   const removeSettings = contributeSettingsScreen(client);
-
-  // The footer contract is supplied by the companion Paseo host change.
-  const footerClient = client as PluginClientContext & { addTimelineFooter(contribution: { id: string; Component: (props: TimelineProgressProps) => React.ReactNode }): () => void };
-  const removeTimelineFooter = footerClient.addTimelineFooter({ id: "better-paseo-progress", Component: TimelineProgress });
 
   // Live chat timeline interception: render real tool calls, reasoning, and todos with enhanced UI.
   const removeToolTransformer = followPreference("timelineLevel", () => addChatTransformer({
@@ -326,7 +320,6 @@ export default function contribute(client: PluginClientContext) {
     removeFocusRing();
     removeChatFind();
     removeNotificationTransformer();
-    removeTimelineFooter();
     removeToolTransformer();
     removeCompactionTransformer();
     removeToolRenderer();

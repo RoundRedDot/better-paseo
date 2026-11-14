@@ -73,7 +73,6 @@ function fakeClient(read: () => unknown) {
       };
     },
     addTimelineRenderer: () => () => {},
-    addTimelineFooter: () => () => {},
     addSlashCommand: () => () => {},
   };
   const active = (id: string) => registrations.filter((entry) => entry.id === id && !entry.removed);
