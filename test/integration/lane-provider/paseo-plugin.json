@@ -1,0 +1,6 @@
+{
+  "id": "bp-lanes",
+  "requirements": {
+    "paseo": ">=0.14.0"
+  }
+}

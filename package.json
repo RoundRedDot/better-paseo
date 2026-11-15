@@ -9,6 +9,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
     "check:hermes": "node scripts/check-hermes.mjs && node scripts/check-hermes.mjs --built",
     "build:client": "node scripts/build-client.mjs"
   },

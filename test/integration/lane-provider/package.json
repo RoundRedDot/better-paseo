@@ -1,0 +1,8 @@
+{
+  "name": "bp-lanes-provider",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TEST ONLY Paseo plugin: an agent provider whose turns run, ask, fail or wait on command, for Better Paseo's lane integration tests",
+  "license": "MIT",
+  "type": "module"
+}
