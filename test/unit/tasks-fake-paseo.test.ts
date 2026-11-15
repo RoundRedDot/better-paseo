@@ -84,6 +84,18 @@ describe("fake PaseoApi", () => {
     await result.subscription.release();
   });
 
+  it("lists the agents of an archived workspace but not those whose workspace record is gone", async () => {
+    const fake = createFakePaseo({
+      agents: [makeAgent({ id: "kept", workspaceId: "ws-archived" }), makeAgent({ id: "orphan", workspaceId: "ws-gone" }), makeAgent({ id: "live", workspaceId: "ws" })],
+      workspaces: [makeWorkspace({ id: "ws" })],
+      archivedWorkspaceIds: ["ws-archived"],
+    });
+    const listed = await fake.paseo.agents.list({ filter: { includeBackground: true } });
+    expect(listed.entries.map((entry) => entry.agent.id).sort()).toEqual(["kept", "live"]);
+    const workspaces = await fake.paseo.workspaces.list({ filter: { includeBackground: true } });
+    expect(workspaces.entries.map((workspace) => workspace.id)).toEqual(["ws"]);
+  });
+
   it("offers label definitions and project icons only on new hosts", async () => {
     const old = createFakePaseo();
     expect("listLabels" in old.paseo.workspaces).toBe(false);

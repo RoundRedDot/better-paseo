@@ -198,6 +198,8 @@ export interface FakePaseoOptions {
   providerEntries?: FakeProviderEntry[];
   /** Subscriptions never answer, as on a host that has not caught up after a reconnect. */
   stalled?: boolean;
+  /** Workspaces archived before the test: not listed, but their agents are (the daemon keeps archived records). */
+  archivedWorkspaceIds?: string[];
   /**
    * A smaller workspace page than the daemon's 200, so a test pages a short
    * list: a list, and a subscription's snapshot, hold this many, with a
@@ -285,6 +287,8 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     return workspace;
   };
   for (const agent of agents.values()) ensureWorkspace(agent);
+  /** Archived workspaces: their records are kept, so their agents are still listed, but the workspace list leaves them out. */
+  const archivedWorkspaceIds = new Set<string>(options.archivedWorkspaceIds ?? []);
   let projects = [...(options.projects ?? [])];
   let labels = [...(options.labels ?? [])];
   const calls: FakeCall[] = [];
@@ -303,6 +307,9 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
 
   function matchesAgent(agent: Agent, listOptions: PaseoAgentListOptions): boolean {
     if (!listOptions.filter?.includeBackground && agent.workspaceId && workspaces.get(agent.workspaceId)?.background) return false;
+    // As the daemon: an agent whose workspace record is gone is not listed; one
+    // of an archived workspace (its record kept, left out of the workspace list) is.
+    if (!autoWorkspaces && agent.workspaceId && !workspaces.has(agent.workspaceId) && !archivedWorkspaceIds.has(agent.workspaceId)) return false;
     return matches(agent, listOptions);
   }
 
@@ -685,9 +692,10 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     failWorkspacePages(error: Error | null) {
       workspacePageFailure = error;
     },
-    /** Archive a workspace: the list leaves it out, and its agents stay unarchived. */
+    /** Archive a workspace: the list leaves it out, and its agents stay unarchived (and listed). */
     removeWorkspace(id: string) {
       workspaces.delete(id);
+      archivedWorkspaceIds.add(id);
       for (const sub of workspaceSubs) {
         const message = { type: "workspace_update", payload: { subscriptionId: sub.id, kind: "remove", id } };
         deliverUpdate(sub, message);

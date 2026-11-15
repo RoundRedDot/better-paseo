@@ -2279,6 +2279,7 @@ describe("Tasks data store", () => {
         activeAgent("stale", { status: "idle", requiresAttention: true, updatedAt: recentIso(2_000), workspaceId: "ws-archived" }),
       ],
       workspaces: [workspace()],
+      archivedWorkspaceIds: ["ws-archived"],
     });
     const mounted = await mountTasks(fake);
     try {
@@ -2875,6 +2876,125 @@ describe("Tasks data store", () => {
         });
         expect(mounted.current.byId.has("g-55")).toBe(false);
       } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("lets a refresh's older list finish first without taking over from the kept list's newer one", async () => {
+      const old = (index: number) => recentIso(3 * 24 * 60 * 60 * 1000 + index * 1000);
+      const fake = createFakePaseo({
+        agents: Array.from({ length: UNREAD }, (_, index) =>
+          activeAgent(`unread-${index}`, { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: old(index), lastUserMessageAt: old(index), createdAt: old(index) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        // The refresh's list A reads its later page now (before the read below) and answers later.
+        const releaseA = fake.holdPageAnswers();
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(16);
+        });
+        // Read elsewhere; the kept list's newer snapshot B also answers its later page later.
+        const read = fake.paseo.agents.ref("unread-100").current()!;
+        fake.setAgentSilently({ ...read, requiresAttention: false, attentionReason: null, attentionTimestamp: null } as never);
+        const releaseB = fake.holdPageAnswers();
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+          await flush(16);
+        });
+        // A finishes first; B after.
+        await act(async () => {
+          releaseA();
+          await flush(24);
+        });
+        await act(async () => {
+          releaseB();
+          await flush(24);
+        });
+        expect(result).toBe("done");
+        expect(mounted.current.byId.get("unread-100")?.lane).not.toBe("review");
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD - 1);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("drops a refresh's reread done page once the done list started over", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 60 }, (_, index) => activeAgent(`r-${index}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await settle();
+        await act(async () => {
+          mounted.current.loadMoreDone();
+          await flush(16);
+        });
+        // A task the board never held, in the second page's range.
+        const fresh = activeAgent("r-new", { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + 54_500) });
+        fake.setAgentSilently(fresh);
+        // The refresh rereads the second page now (with r-new) and answers later.
+        const release = fake.holdPageAnswers();
+        await act(async () => {
+          void mounted.current.refresh();
+          await flush(16);
+        });
+        // r-new is archived with nothing sent, and the done list starts over from its first page.
+        fake.setAgentSilently({ ...fresh, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(8);
+        });
+        await act(async () => {
+          release();
+          await flush(24);
+        });
+        // The old second page does not land on the new first one.
+        expect(mounted.current.byId.has("r-new")).toBe(false);
+        expect(mounted.current.lanes.done.cards).toHaveLength(50);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("does not bring back an archived parent when an older read of it answers late", async () => {
+      const fake = createFakePaseo({
+        agents: [
+          makeAgent({ id: "p", status: "idle", title: "Parent", workspaceId: "ws", updatedAt: recentIso(60_000) }),
+          activeAgent("bg-child", { status: "running", workspaceId: "ws-bg", labels: { "paseo.parent-agent-id": "p" }, updatedAt: recentIso(1_000) }),
+        ],
+        workspaces: [workspace(), makeWorkspace({ id: "ws-bg", projectId: "project-id", name: "bg", background: true } as never)],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        await act(async () => { await flush(16); });
+        const release = fake.holdRefreshes();
+        await act(async () => {
+          void mounted.current.refreshParent("p");
+          await flush(8);
+        });
+        fake.passNewRefreshes();
+        // Archived meanwhile; its running background child keeps it until a gone check takes it off.
+        const parent = fake.paseo.agents.ref("p").current()!;
+        await act(async () => {
+          fake.upsertAgent({ ...parent, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(8);
+          vi.advanceTimersByTime(1_100);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("p")).toBe(false);
+        await act(async () => {
+          release();
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("p")).toBe(false);
+      } finally {
+        vi.useRealTimers();
         mounted.unmount();
       }
     });
@@ -4479,6 +4599,7 @@ describe("Tasks data store, archived lane", () => {
         activeAgent("running", { status: "running", activeTurn: { turnId: "t", startedAt: recentIso(4_000) } }),
       ],
       workspaces: [workspace()],
+      archivedWorkspaceIds: ["ws-archived"],
     });
     const off = await mountArchived(fake, false);
     try {
@@ -4565,6 +4686,7 @@ describe("Tasks data store, archived lane", () => {
         activeAgent("child-l", { status: "running", labels: { "paseo.parent-agent-id": "live" } }),
       ],
       workspaces: [workspace()],
+      archivedWorkspaceIds: ["ws-archived"],
     });
     const on = await mountArchived(fake, true);
     try {
@@ -4585,6 +4707,7 @@ describe("Tasks data store, archived lane", () => {
         activeAgent("running", { status: "running", activeTurn: { turnId: "t", startedAt: recentIso(4_000) } }),
       ],
       workspaces: [workspace()],
+      archivedWorkspaceIds: ["ws-archived"],
     });
     const totals: number[] = [];
     let setArchived!: (on: boolean) => void;
@@ -4684,6 +4807,7 @@ describe("Tasks data store, archived lane", () => {
         activeAgent("ordinary", { status: "closed", workspaceId: "ws-helper", archivedAt: recentIso(2_000), updatedAt: recentIso(2_000) }),
       ],
       workspaces: [workspace()],
+      archivedWorkspaceIds: ["ws-helper"],
     });
     const mounted = await mountArchived(fake, true);
     try {
@@ -4698,6 +4822,7 @@ describe("Tasks data store, archived lane", () => {
     const fake = createFakePaseo({
       agents: [activeAgent("helper", { status: "closed", workspaceId: "ws-helper", archivedAt: recentIso(2_000), updatedAt: recentIso(2_000) })],
       workspaces: [workspace()],
+      archivedWorkspaceIds: ["ws-helper"],
     });
     const mounted = await mountArchived(fake, true);
     try {

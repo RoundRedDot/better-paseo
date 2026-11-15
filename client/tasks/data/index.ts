@@ -1194,6 +1194,8 @@ function createStore(api: PaseoApi): TaskStore {
    */
   let recordClock = 0;
   const recordStamps = new Map<string, number>();
+  /** Each parent's latest read: an older answer does not overwrite a newer one. */
+  const parentReadSeqs = new Map<string, number>();
   /** How many times the done list started over from its first page: a later page belongs to one of them. */
   let doneSnapshots = 0;
   /**
@@ -1908,10 +1910,10 @@ function createStore(api: PaseoApi): TaskStore {
       const pagesKept = keepPages && [...sourceMembers.keys()].some((key) => key.startsWith("done-page-"));
       // The done lane starts over from its first page, as `doneCursor` below
       // does: a page read once hears of no archive made while disconnected.
+      // A page asked for after the old first page belongs to it: it must not land on the new one.
+      if (sourceKey === DONE_SUBSCRIPTION) doneSnapshots += 1;
       if (sourceKey === DONE_SUBSCRIPTION && !pagesKept) {
         for (const key of [...sourceMembers.keys()]) if (key.startsWith("done-page-")) sourceMembers.delete(key);
-        // A page asked for after the old first page belongs to it: it must not land on the new one.
-        doneSnapshots += 1;
       }
       for (const id of [...entries.keys()]) if (!nextMembers.has(id) && memberSetsContaining(id).length === 0) dropIfUnreferenced(id);
       if (sourceKey === STATUS_KEY) statusReady = true;
@@ -1936,6 +1938,7 @@ function createStore(api: PaseoApi): TaskStore {
    */
   async function rereadDonePages(run: Run, first: PaseoAgentListResult, pages: number, session: typeof searchPages, regularPages: number): Promise<Landing> {
     const asked = recordClock;
+    const snapshotAsked = doneSnapshots;
     const read: Array<{ key: string; result: PaseoAgentListResult }> = [];
     let cursor = first.pageInfo.nextCursor;
     try {
@@ -1952,6 +1955,8 @@ function createStore(api: PaseoApi): TaskStore {
         return "failed";
       }
     }
+    // The done list started over from a newer first page since: these pages follow the old one.
+    if (doneSnapshots !== snapshotAsked) return "stale";
     if (session && searchPages !== session) {
       read.splice(regularPages);
       cursor = read.length ? read.at(-1)!.result.pageInfo.nextCursor : first.pageInfo.nextCursor;
@@ -2088,7 +2093,10 @@ function createStore(api: PaseoApi): TaskStore {
       // already landed is older, and must not undo it.
       const arrived = (snapshotArrivals.get(key) ?? 0) + 1;
       snapshotArrivals.set(key, arrived);
-      const live = () => mine === snapshots && serving() && (snapshotLandings.get(key) ?? 0) < arrived;
+      // Only the newest snapshot of the list to arrive, from either of its
+      // subscriptions, may land: an older one finishing first must not land
+      // over a newer one still reading its pages.
+      const live = () => mine === snapshots && serving() && (snapshotArrivals.get(key) ?? 0) === arrived;
       const landed = (outcome: "landed" | "failed" = "landed") => {
         if ((snapshotLandings.get(key) ?? 0) >= arrived) return;
         snapshotLandings.set(key, arrived);
@@ -2148,17 +2156,24 @@ function createStore(api: PaseoApi): TaskStore {
       try {
         for (;;) {
           if (!serving()) { landing = "stale"; break; }
+          // A newer snapshot of the list arrived on the other subscription:
+          // this one's pages can only be stale. Once that one lands, take its
+          // outcome; until then wait for it (it may still fail, and stopping
+          // its subscription before it lands would lose it).
+          const newest = snapshotArrivals.get(key) ?? 0;
+          if (newest > latestArrived) {
+            if ((snapshotLandings.get(key) ?? 0) >= newest) { landing = snapshotOutcomes.get(key) ?? "landed"; break; }
+            await new Promise<null>((resolve) => { wake = () => resolve(null); });
+            continue;
+          }
           const waiting: Promise<Landing> | undefined = latest ?? undefined;
           if (waiting === undefined) { landing = "landed"; break; }
-          // A newer snapshot of the list, from the other subscription, already
-          // landed: this one's pages can only be stale, so take that outcome
-          // now rather than wait for a page that may hang.
-          if ((snapshotLandings.get(key) ?? 0) > latestArrived) { landing = snapshotOutcomes.get(key) ?? "landed"; break; }
           const woken = new Promise<null>((resolve) => { wake = () => resolve(null); });
           const settled = await Promise.race([waiting, woken]);
           if (settled === null || waiting !== latest) continue;
-          // Superseded by a newer snapshot of the list: it is landed only if that one read every page.
-          landing = settled === "stale" && serving() ? snapshotOutcomes.get(key) ?? "landed" : settled;
+          // Stale because it was superseded or stopped: look again.
+          if (settled === "stale" && (!serving() || (snapshotArrivals.get(key) ?? 0) > latestArrived)) continue;
+          landing = settled === "stale" ? "landed" : settled;
           break;
         }
       } finally {
@@ -3496,9 +3511,15 @@ function createStore(api: PaseoApi): TaskStore {
   function refreshParent(id: string): Promise<boolean | null> {
     if (!resolvedParents.has(id)) resolvedParents.set(id, { title: null, archived: null });
     const run = generation;
+    const asked = recordClock;
+    const read = (parentReadSeqs.get(id) ?? 0) + 1;
+    parentReadSeqs.set(id, read);
     return api.agents.ref(id).refresh().then((result) => {
       const archived = result ? isArchived(result.agent) : null;
       if (run !== generation || !result) return archived;
+      // A later read of the parent, or a change to its record since (archived
+      // and taken off by a gone check), outranks this answer.
+      if (parentReadSeqs.get(id) !== read || changedSince(id, asked)) return archived;
       resolvedParents.set(id, { title: result.agent.title?.trim() || null, archived });
       if (!archived && hasActiveBackgroundChildren(id)) updateRecord(result.agent, result.project ?? null);
       for (const childId of linkedChildrenOf(id)) refreshFinalCard(childId);
