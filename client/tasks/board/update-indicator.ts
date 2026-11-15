@@ -33,8 +33,7 @@ export function useKnownPluginUpdate(hostId: string) {
 }
 
 /** An open board observes the selected host on desktop and phone. */
-export function useUpdateIndicator(hostId: string, visible: boolean): boolean {
-  const agents = useAgentUpdates(hostId, visible);
+export function usePluginUpdateIndicator(hostId: string, visible: boolean): boolean {
   const check = useRpc(updateCheckRpc);
   const latest = useRef(check);
   latest.current = check;
@@ -57,5 +56,11 @@ export function useUpdateIndicator(hostId: string, visible: boolean): boolean {
     void refresh();
     return () => { active = false; clearTimeout(timer); };
   }, [hostId, visible]);
+  return update;
+}
+
+export function useUpdateIndicator(hostId: string, visible: boolean): boolean {
+  const agents = useAgentUpdates(hostId, visible);
+  const update = usePluginUpdateIndicator(hostId, visible);
   return update || hasAgentUpdate(agents.state);
 }

@@ -1,6 +1,7 @@
 import type { PluginClientContext, PluginTimelineTransformerContribution } from "@getpaseo/plugin/client";
 import { z } from "zod";
 import { contributeSettingsScreen } from "./client/settings-screen";
+import { PluginUpdateIndicator } from "./client/plugin-update-indicator";
 import { removeEmbeddedFonts, setEmbeddedFontLoader } from "./client/components/embed-fonts";
 import { installChatFind } from "./client/components/chat-find";
 import { installPointerFocusRing } from "./client/components/focus-ring";
@@ -73,6 +74,9 @@ export default function contribute(client: PluginClientContext) {
   // Configuration lives in the host Settings area: one page, with the chat
   // options and the Tasks board's as its two halves.
   const removeSettings = contributeSettingsScreen(client);
+  // Older hosts do not offer an installed-plugin update indicator.
+  const indicatorHost = client as PluginClientContext & { addUpdateIndicator?: (component: typeof PluginUpdateIndicator) => () => void };
+  const removeUpdateIndicator = indicatorHost.addUpdateIndicator?.(PluginUpdateIndicator);
 
   // Live chat timeline interception: render real tool calls, reasoning, and todos with enhanced UI.
   const removeToolTransformer = followPreference("timelineLevel", () => addChatTransformer({
@@ -314,6 +318,7 @@ export default function contribute(client: PluginClientContext) {
     stopPreferenceWatch();
     removeTasks();
     removeSettings();
+    removeUpdateIndicator?.();
     removePerfCommand();
     removeFonts();
     setMarkLoader(null);
