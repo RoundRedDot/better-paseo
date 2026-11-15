@@ -1168,6 +1168,12 @@ function createStore(api: PaseoApi): TaskStore {
   const agentListUpdates = new Map<string, Set<Set<string>>>();
   /** The lists whose last snapshot could not read every page, with the error the board shows for it. */
   const pageErrors = new Map<string, string>();
+  /**
+   * How many times each agent's record was applied. A read by id that started
+   * before a later state landed answers with an older one: it is dropped, not
+   * applied over that state (`confirmed` skips the time check).
+   */
+  const recordVersions = new Map<string, number>();
   /** Snapshots of each list by arrival, from any of its subscriptions, and the latest of them that landed. */
   const snapshotArrivals = new Map<string, number>();
   const snapshotLandings = new Map<string, number>();
@@ -1417,6 +1423,7 @@ function createStore(api: PaseoApi): TaskStore {
   function updateRecord(agent: PaseoAgent, placement: AgentPlacement, confirmed = false) {
     // Independently bootstrapped lists and pages can arrive after a newer live update.
     if (!confirmed && isStaleAgent(agent)) return;
+    recordVersions.set(agent.id, (recordVersions.get(agent.id) ?? 0) + 1);
     const updatedAt = epoch(agent.updatedAt);
     latestUpdates.set(agent.id, confirmed ? updatedAt : Math.max(updatedAt, latestUpdates.get(agent.id) ?? updatedAt));
     if (isArchived(agent) && !keepsArchived(agent)) {
@@ -1623,8 +1630,11 @@ function createStore(api: PaseoApi): TaskStore {
   // Confirm it before discarding the card.
   function confirmRemovedAgent(id: string) {
     const run = generation;
+    const version = recordVersions.get(id) ?? 0;
     void api.agents.ref(id).refresh().then((result) => {
       if (run !== generation || memberSetsContaining(id).length > 0) return;
+      // A newer state landed while the read was out; a later remove reads again.
+      if ((recordVersions.get(id) ?? 0) !== version) return;
       // Still starting: the held idle decides, after its wait.
       if (result && startIdles.has(id) && startingHold(result.agent) !== null) return;
       if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) {
@@ -1696,9 +1706,12 @@ function createStore(api: PaseoApi): TaskStore {
     if (confirmChecks.has(id)) return;
     confirmChecks.add(id);
     const run = generation;
+    const version = recordVersions.get(id) ?? 0;
     void api.agents.ref(id).refresh().then((result) => {
       if (run !== generation) return;
       confirmChecks.delete(id);
+      // A newer state landed while the read was out: it is the one to keep.
+      if ((recordVersions.get(id) ?? 0) !== version) return;
       if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) return;
       const agent = result.agent;
       batchUpdates(() => {
@@ -1870,14 +1883,14 @@ function createStore(api: PaseoApi): TaskStore {
      * fails leaves this subscription serving, so its later snapshots must
      * still page.
      */
-    initial: (snapshot: T, live: () => boolean) => void | Promise<Landing>,
+    initial: (snapshot: T, live: () => boolean, landed: () => void) => void | Promise<Landing>,
     update: (message: unknown) => void,
     replace = false,
   ): Promise<Landing> {
     const owned = result.subscription;
     if (!owned) {
       if (!isCurrent(run)) return "stale";
-      return (await initial(result, () => isCurrent(run))) ?? "landed";
+      return (await initial(result, () => isCurrent(run), () => {})) ?? "landed";
     }
     if (!isCurrent(run)) {
       await owned.release();
@@ -1902,9 +1915,11 @@ function createStore(api: PaseoApi): TaskStore {
       const landed = () => {
         if ((snapshotLandings.get(key) ?? 0) < arrived) snapshotLandings.set(key, arrived);
       };
-      const result = initial(snapshot, live);
+      // A paged snapshot calls `landed` in the very step that lands it, after
+      // checking `live`: an older snapshot whose pages finish in the same turn
+      // must already see it landed.
+      const result = initial(snapshot, live, landed);
       if (result === undefined) landed();
-      else void result.then((landing) => { if (landing !== "stale") landed(); });
       latest = result;
       wake();
     };
@@ -2329,7 +2344,7 @@ function createStore(api: PaseoApi): TaskStore {
         refreshed?.(list);
       };
       return await observeOwned(key, result, run,
-        (snapshot, live) => {
+        (snapshot, live, landed) => {
           const list = snapshot as PaseoAgentListResult;
           // The done list pages on its own (`loadMoreDone`); every other list is
           // the whole of what it filters, and its snapshot only the first page
@@ -2352,6 +2367,7 @@ function createStore(api: PaseoApi): TaskStore {
             const entries = read.kind === "failed" ? list.entries : [...list.entries, ...read.entries];
             if (read.kind === "failed") for (const id of sourceMembers.get(key) ?? []) liveIds.add(id);
             land({ ...list, entries, pageInfo: { ...list.pageInfo, nextCursor: null, hasMore: false } }, liveIds);
+            landed();
             if (read.kind === "failed") {
               pageError(key, read.error);
               return "failed";
@@ -2451,7 +2467,7 @@ function createStore(api: PaseoApi): TaskStore {
         await result.subscription?.release();
         return "stale";
       }
-      return await observeOwned("workspaces", result, run, (snapshot, live) => {
+      return await observeOwned("workspaces", result, run, (snapshot, live, landed) => {
         const firstPage = snapshot as PaseoWorkspaceListResult;
         if (!firstPage.pageInfo?.hasMore) {
           applyWorkspaceList(firstPage.entries);
@@ -2482,6 +2498,7 @@ function createStore(api: PaseoApi): TaskStore {
             return "failed";
           }
           applyWorkspaceList([...firstPage.entries, ...read.entries], liveUpdates);
+          landed();
           clearPageError("workspaces");
           return "landed";
         });

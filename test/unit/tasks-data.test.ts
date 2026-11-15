@@ -344,6 +344,35 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("drops a read by id that answers after a newer state landed", async () => {
+      const fake = createFakePaseo({ agents: [unread], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        expect(mounted.current.byId.get("unread")?.lane).toBe("review");
+        // An older snapshot: the board reads the agent by id, and that read hangs.
+        const release = fake.holdRefreshes();
+        await act(async () => {
+          fake.pushAgentSnapshot({ ...unread, updatedAt: recentIso(60_000) } as never);
+          await flush(8);
+        });
+        expect(fake.calls.some((call) => call.method === "agents.ref.refresh")).toBe(true);
+        // Prompted again meanwhile: it runs.
+        await act(async () => {
+          fake.upsertAgent(activeAgent("unread", { status: "running", requiresAttention: false, updatedAt: recentIso(0), lastUserMessageAt: recentIso(0) }));
+          await flush(8);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).toBe("running");
+        // The read answers with the state from before: it must not take the card out of running.
+        await act(async () => {
+          release();
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).toBe("running");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -2121,6 +2150,43 @@ describe("Tasks data store", () => {
         await act(async () => {
           releaseOld();
           await flush(24);
+        });
+        expect(mounted.current.byId.get("unread-100")?.lane).not.toBe("review");
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD - 1);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("does not let an older snapshot land after a newer one whose last page finished in the same turn", async () => {
+      const old = (index: number) => recentIso(3 * 24 * 60 * 60 * 1000 + index * 1000);
+      const fake = createFakePaseo({
+        agents: Array.from({ length: UNREAD }, (_, index) =>
+          activeAgent(`unread-${index}`, { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: old(index), lastUserMessageAt: old(index), createdAt: old(index) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        // Snapshot A: the refresh's attention list, its later pages held.
+        const releaseA = fake.holdPages();
+        await act(async () => {
+          void mounted.current.refresh();
+          await flush(16);
+        });
+        // Read elsewhere; snapshot B, the kept list's newer one, has its later pages held too.
+        const read = fake.paseo.agents.ref("unread-100").current()!;
+        fake.setAgentSilently({ ...read, requiresAttention: false, attentionReason: null, attentionTimestamp: null } as never);
+        const releaseB = fake.holdPages();
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+          await flush(16);
+        });
+        // Both finish in one turn, the newer first.
+        await act(async () => {
+          releaseB();
+          releaseA();
+          await flush(32);
         });
         expect(mounted.current.byId.get("unread-100")?.lane).not.toBe("review");
         expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD - 1);

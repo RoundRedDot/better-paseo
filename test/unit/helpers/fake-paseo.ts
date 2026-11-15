@@ -240,6 +240,8 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const workspaces = new Map<string, PaseoWorkspace>((options.workspaces ?? []).map((ws) => [ws.id, ws]));
   /** Set by `failWorkspacePages`: every workspace list call throws it. */
   let workspacePageFailure: Error | null = null;
+  /** Set by `holdRefreshes`: reads by id answer only once it resolves. */
+  let refreshGate: Promise<void> | null = null;
   /** Set by `holdPages`: list calls past the first page wait for it. */
   let pageGate: Promise<void> | null = null;
   /** Every list call past the first page, as `<method>:<cursor>`, for tests that count them. */
@@ -361,7 +363,10 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         current: () => agents.get(id) ?? null,
         async refresh() {
           calls.push({ method: "agents.ref.refresh", input: { agentId: id } });
+          // Read when asked, as the daemon answers: a held reply carries the state of then.
           const found = agents.get(id);
+          const gate = refreshGate;
+          if (gate) await gate;
           return found ? { agent: found, project: placementOf(found) } : null;
         },
         async respondToPermission(input: PaseoAgentRespondToPermissionOptions) {
@@ -557,6 +562,16 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       const gate = pageGate;
       return () => {
         if (pageGate === gate) pageGate = null;
+        release();
+      };
+    },
+    /** Hold every read by id (`agents.ref(id).refresh()`) until the returned release is called. */
+    holdRefreshes(): () => void {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      refreshGate = gate;
+      return () => {
+        if (refreshGate === gate) refreshGate = null;
         release();
       };
     },
