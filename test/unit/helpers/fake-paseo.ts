@@ -71,6 +71,8 @@ interface AgentSubscription {
   released: boolean;
   /** Messages sent before anyone subscribed, replayed to the first observer as the SDK does. */
   buffered?: unknown[];
+  /** False until the daemon answered the list (`ready`). */
+  answered?: boolean;
 }
 
 interface PlainSubscription {
@@ -81,14 +83,17 @@ interface PlainSubscription {
   workspaceFilter?: PaseoWorkspaceListOptions["filter"];
   /** Messages sent before anyone subscribed, replayed to the first observer as the SDK does. */
   buffered?: unknown[];
+  /** False until the daemon answered the list (`ready`). */
+  answered?: boolean;
 }
 
 /**
  * Send an update to a subscription's observers, or keep it for the first one
  * (`OwnedSubscriptions.observe` buffers what arrives before `subscribe`).
  */
-function deliverUpdate(sub: { observers: Set<Observer>; released: boolean; buffered?: unknown[] }, message: unknown) {
-  if (sub.released) return;
+function deliverUpdate(sub: { observers: Set<Observer>; released: boolean; buffered?: unknown[]; answered?: boolean }, message: unknown) {
+  // Before the daemon answers, its snapshot (taken when it answers) already holds this.
+  if (sub.released || sub.answered === false) return;
   if (sub.observers.size === 0) {
     (sub.buffered ??= []).push(message);
     return;
@@ -240,6 +245,11 @@ function matches(agent: Agent, options: PaseoAgentListOptions): boolean {
   return true;
 }
 
+/** The cursor of a page that ends on this agent: its sort key, so the next page starts after it. */
+export function keysetCursor(agent: Agent): string {
+  return `key:${JSON.stringify({ id: agent.id, updatedAt: agent.updatedAt, createdAt: agent.createdAt, title: agent.title, status: agent.status })}`;
+}
+
 function compare(left: Agent, right: Agent, options: PaseoAgentListOptions): number {
   for (const { key, direction } of options.sort ?? [{ key: "updated_at", direction: "desc" }]) {
     const sign = direction === "asc" ? 1 : -1;
@@ -265,6 +275,8 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   let answerGate: Promise<void> | null = null;
   /** Set by `holdWorkspaceLists`: a workspace list's first page answers only once it resolves. */
   let workspaceListGate: Promise<void> | null = null;
+  /** Set by `failRefreshes`: every read by id throws it. */
+  let refreshFailure: Error | null = null;
   /** Set by `holdRefreshes`: reads by id answer only once it resolves. */
   let refreshGate: Promise<void> | null = null;
   /** Set by `holdPages`: list calls past the first page wait for it. */
@@ -313,33 +325,51 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     return matches(agent, listOptions);
   }
 
+  /**
+   * A page as the daemon answers it: a keyset cursor (the sort key of the
+   * page's last entry), so a later page starts after that key in the list
+   * as it is now. An offset cursor would hide what happens when the list
+   * shifts between pages (an agent added at the top).
+   */
   function page(listOptions: PaseoAgentListOptions) {
     const sorted = [...agents.values()].filter((agent) => matchesAgent(agent, listOptions)).sort((a, b) => compare(a, b, listOptions));
-    const start = listOptions.page?.cursor ? Number(listOptions.page.cursor) : 0;
+    const after = listOptions.page?.cursor ? JSON.parse(listOptions.page.cursor.slice("key:".length)) as Agent : null;
+    const rest = after ? sorted.filter((agent) => compare(agent, after, listOptions) > 0) : sorted;
     const limit = pageLimit(listOptions.page?.limit);
-    const slice = sorted.slice(start, start + limit);
-    const next = start + limit < sorted.length ? String(start + limit) : null;
+    const slice = rest.slice(0, limit);
+    const last = slice.at(-1);
+    const next = rest.length > limit && last ? keysetCursor(last) : null;
     return {
       entries: slice.map((agent) => ({ agent, project: placementOf(agent) })),
-      pageInfo: { nextCursor: next, prevCursor: start > 0 ? String(Math.max(0, start - limit)) : null, hasMore: next !== null },
+      pageInfo: { nextCursor: next, prevCursor: null, hasMore: next !== null },
     };
   }
 
   function makeSubscription<T>(sub: PlainSubscription | AgentSubscription, snapshot: () => T, onRelease: () => void) {
     sub.snapshot = snapshot;
-    // The SDK (`OwnedSubscriptions.observe`) replays the snapshot it holds to
-    // each observer as it subscribes, synchronously: the very object `ready`
-    // resolves with. A held answer (`readyGate`) has none to replay yet.
-    const gated = options.stalled || readyGate !== null;
-    const value = options.stalled ? null : { ...snapshot(), subscriptionId: sub.id };
+    // As the SDK (`OwnedSubscriptions.observe`): the snapshot is the daemon's
+    // answer, taken when it answers (one socket, so it comes after everything
+    // the daemon sent before it and before everything after); messages sent
+    // before it are dropped, as it already holds them. Each observer gets it
+    // as it subscribes (or when it comes, if it subscribed first): the very
+    // object `ready` resolves with.
+    let answered: (T & { subscriptionId: string }) | null = null;
+    sub.answered = false;
+    const ready = options.stalled ? new Promise<never>(() => {}) : (readyGate ?? Promise.resolve()).then(() => {
+      sub.answered = true;
+      sub.buffered = [];
+      answered = { ...snapshot(), subscriptionId: sub.id };
+      for (const observer of sub.observers) observer.snapshot(answered);
+      return answered;
+    });
     return {
       get subscriptionId() {
         return sub.released ? null : sub.id;
       },
-      ready: options.stalled ? new Promise<never>(() => {}) : (readyGate ?? Promise.resolve()).then(() => value),
+      ready,
       subscribe(observer: Observer) {
         sub.observers.add(observer);
-        if (!gated && value) observer.snapshot(value);
+        if (answered) observer.snapshot(answered);
         const buffered = sub.buffered ?? [];
         sub.buffered = [];
         for (const message of buffered) observer.update(message);
@@ -407,6 +437,7 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         async refresh() {
           calls.push({ method: "agents.ref.refresh", input: { agentId: id } });
           // Read when asked, as the daemon answers: a held reply carries the state of then.
+          if (refreshFailure) throw refreshFailure;
           const found = agents.get(id);
           const gate = refreshGate;
           if (gate) await gate;
@@ -664,6 +695,10 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         if (refreshGate === gate) refreshGate = null;
         release();
       };
+    },
+    /** Make every later read by id fail (null: answer again). */
+    failRefreshes(error: Error | null) {
+      refreshFailure = error;
     },
     /** Let later reads by id through at once; the reads already held stay held until their release. */
     passNewRefreshes() {

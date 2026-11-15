@@ -705,6 +705,39 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("says so and reads again when a held read's read by id fails", async () => {
+      const fake = createFakePaseo({ agents: [unread], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        const cleared = { ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        await act(async () => {
+          fake.upsertAgent(cleared as never);
+          await flush(4);
+        });
+        // Archived; the reads by id fail for now.
+        fake.failRefreshes(new Error("connection lost"));
+        await act(async () => {
+          fake.upsertAgent({ ...cleared, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(8);
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS + 50);
+          await flush(16);
+        });
+        expect(mounted.current.error).toBe("connection lost");
+        // Reads answer again: the retry takes the archived task off and the error goes.
+        fake.failRefreshes(null);
+        await act(async () => {
+          vi.advanceTimersByTime(2_100);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("unread")).toBe(false);
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -2999,6 +3032,86 @@ describe("Tasks data store", () => {
       }
     });
 
+    it("shows a gapless done lane when a newer first page lands while a refresh rereads", async () => {
+      // A newer first page (a task added at the top shifts the list) lands while the refresh's reread
+      // page is out, at each task boundary the socket allows: the lane shows a prefix of the done list,
+      // never a hole where the old first page ended (keyset cursors, as the daemon's).
+      for (let delay = 0; delay <= 4; delay += 1) {
+        const fake = createFakePaseo({
+          agents: Array.from({ length: 120 }, (_, index) => activeAgent(`k-${String(index).padStart(3, "0")}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+          workspaces: [workspace()],
+        });
+        const mounted = await mountTasks(fake, "24h");
+        try {
+          await settle();
+          await act(async () => {
+            mounted.current.loadMoreDone();
+            await flush(16);
+          });
+          const release = fake.holdPageAnswers();
+          await act(async () => {
+            void mounted.current.refresh();
+            for (let index = 0; index < delay; index += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+            fake.setAgentSilently(activeAgent("k-top", { status: "idle", requiresAttention: false, updatedAt: recentIso(1_000) }));
+            fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+            await flush(16);
+          });
+          await act(async () => {
+            release();
+            await flush(40);
+          });
+          const ordered = ["k-top", ...Array.from({ length: 120 }, (_, index) => `k-${String(index).padStart(3, "0")}`)];
+          const shown = mounted.current.lanes.done.cards.map((card) => card.id);
+          expect({ delay, shown: [...shown].sort() }).toEqual({ delay, shown: ordered.slice(0, shown.length).sort() });
+          expect(shown).toContain("k-top");
+        } finally {
+          mounted.unmount();
+        }
+      }
+    });
+
+    it("lands the kept list's snapshot once a refresh's newer one was let go", async () => {
+      const old = (index: number) => recentIso(3 * 24 * 60 * 60 * 1000 + index * 1000);
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 210 }, (_, index) =>
+          activeAgent(`unread-${index}`, { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: old(index), lastUserMessageAt: old(index), createdAt: old(index) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h", false);
+      try {
+        await settle();
+        // Missed: a new unread task, last in the list's order.
+        fake.setAgentSilently(activeAgent("unread-new", { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: old(500), lastUserMessageAt: old(500), createdAt: old(500) }));
+        // The kept list reconnects (A); its later page answers later.
+        const releaseA = fake.holdPageAnswers();
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+          await flush(16);
+        });
+        // A refresh's list (B) arrives newer, hangs, and the refresh times out.
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        const releaseB = fake.holdPageAnswers();
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(16);
+          vi.advanceTimersByTime(30_000);
+          await flush(16);
+        });
+        expect(result).toBe("failed");
+        // A finishes: with B let go, it is the newest and lands.
+        await act(async () => {
+          releaseA();
+          await flush(32);
+        });
+        expect(mounted.current.byId.get("unread-new")?.lane).toBe("review");
+        releaseB();
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("keeps saying a list is incomplete while another one recovers", async () => {
       const fake = createFakePaseo({
         agents: [
@@ -3038,7 +3151,7 @@ describe("Tasks data store", () => {
       const mounted = await mountTasks(fake);
       try {
         await settle();
-        expect(fake.pageCalls().filter((call) => call.startsWith("agents.list:"))).toEqual(["agents.list:200"]);
+        expect(fake.pageCalls().filter((call) => call.startsWith("agents.list:"))).toHaveLength(1);
       } finally {
         mounted.unmount();
       }

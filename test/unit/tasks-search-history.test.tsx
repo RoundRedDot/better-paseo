@@ -3,7 +3,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import { expect, it, vi } from "vitest";
 import { setTasksArchivedLane, useTasks, type TasksHandle } from "../../client/tasks/data";
 import { useSearchHistory } from "../../client/tasks/board/search-history";
-import { createFakePaseo, makeAgent } from "./helpers/fake-paseo";
+import { createFakePaseo, keysetCursor, makeAgent } from "./helpers/fake-paseo";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
@@ -230,8 +230,11 @@ it("ignores a failed search-only refresh page after search closes", async () => 
   query = "find";
   await act(async () => { tree.update(<Probe />); for (let i = 0; i < 30; i++) await Promise.resolve(); });
   const list = fake.paseo.agents.list.bind(fake.paseo.agents);
+  // The third done page starts after the 100th task in the done list's order.
+  const ordered = (await list({ filter: { statuses: ["idle", "closed"], includeBackground: true }, sort: [{ key: "updated_at", direction: "desc" }], page: { limit: 200 } })).entries.map((entry) => entry.agent);
+  const thirdPage = keysetCursor(ordered[99]!);
   let reject!: (error: Error) => void;
-  vi.spyOn(fake.paseo.agents, "list").mockImplementation((options) => options?.page?.cursor === "100"
+  vi.spyOn(fake.paseo.agents, "list").mockImplementation((options) => options?.page?.cursor === thirdPage
     ? new Promise((_resolve, fail) => { reject = fail; }) : list(options));
   let outcome: string | undefined;
   await act(async () => { void tasks.refresh().then((value) => { outcome = value; }); for (let i = 0; i < 40; i++) await Promise.resolve(); });
@@ -256,10 +259,17 @@ it("uses the refreshed normal-page cursor when a new search starts during refres
   query = "first";
   await act(async () => { tree.update(<Probe />); for (let i = 0; i < 30; i++) await Promise.resolve(); });
   const list = fake.paseo.agents.list.bind(fake.paseo.agents);
+  const ordered = (await list({ filter: { statuses: ["idle", "closed"], includeBackground: true }, sort: [{ key: "updated_at", direction: "desc" }], page: { limit: 200 } })).entries.map((entry) => entry.agent);
+  // The refreshed first page says the next starts after the 51st task, one later than the old one.
+  const refreshedNext = keysetCursor(ordered[50]!);
   vi.spyOn(fake.paseo.agents, "list").mockImplementation(async (options) => {
     const result = await list(options);
     if (!options?.subscribe || !options.filter?.statuses?.includes("idle") || !result.subscription) return result;
-    const ready = result.subscription.ready.then((snapshot) => ({ ...snapshot, pageInfo: { ...snapshot.pageInfo, nextCursor: "51" } }));
+    // The SDK hands the same snapshot object to `ready` and to the observer, so change it in place.
+    const ready = result.subscription.ready.then((snapshot) => {
+      (snapshot as { pageInfo: typeof snapshot.pageInfo }).pageInfo = { ...snapshot.pageInfo, nextCursor: refreshedNext };
+      return snapshot;
+    });
     return { ...result, subscription: { ...result.subscription, ready } };
   });
   const release = fake.holdReady();
@@ -273,7 +283,8 @@ it("uses the refreshed normal-page cursor when a new search starts during refres
   await act(async () => { tree.update(<Probe />); });
   fake.calls.length = 0;
   await act(async () => { tasks.loadMoreDone(); for (let i = 0; i < 20; i++) await Promise.resolve(); });
-  expect(fake.calls.find((call) => call.method === "agents.list")?.input).toMatchObject({ page: { cursor: "101" } });
+  // The page reread from the refreshed cursor ends on the 101st task: the next page starts after it.
+  expect(fake.calls.find((call) => call.method === "agents.list")?.input).toMatchObject({ page: { cursor: keysetCursor(ordered[100]!) } });
   await act(async () => { tree.unmount(); });
 });
 

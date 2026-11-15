@@ -207,6 +207,12 @@ const ATTENTION_KEY = "active-attention";
 const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true, includeBackground: true };
 const DONE_SUBSCRIPTION = "done-first";
 const PAGE_SIZE = 50;
+/** Whether a snapshot whose pages were read may land: now, or once a newer one on the other subscription lands or goes. */
+interface LandingGate {
+  landable(): boolean;
+  whenLandable(): Promise<boolean>;
+}
+
 /** A list's later pages: all of them, a failure, or a read a newer one replaced. */
 type PageRead<T> = { kind: "read"; entries: T[] } | { kind: "failed"; error: unknown } | { kind: "stale" };
 
@@ -444,6 +450,8 @@ const LAST_TURN_BATCH = 200;
 const TURN_END_ASK_DELAY_MS = 1_500;
 /** When a closed agent is looked up for a delete: soon after it closed, then once more for a slow delete. */
 const GONE_CHECK_DELAYS_MS = [1_000, 3_000];
+/** A read by id that failed is tried again after each of these. */
+const CONFIRM_RETRY_DELAYS_MS = [2_000, 5_000, 15_000];
 
 /** `contribute` sets the loader, since only the plugin context can call RPCs outside a component. */
 export function setLastTurnLoader(next: LastTurnLoader | null): void {
@@ -1257,6 +1265,8 @@ function createStore(api: PaseoApi): TaskStore {
   const snapshotLandings = new Map<string, number>();
   /** Whether that latest landing read every page: a snapshot it superseded did not land in full either. */
   const snapshotOutcomes = new Map<string, "landed" | "failed">();
+  /** Each subscription's latest snapshot arrival, by list: only subscriptions still serving it. */
+  const arrivalOwners = new Map<string, Map<StoreSubscription, number>>();
   /** Waits on a list's later pages, woken by any landing of that list, from either of its subscriptions. */
   const landingWaiters = new Map<string, Set<() => void>>();
   let countsCache: SidebarCounts | null = null;
@@ -1823,7 +1833,7 @@ function createStore(api: PaseoApi): TaskStore {
    * the done lane meanwhile. The agent is read again by id, and its record
    * and lists follow what it is now.
    */
-  function confirmAgent(id: string) {
+  function confirmAgent(id: string, attempt = 0) {
     // One read at a time; one asked for meanwhile runs once that answers, so
     // it sees the state of after it was asked, not the earlier read's.
     if (confirmChecks.has(id)) {
@@ -1839,6 +1849,7 @@ function createStore(api: PaseoApi): TaskStore {
     void api.agents.ref(id).refresh().then((result) => {
       if (run !== generation) return;
       confirmChecks.delete(id);
+      clearPageError(`read:${id}`);
       // A newer state landed while the read was out: it is the one to keep.
       if (changedSince(id, asked)) return;
       if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) {
@@ -1862,8 +1873,18 @@ function createStore(api: PaseoApi): TaskStore {
         updateRecord(agent, result.project ?? null, true);
         dropIfUnreferenced(agent.id);
       });
-    }).catch(() => {
-      if (run === generation) confirmChecks.delete(id);
+    }).catch((caught: unknown) => {
+      if (run !== generation) return;
+      confirmChecks.delete(id);
+      // The card may be left as it was (a hold's wait ended on this read):
+      // say so, and read it again a little later.
+      pageError(`read:${id}`, caught);
+      const delay = CONFIRM_RETRY_DELAYS_MS[attempt];
+      if (delay !== undefined) {
+        setTimeout(() => {
+          if (run === generation) confirmAgent(id, attempt + 1);
+        }, delay);
+      }
     }).finally(again);
   }
 
@@ -1936,9 +1957,10 @@ function createStore(api: PaseoApi): TaskStore {
    * in at once: the lane neither shrinks while they load nor keeps an agent
    * archived or deleted since. A failed read keeps the old pages.
    */
-  async function rereadDonePages(run: Run, first: PaseoAgentListResult, pages: number, session: typeof searchPages, regularPages: number): Promise<Landing> {
+  async function rereadDonePages(run: Run, first: PaseoAgentListResult, snapshotAsked: number, pages: number, session: typeof searchPages, regularPages: number): Promise<Landing> {
     const asked = recordClock;
-    const snapshotAsked = doneSnapshots;
+    // A newer first page landed before the pages were asked for: they would follow the old one.
+    if (doneSnapshots !== snapshotAsked) return "stale";
     const read: Array<{ key: string; result: PaseoAgentListResult }> = [];
     let cursor = first.pageInfo.nextCursor;
     try {
@@ -2045,6 +2067,19 @@ function createStore(api: PaseoApi): TaskStore {
     own.stopObserver();
     own.release();
     own.stopped?.();
+    forgetArrivals(key, own);
+  }
+
+  /** A subscription that stopped serving: its snapshots no longer outrank the other one's; wake the list's waits. */
+  function forgetArrivals(key: string, own: StoreSubscription) {
+    if (arrivalOwners.get(key)?.delete(own)) for (const waiter of [...(landingWaiters.get(key) ?? [])]) waiter();
+  }
+
+  /** The newest snapshot of a list that arrived on a subscription still serving it. */
+  function newestServingArrival(key: string): number {
+    let newest = 0;
+    for (const arrived of arrivalOwners.get(key)?.values() ?? []) newest = Math.max(newest, arrived);
+    return newest;
   }
 
   /**
@@ -2064,14 +2099,14 @@ function createStore(api: PaseoApi): TaskStore {
      * fails leaves this subscription serving, so its later snapshots must
      * still page.
      */
-    initial: (snapshot: T, live: () => boolean, landed: (outcome?: "landed" | "failed") => void) => void | Promise<Landing>,
+    initial: (snapshot: T, live: () => boolean, landed: (outcome?: "landed" | "failed") => void, gate: LandingGate) => void | Promise<Landing>,
     update: (message: unknown) => void,
     replace = false,
   ): Promise<Landing> {
     const owned = result.subscription;
     if (!owned) {
       if (!isCurrent(run)) return "stale";
-      return (await initial(result, () => isCurrent(run), () => {})) ?? "landed";
+      return (await initial(result, () => isCurrent(run), () => {}, { landable: () => isCurrent(run), whenLandable: async () => isCurrent(run) })) ?? "landed";
     }
     if (!isCurrent(run)) {
       await owned.release();
@@ -2093,10 +2128,34 @@ function createStore(api: PaseoApi): TaskStore {
       // already landed is older, and must not undo it.
       const arrived = (snapshotArrivals.get(key) ?? 0) + 1;
       snapshotArrivals.set(key, arrived);
-      // Only the newest snapshot of the list to arrive, from either of its
-      // subscriptions, may land: an older one finishing first must not land
-      // over a newer one still reading its pages.
-      const live = () => mine === snapshots && serving() && (snapshotArrivals.get(key) ?? 0) === arrived;
+      const owners = arrivalOwners.get(key) ?? new Map<StoreSubscription, number>();
+      arrivalOwners.set(key, owners);
+      owners.set(own, arrived);
+      // Worth reading its pages: its subscription's latest, still serving,
+      // and no newer snapshot of the list landed.
+      const live = () => mine === snapshots && serving() && (snapshotLandings.get(key) ?? 0) < arrived;
+      // May land now: also the newest snapshot of the list among the
+      // subscriptions still serving it, so an older one that finishes first
+      // does not land over a newer one still reading its pages. A newer one
+      // whose subscription was let go (a refresh that timed out) no longer counts.
+      const landable = () => live() && newestServingArrival(key) === arrived;
+      const gate: LandingGate = {
+        landable,
+        // Wait until it may land, or can no longer: woken by any landing of
+        // the list and by its subscriptions stopping.
+        async whenLandable() {
+          for (;;) {
+            if (landable()) return true;
+            if (!live()) return false;
+            const waiters = landingWaiters.get(key) ?? new Set<() => void>();
+            landingWaiters.set(key, waiters);
+            await new Promise<void>((resolve) => {
+              const done = () => { waiters.delete(done); resolve(); };
+              waiters.add(done);
+            });
+          }
+        },
+      };
       const landed = (outcome: "landed" | "failed" = "landed") => {
         if ((snapshotLandings.get(key) ?? 0) >= arrived) return;
         snapshotLandings.set(key, arrived);
@@ -2107,7 +2166,7 @@ function createStore(api: PaseoApi): TaskStore {
       // A paged snapshot calls `landed` in the very step that lands it, after
       // checking `live`: an older snapshot whose pages finish in the same turn
       // must already see it landed.
-      const result = initial(snapshot, live, landed);
+      const result = initial(snapshot, live, landed, gate);
       if (result === undefined) landed();
       latest = result;
       latestArrived = arrived;
@@ -2160,7 +2219,7 @@ function createStore(api: PaseoApi): TaskStore {
           // this one's pages can only be stale. Once that one lands, take its
           // outcome; until then wait for it (it may still fail, and stopping
           // its subscription before it lands would lose it).
-          const newest = snapshotArrivals.get(key) ?? 0;
+          const newest = newestServingArrival(key);
           if (newest > latestArrived) {
             if ((snapshotLandings.get(key) ?? 0) >= newest) { landing = snapshotOutcomes.get(key) ?? "landed"; break; }
             await new Promise<null>((resolve) => { wake = () => resolve(null); });
@@ -2172,7 +2231,7 @@ function createStore(api: PaseoApi): TaskStore {
           const settled = await Promise.race([waiting, woken]);
           if (settled === null || waiting !== latest) continue;
           // Stale because it was superseded or stopped: look again.
-          if (settled === "stale" && (!serving() || (snapshotArrivals.get(key) ?? 0) > latestArrived)) continue;
+          if (settled === "stale" && (!serving() || newestServingArrival(key) > latestArrived)) continue;
           landing = settled === "stale" ? "landed" : settled;
           break;
         }
@@ -2554,7 +2613,7 @@ function createStore(api: PaseoApi): TaskStore {
         refreshed?.(list);
       };
       const landing = await observeOwned(key, result, run,
-        (snapshot, live, landed) => {
+        (snapshot, live, landed, gate) => {
           const list = snapshot as PaseoAgentListResult;
           // The done list pages on its own (`loadMoreDone`); every other list is
           // the whole of what it filters, and its snapshot only the first page
@@ -2570,9 +2629,12 @@ function createStore(api: PaseoApi): TaskStore {
           const watching = agentListUpdates.get(key) ?? new Set<Set<string>>();
           agentListUpdates.set(key, watching);
           watching.add(liveIds);
-          return readAgentPages(options, list.pageInfo.nextCursor, live).then((read): Landing => {
+          return readAgentPages(options, list.pageInfo.nextCursor, live).then(async (read): Promise<Landing> => {
+            if (read.kind === "stale" || !(await gate.whenLandable()) || !gate.landable()) {
+              watching.delete(liveIds);
+              return "stale";
+            }
             watching.delete(liveIds);
-            if (read.kind === "stale" || !live()) return "stale";
             // A page that cannot be read keeps the members the list had, lands the
             // first page, and says the list is incomplete.
             const entries = read.kind === "failed" ? list.entries : [...list.entries, ...read.entries];
@@ -2687,7 +2749,7 @@ function createStore(api: PaseoApi): TaskStore {
         await result.subscription?.release();
         return "stale";
       }
-      const landing = await observeOwned("workspaces", result, run, (snapshot, live, landed) => {
+      const landing = await observeOwned("workspaces", result, run, (snapshot, live, landed, gate) => {
         const firstPage = snapshot as PaseoWorkspaceListResult;
         if (!firstPage.pageInfo?.hasMore) {
           applyWorkspaceList(firstPage.entries);
@@ -2705,9 +2767,12 @@ function createStore(api: PaseoApi): TaskStore {
         });
         const liveUpdates = new Map<string, "upsert" | "remove">();
         workspaceListUpdates.add(liveUpdates);
-        return readWorkspacePages(firstPage.pageInfo.nextCursor, live).then((read): Landing => {
+        return readWorkspacePages(firstPage.pageInfo.nextCursor, live).then(async (read): Promise<Landing> => {
+          if (read.kind === "stale" || !(await gate.whenLandable()) || !gate.landable()) {
+            workspaceListUpdates.delete(liveUpdates);
+            return "stale";
+          }
           workspaceListUpdates.delete(liveUpdates);
-          if (read.kind === "stale" || !live()) return "stale";
           if (read.kind === "failed") {
             // A failed read keeps what the board had: no workspace leaves on a
             // partial list. It still counts as this list's newest landing, so
@@ -3029,6 +3094,7 @@ function createStore(api: PaseoApi): TaskStore {
     subscription.stopObserver();
     subscription.release();
     subscription.stopped?.();
+    forgetArrivals(key, subscription);
   }
 
   function stopDone() {
@@ -3688,8 +3754,11 @@ function createStore(api: PaseoApi): TaskStore {
       doneRefreshRun = doneRun;
       notify();
       let first: PaseoAgentListResult | null = null;
-      landings.push(openAgentSubscription(DONE_SUBSCRIPTION, doneListOptions(), run, (list) => { first = list; })
-        .then((landing) => (landing === "landed" && first && pages > 0 ? rereadDonePages(run, first, pages, session, regularPages) : landing))
+      // The first page and the done generation it set, taken together as it lands: the pages after it
+      // are read from its cursor and belong to it, even if a newer first page lands before they start.
+      let firstGeneration = -1;
+      landings.push(openAgentSubscription(DONE_SUBSCRIPTION, doneListOptions(), run, (list) => { first = list; firstGeneration = doneSnapshots; })
+        .then((landing) => (landing === "landed" && first && pages > 0 ? rereadDonePages(run, first, firstGeneration, pages, session, regularPages) : landing))
         .finally(() => {
           if (doneRefreshRun === run.tierRun) { doneRefreshRun = -1; notify(); }
         }));
