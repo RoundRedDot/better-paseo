@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import type { ExtendedThemeTokens } from "./components/theme-tokens";
 import { radiusV2, space } from "./components/theme-tokens";
@@ -32,7 +32,7 @@ import type { SettingsStrings } from "./i18n/settings-page-strings";
  * ring and a running dot on the open task) and the reply ends on a link,
  * since a finished turn otherwise shows no accent at all.
  *
- * The Read row's hover preview is drawn open under it, so the panel options
+ * The Edit row's hover preview is drawn open under it, so the panel options
  * show without a hover. The turn is its own plugin root: a preview a row
  * opens on hover spans the turn, as it spans the chat column in a timeline,
  * rather than the whole settings page.
@@ -69,7 +69,7 @@ const EDIT = call("preview-edit", "Edit", {
   type: "edit",
   filePath: FILE,
   unifiedDiff:
-    "@@ -114,3 +114,3 @@\n const { path, suffix } = splitSelector(raw);\n-if (!path) return unmatched(raw);\n+if (!path) return unmatched(raw.trim());\n",
+    "@@ -114,4 +114,4 @@\n const { path, suffix } = splitSelector(raw);\n-if (!path) return unmatched(raw);\n+if (!path) return unmatched(raw.trim());\n // A worktree's main repository is shown by its name, so a path outside the worktree still reads as part of the project.\n",
 });
 const FAILED = call(
   "preview-typecheck",
@@ -159,24 +159,26 @@ export function SettingsPreview({
   t: SettingsStrings;
 }) {
   const reducedMotion = useReducedMotion();
-  const [displayLevel, setDisplayLevel] = useState(preferences.timelineLevel);
-  const displayed = useRef(displayLevel);
+  const displayed = useRef(preferences.timelineLevel);
   const [transition, setTransition] = useState<{ from: TimelineLevel; to: TimelineLevel } | null>(null);
   const opacity = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
+  const displayLevel = transition && transition.to === preferences.timelineLevel && LEVEL_ORDER[transition.from] > LEVEL_ORDER[transition.to]
+    ? transition.from : preferences.timelineLevel;
+  useLayoutEffect(() => {
     const from = displayed.current;
     const to = preferences.timelineLevel;
     if (from === to) { setTransition(null); return; }
-    if (reducedMotion) { displayed.current = to; setDisplayLevel(to); setTransition(null); return; }
+    if (reducedMotion) { displayed.current = to; setTransition(null); return; }
     setTransition({ from, to });
+    let animation: Animated.CompositeAnimation | undefined;
     if (LEVEL_ORDER[to] > LEVEL_ORDER[from]) {
       displayed.current = to;
-      setDisplayLevel(to);
       opacity.setValue(1);
-      Animated.timing(opacity, { toValue: 0, duration: 650, useNativeDriver: true }).start();
+      animation = Animated.timing(opacity, { toValue: 0, duration: 650, useNativeDriver: true });
+      animation.start();
     }
-    const timer = setTimeout(() => { displayed.current = to; setDisplayLevel(to); setTransition(null); }, 650);
-    return () => clearTimeout(timer);
+    const timer = setTimeout(() => { displayed.current = to; setTransition(null); }, 650);
+    return () => { clearTimeout(timer); animation?.stop(); };
   }, [preferences.timelineLevel, reducedMotion, opacity]);
   const highlight = (minimum: number): "hide" | "show" | undefined => {
     if (!transition) return undefined;
@@ -248,6 +250,9 @@ export function SettingsPreview({
           </Item> : null}
           {LEVEL_ORDER[displayLevel] >= 2 ? <Item gap={rowGap} highlight={highlight(2)} opacity={opacity} accent={tokens.accent}>
             <ToolCallout data={READ} tokens={tokens} compact={compact} />
+          </Item> : null}
+          {LEVEL_ORDER[displayLevel] >= 1 ? <Item gap={rowGap} highlight={highlight(1)} opacity={opacity} accent={tokens.accent}>
+            <ToolCallout data={EDIT} tokens={tokens} compact={compact} />
             {preferences.hoverPreview ? (
               <View style={styles.openPanel}>
                 <Text style={[styles.caption, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
@@ -256,9 +261,6 @@ export function SettingsPreview({
                 <OpenPanel tokens={tokens} compact={compact} />
               </View>
             ) : null}
-          </Item> : null}
-          {LEVEL_ORDER[displayLevel] >= 1 ? <Item gap={rowGap} highlight={highlight(1)} opacity={opacity} accent={tokens.accent}>
-            <ToolCallout data={EDIT} tokens={tokens} compact={compact} />
           </Item> : null}
           {LEVEL_ORDER[displayLevel] >= 1 ? <Item gap={rowGap} highlight={highlight(1)} opacity={opacity} accent={tokens.accent}>
             {/* Remounted when the option changes: the start state is read once. */}
@@ -292,7 +294,7 @@ const styles = StyleSheet.create({
 });
 
 /**
- * The Read row's hover preview, open: the panel options (wrap, line numbers,
+ * The Edit row's hover preview, open: the panel options (wrap, line numbers,
  * shading) apply to it as they change, and its wrap button flips it as a
  * real panel's does. Paths resolve against the turn's own context.
  */
@@ -302,7 +304,7 @@ function OpenPanel({ tokens, compact }: { tokens: ExtendedThemeTokens; compact: 
   return (
     <PreviewPanelSample tokens={tokens}>
       <ToolPreviewContent
-        data={READ}
+        data={EDIT}
         resolvePath={resolvePath}
         tokens={tokens}
         compact={compact}

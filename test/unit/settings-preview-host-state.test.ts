@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
@@ -33,6 +33,7 @@ import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { DEFAULT_PREFERENCES } from "../../client/preferences";
 import { ToolPreviewContent } from "../../client/components/tool-callouts";
 import { classifyTool } from "../../client/tools/classify";
+import { PreviewPanelSample } from "../../client/ui/hover-preview";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -40,6 +41,15 @@ const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: 
   statusSuccess: "#198754", statusWarning: "#a36a00", statusDanger: "#d92d20" });
 
 describe("the settings preview outside a workspace panel", () => {
+  afterEach(() => vi.useRealTimers());
+  it.each(["standard", "detailed"] as const)("keeps the hover sample available in %s", (timelineLevel) => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(SettingsPreview, {
+      tokens, preferences: { ...DEFAULT_PREFERENCES, timelineLevel, hoverPreview: true }, compact: false, t: SETTINGS_STRINGS.en,
+    })); });
+    expect(renderer.root.findAllByType(PreviewPanelSample)).toHaveLength(1);
+    act(() => renderer.unmount());
+  });
   it.each([true, false])("renders without the host's agent state (compact %s)", (compact) => {
     host.inPanel = false;
     host.agentCalls = 0;
@@ -66,7 +76,19 @@ describe("the settings preview outside a workspace panel", () => {
     act(() => { renderer.update(React.createElement(SettingsPreview, props)); });
     expect(renderer.root.findAllByProps({ testID: "preview-transition-show" }).length).toBeGreaterThan(0);
     act(() => { vi.advanceTimersByTime(650); renderer.unmount(); });
-    vi.useRealTimers();
+  });
+
+  it("settles on the last selected level during rapid changes", () => {
+    vi.useFakeTimers();
+    const props = { tokens, preferences: { ...DEFAULT_PREFERENCES, timelineLevel: "detailed" as const }, compact: false, t: SETTINGS_STRINGS.en };
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(SettingsPreview, props)); });
+    act(() => { renderer.update(React.createElement(SettingsPreview, { ...props, preferences: { ...props.preferences, timelineLevel: "simple" } })); });
+    act(() => { renderer.update(React.createElement(SettingsPreview, { ...props, preferences: { ...props.preferences, timelineLevel: "standard" } })); });
+    act(() => { vi.advanceTimersByTime(650); });
+    expect(renderer.root.findAllByType(PreviewPanelSample)).toHaveLength(1);
+    expect(renderer.root.findAllByProps({ testID: "preview-transition-hide" })).toHaveLength(0);
+    act(() => renderer.unmount());
   });
 
   it("still asks the host for the agent's title in a timeline preview", () => {

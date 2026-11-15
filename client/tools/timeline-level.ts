@@ -8,9 +8,12 @@ const QUESTION_NAMES = new Set(["askuserquestion", "request_user_input", "reques
 export function showToolAtLevel(item: ToolCallTimelineItem, level: TimelineLevel): boolean {
   if (level === "detailed") return true;
   const name = item.name.toLowerCase();
-  if (QUESTION_NAMES.has(name) || Array.isArray(item.metadata?.questions) || item.detail.type === "plan" || (name === "plan_approval" || name === "exitplanmode" || name === "exit_plan_mode")) return true;
-  if (level === "simple") return false;
+  if (name === "agent_message" || QUESTION_NAMES.has(name) || Array.isArray(item.metadata?.questions) || item.detail.type === "plan" || (name === "plan_approval" || name === "exitplanmode" || name === "exit_plan_mode")) return true;
+  if (level === "simple" && name !== "hub") return false;
   const tool = classifyTool({ name: item.name, status: item.status, detail: item.detail, error: typeof item.error === "string" ? item.error : undefined });
+  // The hub jobs row also feeds the existing background-work card.
+  if (tool.hub?.kind === "jobs") return true;
+  if (level === "simple") return false;
   return tool.status === "failed" || ((tool.tool === "bash" || tool.tool === "shell" || tool.tool === "git") && tool.exitCode !== undefined && tool.exitCode !== 0) ||
     ["edit", "write", "sub_agent"].includes(tool.tool) ||
     tool.paseo?.tool === "create_agent" || tool.paseo?.tool === "send_agent_prompt" ||

@@ -185,6 +185,20 @@ describe("preferences read while the plugin loads", () => {
     cleanup();
   });
 
+  it.each(["simple", "standard"] as const)("keeps OMP job status rows in %s", async (level) => {
+    const { contribute } = await load();
+    const plugin = fakeClient(() => Promise.resolve({ status: "ready", revision: "r1", values: { timelineLevel: level } }));
+    const cleanup = contribute(plugin.client as never);
+    await flush();
+    const transform = plugin.active("omp-enhanced-tool-call")[0]!.transform;
+    for (const jobs of [[{ id: "j1", status: "running" }], []]) {
+      const item = { type: "tool_call", name: "hub", callId: "hub1", status: "completed", error: null,
+        detail: { type: "unknown", input: { op: "jobs" }, output: { details: { jobs } } } };
+      expect(transform({ item, phase: "complete" })).toMatchObject({ items: [{ kind: "omp-tool-call" }] });
+    }
+    cleanup();
+  });
+
   it("registers nothing again when the record matches the defaults", async () => {
     const { contribute, preferences } = await load();
     const plugin = fakeClient(() =>
