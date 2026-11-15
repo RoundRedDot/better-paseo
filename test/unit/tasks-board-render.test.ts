@@ -1269,7 +1269,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     await act(async () => { renderer = TestRenderer.create(screen(false)); });
     layOut(1600);
     const dot = hostsById("desktop-more-update-dot")[0]!;
-    expect(dot.props.style).toMatchObject({ width: 4, height: 4, bottom: 2, right: 2, backgroundColor: "#d45b5b" });
+    expect(dot.props.style).toMatchObject({ width: 4, height: 4, bottom: 2, right: 2, backgroundColor: "#da4738" });
     act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
     expect(hostsById("desktop-settings-update-dot")[0]!.props.style).toMatchObject({ width: 4, height: 4, alignSelf: "center" });
     host.agentUpdates = { state: "done", entries: [{ provider: "codex", status: "current", updateAvailable: false }], error: null };
@@ -6632,9 +6632,9 @@ describe("Tasks board, phone", () => {
     const frames = measureHostTree(anchor, { width: 44 });
     const point = frames.get(dot)!; const count = frames.get(badge)!;
     expect(point.width).toBe(4); expect(point.height).toBe(4);
-    expect(point.top + point.height).toBe(39);
-    expect(point.left + point.width).toBe(frames.get(anchor)!.left + 39);
-    expect(dot.props.style.backgroundColor).toBe("#d45b5b");
+    expect(point.top + point.height).toBe(34);
+    expect(point.left + point.width).toBe(frames.get(anchor)!.left + 33);
+    expect(dot.props.style.backgroundColor).toBe("#da4738");
     expect(point.left + point.width <= count.left || point.top >= count.top + count.height).toBe(true);
     act(() => more.props.onPress());
     const settings = hostsById("filter-sheet-settings")[0]!;

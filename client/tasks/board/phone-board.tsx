@@ -429,7 +429,7 @@ export function PhoneBoard(props: {
           />
           <View testID="phone-more-container" style={{ width: 44, height: 44, marginLeft: -6 }}>
             <RoundButton icon="MoreVertical" iconSize={22} borderless label={updateAvailable ? `${strings.more}, ${updateLabel}` : strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
-            {updateAvailable ? <View testID="phone-more-update-dot" pointerEvents="none" style={{ position: "absolute", bottom: 5, right: 5, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
+            {updateAvailable ? <View testID="phone-more-update-dot" pointerEvents="none" style={{ position: "absolute", bottom: 10, right: 11, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
           </View>
         </View>
       </View>
