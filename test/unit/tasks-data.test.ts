@@ -3792,6 +3792,59 @@ describe("Tasks data store", () => {
       }
     });
 
+    it("does not archive a new workspace's running task when the running list reconnects before the workspaces", async () => {
+      const fake = createFakePaseo({ agents: [activeAgent("old", { status: "idle", requiresAttention: true, updatedAt: recentIso(5_000) })], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.ready).toBe(true);
+        // Made while disconnected.
+        fake.setWorkspaceSilently(makeWorkspace({ id: "z-new", projectId: "project-id", name: "z-new" }));
+        fake.setAgentSilently(activeAgent("new-runner", { status: "running", workspaceId: "z-new", updatedAt: recentIso(0), lastUserMessageAt: recentIso(0) }));
+        // The running list comes back first.
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("running") === true);
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("new-runner")?.lane).toBe("running");
+        await act(async () => {
+          fake.reconnectOldestWorkspaceSubscription();
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("new-runner")?.lane).toBe("running");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("archives a removed workspace's task though the first workspace list could not read every page", async () => {
+      const fake = createFakePaseo({
+        agents: [activeAgent("victim", { status: "running", workspaceId: "filler-0", updatedAt: recentIso(1_000) })],
+        workspaces: [...Array.from({ length: 4 }, (_, index) => makeWorkspace({ id: `filler-${index}`, projectId: "project-id", name: `filler-${index}` })), workspace()],
+        workspacePageSize: 2,
+      });
+      const release = fake.holdPages();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        // The daemon archives filler-0 while the first list's later pages load; they then fail.
+        await act(async () => {
+          fake.removeWorkspace("filler-0");
+          await flush(8);
+        });
+        fake.failWorkspacePages(new Error("later page failed"));
+        await act(async () => {
+          release();
+          await flush(24);
+        });
+        expect(mounted.current.ready).toBe(true);
+        expect(mounted.current.error).toBe("later page failed");
+        expect(mounted.current.byId.get("victim")?.lane).not.toBe("running");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
     it("reads no more pages for a refresh that timed out", async () => {
       const fake = createFakePaseo({
         agents: [activeAgent("late", { status: "idle", requiresAttention: true, updatedAt: recentIso(1_000) })],

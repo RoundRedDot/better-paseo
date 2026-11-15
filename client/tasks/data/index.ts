@@ -1368,13 +1368,16 @@ function createStore(api: PaseoApi): TaskStore {
    */
   function inArchivedWorkspace(id: string): boolean {
     const workspaceId = entries.get(id)?.agent.workspaceId;
-    if (!workspacesListed || !workspaceId) return false;
+    if (!workspaceId) return false;
+    // What says so outright counts whatever the list's state: a workspace
+    // being archived, or one a complete list left out or the daemon removed.
     const workspace = workspaces.get(workspaceId);
     if (workspace) return Boolean(workspace.archivingAt);
-    // Not on the list: archived once a complete list left it out, or the
-    // daemon removed it. While a newer list's later pages load, a workspace
-    // the board never saw may be new (made while disconnected), not archived.
-    return workspacesComplete || knownGoneWorkspaces.has(workspaceId);
+    if (knownGoneWorkspaces.has(workspaceId)) return true;
+    // Merely missing counts only against a complete, current list: while one
+    // is loading (or after a reconnect, before the workspaces come back), a
+    // workspace the board never saw may be new, made while disconnected.
+    return workspacesListed && workspacesComplete;
   }
 
   /** Background agents contribute to their parent's state, but never get standalone cards. */
@@ -2673,6 +2676,7 @@ function createStore(api: PaseoApi): TaskStore {
         return "stale";
       }
       let first = refreshed !== undefined;
+      let snapshotsSeen = 0;
       const land = (list: PaseoAgentListResult, liveIds?: ReadonlySet<string>) => {
         replaceAgentSnapshot(key, list, first, liveIds);
         if (!first) return;
@@ -2682,6 +2686,12 @@ function createStore(api: PaseoApi): TaskStore {
       const landing = await observeOwned(key, result, run,
         (snapshot, live, landed, gate) => {
           const list = snapshot as PaseoAgentListResult;
+          // A later snapshot of the same list is a reconnect (or a re-subscribe):
+          // agents made meanwhile may name workspaces the board has yet to hear
+          // of, so a workspace missing from the old list proves nothing until
+          // the workspace list lands again.
+          snapshotsSeen += 1;
+          if (snapshotsSeen > 1) workspacesComplete = false;
           // The done list pages on its own (`loadMoreDone`); every other list is
           // the whole of what it filters, and its snapshot only the first page
           // (200 at most). Its members land once every page has, so an agent on

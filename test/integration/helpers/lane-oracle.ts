@@ -128,7 +128,9 @@ export function compareWithOracle(
     if (hidden?.hidden && hidden.parentId) {
       const listed = shown.get(hidden.parentId)?.children?.find((child) => child.id === id);
       if (listed) {
+        // Both its own card and its row on the parent's card.
         if (actual.lane !== hidden.lane) mismatches.push(`${id} "${actual.title}" (background child) in ${actual.lane}, expected ${hidden.lane} (${hidden.reason})`);
+        else if (listed.lane !== undefined && listed.lane !== hidden.lane) mismatches.push(`${id} "${actual.title}" row on its parent in ${listed.lane}, expected ${hidden.lane} (${hidden.reason})`);
         continue;
       }
     }

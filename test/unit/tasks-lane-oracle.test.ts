@@ -48,6 +48,9 @@ describe("lane oracle (test helper for the integration suites)", () => {
     expect(compareWithOracle(unlisted, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
     const wrongLane = new Map([["P", { lane: "running", title: "P", children: [{ id: "bg", lane: "done" }] }], ["bg", { lane: "done", title: "bg" }]]);
     expect(compareWithOracle(wrongLane, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
+    // Its own card right, its row on the parent's card wrong.
+    const wrongRow = new Map([["P", { lane: "running", title: "P", children: [{ id: "bg", lane: "done" }] }], ["bg", { lane: "running", title: "bg" }]]);
+    expect(compareWithOracle(wrongRow, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
     const alone = new Map([["P", { lane: "running", title: "P" }], ["bg-orphan", { lane: "running", title: "bg-orphan" }]]);
     expect(compareWithOracle(alone, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
   });
