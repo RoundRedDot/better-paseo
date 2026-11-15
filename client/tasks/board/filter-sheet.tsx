@@ -1,4 +1,4 @@
-import { UPDATE_INDICATOR_COLOR } from "../../ui/update-indicator";
+import { TextUpdateDot } from "../../ui/text-update-dot";
 import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, View, type LayoutChangeEvent, type ScrollView as NativeScrollView } from "react-native";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
@@ -278,7 +278,7 @@ export function FilterSheetBody(props: {
           >
             <View>
               <Text testID="filter-sheet-settings-label" style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.settings}</Text>
-              {props.updateAvailable ? <View testID="filter-sheet-settings-update-dot" pointerEvents="none" style={{ position: "absolute", right: -8, top: "50%", marginTop: -2, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
+              {props.updateAvailable ? <TextUpdateDot testID="filter-sheet-settings-update-dot" /> : null}
             </View>
           </HoverControl>
         ) : null}

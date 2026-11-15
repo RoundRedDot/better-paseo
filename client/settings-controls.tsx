@@ -1,4 +1,4 @@
-import { UPDATE_INDICATOR_COLOR } from "./ui/update-indicator";
+import { TextUpdateDot } from "./ui/text-update-dot";
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { radiusV2, space, type ExtendedThemeTokens } from "./components/theme-tokens";
@@ -135,7 +135,7 @@ export function Segmented<T extends string>({
               >
                 {option.label}
               </Text>
-              {option.badge ? <View testID="update-badge" accessible={false} pointerEvents="none" style={{ position: "absolute", right: -8, top: "50%", marginTop: -2, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
+              {option.badge ? <TextUpdateDot testID="update-badge" /> : null}
             </View>
           </Pressable>
         );
@@ -188,7 +188,7 @@ export function PlainButton({
       {loading ? <ActivityIndicator size="small" color={tokens.foregroundMuted} accessible={false} /> : null}
       {updateBadge ? <View>
         {labelText}
-        <View testID="version-item-update-dot" accessible={false} pointerEvents="none" style={{ position: "absolute", right: -8, top: "50%", marginTop: -2, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} />
+        <TextUpdateDot testID="version-item-update-dot" />
       </View> : labelText}
     </Pressable>
   );

@@ -131,6 +131,7 @@ it.each([
     expect(afterLabel.left).toBeCloseTo(beforeLabel.left, 1);
     expect(Math.abs((afterLabel.left + afterLabel.width / 2) - (afterButton.left + afterButton.width / 2))).toBeLessThanOrEqual(0.5);
     expect(Math.abs(dot.left - (afterLabel.left + afterLabel.width) - 4)).toBeLessThanOrEqual(1);
+    expect(Math.abs((dot.top + dot.height / 2) - (afterLabel.top + afterLabel.height / 2))).toBeLessThanOrEqual(0.5);
     expect(dot.left + dot.width).toBeLessThanOrEqual(afterButton.left + afterButton.width);
     expect(segment().props.accessibilityLabel).toBe(`${label}, Update available`);
   } finally { act(() => r?.unmount()); }
@@ -145,6 +146,7 @@ it.each(["Check for updates", "检查更新"])("keeps the update dot close to th
     const layout = measureHostTree(control, { width: 160 });
     const labelFrame = layout.get(text)!; const dot = layout.get(byTestID(r, "version-item-update-dot")[0]!)!;
     expect(Math.abs(dot.left - (labelFrame.left + labelFrame.width) - 4)).toBeLessThanOrEqual(1);
+    expect(Math.abs((dot.top + dot.height / 2) - (labelFrame.top + labelFrame.height / 2))).toBeLessThanOrEqual(0.5);
     expect(dot.left + dot.width).toBeLessThanOrEqual(layout.get(control)!.left + layout.get(control)!.width);
   } finally { act(() => r?.unmount()); }
 });

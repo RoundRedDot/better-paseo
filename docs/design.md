@@ -167,7 +167,10 @@ is distinct from task-status marks, notification counts and other semantic indic
   at the edge of its touch target. Keep any filter-count badge visible and separate. The
   phone More button uses `bottom: 10, right: 11` in its 44 pt target; desktop More uses
   `bottom: 2, right: 2` in its toolbar target.
-- Beside text, vertically centre the dot 4 pt after its label. The filter sheet's Settings
+- Beside text, vertically centre the dot against the label's text box, 4 pt after the label;
+  only icon-only controls place it at the bottom right. Use `TextUpdateDot` for overlaid text
+  reminders so the dot is centred by the label-height container rather than a percentage offset.
+  Keep inline reminders centred on their text row. The filter sheet's Settings
   button and the settings Version segment centre the label independently of the dot, keeping
   the control's width and the label's position stable as the reminder appears. Agent-version
   rows and the version check button keep the same 4 pt separation; the desktop More menu places

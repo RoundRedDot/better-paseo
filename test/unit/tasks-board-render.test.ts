@@ -1278,6 +1278,7 @@ describe("Tasks search coverage and centred toolbar", () => {
     const layout = measureHostTree(settingsItem, { width: 200 });
     const labelFrame = layout.get(settingsLabel)!; const dotFrame = layout.get(settingsDot)!;
     expect(Math.abs(dotFrame.left - (labelFrame.left + labelFrame.width) - 4)).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(dotFrame.top + dotFrame.height / 2 - (labelFrame.top + labelFrame.height / 2))).toBeLessThanOrEqual(0.5);
     host.agentUpdates = { state: "done", entries: [{ provider: "codex", status: "current", updateAvailable: false }], error: null };
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
     expect(hostsById("desktop-more-update-dot")).toHaveLength(0);
@@ -6651,7 +6652,7 @@ describe("Tasks board, phone", () => {
       const button = layout.get(settings)!; const indicator = layout.get(settingsDot)!;
       const label = layout.get(hostsById("filter-sheet-settings-label")[0]!)!;
       expect(indicator.width).toBe(4); expect(indicator.height).toBe(4);
-      expect(Math.abs(indicator.top + 2 - (button.top + button.height / 2))).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(indicator.top + 2 - (label.top + label.height / 2))).toBeLessThanOrEqual(0.5);
       expect(Math.abs(indicator.left - (label.left + label.width) - 4)).toBeLessThanOrEqual(0.5);
       expect(indicator.left + 4).toBeLessThanOrEqual(button.left + button.width);
       expect(button.left + button.width).toBeLessThanOrEqual(width);
