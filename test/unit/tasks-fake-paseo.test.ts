@@ -27,6 +27,26 @@ describe("fake PaseoApi", () => {
     }
   });
 
+  it("answers a subscribed list only once its subscription is ready, with that snapshot, and rejects it when ready fails", async () => {
+    const fake = createFakePaseo({ agents: [makeAgent({ id: "a", status: "running" })], workspaces: [makeWorkspace({ id: "ws" })] });
+    const release = fake.holdReady();
+    let agentsAnswered = false;
+    let workspacesAnswered = false;
+    const agents = fake.paseo.agents.list({ subscribe: {} }).then((result) => { agentsAnswered = true; return result; });
+    const workspaces = fake.paseo.workspaces.list({ subscribe: {} }).then((result) => { workspacesAnswered = true; return result; });
+    for (let index = 0; index < 16; index += 1) await Promise.resolve();
+    expect([agentsAnswered, workspacesAnswered]).toEqual([false, false]);
+    release();
+    const [agentList, workspaceList] = await Promise.all([agents, workspaces]);
+    expect(await agentList.subscription.ready).toEqual(expect.objectContaining({ entries: agentList.entries }));
+    expect(workspaceList.entries.map((entry) => entry.id)).toEqual(["ws"]);
+    await agentList.subscription.release();
+    await workspaceList.subscription.release();
+    fake.failNextReady(() => true, "subscription failed");
+    await expect(fake.paseo.agents.list({ subscribe: {} })).rejects.toThrow("subscription failed");
+    expect(fake.openSubscriptions()).toBe(0);
+  });
+
   it("filters, sorts and pages agents", async () => {
     const fake = createFakePaseo({
       agents: [

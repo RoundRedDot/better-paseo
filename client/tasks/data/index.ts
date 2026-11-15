@@ -4042,19 +4042,22 @@ function createStore(api: PaseoApi): TaskStore {
     };
     refreshing = active;
     const landings: Array<Promise<Landing>> = [];
-    if (statusReady) {
+    // A list lost before its first landing (a reconnect's re-subscribe failed
+    // while its first pages were out) has nothing loading it any more: read it too.
+    const lost = (key: string) => listsToRecover.has(key) && !subscriptions.has(key);
+    if (statusReady || lost(STATUS_KEY)) {
       const run: Run = { generation, tier: "base", tierRun: ++baseRun, refresh: token };
       landings.push(openAgentSubscription(STATUS_KEY, activeOptions(STATUS_FILTER), run, () => {}));
     }
     // Only a workspace list that landed is read again; one still loading carries on.
-    if (statusReady && workspacesReady) {
+    if ((statusReady && workspacesReady) || lost("workspaces")) {
       landings.push(startWorkspaceSubscription({ generation, tier: "workspaces", tierRun: ++workspaceRun, refresh: token }, true));
     }
-    if (attentionConsumers > 0 && attentionReady) {
+    if (attentionConsumers > 0 && (attentionReady || lost(ATTENTION_KEY))) {
       const run: Run = { generation, tier: "attention", tierRun: ++attentionRun, refresh: token };
       landings.push(openAgentSubscription(ATTENTION_KEY, activeOptions(ATTENTION_FILTER), run, () => {}));
     }
-    if (doneConsumers > 0 && doneReady && !doneReloading) {
+    if (doneConsumers > 0 && (lost(DONE_SUBSCRIPTION) || (doneReady && !doneReloading))) {
       const run: Run = { generation, tier: "done", tierRun: ++doneRun, refresh: token };
       const pages = [...sourceMembers.keys()].filter((key) => key.startsWith("done-page-")).length;
       const session = searchPages;

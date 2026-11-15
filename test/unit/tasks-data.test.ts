@@ -1425,7 +1425,7 @@ describe("Tasks data store refresh", () => {
   it("ends at once when the board closes during a refresh the daemon has not answered", async () => {
     const fake = createFakePaseo({ agents: [activeAgent("run", { status: "running" })], workspaces: [workspace()] });
     const mounted = await mountTasks(fake, "all");
-    fake.holdReady();
+    const release = fake.holdReady();
     let first!: Promise<string>;
     await act(async () => {
       first = mounted.current.refresh();
@@ -1434,6 +1434,11 @@ describe("Tasks data store refresh", () => {
     mounted.unmount();
     const soon = new Promise<string>((resolve) => setTimeout(() => resolve("still waiting"), 50));
     await expect(Promise.race([first, soon])).resolves.toBe("superseded");
+    // The lists still unanswered (the SDK's list waits for ready) are let go as they answer.
+    await act(async () => {
+      release();
+      await flush();
+    });
     expect(fake.openSubscriptions()).toBe(0);
   });
 
@@ -5723,6 +5728,47 @@ describe("Tasks data store, archived lane", () => {
       mounted.unmount();
     }
   });
+
+  for (const which of ["status", "attention", "workspaces"] as const) {
+    it(`recovers the ${which} list lost while its first pages were still loading`, async () => {
+      const many = Array.from({ length: 201 }, (_, index) => activeAgent(`a-${index}`, which === "attention"
+        ? { status: "idle", requiresAttention: true, updatedAt: recentIso(10_000 + index) }
+        : { status: "running", updatedAt: recentIso(10_000 + index), lastUserMessageAt: recentIso(10_000 + index) }));
+      const fillers = Array.from({ length: 4 }, (_, index) => makeWorkspace({ id: `filler-${index}`, projectId: "project-id", name: `filler-${index}` }));
+      const fake = createFakePaseo({
+        agents: many,
+        workspaces: [...fillers, workspace()],
+        ...(which === "workspaces" ? { workspacePageSize: 2 } : {}),
+      });
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const release = fake.holdPages();
+      const mounted = await mountArchived(fake, true);
+      try {
+        expect(mounted.current.ready).toBe(false);
+        // The reconnect's re-subscribe fails while the first pages are still out.
+        await act(async () => {
+          if (which === "workspaces") fake.failWorkspaceResubscribe();
+          else if (which === "attention") fake.failAgentResubscribeWhere((options) => options.filter?.requiresAttention === true);
+          else fake.failAgentResubscribeWhere((options) => options.filter?.statuses?.includes("running") === true);
+          for (let index = 0; index < 8; index += 1) await Promise.resolve();
+        });
+        release();
+        fake.passNewPages();
+        await advanceRecovery(3, 10);
+        await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[0]! + 10);
+        await advanceRecovery(4, 10);
+        await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[1]! + 10);
+        await advanceRecovery(4, 10);
+        expect(mounted.current.ready).toBe(true);
+        expect(mounted.current.error).toBeNull();
+        expect(mounted.current.byId.has("a-0")).toBe(true);
+        expect(mounted.current.byId.has("a-200")).toBe(true);
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+  }
 
   for (const which of ["workspaces", "agents"] as const) {
     it(`recovers a live ${which} subscription whose reconnect's re-subscribe failed`, async () => {

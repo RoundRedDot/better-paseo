@@ -444,7 +444,8 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         agentSubs.delete(sub);
         throw new Error(message);
       }
-      return { ...result, subscriptionId: sub.id, subscription };
+      // As the SDK: the list answers with the subscription's snapshot, once it is ready.
+      return { ...(await subscription.ready), subscription };
     },
     ref(agent: string | Agent) {
       const id = typeof agent === "string" ? agent : agent.id;
@@ -503,11 +504,9 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         released: false,
       };
       workspaceSubs.add(sub);
-      return {
-        ...result,
-        subscriptionId: sub.id,
-        subscription: makeSubscription(sub, () => ({ requestId, ...page() }), () => workspaceSubs.delete(sub)),
-      };
+      const subscription = makeSubscription(sub, () => ({ requestId, ...page() }), () => workspaceSubs.delete(sub));
+      // As the SDK: the list answers with the subscription's snapshot, once it is ready.
+      return { ...(await subscription.ready), subscription };
     },
     subscribe() {
       return () => {};
