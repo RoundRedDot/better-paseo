@@ -45,7 +45,7 @@ export interface DetailsSidebarProps {
   /** A stat was pressed: show that lane. */
   onLane(lane: LaneId): void;
   /** A parent or subtask in the details: scroll the board to it. */
-  onReveal(agentId: string): void;
+  onReveal(agentId: string, hostId?: string): void;
   /** Touch sizes (a tablet). */
   touch: boolean;
   /** False leaves out the status counts (a bottom sheet showing a card, where room is short). Default true. */
@@ -108,13 +108,13 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   const tokens = taskTokens(theme);
   // Pixel-by-pixel resizes only change the browser's layout, not this subtree.
   const [layout, setLayout] = useState({ short: false, wide: false });
-  const [menu, setMenu] = useState<{ id: string; point: { x: number; y: number } } | null>(null);
-  const openMenu = useCallback((id: string, point: { x: number; y: number }) => setMenu({ id, point }), []);
-  const card = selection.id ? board.cardById(selection.id) : undefined;
+  const [menu, setMenu] = useState<{ id: string; hostId?: string; point: { x: number; y: number } } | null>(null);
+  const openMenu = useCallback((id: string, point: { x: number; y: number }, hostId?: string) => setMenu({ id, hostId, point }), []);
+  const card = selection.id ? board.cardById(selection.id, selection.hostId) : undefined;
   useParentTitle(board, card);
-  const shown = card && selection.id ? findCard(board.lanes, selection.id) !== null : false;
-  const backId = selection.back[selection.back.length - 1]?.id;
-  const backCard = backId ? board.cardById(backId) : undefined;
+  const shown = card && selection.id ? findCard(board.lanes, selection.id, selection.hostId) !== null : false;
+  const back = selection.back[selection.back.length - 1];
+  const backCard = back ? board.cardById(back.id, back.hostId) : undefined;
 
   const showStats = props.stats !== false;
   // The counts' summary and the groups read the same options: built once here, and only while one of them is shown.
@@ -131,14 +131,14 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   const short = !tabs && !columns && (props.scrollAll === true || layout.short);
   const content = (
     <>
-      {menu && board.cardById(menu.id) ? <SidebarCardMenu board={board} card={board.cardById(menu.id)!} theme={theme} point={menu.point} onClose={() => setMenu(null)} /> : null}
+      {menu && board.cardById(menu.id, menu.hostId) ? <SidebarCardMenu board={board} card={board.cardById(menu.id, menu.hostId)!} theme={theme} point={menu.point} onClose={() => setMenu(null)} /> : null}
       {showStats ? <StatsCard board={board} options={options!} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} /> : null}
       {card ? (
         <SidebarDetails
           board={board}
           card={card}
           shown={shown}
-          backId={backId}
+          backId={back?.id}
           backCard={backCard}
           theme={theme}
           dispatch={dispatch}
@@ -214,8 +214,8 @@ interface SidebarDetailsProps {
   backCard: TaskCard | undefined;
   theme: PluginTheme;
   dispatch(action: SelectionAction): void;
-  onReveal(agentId: string): void;
-  onMenu(id: string, point: { x: number; y: number }): void;
+  onReveal(agentId: string, hostId?: string): void;
+  onMenu(id: string, point: { x: number; y: number }, hostId?: string): void;
   touch: boolean;
   sheetToggle?: { full: boolean; label: string; onPress(): void };
   onSheetClose?(): void;
@@ -255,15 +255,15 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
       touch={props.touch}
       clock={board.clock}
       onClose={() => dispatch({ type: "clear" })}
-      onMenu={(point) => props.onMenu(card.id, point)}
+      onMenu={(point) => props.onMenu(card.id, point, card.hostId)}
       sheetToggle={props.sheetToggle}
       onSheetClose={props.onSheetClose}
       questionActionsInHeader={props.questionActionsInHeader}
       back={props.backId ? { title: props.backCard?.title ?? cardStrings(board.language).parentUnknown, onPress: () => dispatch({ type: "back" }) } : null}
       notice={notice}
       onJump={(agentId) => {
-        dispatch({ type: "jump", id: agentId });
-        props.onReveal(agentId);
+        dispatch({ type: "jump", id: agentId, hostId: card.hostId });
+        props.onReveal(agentId, card.hostId);
       }}
       onSubtaskMenu={props.onMenu}
       titleUpdates={board.callbacks.titleUpdates}
@@ -294,7 +294,7 @@ function SidebarCardMenu(props: { board: BoardController; card: TaskCard; theme:
     autoTitlePending: title.state === "running" || board.callbacks.titleUpdates?.revealing().has(card.id),
     open: callbacks.onOpen && !card.subagent ? () => callbacks.onOpen?.(card.id) : undefined,
     openParent: callbacks.onOpen && parentOpensInPaseo(card) ? () => callbacks.onOpen?.(card.parent!.id) : undefined,
-    revealParent: card.parent ? () => callbacks.onReveal(card.parent!.id) : undefined,
+    revealParent: card.parent ? () => callbacks.onReveal(card.parent!.id, card.hostId) : undefined,
     stop: canStop && board.stop.phase(card.id) !== "stopping" ? (withChildren) => callbacks.onStop?.(card, { withChildren, dialog: true }) : undefined,
     children: canStop && card.stoppable ? children : 0,
     childrenOnly: !card.stoppable,
@@ -839,6 +839,6 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
 }
 
 /** Whether a card is still somewhere the sidebar can show it. */
-export function sidebarCard(board: BoardController, id: string | null): TaskCard | undefined {
-  return id ? board.cardById(id) : undefined;
+export function sidebarCard(board: BoardController, id: string | null, hostId?: string): TaskCard | undefined {
+  return id ? board.cardById(id, hostId) : undefined;
 }

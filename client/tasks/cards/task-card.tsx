@@ -76,7 +76,7 @@ export interface CardCallbacks {
    * `parentId`: a provider subagent's parent, whose tab opens instead while
    * the subagent has no card on the board.
    */
-  onReveal(agentId: string, parentId?: string): void;
+  onReveal(agentId: string, parentId?: string, hostId?: string): void;
   /**
    * Stop, if the card is stoppable and Stop is available. `dialog`: a context
    * menu's Stop, which asks in a dialog instead of arming the button.
@@ -958,7 +958,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={strings.revealParent}
-              onPress={() => props.onReveal(card.parent!.id)}
+              onPress={() => props.onReveal(card.parent!.id, undefined, card.hostId)}
               {...parentHover.hoverProps}
               style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: PARENT_SHRINK, minWidth: 0, overflow: "hidden" }}
               testID="task-card-meta-parent"
@@ -1622,7 +1622,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               language={language}
               now={props.now}
               clock={props.clock}
-              onPress={() => props.onReveal(child.id, card.id)}
+              onPress={() => props.onReveal(child.id, card.id, card.hostId)}
               onOpen={props.onOpen ? () => props.onOpen?.(child.kind === "provider" ? card.id : child.id) : undefined}
             />
           ))}
@@ -1812,7 +1812,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
             autoTitlePending: updatingTitle,
             open: props.onOpen && ownTab ? () => props.onOpen?.(card.id) : undefined,
             openParent: parentOpens ? () => props.onOpen?.(card.parent!.id) : undefined,
-            revealParent: card.parent ? () => props.onReveal(card.parent!.id) : undefined,
+            revealParent: card.parent ? () => props.onReveal(card.parent!.id, undefined, card.hostId) : undefined,
             // Stop asks in a dialog first: there is no button to arm.
             stop: canStop && props.stopPhase !== "stopping"
               ? (withChildren) => {

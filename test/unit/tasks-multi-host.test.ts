@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { PaseoApi, PaseoAgentListOptions } from "@getpaseo/client";
 import { filterLanes, type TasksHandle, type TasksOptions } from "../../client/tasks/data";
 import { useMultiHostTasks } from "../../client/tasks/data/multi-host";
-import { EMPTY_FILTERS, LANE_ORDER } from "../../client/tasks/model";
+import { EMPTY_FILTERS, LANE_ORDER, workspaceKey } from "../../client/tasks/model";
 import { at, createFakePaseo, makeAgent, makeWorkspace } from "./helpers/fake-paseo";
 import "./helpers/quiet-renderer";
 
@@ -60,6 +60,13 @@ function mount(fake: Fake, selectedHostIds?: readonly string[], beforeRelease?: 
     },
     get current() {
       return current;
+    },
+    /** The app's host list changed: the board re-reads it. */
+    async rerender() {
+      await act(async () => {
+        renderer.update(React.createElement(Probe));
+        for (let index = 0; index < 12; index += 1) await Promise.resolve();
+      });
     },
     unmount: () => act(() => renderer.unmount()),
   };
@@ -222,6 +229,93 @@ describe("multi-host board", () => {
     await mounted.render();
     try {
       expect(mounted.current.byId.get("local-agent")).toMatchObject({ hostId: LOCAL, hostLabel: "This host" });
+    } finally {
+      await mounted.unmount();
+    }
+  });
+
+  it("keeps two hosts' agents with the same id apart", async () => {
+    const local = createFakePaseo({
+      agents: [makeAgent({ id: "agent-dup", workspaceId: "ws-shared", status: "running", updatedAt: at(1) })],
+      workspaces: [makeWorkspace({ id: "ws-shared" })],
+    });
+    const remote = createFakePaseo({
+      agents: [makeAgent({ id: "agent-dup", workspaceId: "ws-shared", status: "running", updatedAt: at(2) })],
+      workspaces: [makeWorkspace({ id: "ws-shared" })],
+    });
+    hostState.hosts = [
+      { serverId: LOCAL, label: "Here", status: "online" },
+      { serverId: REMOTE, label: "Remote", status: "online" },
+    ];
+    hostState.clients = new Map<string, unknown>([[LOCAL, local.paseo], [REMOTE, remote.paseo]]);
+    const mounted = mount(local);
+    await mounted.render();
+    try {
+      // Both cards are on the board, each carrying its own host.
+      const cards = mounted.current.lanes.running.cards.filter((card) => card.id === "agent-dup");
+      expect(cards.map((card) => card.hostId).sort()).toEqual([REMOTE, LOCAL].sort());
+      // An id alone resolves to the local host's card; the host names the other.
+      expect(mounted.current.byId.get("agent-dup")?.hostId).toBe(LOCAL);
+      // A parent lookup names the daemon that owns the id.
+      mounted.current.resolveParent("agent-dup", REMOTE);
+      await act(async () => {
+        for (let index = 0; index < 12; index += 1) await Promise.resolve();
+      });
+      expect(remote.calls.some((call) => call.method === "agents.ref.refresh")).toBe(true);
+      expect(local.calls.some((call) => call.method === "agents.ref.refresh")).toBe(false);
+    } finally {
+      await mounted.unmount();
+    }
+  });
+
+  it("keeps two hosts' workspaces with the same id apart", async () => {
+    const local = createFakePaseo({
+      agents: [makeAgent({ id: "agent-local", workspaceId: "ws-shared", status: "running", updatedAt: at(1) })],
+      workspaces: [makeWorkspace({ id: "ws-shared", name: "api" })],
+    });
+    const remote = createFakePaseo({
+      agents: [makeAgent({ id: "agent-remote", workspaceId: "ws-shared", status: "running", updatedAt: at(2) })],
+      workspaces: [makeWorkspace({ id: "ws-shared", name: "api" })],
+    });
+    hostState.hosts = [
+      { serverId: LOCAL, label: "Here", status: "online" },
+      { serverId: REMOTE, label: "Remote", status: "online" },
+    ];
+    hostState.clients = new Map<string, unknown>([[LOCAL, local.paseo], [REMOTE, remote.paseo]]);
+    const mounted = mount(local);
+    await mounted.render();
+    try {
+      const ids = mounted.current.workspaces.map((workspace) => workspace.id).sort();
+      expect(ids).toEqual([workspaceKey(LOCAL, "ws-shared"), workspaceKey(REMOTE, "ws-shared")].sort());
+      const remoteOnly = filterLanes(mounted.current.lanes, { ...EMPTY_FILTERS, workspaceIds: [workspaceKey(REMOTE, "ws-shared")] });
+      expect(LANE_ORDER.flatMap((lane) => remoteOnly[lane].cards.map((card) => card.id))).toEqual(["agent-remote"]);
+    } finally {
+      await mounted.unmount();
+    }
+  });
+
+  it("drops an offline host's cards and brings them back when it reconnects", async () => {
+    const { remote, mounted } = twoHosts();
+    await mounted.render();
+    try {
+      expect(mounted.current.byId.has("remote-running")).toBe(true);
+      hostState.hosts = [
+        { serverId: LOCAL, label: "Here", status: "online" },
+        { serverId: REMOTE, label: "Remote", status: "offline" },
+      ];
+      await mounted.rerender();
+      expect(mounted.current.byId.has("remote-running")).toBe(false);
+      expect(mounted.current.byId.has("local-agent")).toBe(true);
+      // The dropped host's subscriptions are released, not left streaming.
+      expect(remote.openSubscriptions()).toBe(0);
+      hostState.hosts = [
+        { serverId: LOCAL, label: "Here", status: "online" },
+        { serverId: REMOTE, label: "Remote", status: "online" },
+      ];
+      await mounted.rerender();
+      expect(mounted.current.byId.get("remote-running")?.hostId).toBe(REMOTE);
+      // The reconnected host's list is asked again.
+      expect(remote.calls.filter((call) => call.method === "agents.list").length).toBeGreaterThan(1);
     } finally {
       await mounted.unmount();
     }

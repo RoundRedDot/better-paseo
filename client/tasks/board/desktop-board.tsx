@@ -303,7 +303,7 @@ export function DesktopBoard(props: {
     if (shown === "card" && selection.id === null) setShown(null);
   }, [shown, selection.id]);
   // A card that left the data (deleted, archived away) leaves the sidebar to the overview.
-  const selectedGone = selection.id !== null && tasks.ready && !board.cardById(selection.id);
+  const selectedGone = selection.id !== null && tasks.ready && !board.cardById(selection.id, selection.hostId);
   useEffect(() => {
     if (selectedGone) dispatch({ type: "clear" });
   }, [selectedGone]);
@@ -408,12 +408,12 @@ export function DesktopBoard(props: {
   );
 
   const reveal = useCallback(
-    (agentId: string) => {
+    (agentId: string, hostId?: string) => {
       const { board: current } = latest.current;
-      const location = findCard(current.lanes, agentId);
+      const location = findCard(current.lanes, agentId, hostId);
       if (!location) {
         if (current.tasks.byId.has(agentId)) current.toastMessage(current.strings.hiddenByFilters);
-        else current.tasks.resolveParent(agentId);
+        else current.tasks.resolveParent(agentId, hostId);
         return;
       }
       const wasCollapsed = latest.current.collapsed.includes(location.lane);
@@ -437,13 +437,13 @@ export function DesktopBoard(props: {
   const showCard = useCallback(
     (card: TaskCard, preview = false, parent?: string) => {
       if (!preview) setFocus(null);
-      dispatch({ type: "click", id: card.id, parent });
+      dispatch({ type: "click", id: card.id, hostId: card.hostId, parent, parentHostId: card.hostId });
       const now = latest.current;
       if (!now.open) setShown("card");
       if (!now.narrow && now.preferred) return;
       if (sheetModeRef.current) {
         // The sheet covers the lanes' lower part: the card's list brings it to the top, above the sheet.
-        const location = findCard(now.board.lanes, card.id);
+        const location = findCard(now.board.lanes, card.id, card.hostId);
         if (location) setTimeout(() => scrollTo(location.lane, location.index, 0.05), 80);
         uncover(card.lane, LANES.edge);
       } else {
@@ -502,7 +502,7 @@ export function DesktopBoard(props: {
       const domCardId = focusedTaskCardId(root);
       const keyFocus = domCardId ? findCard(now.board.lanes, domCardId) : now.focus;
       if (!event.isComposing && !now.menu && ((event.key === "." && !event.shiftKey) || (event.key === "F10" && event.shiftKey) || event.key === "ContextMenu")) {
-        const card = keyFocus ? now.board.lanes[keyFocus.lane].cards[keyFocus.index] : now.selection.id ? now.board.cardById(now.selection.id) : null;
+        const card = keyFocus ? now.board.lanes[keyFocus.lane].cards[keyFocus.index] : now.selection.id ? now.board.cardById(now.selection.id, now.selection.hostId) : null;
         if (!card) return;
         const node = document.getElementById(`task-card-${card.id}`);
         if (!node || !root?.contains(node)) return;
@@ -559,11 +559,11 @@ export function DesktopBoard(props: {
       if (event.key === " " && !event.shiftKey && !event.isComposing && !now.menu) {
         const card = keyFocus
           ? now.board.lanes[keyFocus.lane].cards[keyFocus.index]
-          : now.selection.id ? now.board.cardById(now.selection.id) : null;
+          : now.selection.id ? now.board.cardById(now.selection.id, now.selection.hostId) : null;
         if (!card) return;
         event.preventDefault();
         if (!event.repeat) {
-          if (now.open && now.selection.id === card.id) {
+          if (now.open && now.selection.id === card.id && now.selection.hostId === card.hostId) {
             focusTaskBoard(root);
             setFocus(findCard(now.board.lanes, card.id));
             dispatch({ type: "clear" });
@@ -571,7 +571,7 @@ export function DesktopBoard(props: {
         }
         return;
       }
-      const origin = keyFocus ?? (now.selection.id ? findCard(now.board.lanes, now.selection.id) : null);
+      const origin = keyFocus ?? (now.selection.id ? findCard(now.board.lanes, now.selection.id, now.selection.hostId) : null);
       const result = boardKeyReducer(origin, event.key, now.shapes);
       if (!result.handled) return;
       event.preventDefault();
@@ -643,7 +643,7 @@ export function DesktopBoard(props: {
   const wantedLanes = `${inView}${focus ? `|${focus.lane}|` : ""}${flash ? `|${flash.lane}|` : ""}${highlightedLane ? `|${highlightedLane}|` : ""}`;
   const shownLanes = useOffscreenLanes(lanes, wantedLanes, { on: OFFSCREEN_LAG, churnLimit: LANE_CHURN_LIMIT ?? 0 });
   // The live lookup can advance before the deferred lanes on screen do.
-  const selectedLane = selection.id === null ? null : findCard(shownLanes, selection.id)?.lane;
+  const selectedLane = selection.id === null ? null : findCard(shownLanes, selection.id, selection.hostId)?.lane;
   // Filters, sort and search are the user's: lanes that change with them take their new order at once.
   const motion = useLaneMotion(shownLanes, { enabled: board.visible && tasks.ready && !reduced, scope: board.scope, flights: true, churnLimit: LANE_CHURN_LIMIT });
   useTrackNewCards(board.hostId, shownLanes, tasks.ready);

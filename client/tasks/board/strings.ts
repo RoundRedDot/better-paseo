@@ -79,6 +79,7 @@ const en = {
   filterHost: "Host",
   allHosts: "All hosts",
   remoteHostStopHint: "Open tab to stop on remote host",
+  remoteHostActionHint: "Open this task on its host to change it",
   labels: "Labels",
   /** The applied filter's chip. */
   hideSubtasks: "Hide subtasks",
@@ -285,6 +286,7 @@ const zh: typeof en = {
   filterHost: "主机",
   allHosts: "全部主机",
   remoteHostStopHint: "在远程主机打开 tab 以停止",
+  remoteHostActionHint: "请在该任务所在的主机打开它再修改",
   labels: "标签",
   hideSubtasks: "隐藏子任务",
   showSubtasks: "显示子任务",

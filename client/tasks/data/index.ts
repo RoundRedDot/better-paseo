@@ -24,7 +24,7 @@ import { resolveTasksLanguage } from "../i18n";
 import { fallbackLabelColor } from "../label-colors";
 import { subagentModel, subagentType } from "../subagent-type";
 import { matchesTaskSearch } from "./search";
-import { LANE_ORDER, isHistoryLane, settledAt, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
+import { LANE_ORDER, isHistoryLane, settledAt, workspaceKey, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
 
 export interface WorkspaceOption {
   id: string;
@@ -108,10 +108,10 @@ export interface TasksHandle extends TasksSnapshot {
   refresh(): Promise<TasksRefreshResult>;
   /** Fetch the done lane's next page (50), which the archived lane shares. */
   loadMoreDone(): void;
-  /** Resolve a parent that is not on the board (archived, or an old done task): `agents.ref(id).refresh()`. */
-  resolveParent(agentId: string): void;
+  /** Resolve a parent that is not on the board (archived, or an old done task): `agents.ref(id).refresh()`. `hostId` picks the daemon that owns the id. */
+  resolveParent(agentId: string, hostId?: string): void;
   /** Read the parent again, as after an unarchive: whether it is archived, or null when it is gone. */
-  refreshParent(agentId: string): Promise<boolean | null>;
+  refreshParent(agentId: string, hostId?: string): Promise<boolean | null>;
   /** Read the server's read marks again, as after a Mark read. */
   refreshReads(): void;
   /** Read the server's unread marks again, as after a Mark unread. */
@@ -4445,7 +4445,7 @@ export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilt
   const query = filters.query.trim().toLowerCase();
   const matches = (card: TaskCard) => {
     return matchesTaskSearch(card, query, firstMessages?.get(card.id)) &&
-      (filters.workspaceIds.length === 0 || (card.location.workspaceId !== null && filters.workspaceIds.includes(card.location.workspaceId))) &&
+      (filters.workspaceIds.length === 0 || (card.location.workspaceId !== null && filters.workspaceIds.includes(workspaceKey(card.hostId, card.location.workspaceId)))) &&
       // A card without a host is a single-host board's, which a host filter does not narrow.
       (filters.hostIds.length === 0 || card.hostId === undefined || filters.hostIds.includes(card.hostId)) &&
       (filters.providers.length === 0 || filters.providers.includes(card.provider)) &&

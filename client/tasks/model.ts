@@ -330,6 +330,14 @@ export interface BoardCounts {
 }
 
 /** Board filters; travel in the screen's params (string → string). */
+/**
+ * A workspace as one board sees it. Two daemons may know the same workspace
+ * id, so a multi-host board's filter values carry their host.
+ */
+export function workspaceKey(hostId: string | undefined, workspaceId: string): string {
+  return hostId ? `${hostId}\u0000${workspaceId}` : workspaceId;
+}
+
 export interface BoardFilters {
   query: string;
   workspaceIds: string[];

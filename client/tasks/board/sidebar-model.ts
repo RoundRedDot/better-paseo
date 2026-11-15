@@ -86,9 +86,11 @@ export type DetailTab = "info" | "messages";
 
 export interface SidebarSelection {
   id: string | null;
+  /** The host the card came from; two hosts may know the same agent id. */
+  hostId?: string;
   tab: DetailTab;
   /** Earlier cards, newest last, for the back row after a parent or subtask jump. */
-  back: { id: string; tab: DetailTab }[];
+  back: { id: string; hostId?: string; tab: DetailTab }[];
 }
 
 export const NO_SELECTION: SidebarSelection = { id: null, tab: "messages", back: [] };
@@ -99,9 +101,9 @@ export type SelectionAction =
    * `parent`: the card whose subtask row was pressed, kept to go back to, so
    * a subtask shown from its parent's card has the parent one press away.
    */
-  | { type: "click"; id: string; parent?: string }
+  | { type: "click"; id: string; hostId?: string; parent?: string; parentHostId?: string }
   /** A parent or subtask link in the sidebar: shown, the current one kept to go back to. */
-  | { type: "jump"; id: string }
+  | { type: "jump"; id: string; hostId?: string }
   | { type: "tab"; tab: DetailTab }
   | { type: "back" }
   | { type: "clear" };
@@ -109,13 +111,14 @@ export type SelectionAction =
 export function selectionReducer(state: SidebarSelection, action: SelectionAction): SidebarSelection {
   switch (action.type) {
     case "click": {
-      const parent = action.parent && action.parent !== action.id ? action.parent : undefined;
-      if (state.id === action.id && (parent ? state.back.length === 1 && state.back[0]!.id === parent : state.back.length === 0)) return state;
-      return { id: action.id, tab: "messages", back: parent ? [{ id: parent, tab: "messages" }] : [] };
+      const parent = action.parent && action.parent !== action.id ? { id: action.parent, hostId: action.parentHostId ?? action.hostId } : undefined;
+      const same = state.id === action.id && state.hostId === action.hostId;
+      if (same && (parent ? state.back.length === 1 && state.back[0]!.id === parent.id && state.back[0]!.hostId === parent.hostId : state.back.length === 0)) return state;
+      return { id: action.id, hostId: action.hostId, tab: "messages", back: parent ? [{ ...parent, tab: "messages" }] : [] };
     }
     case "jump":
-      if (state.id === action.id) return state;
-      return { id: action.id, tab: "messages", back: state.id ? [...state.back, { id: state.id, tab: state.tab }].slice(-SIDEBAR.history) : state.back };
+      if (state.id === action.id && state.hostId === action.hostId) return state;
+      return { id: action.id, hostId: action.hostId, tab: "messages", back: state.id ? [...state.back, { id: state.id, hostId: state.hostId, tab: state.tab }].slice(-SIDEBAR.history) : state.back };
     case "tab":
       return state.tab === action.tab ? state : { ...state, tab: action.tab };
     case "back": {
