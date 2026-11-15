@@ -835,6 +835,68 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("takes an archived task off though an older read by id answered first", async () => {
+      const done = activeAgent("rd", { status: "idle", requiresAttention: false, updatedAt: recentIso(5_000) });
+      const fake = createFakePaseo({ agents: [done], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        expect(mounted.current.byId.get("rd")?.lane).toBe("done");
+        // An older snapshot: a read by id goes out with the unarchived state, held.
+        const releaseOld = fake.holdRefreshes();
+        await act(async () => {
+          fake.pushAgentSnapshot({ ...done, updatedAt: recentIso(60_000) } as never);
+          await flush(8);
+        });
+        // Archived, the archived lane off: removes, and the board reads it to confirm (held too).
+        const releaseNew = fake.holdRefreshes();
+        await act(async () => {
+          fake.upsertAgent({ ...done, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(8);
+        });
+        // The old read answers first, then the confirmation.
+        await act(async () => {
+          releaseOld();
+          await flush(16);
+        });
+        await act(async () => {
+          releaseNew();
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("rd")).toBe(false);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("clears a read's error once a newer state of the task lands after its retries ran out", async () => {
+      const fake = createFakePaseo({ agents: [unread], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        fake.failRefreshes(new Error("old read failed"));
+        await act(async () => {
+          fake.pushAgentSnapshot({ ...unread, updatedAt: recentIso(60_000) } as never);
+          await flush(8);
+        });
+        for (const wait of [2_100, 5_100, 15_100, 1_000]) {
+          await act(async () => {
+            vi.advanceTimersByTime(wait);
+            await flush(8);
+          });
+        }
+        expect(mounted.current.error).toBe("old read failed");
+        await act(async () => {
+          fake.upsertAgent(activeAgent("unread", { status: "running", title: "Renamed", requiresAttention: false, updatedAt: recentIso(0), lastUserMessageAt: recentIso(0) }));
+          await flush(8);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).toBe("running");
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -3694,6 +3756,37 @@ describe("Tasks data store", () => {
         await settle();
         expect(mounted.current.ready).toBe(true);
         expect(mounted.current.byId.get("late")?.lane).toBe("review");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("does not archive a task of a workspace made while disconnected before the reconnect's pages land", async () => {
+      const fake = pagedFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.ready).toBe(true);
+        // Made while disconnected: a new workspace (on a later page) and a task running in it.
+        fake.setWorkspaceSilently(makeWorkspace({ id: "z-new", projectId: "project-id", name: "z-new" }));
+        const release = fake.holdPages();
+        await act(async () => {
+          fake.reconnectOldestWorkspaceSubscription();
+          await flush(8);
+        });
+        await act(async () => {
+          fake.upsertAgent(activeAgent("new-runner", { status: "running", workspaceId: "z-new", updatedAt: recentIso(0), lastUserMessageAt: recentIso(0) }));
+          await flush(8);
+        });
+        // The workspace list's later pages are still loading: not archived.
+        expect(mounted.current.byId.get("new-runner")?.lane).toBe("running");
+        await act(async () => {
+          release();
+          await flush(24);
+        });
+        expect(mounted.current.byId.get("new-runner")?.lane).toBe("running");
+        // A workspace archived before (left out of a complete list) stays archived throughout.
+        expect(mounted.current.byId.has("stale")).toBe(false);
       } finally {
         mounted.unmount();
       }

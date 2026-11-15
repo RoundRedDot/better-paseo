@@ -41,8 +41,13 @@ describe("lane oracle (test helper for the integration suites)", () => {
   it("reports a background agent shown on its own, but not one shown as a shown parent's child", () => {
     const background = [{ id: "ws", background: false, archivingAt: null }, { id: "ws-bg", background: true, archivingAt: null }] as unknown as PaseoWorkspace[];
     const expected = oracleLanes([agent("P", { status: "running" }), agent("bg", { parent: "P", status: "running", workspaceId: "ws-bg" } as never), agent("bg-orphan", { status: "running", workspaceId: "ws-bg" } as never)], background);
-    const withParent = new Map([["P", { lane: "running", title: "P" }], ["bg", { lane: "running", title: "bg" }]]);
+    const withParent = new Map([["P", { lane: "running", title: "P", children: [{ id: "bg", lane: "running" }] }], ["bg", { lane: "running", title: "bg" }]]);
     expect(compareWithOracle(withParent, expected, 24 * 60 * 60 * 1000)).toEqual([]);
+    // Its parent shown but not listing it, or it in the wrong lane: differences.
+    const unlisted = new Map([["P", { lane: "running", title: "P", children: [] }], ["bg", { lane: "running", title: "bg" }]]);
+    expect(compareWithOracle(unlisted, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
+    const wrongLane = new Map([["P", { lane: "running", title: "P", children: [{ id: "bg", lane: "done" }] }], ["bg", { lane: "done", title: "bg" }]]);
+    expect(compareWithOracle(wrongLane, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
     const alone = new Map([["P", { lane: "running", title: "P" }], ["bg-orphan", { lane: "running", title: "bg-orphan" }]]);
     expect(compareWithOracle(alone, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
   });

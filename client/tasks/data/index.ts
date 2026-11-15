@@ -1185,6 +1185,10 @@ function createStore(api: PaseoApi): TaskStore {
    * only then does a missing workspace mean archived.
    */
   let workspacesListed = false;
+  /** The latest workspace list read every page: a workspace missing from it is archived, not merely on a page still loading. */
+  let workspacesComplete = false;
+  /** Workspaces a complete list left out, or the daemon removed: archived even while a newer list is still loading. */
+  const knownGoneWorkspaces = new Set<string>();
   /**
    * Live workspace updates, for each workspace snapshot whose later pages are
    * still loading: those pages are older, so they neither replace an upsert
@@ -1366,7 +1370,11 @@ function createStore(api: PaseoApi): TaskStore {
     const workspaceId = entries.get(id)?.agent.workspaceId;
     if (!workspacesListed || !workspaceId) return false;
     const workspace = workspaces.get(workspaceId);
-    return !workspace || Boolean(workspace.archivingAt);
+    if (workspace) return Boolean(workspace.archivingAt);
+    // Not on the list: archived once a complete list left it out, or the
+    // daemon removed it. While a newer list's later pages load, a workspace
+    // the board never saw may be new (made while disconnected), not archived.
+    return workspacesComplete || knownGoneWorkspaces.has(workspaceId);
   }
 
   /** Background agents contribute to their parent's state, but never get standalone cards. */
@@ -1540,7 +1548,12 @@ function createStore(api: PaseoApi): TaskStore {
       && JSON.stringify(previous.agent) === JSON.stringify(agent)
       && JSON.stringify(previous.placement) === JSON.stringify(placement);
     // Only a change ticks the clock: the same snapshot again, from another list, changes nothing a read could set back.
-    if (!resent) recordStamps.set(agent.id, ++recordClock);
+    if (!resent) {
+      recordStamps.set(agent.id, ++recordClock);
+      // A newer state stands in for what the failed reads were to find out.
+      clearPageError(`read:${agent.id}`);
+      clearPageError(`gone:${agent.id}`);
+    }
     const oldParent = parentByChild.get(agent.id) ?? null;
     const wasActive = cards.get(agent.id)?.status === "running" || cards.get(agent.id)?.status === "needs_input";
     // A turn seen ending: the update that ends it carries its end. The agent
@@ -1745,6 +1758,9 @@ function createStore(api: PaseoApi): TaskStore {
         held.removedFromSource = true;
       }
       const wasMember = sourceMembers.get(sourceKey)?.delete(payload.agentId);
+      // A list that held the agent let it go (archived, read, running): a read
+      // by id asked before this would set its memberships back.
+      if (wasMember) recordStamps.set(payload.agentId, ++recordClock);
       // Held for a subagent failure, it stays; the list it left had its latest state, so read it again.
       if (sourceMembers.get(SUBAGENT_KEY)?.has(payload.agentId)) fetchSubagentParent(payload.agentId, generation);
       if (wasMember && memberSetsContaining(payload.agentId).length === 0 && doneConsumers > 0) {
@@ -2731,6 +2747,7 @@ function createStore(api: PaseoApi): TaskStore {
   function updateWorkspace(workspace: PaseoWorkspace) {
     const previous = workspaces.get(workspace.id);
     workspaces.set(workspace.id, workspace);
+    knownGoneWorkspaces.delete(workspace.id);
     if (workspace.archivingAt) workspaceArchiveTimes.set(workspace.id, workspace.archivingAt);
     else workspaceArchiveTimes.delete(workspace.id);
     let changed = !previous || boardShapeOf(previous) !== boardShapeOf(workspace);
@@ -2770,6 +2787,14 @@ function createStore(api: PaseoApi): TaskStore {
       }
       for (const [id, live] of liveUpdates) if (live === "upsert") next.add(id);
       workspacesListed = true;
+      workspacesComplete = true;
+      // Every workspace the board knows of off this complete list is gone: those it held, and those its agents name.
+      for (const id of workspaces.keys()) if (!next.has(id)) knownGoneWorkspaces.add(id);
+      for (const entry of entries.values()) {
+        const workspaceId = entry.agent.workspaceId;
+        if (workspaceId && !next.has(workspaceId)) knownGoneWorkspaces.add(workspaceId);
+      }
+      for (const id of next) knownGoneWorkspaces.delete(id);
       const removedIds = new Set([...workspaces.keys()].filter((id) => !next.has(id)));
       for (const id of removedIds) workspaces.delete(id);
       // Gone from the list, or never in it: archived, and its cards leave.
@@ -2810,6 +2835,7 @@ function createStore(api: PaseoApi): TaskStore {
         // The daemon pages its list (200 at most), and a subscription's
         // snapshot is only the first page. Show that page now, but read a
         // workspace that is not on it as archived only once every page landed.
+        workspacesComplete = false;
         // The board stays unready on a first list until then, so tasks of an
         // archived workspace never show for a moment.
         batchUpdates(() => {
@@ -2850,6 +2876,7 @@ function createStore(api: PaseoApi): TaskStore {
         } else if (envelope.payload.kind === "remove" && envelope.payload.id) {
           for (const liveUpdates of workspaceListUpdates) liveUpdates.set(envelope.payload.id, "remove");
           workspaces.delete(envelope.payload.id);
+          knownGoneWorkspaces.add(envelope.payload.id);
           for (const [id, entry] of entries) {
             if (entry.agent.workspaceId !== envelope.payload.id) continue;
             const base = buildBaseCard(entry, undefined, projectFor(entry, undefined, projects), colorNames, modelCatalogs.get(entry.agent.provider), undefined);
@@ -3052,6 +3079,7 @@ function createStore(api: PaseoApi): TaskStore {
     statusReady = false;
     workspacesReady = false;
     workspacesListed = false;
+    workspacesComplete = false;
     sourceMembers.set(STATUS_KEY, new Set());
     void openAgentSubscription(STATUS_KEY, activeOptions(STATUS_FILTER), run);
     void startWorkspaceSubscription({ generation, tier: "workspaces", tierRun: ++workspaceRun });
@@ -3260,6 +3288,7 @@ function createStore(api: PaseoApi): TaskStore {
     attentionReady = false;
     workspacesReady = false;
     workspacesListed = false;
+    workspacesComplete = false;
     doneCursor = null;
     doneTailAt = null;
     loadingDone = false;

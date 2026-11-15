@@ -102,7 +102,7 @@ export function oracleLanes(agents: readonly PaseoAgent[], workspaceList: readon
  * any other way is a difference.
  */
 export function compareWithOracle(
-  shown: ReadonlyMap<string, { lane: string; title: string; subagent?: unknown }>,
+  shown: ReadonlyMap<string, { lane: string; title: string; subagent?: unknown; children?: ReadonlyArray<{ id: string; lane?: string }> }>,
   expected: ReadonlyMap<string, OracleCard>,
   windowMs: number,
   now = Date.now(),
@@ -122,9 +122,16 @@ export function compareWithOracle(
   }
   for (const [id, actual] of shown) {
     if (actual.subagent || visible.has(id)) continue;
-    // A background agent is on the board only as the child of a card it shows (for its Stop).
+    // A background agent is on the board only as the child of a card it shows
+    // (for its Stop): that card must list it, and it must be in its lane.
     const hidden = expected.get(id);
-    if (hidden?.hidden && hidden.parentId && shown.has(hidden.parentId)) continue;
+    if (hidden?.hidden && hidden.parentId) {
+      const listed = shown.get(hidden.parentId)?.children?.find((child) => child.id === id);
+      if (listed) {
+        if (actual.lane !== hidden.lane) mismatches.push(`${id} "${actual.title}" (background child) in ${actual.lane}, expected ${hidden.lane} (${hidden.reason})`);
+        continue;
+      }
+    }
     const card = expected.get(id);
     mismatches.push(card
       ? `${id} "${actual.title}" in ${actual.lane}, but the oracle keeps it off the board (${card.lane}, ${card.reason}, at ${card.historyAt})`
