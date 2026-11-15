@@ -405,6 +405,61 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("keeps a held read when a list that never had the task removes it", async () => {
+      const { fake, mounted, push, lanesOf } = await mountWith();
+      try {
+        await push({ ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null } as never);
+        expect(lanesOf).toEqual(["review"]);
+        // The running list never held it: the SDK replays a remove it had buffered.
+        await act(async () => {
+          fake.pushRemoveTo("unread", (options) => options.filter?.statuses?.includes("running") === true);
+          await flush(8);
+        });
+        // Still waiting for an archive: the read lands only after the hold.
+        expect(mounted.current.byId.get("unread")?.lane).toBe("review");
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS);
+          await flush(8);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).toBe("done");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("keeps a task restored to running when a gone check answers with its archive", async () => {
+      const done = activeAgent("gone-check", { status: "idle", requiresAttention: false, updatedAt: recentIso(5_000) });
+      const fake = createFakePaseo({ agents: [done], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        expect(mounted.current.byId.get("gone-check")?.lane).toBe("done");
+        const release = fake.holdRefreshes();
+        // Archived with the archived lane off: removes, then a gone check reads it (held).
+        await act(async () => {
+          fake.upsertAgent({ ...done, archivedAt: recentIso(1_000), updatedAt: recentIso(1_000) } as never);
+          await flush(8);
+          vi.advanceTimersByTime(3_500);
+          await flush(8);
+        });
+        // Unarchived and prompted meanwhile.
+        await act(async () => {
+          fake.upsertAgent(activeAgent("gone-check", { status: "running", archivedAt: null, updatedAt: recentIso(0), lastUserMessageAt: recentIso(0) }));
+          await flush(8);
+        });
+        expect(mounted.current.byId.get("gone-check")?.lane).toBe("running");
+        await act(async () => {
+          release();
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("gone-check")?.lane).toBe("running");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -2246,6 +2301,75 @@ describe("Tasks data store", () => {
         expect(mounted.current.byId.get("unread-100")?.lane).not.toBe("review");
         expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD - 1);
       } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("fails a refresh whose list was superseded by a snapshot that could not read every page", async () => {
+      const fake = unreadFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        const releaseA = fake.holdPages();
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(16);
+        });
+        // The kept list's newer snapshot fails a later page and lands what it has.
+        fake.passNewPages();
+        fake.failNextAgentList((options) => options.page?.cursor !== undefined && options.filter?.requiresAttention === true, "socket closed");
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+          await flush(24);
+        });
+        await act(async () => {
+          releaseA();
+          await flush(24);
+        });
+        expect(result).toBe("failed");
+        expect(mounted.current.error).toBe("socket closed");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("does not bring back an archived task when a refresh's done page answers late", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 60 }, (_, index) => activeAgent(`done-${index}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await settle();
+        await act(async () => {
+          mounted.current.loadMoreDone();
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("done-55")?.lane).toBe("done");
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        // The refresh reads the second done page now, with done-55 unarchived, and answers later.
+        const releaseAnswers = fake.holdPageAnswers();
+        await act(async () => {
+          void mounted.current.refresh();
+          await flush(16);
+        });
+        // Archived meanwhile, the archived lane off: removes, then a gone check takes the card off.
+        const target = fake.paseo.agents.ref("done-55").current()!;
+        await act(async () => {
+          fake.upsertAgent({ ...target, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(8);
+          vi.advanceTimersByTime(3_500);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("done-55")).toBe(false);
+        await act(async () => {
+          releaseAnswers();
+          await flush(24);
+        });
+        expect(mounted.current.byId.has("done-55")).toBe(false);
+      } finally {
+        vi.useRealTimers();
         mounted.unmount();
       }
     });

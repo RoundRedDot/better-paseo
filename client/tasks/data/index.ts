@@ -1184,14 +1184,23 @@ function createStore(api: PaseoApi): TaskStore {
   /** The lists whose last snapshot could not read every page, with the error the board shows for it. */
   const pageErrors = new Map<string, string>();
   /**
-   * How many times each agent's record was applied. A read by id that started
-   * before a later state landed answers with an older one: it is dropped, not
-   * applied over that state (`confirmed` skips the time check).
+   * A clock that ticks whenever a record is applied or removed, and each
+   * agent's tick. A read that started (a read by id, a page) before an
+   * agent's record changed answers with an older state of it: that agent is
+   * left as it is, not set back (`confirmed` skips the time check, and a
+   * removed record has nothing left to compare against).
    */
-  const recordVersions = new Map<string, number>();
+  let recordClock = 0;
+  const recordStamps = new Map<string, number>();
+  /** The agent's record changed since `asked` (a `recordClock` reading). */
+  function changedSince(id: string, asked: number): boolean {
+    return (recordStamps.get(id) ?? 0) > asked;
+  }
   /** Snapshots of each list by arrival, from any of its subscriptions, and the latest of them that landed. */
   const snapshotArrivals = new Map<string, number>();
   const snapshotLandings = new Map<string, number>();
+  /** Whether that latest landing read every page: a snapshot it superseded did not land in full either. */
+  const snapshotOutcomes = new Map<string, "landed" | "failed">();
   let countsCache: SidebarCounts | null = null;
   let questionCountsCache: SidebarCounts | null = null;
   let countQuestions: TaskCard[] = [];
@@ -1438,7 +1447,7 @@ function createStore(api: PaseoApi): TaskStore {
   function updateRecord(agent: PaseoAgent, placement: AgentPlacement, confirmed = false) {
     // Independently bootstrapped lists and pages can arrive after a newer live update.
     if (!confirmed && isStaleAgent(agent)) return;
-    recordVersions.set(agent.id, (recordVersions.get(agent.id) ?? 0) + 1);
+    recordStamps.set(agent.id, ++recordClock);
     const updatedAt = epoch(agent.updatedAt);
     latestUpdates.set(agent.id, confirmed ? updatedAt : Math.max(updatedAt, latestUpdates.get(agent.id) ?? updatedAt));
     if (isArchived(agent) && !keepsArchived(agent)) {
@@ -1502,8 +1511,8 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function removeRecord(id: string) {
-    // A read by id that started before this removal answers with an older state.
-    recordVersions.set(id, (recordVersions.get(id) ?? 0) + 1);
+    // A read that started before this removal answers with an older state.
+    recordStamps.set(id, ++recordClock);
     const existed = entries.has(id);
     if (!existed) return;
     entries.delete(id);
@@ -1633,7 +1642,9 @@ function createStore(api: PaseoApi): TaskStore {
       // as removes (its archived lane off): applied after them, it brought the
       // archived task back as done. Let it go and read the agent instead.
       const held = startIdles.get(payload.agentId);
-      if (held?.kind === "clear") {
+      // Only a list that held the agent: the SDK replays removes a list
+      // buffered before the board listened, from lists that never had it.
+      if (held?.kind === "clear" && sourceMembers.get(sourceKey)?.has(payload.agentId)) {
         clearTimeout(held.timer);
         startIdles.delete(payload.agentId);
         confirmAgent(payload.agentId);
@@ -1658,11 +1669,11 @@ function createStore(api: PaseoApi): TaskStore {
   // Confirm it before discarding the card.
   function confirmRemovedAgent(id: string) {
     const run = generation;
-    const version = recordVersions.get(id) ?? 0;
+    const asked = recordClock;
     void api.agents.ref(id).refresh().then((result) => {
       if (run !== generation || memberSetsContaining(id).length > 0) return;
       // A newer state landed while the read was out; a later remove reads again.
-      if ((recordVersions.get(id) ?? 0) !== version) return;
+      if (changedSince(id, asked)) return;
       // Still starting: the held idle decides, after its wait.
       if (result && startIdles.has(id) && startingHold(result.agent) !== null) return;
       if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) {
@@ -1701,9 +1712,12 @@ function createStore(api: PaseoApi): TaskStore {
         goneChecks.delete(id);
         return;
       }
+      const asked = recordClock;
       void api.agents.ref(id).refresh().then((result) => {
         if (run !== generation) return;
         goneChecks.delete(id);
+        // Restored, prompted or archived again meanwhile: the newer state stands.
+        if (changedSince(id, asked)) return;
         if (result && !isArchived(result.agent)) {
           if (result.agent.status === "closed" && attempt + 1 < GONE_CHECK_DELAYS_MS.length) checkGone(id, attempt + 1);
           return;
@@ -1734,12 +1748,12 @@ function createStore(api: PaseoApi): TaskStore {
     if (confirmChecks.has(id)) return;
     confirmChecks.add(id);
     const run = generation;
-    const version = recordVersions.get(id) ?? 0;
+    const asked = recordClock;
     void api.agents.ref(id).refresh().then((result) => {
       if (run !== generation) return;
       confirmChecks.delete(id);
       // A newer state landed while the read was out: it is the one to keep.
-      if ((recordVersions.get(id) ?? 0) !== version) return;
+      if (changedSince(id, asked)) return;
       if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) return;
       const agent = result.agent;
       batchUpdates(() => {
@@ -1802,6 +1816,7 @@ function createStore(api: PaseoApi): TaskStore {
    * archived or deleted since. A failed read keeps the old pages.
    */
   async function rereadDonePages(run: Run, first: PaseoAgentListResult, pages: number, session: typeof searchPages, regularPages: number): Promise<Landing> {
+    const asked = recordClock;
     const read: Array<{ key: string; result: PaseoAgentListResult }> = [];
     let cursor = first.pageInfo.nextCursor;
     try {
@@ -1832,6 +1847,8 @@ function createStore(api: PaseoApi): TaskStore {
       for (const { key, result } of read) {
         const members = new Set<string>();
         for (const entry of matchingEntries(result)) {
+          // Changed while the pages were read (archived, removed, prompted): its live state stands.
+          if (changedSince(entry.agent.id, asked)) continue;
           members.add(entry.agent.id);
           updateRecord(entry.agent, entry.project ?? null);
         }
@@ -1912,7 +1929,7 @@ function createStore(api: PaseoApi): TaskStore {
      * fails leaves this subscription serving, so its later snapshots must
      * still page.
      */
-    initial: (snapshot: T, live: () => boolean, landed: () => void) => void | Promise<Landing>,
+    initial: (snapshot: T, live: () => boolean, landed: (outcome?: "landed" | "failed") => void) => void | Promise<Landing>,
     update: (message: unknown) => void,
     replace = false,
   ): Promise<Landing> {
@@ -1941,8 +1958,10 @@ function createStore(api: PaseoApi): TaskStore {
       const arrived = (snapshotArrivals.get(key) ?? 0) + 1;
       snapshotArrivals.set(key, arrived);
       const live = () => mine === snapshots && serving() && (snapshotLandings.get(key) ?? 0) < arrived;
-      const landed = () => {
-        if ((snapshotLandings.get(key) ?? 0) < arrived) snapshotLandings.set(key, arrived);
+      const landed = (outcome: "landed" | "failed" = "landed") => {
+        if ((snapshotLandings.get(key) ?? 0) >= arrived) return;
+        snapshotLandings.set(key, arrived);
+        snapshotOutcomes.set(key, outcome);
       };
       // A paged snapshot calls `landed` in the very step that lands it, after
       // checking `live`: an older snapshot whose pages finish in the same turn
@@ -1995,7 +2014,8 @@ function createStore(api: PaseoApi): TaskStore {
         const woken = new Promise<null>((resolve) => { wake = () => resolve(null); });
         const settled = await Promise.race([waiting, woken]);
         if (settled === null || waiting !== latest) continue;
-        landing = settled === "stale" && serving() ? "landed" : settled;
+        // Superseded by a newer snapshot of the list: it is landed only if that one read every page.
+        landing = settled === "stale" && serving() ? snapshotOutcomes.get(key) ?? "landed" : settled;
         break;
       }
       // A refresh's list takes over only once every page of it landed;
@@ -2385,6 +2405,7 @@ function createStore(api: PaseoApi): TaskStore {
             return;
           }
           const liveIds = new Set<string>();
+          const asked = recordClock;
           const watching = agentListUpdates.get(key) ?? new Set<Set<string>>();
           agentListUpdates.set(key, watching);
           watching.add(liveIds);
@@ -2395,8 +2416,10 @@ function createStore(api: PaseoApi): TaskStore {
             // first page, and says the list is incomplete.
             const entries = read.kind === "failed" ? list.entries : [...list.entries, ...read.entries];
             if (read.kind === "failed") for (const id of sourceMembers.get(key) ?? []) liveIds.add(id);
+            // Changed anywhere while the pages were read (archived and removed, a read by id): left as it is.
+            for (const entry of entries) if (changedSince(entry.agent.id, asked)) liveIds.add(entry.agent.id);
             land({ ...list, entries, pageInfo: { ...list.pageInfo, nextCursor: null, hasMore: false } }, liveIds);
-            landed();
+            landed(read.kind === "failed" ? "failed" : "landed");
             if (read.kind === "failed") {
               pageError(key, read.error);
               return "failed";
@@ -3196,6 +3219,7 @@ function createStore(api: PaseoApi): TaskStore {
     if (cutoff !== null && Number.isFinite(tailTime) && Date.now() - tailTime > cutoff) return;
     const cursor = doneCursor;
     const run: Run = { generation, tier: "done", tierRun: doneRun };
+    const asked = recordClock;
     loadingDone = true;
     notify();
     void api.agents.list({
@@ -3208,6 +3232,8 @@ function createStore(api: PaseoApi): TaskStore {
       batchUpdates(() => {
         const pageMembers = new Set<string>();
         for (const entry of matchingEntries(result)) {
+          // Changed while the page was read: its live state stands.
+          if (changedSince(entry.agent.id, asked)) continue;
           pageMembers.add(entry.agent.id);
           updateRecord(entry.agent, entry.project ?? null);
         }

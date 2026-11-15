@@ -69,6 +69,8 @@ interface AgentSubscription {
   members: Set<string>;
   snapshot: () => unknown;
   released: boolean;
+  /** Messages sent before anyone subscribed, replayed to the first observer as the SDK does. */
+  buffered?: unknown[];
 }
 
 interface PlainSubscription {
@@ -77,6 +79,21 @@ interface PlainSubscription {
   snapshot: () => unknown;
   released: boolean;
   workspaceFilter?: PaseoWorkspaceListOptions["filter"];
+  /** Messages sent before anyone subscribed, replayed to the first observer as the SDK does. */
+  buffered?: unknown[];
+}
+
+/**
+ * Send an update to a subscription's observers, or keep it for the first one
+ * (`OwnedSubscriptions.observe` buffers what arrives before `subscribe`).
+ */
+function deliverUpdate(sub: { observers: Set<Observer>; released: boolean; buffered?: unknown[] }, message: unknown) {
+  if (sub.released) return;
+  if (sub.observers.size === 0) {
+    (sub.buffered ??= []).push(message);
+    return;
+  }
+  for (const observer of sub.observers) observer.update(message);
 }
 
 const BASE_TIME = Date.parse("2026-10-20T08:00:00.000Z");
@@ -240,6 +257,8 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const workspaces = new Map<string, PaseoWorkspace>((options.workspaces ?? []).map((ws) => [ws.id, ws]));
   /** Set by `failWorkspacePages`: every workspace list call throws it. */
   let workspacePageFailure: Error | null = null;
+  /** Set by `holdPageAnswers`: a later page is read when asked but answered only once it resolves. */
+  let answerGate: Promise<void> | null = null;
   /** Set by `holdWorkspaceLists`: a workspace list's first page answers only once it resolves. */
   let workspaceListGate: Promise<void> | null = null;
   /** Set by `holdRefreshes`: reads by id answer only once it resolves. */
@@ -312,6 +331,9 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       subscribe(observer: Observer) {
         sub.observers.add(observer);
         if (!gated && value) observer.snapshot(value);
+        const buffered = sub.buffered ?? [];
+        sub.buffered = [];
+        for (const message of buffered) observer.update(message);
         return () => sub.observers.delete(observer);
       },
       async release() {
@@ -329,11 +351,11 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       if (inNow) {
         sub.members.add(id);
         const message = { type: "agent_update", payload: { subscriptionId: sub.id, kind: "upsert", agent, project: placementOf(agent!) } };
-        for (const observer of sub.observers) observer.update(message);
+        deliverUpdate(sub, message);
       } else {
         sub.members.delete(id);
         const message = { type: "agent_update", payload: { subscriptionId: sub.id, kind: "remove", agentId: id } };
-        for (const observer of sub.observers) observer.update(message);
+        deliverUpdate(sub, message);
       }
     }
   }
@@ -345,6 +367,8 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       const failure = listFailures.findIndex((entry) => entry.match(listOptions));
       if (failure >= 0) throw new Error(listFailures.splice(failure, 1)[0]!.message);
       const result = { requestId: `req-${nextId++}`, ...page(listOptions) };
+      // Read now, answered later: a held page carries the state of when it was asked.
+      if (listOptions.page?.cursor && answerGate) await answerGate;
       if (!listOptions.subscribe) return result;
       const sub: AgentSubscription = {
         id: `sub-${nextId++}`,
@@ -533,14 +557,14 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         if (!sub.options.filter?.statuses?.includes("running")) continue;
         sub.members.delete(agentId);
         const message = { type: "agent_update", payload: { subscriptionId: sub.id, kind: "remove", agentId } };
-        for (const observer of sub.observers) observer.update(message);
+        deliverUpdate(sub, message);
       }
     },
     removeFromAgentSubscriptions(agentId: string) {
       for (const sub of agentSubs) {
         if (!sub.members.delete(agentId)) continue;
         const message = { type: "agent_update", payload: { subscriptionId: sub.id, kind: "remove", agentId } };
-        for (const observer of sub.observers) observer.update(message);
+        deliverUpdate(sub, message);
       }
     },
     setAgentSilently(agent: Agent, placement?: Placement) {
@@ -555,7 +579,7 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
           ? { subscriptionId: sub.id, kind: "remove", id: workspace.id }
           : { subscriptionId: sub.id, kind: "upsert", workspace };
         const message = { type: "workspace_update", payload };
-        for (const observer of sub.observers) observer.update(message);
+        deliverUpdate(sub, message);
       }
     },
     /** Hold every list call past the first page until the returned release is called. */
@@ -565,6 +589,26 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       const gate = pageGate;
       return () => {
         if (pageGate === gate) pageGate = null;
+        release();
+      };
+    },
+    /**
+     * Send a remove for an agent to the agent subscriptions whose options match, whether or not they
+     * hold it: a buffered remove the SDK replays to a new observer, from a list that never had it.
+     */
+    pushRemoveTo(agentId: string, match: (options: PaseoAgentListOptions) => boolean) {
+      for (const sub of agentSubs) {
+        if (!("members" in sub) || !match((sub as AgentSubscription).options)) continue;
+        deliverUpdate(sub, { type: "agent_update", payload: { subscriptionId: sub.id, kind: "remove", agentId } });
+      }
+    },
+    /** Answer every later agent page asked for from now on with the state of when it was asked, once released. */
+    holdPageAnswers(): () => void {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      answerGate = gate;
+      return () => {
+        if (answerGate === gate) answerGate = null;
         release();
       };
     },
@@ -609,14 +653,14 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       workspaces.delete(id);
       for (const sub of workspaceSubs) {
         const message = { type: "workspace_update", payload: { subscriptionId: sub.id, kind: "remove", id } };
-        for (const observer of sub.observers) observer.update(message);
+        deliverUpdate(sub, message);
       }
     },
     setLabels(next: FakeLabelDefinition[]) {
       labels = [...next];
       for (const sub of labelSubs) {
         const message = { type: "workspace.label.update", payload: { subscriptionId: sub.id, labels } };
-        for (const observer of sub.observers) observer.update(message);
+        deliverUpdate(sub, message);
       }
     },
     upsertProject(project: PaseoProject) {
