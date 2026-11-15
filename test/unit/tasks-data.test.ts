@@ -554,6 +554,49 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("does not bring back a task archived during a held read that only the attention list held", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 60 }, (_, index) => activeAgent(`u-${index}`, { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        await act(async () => { for (let index = 0; index < 16; index += 1) await Promise.resolve(); });
+        // Past the done list's first page: only the attention list holds it.
+        expect(mounted.current.byId.get("u-55")?.lane).toBe("review");
+        const target = fake.paseo.agents.ref("u-55").current()!;
+        const cleared = { ...target, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        // Read: the attention list removes it, then the done list sends the read state (held).
+        fake.setAgentSilently(cleared as never);
+        // The daemon sends both in one go: no read by id answers in between.
+        await act(async () => {
+          fake.pushRemoveTo("u-55", (options) => options.filter?.requiresAttention === true);
+          fake.pushUpsertTo(cleared as never, (options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(4);
+        });
+        // Archived within the wait, the archived lane off: every list only removes it.
+        fake.setAgentSilently({ ...cleared, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+        await act(async () => {
+          fake.pushRemoveTo("u-55", () => true);
+          await flush(8);
+        });
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS + 70);
+          await flush(16);
+        });
+        expect(mounted.current.lanes.done.cards.map((card) => card.id)).not.toContain("u-55");
+        await act(async () => {
+          vi.advanceTimersByTime(4_000);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("u-55")).toBe(false);
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {

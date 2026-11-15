@@ -1194,6 +1194,14 @@ function createStore(api: PaseoApi): TaskStore {
    */
   let recordClock = 0;
   const recordStamps = new Map<string, number>();
+  /** An agent confirmed archived or gone: what a hold kept of it must not land later. */
+  function dropHeldSnapshot(id: string) {
+    const held = startIdles.get(id);
+    if (!held) return;
+    clearTimeout(held.timer);
+    startIdles.delete(id);
+  }
+
   /** The agent's record changed since `asked` (a `recordClock` reading). */
   function changedSince(id: string, asked: number): boolean {
     return (recordStamps.get(id) ?? 0) > asked;
@@ -1465,6 +1473,7 @@ function createStore(api: PaseoApi): TaskStore {
     const updatedAt = epoch(agent.updatedAt);
     latestUpdates.set(agent.id, confirmed ? updatedAt : Math.max(updatedAt, latestUpdates.get(agent.id) ?? updatedAt));
     if (isArchived(agent) && !keepsArchived(agent)) {
+      dropHeldSnapshot(agent.id);
       for (const members of sourceMembers.values()) members.delete(agent.id);
       removeRecord(agent.id);
       return;
@@ -1674,7 +1683,8 @@ function createStore(api: PaseoApi): TaskStore {
       // it) only marks it, and once the wait is over the agent is read by id
       // instead of applying what was held.
       const held = startIdles.get(payload.agentId);
-      if (held && (held.kind === "clear" ? sourceMembers.get(sourceKey)?.has(payload.agentId) : held.sourceKey === sourceKey)) {
+      // A clear hold's own list has not registered the agent yet (what it sent is held), so its remove counts too.
+      if (held && (held.sourceKey === sourceKey || (held.kind === "clear" && sourceMembers.get(sourceKey)?.has(payload.agentId)))) {
         held.removedFromSource = true;
       }
       const wasMember = sourceMembers.get(sourceKey)?.delete(payload.agentId);
@@ -1701,6 +1711,7 @@ function createStore(api: PaseoApi): TaskStore {
       // Still starting: the held idle decides, after its wait.
       if (result && startIdles.has(id) && startingHold(result.agent) !== null) return;
       if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) {
+        dropHeldSnapshot(id);
         dropIfUnreferenced(id);
         return;
       }
@@ -1755,6 +1766,7 @@ function createStore(api: PaseoApi): TaskStore {
           updateRecord(result.agent, result.project ?? null);
           return;
         }
+        dropHeldSnapshot(id);
         for (const members of sourceMembers.values()) members.delete(id);
         removeRecord(id);
       }).catch(() => {
@@ -1790,7 +1802,17 @@ function createStore(api: PaseoApi): TaskStore {
       confirmChecks.delete(id);
       // A newer state landed while the read was out: it is the one to keep.
       if (changedSince(id, asked)) return;
-      if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) return;
+      if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) {
+        // Archived or gone: it leaves the board, and no hold brings it back.
+        dropHeldSnapshot(id);
+        if (entries.has(id)) {
+          batchUpdates(() => {
+            for (const members of sourceMembers.values()) members.delete(id);
+            removeRecord(id);
+          });
+        }
+        return;
+      }
       const agent = result.agent;
       batchUpdates(() => {
         reconcileActiveMembers(agent);
