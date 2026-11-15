@@ -1786,6 +1786,93 @@ describe("Tasks data store", () => {
     }
   });
 
+  describe("a paged workspace list", () => {
+    // The daemon pages its workspace list (200 at most) and a subscription's
+    // snapshot is only the first page: with 232 workspaces the main checkout's
+    // tasks fell into the archived lane (2026-11-15).
+    function pagedFake() {
+      const fillers = Array.from({ length: 4 }, (_, index) => makeWorkspace({ id: `filler-${index}`, projectId: "project-id", name: `filler-${index}` }));
+      return createFakePaseo({
+        agents: [
+          activeAgent("late", { status: "idle", requiresAttention: true, updatedAt: recentIso(1_000) }),
+          activeAgent("stale", { status: "idle", requiresAttention: true, updatedAt: recentIso(2_000), workspaceId: "ws-archived" }),
+        ],
+        // "ws" comes after two full pages of others.
+        workspaces: [...fillers, workspace()],
+        workspacePageSize: 2,
+      });
+    }
+
+    async function settle() {
+      await act(async () => {
+        for (let index = 0; index < 12; index += 1) await Promise.resolve();
+      });
+    }
+
+    it("keeps a task whose workspace is past the first page out of the archived lane", async () => {
+      const fake = pagedFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.byId.get("late")?.lane).toBe("review");
+        expect(mounted.current.byId.get("late")?.location.workspaceName ?? mounted.current.byId.get("late")?.location.workspaceTitle).toBeTruthy();
+        // A workspace on no page is still archived.
+        expect(mounted.current.byId.has("stale")).toBe(false);
+        await act(async () => {
+          fake.reconnectSubscriptions();
+          await Promise.resolve();
+        });
+        await settle();
+        expect(mounted.current.byId.get("late")?.lane).toBe("review");
+        await act(async () => {
+          fake.removeWorkspace("ws");
+          await Promise.resolve();
+        });
+        expect(mounted.current.byId.has("late")).toBe(false);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("keeps the board's workspaces when a later page cannot be read", async () => {
+      const fake = pagedFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.byId.get("late")?.lane).toBe("review");
+        fake.failWorkspacePages(new Error("socket closed"));
+        await act(async () => {
+          fake.reconnectSubscriptions();
+          await Promise.resolve();
+        });
+        await settle();
+        expect(mounted.current.byId.get("late")?.lane).toBe("review");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("lets a live removal win over the later pages of a snapshot", async () => {
+      const fake = pagedFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        await act(async () => {
+          fake.reconnectSubscriptions();
+          // Archived while the snapshot's later pages are read; the fake's list already leaves it out,
+          // so put it back for the pages to carry a stale copy.
+          fake.removeWorkspace("ws");
+          fake.setWorkspaceSilently(workspace());
+          await Promise.resolve();
+        });
+        await settle();
+        expect(mounted.current.byId.has("late")).toBe(false);
+      } finally {
+        mounted.unmount();
+      }
+    });
+  });
+
   it("brings an unarchived parent back as a done card the child links to", async () => {
     const fake = createFakePaseo({
       agents: [

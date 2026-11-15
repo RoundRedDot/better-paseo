@@ -181,6 +181,11 @@ export interface FakePaseoOptions {
   providerEntries?: FakeProviderEntry[];
   /** Subscriptions never answer, as on a host that has not caught up after a reconnect. */
   stalled?: boolean;
+  /**
+   * Page the workspace list as the daemon does (200 at most): a list, and a
+   * subscription's snapshot, hold this many, with a cursor to the rest.
+   */
+  workspacePageSize?: number;
 }
 
 const STATUS_PRIORITY: Record<string, number> = { running: 2, initializing: 3, error: 1, idle: 4, closed: 4 };
@@ -217,6 +222,8 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const agents = new Map<string, Agent>((options.agents ?? []).map((agent) => [agent.id, agent]));
   const placements = new Map<string, Placement>(Object.entries(options.placements ?? {}));
   const workspaces = new Map<string, PaseoWorkspace>((options.workspaces ?? []).map((ws) => [ws.id, ws]));
+  /** Set by `failWorkspacePages`: every workspace list call throws it. */
+  let workspacePageFailure: Error | null = null;
   // Without workspaces of its own, a fixture still has each agent's: Paseo
   // lists every workspace that is not archived, and an agent outside the list
   // belongs to an archived one.
@@ -342,25 +349,31 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const workspaceActions: Record<string, unknown> = {
     async list(listOptions: PaseoWorkspaceListOptions = {}) {
       calls.push({ method: "workspaces.list", input: listOptions });
-      const listed = () => [...workspaces.values()].filter((workspace) => listOptions.filter?.includeBackground || !workspace.background);
-      const result = {
-        requestId: `req-${nextId++}`,
-        entries: listed(),
-        pageInfo: { nextCursor: null, prevCursor: null, hasMore: false },
+      if (workspacePageFailure) throw workspacePageFailure;
+      const offset = listOptions.page?.cursor ? Number(listOptions.page.cursor.replace("ws-page:", "")) : 0;
+      const pageSize = options.workspacePageSize;
+      const page = () => {
+        const all = [...workspaces.values()].filter((workspace) => listOptions.filter?.includeBackground || !workspace.background);
+        if (pageSize === undefined) return { entries: all, pageInfo: { nextCursor: null, prevCursor: null, hasMore: false } };
+        const end = offset + pageSize;
+        const hasMore = end < all.length;
+        return { entries: all.slice(offset, end), pageInfo: { nextCursor: hasMore ? `ws-page:${end}` : null, prevCursor: null, hasMore } };
       };
+      const requestId = `req-${nextId++}`;
+      const result = { requestId, ...page() };
       if (!listOptions.subscribe) return result;
       const sub: PlainSubscription = {
         id: `sub-${nextId++}`,
         workspaceFilter: listOptions.filter,
         observers: new Set(),
-        snapshot: () => ({ requestId: result.requestId, entries: listed(), pageInfo: result.pageInfo }),
+        snapshot: () => ({ requestId, ...page() }),
         released: false,
       };
       workspaceSubs.add(sub);
       return {
         ...result,
         subscriptionId: sub.id,
-        subscription: makeSubscription(sub, () => ({ requestId: result.requestId, entries: listed(), pageInfo: result.pageInfo }), () => workspaceSubs.delete(sub)),
+        subscription: makeSubscription(sub, () => ({ requestId, ...page() }), () => workspaceSubs.delete(sub)),
       };
     },
     subscribe() {
@@ -507,6 +520,14 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         const message = { type: "workspace_update", payload };
         for (const observer of sub.observers) observer.update(message);
       }
+    },
+    /** Put a workspace in the list without telling any subscription. */
+    setWorkspaceSilently(workspace: PaseoWorkspace) {
+      workspaces.set(workspace.id, workspace);
+    },
+    /** Make every later workspace list call fail (null: answer again). */
+    failWorkspacePages(error: Error | null) {
+      workspacePageFailure = error;
     },
     /** Archive a workspace: the list leaves it out, and its agents stay unarchived. */
     removeWorkspace(id: string) {

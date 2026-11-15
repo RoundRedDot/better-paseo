@@ -205,6 +205,10 @@ const ATTENTION_KEY = "active-attention";
 const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true, includeBackground: true };
 const DONE_SUBSCRIPTION = "done-first";
 const PAGE_SIZE = 50;
+/** The daemon's largest workspace page; a subscription's snapshot is one such page. */
+const WORKSPACE_PAGE_SIZE = 200;
+/** Pages read after the first before the list counts as unread (40 000 workspaces). */
+const WORKSPACE_PAGE_LIMIT = 200;
 const DONE_SORT: PaseoAgentListOptions["sort"] = [{ key: "updated_at", direction: "desc" }];
 /** A refresh still waiting this long (a dropped connection holds a list's ready) ends as failed, so it can be asked again. */
 const REFRESH_TIMEOUT_MS = 30_000;
@@ -1097,8 +1101,19 @@ function createStore(api: PaseoApi): TaskStore {
   let statusReady = false;
   let attentionReady = false;
   let workspacesReady = false;
-  /** The workspace list itself arrived, not a failed read: only then does a missing workspace mean archived. */
+  /**
+   * The whole workspace list arrived, every page of it, not a failed read:
+   * only then does a missing workspace mean archived.
+   */
   let workspacesListed = false;
+  /** Counts workspace snapshots, so the later pages of an older one are dropped. */
+  let workspaceListing = 0;
+  /**
+   * Live updates that landed while the current snapshot's later pages load,
+   * by workspace: those pages are older, so they neither replace an upsert
+   * nor bring back a removed workspace.
+   */
+  const workspacesUpdatedWhileListing = new Map<string, "upsert" | "remove">();
   let countsCache: SidebarCounts | null = null;
   let questionCountsCache: SidebarCounts | null = null;
   let countQuestions: TaskCard[] = [];
@@ -2190,6 +2205,55 @@ function createStore(api: PaseoApi): TaskStore {
    * labels, outside screens and sidebar items at that. It runs with the
    * status list to distinguish background tasks and archived workspaces.
    */
+  /**
+   * The whole workspace list in place of the board's: what is not on it was
+   * archived, and its cards leave. A live update that landed since the
+   * snapshot began wins over the list's copy of its workspace.
+   */
+  function applyWorkspaceList(list: readonly PaseoWorkspace[]) {
+    batchUpdates(() => {
+      workspacesReady = true;
+      const next = new Set<string>();
+      for (const workspace of list) {
+        const live = workspacesUpdatedWhileListing.get(workspace.id);
+        if (live === "remove") continue;
+        next.add(workspace.id);
+        if (live !== "upsert") updateWorkspace(workspace);
+      }
+      for (const [id, live] of workspacesUpdatedWhileListing) if (live === "upsert") next.add(id);
+      workspacesUpdatedWhileListing.clear();
+      workspacesListed = true;
+      const removedIds = new Set([...workspaces.keys()].filter((id) => !next.has(id)));
+      for (const id of removedIds) workspaces.delete(id);
+      // Gone from the list, or never in it: archived, and its cards leave.
+      for (const [id, entry] of entries) {
+        if (!entry.agent.workspaceId || next.has(entry.agent.workspaceId)) continue;
+        if (removedIds.has(entry.agent.workspaceId)) {
+          const project = projectFor(entry, undefined, projects);
+          baseCards.set(id, buildBaseCard(entry, undefined, project, colorNames, modelCatalogs.get(entry.agent.provider), project ? projectIcons.get(project.projectId) : undefined));
+        }
+        refreshWithKin(id);
+      }
+      notify();
+    });
+  }
+
+  /** The workspace list's pages after the first, from its cursor; null when one cannot be read. */
+  async function readWorkspacePages(cursor: string | null | undefined): Promise<PaseoWorkspace[] | null> {
+    const rest: PaseoWorkspace[] = [];
+    let next = cursor ?? null;
+    for (let page = 0; next && page < WORKSPACE_PAGE_LIMIT; page++) {
+      try {
+        const result = await api.workspaces.list({ filter: { includeBackground: true }, page: { limit: WORKSPACE_PAGE_SIZE, cursor: next } });
+        rest.push(...result.entries);
+        next = result.pageInfo?.hasMore ? result.pageInfo.nextCursor ?? null : null;
+      } catch {
+        return null;
+      }
+    }
+    return next ? null : rest;
+  }
+
   async function startWorkspaceSubscription(run: Run, replace = false): Promise<Landing> {
     try {
       const result = await api.workspaces.list({ filter: { includeBackground: true }, subscribe: {} });
@@ -2198,33 +2262,42 @@ function createStore(api: PaseoApi): TaskStore {
         return "stale";
       }
       return await observeOwned("workspaces", result, run, (snapshot) => {
+        const firstPage = snapshot as PaseoWorkspaceListResult;
+        const listing = ++workspaceListing;
+        workspacesUpdatedWhileListing.clear();
+        if (!firstPage.pageInfo?.hasMore) {
+          applyWorkspaceList(firstPage.entries);
+          return;
+        }
+        // The daemon pages its list (200 at most), and a subscription's
+        // snapshot is only the first page. Show that page now, but read a
+        // workspace that is not on it as archived only once every page landed.
+        // The board stays unready on a first list until then, so tasks of an
+        // archived workspace never show for a moment.
         batchUpdates(() => {
-          workspacesReady = true;
-          const workspaceSnapshot = snapshot as PaseoWorkspaceListResult;
-          const next = new Set<string>();
-          for (const workspace of workspaceSnapshot.entries) {
-            next.add(workspace.id);
-            updateWorkspace(workspace);
-          }
-          workspacesListed = true;
-          const removedIds = new Set([...workspaces.keys()].filter((id) => !next.has(id)));
-          for (const id of removedIds) workspaces.delete(id);
-          // Gone from the list, or never in it: archived, and its cards leave.
-          for (const [id, entry] of entries) {
-            if (!entry.agent.workspaceId || next.has(entry.agent.workspaceId)) continue;
-            if (removedIds.has(entry.agent.workspaceId)) {
-              const project = projectFor(entry, undefined, projects);
-              baseCards.set(id, buildBaseCard(entry, undefined, project, colorNames, modelCatalogs.get(entry.agent.provider), project ? projectIcons.get(project.projectId) : undefined));
-            }
-            refreshWithKin(id);
-          }
+          for (const workspace of firstPage.entries) updateWorkspace(workspace);
           notify();
+        });
+        void readWorkspacePages(firstPage.pageInfo.nextCursor).then((rest) => {
+          if (listing !== workspaceListing || !isCurrent(run)) return;
+          if (rest === null) {
+            // A failed read keeps what the board had: no workspace leaves on a partial list.
+            if (!workspacesReady) {
+              workspacesReady = true;
+              notify();
+            }
+            return;
+          }
+          applyWorkspaceList([...firstPage.entries, ...rest]);
         });
       }, (message) => {
         const envelope = message as WorkspaceUpdateEnvelope;
         if (envelope.type !== "workspace_update" || !envelope.payload) return;
-        if (envelope.payload.kind === "upsert" && envelope.payload.workspace) updateWorkspace(envelope.payload.workspace);
-        else if (envelope.payload.kind === "remove" && envelope.payload.id) {
+        if (envelope.payload.kind === "upsert" && envelope.payload.workspace) {
+          workspacesUpdatedWhileListing.set(envelope.payload.workspace.id, "upsert");
+          updateWorkspace(envelope.payload.workspace);
+        } else if (envelope.payload.kind === "remove" && envelope.payload.id) {
+          workspacesUpdatedWhileListing.set(envelope.payload.id, "remove");
           workspaces.delete(envelope.payload.id);
           for (const [id, entry] of entries) {
             if (entry.agent.workspaceId !== envelope.payload.id) continue;
