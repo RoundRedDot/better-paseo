@@ -121,20 +121,22 @@ export function Segmented<T extends string>({
                 : styles.segmentIdle,
             ]}
           >
-            <Text
-              numberOfLines={1}
-              style={[
-                styles.segmentLabel, settingsTextStyle(tokens, -1),
-                {
-                  color: selected ? tokens.foreground : tokens.foregroundMuted,
-                  fontWeight: selected ? "500" : "400",
-                  fontFamily: tokens.fontUi,
-                },
-              ]}
-            >
-              {option.label}
-            </Text>
-            {option.badge ? <View testID="update-badge" accessible={false} style={{ marginLeft: 6, width: 4, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
+            <View style={{ flexShrink: 1 }}>
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.segmentLabel, settingsTextStyle(tokens, -1),
+                  {
+                    color: selected ? tokens.foreground : tokens.foregroundMuted,
+                    fontWeight: selected ? "500" : "400",
+                    fontFamily: tokens.fontUi,
+                  },
+                ]}
+              >
+                {option.label}
+              </Text>
+              {option.badge ? <View testID="update-badge" accessible={false} pointerEvents="none" style={{ position: "absolute", right: -8, top: "50%", marginTop: -2, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
+            </View>
           </Pressable>
         );
       })}
@@ -151,6 +153,7 @@ export function PlainButton({
   disabled = false,
   square = false,
   loading = false,
+  updateBadge = false,
 }: {
   label: string;
   onPress(): void;
@@ -159,8 +162,10 @@ export function PlainButton({
   disabled?: boolean;
   square?: boolean;
   loading?: boolean;
+  updateBadge?: boolean;
 }) {
   const { tokens } = look;
+  const labelText = <Text style={[styles.plainLabel, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{label}</Text>;
   return (
     <Pressable
       accessibilityRole="button"
@@ -181,9 +186,10 @@ export function PlainButton({
       ]}
     >
       {loading ? <ActivityIndicator size="small" color={tokens.foregroundMuted} accessible={false} /> : null}
-      <Text style={[styles.plainLabel, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-        {label}
-      </Text>
+      {updateBadge ? <View>
+        {labelText}
+        <View testID="version-item-update-dot" accessible={false} pointerEvents="none" style={{ position: "absolute", right: -8, top: "50%", marginTop: -2, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} />
+      </View> : labelText}
     </Pressable>
   );
 }

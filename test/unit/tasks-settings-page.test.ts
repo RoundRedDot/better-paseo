@@ -55,7 +55,7 @@ const { SETTINGS_STRINGS } = await import("../../client/i18n/settings-page-strin
 const { resetEnabledNotice } = await import("../../client/tasks/settings/use-tasks-form");
 const { BetterPaseoSettingsPage } = await import("../../client/settings-page");
 const { CommandBand } = await import("../../client/ui/command-band");
-const { Section, SettingRow } = await import("../../client/settings-controls");
+const { Section, SettingRow, Segmented, PlainButton } = await import("../../client/settings-controls");
 const { setSettingsTab } = await import("../../client/settings-tab");
 const { resetEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
 const { TASKS_SETTINGS_STRINGS } = await import("../../client/tasks/settings/strings");
@@ -107,6 +107,47 @@ const button = (r: Renderer, label: string) =>
 const radio = (r: Renderer, group: string, label: string) =>
   byLabel(r, group).findAll((node) => (node.type as unknown) === "Pressable" && textOf(node) === label)[0]!;
 const lastSaved = (api: ReturnType<typeof makeSettings>) => (api.save.mock.calls.at(-1) as unknown as [typeof DEFAULT_TASKS_SETTINGS, string])[0];
+
+it.each([
+  ["Version", true, true, 1], ["版本", true, true, 1.4],
+  ["Version", false, false, 1.4], ["版本", true, false, 1],
+] as const)("centres the %s segment label independently of its update dot", (label, compact, contentWidth, textScale) => {
+  let r!: Renderer;
+  const render = (badge: boolean) => React.createElement(Segmented, {
+    value: "version", options: [{ value: "version", label, badge: badge ? "Update available" : undefined }],
+    onChange: vi.fn(), look: look(compact), label: "Tabs", contentWidth,
+  });
+  try {
+    act(() => { r = TestRenderer.create(render(false)); });
+    const segment = () => r.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
+    const labelNode = () => segment().find((node) => typeof node.type === "string" && node.props.children === label);
+    const before = measureHostTree(segment(), { width: 160, textScale });
+    const beforeButton = before.get(segment())!; const beforeLabel = before.get(labelNode())!;
+    act(() => { r.update(render(true)); });
+    const after = measureHostTree(segment(), { width: 160, textScale });
+    const afterButton = after.get(segment())!; const afterLabel = after.get(labelNode())!;
+    const dot = after.get(byTestID(r, "update-badge")[0]!)!;
+    expect(afterButton.width).toBe(beforeButton.width);
+    expect(afterLabel.left).toBeCloseTo(beforeLabel.left, 1);
+    expect(Math.abs((afterLabel.left + afterLabel.width / 2) - (afterButton.left + afterButton.width / 2))).toBeLessThanOrEqual(0.5);
+    expect(Math.abs(dot.left - (afterLabel.left + afterLabel.width) - 4)).toBeLessThanOrEqual(1);
+    expect(dot.left + dot.width).toBeLessThanOrEqual(afterButton.left + afterButton.width);
+    expect(segment().props.accessibilityLabel).toBe(`${label}, Update available`);
+  } finally { act(() => r?.unmount()); }
+});
+
+it.each(["Check for updates", "检查更新"])("keeps the update dot close to the %s button label", (label) => {
+  let r!: Renderer;
+  try {
+    act(() => { r = TestRenderer.create(React.createElement(PlainButton, { label, onPress: vi.fn(), look: look(true), updateBadge: true })); });
+    const control = button(r, label);
+    const text = control.find((node) => typeof node.type === "string" && node.props.children === label);
+    const layout = measureHostTree(control, { width: 160 });
+    const labelFrame = layout.get(text)!; const dot = layout.get(byTestID(r, "version-item-update-dot")[0]!)!;
+    expect(Math.abs(dot.left - (labelFrame.left + labelFrame.width) - 4)).toBeLessThanOrEqual(1);
+    expect(dot.left + dot.width).toBeLessThanOrEqual(layout.get(control)!.left + layout.get(control)!.width);
+  } finally { act(() => r?.unmount()); }
+});
 
 it("does not render an empty description as a native text node", () => {
   let r!: Renderer;
@@ -1121,6 +1162,9 @@ it.each([
     const nameFrame = frames.get(summary.find((node) => typeof node.type === "string" && node.props.children === "Codex"))!;
     expect(dotFrame.width).toBe(4); expect(dotFrame.height).toBe(4);
     expect(Math.abs(dotFrame.top + 2 - (nameFrame.top + nameFrame.height / 2))).toBeLessThanOrEqual(0.5);
+    const method = summary.find((node) => typeof node.type === "string" && node.props.children === "npm");
+    const methodFrame = frames.get(method)!;
+    expect(Math.abs(dotFrame.left - (methodFrame.left + methodFrame.width) - 4)).toBeLessThanOrEqual(1);
     act(() => summary.props.onPress());
     const expandedFrames = measureHostTree(row, options);
     for (const frame of expandedFrames.values()) expect(frame.left + frame.width).toBeLessThanOrEqual(width + 0.5);

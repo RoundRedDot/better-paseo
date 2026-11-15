@@ -1271,7 +1271,13 @@ describe("Tasks search coverage and centred toolbar", () => {
     const dot = hostsById("desktop-more-update-dot")[0]!;
     expect(dot.props.style).toMatchObject({ width: 4, height: 4, bottom: 2, right: 2, backgroundColor: "#da4738" });
     act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
-    expect(hostsById("desktop-settings-update-dot")[0]!.props.style).toMatchObject({ width: 4, height: 4, alignSelf: "center" });
+    const settingsDot = hostsById("desktop-settings-update-dot")[0]!;
+    expect(settingsDot.props.style).toMatchObject({ width: 4, height: 4, alignSelf: "center" });
+    const settingsItem = menuOption(BOARD_STRINGS.en.openSettings);
+    const settingsLabel = settingsItem.find((node) => typeof node.type === "string" && node.props.children === BOARD_STRINGS.en.openSettings);
+    const layout = measureHostTree(settingsItem, { width: 200 });
+    const labelFrame = layout.get(settingsLabel)!; const dotFrame = layout.get(settingsDot)!;
+    expect(Math.abs(dotFrame.left - (labelFrame.left + labelFrame.width) - 4)).toBeLessThanOrEqual(0.5);
     host.agentUpdates = { state: "done", entries: [{ provider: "codex", status: "current", updateAvailable: false }], error: null };
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
     expect(hostsById("desktop-more-update-dot")).toHaveLength(0);

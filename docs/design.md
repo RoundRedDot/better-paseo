@@ -155,6 +155,32 @@ rule: put its movement behind `motionDuration` and keep at most a short fade.
   sidebar group rows 36, 44; card buttons 26 on desktop web, 28 on native tablets, at least 32 on a phone; copy buttons 24 with a 32
   hit area. A long press is 450 ms on a card and 500 ms on a chat row.
 
+### Update reminder dots
+
+Use one small red dot for an available plugin or agent update across the Tasks board and
+settings. The dot is a solid 4 × 4 pt circle (radius 2) in `#da4738`, from
+`UPDATE_INDICATOR_COLOR` in `client/ui/update-indicator.ts`. Keep its size and colour the
+same on light and dark surfaces; do not substitute a theme's danger colour. This reminder
+is distinct from task-status marks, notification counts and other semantic indicators.
+
+- On an icon-only More button, place the dot close to the icon's bottom-right corner, not
+  at the edge of its touch target. Keep any filter-count badge visible and separate. The
+  phone More button uses `bottom: 10, right: 11` in its 44 pt target; desktop More uses
+  `bottom: 2, right: 2` in its toolbar target.
+- Beside text, vertically centre the dot 4 pt after its label. The filter sheet's Settings
+  button and the settings Version segment centre the label independently of the dot, keeping
+  the control's width and the label's position stable as the reminder appears. Agent-version
+  rows and the version check button keep the same 4 pt separation; the desktop More menu places
+  its Settings reminder immediately after the label, before the shortcut.
+- Keep the dot decorative and non-interactive. The associated control or status must convey
+  the available update to assistive technology; the dot must not intercept presses or obscure
+  text, icons, counts or neighbouring controls.
+- Check the shown and hidden states on desktop and phone, in English and Chinese, with larger
+  interface text and narrow widths. Cover the phone More/filter-count combination and the
+  filter sheet's Settings label spacing with `test/unit/tasks-board-render.test.ts`; verify
+  the settings indicators in `test/unit/tasks-settings-page.test.ts`. Native visual acceptance
+  remains separate from simulated layout tests.
+
 ## Icons
 
 ### Icon and label consistency

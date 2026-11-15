@@ -568,12 +568,17 @@ function MenuRow(props: { item: MenuItem; fitContent?: boolean; theme: PluginThe
             {item.detail}
           </Text>
         </View>
+      ) : item.trailing ? (
+        <View style={{ flex: 1, flexBasis: props.fitContent ? "auto" : undefined, marginEnd: props.fitContent ? Math.round(32 * Math.max(1, scale)) : undefined, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 4 }}>
+          <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>{item.label}</Text>
+          {item.trailing}
+        </View>
       ) : (
         <Text numberOfLines={1} style={{ flex: 1, flexBasis: props.fitContent ? "auto" : undefined, marginEnd: props.fitContent ? Math.round(32 * Math.max(1, scale)) : undefined, minWidth: 0, fontSize: MENU.fontSize, color: item.disabled ? colors.foregroundMuted : danger ?? colors.foreground }}>
           {item.label}
         </Text>
       )}
-      {item.trailing}
+      {item.detail ? item.trailing : null}
       {item.hint ? <Text style={{ fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>{item.hint}</Text> : null}
       {Platform.OS === "web" && item.shortcut ? <Text style={{ fontFamily: TASK_MONO, fontSize: F.sm, letterSpacing: 2, color: colors.foregroundMuted }}>{item.shortcut === "Enter" ? "↵" : item.shortcut.toUpperCase()}</Text> : null}
       {item.checked ? <Icon name="Check" size={14} color={colors.accent} /> : item.checked === false ? <View style={{ width: 14 }} /> : null}

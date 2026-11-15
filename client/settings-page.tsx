@@ -650,9 +650,14 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
       </View>
       <View style={styles.agentIdentity}>
         <View style={styles.agentNameLine}>
-          <Text style={[styles.agentName, settingsTextStyle(tokens), { color: tokens.foreground, fontFamily: tokens.fontUi, fontWeight: "500" }]}>{entry.label}</Text>
-          {entry.method !== "unknown" ? <Text style={[styles.agentMethod, settingsTextStyle(tokens, -3), { color: tokens.foregroundMuted, borderColor: tokens.v2.border, fontFamily: tokens.fontUi }]}>{methods[entry.method]}</Text> : null}
-          {entry.updateAvailable ? <UpdateDot /> : null}
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 }}>
+            <Text style={[styles.agentName, settingsTextStyle(tokens), { color: tokens.foreground, fontFamily: tokens.fontUi, fontWeight: "500" }]}>{entry.label}</Text>
+            {entry.method === "unknown" && entry.updateAvailable ? <UpdateDot /> : null}
+          </View>
+          {entry.method !== "unknown" ? <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={[styles.agentMethod, settingsTextStyle(tokens, -3), { color: tokens.foregroundMuted, borderColor: tokens.v2.border, fontFamily: tokens.fontUi }]}>{methods[entry.method]}</Text>
+            {entry.updateAvailable ? <UpdateDot /> : null}
+          </View> : null}
         </View>
         <Text numberOfLines={1} ellipsizeMode="middle" style={[text, { fontFamily: tokens.fontMono }]}>{executable}</Text>
       </View>
@@ -731,7 +736,7 @@ function VersionSection({ look, language, version, autoUpdateCheck, native, agen
     <SettingRow title={t.versionAutoCheck} description={t.versionAutoCheckDescription} first look={look}
       control={<Toggle value={autoUpdateCheck} onChange={(autoUpdateCheck) => updateEnhancerPreferences({ autoUpdateCheck })} label={t.versionAutoCheck} look={look} />} />
     <SettingRow title={t.versionInfo} description={description} look={look}
-      control={<View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>{updateAvailable ? <UpdateDot /> : null}<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} disabled={state.state === "checking" || state.state === "starting"} loading={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} /></View>} />
+      control={<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} updateBadge={updateAvailable} disabled={state.state === "checking" || state.state === "starting"} loading={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} />} />
   </Section>
   {(updateAvailable || orderUnknown) && state.state === "done" ? <Section title={orderUnknown ? t.versionMarketCommand : t.versionUpdateCommand} look={look}>
       <View style={{ paddingHorizontal: space.lg, paddingVertical: look.compact ? 11 : 14, gap: space.sm }}>
