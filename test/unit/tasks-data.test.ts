@@ -738,6 +738,43 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("lets a read by id retried during a held read wait with it", async () => {
+      const { fake, mounted } = await mountWith();
+      try {
+        // An older snapshot sends a read by id, which fails and is tried again 2 s later.
+        fake.failRefreshes(new Error("connection lost"));
+        await act(async () => {
+          fake.pushAgentSnapshot({ ...unread, updatedAt: recentIso(60_000) } as never);
+          await flush(8);
+        });
+        fake.failRefreshes(null);
+        await act(async () => {
+          vi.advanceTimersByTime(1_950);
+          await flush(8);
+        });
+        // Read on another device just before the retry: held.
+        const cleared = { ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        await act(async () => {
+          fake.upsertAgent(cleared as never);
+          await flush(4);
+        });
+        // The retry reads the same read state within the wait: the hold still decides.
+        await act(async () => {
+          vi.advanceTimersByTime(100);
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).toBe("review");
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS);
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).toBe("done");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -3142,6 +3179,79 @@ describe("Tasks data store", () => {
           await flush(16);
         });
         expect(mounted.current.byId.has("gc-55")).toBe(false);
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("keeps the card at the done page boundary while a refresh rereads the next page", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 120 }, (_, index) => activeAgent(`b-${String(index).padStart(3, "0")}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await settle();
+        await act(async () => {
+          mounted.current.loadMoreDone();
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("b-049")).toBe(true);
+        // A task added at the top pushes b-049 onto the second page; the refresh's reread of it answers later.
+        fake.setAgentSilently(activeAgent("b-top", { status: "idle", requiresAttention: false, updatedAt: recentIso(1_000) }));
+        const release = fake.holdPageAnswers();
+        await act(async () => {
+          void mounted.current.refresh();
+          await flush(24);
+        });
+        expect(mounted.current.byId.has("b-top")).toBe(true);
+        expect(mounted.current.byId.has("b-049")).toBe(true);
+        await act(async () => {
+          release();
+          await flush(24);
+        });
+        expect(mounted.current.byId.has("b-049")).toBe(true);
+        // Two pages as before: b-top and b-000..b-098 (b-099 moved to the third page, not loaded).
+        expect(mounted.current.lanes.done.cards).toHaveLength(100);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("clears a gone check's error once a snapshot took its card off", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 60 }, (_, index) => activeAgent(`gs-${index}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await settle();
+        await act(async () => {
+          mounted.current.loadMoreDone();
+          await flush(16);
+        });
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        fake.failRefreshes(new Error("gone-check read failed"));
+        const target = fake.paseo.agents.ref("gs-55").current()!;
+        await act(async () => {
+          fake.upsertAgent({ ...target, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(8);
+          vi.advanceTimersByTime(1_100);
+          await flush(16);
+        });
+        expect(mounted.current.error).toBe("gone-check read failed");
+        // The done list starts over without it: the card leaves with the second page.
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("gs-55")).toBe(false);
+        await act(async () => {
+          vi.advanceTimersByTime(2_000 + 1_100);
+          await flush(16);
+        });
         expect(mounted.current.error).toBeNull();
       } finally {
         vi.useRealTimers();

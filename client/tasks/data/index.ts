@@ -207,6 +207,8 @@ const ATTENTION_KEY = "active-attention";
 const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true, includeBackground: true };
 const DONE_SUBSCRIPTION = "done-first";
 const PAGE_SIZE = 50;
+/** The old first page's members a refreshed one pushed out, held as a done page until the rereads land (`done-page-` so they replace it). */
+const DONE_PAGE_CARRY = "done-page-carry";
 /** Whether a snapshot whose pages were read may land: now, or once a newer one on the other subscription lands or goes. */
 interface LandingGate {
   landable(): boolean;
@@ -1794,6 +1796,8 @@ function createStore(api: PaseoApi): TaskStore {
       if (run !== generation) return;
       if (!entries.has(id)) {
         goneChecks.delete(id);
+        // Already taken off (a snapshot no longer had it): nothing is left to check.
+        clearPageError(`gone:${id}`);
         return;
       }
       const asked = recordClock;
@@ -1875,6 +1879,10 @@ function createStore(api: PaseoApi): TaskStore {
         return;
       }
       const agent = result.agent;
+      // Archived (kept for the archived lane): no hold of it lands later.
+      if (isArchived(agent)) dropHeldSnapshot(id);
+      // The same read state a hold is keeping: the hold decides when it lands.
+      else if (waitsForHeldClear(agent)) return;
       batchUpdates(() => {
         reconcileActiveMembers(agent);
         for (const [key, members] of sourceMembers) {
@@ -1944,6 +1952,14 @@ function createStore(api: PaseoApi): TaskStore {
       // does: a page read once hears of no archive made while disconnected.
       // A page asked for after the old first page belongs to it: it must not land on the new one.
       if (sourceKey === DONE_SUBSCRIPTION) doneSnapshots += 1;
+      // A refresh's first page, its later pages to be read again: what the old
+      // first page held and the new one does not (pushed onto the second page
+      // by a task added at the top) stays until those pages land and replace
+      // it, so the card at the page boundary does not leave and come back.
+      if (sourceKey === DONE_SUBSCRIPTION && pagesKept) {
+        const carried = new Set([...(current ?? [])].filter((id) => !nextMembers.has(id)));
+        if (carried.size > 0) sourceMembers.set(DONE_PAGE_CARRY, carried);
+      }
       if (sourceKey === DONE_SUBSCRIPTION && !pagesKept) {
         for (const key of [...sourceMembers.keys()]) if (key.startsWith("done-page-")) sourceMembers.delete(key);
       }

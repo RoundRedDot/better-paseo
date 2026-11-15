@@ -168,5 +168,7 @@ describe.skipIf(!paseoBin())("lanes on a private daemon, from stored records", (
       const changed = [...before].filter(([id, lane]) => current.byId.get(id)?.lane !== lane);
       expect(changed).toEqual([]);
     }, 30_000);
+    // Both ways: no card the refresh added that the records do not call for.
+    expect(await oracleMismatches()).toEqual([]);
   });
 });
