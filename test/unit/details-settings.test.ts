@@ -81,6 +81,20 @@ beforeEach(() => {
 });
 
 describe("block details settings", () => {
+  it("keeps the timeline modes selectable after changing their illustrations", () => {
+    updateEnhancerPreferences({ language: "en" });
+    const renderer = renderPage();
+    const group = choiceGroup(renderer.root, "Agent steps")!;
+    const radios = group.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
+    expect(radios.map((radio) => radio.props.accessibilityState.checked)).toEqual([false, true, false]);
+    act(() => radios[2]!.props.onPress());
+    expect(getEnhancerPreferences().timelineLevel).toBe("detailed");
+    expect(radios.map((radio) => radio.props.accessibilityState.checked)).toEqual([false, false, true]);
+    act(() => radios[0]!.props.onPress());
+    expect(getEnhancerPreferences().timelineLevel).toBe("simple");
+    act(() => renderer.unmount());
+  });
+
   it("enables interactive reply handoff from the messages setting", () => {
     updateEnhancerPreferences({ language: "en" });
     const renderer = renderPage();

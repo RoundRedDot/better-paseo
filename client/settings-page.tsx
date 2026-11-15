@@ -35,6 +35,7 @@ import {
   type MonoFontPreference,
   type PathDisplayPreference,
   type RowLabelStylePreference,
+  type TimelineLevel,
   type UiFontPreference,
 } from "./preferences";
 import {
@@ -109,6 +110,23 @@ const INLINE_CODE_OPTIONS: ReadonlyArray<{
 ];
 
 type PreviewDevice = "desktop" | "mobile";
+
+/** A fixed viewport shows how extra work steps push the reply down. */
+function TimelineLevelIllustration({ level, tokens }: { level: TimelineLevel; tokens: ExtendedThemeTokens }) {
+  const stepWidths = level === "simple" ? [] : level === "standard" ? [50, 38] : [50, 36, 56, 42];
+  const replyWidths = level === "simple" ? [80, 72, 80, 76, 46] : level === "standard" ? [80, 74, 48] : [80];
+  return (
+    <View accessible={false} style={{ width: "100%", aspectRatio: 1.25, borderWidth: 1, borderRadius: 6, borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0, overflow: "hidden" }}>
+      <View style={{ position: "absolute", left: "40%", top: "8.75%", width: "54%", height: "15%", borderRadius: 9, backgroundColor: tokens.userSurface }} />
+      {stepWidths.length > 0 ? <View style={{ position: "absolute", left: "6%", top: "31.25%", width: "88%", height: level === "standard" ? "22.5%" : "45%", borderRadius: 5, backgroundColor: tokens.accentBg }} /> : null}
+      {stepWidths.map((width, index) => <React.Fragment key={index}>
+        <View style={{ position: "absolute", left: "11%", top: `${(25 + index * 9 + 2.4) / 80 * 100}%`, width: "4.2%", aspectRatio: 1, borderRadius: 20, backgroundColor: tokens.accent }} />
+        <View style={{ position: "absolute", left: "19%", top: `${(25 + index * 9 + 2.8) / 80 * 100}%`, width: `${width}%`, height: "4.25%", borderRadius: 4, backgroundColor: tokens.foregroundSubtle }} />
+      </React.Fragment>)}
+      {replyWidths.map((width, index) => <View key={index} style={{ position: "absolute", left: "10%", top: `${(29 + stepWidths.length * 9 + index * 9 + 2.2) / 80 * 100}%`, width: `${width}%`, height: "5.75%", borderRadius: 4, backgroundColor: tokens.foreground }} />)}
+    </View>
+  );
+}
 
 /** Accent swatches: 22pt, each in a 44pt target. */
 const SWATCH = 22;
@@ -869,7 +887,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
             {([ ["simple", t.timelineSimple, t.timelineSimpleDescription], ["standard", t.timelineStandard, t.timelineStandardDescription], ["detailed", t.timelineDetailed, t.timelineDetailedDescription] ] as const).map(([value, label, description]) => (
               <Pressable key={value} accessibilityRole="radio" aria-checked={preferences.timelineLevel === value} accessibilityState={{ checked: preferences.timelineLevel === value }} onPress={() => updateEnhancerPreferences({ timelineLevel: value })}
                 style={{ flex: 1, minWidth: 0, padding: 10, gap: 6, borderWidth: 1, borderRadius: 8, borderColor: preferences.timelineLevel === value ? tokens.accent : tokens.v2.border }}>
-                <View style={{ gap: 4 }} accessible={false}>{[0, 1, 2].map((line) => <View key={line} style={{ width: line === 1 ? "65%" : "90%", height: 3, borderRadius: 2, backgroundColor: value === "simple" && line === 1 ? tokens.v2.border : value === "standard" && line === 1 ? tokens.accent : tokens.foregroundMuted }} />)}</View>
+                <TimelineLevelIllustration level={value} tokens={tokens} />
                 <Text style={[settingsTextStyle(tokens), { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{label}{value === "standard" ? ` · ${t.timelineDefault}` : ""}</Text>
                 <Text style={[settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{description}</Text>
               </Pressable>
