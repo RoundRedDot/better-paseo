@@ -245,6 +245,14 @@ function matches(agent: Agent, options: PaseoAgentListOptions): boolean {
   return true;
 }
 
+/** The daemon's workspace order: newest activity first, none last, then id. */
+function compareWorkspaces(left: Pick<PaseoWorkspace, "activityAt" | "id">, right: Pick<PaseoWorkspace, "activityAt" | "id">): number {
+  const leftAt = left.activityAt ? Date.parse(left.activityAt) : Number.NEGATIVE_INFINITY;
+  const rightAt = right.activityAt ? Date.parse(right.activityAt) : Number.NEGATIVE_INFINITY;
+  if (leftAt !== rightAt) return rightAt > leftAt ? 1 : -1;
+  return left.id.localeCompare(right.id);
+}
+
 /** The cursor of a page that ends on this agent: its sort key, so the next page starts after it. */
 export function keysetCursor(agent: Agent): string {
   return `key:${JSON.stringify({ id: agent.id, updatedAt: agent.updatedAt, createdAt: agent.createdAt, title: agent.title, status: agent.status })}`;
@@ -460,13 +468,20 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       await pastFirstPage("workspaces.list", listOptions.page?.cursor);
       if (!listOptions.page?.cursor && workspaceListGate) await workspaceListGate;
       if (workspacePageFailure) throw workspacePageFailure;
-      const offset = listOptions.page?.cursor ? Number(listOptions.page.cursor.replace("ws-page:", "")) : 0;
+      // As the daemon: newest activity first (none last), then id; a keyset cursor
+      // (the last entry's activityAt and id), so a later page starts after that
+      // key in the list as it is now, even if an earlier workspace left it.
+      const after = listOptions.page?.cursor ? JSON.parse(listOptions.page.cursor.slice("ws-key:".length)) as { activityAt: string | null; id: string } : null;
       const pageSize = Math.min(options.workspacePageSize ?? DAEMON_PAGE_LIMIT, pageLimit(listOptions.page?.limit));
       const page = () => {
-        const all = [...workspaces.values()].filter((workspace) => listOptions.filter?.includeBackground || !workspace.background);
-        const end = offset + pageSize;
-        const hasMore = end < all.length;
-        return { entries: all.slice(offset, end), pageInfo: { nextCursor: hasMore ? `ws-page:${end}` : null, prevCursor: null, hasMore } };
+        const all = [...workspaces.values()]
+          .filter((workspace) => listOptions.filter?.includeBackground || !workspace.background)
+          .sort(compareWorkspaces);
+        const rest = after ? all.filter((workspace) => compareWorkspaces(workspace, after as PaseoWorkspace) > 0) : all;
+        const slice = rest.slice(0, pageSize);
+        const last = slice.at(-1);
+        const hasMore = rest.length > pageSize && last !== undefined;
+        return { entries: slice, pageInfo: { nextCursor: hasMore ? `ws-key:${JSON.stringify({ activityAt: last.activityAt ?? null, id: last.id })}` : null, prevCursor: null, hasMore } };
       };
       const requestId = `req-${nextId++}`;
       const result = { requestId, ...page() };

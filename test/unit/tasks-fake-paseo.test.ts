@@ -96,6 +96,18 @@ describe("fake PaseoApi", () => {
     expect(workspaces.entries.map((workspace) => workspace.id)).toEqual(["ws"]);
   });
 
+  it("pages workspaces by key, so one archived after the first page does not shift the next", async () => {
+    const fake = createFakePaseo({
+      workspaces: ["w0", "w1", "w2", "w3"].map((id) => makeWorkspace({ id })),
+      workspacePageSize: 2,
+    });
+    const first = await fake.paseo.workspaces.list({ filter: { includeBackground: true } });
+    expect(first.entries.map((workspace) => workspace.id)).toEqual(["w0", "w1"]);
+    fake.removeWorkspace("w0");
+    const next = await fake.paseo.workspaces.list({ filter: { includeBackground: true }, page: { limit: 2, cursor: first.pageInfo.nextCursor! } });
+    expect(next.entries.map((workspace) => workspace.id)).toEqual(["w2", "w3"]);
+  });
+
   it("offers label definitions and project icons only on new hosts", async () => {
     const old = createFakePaseo();
     expect("listLabels" in old.paseo.workspaces).toBe(false);

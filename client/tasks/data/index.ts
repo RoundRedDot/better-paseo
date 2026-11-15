@@ -1786,7 +1786,7 @@ function createStore(api: PaseoApi): TaskStore {
    * card a done page read still holds is let go when the look finds it
    * archived.
    */
-  function checkGone(id: string, attempt = 0) {
+  function checkGone(id: string, attempt = 0, failures = 0) {
     if (goneChecks.has(id)) return;
     goneChecks.add(id);
     const run = generation;
@@ -1800,6 +1800,7 @@ function createStore(api: PaseoApi): TaskStore {
       void api.agents.ref(id).refresh().then((result) => {
         if (run !== generation) return;
         goneChecks.delete(id);
+        clearPageError(`gone:${id}`);
         // Restored, prompted or archived again meanwhile: the newer state
         // stands; still closed, it is checked again from that state.
         if (changedSince(id, asked)) {
@@ -1818,8 +1819,18 @@ function createStore(api: PaseoApi): TaskStore {
         dropHeldSnapshot(id);
         for (const members of sourceMembers.values()) members.delete(id);
         removeRecord(id);
-      }).catch(() => {
-        if (run === generation) goneChecks.delete(id);
+      }).catch((caught: unknown) => {
+        if (run !== generation) return;
+        goneChecks.delete(id);
+        // The card stays as it was (an archive may be waiting on this read):
+        // say so, and check again a little later.
+        pageError(`gone:${id}`, caught);
+        const delay = CONFIRM_RETRY_DELAYS_MS[failures];
+        if (delay !== undefined) {
+          setTimeout(() => {
+            if (run === generation) checkGone(id, attempt, failures + 1);
+          }, delay);
+        }
       });
     }, GONE_CHECK_DELAYS_MS[attempt]);
   }

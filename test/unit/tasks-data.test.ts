@@ -3112,6 +3112,43 @@ describe("Tasks data store", () => {
       }
     });
 
+    it("says so and checks again when a gone check's read fails", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 60 }, (_, index) => activeAgent(`gc-${index}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await settle();
+        await act(async () => {
+          mounted.current.loadMoreDone();
+          await flush(16);
+        });
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        // Archived, the archived lane off: removes; only the second done page still holds it, so a gone check reads it.
+        fake.failRefreshes(new Error("connection lost"));
+        const target = fake.paseo.agents.ref("gc-55").current()!;
+        await act(async () => {
+          fake.upsertAgent({ ...target, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(8);
+          vi.advanceTimersByTime(1_100);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("gc-55")).toBe(true);
+        expect(mounted.current.error).toBe("connection lost");
+        fake.failRefreshes(null);
+        await act(async () => {
+          vi.advanceTimersByTime(2_000 + 1_100);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("gc-55")).toBe(false);
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("keeps saying a list is incomplete while another one recovers", async () => {
       const fake = createFakePaseo({
         agents: [
