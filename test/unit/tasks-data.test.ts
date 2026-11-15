@@ -651,6 +651,60 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("keeps a held task's card through a snapshot of its list that no longer carries it", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 60 }, (_, index) => activeAgent(`h-${index}`, { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        await act(async () => { await flush(16); });
+        const target = fake.paseo.agents.ref("h-55").current()!;
+        const cleared = { ...target, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        fake.setAgentSilently(cleared as never);
+        // The done list's read state is held; the attention list then reconnects without the task.
+        await act(async () => {
+          fake.pushUpsertTo(cleared as never, (options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(4);
+        });
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+          await flush(8);
+        });
+        // Still shown as it was until the wait is over.
+        expect(mounted.current.byId.get("h-55")?.lane).toBe("review");
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS + 50);
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("h-55")?.lane).toBe("done");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("shows a permission request a snapshot brings during a held read, with the same update time", async () => {
+      const { fake, mounted } = await mountWith();
+      try {
+        const cleared = { ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        await act(async () => {
+          fake.upsertAgent(cleared as never);
+          await flush(4);
+        });
+        fake.setAgentSilently({ ...cleared, pendingPermissions: [{ id: "perm-1", provider: "claude", name: "Bash", kind: "tool", title: "Run" }] } as never);
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(8);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).toBe("needs_input");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -2766,6 +2820,60 @@ describe("Tasks data store", () => {
         });
         expect(mounted.current.byId.get("d-55")?.lane).toBe("done");
         expect(mounted.current.lanes.done.cards).toHaveLength(60);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("reads an archived parent of a running background task a bounded number of times", async () => {
+      const fake = createFakePaseo({
+        agents: [
+          makeAgent({ id: "p", status: "idle", title: "Archived parent", archivedAt: recentIso(60_000), workspaceId: "ws" }),
+          activeAgent("bg-child", { status: "running", workspaceId: "ws-bg", labels: { "paseo.parent-agent-id": "p" }, updatedAt: recentIso(1_000) }),
+        ],
+        workspaces: [workspace(), makeWorkspace({ id: "ws-bg", projectId: "project-id", name: "bg", background: true } as never)],
+      });
+      // Each read answers on a later task, so a loop shows as many reads instead of hanging the test.
+      const ref = fake.paseo.agents.ref.bind(fake.paseo.agents);
+      (fake.paseo.agents as { ref: typeof ref }).ref = ((agent: Parameters<typeof ref>[0]) => {
+        const handle = ref(agent);
+        return { ...handle, refresh: async () => { await new Promise((resolve) => setTimeout(resolve, 1)); return handle.refresh(); } };
+      }) as typeof ref;
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 150)); });
+        const reads = fake.calls.filter((call) => call.method === "agents.ref.refresh" && (call.input as { agentId: string }).agentId === "p");
+        expect(reads.length).toBeLessThanOrEqual(2);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("drops a done page asked for before the done list started over", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 60 }, (_, index) => activeAgent(`g-${index}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await settle();
+        const release = fake.holdPageAnswers();
+        await act(async () => {
+          mounted.current.loadMoreDone();
+          await flush(8);
+        });
+        // Archived with nothing sent, then the done list starts over (a re-subscribe after its buffer overflowed).
+        const target = fake.paseo.agents.ref("g-55").current()!;
+        fake.setAgentSilently({ ...target, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(8);
+        });
+        await act(async () => {
+          release();
+          await flush(24);
+        });
+        expect(mounted.current.byId.has("g-55")).toBe(false);
       } finally {
         mounted.unmount();
       }

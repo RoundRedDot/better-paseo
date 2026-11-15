@@ -1194,6 +1194,8 @@ function createStore(api: PaseoApi): TaskStore {
    */
   let recordClock = 0;
   const recordStamps = new Map<string, number>();
+  /** How many times the done list started over from its first page: a later page belongs to one of them. */
+  let doneSnapshots = 0;
   /**
    * A list's copy of an agent whose attention clear is held: the same state
    * waits with the hold (true), a newer one lets the hold go and applies.
@@ -1201,9 +1203,27 @@ function createStore(api: PaseoApi): TaskStore {
   function waitsForHeldClear(agent: PaseoAgent): boolean {
     const held = startIdles.get(agent.id);
     if (held?.kind !== "clear") return false;
-    if (epoch(agent.updatedAt) <= held.updatedAt && !agent.archivedAt) return true;
+    // The same state, not just the same time: a permission request or an
+    // error can come with an unchanged updatedAt, and must show at once.
+    const heldAgent = held.update.payload?.agent;
+    if (heldAgent && laneStateOf(heldAgent) === laneStateOf(agent)) return true;
+    if (epoch(agent.updatedAt) < held.updatedAt) return true;
     dropHeldSnapshot(agent.id);
     return false;
+  }
+
+  /** What decides an agent's lane, as one comparable string; a list snapshot and a live update may differ elsewhere. */
+  function laneStateOf(agent: PaseoAgent): string {
+    return JSON.stringify([
+      agent.status,
+      Boolean(agent.requiresAttention),
+      agent.attentionReason ?? null,
+      (agent.pendingPermissions ?? []).map((permission) => permission.id),
+      agent.lastError ?? null,
+      agent.archivedAt ?? null,
+      agent.activeTurn ? agent.activeTurn.turnId : null,
+      agent.updatedAt,
+    ]);
   }
 
   /** An agent confirmed archived or gone: what a hold kept of it must not land later. */
@@ -1312,7 +1332,9 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function dropIfUnreferenced(id: string) {
-    if (memberSetsContaining(id).length > 0 || hasActiveBackgroundChildren(id)) return;
+    // A held snapshot's wait decides (a read by id once it is over): the card
+    // stays as it is until then rather than leave and come back.
+    if (memberSetsContaining(id).length > 0 || hasActiveBackgroundChildren(id) || startIdles.has(id)) return;
     removeRecord(id);
   }
 
@@ -1886,7 +1908,11 @@ function createStore(api: PaseoApi): TaskStore {
       const pagesKept = keepPages && [...sourceMembers.keys()].some((key) => key.startsWith("done-page-"));
       // The done lane starts over from its first page, as `doneCursor` below
       // does: a page read once hears of no archive made while disconnected.
-      if (sourceKey === DONE_SUBSCRIPTION && !pagesKept) for (const key of [...sourceMembers.keys()]) if (key.startsWith("done-page-")) sourceMembers.delete(key);
+      if (sourceKey === DONE_SUBSCRIPTION && !pagesKept) {
+        for (const key of [...sourceMembers.keys()]) if (key.startsWith("done-page-")) sourceMembers.delete(key);
+        // A page asked for after the old first page belongs to it: it must not land on the new one.
+        doneSnapshots += 1;
+      }
       for (const id of [...entries.keys()]) if (!nextMembers.has(id) && memberSetsContaining(id).length === 0) dropIfUnreferenced(id);
       if (sourceKey === STATUS_KEY) statusReady = true;
       if (sourceKey === ATTENTION_KEY) attentionReady = true;
@@ -3352,6 +3378,7 @@ function createStore(api: PaseoApi): TaskStore {
     const cursor = doneCursor;
     const run: Run = { generation, tier: "done", tierRun: doneRun };
     const asked = recordClock;
+    const snapshotAsked = doneSnapshots;
     loadingDone = true;
     notify();
     void api.agents.list({
@@ -3360,6 +3387,8 @@ function createStore(api: PaseoApi): TaskStore {
       page: { limit: PAGE_SIZE, cursor },
     }).then((result) => {
       if (!isCurrent(run) || (current && !current())) return;
+      // The done list was read again from its first page since: this page follows the old one.
+      if (doneSnapshots !== snapshotAsked) return;
       const key = `done-page-${cursor}`;
       batchUpdates(() => {
         const pageMembers = new Set<string>();
@@ -3400,7 +3429,12 @@ function createStore(api: PaseoApi): TaskStore {
    * child before its parent.
    */
   function queueParentRead(id: string) {
-    if ((resolvedParents.has(id) && !hasActiveBackgroundChildren(id)) || parentReads.has(id)) return;
+    // Read once; a parent with active background children is read again for
+    // its record, unless it was found archived (it gets none: reading it
+    // again, which refreshes the children, which queue it again, would loop).
+    // An explicit refreshParent still reads it.
+    const known = resolvedParents.get(id);
+    if ((known && (known.archived === true || !hasActiveBackgroundChildren(id))) || parentReads.has(id)) return;
     parentReads.add(id);
     if (parentReads.size > 1) return;
     const run = generation;
