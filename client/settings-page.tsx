@@ -1,3 +1,4 @@
+import { UPDATE_INDICATOR_COLOR } from "./ui/update-indicator";
 import { useRpc } from "@getpaseo/plugin/client";
 import { updateCheckRpc } from "../shared/update-check";
 import { hasAgentUpdate, type AgentUpdate } from "../shared/agent-updates";
@@ -618,8 +619,8 @@ function VersionResult({ state, look, language, updateAvailable }: {
   </View>;
 }
 
-function UpdateDot({ look }: { look: PageLook }) {
-  return <View testID="version-item-update-dot" accessible={false} style={{ width: 6, height: 6, borderRadius: 3, alignSelf: "center", backgroundColor: look.tokens.danger }} />;
+function UpdateDot() {
+  return <View testID="version-item-update-dot" accessible={false} style={{ width: 4, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: UPDATE_INDICATOR_COLOR }} />;
 }
 
 function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }) {
@@ -651,7 +652,7 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
         <View style={styles.agentNameLine}>
           <Text style={[styles.agentName, settingsTextStyle(tokens), { color: tokens.foreground, fontFamily: tokens.fontUi, fontWeight: "500" }]}>{entry.label}</Text>
           {entry.method !== "unknown" ? <Text style={[styles.agentMethod, settingsTextStyle(tokens, -3), { color: tokens.foregroundMuted, borderColor: tokens.v2.border, fontFamily: tokens.fontUi }]}>{methods[entry.method]}</Text> : null}
-          {entry.updateAvailable ? <UpdateDot look={look} /> : null}
+          {entry.updateAvailable ? <UpdateDot /> : null}
         </View>
         <Text numberOfLines={1} ellipsizeMode="middle" style={[text, { fontFamily: tokens.fontMono }]}>{executable}</Text>
       </View>
@@ -730,7 +731,7 @@ function VersionSection({ look, language, version, autoUpdateCheck, native, agen
     <SettingRow title={t.versionAutoCheck} description={t.versionAutoCheckDescription} first look={look}
       control={<Toggle value={autoUpdateCheck} onChange={(autoUpdateCheck) => updateEnhancerPreferences({ autoUpdateCheck })} label={t.versionAutoCheck} look={look} />} />
     <SettingRow title={t.versionInfo} description={description} look={look}
-      control={<View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>{updateAvailable ? <UpdateDot look={look} /> : null}<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} disabled={state.state === "checking" || state.state === "starting"} loading={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} /></View>} />
+      control={<View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>{updateAvailable ? <UpdateDot /> : null}<PlainButton label={state.state === "checking" || state.state === "starting" ? t.versionChecking : t.versionCheck} disabled={state.state === "checking" || state.state === "starting"} loading={state.state === "checking" || state.state === "starting"} onPress={() => { void run(); }} look={look} /></View>} />
   </Section>
   {(updateAvailable || orderUnknown) && state.state === "done" ? <Section title={orderUnknown ? t.versionMarketCommand : t.versionUpdateCommand} look={look}>
       <View style={{ paddingHorizontal: space.lg, paddingVertical: look.compact ? 11 : 14, gap: space.sm }}>

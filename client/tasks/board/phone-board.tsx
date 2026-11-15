@@ -1,3 +1,4 @@
+import { UPDATE_INDICATOR_COLOR } from "../../ui/update-indicator";
 import { HoverControl } from "../hover-control";
 import React, { memo, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
@@ -428,7 +429,7 @@ export function PhoneBoard(props: {
           />
           <View testID="phone-more-container" style={{ width: 44, height: 44, marginLeft: -6 }}>
             <RoundButton icon="MoreVertical" iconSize={22} borderless label={updateAvailable ? `${strings.more}, ${updateLabel}` : strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
-            {updateAvailable ? <View testID="phone-more-update-dot" pointerEvents="none" style={{ position: "absolute", top: "50%", marginTop: -3, left: 3, width: 6, height: 6, borderRadius: 3, backgroundColor: taskTokens(theme).danger }} /> : null}
+            {updateAvailable ? <View testID="phone-more-update-dot" pointerEvents="none" style={{ position: "absolute", bottom: 5, right: 5, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
           </View>
         </View>
       </View>

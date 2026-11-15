@@ -1,3 +1,4 @@
+import { UPDATE_INDICATOR_COLOR } from "../../ui/update-indicator";
 import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, View, type LayoutChangeEvent, type ScrollView as NativeScrollView } from "react-native";
 import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
@@ -276,7 +277,7 @@ export function FilterSheetBody(props: {
             style={{ height: 44, paddingHorizontal: 18, borderRadius: 22, borderWidth: HAIRLINE, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
           >
             <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.settings}</Text>
-            {props.updateAvailable ? <View testID="filter-sheet-settings-update-dot" pointerEvents="none" style={{ position: "absolute", right: 6, top: "50%", marginTop: -3, width: 6, height: 6, borderRadius: 3, backgroundColor: taskTokens(theme).danger }} /> : null}
+            {props.updateAvailable ? <View testID="filter-sheet-settings-update-dot" pointerEvents="none" style={{ position: "absolute", right: 6, top: "50%", marginTop: -2, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
           </HoverControl>
         ) : null}
       </View>

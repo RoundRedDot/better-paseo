@@ -910,7 +910,7 @@ it("shows agent-only updates for the selected host and explains the workspace te
     expect(button(r, "Update in Paseo terminal").props.disabled).toBe(true);
     expect(textOf(r.root)).toContain("cannot navigate plugins to an exact workspace terminal");
     expect(button(r, "Check agent updates")).toBeTruthy();
-    expect(byTestID(r, "version-item-update-dot")[0]!.props.style).toMatchObject({ width: 6, height: 6, alignSelf: "center" });
+    expect(byTestID(r, "version-item-update-dot")[0]!.props.style).toMatchObject({ width: 4, height: 4, alignSelf: "center" });
     state.agents.mockResolvedValue({ state: "done", entries: [], error: null });
     await act(async () => { r.update(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false }, host: { id: "agent-host-b", label: "Host B" } })); });
     expect(textOf(r.root)).toContain("Selected host: Host B");
@@ -1119,8 +1119,8 @@ it.each([
     const dot = byTestID(r, "version-item-update-dot")[0]!;
     const dotFrame = frames.get(dot)!;
     const nameFrame = frames.get(summary.find((node) => typeof node.type === "string" && node.props.children === "Codex"))!;
-    expect(dotFrame.width).toBe(6); expect(dotFrame.height).toBe(6);
-    expect(Math.abs(dotFrame.top + 3 - (nameFrame.top + nameFrame.height / 2))).toBeLessThanOrEqual(0.5);
+    expect(dotFrame.width).toBe(4); expect(dotFrame.height).toBe(4);
+    expect(Math.abs(dotFrame.top + 2 - (nameFrame.top + nameFrame.height / 2))).toBeLessThanOrEqual(0.5);
     act(() => summary.props.onPress());
     const expandedFrames = measureHostTree(row, options);
     for (const frame of expandedFrames.values()) expect(frame.left + frame.width).toBeLessThanOrEqual(width + 0.5);

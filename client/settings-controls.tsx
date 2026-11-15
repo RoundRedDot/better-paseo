@@ -1,3 +1,4 @@
+import { UPDATE_INDICATOR_COLOR } from "./ui/update-indicator";
 import React from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { radiusV2, space, type ExtendedThemeTokens } from "./components/theme-tokens";
@@ -133,7 +134,7 @@ export function Segmented<T extends string>({
             >
               {option.label}
             </Text>
-            {option.badge ? <View testID="update-badge" accessible={false} style={{ marginLeft: 6, width: 6, height: 6, borderRadius: 3, alignSelf: "center", backgroundColor: tokens.danger }} /> : null}
+            {option.badge ? <View testID="update-badge" accessible={false} style={{ marginLeft: 6, width: 4, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
           </Pressable>
         );
       })}

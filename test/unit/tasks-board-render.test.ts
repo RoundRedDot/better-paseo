@@ -1262,16 +1262,16 @@ describe("Tasks search coverage and centred toolbar", () => {
     }
   });
 
-  it("aggregates agent-only updates into centered 6px desktop indicators", async () => {
+  it("aggregates agent-only updates into corner and inline desktop indicators", async () => {
     setTasksSettingsOpener(vi.fn());
     host.agentUpdates = { state: "done", entries: [{ provider: "codex", status: "available", updateAvailable: true }], error: null };
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     await act(async () => { renderer = TestRenderer.create(screen(false)); });
     layOut(1600);
     const dot = hostsById("desktop-more-update-dot")[0]!;
-    expect(dot.props.style).toMatchObject({ width: 6, height: 6, top: "50%", marginTop: -3 });
+    expect(dot.props.style).toMatchObject({ width: 4, height: 4, bottom: 2, right: 2, backgroundColor: "#d45b5b" });
     act(() => hostsById("desktop-toolbar-more")[0]!.props.onPress());
-    expect(hostsById("desktop-settings-update-dot")[0]!.props.style).toMatchObject({ width: 6, height: 6, alignSelf: "center" });
+    expect(hostsById("desktop-settings-update-dot")[0]!.props.style).toMatchObject({ width: 4, height: 4, alignSelf: "center" });
     host.agentUpdates = { state: "done", entries: [{ provider: "codex", status: "current", updateAvailable: false }], error: null };
     await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
     expect(hostsById("desktop-more-update-dot")).toHaveLength(0);
@@ -6616,7 +6616,7 @@ describe("Tasks board, the 1 s clock", () => {
 
 describe("Tasks board, phone", () => {
   it.each(["ios", "android"].flatMap((os) => ["en", "zh"].flatMap((language) => [14, 21].map((base) => ({ os, language, base })))))
-  ("$os $language UI $base keeps phone update dots centered without replacing the filter badge", async ({ os, language, base }) => {
+  ("$os $language UI $base keeps the phone update dot at the bottom right without replacing the filter badge", async ({ os, language, base }) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     updateEnhancerPreferences({ language: language as "en" | "zh" });
     const openSettings = vi.fn(); setTasksSettingsOpener(openSettings);
@@ -6631,8 +6631,10 @@ describe("Tasks board, phone", () => {
     const dot = hostsById("phone-more-update-dot")[0]!;
     const frames = measureHostTree(anchor, { width: 44 });
     const point = frames.get(dot)!; const count = frames.get(badge)!;
-    expect(point.width).toBe(6); expect(point.height).toBe(6);
-    expect(point.top + 3).toBe(22);
+    expect(point.width).toBe(4); expect(point.height).toBe(4);
+    expect(point.top + point.height).toBe(39);
+    expect(point.left + point.width).toBe(frames.get(anchor)!.left + 39);
+    expect(dot.props.style.backgroundColor).toBe("#d45b5b");
     expect(point.left + point.width <= count.left || point.top >= count.top + count.height).toBe(true);
     act(() => more.props.onPress());
     const settings = hostsById("filter-sheet-settings")[0]!;
@@ -6640,10 +6642,10 @@ describe("Tasks board, phone", () => {
     const footer = hostsById("filter-sheet-footer")[0]!;
     const layout = measureHostTree(footer, { width: 390 });
     const button = layout.get(settings)!; const indicator = layout.get(settingsDot)!;
-    expect(indicator.width).toBe(6); expect(indicator.height).toBe(6);
-    expect(indicator.top + 3).toBe(button.top + button.height / 2);
+    expect(indicator.width).toBe(4); expect(indicator.height).toBe(4);
+    expect(indicator.top + 2).toBe(button.top + button.height / 2);
     expect(indicator.left).toBeGreaterThanOrEqual(button.left);
-    expect(indicator.left + 6).toBeLessThanOrEqual(button.left + button.width);
+    expect(indicator.left + 4).toBeLessThanOrEqual(button.left + button.width);
     expect(button.left + button.width).toBeLessThanOrEqual(390);
     act(() => settings.props.onPress()); expect(openSettings).toHaveBeenCalledOnce();
   });

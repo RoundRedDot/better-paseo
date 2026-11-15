@@ -1,3 +1,4 @@
+import { UPDATE_INDICATOR_COLOR } from "../../ui/update-indicator";
 import React, { memo, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { Animated, Platform, Pressable, View, useWindowDimensions, type LayoutChangeEvent, type TextInput as NativeTextInput } from "react-native";
 import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
@@ -89,7 +90,7 @@ function MoreActions({ board, theme, items, updateAvailable }: { board: BoardCon
       tip={busy ? `${board.strings.refreshTasks} (⌥R)` : board.strings.more}
       testID="desktop-toolbar-more"
     />
-    {updateAvailable ? <View testID="desktop-more-update-dot" pointerEvents="none" style={{ position: "absolute", top: "50%", marginTop: -3, right: 3, width: 6, height: 6, borderRadius: 3, backgroundColor: taskTokens(theme).danger }} /> : null}
+    {updateAvailable ? <View testID="desktop-more-update-dot" pointerEvents="none" style={{ position: "absolute", bottom: 2, right: 2, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
     {open ? <CascadeMenu theme={theme} width={menuWidth(200, scale, window.width - MENU_EDGE * 2)} fitContent top={toolbarButtonSize(scale) + 6} align="right" onClose={() => setOpen(false)} testID="desktop-more-menu" sections={[{ key: "more", items: [
       { key: "refresh", label: board.strings.refreshTasks, icon: "RefreshCw", shortcut: "⌥R", disabled: busy, onSelect: press },
       ...items,
@@ -170,7 +171,7 @@ function DesktopToolbarView(props: {
       { key: "archived", label: strings.archivedLane.row, checked: board.showArchived, onSelect: () => board.setShowArchived(!board.showArchived) },
     ] : []),
     { key: "empty-groups", label: board.showEmptyGroups ? strings.emptyGroups.hide : strings.emptyGroups.show, icon: board.showEmptyGroups ? "EyeOff" : "Eye", shortcut: "G", onSelect: () => board.setShowEmptyGroups(!board.showEmptyGroups) },
-    ...(openSettings ? [{ key: "settings", label: strings.openSettings, accessibilityLabel: updateAvailable ? `${strings.openSettings}, ${updateLabel}` : undefined, icon: "Bolt", shortcut: ",", onSelect: openSettings, trailing: updateAvailable ? <View testID="desktop-settings-update-dot" pointerEvents="none" style={{ width: 6, height: 6, borderRadius: 3, alignSelf: "center", backgroundColor: taskTokens(theme).danger }} /> : undefined }] : []),
+    ...(openSettings ? [{ key: "settings", label: strings.openSettings, accessibilityLabel: updateAvailable ? `${strings.openSettings}, ${updateLabel}` : undefined, icon: "Bolt", shortcut: ",", onSelect: openSettings, trailing: updateAvailable ? <View testID="desktop-settings-update-dot" pointerEvents="none" style={{ width: 4, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: UPDATE_INDICATOR_COLOR }} /> : undefined }] : []),
     ...(compactActions && props.sidebar ? [{ key: "sidebar", label: props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show, onSelect: props.sidebar.onToggle }] : []),
   ];
   const search = (
