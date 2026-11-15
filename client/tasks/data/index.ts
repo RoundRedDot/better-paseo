@@ -205,10 +205,10 @@ const ATTENTION_KEY = "active-attention";
 const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true, includeBackground: true };
 const DONE_SUBSCRIPTION = "done-first";
 const PAGE_SIZE = 50;
-/** The daemon's largest workspace page; a subscription's snapshot is one such page. */
-const WORKSPACE_PAGE_SIZE = 200;
-/** Pages read after the first before the list counts as unread (40 000 workspaces). */
-const WORKSPACE_PAGE_LIMIT = 200;
+/** The daemon's largest list page; a subscription's snapshot is one such page. */
+const LIST_PAGE_SIZE = 200;
+/** Pages read after the first before a list counts as unread (40 000 entries). */
+const LIST_PAGE_LIMIT = 200;
 const DONE_SORT: PaseoAgentListOptions["sort"] = [{ key: "updated_at", direction: "desc" }];
 /** A refresh still waiting this long (a dropped connection holds a list's ready) ends as failed, so it can be asked again. */
 const REFRESH_TIMEOUT_MS = 30_000;
@@ -447,6 +447,15 @@ const SUBAGENT_SETTLE_MS = 1_500;
  * agent made without a prompt shows idle after it.
  */
 export const START_IDLE_HOLD_MS = 1_000;
+/**
+ * Archiving an unread agent, Paseo 0.15 first clears its attention, with the
+ * same `updatedAt`, and sends the archived snapshot about a millisecond
+ * later. Applied, the clear took the card from review to done for a render
+ * and flew it on to archived. A clear that only drops the attention waits
+ * this long for an archive; a read on another device looks the same and
+ * lands after it.
+ */
+export const ATTENTION_CLEAR_HOLD_MS = 150;
 /**
  * A new agent's first snapshot, `initializing`, waits this long for the next:
  * its turn starts some 10 ms later, and the card drawn as starting up was
@@ -1114,6 +1123,10 @@ function createStore(api: PaseoApi): TaskStore {
    * nor bring back a removed workspace.
    */
   const workspacesUpdatedWhileListing = new Map<string, "upsert" | "remove">();
+  /** Counts each agent list's snapshots, so the later pages of an older one are dropped. */
+  const agentListings = new Map<string, number>();
+  /** Agents a live update moved, by list, while that list's later pages load. */
+  const agentListUpdates = new Map<string, Set<string>>();
   let countsCache: SidebarCounts | null = null;
   let questionCountsCache: SidebarCounts | null = null;
   let countQuestions: TaskCard[] = [];
@@ -1456,12 +1469,22 @@ function createStore(api: PaseoApi): TaskStore {
     else sourceMembers.get(ATTENTION_KEY)?.delete(agent.id);
   }
 
+  /** The shown record unread, and this snapshot the same but read: an archive's first step, or a read elsewhere. */
+  function clearsOnlyAttention(agent: PaseoAgent): boolean {
+    const shown = entries.get(agent.id)?.agent;
+    if (!shown?.requiresAttention || agent.requiresAttention || agent.archivedAt || shown.archivedAt) return false;
+    return epoch(agent.updatedAt) === epoch(shown.updatedAt) && agent.status === shown.status;
+  }
+
   /**
-   * A snapshot that only says the agent has not started its first turn yet:
-   * a new agent's `initializing`, or the idle after it, with nothing that asks
-   * for the user. How long it waits for the turn, or null when it does not.
+   * A snapshot held back for the one that usually follows within moments:
+   * one that only says the agent has not started its first turn yet (a new
+   * agent's `initializing`, or the idle after it, with nothing that asks for
+   * the user), or one that only clears its attention, ahead of an archive.
+   * How long it waits, or null when it does not.
    */
   function startingHold(agent: PaseoAgent): number | null {
+    if (clearsOnlyAttention(agent)) return ATTENTION_CLEAR_HOLD_MS;
     if (agent.lastUserMessageAt || agent.activeTurn || agent.requiresAttention || agent.lastError) return null;
     if ((agent.pendingPermissions ?? []).length > 0) return null;
     const shown = entries.get(agent.id)?.agent.status;
@@ -1473,6 +1496,8 @@ function createStore(api: PaseoApi): TaskStore {
 
   function applyAgentUpdate(sourceKey: string, update: AgentUpdateEnvelope, released = false) {
     if (update.type !== "agent_update" || !update.payload) return;
+    const touchedId = update.payload.agent?.id ?? update.payload.agentId;
+    if (touchedId) agentListUpdates.get(sourceKey)?.add(touchedId);
     // A subagent's start or end usually moves its parent too.
     scheduleSubagents(SUBAGENT_SETTLE_MS);
     const payload = update.payload;
@@ -1634,11 +1659,18 @@ function createStore(api: PaseoApi): TaskStore {
     return result.entries.filter(({ agent }) => !isArchived(agent) || keepsArchived(agent));
   }
 
-  /** `keepPages`: a refresh's first page, whose later pages are read again (`rereadDonePages`) instead of dropped. */
-  function replaceAgentSnapshot(sourceKey: string, snapshot: PaseoAgentListResult, keepPages = false) {
+  /**
+   * `keepPages`: a refresh's first page, whose later pages are read again (`rereadDonePages`) instead of dropped.
+   * `liveIds`: agents a live update moved while the list's later pages loaded; the
+   * list's copies of them are older, so they keep the membership they have.
+   */
+  function replaceAgentSnapshot(sourceKey: string, snapshot: PaseoAgentListResult, keepPages = false, liveIds?: ReadonlySet<string>) {
     batchUpdates(() => {
       const nextMembers = new Set<string>();
+      const current = sourceMembers.get(sourceKey);
+      for (const id of liveIds ?? []) if (current?.has(id)) nextMembers.add(id);
       for (const entry of matchingEntries(snapshot)) {
+        if (liveIds?.has(entry.agent.id)) continue;
         nextMembers.add(entry.agent.id);
         updateRecord(entry.agent, entry.project ?? null);
       }
@@ -2144,6 +2176,22 @@ function createStore(api: PaseoApi): TaskStore {
     return { filter, subscribe: {} };
   }
 
+  /** A list's pages after the first, from its cursor; null when one cannot be read. */
+  async function readAgentPages(options: PaseoAgentListOptions, cursor: string | null | undefined): Promise<PaseoAgentListResult["entries"] | null> {
+    const rest: PaseoAgentListResult["entries"] = [];
+    let next = cursor ?? null;
+    for (let page = 0; next && page < LIST_PAGE_LIMIT; page++) {
+      try {
+        const result = await api.agents.list({ filter: options.filter, ...(options.sort ? { sort: options.sort } : null), page: { limit: LIST_PAGE_SIZE, cursor: next } });
+        rest.push(...result.entries);
+        next = result.pageInfo?.hasMore ? result.pageInfo.nextCursor ?? null : null;
+      } catch {
+        return null;
+      }
+    }
+    return next ? null : rest;
+  }
+
   /** `refreshed`: a refresh's list (`observeOwned`'s `replace`), told of its first snapshot, which keeps the done pages. */
   async function openAgentSubscription(key: string, options: PaseoAgentListOptions, run: Run, refreshed?: (snapshot: PaseoAgentListResult) => void): Promise<Landing> {
     try {
@@ -2153,13 +2201,36 @@ function createStore(api: PaseoApi): TaskStore {
         return "stale";
       }
       let first = refreshed !== undefined;
+      const land = (list: PaseoAgentListResult, liveIds?: ReadonlySet<string>) => {
+        replaceAgentSnapshot(key, list, first, liveIds);
+        if (!first) return;
+        first = false;
+        refreshed?.(list);
+      };
       return await observeOwned(key, result, run,
         (snapshot) => {
           const list = snapshot as PaseoAgentListResult;
-          replaceAgentSnapshot(key, list, first);
-          if (!first) return;
-          first = false;
-          refreshed?.(list);
+          const listing = (agentListings.get(key) ?? 0) + 1;
+          agentListings.set(key, listing);
+          // The done list pages on its own (`loadMoreDone`); every other list is
+          // the whole of what it filters, and its snapshot only the first page
+          // (200 at most). Its members land once every page has, so an agent on
+          // a later page is not dropped for a moment.
+          if (key === DONE_SUBSCRIPTION || !list.pageInfo?.hasMore) {
+            agentListUpdates.delete(key);
+            land(list);
+            return;
+          }
+          const liveIds = new Set<string>();
+          agentListUpdates.set(key, liveIds);
+          void readAgentPages(options, list.pageInfo.nextCursor).then((rest) => {
+            if (agentListings.get(key) !== listing || !isCurrent(run)) return;
+            agentListUpdates.delete(key);
+            // A page that cannot be read keeps the members the list had; the first page still lands.
+            const entries = rest === null ? list.entries : [...list.entries, ...rest];
+            if (rest === null) for (const id of sourceMembers.get(key) ?? []) liveIds.add(id);
+            land({ ...list, entries, pageInfo: { ...list.pageInfo, nextCursor: null, hasMore: false } }, liveIds);
+          });
         },
         (message) => applyAgentUpdate(key, message as AgentUpdateEnvelope),
         refreshed !== undefined);
@@ -2242,9 +2313,9 @@ function createStore(api: PaseoApi): TaskStore {
   async function readWorkspacePages(cursor: string | null | undefined): Promise<PaseoWorkspace[] | null> {
     const rest: PaseoWorkspace[] = [];
     let next = cursor ?? null;
-    for (let page = 0; next && page < WORKSPACE_PAGE_LIMIT; page++) {
+    for (let page = 0; next && page < LIST_PAGE_LIMIT; page++) {
       try {
-        const result = await api.workspaces.list({ filter: { includeBackground: true }, page: { limit: WORKSPACE_PAGE_SIZE, cursor: next } });
+        const result = await api.workspaces.list({ filter: { includeBackground: true }, page: { limit: LIST_PAGE_SIZE, cursor: next } });
         rest.push(...result.entries);
         next = result.pageInfo?.hasMore ? result.pageInfo.nextCursor ?? null : null;
       } catch {

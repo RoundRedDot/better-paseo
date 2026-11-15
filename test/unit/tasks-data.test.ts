@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, setUnreadClearer, openedTask, planTitle, type TasksHandle } from "../../client/tasks/data";
+import { ATTENTION_CLEAR_HOLD_MS, START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, setUnreadClearer, openedTask, planTitle, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -228,6 +228,82 @@ describe("Tasks data store refresh", () => {
     } finally {
       mounted.unmount();
     }
+  });
+
+  describe("an unread agent's attention clear", () => {
+    // Paseo 0.15 archives an unread agent in two steps: its attention cleared (same updatedAt), then archivedAt.
+    const unreadAt = recentIso(5_000);
+    const unread = activeAgent("unread", { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: unreadAt });
+    async function mountWith() {
+      const fake = createFakePaseo({ agents: [unread], workspaces: [workspace()] });
+      let current!: TasksHandle;
+      function Probe() {
+        current = useTasks(fake.paseo, { doneWindow: "24h", includeDone: true, includeArchived: true });
+        return null;
+      }
+      let renderer!: Renderer;
+      await act(async () => {
+        setTasksArchivedLane(fake.paseo, true);
+        renderer = TestRenderer.create(React.createElement(Probe));
+        await flush(8);
+      });
+      const mounted = { get current() { return current; }, unmount: () => act(() => renderer.unmount()) };
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const lanesOf: string[] = [];
+      const push = async (agent: ReturnType<typeof activeAgent>) => {
+        await act(async () => {
+          fake.upsertAgent(agent);
+          await flush(4);
+        });
+        lanesOf.push(mounted.current.byId.get("unread")?.lane ?? "none");
+      };
+      return { fake, mounted, push, lanesOf };
+    }
+
+    it("moves an archived unread card straight from review to archived", async () => {
+      const { mounted, push, lanesOf } = await mountWith();
+      try {
+        expect(mounted.current.byId.get("unread")?.lane).toBe("review");
+        await push({ ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null } as never);
+        await push({ ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+        expect(lanesOf).toEqual(["review", "archived"]);
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS + 100);
+          await flush(4);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).toBe("archived");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("moves a card read on another device to done once the wait is over", async () => {
+      const { mounted, push, lanesOf } = await mountWith();
+      try {
+        await push({ ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null } as never);
+        expect(lanesOf).toEqual(["review"]);
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS);
+          await flush(4);
+        });
+        expect(mounted.current.byId.get("unread")).toMatchObject({ lane: "done", status: "done" });
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("does not hold a clear that comes with a new turn", async () => {
+      const { mounted, push, lanesOf } = await mountWith();
+      try {
+        await push(activeAgent("unread", { status: "running", requiresAttention: false, updatedAt: recentIso(0), lastUserMessageAt: recentIso(0) }));
+        expect(lanesOf).toEqual(["running"]);
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
   });
 
   describe("a new agent's idle before its first turn", () => {
@@ -1784,6 +1860,96 @@ describe("Tasks data store", () => {
     } finally {
       mounted.unmount();
     }
+  });
+
+  describe("paged agent lists", () => {
+    // The status and attention lists are each the whole of what they filter,
+    // but a subscription's snapshot is only the daemon's first page (200).
+    const UNREAD = 230;
+    function unreadFake() {
+      return createFakePaseo({
+        agents: Array.from({ length: UNREAD }, (_, index) =>
+          activeAgent(`unread-${index}`, { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(1_000 + index) })),
+        workspaces: [workspace()],
+      });
+    }
+
+    async function settle() {
+      await act(async () => {
+        for (let index = 0; index < 16; index += 1) await Promise.resolve();
+      });
+    }
+
+    it("shows every unread task past the first page in review", async () => {
+      const fake = unreadFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD);
+        expect(mounted.current.counts.review).toBe(UNREAD);
+        expect(mounted.current.byId.get(`unread-${UNREAD - 1}`)?.lane).toBe("review");
+        await act(async () => {
+          fake.reconnectSubscriptions();
+          await Promise.resolve();
+        });
+        await settle();
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("shows every running task past the first page in running", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 210 }, (_, index) => activeAgent(`run-${index}`, { status: "running", updatedAt: recentIso(1_000 + index) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.lanes.running.cards).toHaveLength(210);
+        expect(mounted.current.counts.running).toBe(210);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("keeps the unread tasks it has when a later page cannot be read", async () => {
+      const fake = unreadFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        fake.failNextAgentList((options) => options.page?.cursor !== undefined && options.filter?.requiresAttention === true, "socket closed");
+        await act(async () => {
+          fake.reconnectSubscriptions();
+          await Promise.resolve();
+        });
+        await settle();
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("lets a live read win over the later pages of a snapshot", async () => {
+      const fake = unreadFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        const last = `unread-${UNREAD - 1}`;
+        await act(async () => {
+          fake.reconnectSubscriptions();
+          // Read on another device while the later pages load: the pages still hold it unread.
+          fake.upsertAgent(activeAgent(last, { status: "idle", requiresAttention: false, updatedAt: recentIso(0) }));
+          await Promise.resolve();
+        });
+        await settle();
+        expect(mounted.current.byId.get(last)?.lane).toBe("done");
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD - 1);
+      } finally {
+        mounted.unmount();
+      }
+    });
   });
 
   describe("a paged workspace list", () => {

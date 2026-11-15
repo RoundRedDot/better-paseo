@@ -182,10 +182,26 @@ export interface FakePaseoOptions {
   /** Subscriptions never answer, as on a host that has not caught up after a reconnect. */
   stalled?: boolean;
   /**
-   * Page the workspace list as the daemon does (200 at most): a list, and a
-   * subscription's snapshot, hold this many, with a cursor to the rest.
+   * A smaller workspace page than the daemon's 200, so a test pages a short
+   * list: a list, and a subscription's snapshot, hold this many, with a
+   * cursor to the rest.
    */
   workspacePageSize?: number;
+}
+
+/**
+ * Paseo's list page (0.15 `session.ts`): 200 when a list names no limit, the
+ * protocol's maximum, and a subscription's snapshot is only its first page.
+ * The fake pages the same way, so a board that reads one page as the whole
+ * list fails here as it does on a busy daemon (2026-11-15: 232 workspaces).
+ */
+export const DAEMON_PAGE_LIMIT = 200;
+
+function pageLimit(limit: number | undefined): number {
+  if (limit !== undefined && (!Number.isInteger(limit) || limit <= 0 || limit > DAEMON_PAGE_LIMIT)) {
+    throw new Error(`page.limit must be an integer in 1..${DAEMON_PAGE_LIMIT}, got ${limit}`);
+  }
+  return limit ?? DAEMON_PAGE_LIMIT;
 }
 
 const STATUS_PRIORITY: Record<string, number> = { running: 2, initializing: 3, error: 1, idle: 4, closed: 4 };
@@ -259,7 +275,7 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   function page(listOptions: PaseoAgentListOptions) {
     const sorted = [...agents.values()].filter((agent) => matchesAgent(agent, listOptions)).sort((a, b) => compare(a, b, listOptions));
     const start = listOptions.page?.cursor ? Number(listOptions.page.cursor) : 0;
-    const limit = listOptions.page?.limit ?? sorted.length;
+    const limit = pageLimit(listOptions.page?.limit);
     const slice = sorted.slice(start, start + limit);
     const next = start + limit < sorted.length ? String(start + limit) : null;
     return {
@@ -351,10 +367,9 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       calls.push({ method: "workspaces.list", input: listOptions });
       if (workspacePageFailure) throw workspacePageFailure;
       const offset = listOptions.page?.cursor ? Number(listOptions.page.cursor.replace("ws-page:", "")) : 0;
-      const pageSize = options.workspacePageSize;
+      const pageSize = Math.min(options.workspacePageSize ?? DAEMON_PAGE_LIMIT, pageLimit(listOptions.page?.limit));
       const page = () => {
         const all = [...workspaces.values()].filter((workspace) => listOptions.filter?.includeBackground || !workspace.background);
-        if (pageSize === undefined) return { entries: all, pageInfo: { nextCursor: null, prevCursor: null, hasMore: false } };
         const end = offset + pageSize;
         const hasMore = end < all.length;
         return { entries: all.slice(offset, end), pageInfo: { nextCursor: hasMore ? `ws-page:${end}` : null, prevCursor: null, hasMore } };
