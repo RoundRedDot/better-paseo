@@ -1209,12 +1209,15 @@ function createStore(api: PaseoApi): TaskStore {
   /** How many times the done list started over from its first page: a later page belongs to one of them. */
   let doneSnapshots = 0;
   /**
-   * A list's copy of an agent whose attention clear is held: the same state
-   * waits with the hold (true), a newer one lets the hold go and applies.
+   * A list's copy of an agent whose snapshot is held (a new agent starting up,
+   * an attention clear): the same state waits with the hold (true), anything
+   * else (a turn, a permission request, an error, an archive) lets the hold
+   * go and applies.
    */
   function waitsForHeldClear(agent: PaseoAgent): boolean {
+    // Either kind: a new agent's start-up hold, or an attention clear.
     const held = startIdles.get(agent.id);
-    if (held?.kind !== "clear") return false;
+    if (!held) return false;
     // The same state, not just the same time: a permission request or an
     // error can come with an unchanged updatedAt, and must show at once.
     const heldAgent = held.update.payload?.agent;
@@ -1587,6 +1590,8 @@ function createStore(api: PaseoApi): TaskStore {
   function removeRecord(id: string) {
     // A read that started before this removal answers with an older state.
     recordStamps.set(id, ++recordClock);
+    // Its gone check has nothing left to report.
+    clearPageError(`gone:${id}`);
     const existed = entries.has(id);
     if (!existed) return;
     entries.delete(id);
@@ -1826,6 +1831,8 @@ function createStore(api: PaseoApi): TaskStore {
       }).catch((caught: unknown) => {
         if (run !== generation) return;
         goneChecks.delete(id);
+        // Taken off meanwhile: nothing is left to report.
+        if (!entries.has(id)) return;
         // The card stays as it was (an archive may be waiting on this read):
         // say so, and check again a little later.
         pageError(`gone:${id}`, caught);
@@ -1992,13 +1999,16 @@ function createStore(api: PaseoApi): TaskStore {
     let cursor = first.pageInfo.nextCursor;
     try {
       while (read.length < (session && searchPages !== session ? regularPages : pages) && cursor) {
+        // A newer first page landed: this chain of pages follows the old one, so stop asking.
+        if (doneSnapshots !== snapshotAsked) return "stale";
         const result = await api.agents.list({ filter: doneFilter(), sort: DONE_SORT, page: { limit: PAGE_SIZE, cursor } });
-        if (!isCurrent(run)) return "stale";
+        if (!isCurrent(run) || doneSnapshots !== snapshotAsked) return "stale";
         read.push({ key: `done-page-${cursor}`, result });
         cursor = result.pageInfo.nextCursor;
       }
     } catch (caught) {
-      if (!isCurrent(run)) return "stale";
+      // A page of an old chain failing says nothing about the list now.
+      if (!isCurrent(run) || doneSnapshots !== snapshotAsked) return "stale";
       if (!session || searchPages === session || read.length < regularPages) {
         subscriptionError(caught);
         return "failed";

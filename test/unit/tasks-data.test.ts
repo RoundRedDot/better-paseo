@@ -851,6 +851,26 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("keeps a starting agent off done when the done list's snapshot carries its held idle", async () => {
+      const { fake, mounted, push, lanesOf } = await mountWith();
+      try {
+        const created = Date.now();
+        await push(starting("initializing", new Date(created).toISOString()));
+        await push(starting("idle", new Date(created + 1).toISOString()));
+        // The done list reconnects within the wait; its snapshot has the same idle.
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(8);
+        });
+        lanesOf.push(mounted.current.byId.get("fresh")?.lane ?? "none");
+        await push(activeAgent("fresh", { status: "running", createdAt: new Date(created).toISOString(), updatedAt: new Date(created + 8).toISOString(), lastUserMessageAt: new Date(created + 8).toISOString(), activeTurn: { turnId: "t1", startedAt: new Date(created + 8).toISOString() } as never }));
+        expect(lanesOf).toEqual(["none", "none", "none", "running"]);
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("shows an agent made without a prompt as idle once the wait is over", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -3252,6 +3272,86 @@ describe("Tasks data store", () => {
           vi.advanceTimersByTime(2_000 + 1_100);
           await flush(16);
         });
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("stops a refresh's reread chain once a newer done first page landed", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 150 }, (_, index) => activeAgent(`c-${String(index).padStart(3, "0")}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await settle();
+        for (let page = 0; page < 2; page += 1) {
+          await act(async () => {
+            mounted.current.loadMoreDone();
+            await flush(16);
+          });
+        }
+        expect(mounted.current.lanes.done.cards).toHaveLength(150);
+        // The refresh rereads its second page, answered later.
+        const release = fake.holdPageAnswers();
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(16);
+        });
+        // A newer first page lands; any further page of the old chain would fail.
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(8);
+        });
+        fake.failNextAgentList((options) => options.page?.cursor !== undefined, "obsolete page failed");
+        const before = fake.pageCalls().length;
+        await act(async () => {
+          release();
+          await flush(24);
+        });
+        expect(fake.pageCalls()).toHaveLength(before);
+        expect(mounted.current.error).toBeNull();
+        expect(result).not.toBe("failed");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("clears a gone check's error when a snapshot takes its card off after the retries ran out", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 60 }, (_, index) => activeAgent(`ge-${index}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await settle();
+        await act(async () => {
+          mounted.current.loadMoreDone();
+          await flush(16);
+        });
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        fake.failRefreshes(new Error("read failed"));
+        const target = fake.paseo.agents.ref("ge-55").current()!;
+        await act(async () => {
+          fake.upsertAgent({ ...target, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(8);
+        });
+        // Every check fails, retries included.
+        for (const wait of [1_100, 3_100, 6_100, 16_100, 1_000]) {
+          await act(async () => {
+            vi.advanceTimersByTime(wait);
+            await flush(16);
+          });
+        }
+        expect(mounted.current.error).toBe("read failed");
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("ge-55")).toBe(false);
         expect(mounted.current.error).toBeNull();
       } finally {
         vi.useRealTimers();
