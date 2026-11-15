@@ -2785,7 +2785,7 @@ describe("Tasks board, desktop", () => {
     if (os === "ios") toggleSidebarControl();
     const layout = (node: ReactTestInstance, width: number) => act(() => node.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width, height: 36 } } }));
     const tabs = () => renderer!.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "tab");
-    expect(tabs().map((tab) => tab.props.accessibilityLabel)).toEqual((["agent", "label", "project", "workspace"] as const).map((kind) => BOARD_STRINGS[language].sidebar.groups[kind]));
+    expect(tabs().map((tab) => tab.props.accessibilityLabel)).toEqual((["host", "agent", "label", "project", "workspace"] as const).map((kind) => BOARD_STRINGS[language].sidebar.groups[kind]));
     const labels = () => hostsById("sidebar-group-tab-label");
     const measureTab = (tab: ReactTestInstance, width: number) => layout(tab.find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure"), width);
     // The tabs share their row equally, so it alone is laid out: five tabs `width` wide.
@@ -2794,11 +2794,11 @@ describe("Tasks board, desktop", () => {
     expect(labels()).toHaveLength(0);
     // Three short labels fit, but the longest still forces the entire row to icons.
     tabsAt(100);
-    tabs().forEach((tab, index) => measureTab(tab, index === 3 ? 90 : 40));
+    tabs().forEach((tab, index) => measureTab(tab, index === 4 ? 90 : 40));
     expect(labels()).toHaveLength(0);
-    measureTab(tabs()[3]!, 60);
+    measureTab(tabs()[4]!, 60);
     expect(labels()).toHaveLength(5);
-    for (const kind of ["host", "agent", "project", "workspace", "label"] as const) {
+    for (const kind of ["host", "agent", "label", "project", "workspace"] as const) {
       const word = BOARD_STRINGS[language].sidebar.groups[kind];
       const tab = () => renderer!.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "tab" && node.props.accessibilityLabel === word);
       const measure = () => tab().find((node) => (node.type as unknown) === "Text" && node.props.testID === "sidebar-group-tab-measure");
