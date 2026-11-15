@@ -240,6 +240,15 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const workspaces = new Map<string, PaseoWorkspace>((options.workspaces ?? []).map((ws) => [ws.id, ws]));
   /** Set by `failWorkspacePages`: every workspace list call throws it. */
   let workspacePageFailure: Error | null = null;
+  /** Set by `holdPages`: list calls past the first page wait for it. */
+  let pageGate: Promise<void> | null = null;
+  /** Every list call past the first page, as `<method>:<cursor>`, for tests that count them. */
+  const pageCalls: string[] = [];
+  async function pastFirstPage(method: string, cursor: string | undefined) {
+    if (!cursor) return;
+    pageCalls.push(`${method}:${cursor}`);
+    if (pageGate) await pageGate;
+  }
   // Without workspaces of its own, a fixture still has each agent's: Paseo
   // lists every workspace that is not archived, and an agent outside the list
   // belongs to an archived one.
@@ -325,6 +334,7 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const agentActions = {
     async list(listOptions: PaseoAgentListOptions = {}) {
       calls.push({ method: "agents.list", input: listOptions });
+      await pastFirstPage("agents.list", listOptions.page?.cursor);
       const failure = listFailures.findIndex((entry) => entry.match(listOptions));
       if (failure >= 0) throw new Error(listFailures.splice(failure, 1)[0]!.message);
       const result = { requestId: `req-${nextId++}`, ...page(listOptions) };
@@ -365,6 +375,7 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const workspaceActions: Record<string, unknown> = {
     async list(listOptions: PaseoWorkspaceListOptions = {}) {
       calls.push({ method: "workspaces.list", input: listOptions });
+      await pastFirstPage("workspaces.list", listOptions.page?.cursor);
       if (workspacePageFailure) throw workspacePageFailure;
       const offset = listOptions.page?.cursor ? Number(listOptions.page.cursor.replace("ws-page:", "")) : 0;
       const pageSize = Math.min(options.workspacePageSize ?? DAEMON_PAGE_LIMIT, pageLimit(listOptions.page?.limit));
@@ -535,6 +546,19 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         const message = { type: "workspace_update", payload };
         for (const observer of sub.observers) observer.update(message);
       }
+    },
+    /** Hold every list call past the first page until the returned release is called. */
+    holdPages(): () => void {
+      let release!: () => void;
+      pageGate = new Promise<void>((resolve) => { release = resolve; });
+      return () => {
+        pageGate = null;
+        release();
+      };
+    },
+    /** List calls past the first page so far, as `<method>:<cursor>`. */
+    pageCalls(): string[] {
+      return [...pageCalls];
     },
     /** Put a workspace in the list without telling any subscription. */
     setWorkspaceSilently(workspace: PaseoWorkspace) {

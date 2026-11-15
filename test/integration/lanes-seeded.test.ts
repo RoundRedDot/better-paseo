@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { PaseoWorkspace } from "@getpaseo/client";
-import { connect, createPrivateDaemon, listAllAgents, listAllWorkspaces, paseoBin, type Connection, type PrivateDaemon, type StoredAgentRecord } from "./helpers/real-daemon";
+import { connect, createPrivateDaemon, listAllAgents, listAllWorkspaces, paseo, paseoBin, type Connection, type PrivateDaemon, type StoredAgentRecord } from "./helpers/real-daemon";
 import { mountBoard, type MountedBoard } from "./helpers/mount-board";
 import { oracleLanes } from "./helpers/lane-oracle";
 
@@ -48,6 +48,9 @@ describe.skipIf(!paseoBin())("lanes on a private daemon, from stored records", (
     const firstIds = new Set(first.entries.map((workspace) => workspace.id));
     const early = first.entries[0]!;
     const late = all.find((workspace) => !firstIds.has(workspace.id))!;
+    // Archived with no agents yet: the agent seeded below outlives it, as Paseo allows.
+    const archivedWorkspace = first.entries[1]!;
+    await paseo(["workspace", "archive", archivedWorkspace.id, "--home", daemon.home]);
     await setup.close();
     await daemon.stop();
 
@@ -75,7 +78,9 @@ describe.skipIf(!paseoBin())("lanes on a private daemon, from stored records", (
     seed("done-old", early, { createdAt: iso(80 * HOUR), updatedAt: iso(70 * HOUR), lastUserMessageAt: iso(72 * HOUR) });
     seed("failed", early, { lastError: "Usage limit reached" });
     seed("archived", early, { archivedAt: iso(HOUR / 2) });
-    seed("workspace-gone", { ...early, id: "wks_00000000deadbeef", workspaceDirectory: path.join(dirs, "gone") }, { requiresAttention: true, attentionReason: "finished" });
+    // Prompted days ago, archived just now: the archived lane windows it by its archive time.
+    seed("archived-old-task", early, { createdAt: iso(80 * HOUR), lastUserMessageAt: iso(72 * HOUR), updatedAt: iso(HOUR / 4), archivedAt: iso(HOUR / 4) });
+    seed("workspace-archived", archivedWorkspace, { requiresAttention: true, attentionReason: "finished" });
     seed("parent", early, {});
     seed("child", early, { requiresAttention: true, attentionReason: "finished", labels: { "paseo.parent-agent-id": ids.parent! } });
     for (let index = 0; index < EXTRA_UNREAD; index += 1) {
@@ -105,10 +110,9 @@ describe.skipIf(!paseoBin())("lanes on a private daemon, from stored records", (
     const expected = oracleLanes(agents, workspaces);
     const mismatches: string[] = [];
     for (const card of expected.values()) {
-      const inWindow = Date.now() - Date.parse(card.settledAt) <= 24 * HOUR;
+      const inWindow = Date.now() - Date.parse(card.historyAt) <= 24 * HOUR;
       if ((card.lane === "done" || card.lane === "archived") && !inWindow) continue;
       const actual = board.current.byId.get(card.id);
-      if (card.lane === "archived" && card.reason.startsWith("workspace") && !actual) continue;
       if (actual?.lane !== card.lane) mismatches.push(`${actual?.title ?? card.id}: ${actual?.lane ?? "missing"}, expected ${card.lane} (${card.reason})`);
     }
     return mismatches;
@@ -132,6 +136,7 @@ describe.skipIf(!paseoBin())("lanes on a private daemon, from stored records", (
     expect(laneOf("done")).toBe("done");
     expect(board.current.byId.get(ids.failed!)).toMatchObject({ lane: "review", status: "failed" });
     expect(laneOf("archived")).toBe("archived");
+    expect(laneOf("archived-old-task")).toBe("archived");
     expect(laneOf("child")).toBe("review");
     expect(laneOf("parent")).toBe("done");
   });
@@ -139,8 +144,8 @@ describe.skipIf(!paseoBin())("lanes on a private daemon, from stored records", (
   it("keeps old and orphaned tasks off the active lanes", () => {
     // Outside the 24h done window.
     expect(board.current.byId.has(ids["done-old"]!)).toBe(false);
-    // Its workspace is on no page: Paseo archived it without its agents.
-    expect(["archived", undefined]).toContain(laneOf("workspace-gone"));
+    // Its workspace was archived without it: unread, but not in review.
+    expect(laneOf("workspace-archived")).toBe("archived");
   });
 
   it("keeps every lane once the board reconnects after a daemon restart", async () => {

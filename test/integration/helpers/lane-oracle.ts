@@ -19,6 +19,12 @@ export interface OracleCard {
   reason: string;
   /** The done lane's time: latest prompt, else creation (no turn ledger here). */
   settledAt: string;
+  /**
+   * The time a history lane windows and orders it by: `settledAt` in done;
+   * in archived, when it was archived (the agent's `archivedAt`, else its
+   * workspace's `archivingAt`), else `updatedAt` when no archive time is known.
+   */
+  historyAt: string;
   /** No card of its own (a background workspace's agent), though it still keeps its parent running. */
   hidden: boolean;
 }
@@ -28,7 +34,7 @@ const TITLE_HELPER_LABEL = "better-paseo.purpose";
 
 type RawAgent = PaseoAgent & { lastError?: string | null; activeTurn?: unknown };
 
-function ownLane(agent: RawAgent, workspaces: Map<string, PaseoWorkspace>): Omit<OracleCard, "id" | "settledAt" | "hidden"> {
+function ownLane(agent: RawAgent, workspaces: Map<string, PaseoWorkspace>): Omit<OracleCard, "id" | "settledAt" | "historyAt" | "hidden"> {
   const workspace = agent.workspaceId ? workspaces.get(agent.workspaceId) : undefined;
   if (agent.archivedAt) return { lane: "archived", failed: false, reason: "agent archivedAt" };
   if (agent.workspaceId && !workspace) return { lane: "archived", failed: false, reason: "workspace on no page of the list" };
@@ -60,7 +66,10 @@ export function oracleLanes(agents: readonly PaseoAgent[], workspaceList: readon
   for (const raw of agents as RawAgent[]) {
     const workspace = raw.workspaceId ? workspaces.get(raw.workspaceId) : undefined;
     if (raw.labels?.[TITLE_HELPER_LABEL]) continue;
-    cards.set(raw.id, { id: raw.id, ...ownLane(raw, workspaces), settledAt: raw.lastUserMessageAt ?? raw.createdAt, hidden: Boolean(workspace?.background) });
+    const own = ownLane(raw, workspaces);
+    const settledAt = raw.lastUserMessageAt ?? raw.createdAt;
+    const historyAt = own.lane === "archived" ? raw.archivedAt ?? workspace?.archivingAt ?? raw.updatedAt : settledAt;
+    cards.set(raw.id, { id: raw.id, ...own, settledAt, historyAt, hidden: Boolean(workspace?.background) });
   }
   for (const raw of agents) {
     const parentId = raw.labels?.[PARENT_LABEL];

@@ -39,11 +39,10 @@ describe.skipIf(!host)("lane audit on a copy of real data", () => {
     const shown = board.current.byId;
     for (const card of expected.values()) {
       if (card.hidden) continue;
-      const inWindow = now - Date.parse(card.settledAt) <= DAY;
+      const inWindow = now - Date.parse(card.historyAt) <= DAY;
       const history = card.lane === "done" || card.lane === "archived";
       const actual = shown.get(card.id);
       if (history && !inWindow) continue;
-      if (card.lane === "archived" && actual === undefined) continue; // archived window uses archive time
       if (!actual) {
         mismatches.push(`${card.id} missing, expected ${card.lane} (${card.reason})`);
         continue;

@@ -205,6 +205,36 @@ const ATTENTION_KEY = "active-attention";
 const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true, includeBackground: true };
 const DONE_SUBSCRIPTION = "done-first";
 const PAGE_SIZE = 50;
+/** A list's later pages: all of them, a failure, or a read a newer one replaced. */
+type PageRead<T> = { kind: "read"; entries: T[] } | { kind: "failed"; error: unknown } | { kind: "stale" };
+
+/**
+ * A list's pages after the first, from its cursor, until it has no more.
+ * `alive` is checked before every request and after every answer, so a read
+ * a newer snapshot or a closed board replaced stops at once.
+ */
+async function readPages<T>(
+  cursor: string | null | undefined,
+  alive: () => boolean,
+  read: (cursor: string) => Promise<{ entries: T[]; pageInfo?: { hasMore?: boolean; nextCursor?: string | null } | null }>,
+): Promise<PageRead<T>> {
+  const entries: T[] = [];
+  let next = cursor ?? null;
+  for (let page = 0; next; page++) {
+    if (page >= LIST_PAGE_LIMIT) return { kind: "failed", error: new Error(`The list has more than ${LIST_PAGE_LIMIT} pages`) };
+    if (!alive()) return { kind: "stale" };
+    try {
+      const result = await read(next);
+      if (!alive()) return { kind: "stale" };
+      entries.push(...result.entries);
+      next = result.pageInfo?.hasMore ? result.pageInfo.nextCursor ?? null : null;
+    } catch (error) {
+      return alive() ? { kind: "failed", error } : { kind: "stale" };
+    }
+  }
+  return { kind: "read", entries };
+}
+
 /** The daemon's largest list page; a subscription's snapshot is one such page. */
 const LIST_PAGE_SIZE = 200;
 /** Pages read after the first before a list counts as unread (40 000 entries). */
@@ -1469,10 +1499,16 @@ function createStore(api: PaseoApi): TaskStore {
     else sourceMembers.get(ATTENTION_KEY)?.delete(agent.id);
   }
 
-  /** The shown record unread, and this snapshot the same but read: an archive's first step, or a read elsewhere. */
+  /**
+   * The shown record unread, and this snapshot the same but read: an
+   * archive's first step, or a read elsewhere. Anything else that changed
+   * (a permission request, an error, a turn) is applied at once.
+   */
   function clearsOnlyAttention(agent: PaseoAgent): boolean {
     const shown = entries.get(agent.id)?.agent;
-    if (!shown?.requiresAttention || agent.requiresAttention || agent.archivedAt || shown.archivedAt) return false;
+    if (!shown?.requiresAttention || agent.requiresAttention || agent.attentionReason || agent.archivedAt || shown.archivedAt) return false;
+    if ((agent.pendingPermissions ?? []).length > 0 || (shown.pendingPermissions ?? []).length > 0) return false;
+    if (agent.activeTurn || (agent.lastError ?? null) !== (shown.lastError ?? null)) return false;
     return epoch(agent.updatedAt) === epoch(shown.updatedAt) && agent.status === shown.status;
   }
 
@@ -1783,15 +1819,18 @@ function createStore(api: PaseoApi): TaskStore {
     key: string,
     result: T,
     run: Run,
-    initial: (snapshot: T) => void,
+    /**
+     * Applies a snapshot. A paged one returns the landing of its later pages:
+     * the list lands (and a refresh ends) only once every page has.
+     */
+    initial: (snapshot: T) => void | Promise<Landing>,
     update: (message: unknown) => void,
     replace = false,
   ): Promise<Landing> {
     const owned = result.subscription;
     if (!owned) {
       if (!isCurrent(run)) return "stale";
-      initial(result);
-      return "landed";
+      return (await initial(result)) ?? "landed";
     }
     if (!isCurrent(run)) {
       await owned.release();
@@ -1799,9 +1838,11 @@ function createStore(api: PaseoApi): TaskStore {
     }
     const pending: Array<{ kind: "snapshot"; value: T } | { kind: "update"; value: unknown }> = [];
     let initialApplied = false;
+    // The landing of the latest snapshot's later pages; a newer snapshot replaces it.
+    let latest: Promise<Landing> | void = undefined;
     const observer = {
       snapshot(snapshot: unknown) {
-        if (initialApplied) initial(snapshot as T);
+        if (initialApplied) latest = initial(snapshot as T);
         else pending.push({ kind: "snapshot", value: snapshot as T });
       },
       update(message: unknown) {
@@ -1830,13 +1871,21 @@ function createStore(api: PaseoApi): TaskStore {
         stopSubscription(key);
         subscriptions.set(key, own);
       }
-      initial(ready);
+      latest = initial(ready);
       initialApplied = true;
       for (const event of pending) {
-        if (event.kind === "snapshot") initial(event.value);
+        if (event.kind === "snapshot") latest = initial(event.value);
         else update(event.value);
       }
-      return "landed";
+      // Wait for the pages of whichever snapshot is the latest once they land.
+      for (;;) {
+        const waiting = latest;
+        if (!waiting) return "landed";
+        const landing = await waiting;
+        if (waiting !== latest) continue;
+        if (landing === "stale") return isCurrent(run) ? "landed" : "stale";
+        return landing;
+      }
     } catch (caught) {
       if (replace) dropReplacement(key, own);
       if (!isCurrent(run)) return "stale";
@@ -2176,20 +2225,12 @@ function createStore(api: PaseoApi): TaskStore {
     return { filter, subscribe: {} };
   }
 
-  /** A list's pages after the first, from its cursor; null when one cannot be read. */
-  async function readAgentPages(options: PaseoAgentListOptions, cursor: string | null | undefined): Promise<PaseoAgentListResult["entries"] | null> {
-    const rest: PaseoAgentListResult["entries"] = [];
-    let next = cursor ?? null;
-    for (let page = 0; next && page < LIST_PAGE_LIMIT; page++) {
-      try {
-        const result = await api.agents.list({ filter: options.filter, ...(options.sort ? { sort: options.sort } : null), page: { limit: LIST_PAGE_SIZE, cursor: next } });
-        rest.push(...result.entries);
-        next = result.pageInfo?.hasMore ? result.pageInfo.nextCursor ?? null : null;
-      } catch {
-        return null;
-      }
-    }
-    return next ? null : rest;
+  /** A list's pages after the first, from its cursor. Stops once `alive` is false. */
+  function readAgentPages(options: PaseoAgentListOptions, cursor: string | null | undefined, alive: () => boolean): Promise<PageRead<PaseoAgentListResult["entries"][number]>> {
+    return readPages(cursor, alive, async (next) => {
+      const result = await api.agents.list({ filter: options.filter, ...(options.sort ? { sort: options.sort } : null), page: { limit: LIST_PAGE_SIZE, cursor: next } });
+      return { entries: result.entries, pageInfo: result.pageInfo };
+    });
   }
 
   /** `refreshed`: a refresh's list (`observeOwned`'s `replace`), told of its first snapshot, which keeps the done pages. */
@@ -2223,13 +2264,20 @@ function createStore(api: PaseoApi): TaskStore {
           }
           const liveIds = new Set<string>();
           agentListUpdates.set(key, liveIds);
-          void readAgentPages(options, list.pageInfo.nextCursor).then((rest) => {
-            if (agentListings.get(key) !== listing || !isCurrent(run)) return;
+          const alive = () => agentListings.get(key) === listing && isCurrent(run);
+          return readAgentPages(options, list.pageInfo.nextCursor, alive).then((read): Landing => {
+            if (read.kind === "stale" || !alive()) return "stale";
             agentListUpdates.delete(key);
-            // A page that cannot be read keeps the members the list had; the first page still lands.
-            const entries = rest === null ? list.entries : [...list.entries, ...rest];
-            if (rest === null) for (const id of sourceMembers.get(key) ?? []) liveIds.add(id);
+            // A page that cannot be read keeps the members the list had, lands the
+            // first page, and says the list is incomplete.
+            const entries = read.kind === "failed" ? list.entries : [...list.entries, ...read.entries];
+            if (read.kind === "failed") for (const id of sourceMembers.get(key) ?? []) liveIds.add(id);
             land({ ...list, entries, pageInfo: { ...list.pageInfo, nextCursor: null, hasMore: false } }, liveIds);
+            if (read.kind === "failed") {
+              subscriptionError(read.error);
+              return "failed";
+            }
+            return "landed";
           });
         },
         (message) => applyAgentUpdate(key, message as AgentUpdateEnvelope),
@@ -2309,20 +2357,12 @@ function createStore(api: PaseoApi): TaskStore {
     });
   }
 
-  /** The workspace list's pages after the first, from its cursor; null when one cannot be read. */
-  async function readWorkspacePages(cursor: string | null | undefined): Promise<PaseoWorkspace[] | null> {
-    const rest: PaseoWorkspace[] = [];
-    let next = cursor ?? null;
-    for (let page = 0; next && page < LIST_PAGE_LIMIT; page++) {
-      try {
-        const result = await api.workspaces.list({ filter: { includeBackground: true }, page: { limit: LIST_PAGE_SIZE, cursor: next } });
-        rest.push(...result.entries);
-        next = result.pageInfo?.hasMore ? result.pageInfo.nextCursor ?? null : null;
-      } catch {
-        return null;
-      }
-    }
-    return next ? null : rest;
+  /** The workspace list's pages after the first, from its cursor. Stops once `alive` is false. */
+  function readWorkspacePages(cursor: string | null | undefined, alive: () => boolean): Promise<PageRead<PaseoWorkspace>> {
+    return readPages(cursor, alive, async (next) => {
+      const result = await api.workspaces.list({ filter: { includeBackground: true }, page: { limit: LIST_PAGE_SIZE, cursor: next } });
+      return { entries: result.entries, pageInfo: result.pageInfo };
+    });
   }
 
   async function startWorkspaceSubscription(run: Run, replace = false): Promise<Landing> {
@@ -2349,17 +2389,21 @@ function createStore(api: PaseoApi): TaskStore {
           for (const workspace of firstPage.entries) updateWorkspace(workspace);
           notify();
         });
-        void readWorkspacePages(firstPage.pageInfo.nextCursor).then((rest) => {
-          if (listing !== workspaceListing || !isCurrent(run)) return;
-          if (rest === null) {
+        // Not `isCurrent(run)`: a refresh that lands meanwhile moves the base run
+        // without reading the workspaces again (it does only once they are ready),
+        // so this subscription's pages stay the ones the board waits for. A newer
+        // snapshot, or a store that closed, ends them.
+        const alive = () => listing === workspaceListing && run.generation === generation && consumers > 0;
+        return readWorkspacePages(firstPage.pageInfo.nextCursor, alive).then((read): Landing => {
+          if (read.kind === "stale" || !alive()) return "stale";
+          if (read.kind === "failed") {
             // A failed read keeps what the board had: no workspace leaves on a partial list.
-            if (!workspacesReady) {
-              workspacesReady = true;
-              notify();
-            }
-            return;
+            workspacesReady = true;
+            subscriptionError(read.error);
+            return "failed";
           }
-          applyWorkspaceList([...firstPage.entries, ...rest]);
+          applyWorkspaceList([...firstPage.entries, ...read.entries]);
+          return "landed";
         });
       }, (message) => {
         const envelope = message as WorkspaceUpdateEnvelope;

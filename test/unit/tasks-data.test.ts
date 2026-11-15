@@ -294,6 +294,28 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("does not hold a clear that comes with a permission request", async () => {
+      const { mounted, push, lanesOf } = await mountWith();
+      try {
+        await push({ ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null, pendingPermissions: [{ id: "p1", provider: "claude", name: "Bash", kind: "tool", title: "Run" }] } as never);
+        expect(lanesOf).toEqual(["needs_input"]);
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("does not hold a clear that comes with an error", async () => {
+      const { mounted, push } = await mountWith();
+      try {
+        await push({ ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null, lastError: "Usage limit reached" } as never);
+        expect(mounted.current.byId.get("unread")).toMatchObject({ lane: "review", status: "failed" });
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -1863,6 +1885,7 @@ describe("Tasks data store", () => {
   });
 
   describe("paged agent lists", () => {
+    const flush = async (rounds: number) => { for (let index = 0; index < rounds; index += 1) await Promise.resolve(); };
     // The status and attention lists are each the whole of what they filter,
     // but a subscription's snapshot is only the daemon's first page (200).
     const UNREAD = 230;
@@ -1914,6 +1937,70 @@ describe("Tasks data store", () => {
       }
     });
 
+    it("ends a refresh only once every page of its lists has landed", async () => {
+      const fake = unreadFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        const release = fake.holdPages();
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(16);
+        });
+        expect(result).toBeUndefined();
+        await act(async () => {
+          release();
+          await flush(16);
+        });
+        expect(result).toBe("done");
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("reports a later page that cannot be read, and fails the refresh", async () => {
+      const fake = unreadFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.error).toBeNull();
+        fake.failNextAgentList((options) => options.page?.cursor !== undefined && options.filter?.requiresAttention === true, "socket closed");
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(16);
+        });
+        expect(result).toBe("failed");
+        expect(mounted.current.error).toBe("socket closed");
+        // What the board had stays.
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("stops reading the pages of a list once the board closes", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 650 }, (_, index) =>
+          activeAgent(`unread-${index}`, { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(1_000 + index) })),
+        workspaces: [workspace()],
+      });
+      const release = fake.holdPages();
+      const mounted = await mountTasks(fake);
+      await settle();
+      const before = fake.pageCalls().filter((call) => call.startsWith("agents.list:")).length;
+      expect(before).toBeGreaterThan(0);
+      mounted.unmount();
+      await act(async () => {
+        release();
+        await flush(16);
+      });
+      // Each list in flight finishes the page it asked for and asks for no other.
+      expect(fake.pageCalls().filter((call) => call.startsWith("agents.list:"))).toHaveLength(before);
+    });
+
     it("keeps the unread tasks it has when a later page cannot be read", async () => {
       const fake = unreadFake();
       const mounted = await mountTasks(fake);
@@ -1926,6 +2013,7 @@ describe("Tasks data store", () => {
         });
         await settle();
         expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD);
+        expect(mounted.current.error).toBe("socket closed");
       } finally {
         mounted.unmount();
       }
@@ -1953,6 +2041,7 @@ describe("Tasks data store", () => {
   });
 
   describe("a paged workspace list", () => {
+    const flush = async (rounds: number) => { for (let index = 0; index < rounds; index += 1) await Promise.resolve(); };
     // The daemon pages its workspace list (200 at most) and a subscription's
     // snapshot is only the first page: with 232 workspaces the main checkout's
     // tasks fell into the archived lane (2026-11-15).
@@ -1995,6 +2084,29 @@ describe("Tasks data store", () => {
           await Promise.resolve();
         });
         expect(mounted.current.byId.has("late")).toBe(false);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("finishes loading the workspaces when a refresh lands during their later pages", async () => {
+      const fake = pagedFake();
+      const release = fake.holdPages();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.ready).toBe(false);
+        await act(async () => {
+          void mounted.current.refresh();
+          await flush(16);
+        });
+        await act(async () => {
+          release();
+          await flush(16);
+        });
+        await settle();
+        expect(mounted.current.ready).toBe(true);
+        expect(mounted.current.byId.get("late")?.lane).toBe("review");
       } finally {
         mounted.unmount();
       }
