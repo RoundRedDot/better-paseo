@@ -1194,6 +1194,18 @@ function createStore(api: PaseoApi): TaskStore {
    */
   let recordClock = 0;
   const recordStamps = new Map<string, number>();
+  /**
+   * A list's copy of an agent whose attention clear is held: the same state
+   * waits with the hold (true), a newer one lets the hold go and applies.
+   */
+  function waitsForHeldClear(agent: PaseoAgent): boolean {
+    const held = startIdles.get(agent.id);
+    if (held?.kind !== "clear") return false;
+    if (epoch(agent.updatedAt) <= held.updatedAt && !agent.archivedAt) return true;
+    dropHeldSnapshot(agent.id);
+    return false;
+  }
+
   /** An agent confirmed archived or gone: what a hold kept of it must not land later. */
   function dropHeldSnapshot(id: string) {
     const held = startIdles.get(id);
@@ -1207,11 +1219,12 @@ function createStore(api: PaseoApi): TaskStore {
     return (recordStamps.get(id) ?? 0) > asked;
   }
   /**
-   * When a list last removed each agent, on the same clock. A done page read
-   * before it may still carry the agent (archived, or running again) though
-   * the board never held it, so no record changed: such a page leaves it out.
-   * Only the done pages ask: a remove can also mean the agent just left one
-   * list's filter, which a read by id must not take as a change.
+   * When the done list last removed each agent, on the same clock. A done
+   * page read before it may still carry the agent (archived, or running
+   * again) though the board never held it, so no record changed: such a page
+   * leaves it out. Only the done list's removes count (the daemon removes an
+   * agent from every list it stops matching, so a status or attention remove
+   * says nothing about done), and only the done pages ask.
    */
   const removeStamps = new Map<string, number>();
   function removedSince(id: string, asked: number): boolean {
@@ -1672,7 +1685,9 @@ function createStore(api: PaseoApi): TaskStore {
       return;
     }
     if (payload.kind === "remove" && payload.agentId) {
-      removeStamps.set(payload.agentId, ++recordClock);
+      // The daemon sends a remove to every list the agent no longer matches;
+      // only the done list's means it left done (archived, running, deleted).
+      if (sourceKey === DONE_SUBSCRIPTION) removeStamps.set(payload.agentId, ++recordClock);
       // A held read can be the first step of an archive the board hears of only
       // as removes (its archived lane off): applied after them, it brought the
       // archived task back as done. Let it go and read the agent instead.
@@ -1848,10 +1863,24 @@ function createStore(api: PaseoApi): TaskStore {
         const shown = entries.get(id)?.agent;
         if (shown ? belongsToActiveList(sourceKey, shown) ?? current?.has(id) : current?.has(id)) nextMembers.add(id);
       }
+      const listed = new Set<string>();
       for (const entry of matchingEntries(snapshot)) {
+        listed.add(entry.agent.id);
         if (liveIds?.has(entry.agent.id)) continue;
+        // A held attention clear decides when the read lands.
+        if (waitsForHeldClear(entry.agent)) {
+          nextMembers.add(entry.agent.id);
+          continue;
+        }
         nextMembers.add(entry.agent.id);
         updateRecord(entry.agent, entry.project ?? null);
+      }
+      // A held snapshot whose list no longer carries the agent (an archive
+      // whose removes were lost, then a reconnect): once its wait is over it
+      // reads the agent rather than apply what it held.
+      for (const [id, held] of startIdles) {
+        if (listed.has(id)) continue;
+        if (held.sourceKey === sourceKey || current?.has(id)) held.removedFromSource = true;
       }
       sourceMembers.set(sourceKey, nextMembers);
       const pagesKept = keepPages && [...sourceMembers.keys()].some((key) => key.startsWith("done-page-"));
@@ -1914,6 +1943,7 @@ function createStore(api: PaseoApi): TaskStore {
           // Changed or removed while the pages were read (archived, prompted): its live state stands.
           if (changedSince(entry.agent.id, asked) || removedSince(entry.agent.id, asked)) continue;
           members.add(entry.agent.id);
+          if (waitsForHeldClear(entry.agent)) continue;
           updateRecord(entry.agent, entry.project ?? null);
         }
         sourceMembers.set(key, members);
@@ -3337,6 +3367,7 @@ function createStore(api: PaseoApi): TaskStore {
           // Changed or removed while the page was read: its live state stands.
           if (changedSince(entry.agent.id, asked) || removedSince(entry.agent.id, asked)) continue;
           pageMembers.add(entry.agent.id);
+          if (waitsForHeldClear(entry.agent)) continue;
           updateRecord(entry.agent, entry.project ?? null);
         }
         sourceMembers.set(key, pageMembers);

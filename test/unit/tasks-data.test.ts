@@ -597,6 +597,60 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("lets a snapshot carrying the same read wait with the held one", async () => {
+      const { fake, mounted, lanesOf } = await mountWith();
+      try {
+        const cleared = { ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        await act(async () => {
+          fake.upsertAgent(cleared as never);
+          await flush(4);
+        });
+        lanesOf.push(mounted.current.byId.get("unread")?.lane ?? "none");
+        // The done list reconnects within the wait; its snapshot carries the same read state.
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(8);
+        });
+        lanesOf.push(mounted.current.byId.get("unread")?.lane ?? "none");
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS);
+          await flush(8);
+        });
+        lanesOf.push(mounted.current.byId.get("unread")?.lane ?? "none");
+        expect(lanesOf).toEqual(["review", "review", "done"]);
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("does not bring back a task archived during a held read whose removes were lost", async () => {
+      const fake = createFakePaseo({ agents: [unread], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        const cleared = { ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        await act(async () => {
+          fake.upsertAgent(cleared as never);
+          await flush(4);
+        });
+        // Archived, but its removes never reached the board; the done list then reconnects without it.
+        fake.setAgentSilently({ ...cleared, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(8);
+        });
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS + 50);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("unread")).toBe(false);
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -2683,6 +2737,35 @@ describe("Tasks data store", () => {
         });
         expect(result).toBe("failed");
         expect(mounted.current.error).toBe("workspace page failed");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("keeps a done task on a late page when only the running list removed it", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 60 }, (_, index) => activeAgent(`d-${index}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await settle();
+        const release = fake.holdPageAnswers();
+        await act(async () => {
+          mounted.current.loadMoreDone();
+          await flush(8);
+        });
+        // The running list never had it; its remove says nothing about done.
+        await act(async () => {
+          fake.pushRemoveTo("d-55", (options) => options.filter?.statuses?.includes("running") === true);
+          await flush(8);
+        });
+        await act(async () => {
+          release();
+          await flush(24);
+        });
+        expect(mounted.current.byId.get("d-55")?.lane).toBe("done");
+        expect(mounted.current.lanes.done.cards).toHaveLength(60);
       } finally {
         mounted.unmount();
       }
