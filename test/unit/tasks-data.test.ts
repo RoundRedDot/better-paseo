@@ -2460,6 +2460,91 @@ describe("Tasks data store", () => {
       }
     });
 
+    it("keeps a member another list added while this list's pages were read", async () => {
+      const fake = unreadFake();
+      const mounted = await mountTasks(fake, "24h", false);
+      try {
+        await settle();
+        // The attention list's next snapshot is taken, its later pages held.
+        const release = fake.holdPages();
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+          await flush(16);
+        });
+        // Meanwhile a new task runs and needs attention; the running list brings it.
+        const runner = activeAgent("late-runner", { status: "running", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(0), lastUserMessageAt: recentIso(0) });
+        fake.setAgentSilently(runner);
+        await act(async () => {
+          fake.pushUpsertTo(runner, (options) => options.filter?.statuses?.includes("running") === true);
+          await flush(8);
+        });
+        await act(async () => {
+          release();
+          await flush(24);
+        });
+        // Its turn ends, still unread; the running list lets it go. The attention list must still hold
+        // it, so the card stays (with the record it has until the attention list sends a newer one).
+        fake.setAgentSilently({ ...runner, status: "idle" } as never);
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("running") === true);
+          await flush(24);
+        });
+        expect(mounted.current.byId.has("late-runner")).toBe(true);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("ends a refresh once the kept list landed a newer snapshot, though the refresh's own page hangs", async () => {
+      const fake = unreadFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        const releaseA = fake.holdPages();
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(16);
+        });
+        fake.passNewPages();
+        // Only the kept list reconnects, and lands every page.
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+          await flush(24);
+        });
+        expect(result).toBe("done");
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD);
+        await act(async () => {
+          releaseA();
+          await flush(16);
+        });
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("retries a first list whose subscription failed when the board refreshes", async () => {
+      const fake = createFakePaseo({ agents: [activeAgent("runner", { status: "running", updatedAt: recentIso(1_000) })], workspaces: [workspace()] });
+      fake.failNextReady((options) => options.filter?.statuses?.includes("running") === true, "status list failed");
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.ready).toBe(true);
+        expect(mounted.current.error).toBe("status list failed");
+        expect(mounted.current.byId.has("runner")).toBe(false);
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(24);
+        });
+        expect(result).toBe("done");
+        expect(mounted.current.error).toBeNull();
+        expect(mounted.current.byId.get("runner")?.lane).toBe("running");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
     it("keeps saying a list is incomplete while another one recovers", async () => {
       const fake = createFakePaseo({
         agents: [

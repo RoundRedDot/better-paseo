@@ -257,6 +257,8 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const workspaces = new Map<string, PaseoWorkspace>((options.workspaces ?? []).map((ws) => [ws.id, ws]));
   /** Set by `failWorkspacePages`: every workspace list call throws it. */
   let workspacePageFailure: Error | null = null;
+  /** Set by `failNextReady`: the next matching subscription's `ready` rejects. */
+  const readyFailures: Array<{ match: (options: PaseoAgentListOptions) => boolean; message: string }> = [];
   /** Set by `holdPageAnswers`: a later page is read when asked but answered only once it resolves. */
   let answerGate: Promise<void> | null = null;
   /** Set by `holdWorkspaceLists`: a workspace list's first page answers only once it resolves. */
@@ -380,6 +382,14 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       };
       agentSubs.add(sub);
       const subscription = makeSubscription(sub, () => ({ requestId: result.requestId, ...page(listOptions) }), () => agentSubs.delete(sub));
+      const readyFailure = readyFailures.findIndex((entry) => entry.match(listOptions));
+      if (readyFailure >= 0) {
+        // The host took the request, then failed it: ready rejects, and nothing is replayed.
+        const { message } = readyFailures.splice(readyFailure, 1)[0]!;
+        const ready = Promise.reject(new Error(message));
+        void ready.catch(() => {});
+        return { ...result, subscriptionId: sub.id, subscription: { ...subscription, ready, subscribe: (observer: Observer) => { sub.observers.add(observer); return () => sub.observers.delete(observer); } } };
+      }
       return { ...result, subscriptionId: sub.id, subscription };
     },
     ref(agent: string | Agent) {
@@ -591,6 +601,10 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         if (pageGate === gate) pageGate = null;
         release();
       };
+    },
+    /** Make the next agent subscription whose options match fail after it was taken: its `ready` rejects. */
+    failNextReady(match: (options: PaseoAgentListOptions) => boolean, message = "subscription failed") {
+      readyFailures.push({ match, message });
     },
     /** Send an upsert of this agent to the agent subscriptions whose options match, without changing the table. */
     pushUpsertTo(agent: Agent, match: (options: PaseoAgentListOptions) => boolean) {

@@ -1201,6 +1201,8 @@ function createStore(api: PaseoApi): TaskStore {
   const snapshotLandings = new Map<string, number>();
   /** Whether that latest landing read every page: a snapshot it superseded did not land in full either. */
   const snapshotOutcomes = new Map<string, "landed" | "failed">();
+  /** Waits on a list's later pages, woken by any landing of that list, from either of its subscriptions. */
+  const landingWaiters = new Map<string, Set<() => void>>();
   let countsCache: SidebarCounts | null = null;
   let questionCountsCache: SidebarCounts | null = null;
   let countQuestions: TaskCard[] = [];
@@ -1893,6 +1895,16 @@ function createStore(api: PaseoApi): TaskStore {
     notify();
   }
 
+  /** A list that failed: no longer loading, so the board shows what it has and a refresh reads it again. */
+  function firstListFailed(key: string) {
+    if (key === STATUS_KEY && !statusReady) statusReady = true;
+    else if (key === ATTENTION_KEY && !attentionReady) attentionReady = true;
+    else if (key === DONE_SUBSCRIPTION) doneListLanded();
+    else if (key === "workspaces" && !workspacesReady) workspacesReady = true;
+    else return;
+    notify();
+  }
+
   /** A list whose later pages could not be read: the board says so until a later snapshot of it reads them all. */
   function pageError(key: string, caught: unknown) {
     const message = caught instanceof Error ? caught.message : String(caught);
@@ -1962,6 +1974,7 @@ function createStore(api: PaseoApi): TaskStore {
     let initialApplied = false;
     // The landing of the latest snapshot's later pages; a newer snapshot replaces it and wakes the wait.
     let latest: Promise<Landing> | void = undefined;
+    let latestArrived = 0;
     let snapshots = 0;
     let wake = () => {};
     let own!: StoreSubscription;
@@ -1978,6 +1991,8 @@ function createStore(api: PaseoApi): TaskStore {
         if ((snapshotLandings.get(key) ?? 0) >= arrived) return;
         snapshotLandings.set(key, arrived);
         snapshotOutcomes.set(key, outcome);
+        // The other subscription of the list may be waiting on pages this landing just made stale.
+        for (const waiter of [...(landingWaiters.get(key) ?? [])]) waiter();
       };
       // A paged snapshot calls `landed` in the very step that lands it, after
       // checking `live`: an older snapshot whose pages finish in the same turn
@@ -1985,6 +2000,7 @@ function createStore(api: PaseoApi): TaskStore {
       const result = initial(snapshot, live, landed);
       if (result === undefined) landed();
       latest = result;
+      latestArrived = arrived;
       wake();
     };
     const observer = {
@@ -2023,16 +2039,28 @@ function createStore(api: PaseoApi): TaskStore {
       // Wait for the pages of whichever snapshot is the latest: a newer one
       // wakes the wait, so a page that hangs for an older one holds nothing.
       let landing: Landing;
-      for (;;) {
-        if (!serving()) { landing = "stale"; break; }
-        const waiting: Promise<Landing> | undefined = latest ?? undefined;
-        if (waiting === undefined) { landing = "landed"; break; }
-        const woken = new Promise<null>((resolve) => { wake = () => resolve(null); });
-        const settled = await Promise.race([waiting, woken]);
-        if (settled === null || waiting !== latest) continue;
-        // Superseded by a newer snapshot of the list: it is landed only if that one read every page.
-        landing = settled === "stale" && serving() ? snapshotOutcomes.get(key) ?? "landed" : settled;
-        break;
+      const waiters = landingWaiters.get(key) ?? new Set<() => void>();
+      landingWaiters.set(key, waiters);
+      const wakeOnLanding = () => wake();
+      waiters.add(wakeOnLanding);
+      try {
+        for (;;) {
+          if (!serving()) { landing = "stale"; break; }
+          const waiting: Promise<Landing> | undefined = latest ?? undefined;
+          if (waiting === undefined) { landing = "landed"; break; }
+          // A newer snapshot of the list, from the other subscription, already
+          // landed: this one's pages can only be stale, so take that outcome
+          // now rather than wait for a page that may hang.
+          if ((snapshotLandings.get(key) ?? 0) > latestArrived) { landing = snapshotOutcomes.get(key) ?? "landed"; break; }
+          const woken = new Promise<null>((resolve) => { wake = () => resolve(null); });
+          const settled = await Promise.race([waiting, woken]);
+          if (settled === null || waiting !== latest) continue;
+          // Superseded by a newer snapshot of the list: it is landed only if that one read every page.
+          landing = settled === "stale" && serving() ? snapshotOutcomes.get(key) ?? "landed" : settled;
+          break;
+        }
+      } finally {
+        waiters.delete(wakeOnLanding);
       }
       // A refresh's list takes over only once every page of it landed;
       // failing, timed out or superseded, it goes and the old list stays.
@@ -2408,7 +2436,7 @@ function createStore(api: PaseoApi): TaskStore {
         first = false;
         refreshed?.(list);
       };
-      return await observeOwned(key, result, run,
+      const landing = await observeOwned(key, result, run,
         (snapshot, live, landed) => {
           const list = snapshot as PaseoAgentListResult;
           // The done list pages on its own (`loadMoreDone`); every other list is
@@ -2432,8 +2460,10 @@ function createStore(api: PaseoApi): TaskStore {
             // first page, and says the list is incomplete.
             const entries = read.kind === "failed" ? list.entries : [...list.entries, ...read.entries];
             if (read.kind === "failed") for (const id of sourceMembers.get(key) ?? []) liveIds.add(id);
-            // Changed anywhere while the pages were read (archived and removed, a read by id): left as it is.
+            // Changed anywhere while the pages were read (archived and removed, a read by id, another
+            // list adding it to this one): its current record decides, not the list's older copy.
             for (const entry of entries) if (changedSince(entry.agent.id, asked)) liveIds.add(entry.agent.id);
+            for (const id of sourceMembers.get(key) ?? []) if (changedSince(id, asked)) liveIds.add(id);
             land({ ...list, entries, pageInfo: { ...list.pageInfo, nextCursor: null, hasMore: false } }, liveIds);
             landed(read.kind === "failed" ? "failed" : "landed");
             if (read.kind === "failed") {
@@ -2446,6 +2476,11 @@ function createStore(api: PaseoApi): TaskStore {
         },
         (message) => applyAgentUpdate(key, message as AgentUpdateEnvelope),
         refreshed !== undefined);
+      // A first list whose subscription failed (its ready rejected) is not
+      // still loading: mark it loaded, so the board leaves its skeleton and a
+      // refresh, which reads only loaded lists again, retries it.
+      if (landing === "failed") firstListFailed(key);
+      return landing;
     } catch (caught) {
       if (!isCurrent(run)) return "stale";
       // A failed list must not hold the board on its skeleton.
@@ -2535,7 +2570,7 @@ function createStore(api: PaseoApi): TaskStore {
         await result.subscription?.release();
         return "stale";
       }
-      return await observeOwned("workspaces", result, run, (snapshot, live, landed) => {
+      const landing = await observeOwned("workspaces", result, run, (snapshot, live, landed) => {
         const firstPage = snapshot as PaseoWorkspaceListResult;
         if (!firstPage.pageInfo?.hasMore) {
           applyWorkspaceList(firstPage.entries);
@@ -2588,6 +2623,8 @@ function createStore(api: PaseoApi): TaskStore {
           notify();
         }
       }, replace);
+      if (landing === "failed") firstListFailed("workspaces");
+      return landing;
     } catch (caught) {
       if (!isCurrent(run)) return "stale";
       workspacesReady = true;
