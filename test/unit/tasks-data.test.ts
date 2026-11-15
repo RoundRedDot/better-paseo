@@ -814,6 +814,90 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("keeps a running task, says so and reads again when an older snapshot takes it off every list and the reads fail", async () => {
+      const runner = activeAgent("runner", { status: "running", updatedAt: recentIso(1_000), lastUserMessageAt: recentIso(1_000) });
+      const fake = createFakePaseo({ agents: [runner], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        expect(mounted.current.byId.get("runner")?.lane).toBe("running");
+        // An older idle copy: the running list removes it, the done list gets the stale upsert; reads by id fail.
+        fake.failRefreshes(new Error("connection lost"));
+        await act(async () => {
+          fake.pushAgentSnapshot({ ...runner, status: "idle", updatedAt: recentIso(60_000) } as never);
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("runner")?.lane).toBe("running");
+        expect(mounted.current.error).toBe("connection lost");
+        // Reads answer again: the retry finds it still running.
+        fake.failRefreshes(null);
+        await act(async () => {
+          vi.advanceTimersByTime(2_100);
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("runner")?.lane).toBe("running");
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("holds an attention clear a reconnect's done snapshot brings, so an archive right after skips done", async () => {
+      const fake = createFakePaseo({ agents: [unread], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        expect(mounted.current.byId.get("unread")?.lane).toBe("review");
+        // Missed while disconnected: the archive's first step, an attention clear (updatedAt unchanged).
+        const cleared = { ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        fake.setAgentSilently(cleared as never);
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).toBe("review");
+        // The archive lands (archived lane off: removes only).
+        fake.setAgentSilently({ ...cleared, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+        await act(async () => {
+          fake.removeFromAgentSubscriptions("unread");
+          await flush(8);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).not.toBe("done");
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS + 50);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("unread")).toBe(false);
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("lands an attention clear a reconnect's done snapshot brings once its wait is over", async () => {
+      const fake = createFakePaseo({ agents: [unread], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        // Read on another device while disconnected.
+        const cleared = { ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        fake.setAgentSilently(cleared as never);
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(16);
+        });
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS + 50);
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).toBe("done");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("says nothing when a gone check's read fails after its task ran again", async () => {
       const closed = activeAgent("rerun", { status: "closed", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(5_000) });
       const fake = createFakePaseo({ agents: [closed], workspaces: [workspace()] });
@@ -5494,6 +5578,51 @@ describe("Tasks data store, archived lane", () => {
       mounted.unmount();
     }
   });
+
+  for (const [name, pageSize] of [["its first request", undefined], ["a later page", 2]] as const) {
+    it(`settles a task of an unlisted workspace when the first workspace list fails (${name})`, async () => {
+      const fillers = Array.from({ length: 4 }, (_, index) => makeWorkspace({ id: `filler-${index}`, projectId: "project-id", name: `filler-${index}` }));
+      const fake = createFakePaseo({
+        agents: [
+          activeAgent("ghost", { status: "idle", requiresAttention: true, workspaceId: "ws-gone", updatedAt: recentIso(1_000) }),
+          activeAgent("live", { status: "idle", requiresAttention: true, updatedAt: recentIso(2_000) }),
+        ],
+        workspaces: [...fillers, workspace()],
+        archivedWorkspaceIds: ["ws-gone"],
+        ...(pageSize ? { workspacePageSize: pageSize } : {}),
+      });
+      if (pageSize) {
+        // The first page answers; the later ones fail.
+        const release = fake.holdPages();
+        const mounted = await mountArchived(fake, true);
+        try {
+          fake.failWorkspacePages(new Error("list failed"));
+          await act(async () => {
+            release();
+            for (let index = 0; index < 24; index += 1) await Promise.resolve();
+          });
+          fake.failWorkspacePages(null);
+          await settleWorkspaceCheck();
+          expect(mounted.current.byId.get("ghost")?.lane).toBe("archived");
+          expect(mounted.current.byId.get("live")?.lane).toBe("review");
+          expect(mounted.current.error).toBeNull();
+        } finally {
+          mounted.unmount();
+        }
+        return;
+      }
+      fake.failWorkspacePages(new Error("list failed"));
+      const mounted = await mountArchived(fake, true);
+      try {
+        fake.failWorkspacePages(null);
+        await settleWorkspaceCheck();
+        expect(mounted.current.byId.get("ghost")?.lane).toBe("archived");
+        expect(mounted.current.byId.get("live")?.lane).toBe("review");
+      } finally {
+        mounted.unmount();
+      }
+    });
+  }
 
   it("removes a restored background helper from the archived lane", async () => {
     const fake = createFakePaseo({

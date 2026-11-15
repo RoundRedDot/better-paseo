@@ -1181,8 +1181,10 @@ function createStore(api: PaseoApi): TaskStore {
   let attentionReady = false;
   let workspacesReady = false;
   /**
-   * The whole workspace list arrived, every page of it, not a failed read:
-   * only then does a missing workspace mean archived.
+   * The whole workspace list arrived, every page of it (the subscription's,
+   * or a full read to place an agent's workspace), not a failed read: only
+   * then does the board hide a task of a workspace it has not placed while
+   * it reads the list again.
    */
   let workspacesListed = false;
   /**
@@ -1392,9 +1394,14 @@ function createStore(api: PaseoApi): TaskStore {
    * board while a full read of the workspace list settles it.
    */
   function awaitsWorkspace(id: string): boolean {
-    if (!workspacesListed) return false;
     const workspaceId = entries.get(id)?.agent.workspaceId;
     if (!workspaceId || workspaces.has(workspaceId) || knownGoneWorkspaces.has(workspaceId)) return false;
+    if (!workspacesListed) {
+      // The first list is still loading: the card shows as it is meanwhile.
+      // If that list failed, nothing will place the card: read it again.
+      if (workspacesReady) queueWorkspaceCheck();
+      return false;
+    }
     queueWorkspaceCheck();
     return true;
   }
@@ -1407,6 +1414,17 @@ function createStore(api: PaseoApi): TaskStore {
       if (run !== generation) { endWorkspaceCheck(run); return; }
       void checkWorkspaces(run);
     }, delay);
+  }
+
+  /** Queue a full read of the workspace list if any agent's workspace is unplaced. */
+  function checkUnplacedWorkspaces() {
+    for (const id of entries.keys()) {
+      const workspaceId = entries.get(id)?.agent.workspaceId;
+      if (workspaceId && !workspaces.has(workspaceId) && !knownGoneWorkspaces.has(workspaceId)) {
+        queueWorkspaceCheck();
+        return;
+      }
+    }
   }
 
   function endWorkspaceCheck(run: number) {
@@ -1434,8 +1452,12 @@ function createStore(api: PaseoApi): TaskStore {
     }
     endWorkspaceCheck(run);
     clearPageError("workspaces-check");
+    // Read whole, it settles what a failed read of the subscription's pages left open.
+    clearPageError("workspaces");
     const listed = new Map(all.map((workspace) => [workspace.id, workspace]));
     batchUpdates(() => {
+      // A complete list: from now on a workspace the board has not placed is settled the same way.
+      workspacesListed = true;
       for (const workspace of listed.values()) {
         if (!workspaces.has(workspace.id) && !knownGoneWorkspaces.has(workspace.id)) updateWorkspace(workspace);
       }
@@ -1882,8 +1904,17 @@ function createStore(api: PaseoApi): TaskStore {
         updateRecord(result.agent, result.project ?? null);
         dropIfUnreferenced(id);
       });
-    }).catch(() => {
-      if (run === generation) dropIfUnreferenced(id);
+    }).catch((caught: unknown) => {
+      if (run !== generation || memberSetsContaining(id).length > 0 || changedSince(id, asked) || !entries.has(id)) return;
+      // Unconfirmed, the card stays as it was: say so, and read it again
+      // (with the board's other reads by id, which retry and settle it).
+      pageError(`read:${id}`, caught);
+      const delay = CONFIRM_RETRY_DELAYS_MS[0];
+      if (delay !== undefined) {
+        setTimeout(() => {
+          if (run === generation && entries.has(id)) confirmAgent(id, 1);
+        }, delay);
+      }
     });
   }
 
@@ -2059,6 +2090,13 @@ function createStore(api: PaseoApi): TaskStore {
           continue;
         }
         nextMembers.add(entry.agent.id);
+        // An attention clear it brings first (a reconnect's snapshot taken
+        // between an archive's two steps) waits as a live one does: the
+        // archive, or the remove it comes as, follows within moments.
+        if (clearsOnlyAttention(entry.agent)) {
+          applyAgentUpdate(sourceKey, { type: "agent_update", payload: { kind: "upsert", agent: entry.agent, project: entry.project ?? undefined } });
+          continue;
+        }
         updateRecord(entry.agent, entry.project ?? null);
       }
       // A held snapshot whose list no longer carries the agent (an archive
@@ -2957,6 +2995,7 @@ function createStore(api: PaseoApi): TaskStore {
               notify();
             }
             pageError("workspaces", read.error);
+            checkUnplacedWorkspaces();
             return "failed";
           }
           applyWorkspaceList([...firstPage.entries, ...read.entries], liveUpdates, asked);
@@ -2990,6 +3029,7 @@ function createStore(api: PaseoApi): TaskStore {
       if (!isCurrent(run)) return "stale";
       workspacesReady = true;
       subscriptionError(caught);
+      checkUnplacedWorkspaces();
       return "failed";
     }
   }
