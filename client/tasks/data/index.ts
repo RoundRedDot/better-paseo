@@ -1834,6 +1834,12 @@ function createStore(api: PaseoApi): TaskStore {
         goneChecks.delete(id);
         // Taken off meanwhile: nothing is left to report.
         if (!entries.has(id)) return;
+        // Its record changed since (running again, archived): this read no
+        // longer decides anything; still closed, check again from that state.
+        if (changedSince(id, asked)) {
+          if (entries.get(id)?.agent.status === "closed") checkGone(id, attempt);
+          return;
+        }
         // The card stays as it was (an archive may be waiting on this read):
         // say so, and check again a little later.
         pageError(`gone:${id}`, caught);

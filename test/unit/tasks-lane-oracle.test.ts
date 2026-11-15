@@ -38,6 +38,15 @@ describe("lane oracle (test helper for the integration suites)", () => {
     expect(compareWithOracle(board, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
   });
 
+  it("reports a background agent shown on its own, but not one shown as a shown parent's child", () => {
+    const background = [{ id: "ws", background: false, archivingAt: null }, { id: "ws-bg", background: true, archivingAt: null }] as unknown as PaseoWorkspace[];
+    const expected = oracleLanes([agent("P", { status: "running" }), agent("bg", { parent: "P", status: "running", workspaceId: "ws-bg" } as never), agent("bg-orphan", { status: "running", workspaceId: "ws-bg" } as never)], background);
+    const withParent = new Map([["P", { lane: "running", title: "P" }], ["bg", { lane: "running", title: "bg" }]]);
+    expect(compareWithOracle(withParent, expected, 24 * 60 * 60 * 1000)).toEqual([]);
+    const alone = new Map([["P", { lane: "running", title: "P" }], ["bg-orphan", { lane: "running", title: "bg-orphan" }]]);
+    expect(compareWithOracle(alone, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
+  });
+
   it("reports a card the board shows that the oracle keeps off it", () => {
     const old = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
     const expected = oracleLanes([agent("old", { updatedAt: old, lastUserMessageAt: old, createdAt: old })], workspaces);

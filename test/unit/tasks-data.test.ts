@@ -804,6 +804,37 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("says nothing when a gone check's read fails after its task ran again", async () => {
+      const closed = activeAgent("rerun", { status: "closed", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(5_000) });
+      const fake = createFakePaseo({ agents: [closed], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        // A closed snapshot schedules a gone check; its read hangs.
+        const release = fake.holdRefreshes();
+        await act(async () => {
+          fake.pushAgentSnapshot(closed as never);
+          await flush(4);
+          vi.advanceTimersByTime(1_100);
+          await flush(8);
+        });
+        // Prompted again meanwhile: it runs.
+        await act(async () => {
+          fake.upsertAgent(activeAgent("rerun", { status: "running", requiresAttention: false, updatedAt: recentIso(0), lastUserMessageAt: recentIso(0) }));
+          await flush(8);
+        });
+        await act(async () => {
+          release(new Error("obsolete gone read failed"));
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("rerun")?.lane).toBe("running");
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {

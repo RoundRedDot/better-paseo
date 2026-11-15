@@ -27,6 +27,8 @@ export interface OracleCard {
   historyAt: string;
   /** No card of its own (a background workspace's agent), though it still keeps its parent running. */
   hidden: boolean;
+  /** Its parent task, if any: a hidden agent may be on the board only as a shown parent's child. */
+  parentId: string | null;
 }
 
 const PARENT_LABEL = "paseo.parent-agent-id";
@@ -34,7 +36,7 @@ const TITLE_HELPER_LABEL = "better-paseo.purpose";
 
 type RawAgent = PaseoAgent & { lastError?: string | null; activeTurn?: unknown };
 
-function ownLane(agent: RawAgent, workspaces: Map<string, PaseoWorkspace>): Omit<OracleCard, "id" | "settledAt" | "historyAt" | "hidden"> {
+function ownLane(agent: RawAgent, workspaces: Map<string, PaseoWorkspace>): Omit<OracleCard, "id" | "settledAt" | "historyAt" | "hidden" | "parentId"> {
   const workspace = agent.workspaceId ? workspaces.get(agent.workspaceId) : undefined;
   if (agent.archivedAt) return { lane: "archived", failed: false, reason: "agent archivedAt" };
   if (agent.workspaceId && !workspace) return { lane: "archived", failed: false, reason: "workspace on no page of the list" };
@@ -70,7 +72,7 @@ export function oracleLanes(agents: readonly PaseoAgent[], workspaceList: readon
     const settledAt = raw.lastUserMessageAt ?? raw.createdAt;
     // Archived with its workspace, a task is windowed by its own updatedAt: the key the done list pages by.
     const historyAt = own.lane === "archived" ? raw.archivedAt ?? raw.updatedAt : settledAt;
-    cards.set(raw.id, { id: raw.id, ...own, settledAt, historyAt, hidden: Boolean(workspace?.background) });
+    cards.set(raw.id, { id: raw.id, ...own, settledAt, historyAt, hidden: Boolean(workspace?.background), parentId: raw.labels?.[PARENT_LABEL] ?? null });
   }
   // A running grandchild keeps its parent running, and so its grandparent:
   // spread until nothing changes, so the result does not depend on the order
@@ -95,8 +97,9 @@ export function oracleLanes(agents: readonly PaseoAgent[], workspaceList: readon
  * Every difference between the board's cards and the oracle, both ways: a
  * card the oracle shows that is missing or in another lane, and a card the
  * board shows that the oracle does not (outside the window, or no record).
- * Background agents the board keeps for their parent, and provider subagent
- * cards, are not cards of their own here.
+ * A background agent the board keeps as a shown parent's child, and provider
+ * subagent cards, are not cards of their own here; a background agent shown
+ * any other way is a difference.
  */
 export function compareWithOracle(
   shown: ReadonlyMap<string, { lane: string; title: string; subagent?: unknown }>,
@@ -118,7 +121,10 @@ export function compareWithOracle(
     else if (actual.lane !== card.lane) mismatches.push(`${card.id} "${actual.title}" in ${actual.lane}, expected ${card.lane} (${card.reason})`);
   }
   for (const [id, actual] of shown) {
-    if (actual.subagent || visible.has(id) || expected.get(id)?.hidden) continue;
+    if (actual.subagent || visible.has(id)) continue;
+    // A background agent is on the board only as the child of a card it shows (for its Stop).
+    const hidden = expected.get(id);
+    if (hidden?.hidden && hidden.parentId && shown.has(hidden.parentId)) continue;
     const card = expected.get(id);
     mismatches.push(card
       ? `${id} "${actual.title}" in ${actual.lane}, but the oracle keeps it off the board (${card.lane}, ${card.reason}, at ${card.historyAt})`
