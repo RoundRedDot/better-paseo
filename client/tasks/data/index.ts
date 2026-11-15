@@ -179,6 +179,8 @@ interface OwnedSubscriptionLike {
 interface StoreSubscription {
   stopObserver: () => void;
   release: () => void;
+  /** Called once it is stopped or let go, so a wait on its pages ends at once. */
+  stopped?: () => void;
 }
 
 interface ProjectIconValue {
@@ -640,6 +642,17 @@ function timestamp(value: string | null, missing: number): number {
  * `updatedAt` stands in (archiving sets it, and a later touch must not
  * outrank a newer archive).
  */
+/**
+ * The time the archived lane's window counts from. A task archived with its
+ * workspace keeps its own `updatedAt`, the key the done list pages by: a
+ * workspace's archive time can be newer than every page the board read, so
+ * windowing by it showed such a task or not depending on how far the lane
+ * had paged and whether this board saw the workspace while it archived.
+ */
+function archivedWindowAt(card: TaskCard): string {
+  return card.archived === "workspace" ? card.timing.updatedAt : archivedOrderAt(card);
+}
+
 function archivedOrderAt(card: TaskCard): string {
   return card.timing.archivedAt ?? card.timing.updatedAt;
 }
@@ -1105,7 +1118,7 @@ function createStore(api: PaseoApi): TaskStore {
   /** Agents being read again by id after a stale update (`confirmAgent`). */
   const confirmChecks = new Set<string>();
   /** A starting agent's snapshot held for its first turn (`START_INIT_HOLD_MS`, `START_IDLE_HOLD_MS`). */
-  const startIdles = new Map<string, { sourceKey: string; update: AgentUpdateEnvelope; status: string; updatedAt: number; timer: ReturnType<typeof setTimeout> }>();
+  const startIdles = new Map<string, { sourceKey: string; update: AgentUpdateEnvelope; status: string; updatedAt: number; timer: ReturnType<typeof setTimeout>; kind: "start" | "clear" }>();
   /** Provider subagents by parent, as `tasks.subagents` last answered. */
   const subagentsByParent = new Map<string, ProviderSubagent[]>();
   let subagentVersion: string | undefined;
@@ -1155,6 +1168,9 @@ function createStore(api: PaseoApi): TaskStore {
   const agentListUpdates = new Map<string, Set<Set<string>>>();
   /** The lists whose last snapshot could not read every page, with the error the board shows for it. */
   const pageErrors = new Map<string, string>();
+  /** Snapshots of each list by arrival, from any of its subscriptions, and the latest of them that landed. */
+  const snapshotArrivals = new Map<string, number>();
+  const snapshotLandings = new Map<string, number>();
   let countsCache: SidebarCounts | null = null;
   let questionCountsCache: SidebarCounts | null = null;
   let countQuestions: TaskCard[] = [];
@@ -1551,6 +1567,7 @@ function createStore(api: PaseoApi): TaskStore {
       if (hold !== null) {
         const run = generation;
         startIdles.set(agent.id, {
+          kind: clearsOnlyAttention(agent) ? "clear" : "start",
           sourceKey,
           update,
           status: agent.status,
@@ -1581,6 +1598,15 @@ function createStore(api: PaseoApi): TaskStore {
       return;
     }
     if (payload.kind === "remove" && payload.agentId) {
+      // A held read can be the first step of an archive the board hears of only
+      // as removes (its archived lane off): applied after them, it brought the
+      // archived task back as done. Let it go and read the agent instead.
+      const held = startIdles.get(payload.agentId);
+      if (held?.kind === "clear") {
+        clearTimeout(held.timer);
+        startIdles.delete(payload.agentId);
+        confirmAgent(payload.agentId);
+      }
       const wasMember = sourceMembers.get(sourceKey)?.delete(payload.agentId);
       // Held for a subagent failure, it stays; the list it left had its latest state, so read it again.
       if (sourceMembers.get(SUBAGENT_KEY)?.has(payload.agentId)) fetchSubagentParent(payload.agentId, generation);
@@ -1804,10 +1830,10 @@ function createStore(api: PaseoApi): TaskStore {
     const message = pageErrors.get(key);
     if (message === undefined) return;
     pageErrors.delete(key);
-    if (error === message && ![...pageErrors.values()].includes(message)) {
-      error = null;
-      notify();
-    }
+    if (error !== message || [...pageErrors.values()].includes(message)) return;
+    // Another list may still be incomplete: say so until it reads every page too.
+    error = pageErrors.values().next().value ?? null;
+    notify();
   }
 
   function isCurrent(run: Run): boolean {
@@ -1824,6 +1850,7 @@ function createStore(api: PaseoApi): TaskStore {
     if (replacements.get(key) === own) replacements.delete(key);
     own.stopObserver();
     own.release();
+    own.stopped?.();
   }
 
   /**
@@ -1866,7 +1893,19 @@ function createStore(api: PaseoApi): TaskStore {
     const serving = () => run.generation === generation && consumers > 0 && (subscriptions.get(key) === own || replacements.get(key) === own);
     const apply = (snapshot: T) => {
       const mine = ++snapshots;
-      latest = initial(snapshot, () => mine === snapshots && serving());
+      // Two subscriptions of one list (a refresh's and the one it replaces)
+      // both land snapshots on its members: one that arrived before another
+      // already landed is older, and must not undo it.
+      const arrived = (snapshotArrivals.get(key) ?? 0) + 1;
+      snapshotArrivals.set(key, arrived);
+      const live = () => mine === snapshots && serving() && (snapshotLandings.get(key) ?? 0) < arrived;
+      const landed = () => {
+        if ((snapshotLandings.get(key) ?? 0) < arrived) snapshotLandings.set(key, arrived);
+      };
+      const result = initial(snapshot, live);
+      if (result === undefined) landed();
+      else void result.then((landing) => { if (landing !== "stale") landed(); });
+      latest = result;
       wake();
     };
     const observer = {
@@ -1881,7 +1920,7 @@ function createStore(api: PaseoApi): TaskStore {
       error: subscriptionError,
     };
     const stopObserver = owned.subscribe(observer);
-    own = { stopObserver, release: () => { void owned.release(); } };
+    own = { stopObserver, release: () => { void owned.release(); }, stopped: () => wake() };
     if (replace) {
       const earlier = replacements.get(key);
       if (earlier) dropReplacement(key, earlier);
@@ -1898,13 +1937,15 @@ function createStore(api: PaseoApi): TaskStore {
       apply(ready);
       initialApplied = true;
       for (const event of pending) {
-        if (event.kind === "snapshot") apply(event.value);
+        // The SDK replays its snapshot to each new observer, the very one `ready` gives.
+        if (event.kind === "snapshot") { if (event.value !== ready) apply(event.value); }
         else update(event.value);
       }
       // Wait for the pages of whichever snapshot is the latest: a newer one
       // wakes the wait, so a page that hangs for an older one holds nothing.
       let landing: Landing;
       for (;;) {
+        if (!serving()) { landing = "stale"; break; }
         const waiting: Promise<Landing> | undefined = latest ?? undefined;
         if (waiting === undefined) { landing = "landed"; break; }
         const woken = new Promise<null>((resolve) => { wake = () => resolve(null); });
@@ -2736,12 +2777,16 @@ function createStore(api: PaseoApi): TaskStore {
     void openAgentSubscription(DONE_SUBSCRIPTION, doneListOptions(), run);
   }
 
+  /** Stop a list, and a refresh's list that was to replace it: neither may land after this. */
   function stopSubscription(key: string) {
+    const replacement = replacements.get(key);
+    if (replacement) dropReplacement(key, replacement);
     const subscription = subscriptions.get(key);
     if (!subscription) return;
     subscriptions.delete(key);
     subscription.stopObserver();
     subscription.release();
+    subscription.stopped?.();
   }
 
   function stopDone() {
@@ -2930,7 +2975,7 @@ function createStore(api: PaseoApi): TaskStore {
       if (cutoff === null) return true;
       // Done uses the card's own end: the daemon moves `updatedAt` whenever it loads the agent.
       // Archived uses the archive time, so a later touch does not count as just archived.
-      const at = Date.parse(card.lane === "done" ? settledAt(card.timing) : archivedOrderAt(card));
+      const at = Date.parse(card.lane === "done" ? settledAt(card.timing) : archivedWindowAt(card));
       return Number.isFinite(at) && now - at <= cutoff;
     });
     const byId = new Map(filteredCards.map((card) => [card.id, card]));

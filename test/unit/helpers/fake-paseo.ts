@@ -295,16 +295,19 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
 
   function makeSubscription<T>(sub: PlainSubscription | AgentSubscription, snapshot: () => T, onRelease: () => void) {
     sub.snapshot = snapshot;
+    // The SDK (`OwnedSubscriptions.observe`) replays the snapshot it holds to
+    // each observer as it subscribes, synchronously: the very object `ready`
+    // resolves with. A held answer (`readyGate`) has none to replay yet.
+    const gated = options.stalled || readyGate !== null;
+    const value = options.stalled ? null : { ...snapshot(), subscriptionId: sub.id };
     return {
       get subscriptionId() {
         return sub.released ? null : sub.id;
       },
-      ready: options.stalled ? new Promise<never>(() => {}) : (() => {
-        const value = { ...snapshot(), subscriptionId: sub.id };
-        return (readyGate ?? Promise.resolve()).then(() => value);
-      })(),
+      ready: options.stalled ? new Promise<never>(() => {}) : (readyGate ?? Promise.resolve()).then(() => value),
       subscribe(observer: Observer) {
         sub.observers.add(observer);
+        if (!gated && value) observer.snapshot(value);
         return () => sub.observers.delete(observer);
       },
       async release() {
@@ -601,6 +604,14 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     reconnectAgentSubscription(index = 0) {
       const sub = [...agentSubs][index];
       if (!sub) return;
+      sub.members = new Set([...agents.values()].filter((agent) => matchesAgent(agent, sub.options)).map((agent) => agent.id));
+      const snapshot = { ...(sub.snapshot() as object), subscriptionId: sub.id };
+      for (const observer of sub.observers) observer.snapshot(snapshot);
+    },
+    /** Send a fresh snapshot to the oldest agent subscription whose options match, as its own reconnect would. */
+    reconnectAgentSubscriptionWhere(match: (options: PaseoAgentListOptions) => boolean) {
+      const sub = [...agentSubs].find((candidate) => "members" in candidate && match((candidate as AgentSubscription).options)) as AgentSubscription | undefined;
+      if (!sub) throw new Error("no matching agent subscription");
       sub.members = new Set([...agents.values()].filter((agent) => matchesAgent(agent, sub.options)).map((agent) => agent.id));
       const snapshot = { ...(sub.snapshot() as object), subscriptionId: sub.id };
       for (const observer of sub.observers) observer.snapshot(snapshot);

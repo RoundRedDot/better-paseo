@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { connect, listAllAgents, listAllWorkspaces, type Connection } from "./helpers/real-daemon";
 import { mountBoard, type MountedBoard } from "./helpers/mount-board";
-import { oracleLanes } from "./helpers/lane-oracle";
+import { compareWithOracle, oracleLanes } from "./helpers/lane-oracle";
 
 vi.mock("react-native", () => import("../unit/helpers/rn-mock"));
 
@@ -34,24 +34,8 @@ describe.skipIf(!host)("lane audit on a copy of real data", () => {
       listAllWorkspaces(connection.api),
     ]);
     const expected = oracleLanes(agents, workspaces);
-    const now = Date.now();
-    const mismatches: string[] = [];
     const shown = board.current.byId;
-    for (const card of expected.values()) {
-      if (card.hidden) continue;
-      const inWindow = now - Date.parse(card.historyAt) <= DAY;
-      const history = card.lane === "done" || card.lane === "archived";
-      const actual = shown.get(card.id);
-      if (history && !inWindow) continue;
-      if (!actual) {
-        mismatches.push(`${card.id} missing, expected ${card.lane} (${card.reason})`);
-        continue;
-      }
-      if (actual.lane !== card.lane) mismatches.push(`${card.id} in ${actual.lane}, expected ${card.lane} (${card.reason}) "${actual.title}"`);
-    }
-    for (const card of shown.values()) {
-      if (!expected.has(card.id) && !card.subagent) mismatches.push(`${card.id} on the board in ${card.lane} with no record`);
-    }
+    const mismatches = compareWithOracle(shown, expected, DAY);
     console.log(`audit: ${expected.size} records, ${shown.size} cards, ${mismatches.length} mismatches`);
     expect(mismatches).toEqual([]);
   }, 120_000);

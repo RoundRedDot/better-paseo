@@ -74,11 +74,13 @@ describe("fake PaseoApi", () => {
     const result = await fake.paseo.agents.list({ filter: { statuses: ["running"] }, subscribe: {} });
     const snapshots: unknown[] = [];
     result.subscription.subscribe({ snapshot: (snapshot) => snapshots.push(snapshot), update() {} });
+    // As the SDK does, subscribing replays the snapshot `ready` resolves with, the very object.
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0]).toBe(await result.subscription.ready);
     fake.setAgentSilently(makeAgent({ id: "a", status: "idle" }));
     fake.reconnectSubscriptions();
-    expect(snapshots).toEqual([
-      expect.objectContaining({ entries: [], pageInfo: expect.objectContaining({ hasMore: false }) }),
-    ]);
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots[1]).toEqual(expect.objectContaining({ entries: [], pageInfo: expect.objectContaining({ hasMore: false }) }));
     await result.subscription.release();
   });
 

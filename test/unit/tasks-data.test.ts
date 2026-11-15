@@ -316,6 +316,34 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("does not bring an archived task back when the archived lane is off", async () => {
+      const fake = createFakePaseo({ agents: [unread], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        expect(mounted.current.byId.get("unread")?.lane).toBe("review");
+        const cleared = { ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        await act(async () => {
+          fake.upsertAgent(cleared as never);
+          await flush(4);
+        });
+        // Archived: with the archived lane off, every list only removes it.
+        await act(async () => {
+          fake.upsertAgent({ ...cleared, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(8);
+        });
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS + 100);
+          await flush(8);
+        });
+        expect(mounted.current.byId.has("unread")).toBe(false);
+        expect(mounted.current.lanes.done.cards.map((card) => card.id)).not.toContain("unread");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -2062,6 +2090,90 @@ describe("Tasks data store", () => {
       }
     });
 
+    it("does not let an older snapshot of a list undo a newer one that landed", async () => {
+      // Older than the done window: only the attention list keeps these on the board.
+      const old = (index: number) => recentIso(3 * 24 * 60 * 60 * 1000 + index * 1000);
+      const fake = createFakePaseo({
+        agents: Array.from({ length: UNREAD }, (_, index) =>
+          activeAgent(`unread-${index}`, { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: old(index), lastUserMessageAt: old(index), createdAt: old(index) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD);
+        // The refresh's attention list takes its first page, then its later pages hang.
+        const releaseOld = fake.holdPages();
+        await act(async () => {
+          void mounted.current.refresh();
+          await flush(16);
+        });
+        // Read elsewhere (on the refresh's first page, past the done list's first page, so only the attention list holds it), an update the board missed; the kept list's next snapshot carries it.
+        const read = fake.paseo.agents.ref("unread-100").current()!;
+        fake.setAgentSilently({ ...read, requiresAttention: false, attentionReason: null, attentionTimestamp: null } as never);
+        fake.passNewPages();
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+          await flush(24);
+        });
+        expect(mounted.current.byId.get("unread-100")?.lane).not.toBe("review");
+        // The refresh's older snapshot finishes: it must not bring the read task back to review.
+        await act(async () => {
+          releaseOld();
+          await flush(24);
+        });
+        expect(mounted.current.byId.get("unread-100")?.lane).not.toBe("review");
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD - 1);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("keeps saying a list is incomplete while another one recovers", async () => {
+      const fake = createFakePaseo({
+        agents: [
+          ...Array.from({ length: 210 }, (_, index) => activeAgent(`run-${index}`, { status: "running", updatedAt: recentIso(1_000 + index) })),
+          ...Array.from({ length: UNREAD }, (_, index) =>
+            activeAgent(`unread-${index}`, { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(5_000 + index) })),
+        ],
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        fake.failNextAgentList((options) => options.page?.cursor !== undefined && options.filter?.statuses?.includes("running") === true, "running list incomplete");
+        fake.failNextAgentList((options) => options.page?.cursor !== undefined && options.filter?.requiresAttention === true, "review list incomplete");
+        await act(async () => {
+          fake.reconnectSubscriptions();
+          await flush(24);
+        });
+        expect(["running list incomplete", "review list incomplete"]).toContain(mounted.current.error);
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+          await flush(24);
+        });
+        expect(mounted.current.error).toBe("running list incomplete");
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("running") === true);
+          await flush(24);
+        });
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("reads each later page once for the snapshot the SDK replays on subscribe", async () => {
+      const fake = unreadFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(fake.pageCalls().filter((call) => call.startsWith("agents.list:"))).toEqual(["agents.list:200"]);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
     it("stops reading the pages of a list once the board closes", async () => {
       const fake = createFakePaseo({
         agents: Array.from({ length: 650 }, (_, index) =>
@@ -2190,6 +2302,32 @@ describe("Tasks data store", () => {
         expect(mounted.current.byId.get("late")?.lane).toBe("review");
       } finally {
         mounted.unmount();
+      }
+    });
+
+    it("windows a task archived with its workspace by the task's own update time", async () => {
+      const days = (count: number) => recentIso(count * 24 * 60 * 60 * 1000);
+      const fake = createFakePaseo({
+        agents: [activeAgent("stale-task", { status: "idle", updatedAt: days(5), lastUserMessageAt: days(5), createdAt: days(6), workspaceId: "ws-archiving" })],
+        workspaces: [workspace(), makeWorkspace({ id: "ws-archiving", projectId: "project-id", name: "archiving", archivingAt: recentIso(0) } as never)],
+      });
+      let current!: TasksHandle;
+      function Probe() {
+        current = useTasks(fake.paseo, { doneWindow: "24h", includeDone: true, includeArchived: true });
+        return null;
+      }
+      let renderer!: Renderer;
+      await act(async () => {
+        setTasksArchivedLane(fake.paseo, true);
+        renderer = TestRenderer.create(React.createElement(Probe));
+        await flush(16);
+      });
+      try {
+        // Its workspace is archiving just now, but the done list pages by the task's own time,
+        // which is days old: the lane shows it neither now nor once paged, nor only on this board.
+        expect(current.byId.has("stale-task")).toBe(false);
+      } finally {
+        await act(async () => renderer.unmount());
       }
     });
 
@@ -2724,6 +2862,37 @@ describe("Tasks data store", () => {
       });
       return { get current() { return current; }, get renders() { return renders; }, unmount: () => act(() => renderer.unmount()) };
     }
+
+    it("lands nothing from a refresh's list once the board that asked for it closes", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 230 }, (_, index) =>
+          activeAgent(`unread-${index}`, { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(1_000 + index) })),
+        workspaces: [workspace()],
+      });
+      // The sidebar counts running tasks only, and outlives the board.
+      const counts = await mountCounts(fake, false);
+      const board = await mountTasks(fake);
+      try {
+        await act(async () => { for (let index = 0; index < 16; index += 1) await Promise.resolve(); });
+        expect(board.current.lanes.review.cards).toHaveLength(230);
+        const release = fake.holdPages();
+        await act(async () => {
+          void board.current.refresh();
+          for (let index = 0; index < 16; index += 1) await Promise.resolve();
+        });
+        board.unmount();
+        expect(counts.current.review).toBe(0);
+        const before = fake.pageCalls().length;
+        await act(async () => {
+          release();
+          for (let index = 0; index < 24; index += 1) await Promise.resolve();
+        });
+        expect(counts.current.review).toBe(0);
+        expect(fake.pageCalls()).toHaveLength(before);
+      } finally {
+        counts.unmount();
+      }
+    });
 
     const permission = { id: "p", provider: "claude", name: "Bash", kind: "tool" as const };
 

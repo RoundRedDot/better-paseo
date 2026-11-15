@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { PaseoWorkspace } from "@getpaseo/client";
 import { connect, createPrivateDaemon, listAllAgents, listAllWorkspaces, paseo, paseoBin, type Connection, type PrivateDaemon, type StoredAgentRecord } from "./helpers/real-daemon";
 import { mountBoard, type MountedBoard } from "./helpers/mount-board";
-import { oracleLanes } from "./helpers/lane-oracle";
+import { compareWithOracle, oracleLanes } from "./helpers/lane-oracle";
 
 vi.mock("react-native", () => import("../unit/helpers/rn-mock"));
 
@@ -107,15 +107,7 @@ describe.skipIf(!paseoBin())("lanes on a private daemon, from stored records", (
       listAllAgents(connection.api, { includeArchived: true, includeBackground: true }),
       listAllWorkspaces(connection.api),
     ]);
-    const expected = oracleLanes(agents, workspaces);
-    const mismatches: string[] = [];
-    for (const card of expected.values()) {
-      const inWindow = Date.now() - Date.parse(card.historyAt) <= 24 * HOUR;
-      if ((card.lane === "done" || card.lane === "archived") && !inWindow) continue;
-      const actual = board.current.byId.get(card.id);
-      if (actual?.lane !== card.lane) mismatches.push(`${actual?.title ?? card.id}: ${actual?.lane ?? "missing"}, expected ${card.lane} (${card.reason})`);
-    }
-    return mismatches;
+    return compareWithOracle(board.current.byId, oracleLanes(agents, workspaces), 24 * HOUR);
   }
 
   it("matches the oracle for every record", async () => {

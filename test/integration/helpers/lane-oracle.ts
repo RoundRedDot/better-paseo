@@ -20,9 +20,9 @@ export interface OracleCard {
   /** The done lane's time: latest prompt, else creation (no turn ledger here). */
   settledAt: string;
   /**
-   * The time a history lane windows and orders it by: `settledAt` in done;
-   * in archived, when it was archived (the agent's `archivedAt`, else its
-   * workspace's `archivingAt`), else `updatedAt` when no archive time is known.
+   * The time a history lane windows it by: `settledAt` in done; in archived,
+   * the agent's `archivedAt`, or its `updatedAt` when only its workspace was
+   * archived (the done list pages by agent `updatedAt`).
    */
   historyAt: string;
   /** No card of its own (a background workspace's agent), though it still keeps its parent running. */
@@ -68,7 +68,8 @@ export function oracleLanes(agents: readonly PaseoAgent[], workspaceList: readon
     if (raw.labels?.[TITLE_HELPER_LABEL]) continue;
     const own = ownLane(raw, workspaces);
     const settledAt = raw.lastUserMessageAt ?? raw.createdAt;
-    const historyAt = own.lane === "archived" ? raw.archivedAt ?? workspace?.archivingAt ?? raw.updatedAt : settledAt;
+    // Archived with its workspace, a task is windowed by its own updatedAt: the key the done list pages by.
+    const historyAt = own.lane === "archived" ? raw.archivedAt ?? raw.updatedAt : settledAt;
     cards.set(raw.id, { id: raw.id, ...own, settledAt, historyAt, hidden: Boolean(workspace?.background) });
   }
   for (const raw of agents) {
@@ -81,4 +82,40 @@ export function oracleLanes(agents: readonly PaseoAgent[], workspaceList: readon
     }
   }
   return cards;
+}
+
+/**
+ * Every difference between the board's cards and the oracle, both ways: a
+ * card the oracle shows that is missing or in another lane, and a card the
+ * board shows that the oracle does not (outside the window, or no record).
+ * Background agents the board keeps for their parent, and provider subagent
+ * cards, are not cards of their own here.
+ */
+export function compareWithOracle(
+  shown: ReadonlyMap<string, { lane: string; title: string; subagent?: unknown }>,
+  expected: ReadonlyMap<string, OracleCard>,
+  windowMs: number,
+  now = Date.now(),
+): string[] {
+  const visible = new Map<string, OracleCard>();
+  for (const card of expected.values()) {
+    if (card.hidden) continue;
+    const history = card.lane === "done" || card.lane === "archived";
+    if (history && now - Date.parse(card.historyAt) > windowMs) continue;
+    visible.set(card.id, card);
+  }
+  const mismatches: string[] = [];
+  for (const card of visible.values()) {
+    const actual = shown.get(card.id);
+    if (!actual) mismatches.push(`${card.id} missing, expected ${card.lane} (${card.reason})`);
+    else if (actual.lane !== card.lane) mismatches.push(`${card.id} "${actual.title}" in ${actual.lane}, expected ${card.lane} (${card.reason})`);
+  }
+  for (const [id, actual] of shown) {
+    if (actual.subagent || visible.has(id) || expected.get(id)?.hidden) continue;
+    const card = expected.get(id);
+    mismatches.push(card
+      ? `${id} "${actual.title}" in ${actual.lane}, but the oracle keeps it off the board (${card.lane}, ${card.reason}, at ${card.historyAt})`
+      : `${id} "${actual.title}" in ${actual.lane} with no record`);
+  }
+  return mismatches;
 }
