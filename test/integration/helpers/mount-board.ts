@@ -10,9 +10,13 @@ import type { DoneWindow } from "../../../shared/tasks-settings";
 
 export interface MountedBoard {
   readonly current: TasksHandle;
-  /** Record every lane this card shows from now on, render by render ("-" while it has none). */
-  track(id: string): void;
-  /** The lanes a tracked card went through, repeats folded: ["running", "review"]. */
+  /**
+   * The lanes a card went through since the board mounted, render by render,
+   * repeats folded: ["running", "review"]. Every card is recorded from its
+   * first render, so a lane it passed through before a test learned its id
+   * (while `agents.create` was still answering) counts too. "-" marks a
+   * render it was missing from after it had shown.
+   */
   history(id: string): string[];
   /** Wait, letting daemon messages land, until `check` holds; throws its last failure after `timeoutMs`. */
   until(check: (board: TasksHandle) => void, timeoutMs?: number): Promise<void>;
@@ -25,13 +29,15 @@ export async function mountBoard(api: PaseoApi, options: { doneWindow?: DoneWind
   const doneWindow = options.doneWindow ?? "24h";
   const archived = options.archived ?? true;
   let current!: TasksHandle;
-  const tracked = new Map<string, string[]>();
+  const histories = new Map<string, string[]>();
   function Probe() {
     current = useTasks(api, { doneWindow, includeDone: true, includeArchived: archived });
-    for (const [id, lanes] of tracked) {
-      const lane = current.byId.get(id)?.lane ?? "-";
-      if (lanes.at(-1) !== lane) lanes.push(lane);
+    for (const [id, card] of current.byId) {
+      const lanes = histories.get(id);
+      if (!lanes) histories.set(id, [card.lane]);
+      else if (lanes.at(-1) !== card.lane) lanes.push(card.lane);
     }
+    for (const [id, lanes] of histories) if (!current.byId.has(id) && lanes.at(-1) !== "-") lanes.push("-");
     return null;
   }
   let renderer!: TestRenderer.ReactTestRenderer;
@@ -43,11 +49,8 @@ export async function mountBoard(api: PaseoApi, options: { doneWindow?: DoneWind
     get current() {
       return current;
     },
-    track(id) {
-      if (!tracked.has(id)) tracked.set(id, [current.byId.get(id)?.lane ?? "-"]);
-    },
     history(id) {
-      return [...(tracked.get(id) ?? [])];
+      return [...(histories.get(id) ?? [])];
     },
     async until(check, timeoutMs = 20_000) {
       const deadline = Date.now() + timeoutMs;

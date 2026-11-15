@@ -1981,6 +1981,87 @@ describe("Tasks data store", () => {
       }
     });
 
+    it("keeps paging the list it kept after a refresh of it failed", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 230 }, (_, index) => activeAgent(`run-${index}`, { status: "running", updatedAt: recentIso(1_000 + index) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.lanes.running.cards).toHaveLength(230);
+        // The refresh's status list fails, so the old one stays.
+        fake.failNextAgentList((options) => options.subscribe !== undefined && options.filter?.statuses?.includes("running") === true, "socket closed");
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(16);
+        });
+        expect(result).toBe("failed");
+        // Missed while disconnected; the kept list's next snapshot must page to find it.
+        fake.setAgentSilently(activeAgent("run-late", { status: "running", updatedAt: recentIso(50_000) }));
+        await act(async () => {
+          fake.reconnectSubscriptions();
+          await flush(16);
+        });
+        await settle();
+        expect(mounted.current.lanes.running.cards).toHaveLength(231);
+        expect(mounted.current.byId.get("run-late")?.lane).toBe("running");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("ends a refresh once its newest snapshot landed, though an older one's page still hangs", async () => {
+      const fake = unreadFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        const releaseOld = fake.holdPages();
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(16);
+        });
+        expect(result).toBeUndefined();
+        // A newer snapshot of the refresh's list pages at once and lands.
+        fake.passNewPages();
+        await act(async () => {
+          fake.reconnectSubscriptions();
+          await flush(24);
+        });
+        expect(result).toBe("done");
+        expect(mounted.current.lanes.review.cards).toHaveLength(UNREAD);
+        await act(async () => {
+          releaseOld();
+          await flush(16);
+        });
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("clears a page error once a later snapshot reads every page", async () => {
+      const fake = unreadFake();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        fake.failNextAgentList((options) => options.page?.cursor !== undefined && options.filter?.requiresAttention === true, "socket closed");
+        await act(async () => {
+          fake.reconnectSubscriptions();
+          await flush(16);
+        });
+        expect(mounted.current.error).toBe("socket closed");
+        await act(async () => {
+          fake.reconnectSubscriptions();
+          await flush(16);
+        });
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        mounted.unmount();
+      }
+    });
+
     it("stops reading the pages of a list once the board closes", async () => {
       const fake = createFakePaseo({
         agents: Array.from({ length: 650 }, (_, index) =>
@@ -2108,6 +2189,42 @@ describe("Tasks data store", () => {
         expect(mounted.current.ready).toBe(true);
         expect(mounted.current.byId.get("late")?.lane).toBe("review");
       } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("reads no more pages for a refresh that timed out", async () => {
+      const fake = createFakePaseo({
+        agents: [activeAgent("late", { status: "idle", requiresAttention: true, updatedAt: recentIso(1_000) })],
+        workspaces: [...Array.from({ length: 6 }, (_, index) => makeWorkspace({ id: `filler-${index}`, projectId: "project-id", name: `filler-${index}` })), workspace()],
+        workspacePageSize: 2,
+      });
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.ready).toBe(true);
+        const release = fake.holdPages();
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(16);
+        });
+        const before = fake.pageCalls().filter((call) => call.startsWith("workspaces.list:")).length;
+        await act(async () => {
+          vi.advanceTimersByTime(30_000);
+          await flush(16);
+        });
+        expect(result).toBe("failed");
+        await act(async () => {
+          release();
+          await flush(24);
+        });
+        // The timed-out refresh's list was let go: it asks for no further page, and the board keeps its workspaces.
+        expect(fake.pageCalls().filter((call) => call.startsWith("workspaces.list:"))).toHaveLength(before);
+        expect(mounted.current.byId.get("late")?.lane).toBe("review");
+      } finally {
+        vi.useRealTimers();
         mounted.unmount();
       }
     });

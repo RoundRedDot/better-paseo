@@ -47,7 +47,6 @@ describe.skipIf(!paseoBin())("lanes through real turns", () => {
   async function start(prompt: string, options: { parent?: PaseoAgentHandle } = {}): Promise<PaseoAgentHandle> {
     count += 1;
     const handle = await other.api.agents.create({ config: { provider: `${PROVIDER}/lanes` }, cwd, title: `lanes ${count}: ${prompt}`, prompt, ...(options.parent ? { parent: options.parent } : null) });
-    board.track(handle.id);
     return handle;
   }
 
@@ -56,8 +55,8 @@ describe.skipIf(!paseoBin())("lanes through real turns", () => {
     expect(card(id)?.lane).toBe(expected);
     if (status) expect(card(id)?.status).toBe(status);
   }, 30_000);
-  /** Its lanes, without the moments before its card first showed. */
-  const path_ = (id: string) => board.history(id).filter((value, index, all) => !(value === "-" && index === 0 && all.length > 1));
+  /** Its lanes since its card first showed on the board. */
+  const path_ = (id: string) => board.history(id);
 
   it("shows a new task running, then in review once its turn ends", async () => {
     const task = await start("hold:2500");
@@ -128,7 +127,6 @@ describe.skipIf(!paseoBin())("lanes through real turns", () => {
     fs.mkdirSync(dir, { recursive: true });
     count += 1;
     const task = await other.api.agents.create({ config: { provider: `${PROVIDER}/lanes` }, cwd: dir, title: `lanes ${count}: archived workspace`, prompt: "hold:300" });
-    board.track(task.id);
     await lane(task.id, "review");
     const workspaceId = card(task.id)!.location.workspaceId!;
     await paseo(["workspace", "archive", workspaceId, "--home", daemon.home]);

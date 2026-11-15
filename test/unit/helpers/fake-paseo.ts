@@ -551,10 +551,15 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     holdPages(): () => void {
       let release!: () => void;
       pageGate = new Promise<void>((resolve) => { release = resolve; });
+      const gate = pageGate;
       return () => {
-        pageGate = null;
+        if (pageGate === gate) pageGate = null;
         release();
       };
+    },
+    /** Let later list calls through at once; the calls already held stay held until their release. */
+    passNewPages() {
+      pageGate = null;
     },
     /** List calls past the first page so far, as `<method>:<cursor>`. */
     pageCalls(): string[] {

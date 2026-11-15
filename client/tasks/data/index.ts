@@ -1145,18 +1145,16 @@ function createStore(api: PaseoApi): TaskStore {
    * only then does a missing workspace mean archived.
    */
   let workspacesListed = false;
-  /** Counts workspace snapshots, so the later pages of an older one are dropped. */
-  let workspaceListing = 0;
   /**
-   * Live updates that landed while the current snapshot's later pages load,
-   * by workspace: those pages are older, so they neither replace an upsert
+   * Live workspace updates, for each workspace snapshot whose later pages are
+   * still loading: those pages are older, so they neither replace an upsert
    * nor bring back a removed workspace.
    */
-  const workspacesUpdatedWhileListing = new Map<string, "upsert" | "remove">();
-  /** Counts each agent list's snapshots, so the later pages of an older one are dropped. */
-  const agentListings = new Map<string, number>();
-  /** Agents a live update moved, by list, while that list's later pages load. */
-  const agentListUpdates = new Map<string, Set<string>>();
+  const workspaceListUpdates = new Set<Map<string, "upsert" | "remove">>();
+  /** Agents a live update moved, by list, for each snapshot of it whose later pages are still loading. */
+  const agentListUpdates = new Map<string, Set<Set<string>>>();
+  /** The lists whose last snapshot could not read every page, with the error the board shows for it. */
+  const pageErrors = new Map<string, string>();
   let countsCache: SidebarCounts | null = null;
   let questionCountsCache: SidebarCounts | null = null;
   let countQuestions: TaskCard[] = [];
@@ -1533,7 +1531,7 @@ function createStore(api: PaseoApi): TaskStore {
   function applyAgentUpdate(sourceKey: string, update: AgentUpdateEnvelope, released = false) {
     if (update.type !== "agent_update" || !update.payload) return;
     const touchedId = update.payload.agent?.id ?? update.payload.agentId;
-    if (touchedId) agentListUpdates.get(sourceKey)?.add(touchedId);
+    if (touchedId) for (const touched of agentListUpdates.get(sourceKey) ?? []) touched.add(touchedId);
     // A subagent's start or end usually moves its parent too.
     scheduleSubagents(SUBAGENT_SETTLE_MS);
     const payload = update.payload;
@@ -1795,6 +1793,23 @@ function createStore(api: PaseoApi): TaskStore {
     notify();
   }
 
+  /** A list whose later pages could not be read: the board says so until a later snapshot of it reads them all. */
+  function pageError(key: string, caught: unknown) {
+    const message = caught instanceof Error ? caught.message : String(caught);
+    pageErrors.set(key, message);
+    subscriptionError(message);
+  }
+
+  function clearPageError(key: string) {
+    const message = pageErrors.get(key);
+    if (message === undefined) return;
+    pageErrors.delete(key);
+    if (error === message && ![...pageErrors.values()].includes(message)) {
+      error = null;
+      notify();
+    }
+  }
+
   function isCurrent(run: Run): boolean {
     if (run.generation !== generation || consumers === 0 || run.refresh?.cancelled) return false;
     if (run.tier === "base") return run.tierRun === baseRun;
@@ -1821,16 +1836,21 @@ function createStore(api: PaseoApi): TaskStore {
     run: Run,
     /**
      * Applies a snapshot. A paged one returns the landing of its later pages:
-     * the list lands (and a refresh ends) only once every page has.
+     * the list lands (and a refresh ends) only once every page has. `live`
+     * says whether they are still wanted: this is the subscription's latest
+     * snapshot, and the subscription still serves (or is about to serve) its
+     * list. Not `isCurrent(run)`: a refresh moves the run, and a refresh that
+     * fails leaves this subscription serving, so its later snapshots must
+     * still page.
      */
-    initial: (snapshot: T) => void | Promise<Landing>,
+    initial: (snapshot: T, live: () => boolean) => void | Promise<Landing>,
     update: (message: unknown) => void,
     replace = false,
   ): Promise<Landing> {
     const owned = result.subscription;
     if (!owned) {
       if (!isCurrent(run)) return "stale";
-      return (await initial(result)) ?? "landed";
+      return (await initial(result, () => isCurrent(run))) ?? "landed";
     }
     if (!isCurrent(run)) {
       await owned.release();
@@ -1838,11 +1858,20 @@ function createStore(api: PaseoApi): TaskStore {
     }
     const pending: Array<{ kind: "snapshot"; value: T } | { kind: "update"; value: unknown }> = [];
     let initialApplied = false;
-    // The landing of the latest snapshot's later pages; a newer snapshot replaces it.
+    // The landing of the latest snapshot's later pages; a newer snapshot replaces it and wakes the wait.
     let latest: Promise<Landing> | void = undefined;
+    let snapshots = 0;
+    let wake = () => {};
+    let own!: StoreSubscription;
+    const serving = () => run.generation === generation && consumers > 0 && (subscriptions.get(key) === own || replacements.get(key) === own);
+    const apply = (snapshot: T) => {
+      const mine = ++snapshots;
+      latest = initial(snapshot, () => mine === snapshots && serving());
+      wake();
+    };
     const observer = {
       snapshot(snapshot: unknown) {
-        if (initialApplied) latest = initial(snapshot as T);
+        if (initialApplied) apply(snapshot as T);
         else pending.push({ kind: "snapshot", value: snapshot as T });
       },
       update(message: unknown) {
@@ -1852,7 +1881,7 @@ function createStore(api: PaseoApi): TaskStore {
       error: subscriptionError,
     };
     const stopObserver = owned.subscribe(observer);
-    const own: StoreSubscription = { stopObserver, release: () => { void owned.release(); } };
+    own = { stopObserver, release: () => { void owned.release(); } };
     if (replace) {
       const earlier = replacements.get(key);
       if (earlier) dropReplacement(key, earlier);
@@ -1866,26 +1895,36 @@ function createStore(api: PaseoApi): TaskStore {
         if (replace) dropReplacement(key, own);
         return "stale";
       }
+      apply(ready);
+      initialApplied = true;
+      for (const event of pending) {
+        if (event.kind === "snapshot") apply(event.value);
+        else update(event.value);
+      }
+      // Wait for the pages of whichever snapshot is the latest: a newer one
+      // wakes the wait, so a page that hangs for an older one holds nothing.
+      let landing: Landing;
+      for (;;) {
+        const waiting: Promise<Landing> | undefined = latest ?? undefined;
+        if (waiting === undefined) { landing = "landed"; break; }
+        const woken = new Promise<null>((resolve) => { wake = () => resolve(null); });
+        const settled = await Promise.race([waiting, woken]);
+        if (settled === null || waiting !== latest) continue;
+        landing = settled === "stale" && serving() ? "landed" : settled;
+        break;
+      }
+      // A refresh's list takes over only once every page of it landed;
+      // failing, timed out or superseded, it goes and the old list stays.
       if (replace) {
+        if (landing !== "landed" || !isCurrent(run)) {
+          dropReplacement(key, own);
+          return landing === "landed" ? "stale" : landing;
+        }
         replacements.delete(key);
         stopSubscription(key);
         subscriptions.set(key, own);
       }
-      latest = initial(ready);
-      initialApplied = true;
-      for (const event of pending) {
-        if (event.kind === "snapshot") latest = initial(event.value);
-        else update(event.value);
-      }
-      // Wait for the pages of whichever snapshot is the latest once they land.
-      for (;;) {
-        const waiting = latest;
-        if (!waiting) return "landed";
-        const landing = await waiting;
-        if (waiting !== latest) continue;
-        if (landing === "stale") return isCurrent(run) ? "landed" : "stale";
-        return landing;
-      }
+      return landing;
     } catch (caught) {
       if (replace) dropReplacement(key, own);
       if (!isCurrent(run)) return "stale";
@@ -2249,34 +2288,34 @@ function createStore(api: PaseoApi): TaskStore {
         refreshed?.(list);
       };
       return await observeOwned(key, result, run,
-        (snapshot) => {
+        (snapshot, live) => {
           const list = snapshot as PaseoAgentListResult;
-          const listing = (agentListings.get(key) ?? 0) + 1;
-          agentListings.set(key, listing);
           // The done list pages on its own (`loadMoreDone`); every other list is
           // the whole of what it filters, and its snapshot only the first page
           // (200 at most). Its members land once every page has, so an agent on
           // a later page is not dropped for a moment.
           if (key === DONE_SUBSCRIPTION || !list.pageInfo?.hasMore) {
-            agentListUpdates.delete(key);
             land(list);
+            clearPageError(key);
             return;
           }
           const liveIds = new Set<string>();
-          agentListUpdates.set(key, liveIds);
-          const alive = () => agentListings.get(key) === listing && isCurrent(run);
-          return readAgentPages(options, list.pageInfo.nextCursor, alive).then((read): Landing => {
-            if (read.kind === "stale" || !alive()) return "stale";
-            agentListUpdates.delete(key);
+          const watching = agentListUpdates.get(key) ?? new Set<Set<string>>();
+          agentListUpdates.set(key, watching);
+          watching.add(liveIds);
+          return readAgentPages(options, list.pageInfo.nextCursor, live).then((read): Landing => {
+            watching.delete(liveIds);
+            if (read.kind === "stale" || !live()) return "stale";
             // A page that cannot be read keeps the members the list had, lands the
             // first page, and says the list is incomplete.
             const entries = read.kind === "failed" ? list.entries : [...list.entries, ...read.entries];
             if (read.kind === "failed") for (const id of sourceMembers.get(key) ?? []) liveIds.add(id);
             land({ ...list, entries, pageInfo: { ...list.pageInfo, nextCursor: null, hasMore: false } }, liveIds);
             if (read.kind === "failed") {
-              subscriptionError(read.error);
+              pageError(key, read.error);
               return "failed";
             }
+            clearPageError(key);
             return "landed";
           });
         },
@@ -2329,18 +2368,17 @@ function createStore(api: PaseoApi): TaskStore {
    * archived, and its cards leave. A live update that landed since the
    * snapshot began wins over the list's copy of its workspace.
    */
-  function applyWorkspaceList(list: readonly PaseoWorkspace[]) {
+  function applyWorkspaceList(list: readonly PaseoWorkspace[], liveUpdates: ReadonlyMap<string, "upsert" | "remove"> = new Map()) {
     batchUpdates(() => {
       workspacesReady = true;
       const next = new Set<string>();
       for (const workspace of list) {
-        const live = workspacesUpdatedWhileListing.get(workspace.id);
+        const live = liveUpdates.get(workspace.id);
         if (live === "remove") continue;
         next.add(workspace.id);
         if (live !== "upsert") updateWorkspace(workspace);
       }
-      for (const [id, live] of workspacesUpdatedWhileListing) if (live === "upsert") next.add(id);
-      workspacesUpdatedWhileListing.clear();
+      for (const [id, live] of liveUpdates) if (live === "upsert") next.add(id);
       workspacesListed = true;
       const removedIds = new Set([...workspaces.keys()].filter((id) => !next.has(id)));
       for (const id of removedIds) workspaces.delete(id);
@@ -2372,12 +2410,11 @@ function createStore(api: PaseoApi): TaskStore {
         await result.subscription?.release();
         return "stale";
       }
-      return await observeOwned("workspaces", result, run, (snapshot) => {
+      return await observeOwned("workspaces", result, run, (snapshot, live) => {
         const firstPage = snapshot as PaseoWorkspaceListResult;
-        const listing = ++workspaceListing;
-        workspacesUpdatedWhileListing.clear();
         if (!firstPage.pageInfo?.hasMore) {
           applyWorkspaceList(firstPage.entries);
+          clearPageError("workspaces");
           return;
         }
         // The daemon pages its list (200 at most), and a subscription's
@@ -2389,30 +2426,32 @@ function createStore(api: PaseoApi): TaskStore {
           for (const workspace of firstPage.entries) updateWorkspace(workspace);
           notify();
         });
-        // Not `isCurrent(run)`: a refresh that lands meanwhile moves the base run
-        // without reading the workspaces again (it does only once they are ready),
-        // so this subscription's pages stay the ones the board waits for. A newer
-        // snapshot, or a store that closed, ends them.
-        const alive = () => listing === workspaceListing && run.generation === generation && consumers > 0;
-        return readWorkspacePages(firstPage.pageInfo.nextCursor, alive).then((read): Landing => {
-          if (read.kind === "stale" || !alive()) return "stale";
+        const liveUpdates = new Map<string, "upsert" | "remove">();
+        workspaceListUpdates.add(liveUpdates);
+        return readWorkspacePages(firstPage.pageInfo.nextCursor, live).then((read): Landing => {
+          workspaceListUpdates.delete(liveUpdates);
+          if (read.kind === "stale" || !live()) return "stale";
           if (read.kind === "failed") {
             // A failed read keeps what the board had: no workspace leaves on a partial list.
-            workspacesReady = true;
-            subscriptionError(read.error);
+            if (!workspacesReady) {
+              workspacesReady = true;
+              notify();
+            }
+            pageError("workspaces", read.error);
             return "failed";
           }
-          applyWorkspaceList([...firstPage.entries, ...read.entries]);
+          applyWorkspaceList([...firstPage.entries, ...read.entries], liveUpdates);
+          clearPageError("workspaces");
           return "landed";
         });
       }, (message) => {
         const envelope = message as WorkspaceUpdateEnvelope;
         if (envelope.type !== "workspace_update" || !envelope.payload) return;
         if (envelope.payload.kind === "upsert" && envelope.payload.workspace) {
-          workspacesUpdatedWhileListing.set(envelope.payload.workspace.id, "upsert");
+          for (const liveUpdates of workspaceListUpdates) liveUpdates.set(envelope.payload.workspace.id, "upsert");
           updateWorkspace(envelope.payload.workspace);
         } else if (envelope.payload.kind === "remove" && envelope.payload.id) {
-          workspacesUpdatedWhileListing.set(envelope.payload.id, "remove");
+          for (const liveUpdates of workspaceListUpdates) liveUpdates.set(envelope.payload.id, "remove");
           workspaces.delete(envelope.payload.id);
           for (const [id, entry] of entries) {
             if (entry.agent.workspaceId !== envelope.payload.id) continue;
@@ -2825,6 +2864,7 @@ function createStore(api: PaseoApi): TaskStore {
     historyError = null;
     archivedLane = archivedAsked;
     error = null;
+    pageErrors.clear();
     notify();
   }
 
@@ -3302,6 +3342,7 @@ function createStore(api: PaseoApi): TaskStore {
     if (refreshing) return refreshing.promise;
     if (error !== null) {
       error = null;
+      pageErrors.clear();
       notify();
     }
     const token: RefreshToken = { cancelled: false };
