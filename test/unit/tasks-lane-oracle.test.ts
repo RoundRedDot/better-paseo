@@ -45,14 +45,24 @@ describe("lane oracle (test helper for the integration suites)", () => {
     expect(compareWithOracle(withParent, expected, 24 * 60 * 60 * 1000)).toEqual([]);
     // Its parent shown but not listing it, or it in the wrong lane: differences.
     const unlisted = new Map([["P", { lane: "running", title: "P", children: [] }], ["bg", { lane: "running", title: "bg" }]]);
-    expect(compareWithOracle(unlisted, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
+    expect(compareWithOracle(unlisted, expected, 24 * 60 * 60 * 1000)).toHaveLength(2);
     const wrongLane = new Map([["P", { lane: "running", title: "P", children: [{ id: "bg", lane: "done" }] }], ["bg", { lane: "done", title: "bg" }]]);
     expect(compareWithOracle(wrongLane, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
     // Its own card right, its row on the parent's card wrong.
     const wrongRow = new Map([["P", { lane: "running", title: "P", children: [{ id: "bg", lane: "done" }] }], ["bg", { lane: "running", title: "bg" }]]);
     expect(compareWithOracle(wrongRow, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
-    const alone = new Map([["P", { lane: "running", title: "P" }], ["bg-orphan", { lane: "running", title: "bg-orphan" }]]);
+    const alone = new Map([["P", { lane: "running", title: "P", children: [{ id: "bg", lane: "running" }] }], ["bg", { lane: "running", title: "bg" }], ["bg-orphan", { lane: "running", title: "bg-orphan" }]]);
     expect(compareWithOracle(alone, expected, 24 * 60 * 60 * 1000)).toHaveLength(1);
+  });
+
+  it("reports a live background child missing from both its shown parent and the board", () => {
+    const background = [{ id: "ws", background: false, archivingAt: null }, { id: "ws-bg", background: true, archivingAt: null }] as unknown as PaseoWorkspace[];
+    const expected = oracleLanes([agent("P", { status: "running" }), agent("bg", { parent: "P", status: "running", workspaceId: "ws-bg" } as never)], background);
+    const neither = new Map([["P", { lane: "running", title: "P", children: [] }]]);
+    expect(compareWithOracle(neither, expected, 24 * 60 * 60 * 1000)).toHaveLength(2);
+    // An archived background child stays off a live parent's card.
+    const archived = oracleLanes([agent("P", { status: "running" }), agent("bg", { parent: "P", status: "closed", workspaceId: "ws-bg", archivedAt: now } as never)], background);
+    expect(compareWithOracle(neither, archived, 24 * 60 * 60 * 1000)).toEqual([]);
   });
 
   it("reports a card the board shows that the oracle keeps off it", () => {

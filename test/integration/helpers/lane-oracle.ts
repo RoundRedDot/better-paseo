@@ -120,6 +120,16 @@ export function compareWithOracle(
     if (!actual) mismatches.push(`${card.id} missing, expected ${card.lane} (${card.reason})`);
     else if (actual.lane !== card.lane) mismatches.push(`${card.id} "${actual.title}" in ${actual.lane}, expected ${card.lane} (${card.reason})`);
   }
+  // A live background agent of a shown parent must be on the board as that
+  // parent's child (its row, and its own card for Stop), even with no card of its own.
+  for (const card of expected.values()) {
+    if (!card.hidden || !card.parentId || card.lane === "archived" || !visible.has(card.parentId)) continue;
+    const parent = shown.get(card.parentId);
+    if (!parent) continue; // Reported above as the parent missing.
+    const listed = parent.children?.some((child) => child.id === card.id) ?? false;
+    if (!listed) mismatches.push(`${card.id} (background child) missing from its parent ${card.parentId.slice(0, 8)}'s children, expected ${card.lane} (${card.reason})`);
+    if (!shown.has(card.id)) mismatches.push(`${card.id} (background child) has no card for its parent's row, expected ${card.lane} (${card.reason})`);
+  }
   for (const [id, actual] of shown) {
     if (actual.subagent || visible.has(id)) continue;
     // A background agent is on the board only as the child of a card it shows

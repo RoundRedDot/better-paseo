@@ -92,6 +92,16 @@ function activeAgent(id: string, overrides: Partial<ReturnType<typeof makeAgent>
   return makeAgent({ id, workspaceId: "ws", ...prompted, ...overrides });
 }
 
+/** Let a queued read of the whole workspace list (a timer, then its pages) run and land. */
+async function settleWorkspaceCheck() {
+  for (let round = 0; round < 3; round += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      for (let index = 0; index < 16; index += 1) await Promise.resolve();
+    });
+  }
+}
+
 async function mountTasks(fake: Fake, doneWindow: "24h" | "7d" | "all" = "24h", includeDone = true) {
   let current!: TasksHandle;
   function Probe() {
@@ -3778,12 +3788,15 @@ describe("Tasks data store", () => {
           fake.upsertAgent(activeAgent("new-runner", { status: "running", workspaceId: "z-new", updatedAt: recentIso(0), lastUserMessageAt: recentIso(0) }));
           await flush(8);
         });
-        // The workspace list's later pages are still loading: not archived.
-        expect(mounted.current.byId.get("new-runner")?.lane).toBe("running");
+        // Its workspace is unplaced while the list's later pages load: it waits off the board, never archived.
+        expect(mounted.current.byId.has("new-runner")).toBe(false);
+        await settleWorkspaceCheck();
+        expect(mounted.current.byId.has("new-runner")).toBe(false);
         await act(async () => {
           release();
           await flush(24);
         });
+        await settleWorkspaceCheck();
         expect(mounted.current.byId.get("new-runner")?.lane).toBe("running");
         // A workspace archived before (left out of a complete list) stays archived throughout.
         expect(mounted.current.byId.has("stale")).toBe(false);
@@ -3806,6 +3819,9 @@ describe("Tasks data store", () => {
           fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("running") === true);
           await flush(16);
         });
+        // Its workspace is not one the board placed: it waits off the board (not archived) for a full read of the list.
+        expect(mounted.current.byId.has("new-runner")).toBe(false);
+        await settleWorkspaceCheck();
         expect(mounted.current.byId.get("new-runner")?.lane).toBe("running");
         await act(async () => {
           fake.reconnectOldestWorkspaceSubscription();
@@ -5196,6 +5212,7 @@ describe("Tasks data store, archived lane", () => {
       archivedWorkspaceIds: ["ws-archived"],
     });
     const off = await mountArchived(fake, false);
+    await settleWorkspaceCheck();
     try {
       expect(ids(off.current.lanes.done)).toEqual(["done"]);
       expect(ids(off.current.lanes.archived)).toEqual([]);
@@ -5284,6 +5301,7 @@ describe("Tasks data store, archived lane", () => {
     });
     const on = await mountArchived(fake, true);
     try {
+      await settleWorkspaceCheck();
       expect(on.current.byId.get("child-a")?.parent).toMatchObject({ id: "archived", missing: false, archived: false, archivedAs: "agent" });
       expect(on.current.byId.get("child-w")?.parent).toMatchObject({ id: "stale", missing: false, archivedAs: "workspace" });
       expect(on.current.byId.get("child-l")?.parent).not.toHaveProperty("archivedAs");
@@ -5317,6 +5335,7 @@ describe("Tasks data store, archived lane", () => {
       renderer = TestRenderer.create(React.createElement(Probe));
       for (let index = 0; index < 8; index += 1) await Promise.resolve();
     });
+    await settleWorkspaceCheck();
     try {
       const lists = () => fake.calls.filter((call) => call.method === "agents.list").length;
       const listsBefore = lists();
@@ -5407,6 +5426,70 @@ describe("Tasks data store, archived lane", () => {
     try {
       expect(ids(mounted.current.lanes.archived)).toEqual(["ordinary"]);
       expect(mounted.current.byId.has("helper")).toBe(false);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("archives a task of a workspace archived while disconnected when its list comes back after the workspaces", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("old", { status: "idle", requiresAttention: true, updatedAt: recentIso(5_000) })],
+      workspaces: [workspace()],
+      archivedWorkspaceIds: ["ws-gone"],
+    });
+    const mounted = await mountArchived(fake, true);
+    try {
+      await settleWorkspaceCheck();
+      // Meanwhile, out of the board's sight: a task waits for review in a workspace that was then archived.
+      fake.setAgentSilently(activeAgent("ghost", { status: "idle", requiresAttention: true, workspaceId: "ws-gone", updatedAt: recentIso(1_000), lastUserMessageAt: recentIso(1_000) }));
+      // The workspaces come back first (complete, without it), then the unread list.
+      await act(async () => {
+        fake.reconnectOldestWorkspaceSubscription();
+        for (let index = 0; index < 16; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+        for (let index = 0; index < 16; index += 1) await Promise.resolve();
+      });
+      expect(ids(mounted.current.lanes.review)).not.toContain("ghost");
+      await settleWorkspaceCheck();
+      expect(mounted.current.byId.get("ghost")?.lane).toBe("archived");
+      expect(ids(mounted.current.lanes.review)).not.toContain("ghost");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("does not flash a refreshed task of a new workspace into the archived lane while the workspaces' pages load", async () => {
+    const fillers = Array.from({ length: 4 }, (_, index) => makeWorkspace({ id: `filler-${index}`, projectId: "project-id", name: `filler-${index}` }));
+    const fake = createFakePaseo({
+      agents: [activeAgent("old", { status: "idle", requiresAttention: true, updatedAt: recentIso(5_000) })],
+      workspaces: [...fillers, workspace()],
+      workspacePageSize: 2,
+    });
+    const mounted = await mountArchived(fake, true);
+    try {
+      await settleWorkspaceCheck();
+      expect(mounted.current.byId.get("old")?.lane).toBe("review");
+      // Made while the board was not looking: a workspace (on a later page) and a task running in it.
+      fake.setWorkspaceSilently(makeWorkspace({ id: "z-new", projectId: "project-id", name: "z-new" }));
+      fake.setAgentSilently(activeAgent("new-runner", { status: "running", workspaceId: "z-new", updatedAt: recentIso(0), lastUserMessageAt: recentIso(0) }));
+      const release = fake.holdPages();
+      let refreshed!: Promise<unknown>;
+      await act(async () => {
+        refreshed = mounted.current.refresh();
+        for (let index = 0; index < 24; index += 1) await Promise.resolve();
+      });
+      expect(ids(mounted.current.lanes.archived)).not.toContain("new-runner");
+      await settleWorkspaceCheck();
+      expect(ids(mounted.current.lanes.archived)).not.toContain("new-runner");
+      await act(async () => {
+        release();
+        for (let index = 0; index < 24; index += 1) await Promise.resolve();
+      });
+      await settleWorkspaceCheck();
+      await act(async () => { await refreshed; });
+      expect(mounted.current.byId.get("new-runner")?.lane).toBe("running");
     } finally {
       mounted.unmount();
     }
