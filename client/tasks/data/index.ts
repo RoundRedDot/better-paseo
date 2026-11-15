@@ -1167,6 +1167,8 @@ function createStore(api: PaseoApi): TaskStore {
   /** The refresh queued to bring back a list whose subscription failed, and how many have failed in a row. */
   let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
   let recoveryAttempts = 0;
+  /** The lists left with no live subscription (a first request, or a reconnect's re-subscribe, failed). */
+  const listsToRecover = new Set<string>();
   const projectUnsubscribes: Array<() => void> = [];
   /** The providers enabled in Paseo, by id, with their names: the Agent filter lists them all, cards or not. */
   const enabledProviders = new Map<string, string>();
@@ -2238,23 +2240,58 @@ function createStore(api: PaseoApi): TaskStore {
    * which makes it again (a refresh reads loaded lists, and a failed first
    * list counts as loaded), and again after a longer wait while it fails.
    */
-  function scheduleListRecovery() {
+  function scheduleListRecovery(key?: string) {
+    if (key !== undefined) listsToRecover.add(key);
     if (recoveryTimer !== null) return;
     const run = generation;
     const delay = LIST_RECOVERY_DELAYS_MS[Math.min(recoveryAttempts, LIST_RECOVERY_DELAYS_MS.length - 1)]!;
     recoveryTimer = setTimeout(() => {
       recoveryTimer = null;
       if (run !== generation || consumers === 0) return;
-      void refresh().then((result) => {
+      void refresh().then(() => {
         if (run !== generation) return;
-        if (result === "failed") {
-          recoveryAttempts += 1;
-          scheduleListRecovery();
-        } else {
-          recoveryAttempts = 0;
+        // A refresh can end "done" without a list it skipped (one still
+        // loading, as the workspaces wait for the status list's pages): only
+        // a list live again, or no longer wanted, is recovered.
+        for (const listKey of [...listsToRecover]) {
+          if (subscriptions.has(listKey) || !listWanted(listKey)) listsToRecover.delete(listKey);
         }
+        if (listsToRecover.size === 0) {
+          recoveryAttempts = 0;
+          return;
+        }
+        recoveryAttempts += 1;
+        scheduleListRecovery();
       });
     }, delay);
+  }
+
+  /** Whether the board still wants this list (its tier has consumers). */
+  function listWanted(key: string): boolean {
+    if (consumers === 0) return false;
+    if (key === STATUS_KEY || key === "workspaces") return true;
+    if (key === ATTENTION_KEY) return attentionConsumers > 0;
+    if (key === DONE_SUBSCRIPTION) return doneConsumers > 0;
+    return false;
+  }
+
+  /**
+   * The SDK re-subscribes a list after a reconnect; if that fails it reports
+   * the error and lets the subscription go. A list it served is left with no
+   * live updates: let it go here too, and recover it. A refresh's list not
+   * yet serving just goes; the one it was to replace stays.
+   */
+  function subscriptionLost(key: string, own: StoreSubscription, caught: unknown) {
+    subscriptionError(caught);
+    if (subscriptions.get(key) === own) {
+      subscriptions.delete(key);
+      own.stopObserver();
+      own.stopped?.();
+      forgetArrivals(key, own);
+      scheduleListRecovery(key);
+    } else if (replacements.get(key) === own) {
+      dropReplacement(key, own);
+    }
   }
 
   function firstListFailed(key: string) {
@@ -2413,7 +2450,7 @@ function createStore(api: PaseoApi): TaskStore {
         if (initialApplied) update(message);
         else pending.push({ kind: "update", value: message });
       },
-      error: subscriptionError,
+      error: (caught: unknown) => subscriptionLost(key, own, caught),
     };
     const stopObserver = owned.subscribe(observer);
     own = { stopObserver, release: () => { void owned.release(); }, stopped: () => wake() };
@@ -2903,7 +2940,7 @@ function createStore(api: PaseoApi): TaskStore {
       if (key === DONE_SUBSCRIPTION) doneListLanded();
       subscriptionError(caught);
       // A refresh's failure leaves the old list live; a first list's leaves none.
-      if (refreshed === undefined) scheduleListRecovery();
+      if (refreshed === undefined || !subscriptions.has(key)) scheduleListRecovery(key);
       return "failed";
     }
   }
@@ -3074,7 +3111,7 @@ function createStore(api: PaseoApi): TaskStore {
       workspacesReady = true;
       subscriptionError(caught);
       checkUnplacedWorkspaces();
-      if (!replace) scheduleListRecovery();
+      if (!replace || !subscriptions.has("workspaces")) scheduleListRecovery("workspaces");
       return "failed";
     }
   }
@@ -3425,6 +3462,7 @@ function createStore(api: PaseoApi): TaskStore {
     if (recoveryTimer !== null) clearTimeout(recoveryTimer);
     recoveryTimer = null;
     recoveryAttempts = 0;
+    listsToRecover.clear();
     generation += 1;
     for (const key of [...subscriptions.keys()]) stopSubscription(key);
     for (const [key, own] of [...replacements]) dropReplacement(key, own);

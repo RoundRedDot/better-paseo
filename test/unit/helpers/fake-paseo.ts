@@ -391,6 +391,14 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     };
   }
 
+  function failResubscribe(sub: PlainSubscription | AgentSubscription, message: string, drop: () => void) {
+    const error = new Error(message);
+    for (const observer of [...sub.observers]) observer.error?.(error);
+    sub.released = true;
+    sub.observers.clear();
+    drop();
+  }
+
   function pushAgent(agent: Agent | null, removedId: string | null) {
     for (const sub of agentSubs) {
       const id = agent?.id ?? removedId!;
@@ -787,6 +795,22 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       sub.members = new Set([...agents.values()].filter((agent) => matchesAgent(agent, sub.options)).map((agent) => agent.id));
       const snapshot = { ...(sub.snapshot() as object), subscriptionId: sub.id };
       for (const observer of sub.observers) observer.snapshot(snapshot);
+    },
+    /**
+     * The reconnect's re-subscribe of the oldest agent subscription whose
+     * options match fails, as the SDK (`OwnedSubscriptions`) reports it: each
+     * observer's `error`, then the subscription is let go (no more messages).
+     */
+    failAgentResubscribeWhere(match: (options: PaseoAgentListOptions) => boolean, message = "resubscribe failed") {
+      const sub = [...agentSubs].find((candidate) => "members" in candidate && match((candidate as AgentSubscription).options)) as AgentSubscription | undefined;
+      if (!sub) throw new Error("no matching agent subscription");
+      failResubscribe(sub, message, () => agentSubs.delete(sub));
+    },
+    /** As `failAgentResubscribeWhere`, for the oldest workspace subscription. */
+    failWorkspaceResubscribe(message = "resubscribe failed") {
+      const sub = [...workspaceSubs][0];
+      if (!sub) throw new Error("no workspace subscription");
+      failResubscribe(sub, message, () => workspaceSubs.delete(sub));
     },
     reconnectSubscriptions() {
       for (const sub of agentSubs) {

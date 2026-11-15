@@ -5676,6 +5676,90 @@ describe("Tasks data store, archived lane", () => {
     });
   }
 
+  async function advanceRecovery(rounds: number, step: number) {
+    for (let round = 0; round < rounds; round += 1) {
+      await act(async () => {
+        vi.advanceTimersByTime(step);
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+    }
+  }
+
+  it("keeps recovering a failed workspace subscription until it is live, though the first refresh skips it while the status list pages", async () => {
+    const runners = Array.from({ length: 201 }, (_, index) => activeAgent(`run-${index}`, { status: "running", updatedAt: recentIso(10_000 + index), lastUserMessageAt: recentIso(10_000 + index) }));
+    const fake = createFakePaseo({
+      agents: [...runners, activeAgent("other", { status: "idle", requiresAttention: true, workspaceId: "ws-other", updatedAt: recentIso(3_000) })],
+      workspaces: [workspace(), makeWorkspace({ id: "ws-other", projectId: "project-id", name: "ws-other" })],
+    });
+    const api = fake.paseo.workspaces as { list: (options: { subscribe?: unknown }) => Promise<unknown> };
+    const list = api.list.bind(api);
+    let subscribes = 0;
+    api.list = async (options) => {
+      if (options.subscribe) {
+        subscribes += 1;
+        if (subscribes === 1) throw new Error("list failed");
+      }
+      return list(options);
+    };
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    // The status list's later page hangs: the board is still loading it when the first recovery runs.
+    const release = fake.holdPages();
+    const mounted = await mountArchived(fake, true);
+    try {
+      await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[0]! + 10);
+      await advanceRecovery(3, 10);
+      release();
+      await advanceRecovery(1, 10);
+      await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[1]! + 10);
+      await advanceRecovery(3, 10);
+      expect(subscribes).toBeGreaterThanOrEqual(2);
+      await act(async () => {
+        fake.removeWorkspace("ws-other");
+        for (let index = 0; index < 16; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("other")?.lane).toBe("archived");
+    } finally {
+      vi.useRealTimers();
+      mounted.unmount();
+    }
+  });
+
+  for (const which of ["workspaces", "agents"] as const) {
+    it(`recovers a live ${which} subscription whose reconnect's re-subscribe failed`, async () => {
+      const fake = createFakePaseo({
+        agents: [
+          activeAgent("live", { status: "idle", requiresAttention: true, updatedAt: recentIso(2_000) }),
+          activeAgent("other", { status: "idle", requiresAttention: true, workspaceId: "ws-other", updatedAt: recentIso(3_000) }),
+        ],
+        workspaces: [workspace(), makeWorkspace({ id: "ws-other", projectId: "project-id", name: "ws-other" })],
+      });
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const mounted = await mountArchived(fake, true);
+      try {
+        expect(mounted.current.byId.get("other")?.lane).toBe("review");
+        await act(async () => {
+          if (which === "workspaces") fake.failWorkspaceResubscribe();
+          else fake.failAgentResubscribeWhere((options) => options.filter?.requiresAttention === true);
+          for (let index = 0; index < 8; index += 1) await Promise.resolve();
+        });
+        expect(mounted.current.error).toBe("resubscribe failed");
+        await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[0]! + 10);
+        await advanceRecovery(3, 10);
+        expect(mounted.current.error).toBeNull();
+        await act(async () => {
+          if (which === "workspaces") fake.removeWorkspace("ws-other");
+          else fake.upsertAgent(activeAgent("fresh", { status: "idle", requiresAttention: true, updatedAt: recentIso(0) }));
+          for (let index = 0; index < 16; index += 1) await Promise.resolve();
+        });
+        if (which === "workspaces") expect(mounted.current.byId.get("other")?.lane).toBe("archived");
+        else expect(mounted.current.byId.get("fresh")?.lane).toBe("review");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+  }
+
   it("reads a workspace restored while the board was closed again, though the reopened board's first list fails", async () => {
     const fake = createFakePaseo({
       agents: [activeAgent("task", { status: "idle", requiresAttention: true, workspaceId: "ws-x", updatedAt: recentIso(1_000) })],
