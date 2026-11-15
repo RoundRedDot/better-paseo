@@ -276,8 +276,10 @@ export function FilterSheetBody(props: {
             testID="filter-sheet-settings"
             style={{ height: 44, paddingHorizontal: 18, borderRadius: 22, borderWidth: HAIRLINE, borderColor: colors.border, alignItems: "center", justifyContent: "center" }}
           >
-            <Text style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.settings}</Text>
-            {props.updateAvailable ? <View testID="filter-sheet-settings-update-dot" pointerEvents="none" style={{ position: "absolute", right: 6, top: "50%", marginTop: -2, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
+            <View>
+              <Text testID="filter-sheet-settings-label" style={{ fontSize: F.base, fontWeight: "500", color: colors.foreground }}>{strings.settings}</Text>
+              {props.updateAvailable ? <View testID="filter-sheet-settings-update-dot" pointerEvents="none" style={{ position: "absolute", right: -8, top: "50%", marginTop: -2, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
+            </View>
           </HoverControl>
         ) : null}
       </View>

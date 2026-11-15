@@ -6640,13 +6640,16 @@ describe("Tasks board, phone", () => {
     const settings = hostsById("filter-sheet-settings")[0]!;
     const settingsDot = hostsById("filter-sheet-settings-update-dot")[0]!;
     const footer = hostsById("filter-sheet-footer")[0]!;
-    const layout = measureHostTree(footer, { width: 390 });
-    const button = layout.get(settings)!; const indicator = layout.get(settingsDot)!;
-    expect(indicator.width).toBe(4); expect(indicator.height).toBe(4);
-    expect(indicator.top + 2).toBe(button.top + button.height / 2);
-    expect(indicator.left).toBeGreaterThanOrEqual(button.left);
-    expect(indicator.left + 4).toBeLessThanOrEqual(button.left + button.width);
-    expect(button.left + button.width).toBeLessThanOrEqual(390);
+    for (const width of [320, 390]) {
+      const layout = measureHostTree(footer, { width });
+      const button = layout.get(settings)!; const indicator = layout.get(settingsDot)!;
+      const label = layout.get(hostsById("filter-sheet-settings-label")[0]!)!;
+      expect(indicator.width).toBe(4); expect(indicator.height).toBe(4);
+      expect(Math.abs(indicator.top + 2 - (button.top + button.height / 2))).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(indicator.left - (label.left + label.width) - 4)).toBeLessThanOrEqual(0.5);
+      expect(indicator.left + 4).toBeLessThanOrEqual(button.left + button.width);
+      expect(button.left + button.width).toBeLessThanOrEqual(width);
+    }
     act(() => settings.props.onPress()); expect(openSettings).toHaveBeenCalledOnce();
   });
 
