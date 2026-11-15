@@ -454,6 +454,12 @@ const TURN_END_ASK_DELAY_MS = 1_500;
 const GONE_CHECK_DELAYS_MS = [1_000, 3_000];
 /** A read by id that failed is tried again after each of these. */
 const CONFIRM_RETRY_DELAYS_MS = [2_000, 5_000, 15_000];
+/**
+ * A list whose subscription could not be made (its first request failed) has
+ * no live updates: the board refreshes itself after these waits (the last
+ * repeating) until every list is live again.
+ */
+export const LIST_RECOVERY_DELAYS_MS = [2_000, 5_000, 15_000, 60_000];
 
 /** `contribute` sets the loader, since only the plugin context can call RPCs outside a component. */
 export function setLastTurnLoader(next: LastTurnLoader | null): void {
@@ -1158,6 +1164,9 @@ function createStore(api: PaseoApi): TaskStore {
   const replacements = new Map<string, StoreSubscription>();
   /** The refresh in flight, which a second ask joins, and how to end it. */
   let refreshing: { promise: Promise<TasksRefreshResult>; token: RefreshToken; end(result: TasksRefreshResult): void } | null = null;
+  /** The refresh queued to bring back a list whose subscription failed, and how many have failed in a row. */
+  let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+  let recoveryAttempts = 0;
   const projectUnsubscribes: Array<() => void> = [];
   /** The providers enabled in Paseo, by id, with their names: the Agent filter lists them all, cards or not. */
   const enabledProviders = new Map<string, string>();
@@ -2069,6 +2078,21 @@ function createStore(api: PaseoApi): TaskStore {
    * `liveIds`: agents a live update moved while the list's later pages loaded; the
    * list's copies of them are older, so they keep the membership they have.
    */
+  /**
+   * Land an agent a list (or one of its pages) carries. An attention clear
+   * it brings first (a reconnect's snapshot, or a page, read between an
+   * archive's two steps) waits as a live one does: the archive, or the
+   * remove it comes as, follows within moments. A done page's agent is held
+   * as the done list's, the list whose remove the archive sends.
+   */
+  function landListed(sourceKey: string, entry: PaseoAgentListResult["entries"][number]) {
+    if (clearsOnlyAttention(entry.agent)) {
+      applyAgentUpdate(sourceKey, { type: "agent_update", payload: { kind: "upsert", agent: entry.agent, project: entry.project ?? undefined } });
+      return;
+    }
+    updateRecord(entry.agent, entry.project ?? null);
+  }
+
   function replaceAgentSnapshot(sourceKey: string, snapshot: PaseoAgentListResult, keepPages = false, liveIds?: ReadonlySet<string>) {
     batchUpdates(() => {
       const nextMembers = new Set<string>();
@@ -2090,14 +2114,7 @@ function createStore(api: PaseoApi): TaskStore {
           continue;
         }
         nextMembers.add(entry.agent.id);
-        // An attention clear it brings first (a reconnect's snapshot taken
-        // between an archive's two steps) waits as a live one does: the
-        // archive, or the remove it comes as, follows within moments.
-        if (clearsOnlyAttention(entry.agent)) {
-          applyAgentUpdate(sourceKey, { type: "agent_update", payload: { kind: "upsert", agent: entry.agent, project: entry.project ?? undefined } });
-          continue;
-        }
-        updateRecord(entry.agent, entry.project ?? null);
+        landListed(sourceKey, entry);
       }
       // A held snapshot whose list no longer carries the agent (an archive
       // whose removes were lost, then a reconnect): once its wait is over it
@@ -2187,7 +2204,7 @@ function createStore(api: PaseoApi): TaskStore {
           if (changedSince(entry.agent.id, asked) || removedSince(entry.agent.id, asked)) continue;
           members.add(entry.agent.id);
           if (waitsForHeldClear(entry.agent)) continue;
-          updateRecord(entry.agent, entry.project ?? null);
+          landListed(DONE_SUBSCRIPTION, entry);
         }
         sourceMembers.set(key, members);
       }
@@ -2215,6 +2232,31 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   /** A list that failed: no longer loading, so the board shows what it has and a refresh reads it again. */
+  /**
+   * A list's subscription could not be made: nothing will tell the board of
+   * its changes (an archive, a new task) until it is made again. Refresh,
+   * which makes it again (a refresh reads loaded lists, and a failed first
+   * list counts as loaded), and again after a longer wait while it fails.
+   */
+  function scheduleListRecovery() {
+    if (recoveryTimer !== null) return;
+    const run = generation;
+    const delay = LIST_RECOVERY_DELAYS_MS[Math.min(recoveryAttempts, LIST_RECOVERY_DELAYS_MS.length - 1)]!;
+    recoveryTimer = setTimeout(() => {
+      recoveryTimer = null;
+      if (run !== generation || consumers === 0) return;
+      void refresh().then((result) => {
+        if (run !== generation) return;
+        if (result === "failed") {
+          recoveryAttempts += 1;
+          scheduleListRecovery();
+        } else {
+          recoveryAttempts = 0;
+        }
+      });
+    }, delay);
+  }
+
   function firstListFailed(key: string) {
     if (key === STATUS_KEY && !statusReady) statusReady = true;
     else if (key === ATTENTION_KEY && !attentionReady) attentionReady = true;
@@ -2860,6 +2902,8 @@ function createStore(api: PaseoApi): TaskStore {
       if (key === ATTENTION_KEY) attentionReady = true;
       if (key === DONE_SUBSCRIPTION) doneListLanded();
       subscriptionError(caught);
+      // A refresh's failure leaves the old list live; a first list's leaves none.
+      if (refreshed === undefined) scheduleListRecovery();
       return "failed";
     }
   }
@@ -3030,6 +3074,7 @@ function createStore(api: PaseoApi): TaskStore {
       workspacesReady = true;
       subscriptionError(caught);
       checkUnplacedWorkspaces();
+      if (!replace) scheduleListRecovery();
       return "failed";
     }
   }
@@ -3377,6 +3422,9 @@ function createStore(api: PaseoApi): TaskStore {
 
   function stopAll() {
     cancelRefresh("superseded");
+    if (recoveryTimer !== null) clearTimeout(recoveryTimer);
+    recoveryTimer = null;
+    recoveryAttempts = 0;
     generation += 1;
     for (const key of [...subscriptions.keys()]) stopSubscription(key);
     for (const [key, own] of [...replacements]) dropReplacement(key, own);
@@ -3396,6 +3444,10 @@ function createStore(api: PaseoApi): TaskStore {
     parentReads.clear();
     workspaces.clear();
     workspaceArchiveTimes.clear();
+    // What the board knew of the workspaces is of the closed board: a
+    // workspace restored meanwhile must be read again, not known gone.
+    knownGoneWorkspaces.clear();
+    workspaceStamps.clear();
     projects.clear();
     colorNames.clear();
     modelCatalogs.clear();
@@ -3697,7 +3749,7 @@ function createStore(api: PaseoApi): TaskStore {
           if (changedSince(entry.agent.id, asked) || removedSince(entry.agent.id, asked)) continue;
           pageMembers.add(entry.agent.id);
           if (waitsForHeldClear(entry.agent)) continue;
-          updateRecord(entry.agent, entry.project ?? null);
+          landListed(DONE_SUBSCRIPTION, entry);
         }
         sourceMembers.set(key, pageMembers);
         doneCursor = result.pageInfo.nextCursor;

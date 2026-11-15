@@ -429,11 +429,12 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       const subscription = makeSubscription(sub, () => ({ requestId: result.requestId, ...page(listOptions) }), () => agentSubs.delete(sub));
       const readyFailure = readyFailures.findIndex((entry) => entry.match(listOptions));
       if (readyFailure >= 0) {
-        // The host took the request, then failed it: ready rejects, and nothing is replayed.
+        // The host took the request, then failed it. As the SDK's `list`
+        // awaits the subscription's ready before it answers, the list itself
+        // rejects: no caller ever holds a list whose ready failed.
         const { message } = readyFailures.splice(readyFailure, 1)[0]!;
-        const ready = Promise.reject(new Error(message));
-        void ready.catch(() => {});
-        return { ...result, subscriptionId: sub.id, subscription: { ...subscription, ready, subscribe: (observer: Observer) => { sub.observers.add(observer); return () => sub.observers.delete(observer); } } };
+        agentSubs.delete(sub);
+        throw new Error(message);
       }
       return { ...result, subscriptionId: sub.id, subscription };
     },

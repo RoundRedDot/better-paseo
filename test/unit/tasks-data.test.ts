@@ -2,7 +2,7 @@ import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { ATTENTION_CLEAR_HOLD_MS, START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, setUnreadClearer, openedTask, planTitle, type TasksHandle } from "../../client/tasks/data";
+import { ATTENTION_CLEAR_HOLD_MS, LIST_RECOVERY_DELAYS_MS, START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, setUnreadClearer, openedTask, planTitle, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
 import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
@@ -94,10 +94,11 @@ function activeAgent(id: string, overrides: Partial<ReturnType<typeof makeAgent>
 
 /** Let a queued read of the whole workspace list (a timer, then its pages) run and land. */
 async function settleWorkspaceCheck() {
-  for (let round = 0; round < 3; round += 1) {
+  // A check, a list's landing that queues another, and that one: each a timer, then its pages.
+  for (let round = 0; round < 6; round += 1) {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
-      for (let index = 0; index < 16; index += 1) await Promise.resolve();
+      for (let index = 0; index < 32; index += 1) await Promise.resolve();
     });
   }
 }
@@ -1329,6 +1330,49 @@ describe("Tasks data store refresh", () => {
       mounted.unmount();
     }
   });
+
+  for (const path of ["loading more", "a refresh reading the pages again"] as const) {
+    it(`holds an attention clear a later done page brings (${path}), so an archive right after skips done`, async () => {
+      const done = Array.from({ length: 130 }, (_, index) => activeAgent("done-" + index, { status: "idle", requiresAttention: false, updatedAt: recentIso((index + 1) * 1_000) }));
+      const target = activeAgent("target", { status: "idle", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(70_500) });
+      const fake = createFakePaseo({ agents: [...done, target] });
+      const mounted = await mountTasks(fake, "all");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        expect(mounted.current.byId.get("target")?.lane).toBe("review");
+        const cleared = { ...target, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        if (path === "a refresh reading the pages again") {
+          await act(async () => {
+            mounted.current.loadMoreDone();
+            await flush(30);
+          });
+        }
+        // Missed: the archive's first step, an attention clear (updatedAt unchanged).
+        fake.setAgentSilently(cleared as never);
+        await act(async () => {
+          if (path === "loading more") mounted.current.loadMoreDone();
+          else void mounted.current.refresh();
+          await flush(40);
+        });
+        expect(fake.calls.some((call) => call.method === "agents.list" && (call.input as { page?: { cursor?: string } }).page?.cursor)).toBe(true);
+        expect(mounted.current.byId.get("target")?.lane).toBe("review");
+        // The archive lands (archived lane off: removes only).
+        await act(async () => {
+          fake.upsertAgent({ ...cleared, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(16);
+        });
+        expect(mounted.current.byId.get("target")?.lane).not.toBe("done");
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS + 50);
+          await flush(30);
+        });
+        expect(mounted.current.byId.has("target")).toBe(false);
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+  }
 
   it("drops the done pages a timed-out refresh reads late, and pages on again", async () => {
     const done = Array.from({ length: 130 }, (_, index) => activeAgent("done-" + index, { status: "idle", requiresAttention: false, updatedAt: recentIso((index + 1) * 1_000) }));
@@ -5579,6 +5623,95 @@ describe("Tasks data store, archived lane", () => {
     }
   });
 
+  for (const which of ["workspaces", "agents"] as const) {
+    it(`makes a list whose first subscription failed live again on its own (${which}), and clears the error`, async () => {
+      const fake = createFakePaseo({
+        agents: [
+          activeAgent("live", { status: "idle", requiresAttention: true, updatedAt: recentIso(2_000) }),
+          activeAgent("other", { status: "idle", requiresAttention: true, workspaceId: "ws-other", updatedAt: recentIso(3_000) }),
+        ],
+        workspaces: [workspace(), makeWorkspace({ id: "ws-other", projectId: "project-id", name: "ws-other" })],
+      });
+      // The first subscription request fails once; later ones answer.
+      let failed = false;
+      if (which === "workspaces") {
+        const api = fake.paseo.workspaces as { list: (options: { subscribe?: unknown }) => Promise<unknown> };
+        const list = api.list.bind(api);
+        api.list = async (options) => {
+          if (options.subscribe && !failed) { failed = true; throw new Error("list failed"); }
+          return list(options);
+        };
+      } else {
+        const api = fake.paseo.agents as { list: (options: { subscribe?: unknown; filter?: { requiresAttention?: boolean } }) => Promise<unknown> };
+        const list = api.list.bind(api);
+        api.list = async (options) => {
+          if (options.subscribe && options.filter?.requiresAttention && !failed) { failed = true; throw new Error("list failed"); }
+          return list(options);
+        };
+      }
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const mounted = await mountArchived(fake, true);
+      try {
+        expect(failed).toBe(true);
+        expect(mounted.current.error).toBe("list failed");
+        for (let round = 0; round < 4; round += 1) {
+          await act(async () => {
+            vi.advanceTimersByTime(round === 0 ? LIST_RECOVERY_DELAYS_MS[0]! + 10 : 10);
+            for (let index = 0; index < 64; index += 1) await Promise.resolve();
+          });
+        }
+        expect(mounted.current.error).toBeNull();
+        // Live again: the daemon's next changes reach the board.
+        await act(async () => {
+          if (which === "workspaces") fake.removeWorkspace("ws-other");
+          else fake.upsertAgent(activeAgent("fresh", { status: "idle", requiresAttention: true, updatedAt: recentIso(0) }));
+          for (let index = 0; index < 16; index += 1) await Promise.resolve();
+        });
+        if (which === "workspaces") expect(mounted.current.byId.get("other")?.lane).toBe("archived");
+        else expect(mounted.current.byId.get("fresh")?.lane).toBe("review");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+  }
+
+  it("reads a workspace restored while the board was closed again, though the reopened board's first list fails", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("task", { status: "idle", requiresAttention: true, workspaceId: "ws-x", updatedAt: recentIso(1_000) })],
+      workspaces: [workspace(), makeWorkspace({ id: "ws-x", projectId: "project-id", name: "ws-x" })],
+    });
+    const first = await mountArchived(fake, true);
+    await settleWorkspaceCheck();
+    expect(first.current.byId.get("task")?.lane).toBe("review");
+    await act(async () => {
+      fake.removeWorkspace("ws-x");
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    });
+    expect(first.current.byId.get("task")?.lane).toBe("archived");
+    first.unmount();
+    // Restored while no board is open; the reopened board's first workspace list fails.
+    fake.setWorkspaceSilently(makeWorkspace({ id: "ws-x", projectId: "project-id", name: "ws-x" }));
+    const workspacesApi = fake.paseo.workspaces as { list: (options: { subscribe?: unknown }) => Promise<unknown> };
+    const list = workspacesApi.list.bind(workspacesApi);
+    let failed = false;
+    workspacesApi.list = async (options) => {
+      if (options.subscribe && !failed) {
+        failed = true;
+        throw new Error("list failed");
+      }
+      return list(options);
+    };
+    const again = await mountArchived(fake, true);
+    try {
+      await settleWorkspaceCheck();
+      expect(failed).toBe(true);
+      expect(again.current.byId.get("task")?.lane).toBe("review");
+    } finally {
+      again.unmount();
+    }
+  });
+
   for (const [name, pageSize] of [["its first request", undefined], ["a later page", 2]] as const) {
     it(`settles a task of an unlisted workspace when the first workspace list fails (${name})`, async () => {
       const fillers = Array.from({ length: 4 }, (_, index) => makeWorkspace({ id: `filler-${index}`, projectId: "project-id", name: `filler-${index}` }));
@@ -5591,31 +5724,22 @@ describe("Tasks data store, archived lane", () => {
         archivedWorkspaceIds: ["ws-gone"],
         ...(pageSize ? { workspacePageSize: pageSize } : {}),
       });
-      if (pageSize) {
-        // The first page answers; the later ones fail.
-        const release = fake.holdPages();
-        const mounted = await mountArchived(fake, true);
-        try {
-          fake.failWorkspacePages(new Error("list failed"));
-          await act(async () => {
-            release();
-            for (let index = 0; index < 24; index += 1) await Promise.resolve();
-          });
-          fake.failWorkspacePages(null);
-          await settleWorkspaceCheck();
-          expect(mounted.current.byId.get("ghost")?.lane).toBe("archived");
-          expect(mounted.current.byId.get("live")?.lane).toBe("review");
-          expect(mounted.current.error).toBeNull();
-        } finally {
-          mounted.unmount();
+      // One request of the subscription's fails (its first, or a later page); every other read answers.
+      const workspacesApi = fake.paseo.workspaces as { list: (options: { subscribe?: unknown; page?: { cursor?: string } }) => Promise<unknown> };
+      const list = workspacesApi.list.bind(workspacesApi);
+      let failed = false;
+      workspacesApi.list = async (options) => {
+        const target = pageSize ? Boolean(options.page?.cursor) : Boolean(options.subscribe);
+        if (target && !failed) {
+          failed = true;
+          throw new Error("list failed");
         }
-        return;
-      }
-      fake.failWorkspacePages(new Error("list failed"));
+        return list(options);
+      };
       const mounted = await mountArchived(fake, true);
       try {
-        fake.failWorkspacePages(null);
         await settleWorkspaceCheck();
+        expect(failed).toBe(true);
         expect(mounted.current.byId.get("ghost")?.lane).toBe("archived");
         expect(mounted.current.byId.get("live")?.lane).toBe("review");
       } finally {
