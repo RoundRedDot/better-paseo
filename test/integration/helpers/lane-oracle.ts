@@ -120,6 +120,17 @@ export function compareWithOracle(
     if (!actual) mismatches.push(`${card.id} missing, expected ${card.lane} (${card.reason})`);
     else if (actual.lane !== card.lane) mismatches.push(`${card.id} "${actual.title}" in ${actual.lane}, expected ${card.lane} (${card.reason})`);
   }
+  // A shown child of a shown parent is a row on its card too, in its lane
+  // (an archived child stays off a parent that is not archived itself).
+  for (const card of visible.values()) {
+    if (!card.parentId || !visible.has(card.parentId)) continue;
+    const parent = shown.get(card.parentId);
+    if (!parent || !shown.has(card.id)) continue; // Reported above as missing.
+    if (card.lane === "archived" && visible.get(card.parentId)!.lane !== "archived") continue;
+    const row = parent.children?.find((child) => child.id === card.id);
+    if (!row) mismatches.push(`${card.id} missing from its parent ${card.parentId.slice(0, 8)}'s children, expected ${card.lane} (${card.reason})`);
+    else if (row.lane !== undefined && row.lane !== card.lane) mismatches.push(`${card.id} row on its parent in ${row.lane}, expected ${card.lane} (${card.reason})`);
+  }
   // A live background agent of a shown parent must be on the board as that
   // parent's child (its row, and its own card for Stop), even with no card of its own.
   for (const card of expected.values()) {
