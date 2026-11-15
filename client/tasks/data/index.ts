@@ -1117,6 +1117,8 @@ function createStore(api: PaseoApi): TaskStore {
   const latestUpdates = new Map<string, number>();
   /** Agents being read again by id after a stale update (`confirmAgent`). */
   const confirmChecks = new Set<string>();
+  /** Reads by id asked for while one was out: each runs once that one answers. */
+  const confirmAgain = new Set<string>();
   /** A starting agent's snapshot held for its first turn (`START_INIT_HOLD_MS`, `START_IDLE_HOLD_MS`). */
   const startIdles = new Map<string, {
     sourceKey: string;
@@ -1195,6 +1197,17 @@ function createStore(api: PaseoApi): TaskStore {
   /** The agent's record changed since `asked` (a `recordClock` reading). */
   function changedSince(id: string, asked: number): boolean {
     return (recordStamps.get(id) ?? 0) > asked;
+  }
+  /**
+   * When a list last removed each agent, on the same clock. A done page read
+   * before it may still carry the agent (archived, or running again) though
+   * the board never held it, so no record changed: such a page leaves it out.
+   * Only the done pages ask: a remove can also mean the agent just left one
+   * list's filter, which a read by id must not take as a change.
+   */
+  const removeStamps = new Map<string, number>();
+  function removedSince(id: string, asked: number): boolean {
+    return (removeStamps.get(id) ?? 0) > asked;
   }
   /** Snapshots of each list by arrival, from any of its subscriptions, and the latest of them that landed. */
   const snapshotArrivals = new Map<string, number>();
@@ -1609,6 +1622,8 @@ function createStore(api: PaseoApi): TaskStore {
       }
       if (hold !== null) {
         const run = generation;
+        // Not applied yet, but news: a read by id asked before it answers with an older state.
+        recordStamps.set(agent.id, ++recordClock);
         startIdles.set(agent.id, {
           kind: clearsOnlyAttention(agent) ? "clear" : "start",
           sourceKey,
@@ -1648,6 +1663,7 @@ function createStore(api: PaseoApi): TaskStore {
       return;
     }
     if (payload.kind === "remove" && payload.agentId) {
+      removeStamps.set(payload.agentId, ++recordClock);
       // A held read can be the first step of an archive the board hears of only
       // as removes (its archived lane off): applied after them, it brought the
       // archived task back as done. Let it go and read the agent instead.
@@ -1757,10 +1773,18 @@ function createStore(api: PaseoApi): TaskStore {
    * and lists follow what it is now.
    */
   function confirmAgent(id: string) {
-    if (confirmChecks.has(id)) return;
+    // One read at a time; one asked for meanwhile runs once that answers, so
+    // it sees the state of after it was asked, not the earlier read's.
+    if (confirmChecks.has(id)) {
+      confirmAgain.add(id);
+      return;
+    }
     confirmChecks.add(id);
     const run = generation;
     const asked = recordClock;
+    const again = () => {
+      if (run === generation && confirmAgain.delete(id)) confirmAgent(id);
+    };
     void api.agents.ref(id).refresh().then((result) => {
       if (run !== generation) return;
       confirmChecks.delete(id);
@@ -1779,7 +1803,7 @@ function createStore(api: PaseoApi): TaskStore {
       });
     }).catch(() => {
       if (run === generation) confirmChecks.delete(id);
-    });
+    }).finally(again);
   }
 
   function matchingEntries(result: PaseoAgentListResult | { entries: PaseoAgentListResult["entries"] }) {
@@ -1865,8 +1889,8 @@ function createStore(api: PaseoApi): TaskStore {
       for (const { key, result } of read) {
         const members = new Set<string>();
         for (const entry of matchingEntries(result)) {
-          // Changed while the pages were read (archived, removed, prompted): its live state stands.
-          if (changedSince(entry.agent.id, asked)) continue;
+          // Changed or removed while the pages were read (archived, prompted): its live state stands.
+          if (changedSince(entry.agent.id, asked) || removedSince(entry.agent.id, asked)) continue;
           members.add(entry.agent.id);
           updateRecord(entry.agent, entry.project ?? null);
         }
@@ -2592,7 +2616,10 @@ function createStore(api: PaseoApi): TaskStore {
           workspaceListUpdates.delete(liveUpdates);
           if (read.kind === "stale" || !live()) return "stale";
           if (read.kind === "failed") {
-            // A failed read keeps what the board had: no workspace leaves on a partial list.
+            // A failed read keeps what the board had: no workspace leaves on a
+            // partial list. It still counts as this list's newest landing, so
+            // an older snapshot cannot land over it and its waits end.
+            landed("failed");
             if (!workspacesReady) {
               workspacesReady = true;
               notify();
@@ -3285,8 +3312,8 @@ function createStore(api: PaseoApi): TaskStore {
       batchUpdates(() => {
         const pageMembers = new Set<string>();
         for (const entry of matchingEntries(result)) {
-          // Changed while the page was read: its live state stands.
-          if (changedSince(entry.agent.id, asked)) continue;
+          // Changed or removed while the page was read: its live state stands.
+          if (changedSince(entry.agent.id, asked) || removedSince(entry.agent.id, asked)) continue;
           pageMembers.add(entry.agent.id);
           updateRecord(entry.agent, entry.project ?? null);
         }

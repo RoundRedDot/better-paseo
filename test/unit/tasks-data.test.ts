@@ -519,6 +519,41 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("reads the task afresh once a held read's wait ends, not with a read asked before it", async () => {
+      const { fake, mounted } = await mountWith();
+      try {
+        // An older snapshot: the board reads the agent by id, and that read (unread) hangs.
+        const releaseOld = fake.holdRefreshes();
+        await act(async () => {
+          fake.pushAgentSnapshot({ ...unread, updatedAt: recentIso(60_000) } as never);
+          await flush(8);
+        });
+        fake.passNewRefreshes();
+        // Read on another device: the done list hears it first, then the attention list lets the task go.
+        const cleared = { ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        fake.setAgentSilently(cleared as never);
+        await act(async () => {
+          fake.pushUpsertTo(cleared as never, (options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(4);
+          fake.pushRemoveTo("unread", (options) => options.filter?.requiresAttention === true);
+          await flush(4);
+        });
+        await act(async () => {
+          vi.advanceTimersByTime(ATTENTION_CLEAR_HOLD_MS + 50);
+          await flush(8);
+        });
+        // The old read answers unread: it must not keep the task in review.
+        await act(async () => {
+          releaseOld();
+          await flush(24);
+        });
+        expect(mounted.current.byId.get("unread")?.lane).toBe("done");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -2540,6 +2575,71 @@ describe("Tasks data store", () => {
         expect(result).toBe("done");
         expect(mounted.current.error).toBeNull();
         expect(mounted.current.byId.get("runner")?.lane).toBe("running");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("leaves out a task archived before it was loaded when its done page answers late", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 60 }, (_, index) => activeAgent(`a-${index}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await settle();
+        expect(mounted.current.byId.has("a-55")).toBe(false);
+        // The second done page is read now, a-55 unarchived, and answered later.
+        const release = fake.holdPageAnswers();
+        await act(async () => {
+          mounted.current.loadMoreDone();
+          await flush(8);
+        });
+        const target = fake.paseo.agents.ref("a-55").current()!;
+        await act(async () => {
+          fake.upsertAgent({ ...target, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(8);
+        });
+        await act(async () => {
+          release();
+          await flush(24);
+        });
+        expect(mounted.current.byId.has("a-55")).toBe(false);
+        expect(mounted.current.lanes.done.cards).toHaveLength(59);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("lands the workspace list's newer failure over an older snapshot that succeeds later", async () => {
+      const fake = createFakePaseo({
+        agents: [activeAgent("late", { status: "idle", requiresAttention: true, updatedAt: recentIso(1_000) })],
+        workspaces: [...Array.from({ length: 4 }, (_, index) => makeWorkspace({ id: `filler-${index}`, projectId: "project-id", name: `filler-${index}` })), workspace()],
+        workspacePageSize: 2,
+      });
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        const releaseA = fake.holdPages();
+        let result: string | undefined;
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          await flush(16);
+        });
+        // The kept workspace list's newer snapshot fails a later page.
+        fake.passNewPages();
+        fake.failWorkspacePages(new Error("workspace page failed"));
+        await act(async () => {
+          fake.reconnectOldestWorkspaceSubscription();
+          await flush(24);
+        });
+        fake.failWorkspacePages(null);
+        await act(async () => {
+          releaseA();
+          await flush(24);
+        });
+        expect(result).toBe("failed");
+        expect(mounted.current.error).toBe("workspace page failed");
       } finally {
         mounted.unmount();
       }

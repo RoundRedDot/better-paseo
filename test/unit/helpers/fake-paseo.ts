@@ -658,6 +658,17 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         release();
       };
     },
+    /** Let later reads by id through at once; the reads already held stay held until their release. */
+    passNewRefreshes() {
+      refreshGate = null;
+    },
+    /** Send a fresh snapshot to the oldest workspace subscription, as its own reconnect would. */
+    reconnectOldestWorkspaceSubscription() {
+      const sub = [...workspaceSubs][0];
+      if (!sub) throw new Error("no workspace subscription");
+      const snapshot = { ...(sub.snapshot() as object), subscriptionId: sub.id };
+      for (const observer of sub.observers) observer.snapshot(snapshot);
+    },
     /** Let later list calls through at once; the calls already held stay held until their release. */
     passNewPages() {
       pageGate = null;
