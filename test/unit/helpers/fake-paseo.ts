@@ -240,6 +240,8 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const workspaces = new Map<string, PaseoWorkspace>((options.workspaces ?? []).map((ws) => [ws.id, ws]));
   /** Set by `failWorkspacePages`: every workspace list call throws it. */
   let workspacePageFailure: Error | null = null;
+  /** Set by `holdWorkspaceLists`: a workspace list's first page answers only once it resolves. */
+  let workspaceListGate: Promise<void> | null = null;
   /** Set by `holdRefreshes`: reads by id answer only once it resolves. */
   let refreshGate: Promise<void> | null = null;
   /** Set by `holdPages`: list calls past the first page wait for it. */
@@ -384,6 +386,7 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
     async list(listOptions: PaseoWorkspaceListOptions = {}) {
       calls.push({ method: "workspaces.list", input: listOptions });
       await pastFirstPage("workspaces.list", listOptions.page?.cursor);
+      if (!listOptions.page?.cursor && workspaceListGate) await workspaceListGate;
       if (workspacePageFailure) throw workspacePageFailure;
       const offset = listOptions.page?.cursor ? Number(listOptions.page.cursor.replace("ws-page:", "")) : 0;
       const pageSize = Math.min(options.workspacePageSize ?? DAEMON_PAGE_LIMIT, pageLimit(listOptions.page?.limit));
@@ -562,6 +565,16 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
       const gate = pageGate;
       return () => {
         if (pageGate === gate) pageGate = null;
+        release();
+      };
+    },
+    /** Hold the first page of every workspace list asked for until the returned release is called. */
+    holdWorkspaceLists(): () => void {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      workspaceListGate = gate;
+      return () => {
+        if (workspaceListGate === gate) workspaceListGate = null;
         release();
       };
     },

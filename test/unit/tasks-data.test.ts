@@ -373,6 +373,38 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("drops a read by id that answers after the task was archived and removed", async () => {
+      const fake = createFakePaseo({ agents: [unread], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        // An older snapshot: the board reads the agent by id, and that read hangs with the unarchived state.
+        const releaseOld = fake.holdRefreshes();
+        await act(async () => {
+          fake.pushAgentSnapshot({ ...unread, updatedAt: recentIso(60_000) } as never);
+          await flush(8);
+        });
+        // Archived, with the archived lane off: removes only; the board reads it again and lets it go.
+        const releaseNew = fake.holdRefreshes();
+        await act(async () => {
+          fake.upsertAgent({ ...unread, requiresAttention: false, attentionReason: null, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(8);
+        });
+        await act(async () => {
+          releaseNew();
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("unread")).toBe(false);
+        // The older read answers last: it must not bring the archived task back.
+        await act(async () => {
+          releaseOld();
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("unread")).toBe(false);
+      } finally {
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -420,6 +452,29 @@ describe("Tasks data store refresh", () => {
         });
         expect(mounted.current.byId.get("fresh")).toMatchObject({ lane: "running", status: "running" });
         expect(mounted.current.lanes.done.cards.map((card) => card.id)).not.toContain("fresh");
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("does not bring back an agent made without a prompt that was archived during its wait", async () => {
+      const { fake, mounted, push, lanesOf } = await mountWith();
+      try {
+        const created = Date.now();
+        await push(starting("initializing", new Date(created).toISOString()));
+        await push(starting("idle", new Date(created + 1).toISOString()));
+        // Archived within the wait, with the archived lane off: its lists only remove it.
+        await act(async () => {
+          fake.upsertAgent({ ...starting("idle", new Date(created + 1).toISOString()), archivedAt: new Date(created + 50).toISOString(), updatedAt: new Date(created + 50).toISOString() } as never);
+          await flush(4);
+        });
+        await act(async () => {
+          vi.advanceTimersByTime(START_IDLE_HOLD_MS + 100);
+          await flush(8);
+        });
+        expect(lanesOf).toEqual(["none", "none"]);
+        expect(mounted.current.byId.has("fresh")).toBe(false);
       } finally {
         vi.useRealTimers();
         mounted.unmount();
@@ -2394,6 +2449,56 @@ describe("Tasks data store", () => {
         expect(current.byId.has("stale-task")).toBe(false);
       } finally {
         await act(async () => renderer.unmount());
+      }
+    });
+
+    it("finishes loading the workspaces when a refresh lands before their first page answered", async () => {
+      const fake = pagedFake();
+      const release = fake.holdWorkspaceLists();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        expect(mounted.current.ready).toBe(false);
+        await act(async () => {
+          void mounted.current.refresh();
+          await flush(16);
+        });
+        await act(async () => {
+          release();
+          await flush(24);
+        });
+        await settle();
+        expect(mounted.current.ready).toBe(true);
+        expect(mounted.current.byId.get("late")?.lane).toBe("review");
+      } finally {
+        mounted.unmount();
+      }
+    });
+
+    it("finishes loading the workspaces when a refresh lands before their subscription is ready", async () => {
+      const fake = pagedFake();
+      const releaseList = fake.holdWorkspaceLists();
+      const mounted = await mountTasks(fake);
+      try {
+        await settle();
+        const releaseReady = fake.holdReady();
+        await act(async () => {
+          releaseList();
+          await flush(16);
+        });
+        await act(async () => {
+          void mounted.current.refresh();
+          await flush(16);
+        });
+        await act(async () => {
+          releaseReady();
+          await flush(24);
+        });
+        await settle();
+        expect(mounted.current.ready).toBe(true);
+        expect(mounted.current.byId.get("late")?.lane).toBe("review");
+      } finally {
+        mounted.unmount();
       }
     });
 

@@ -72,13 +72,20 @@ export function oracleLanes(agents: readonly PaseoAgent[], workspaceList: readon
     const historyAt = own.lane === "archived" ? raw.archivedAt ?? raw.updatedAt : settledAt;
     cards.set(raw.id, { id: raw.id, ...own, settledAt, historyAt, hidden: Boolean(workspace?.background) });
   }
-  for (const raw of agents) {
-    const parentId = raw.labels?.[PARENT_LABEL];
-    const child = cards.get(raw.id);
-    const parent = parentId ? cards.get(parentId) : undefined;
-    if (!child || !parent || child.lane === "archived") continue;
-    if ((child.lane === "running" || child.lane === "needs_input") && (parent.lane === "review" || parent.lane === "done") && !parent.failed) {
-      cards.set(parent.id, { ...parent, lane: "running", reason: `child ${raw.id.slice(0, 8)} still ${child.lane}` });
+  // A running grandchild keeps its parent running, and so its grandparent:
+  // spread until nothing changes, so the result does not depend on the order
+  // the records came in.
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const raw of agents) {
+      const parentId = raw.labels?.[PARENT_LABEL];
+      const child = cards.get(raw.id);
+      const parent = parentId ? cards.get(parentId) : undefined;
+      if (!child || !parent || child.lane === "archived") continue;
+      if ((child.lane === "running" || child.lane === "needs_input") && (parent.lane === "review" || parent.lane === "done") && !parent.failed) {
+        cards.set(parent.id, { ...parent, lane: "running", reason: `child ${raw.id.slice(0, 8)} still ${child.lane}` });
+        changed = true;
+      }
     }
   }
   return cards;

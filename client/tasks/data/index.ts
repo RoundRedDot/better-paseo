@@ -1015,7 +1015,7 @@ interface TasksDemand {
  */
 interface Run {
   generation: number;
-  tier: "base" | "attention" | "board" | "done";
+  tier: "base" | "workspaces" | "attention" | "board" | "done";
   tierRun: number;
   /** A refresh's request: cancelled with it, so an answer after a timeout or a close applies nothing. */
   refresh?: RefreshToken;
@@ -1118,7 +1118,16 @@ function createStore(api: PaseoApi): TaskStore {
   /** Agents being read again by id after a stale update (`confirmAgent`). */
   const confirmChecks = new Set<string>();
   /** A starting agent's snapshot held for its first turn (`START_INIT_HOLD_MS`, `START_IDLE_HOLD_MS`). */
-  const startIdles = new Map<string, { sourceKey: string; update: AgentUpdateEnvelope; status: string; updatedAt: number; timer: ReturnType<typeof setTimeout>; kind: "start" | "clear" }>();
+  const startIdles = new Map<string, {
+    sourceKey: string;
+    update: AgentUpdateEnvelope;
+    status: string;
+    updatedAt: number;
+    timer: ReturnType<typeof setTimeout>;
+    kind: "start" | "clear";
+    /** Its own list removed the agent after it was held: an archive or a delete may have followed it. */
+    removedFromSource?: boolean;
+  }>();
   /** Provider subagents by parent, as `tasks.subagents` last answered. */
   const subagentsByParent = new Map<string, ProviderSubagent[]>();
   let subagentVersion: string | undefined;
@@ -1147,6 +1156,12 @@ function createStore(api: PaseoApi): TaskStore {
   let doneConsumers = 0;
   let generation = 0;
   let baseRun = 0;
+  /**
+   * The workspace list's own run, apart from the status list's: a refresh
+   * moves it only when it reads the workspaces again, so a first workspace
+   * list still loading when a refresh starts is not dropped as stale.
+   */
+  let workspaceRun = 0;
   let attentionRun = 0;
   let boardRun = 0;
   let doneRun = 0;
@@ -1487,6 +1502,8 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function removeRecord(id: string) {
+    // A read by id that started before this removal answers with an older state.
+    recordVersions.set(id, (recordVersions.get(id) ?? 0) + 1);
     const existed = entries.has(id);
     if (!existed) return;
     entries.delete(id);
@@ -1580,8 +1597,15 @@ function createStore(api: PaseoApi): TaskStore {
           status: agent.status,
           updatedAt: epoch(agent.updatedAt),
           timer: setTimeout(() => {
-            if (run !== generation || startIdles.get(agent.id)?.update !== update) return;
+            const held = startIdles.get(agent.id);
+            if (run !== generation || held?.update !== update) return;
             startIdles.delete(agent.id);
+            // Its list let it go since: what it held may be stale (archived,
+            // deleted), so read the agent rather than apply it.
+            if (held.removedFromSource) {
+              confirmAgent(agent.id);
+              return;
+            }
             batchUpdates(() => applyAgentUpdate(sourceKey, update, true));
           }, hold),
         });
@@ -1613,6 +1637,10 @@ function createStore(api: PaseoApi): TaskStore {
         clearTimeout(held.timer);
         startIdles.delete(payload.agentId);
         confirmAgent(payload.agentId);
+      } else if (held && held.sourceKey === sourceKey) {
+        // A start-up hold sits through the removes a new agent's lists send as
+        // it starts; it is only marked, and read again instead of applied.
+        held.removedFromSource = true;
       }
       const wasMember = sourceMembers.get(sourceKey)?.delete(payload.agentId);
       // Held for a subagent failure, it stays; the list it left had its latest state, so read it again.
@@ -1852,6 +1880,7 @@ function createStore(api: PaseoApi): TaskStore {
   function isCurrent(run: Run): boolean {
     if (run.generation !== generation || consumers === 0 || run.refresh?.cancelled) return false;
     if (run.tier === "base") return run.tierRun === baseRun;
+    if (run.tier === "workspaces") return run.tierRun === workspaceRun;
     if (run.tier === "attention") return attentionConsumers > 0 && run.tierRun === attentionRun;
     if (run.tier === "board") return boardConsumers > 0 && run.tierRun === boardRun;
     if (run.tier === "done") return doneConsumers > 0 && run.tierRun === doneRun;
@@ -2713,7 +2742,7 @@ function createStore(api: PaseoApi): TaskStore {
     workspacesListed = false;
     sourceMembers.set(STATUS_KEY, new Set());
     void openAgentSubscription(STATUS_KEY, activeOptions(STATUS_FILTER), run);
-    void startWorkspaceSubscription(run);
+    void startWorkspaceSubscription({ generation, tier: "workspaces", tierRun: ++workspaceRun });
     scheduleSubagents(0);
   }
 
@@ -3426,7 +3455,10 @@ function createStore(api: PaseoApi): TaskStore {
     if (statusReady) {
       const run: Run = { generation, tier: "base", tierRun: ++baseRun, refresh: token };
       landings.push(openAgentSubscription(STATUS_KEY, activeOptions(STATUS_FILTER), run, () => {}));
-      if (workspacesReady) landings.push(startWorkspaceSubscription(run, true));
+    }
+    // Only a workspace list that landed is read again; one still loading carries on.
+    if (statusReady && workspacesReady) {
+      landings.push(startWorkspaceSubscription({ generation, tier: "workspaces", tierRun: ++workspaceRun, refresh: token }, true));
     }
     if (attentionConsumers > 0 && attentionReady) {
       const run: Run = { generation, tier: "attention", tierRun: ++attentionRun, refresh: token };
