@@ -801,6 +801,7 @@ export function RollingTotal(props: { board: BoardController; style: StyleProp<T
  */
 export function RoundButton(props: {
   icon: string;
+  iconContent?: ReactNode;
   label: string;
   theme: PluginTheme;
   onPress(): void;
@@ -866,7 +867,7 @@ export function RoundButton(props: {
           justifyContent: "center",
         }}
       >
-        {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : <Icon name={props.icon} size={icon} color={props.borderless && props.active ? colors.accent : colors.foreground} />}
+        {props.busy ? <SpinnerRing size={icon} color={colors.foreground} testID={props.testID ? `${props.testID}-spinner` : undefined} /> : props.iconContent ?? <Icon name={props.icon} size={icon} color={props.borderless && props.active ? colors.accent : colors.foreground} />}
         {props.slashed ? <SlashMark size={icon} color={colors.foreground} gap={fill === "transparent" ? colors.surface0 : fill} /> : null}
         <CornerBadge count={props.cornerBadge ?? 0} theme={props.theme} ringColor={fill === "transparent" ? colors.surface0 : fill} style={{ bottom: 0, right: 0 }} testID={props.testID ? `${props.testID}-count` : undefined} />
       </View>

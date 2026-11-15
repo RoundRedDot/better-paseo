@@ -428,7 +428,7 @@ export function PhoneBoard(props: {
             testID="phone-archived"
           />
           <View testID="phone-more-container" style={{ width: 44, height: 44, marginLeft: -6 }}>
-            <RoundButton icon="MoreVertical" iconSize={22} borderless label={updateAvailable ? `${strings.more}, ${updateLabel}` : strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
+            <RoundButton icon="MoreVertical" iconSize={22} iconContent={<View style={{ alignItems: "center", gap: 3.5 }}>{[0, 1, 2].map((dot) => <View key={dot} testID="phone-more-dot" style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.foreground }} />)}</View>} borderless label={updateAvailable ? `${strings.more}, ${updateLabel}` : strings.more} theme={theme} badge={badge} onPress={() => setSheet({ kind: "filters" })} testID="phone-more" />
             {updateAvailable ? <View testID="phone-more-update-dot" pointerEvents="none" style={{ position: "absolute", bottom: 10, right: 11, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
           </View>
         </View>

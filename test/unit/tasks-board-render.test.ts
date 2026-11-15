@@ -7509,7 +7509,11 @@ describe("Tasks board, phone", () => {
     await act(async () => { finish("done"); });
     expect(list().props.refreshing).toBe(false);
     const more = hostsById("phone-more")[0]!;
-    expect(more.find((node) => (node.type as unknown) === "Icon").props.name).toBe("MoreVertical");
+    const dots = hostsById("phone-more-dot");
+    expect(dots).toHaveLength(3);
+    for (const dot of dots) {
+      expect(dot.props.style).toMatchObject({ width: 3, height: 3, borderRadius: 1.5, backgroundColor: "#1b1b1f" });
+    }
     act(() => more.props.onPress());
     expect(hostsById("filter-sheet-refresh")).toHaveLength(0);
     expect(hostsById("filter-sheet-scroll")).toHaveLength(1);
