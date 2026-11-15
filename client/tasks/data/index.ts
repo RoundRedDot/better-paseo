@@ -1590,8 +1590,9 @@ function createStore(api: PaseoApi): TaskStore {
   function removeRecord(id: string) {
     // A read that started before this removal answers with an older state.
     recordStamps.set(id, ++recordClock);
-    // Its gone check has nothing left to report.
+    // Its gone check and reads by id have nothing left to report.
     clearPageError(`gone:${id}`);
+    clearPageError(`read:${id}`);
     const existed = entries.has(id);
     if (!existed) return;
     entries.delete(id);
@@ -1902,6 +1903,10 @@ function createStore(api: PaseoApi): TaskStore {
     }).catch((caught: unknown) => {
       if (run !== generation) return;
       confirmChecks.delete(id);
+      // Its record changed since (archived and taken off, a newer update), or
+      // the board holds no card for it: this read no longer decides anything
+      // shown, so its failure says nothing.
+      if (changedSince(id, asked) || !entries.has(id)) return;
       // The card may be left as it was (a hold's wait ended on this read):
       // say so, and read it again a little later.
       pageError(`read:${id}`, caught);
@@ -2585,8 +2590,11 @@ function createStore(api: PaseoApi): TaskStore {
 
   /** A failed parent no list holds, or one a list let go: read by id, kept while its failure shows. */
   function fetchSubagentParent(id: string, run: number) {
+    const asked = recordClock;
     void api.agents.ref(id).refresh().then((result) => {
       if (run !== generation) return;
+      // Its record changed (archived and taken off, prompted) while the read was out: that state stands.
+      if (changedSince(id, asked)) return;
       const members = sourceMembers.get(SUBAGENT_KEY);
       if (!result || isArchived(result.agent) || !failsBySubagent(id, result.agent.lastUserMessageAt)) {
         if (members?.delete(id)) dropIfUnreferenced(id);
@@ -3529,7 +3537,8 @@ function createStore(api: PaseoApi): TaskStore {
         notify();
       });
     }).catch((caught: unknown) => {
-      if (!isCurrent(run)) return;
+      // A page of the old first page's chain failing says nothing about the list now.
+      if (!isCurrent(run) || doneSnapshots !== snapshotAsked) return;
       if (!current) { subscriptionError(caught); return; }
       if (!current()) return;
       historyError = caught instanceof Error ? caught.message : String(caught);

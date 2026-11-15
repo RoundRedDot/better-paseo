@@ -775,6 +775,35 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("says nothing when a read by id fails after its task was archived and taken off", async () => {
+      const fake = createFakePaseo({ agents: [unread], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        // An older snapshot: a read by id goes out and hangs.
+        const releaseOld = fake.holdRefreshes();
+        await act(async () => {
+          fake.pushAgentSnapshot({ ...unread, updatedAt: recentIso(60_000) } as never);
+          await flush(8);
+        });
+        fake.passNewRefreshes();
+        // Archived, the archived lane off: the board confirms it and takes the card off.
+        await act(async () => {
+          fake.upsertAgent({ ...unread, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("unread")).toBe(false);
+        // The old read times out, and so does any read asked meanwhile: none decides anything shown.
+        fake.failRefreshes(new Error("read timed out"));
+        await act(async () => {
+          releaseOld(new Error("read timed out"));
+          await flush(16);
+        });
+        expect(mounted.current.error).toBeNull();
+      } finally {
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -3355,6 +3384,34 @@ describe("Tasks data store", () => {
         expect(mounted.current.error).toBeNull();
       } finally {
         vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("says nothing when an old done page fails after the done list started over", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: 80 }, (_, index) => activeAgent(`of-${index}`, { status: "idle", requiresAttention: false, updatedAt: recentIso(10_000 + index * 1_000) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h");
+      try {
+        await settle();
+        const release = fake.holdPages();
+        await act(async () => {
+          mounted.current.loadMoreDone();
+          await flush(8);
+        });
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(8);
+        });
+        fake.failNextAgentList((options) => options.page?.cursor !== undefined, "obsolete request failed");
+        await act(async () => {
+          release();
+          await flush(16);
+        });
+        expect(mounted.current.error).toBeNull();
+      } finally {
         mounted.unmount();
       }
     });

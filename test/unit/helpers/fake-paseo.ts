@@ -701,14 +701,18 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         release();
       };
     },
-    /** Hold every read by id (`agents.ref(id).refresh()`) until the returned release is called. */
-    holdRefreshes(): () => void {
+    /** Hold every read by id (`agents.ref(id).refresh()`) until the returned release is called (with an error, they fail). */
+    holdRefreshes(): (error?: Error) => void {
       let release!: () => void;
-      const gate = new Promise<void>((resolve) => { release = resolve; });
+      let fail!: (error: Error) => void;
+      const gate = new Promise<void>((resolve, reject) => { release = resolve; fail = reject; });
+      void gate.catch(() => {});
       refreshGate = gate;
-      return () => {
+      // Released with an error, the held reads fail (a timeout) instead of answering.
+      return (error?: Error) => {
         if (refreshGate === gate) refreshGate = null;
-        release();
+        if (error) fail(error);
+        else release();
       };
     },
     /** Make every later read by id fail (null: answer again). */
