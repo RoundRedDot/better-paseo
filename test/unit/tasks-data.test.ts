@@ -460,6 +460,65 @@ describe("Tasks data store refresh", () => {
       }
     });
 
+    it("sits out the wait when the list that held the task removes it after the read", async () => {
+      const { fake, mounted, push, lanesOf } = await mountWith();
+      try {
+        const cleared = { ...unread, requiresAttention: false, attentionReason: null, attentionTimestamp: null };
+        fake.setAgentSilently(cleared as never);
+        // The done list hears of the read first, then the attention list, which held the task, lets it go.
+        await act(async () => {
+          fake.pushUpsertTo(cleared as never, (options) => options.filter?.statuses?.includes("idle") === true);
+          await flush(4);
+        });
+        lanesOf.push(mounted.current.byId.get("unread")?.lane ?? "none");
+        await act(async () => {
+          fake.pushRemoveTo("unread", (options) => options.filter?.requiresAttention === true);
+          await flush(8);
+        });
+        lanesOf.push(mounted.current.byId.get("unread")?.lane ?? "none");
+        // The archive's second step, within the wait.
+        await push({ ...cleared, archivedAt: recentIso(0), updatedAt: recentIso(0) } as never);
+        expect(lanesOf).toEqual(["review", "review", "archived"]);
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("takes a deleted task off once its gone check answers, though the same snapshot came again meanwhile", async () => {
+      const closed = activeAgent("deleted", { status: "closed", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(5_000) });
+      const fake = createFakePaseo({ agents: [closed], workspaces: [workspace()] });
+      const mounted = await mountTasks(fake, "24h");
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        expect(mounted.current.byId.get("deleted")?.lane).toBe("review");
+        // Deleted on another client: this board hears nothing, and its gone check reads the agent (held).
+        fake.deleteAgentSilently("deleted");
+        const release = fake.holdRefreshes();
+        await act(async () => {
+          fake.pushAgentSnapshot(closed as never);
+          await flush(4);
+          vi.advanceTimersByTime(1_100);
+          await flush(8);
+        });
+        // The same snapshot again, from another list.
+        await act(async () => {
+          fake.pushAgentSnapshot(closed as never);
+          await flush(8);
+        });
+        await act(async () => {
+          release();
+          await flush(16);
+          vi.advanceTimersByTime(5_000);
+          await flush(16);
+        });
+        expect(mounted.current.byId.has("deleted")).toBe(false);
+      } finally {
+        vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
     it("does not hold a clear that comes with a new turn", async () => {
       const { mounted, push, lanesOf } = await mountWith();
       try {
@@ -2370,6 +2429,33 @@ describe("Tasks data store", () => {
         expect(mounted.current.byId.has("done-55")).toBe(false);
       } finally {
         vi.useRealTimers();
+        mounted.unmount();
+      }
+    });
+
+    it("keeps unread tasks the status list landed first once that list lets them go", async () => {
+      const fake = createFakePaseo({
+        agents: Array.from({ length: UNREAD }, (_, index) =>
+          activeAgent(`both-${index}`, { status: "running", requiresAttention: true, attentionReason: "finished", updatedAt: recentIso(1_000 + index) })),
+        workspaces: [workspace()],
+      });
+      const mounted = await mountTasks(fake, "24h", false);
+      try {
+        await settle();
+        expect(mounted.current.byId.size).toBe(UNREAD);
+        // Their turns ended, an update the board missed: still unread, no longer running.
+        for (let index = 0; index < UNREAD; index += 1) {
+          const agent = fake.paseo.agents.ref(`both-${index}`).current()!;
+          fake.setAgentSilently({ ...agent, status: "idle" } as never);
+        }
+        await act(async () => {
+          fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("running") === true);
+          await flush(24);
+        });
+        await settle();
+        // The attention list still holds them all.
+        expect(mounted.current.byId.size).toBe(UNREAD);
+      } finally {
         mounted.unmount();
       }
     });

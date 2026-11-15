@@ -1125,7 +1125,7 @@ function createStore(api: PaseoApi): TaskStore {
     updatedAt: number;
     timer: ReturnType<typeof setTimeout>;
     kind: "start" | "clear";
-    /** Its own list removed the agent after it was held: an archive or a delete may have followed it. */
+    /** A list that held the agent removed it after it was held: an archive or a delete may have followed it. */
     removedFromSource?: boolean;
   }>();
   /** Provider subagents by parent, as `tasks.subagents` last answered. */
@@ -1447,7 +1447,6 @@ function createStore(api: PaseoApi): TaskStore {
   function updateRecord(agent: PaseoAgent, placement: AgentPlacement, confirmed = false) {
     // Independently bootstrapped lists and pages can arrive after a newer live update.
     if (!confirmed && isStaleAgent(agent)) return;
-    recordStamps.set(agent.id, ++recordClock);
     const updatedAt = epoch(agent.updatedAt);
     latestUpdates.set(agent.id, confirmed ? updatedAt : Math.max(updatedAt, latestUpdates.get(agent.id) ?? updatedAt));
     if (isArchived(agent) && !keepsArchived(agent)) {
@@ -1464,6 +1463,8 @@ function createStore(api: PaseoApi): TaskStore {
     const resent = previous !== undefined
       && JSON.stringify(previous.agent) === JSON.stringify(agent)
       && JSON.stringify(previous.placement) === JSON.stringify(placement);
+    // Only a change ticks the clock: the same snapshot again, from another list, changes nothing a read could set back.
+    if (!resent) recordStamps.set(agent.id, ++recordClock);
     const oldParent = parentByChild.get(agent.id) ?? null;
     const wasActive = cards.get(agent.id)?.status === "running" || cards.get(agent.id)?.status === "needs_input";
     // A turn seen ending: the update that ends it carries its end. The agent
@@ -1531,6 +1532,13 @@ function createStore(api: PaseoApi): TaskStore {
   /** An archived agent the archived lane holds: settled, as the done list it came in reads them. */
   function keepsArchived(agent: PaseoAgent): boolean {
     return archivedAsked && doneConsumers > 0 && isDone(agent);
+  }
+
+  /** Whether an active list (status, attention) holds this record; undefined for any other list. */
+  function belongsToActiveList(key: string, agent: PaseoAgent): boolean | undefined {
+    if (key === STATUS_KEY) return !isArchived(agent) && ["running", "initializing", "error"].includes(agent.status);
+    if (key === ATTENTION_KEY) return !isArchived(agent) && Boolean(agent.requiresAttention);
+    return undefined;
   }
 
   function reconcileActiveMembers(agent: PaseoAgent) {
@@ -1641,16 +1649,14 @@ function createStore(api: PaseoApi): TaskStore {
       // A held read can be the first step of an archive the board hears of only
       // as removes (its archived lane off): applied after them, it brought the
       // archived task back as done. Let it go and read the agent instead.
+      // A held snapshot sits out its wait: the archive it may precede comes
+      // within moments, and a read now would only see the same ambiguous
+      // state. A remove from a list that held the agent (for a start-up hold,
+      // its own list; the SDK also replays removes from lists that never had
+      // it) only marks it, and once the wait is over the agent is read by id
+      // instead of applying what was held.
       const held = startIdles.get(payload.agentId);
-      // Only a list that held the agent: the SDK replays removes a list
-      // buffered before the board listened, from lists that never had it.
-      if (held?.kind === "clear" && sourceMembers.get(sourceKey)?.has(payload.agentId)) {
-        clearTimeout(held.timer);
-        startIdles.delete(payload.agentId);
-        confirmAgent(payload.agentId);
-      } else if (held && held.sourceKey === sourceKey) {
-        // A start-up hold sits through the removes a new agent's lists send as
-        // it starts; it is only marked, and read again instead of applied.
+      if (held && (held.kind === "clear" ? sourceMembers.get(sourceKey)?.has(payload.agentId) : held.sourceKey === sourceKey)) {
         held.removedFromSource = true;
       }
       const wasMember = sourceMembers.get(sourceKey)?.delete(payload.agentId);
@@ -1716,8 +1722,12 @@ function createStore(api: PaseoApi): TaskStore {
       void api.agents.ref(id).refresh().then((result) => {
         if (run !== generation) return;
         goneChecks.delete(id);
-        // Restored, prompted or archived again meanwhile: the newer state stands.
-        if (changedSince(id, asked)) return;
+        // Restored, prompted or archived again meanwhile: the newer state
+        // stands; still closed, it is checked again from that state.
+        if (changedSince(id, asked)) {
+          if (entries.get(id)?.agent.status === "closed") checkGone(id, attempt);
+          return;
+        }
         if (result && !isArchived(result.agent)) {
           if (result.agent.status === "closed" && attempt + 1 < GONE_CHECK_DELAYS_MS.length) checkGone(id, attempt + 1);
           return;
@@ -1783,7 +1793,13 @@ function createStore(api: PaseoApi): TaskStore {
     batchUpdates(() => {
       const nextMembers = new Set<string>();
       const current = sourceMembers.get(sourceKey);
-      for (const id of liveIds ?? []) if (current?.has(id)) nextMembers.add(id);
+      // Its record is newer than the list's copy: whether the list holds it
+      // follows that record (the status list may have landed it first), not
+      // the members this list had before.
+      for (const id of liveIds ?? []) {
+        const shown = entries.get(id)?.agent;
+        if (shown ? belongsToActiveList(sourceKey, shown) ?? current?.has(id) : current?.has(id)) nextMembers.add(id);
+      }
       for (const entry of matchingEntries(snapshot)) {
         if (liveIds?.has(entry.agent.id)) continue;
         nextMembers.add(entry.agent.id);

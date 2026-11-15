@@ -592,6 +592,18 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         release();
       };
     },
+    /** Send an upsert of this agent to the agent subscriptions whose options match, without changing the table. */
+    pushUpsertTo(agent: Agent, match: (options: PaseoAgentListOptions) => boolean) {
+      for (const sub of agentSubs) {
+        if (!("members" in sub) || !match((sub as AgentSubscription).options)) continue;
+        (sub as AgentSubscription).members.add(agent.id);
+        deliverUpdate(sub, { type: "agent_update", payload: { subscriptionId: sub.id, kind: "upsert", agent, project: placementOf(agent) } });
+      }
+    },
+    /** Delete an agent from the table without telling any subscription: a read by id then finds nothing. */
+    deleteAgentSilently(agentId: string) {
+      agents.delete(agentId);
+    },
     /**
      * Send a remove for an agent to the agent subscriptions whose options match, whether or not they
      * hold it: a buffered remove the SDK replays to a new observer, from a list that never had it.
