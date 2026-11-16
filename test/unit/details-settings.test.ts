@@ -82,6 +82,13 @@ beforeEach(() => {
 });
 
 describe("file open setting", () => {
+  it.each([{ chatEnabled: false }, { timelineLevel: "simple" as const }])("remains available independently of chat and timeline settings: %o", (setting) => {
+    updateEnhancerPreferences({ language: "en", ...setting });
+    const renderer = renderPage();
+    expect(choiceGroup(renderer.root, "Open files with")).toBeDefined();
+    act(() => renderer.unmount());
+  });
+
   it("shows one group of five options and tracks the selection", () => {
     updateEnhancerPreferences({ language: "en" });
     const renderer = renderPage();

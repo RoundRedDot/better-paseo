@@ -24,6 +24,7 @@ import { registerTasksServer } from "./server/tasks/register";
 import { registerTurnUsageServer } from "./server/turn-usage";
 import { shellOpenCommand, launches, type PathEntry } from "./server/open-path";
 import { editorCommand } from "./server/editor-target";
+import { LaunchUnconfirmedError, waitForOpen } from "./server/open-process";
 
 /**
  * Image types worth inlining, and the mime each one needs in its data URI.
@@ -141,15 +142,7 @@ async function resolveSelector(path: string, cwd: string): Promise<ResolvedSelec
 async function openWithShell(target: string, entry: PathEntry): Promise<void> {
   const { command, args, windowsVerbatimArguments } = shellOpenCommand(process.platform, target, entry);
   const child = spawn(command, args, { detached: true, stdio: "ignore", ...(windowsVerbatimArguments ? { windowsVerbatimArguments } : null) });
-  await new Promise<void>((resolve, reject) => {
-    child.once("error", reject);
-    if (process.platform === "darwin") {
-      child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`Failed to open path (exit ${code})`)));
-    } else {
-      child.once("spawn", resolve);
-    }
-  });
-  child.unref();
+  await waitForOpen(child, process.platform === "win32" ? "spawn" : "exit", "Failed to open path");
 }
 
 const DARK_THEME = "github-dark-default";
@@ -501,7 +494,7 @@ export default function contribute(server: PluginServerContext) {
     const requested = resolved.path;
 
     const target = isAbsolute(requested) ? requested : resolve(input.cwd, requested);
-    let errorKind: "settings_unavailable" | "editor_unavailable" | "launch_failed" | undefined;
+    let errorKind: "settings_unavailable" | "editor_unavailable" | "launch_failed" | "launch_unconfirmed" | undefined;
     let errorApp: "system" | "cursor" | "vscode" | "zed" | "sublime" | undefined;
     try {
       const entry = await stat(target);
@@ -524,18 +517,11 @@ export default function contribute(server: PluginServerContext) {
         const editor = await editorCommand(app);
         errorKind = "launch_failed";
         const child = spawn(editor.command, [...editor.args, target], { detached: true, stdio: "ignore" });
-        await new Promise<void>((resolve, reject) => {
-          child.once("error", reject);
-          if (editor.completion === "exit") {
-            child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`Failed to open file with ${app} (exit ${code})`)));
-          } else {
-            child.once("spawn", resolve);
-          }
-        });
-        child.unref();
+        await waitForOpen(child, editor.completion, `Failed to open file with ${app}`);
       }
       return { revealed: target, error: null };
     } catch (error) {
+      if (error instanceof LaunchUnconfirmedError) errorKind = "launch_unconfirmed";
       return {
         revealed: null,
         error: error instanceof Error ? error.message : String(error),

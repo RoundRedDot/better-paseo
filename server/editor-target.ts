@@ -32,7 +32,11 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
     if (app === "vscode" || app === "cursor") {
       for (const dir of dirs) {
         paths.push(win32.join(dir, `${editor.command}.exe`));
-        paths.push(app === "vscode" ? win32.join(dir, "..", "Code.exe") : win32.join(dir, "..", "..", "..", "Cursor.exe"));
+        const root = app === "vscode" ? win32.join(dir, "..") : win32.join(dir, "..", "..", "..");
+        if (win32.basename(dir).toLowerCase() === "bin" && existsSync(win32.join(dir, `${editor.command}.cmd`)) &&
+          existsSync(win32.join(root, "resources", "app", "product.json"))) {
+          paths.push(win32.join(root, app === "vscode" ? "Code.exe" : "Cursor.exe"));
+        }
       }
       for (const root of [process.env.LOCALAPPDATA && win32.join(process.env.LOCALAPPDATA, "Programs"), process.env.ProgramFiles]) {
         if (root) paths.push(win32.join(root, app === "vscode" ? "Microsoft VS Code" : "Cursor", app === "vscode" ? "Code.exe" : "Cursor.exe"));
@@ -83,7 +87,8 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
       }
     }
     const actualName = basename(actualPath);
-    const gui = (app === "sublime" && actualName === "sublime_text") ||
+    const gui = (app === "vscode" && platform === "linux" && existsSync(join(actualPath, "..", "resources", "app", "product.json"))) ||
+      (app === "sublime" && actualName === "sublime_text") ||
       (app === "cursor" && isAppImage(actualPath));
     return { command: candidate, args: [], completion: gui ? "spawn" : "exit" };
   }

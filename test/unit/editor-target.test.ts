@@ -40,7 +40,25 @@ describe("file open preference", () => {
     delete process.env.LOCALAPPDATA;
     delete process.env.ProgramFiles;
     fs.existing.add(exe);
+    fs.existing.add(`${dir}\\${app === "vscode" ? "code" : "cursor"}.cmd`);
+    fs.existing.add(exe.replace(/[^\\]+$/, "resources\\app\\product.json"));
     expect(await editorCommand(app, "win32")).toEqual({ command: exe, args: [], completion: "spawn" });
+  });
+
+  it("does not infer an editor from an unrelated PATH entry's parent", async () => {
+    process.env.PATH = "D:\\Tools\\bin";
+    process.env.ProgramFiles = "C:\\Program Files";
+    delete process.env.LOCALAPPDATA;
+    fs.existing.add("D:\\Tools\\Code.exe");
+    fs.existing.add("C:\\Program Files\\Microsoft VS Code\\Code.exe");
+    expect((await editorCommand("vscode", "win32")).command).toBe("C:\\Program Files\\Microsoft VS Code\\Code.exe");
+  });
+
+  it("recognises the VS Code Linux archive GUI on PATH", async () => {
+    process.env.PATH = "/opt/VSCode";
+    fs.executable.add("/opt/VSCode/code");
+    fs.existing.add("/opt/VSCode/resources/app/product.json");
+    expect((await editorCommand("vscode", "linux")).completion).toBe("spawn");
   });
 
   it("finds a macOS application and waits for the open command", async () => {

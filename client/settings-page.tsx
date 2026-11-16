@@ -917,6 +917,21 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           look={look}
           stacked
         />
+        <SettingRow
+          title={t.fileOpenTitle}
+          description={t.fileOpenDescription}
+          control={sync.status === "invalid" ? <Text accessibilityRole="alert" style={[settingsTextStyle(tokens, -1), { color: tokens.warning, fontFamily: tokens.fontUi }]}>{t.fileOpenUnavailable}</Text> :
+            <Segmented label={t.fileOpenTitle} value={preferences.fileOpenApp} wrap
+              options={[
+                { value: "system", label: t.fileOpenSystem },
+                { value: "cursor", label: "Cursor" },
+                { value: "vscode", label: "VS Code" },
+                { value: "zed", label: "Zed" },
+                { value: "sublime", label: "Sublime Text" },
+              ]} onChange={(fileOpenApp) => updateEnhancerPreferences({ fileOpenApp })} look={look} />}
+          look={look}
+          stacked
+        />
       </Section>
 
       <Section title={t.sectionAppearance} look={look}>
@@ -1046,21 +1061,6 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
               look={look}
             />
           }
-          look={look}
-          stacked
-        />
-        <SettingRow
-          title={t.fileOpenTitle}
-          description={t.fileOpenDescription}
-          control={sync.status === "invalid" ? <Text accessibilityRole="alert" style={[settingsTextStyle(tokens, -1), { color: tokens.warning, fontFamily: tokens.fontUi }]}>{t.fileOpenUnavailable}</Text> :
-            <Segmented label={t.fileOpenTitle} value={preferences.fileOpenApp} wrap
-              options={[
-                { value: "system", label: t.fileOpenSystem },
-                { value: "cursor", label: "Cursor" },
-                { value: "vscode", label: "VS Code" },
-                { value: "zed", label: "Zed" },
-                { value: "sublime", label: "Sublime Text" },
-              ]} onChange={(fileOpenApp) => updateEnhancerPreferences({ fileOpenApp })} look={look} />}
           look={look}
           stacked
         />

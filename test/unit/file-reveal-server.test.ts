@@ -96,6 +96,24 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
     await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ revealed: null, error: "Failed to open path (exit 1)", errorKind: "launch_failed", errorApp: "system" });
   });
 
+  it("reports a Linux xdg-open failure after it starts", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    Object.defineProperty(process, "platform", { ...platform, value: "linux" });
+    try {
+      spawn.mockImplementationOnce(() => {
+        const child = new EventEmitter() as EventEmitter & { unref: () => void };
+        child.unref = vi.fn();
+        queueMicrotask(() => { child.emit("spawn"); child.emit("exit", 4); });
+        return child;
+      });
+      const reveal = await revealHandler();
+      await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ revealed: null, error: "Failed to open path (exit 4)", errorKind: "launch_failed" });
+      expect(spawn).toHaveBeenLastCalledWith("xdg-open", [root], expect.anything());
+    } finally {
+      Object.defineProperty(process, "platform", platform);
+    }
+  });
+
   it("reports an asynchronous system opener spawn error", async () => {
     spawn.mockImplementationOnce(() => {
       const child = new EventEmitter() as EventEmitter & { unref: () => void };
