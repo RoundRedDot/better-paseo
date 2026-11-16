@@ -16,8 +16,7 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 function fakeHost(initial: DeviceRecord | null = null) {
   let raw: string | null = initial === null ? null : JSON.stringify({ version: 1, values: initial });
   const saves: DeviceRecord[] = [];
-  let id = 0;
-  let bridge: { id: number; report: (remote: DeviceRemote) => void } | null = null;
+  let bridge: { report: (remote: DeviceRemote) => void } | null = null;
   const read = (): DeviceRemote => ({ status: "ready", revision: raw ?? "missing", values: raw === null ? {} : (JSON.parse(raw) as { values: DeviceRecord }).values });
   let saveError: string | null = null;
   const actions = {
@@ -36,7 +35,9 @@ function fakeHost(initial: DeviceRecord | null = null) {
     },
     async reload() {
       await tick();
-      bridge?.report(read());
+      // The query holds the reread now; the hook reports it on a later render.
+      const reread = read();
+      setTimeout(() => bridge?.report(reread), 0);
     },
     saveError: () => saveError,
   };
@@ -48,8 +49,8 @@ function fakeHost(initial: DeviceRecord | null = null) {
       raw = JSON.stringify({ version: 1, values });
     },
     mount(adapter: ReturnType<typeof createDeviceSettingsAdapter>) {
-      const own = ++id;
-      bridge = { id: own, report: (remote) => adapter.report(own, remote, actions) };
+      const own = {};
+      bridge = { report: (remote) => adapter.report(own, remote, actions) };
       bridge.report(read());
       return () => { adapter.leave(own); bridge = null; };
     },
@@ -137,6 +138,17 @@ describe("device Tasks preferences in Paseo's device settings", () => {
     unmount();
     await expect(store.update({ hideSubtasks: true })).rejects.toThrow("not available");
     expect(store.snapshot().values?.hideSubtasks).toBe(seed.hideSubtasks);
+    expect(host.saves).toEqual([]);
+  });
+
+  it("keeps the old record when reading it fails, instead of seeding over it", async () => {
+    const adapter = createDeviceSettingsAdapter({ legacyBoard: () => Promise.reject(new Error("Could not read device Tasks preferences")), legacySidebar: async () => null, mirror() {} });
+    const store = createDeviceTasksStore(adapter.storage);
+    const host = fakeHost();
+    host.mount(adapter);
+    store.load(seed);
+    await vi.waitFor(() => expect(store.snapshot().error).toBe("Could not read device Tasks preferences"));
+    expect(store.snapshot().ready).toBe(false);
     expect(host.saves).toEqual([]);
   });
 

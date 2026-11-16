@@ -68,8 +68,10 @@ function parseJson(raw: string | null): DeviceRecord["board"] {
 
 export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
   let remote: DeviceRemote = { status: "loading" };
-  /** The mounted hooks' actions, the latest reporter last. */
-  const bridges = new Map<number, DeviceActions>();
+  /** The mounted hooks' actions by their own token (bundles share this adapter), the latest reporter last. */
+  const bridges = new Map<object, DeviceActions>();
+  /** Counts reports, so a retry can wait for the one its reread brings. */
+  let reports = 0;
   const waiters = new Set<() => void>();
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -116,7 +118,10 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
         return;
       }
       if (attempt >= 1) throw new Error(act.saveError() ?? "Could not save device Tasks preferences");
+      // The reread lands in the query first; the hooks report it on a later render.
+      const before = reports;
       await act.reload();
+      await until(() => reports > before && "revision" in remote && remote.revision !== current.revision, REPORT_WAIT_MS);
     }
   }
 
@@ -127,7 +132,8 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
       if (current.status === "loading") throw new Error("Device Tasks preferences are still loading");
       if (current.status !== "ready") throw new Error(current.error);
       if (current.revision === NEVER_SAVED && current.values.board === undefined && current.values.sidebar === undefined) {
-        const [board, sidebar] = await Promise.all([deps.legacyBoard().catch(() => null), deps.legacySidebar().catch(() => null)]);
+        // A failed read is not an empty one: the store reports it instead of seeding over the old record.
+        const [board, sidebar] = await Promise.all([deps.legacyBoard(), deps.legacySidebar()]);
         const imported: DeviceRecord = {};
         const boardValue = parseJson(board);
         const sidebarValue = parseJson(sidebar);
@@ -148,14 +154,15 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
   return {
     storage,
     /** A mounted hook's state; every hook reads the same record. */
-    report(id: number, next: DeviceRemote, own: DeviceActions) {
-      bridges.delete(id);
-      bridges.set(id, own);
+    report(token: object, next: DeviceRemote, own: DeviceActions) {
+      bridges.delete(token);
+      bridges.set(token, own);
       remote = next;
+      reports += 1;
       for (const check of [...waiters]) check();
     },
-    leave(id: number) {
-      bridges.delete(id);
+    leave(token: object) {
+      bridges.delete(token);
     },
     sidebar: {
       stored: (): unknown => (remote.status === "ready" ? remote.values.sidebar : undefined),
@@ -186,8 +193,6 @@ export function deviceSidebarSource(): DeviceSettingsAdapter["sidebar"] | null {
   return installedDeviceSettings()?.sidebar ?? null;
 }
 
-let nextBridge = 0;
-
 /**
  * Mounts the host's settings hook and reports each state to the adapter. Call only when the
  * device store uses the device settings: that choice is fixed for the runtime.
@@ -196,7 +201,8 @@ export function useDeviceSettingsBridge(): void {
   const definition = TASKS_DEVICE_SETTINGS;
   if (!definition) throw new Error("This host has no device settings");
   const state = useSettings(definition);
-  const [id] = useState(() => ++nextBridge);
+  // Its own identity: every host's bundle reports to the one shared adapter.
+  const [token] = useState(() => ({}));
   // The host hands out new actions each render; the adapter keeps one object calling the latest.
   const latest = useRef(state);
   latest.current = state;
@@ -216,8 +222,8 @@ export function useDeviceSettingsBridge(): void {
   const revision = "revision" in remote ? remote.revision : "";
   const error = "error" in remote ? remote.error : "";
   useEffect(() => {
-    installedDeviceSettings()?.report(id, remote, actions);
+    installedDeviceSettings()?.report(token, remote, actions);
     // `remote` is rebuilt every render; its identity is its status and revision.
   }, [remote.status, revision, error]);
-  useEffect(() => () => installedDeviceSettings()?.leave(id), []);
+  useEffect(() => () => installedDeviceSettings()?.leave(token), []);
 }
