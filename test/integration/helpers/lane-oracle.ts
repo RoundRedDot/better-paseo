@@ -58,7 +58,7 @@ function ownLane(agent: RawAgent, workspaces: Map<string, PaseoWorkspace>): Omit
 }
 
 /**
- * Cards by agent id. Agents of background workspaces and the plugin's
+ * Cards by agent id. Background agents (their own flag or their workspace's) and the plugin's
  * title helpers get none. A parent that settled while a child still runs
  * or waits for input stays running (`withActiveSubtasks`).
  */
@@ -72,7 +72,7 @@ export function oracleLanes(agents: readonly PaseoAgent[], workspaceList: readon
     const settledAt = raw.lastUserMessageAt ?? raw.createdAt;
     // Archived with its workspace, a task is windowed by its own updatedAt: the key the done list pages by.
     const historyAt = own.lane === "archived" ? raw.archivedAt ?? raw.updatedAt : settledAt;
-    cards.set(raw.id, { id: raw.id, ...own, settledAt, historyAt, hidden: Boolean(workspace?.background), parentId: raw.labels?.[PARENT_LABEL] ?? null });
+    cards.set(raw.id, { id: raw.id, ...own, settledAt, historyAt, hidden: raw.background === true || Boolean(workspace?.background), parentId: raw.labels?.[PARENT_LABEL] ?? null });
   }
   // A running grandchild keeps its parent running, and so its grandparent:
   // spread until nothing changes, so the result does not depend on the order

@@ -326,6 +326,9 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
   const placementOf = (agent: Agent) => placements.get(agent.id) ?? makePlacement(agent);
 
   function matchesAgent(agent: Agent, listOptions: PaseoAgentListOptions): boolean {
+    // As the daemon (0.16) for a client with background agents: a background agent, or one of a
+    // background workspace, is listed only when the list includes background.
+    if (!listOptions.filter?.includeBackground && agent.background) return false;
     if (!listOptions.filter?.includeBackground && agent.workspaceId && workspaces.get(agent.workspaceId)?.background) return false;
     // As the daemon: an agent whose workspace record is gone is not listed; one
     // of an archived workspace (its record kept, left out of the workspace list) is.

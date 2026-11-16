@@ -44,9 +44,9 @@ describe.skipIf(!paseoBin())("lanes through real turns", () => {
     await daemon?.dispose();
   }, 120_000);
 
-  async function start(prompt: string, options: { parent?: PaseoAgentHandle } = {}): Promise<PaseoAgentHandle> {
+  async function start(prompt: string, options: { parent?: PaseoAgentHandle; background?: boolean } = {}): Promise<PaseoAgentHandle> {
     count += 1;
-    const handle = await other.api.agents.create({ config: { provider: `${PROVIDER}/lanes` }, cwd, title: `lanes ${count}: ${prompt}`, prompt, ...(options.parent ? { parent: options.parent } : null) });
+    const handle = await other.api.agents.create({ config: { provider: `${PROVIDER}/lanes` }, cwd, title: `lanes ${count}: ${prompt}`, prompt, ...(options.parent ? { parent: options.parent } : null), ...(options.background ? { background: true } : null) });
     return handle;
   }
 
@@ -120,6 +120,21 @@ describe.skipIf(!paseoBin())("lanes through real turns", () => {
     await lane(child.id, "review");
     await lane(parent.id, "review");
     expect(path_(child.id)).toEqual(["running", "review"]);
+  });
+
+  it("never shows a background agent, and keeps its parent running while it runs", async () => {
+    const parent = await start("hold:200");
+    await lane(parent.id, "review");
+    const helper = await start("hold:3000", { parent, background: true });
+    const orphan = await start("hold:3000", { background: true });
+    await lane(parent.id, "running");
+    expect(card(parent.id)?.waitingOnSubtasks).toBe(true);
+    await lane(parent.id, "review");
+    // Both ran the same hold, and the board recorded every render since either was created.
+    expect(board.everShown(helper.id)).toBe(false);
+    expect(board.everShown(orphan.id)).toBe(false);
+    // The helper stays reachable as the parent's subtask, for Stop and details.
+    expect(card(parent.id)?.children.map((child) => child.id)).toContain(helper.id);
   });
 
   it("moves the tasks of an archived workspace to archived", async () => {

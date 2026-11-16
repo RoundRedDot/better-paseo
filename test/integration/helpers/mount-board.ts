@@ -18,6 +18,8 @@ export interface MountedBoard {
    * render it was missing from after it had shown.
    */
   history(id: string): string[];
+  /** Whether a lane ever drew a card for this agent, in any render since mounting. */
+  everShown(id: string): boolean;
   /** Wait, letting daemon messages land, until `check` holds; throws its last failure after `timeoutMs`. */
   until(check: (board: TasksHandle) => void, timeoutMs?: number): Promise<void>;
   /** Page the done (and archived) lane in until nothing is left inside the window. */
@@ -30,8 +32,10 @@ export async function mountBoard(api: PaseoApi, options: { doneWindow?: DoneWind
   const archived = options.archived ?? true;
   let current!: TasksHandle;
   const histories = new Map<string, string[]>();
+  const shown = new Set<string>();
   function Probe() {
     current = useTasks(api, { doneWindow, includeDone: true, includeArchived: archived });
+    for (const lane of Object.values(current.lanes)) for (const card of lane.cards) shown.add(card.id);
     for (const [id, card] of current.byId) {
       const lanes = histories.get(id);
       if (!lanes) histories.set(id, [card.lane]);
@@ -48,6 +52,9 @@ export async function mountBoard(api: PaseoApi, options: { doneWindow?: DoneWind
   const board: MountedBoard = {
     get current() {
       return current;
+    },
+    everShown(id) {
+      return shown.has(id);
     },
     history(id) {
       return [...(histories.get(id) ?? [])];

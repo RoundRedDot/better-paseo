@@ -1394,7 +1394,7 @@ function createStore(api: PaseoApi): TaskStore {
   function hasActiveBackgroundChildren(id: string): boolean {
     return [...childrenByParent.get(id) ?? []].some((childId) => {
       const child = cards.get(childId) ?? baseCards.get(childId);
-      return child !== undefined && inBackgroundWorkspace(child) && (child.status === "running" || child.status === "needs_input");
+      return child !== undefined && isBackground(child) && (child.status === "running" || child.status === "needs_input");
     });
   }
 
@@ -1551,8 +1551,13 @@ function createStore(api: PaseoApi): TaskStore {
     }
   }
 
-  /** Background agents contribute to their parent's state, but never get standalone cards. */
-  function inBackgroundWorkspace(card: TaskCard): boolean {
+  /**
+   * Background agents contribute to their parent's state, but never get standalone cards.
+   * An agent is background when it was created so (Paseo 0.16) or its workspace is, as the
+   * daemon decides; an older daemon's snapshot has no flag of its own.
+   */
+  function isBackground(card: TaskCard): boolean {
+    if (entries.get(card.id)?.agent.background === true) return true;
     return Boolean(card.location.workspaceId && workspaces.get(card.location.workspaceId)?.background);
   }
 
@@ -3753,7 +3758,7 @@ function createStore(api: PaseoApi): TaskStore {
     const cutoff = doneWindowMs(options.doneWindow);
     const now = Date.now();
     const filteredCards = [...cards.values()].filter((card) => {
-      if (inBackgroundWorkspace(card) || entries.get(card.id)?.agent.labels?.[TITLE_HELPER_LABEL] === TITLE_HELPER_PURPOSE) return false;
+      if (isBackground(card) || entries.get(card.id)?.agent.labels?.[TITLE_HELPER_LABEL] === TITLE_HELPER_PURPOSE) return false;
       if (!isHistoryLane(card.lane)) return true;
       if (!options.includeDone || (card.lane === "archived" && !showArchived)) return false;
       if (cutoff === null) return true;
@@ -3768,7 +3773,7 @@ function createStore(api: PaseoApi): TaskStore {
       for (const child of card.children) {
         if (byId.has(child.id)) continue;
         const hidden = cards.get(child.id);
-        if (hidden && inBackgroundWorkspace(hidden)) byId.set(hidden.id, hidden);
+        if (hidden && isBackground(hidden)) byId.set(hidden.id, hidden);
       }
     }
     const lanes = {} as Record<LaneId, LaneModel>;
@@ -3856,7 +3861,7 @@ function createStore(api: PaseoApi): TaskStore {
         if (card.lane === "needs_input" || card.lane === "running" || (card.lane === "review" && reviewKnown)) lanes[card.lane].cards.push(card);
       };
       for (const card of cards.values()) {
-        if (inBackgroundWorkspace(card) || entries.get(card.id)?.agent.labels?.[TITLE_HELPER_LABEL] === TITLE_HELPER_PURPOSE) continue;
+        if (isBackground(card) || entries.get(card.id)?.agent.labels?.[TITLE_HELPER_LABEL] === TITLE_HELPER_PURPOSE) continue;
         add(card);
         // A provider subagent's card counts in its lane, as the board draws it (`withSubagentCards`).
         if (card.lane !== "archived" && card.children.some((child) => child.kind === "provider")) {

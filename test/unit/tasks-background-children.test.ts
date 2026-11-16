@@ -104,4 +104,36 @@ describe("background child tasks", () => {
       act(() => renderer.unmount());
     }
   });
+  it("hides a background agent of a visible workspace and keeps its parent running (Paseo 0.16)", async () => {
+    const parent = makeAgent({ id: "parent", workspaceId: "visible", updatedAt: at(10) });
+    const helper = makeAgent({ id: "helper", workspaceId: "visible", status: "running", background: true, updatedAt: at(20), labels: { "paseo.parent-agent-id": "parent" } });
+    const fake = createFakePaseo({
+      agents: [parent, helper, makeAgent({ id: "orphan", workspaceId: "visible", status: "running", background: true, updatedAt: at(21) })],
+      workspaces: [makeWorkspace({ id: "visible" })],
+    });
+    let tasks!: TasksHandle;
+    let counts!: ReturnType<typeof useTaskCounts>;
+    function Probe() {
+      tasks = useTasks(fake.paseo, { doneWindow: "all", includeDone: true });
+      counts = useTaskCounts(fake.paseo, true);
+      return null;
+    }
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(Probe)); });
+    try {
+      const shown = () => Object.values(tasks.lanes).flatMap((lane) => lane.cards.map((card) => card.id));
+      expect(shown()).toEqual(["parent"]);
+      expect(tasks.lanes.running.cards.map((card) => card.id)).toEqual(["parent"]);
+      expect(tasks.byId.has("orphan")).toBe(false);
+      expect(counts).toMatchObject({ running: 1, review: 0 });
+      expect(stopTargets(tasks.byId.get("parent")!, true, (id) => tasks.byId.get(id))).toEqual(["helper"]);
+      await act(async () => { fake.upsertAgent({ ...helper, status: "idle", updatedAt: at(22) }); });
+      expect(shown()).toEqual(["parent"]);
+      expect(tasks.lanes.done.cards.map((card) => card.id)).toEqual(["parent"]);
+      expect(counts.running).toBe(0);
+    } finally {
+      act(() => renderer.unmount());
+    }
+    expect(fake.openSubscriptions()).toBe(0);
+  });
 });
