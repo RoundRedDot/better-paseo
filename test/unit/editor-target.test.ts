@@ -147,6 +147,12 @@ describe("file open preference", () => {
     await expect(editorCommand("zed", "linux")).rejects.toThrow("Zed is not installed");
   });
 
+  it.each(["zedit", "zed-cli"])("finds a Linux Zed CLI packaged as %s", async (command) => {
+    process.env.PATH = "/opt/bin";
+    fs.executable.add(`/opt/bin/${command}`);
+    expect(await editorCommand("zed", "linux")).toEqual({ command: `/opt/bin/${command}`, args: [], completion: "exit" });
+  });
+
   it("keeps a Zed editor when /usr/sbin and /usr/bin are merged", async () => {
     process.env.PATH = "/usr/bin";
     fs.existing.add("/usr/sbin/zed");

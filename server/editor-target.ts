@@ -70,7 +70,7 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
   }
   const dirs = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
   const candidates = app === "zed" && platform === "linux"
-    ? [...dirs.map((dir) => join(dir, "zeditor")), join(homedir(), ".local/zed.app/bin/zed"), ...dirs.map((dir) => join(dir, "zed"))]
+    ? [...dirs.map((dir) => join(dir, "zeditor")), join(homedir(), ".local/zed.app/bin/zed"), ...dirs.map((dir) => join(dir, "zed")), ...dirs.map((dir) => join(dir, "zedit")), ...dirs.map((dir) => join(dir, "zed-cli"))]
     : dirs.map((dir) => join(dir, editor.command));
   const zfs = app === "zed" && platform === "linux" && existsSync("/usr/sbin/zed") ? realpathSync("/usr/sbin/zed") : null;
   for (const candidate of candidates) {
