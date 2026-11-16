@@ -64,16 +64,17 @@ function windowsCandidates(app: Editor): Candidate[] {
   const { command } = editors[app];
   const exe = app === "vscode" ? "Code.exe" : "Cursor.exe";
   const hasGui = (root: string) => existsSync(at(root, "resources", "app", "product.json"));
-  return [
-    ...dirs.flatMap((dir) => {
-      // The installer's `bin\<command>.cmd` sits below the GUI: VS Code's one level up, Cursor's under `resources\app\bin`.
-      const root = app === "vscode" ? at(dir, "..") : at(dir, "..", "..", "..");
-      const viaShim = isBin(dir) && existsSync(at(dir, `${command}.cmd`)) && hasGui(root);
-      return [...(hasGui(dir) ? [gui(at(dir, `${command}.exe`))] : []), ...(viaShim ? [gui(at(root, exe))] : [])];
-    }),
-    ...defined([programs, process.env.ProgramFiles]).map((root) => gui(at(root, app === "vscode" ? "Microsoft VS Code" : "Cursor", exe))),
-    ...dirs.filter((dir) => !hasGui(dir)).map((dir) => launcher(at(dir, `${command}.exe`))),
-  ];
+  const guis: Candidate[] = [];
+  const shims: Candidate[] = [];
+  for (const dir of dirs) {
+    if (hasGui(dir)) guis.push(gui(at(dir, `${command}.exe`)));
+    else shims.push(launcher(at(dir, `${command}.exe`)));
+    // The installer's `bin\<command>.cmd` sits below the GUI: VS Code's one level up, Cursor's under `resources\app\bin`.
+    const root = app === "vscode" ? at(dir, "..") : at(dir, "..", "..", "..");
+    if (isBin(dir) && existsSync(at(dir, `${command}.cmd`)) && hasGui(root)) guis.push(gui(at(root, exe)));
+  }
+  const installs = defined([programs, process.env.ProgramFiles]).map((root) => gui(at(root, app === "vscode" ? "Microsoft VS Code" : "Cursor", exe)));
+  return [...guis, ...installs, ...shims];
 }
 
 /**
