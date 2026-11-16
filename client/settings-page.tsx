@@ -60,6 +60,7 @@ import { SETTINGS_STRINGS, type SettingsStrings } from "./i18n/settings-page-str
 import { describeMonoSource } from "./settings-mono-source";
 import { ProviderLogo, providerBrand } from "./components/provider-logo";
 import { tildePath } from "./tasks/cards/format";
+import { releaseNoteLine } from "./release-notes";
 
 /** What the settings page says about the daemon store, or null when all is well. */
 function storageHint(sync: SyncStatus, t: SettingsStrings): string | null {
@@ -782,10 +783,14 @@ function VersionSection({ look, language, version, autoUpdateCheck, native, agen
             {state.notes.releases.map((release) => <View key={release.version} style={{ gap: space.sm }}>
               <Text style={[settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi, fontWeight: "600" }]}>{release.version}</Text>
               <View style={{ gap: 8 }}>
-                {release[language].map((item, index) => <View key={index} style={{ flexDirection: "row", alignItems: "flex-start", gap: space.sm }}>
-                  <View style={{ width: 5, height: 5, borderRadius: 3, marginTop: Math.round((look.tokens.typography.ui.size - 1) * 1.4 / 2 - 2.5), backgroundColor: look.tokens.foregroundMuted }} />
-                  <Text style={{ flex: 1, minWidth: 0, color: look.tokens.foreground, fontFamily: look.tokens.fontUi, ...settingsTextStyle(look.tokens, -1) }}>{item}</Text>
-                </View>)}
+                {release[language].map((item, index) => {
+                  const line = releaseNoteLine(item);
+                  if (line.kind === "heading") return <Text key={index} accessibilityRole="header" style={[settingsTextStyle(look.tokens, -1), { marginTop: index === 0 ? 0 : space.sm, color: look.tokens.foreground, fontFamily: look.tokens.fontUi, fontWeight: "600" }]}>{line.text}</Text>;
+                  return <View key={index} style={{ flexDirection: "row", alignItems: "flex-start", gap: space.sm }}>
+                    <View style={{ width: 5, height: 5, borderRadius: 3, marginTop: Math.round((look.tokens.typography.ui.size - 1) * 1.4 / 2 - 2.5), backgroundColor: look.tokens.foregroundMuted }} />
+                    <Text style={{ flex: 1, minWidth: 0, color: look.tokens.foreground, fontFamily: look.tokens.fontUi, ...settingsTextStyle(look.tokens, -1) }}>{line.text}</Text>
+                  </View>;
+                })}
               </View>
             </View>)}
           </View>

@@ -714,6 +714,43 @@ it.each(["en", "zh"] as const)("renders version summaries with wrapping text in 
   act(() => r.unmount());
 });
 
+it.each(["zh", "en"] as const)("renders %s release-note group titles without bullets", async (language) => {
+  makeSettings();
+  updateEnhancerPreferences({ language });
+  setSettingsTab("version");
+  state.rpc.mockReset();
+  state.rpc.mockResolvedValue({ state: "done", source: "git", current: "1".repeat(40), latest: "1".repeat(40), matches: true, checkedAt: 1,
+    versions: { status: "available", current: "1.6.0", latest: "1.6.0", currentBuild: 202611161008, latestBuild: 202611161008 },
+    notes: { status: "available", releases: [
+      { version: "1.6.0",
+        zh: ["时间线", "简洁：只保留对话和结果。", "任务面板", "工作区很多时，任务留在原泳道。"],
+        en: ["Timeline", "Simple: keeps only conversation and results.", "Task panel", "When there are many workspaces, tasks stay in their lanes."] },
+      { version: "1.5.7", zh: ["修复回答问题弹窗背景过暗的问题。"], en: ["Fix the question dialog background being too dark."] },
+    ] } });
+  let r!: Renderer;
+  await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "ios", compact: true } as never, host: {} as never })); });
+  const headingText = language === "zh" ? "时间线" : "Timeline";
+  const nextHeadingText = language === "zh" ? "任务面板" : "Task panel";
+  const bulletText = language === "zh" ? "简洁：只保留对话和结果。" : "Simple: keeps only conversation and results.";
+  const olderText = language === "zh" ? "修复回答问题弹窗背景过暗的问题。" : "Fix the question dialog background being too dark.";
+  const heading = r.root.find((node) => (node.type as unknown) === "Text" && node.props.children === headingText);
+  const nextHeading = r.root.find((node) => (node.type as unknown) === "Text" && node.props.children === nextHeadingText);
+  const bullet = r.root.find((node) => (node.type as unknown) === "Text" && node.props.children === bulletText);
+  const older = r.root.find((node) => (node.type as unknown) === "Text" && node.props.children === olderText);
+  const rowOf = (node: Node) => node.parent?.parent as Node | undefined;
+  expect(heading.props.accessibilityRole).toBe("header");
+  expect(nextHeading.props.accessibilityRole).toBe("header");
+  expect(StyleSheet.flatten(heading.props.style)).toMatchObject({ fontWeight: "600", marginTop: 0 });
+  expect(StyleSheet.flatten(nextHeading.props.style)).toMatchObject({ fontWeight: "600", marginTop: 8 });
+  expect(rowOf(heading)?.props.style?.flexDirection).toBeUndefined();
+  expect(rowOf(nextHeading)?.props.style?.flexDirection).toBeUndefined();
+  for (const item of [bullet, older]) {
+    expect(rowOf(item)?.props.style?.flexDirection).toBe("row");
+    expect(rowOf(item)?.findAll((node) => (node.type as unknown) === "View" && node.props.style?.width === 5 && node.props.style?.height === 5)).toHaveLength(1);
+  }
+  act(() => r.unmount());
+});
+
 it("updates an open settings page after an automatic check finishes", async () => {
   vi.useFakeTimers();
   let r: Renderer | undefined;
