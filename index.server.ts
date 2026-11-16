@@ -1,5 +1,5 @@
-import { spawn } from "node:child_process";
 import { open, stat, type FileHandle } from "node:fs/promises";
+import type { Stats } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { updateCheckRpc } from "./shared/update-check";
@@ -9,8 +9,8 @@ import { openTerminalRpc, updateCommand } from "./shared/open-terminal";
 import { createUpdateCheck, startAutomaticUpdateCheck } from "./server/update-check";
 import { pluginDataDir } from "./server/plugin-data";
 import { openSystemTerminal } from "./server/open-terminal";
-import { PREFERENCES_SETTINGS } from "./shared/preferences-settings";
-import { revealPathRpc } from "./shared/file-rpc";
+import { PREFERENCES_SETTINGS, type FileOpenApp } from "./shared/preferences-settings";
+import { revealPathRpc, type FileOpenErrorKind } from "./shared/file-rpc";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { type HighlightLine, type HighlightToken, highlightRpc } from "./shared/highlight-rpc";
 import { imageRpc } from "./shared/image-rpc";
@@ -22,9 +22,9 @@ import { MARK_BITMAPS } from "./server/mark-bitmaps";
 import { writePerfDump } from "./server/perf-dump";
 import { registerTasksServer } from "./server/tasks/register";
 import { registerTurnUsageServer } from "./server/turn-usage";
-import { shellOpenCommand, launches, type PathEntry } from "./server/open-path";
-import { editorCommand, EditorUnavailableError } from "./server/editor-target";
-import { LaunchUnconfirmedError, waitForOpen } from "./server/open-process";
+import { launches } from "./server/open-path";
+import { EditorUnavailableError } from "./server/editor-target";
+import { LaunchUnconfirmedError, openInEditor, openWithShell } from "./server/open-process";
 
 /**
  * Image types worth inlining, and the mime each one needs in its data URI.
@@ -138,12 +138,9 @@ async function resolveSelector(path: string, cwd: string): Promise<ResolvedSelec
   return isNetworkOrDevicePath(stripped) ? { error: "Not a local path" } : { path: stripped };
 }
 
-/** Runs a platform command without a shell and reports startup failures. */
-async function openWithShell(target: string, entry: PathEntry): Promise<void> {
-  const { command, args, windowsVerbatimArguments } = shellOpenCommand(process.platform, target, entry);
-  const completion = process.platform === "win32" ? "spawn" : "exit";
-  const child = spawn(command, args, { detached: true, windowsHide: true, stdio: completion === "exit" ? ["ignore", "ignore", "pipe"] : "ignore", ...(windowsVerbatimArguments ? { windowsVerbatimArguments } : null) });
-  await waitForOpen(child, completion, "Failed to open path");
+/** A failed `file.reveal` reply; the kind and app let the client localize it. */
+function revealFailure(error: unknown, errorKind?: FileOpenErrorKind, errorApp?: FileOpenApp) {
+  return { revealed: null, error: error instanceof Error ? error.message : String(error), ...(errorKind && { errorKind }), ...(errorApp && { errorApp }) };
 }
 
 const DARK_THEME = "github-dark-default";
@@ -495,54 +492,32 @@ export default function contribute(server: PluginServerContext) {
     const requested = resolved.path;
 
     const target = isAbsolute(requested) ? requested : resolve(input.cwd, requested);
-    let errorKind: "settings_unavailable" | "editor_unavailable" | "launch_failed" | "launch_unconfirmed" | undefined;
-    let errorApp: "system" | "cursor" | "vscode" | "zed" | "sublime" | undefined;
+    let entry: Stats;
     try {
-      const entry = await stat(target);
-      if (entry.isDirectory() || launches(target, entry)) {
-        errorKind = "launch_failed";
-        errorApp = "system";
-        await openWithShell(target, entry);
-        return { revealed: target, error: null };
+      entry = await stat(target);
+    } catch (error) {
+      return revealFailure(error);
+    }
+    // Folders and anything that would run keep the platform's reveal, whatever the setting.
+    let app: FileOpenApp = "system";
+    if (!entry.isDirectory() && !launches(target, entry)) {
+      try {
+        const settings = await preferences.read();
+        if (settings.status !== "ready") throw new Error("File open settings are unavailable");
+        app = settings.values.fileOpenApp;
+      } catch (error) {
+        return revealFailure(error, "settings_unavailable");
       }
-      errorKind = "settings_unavailable";
-      const settings = await preferences.read();
-      if (settings.status !== "ready") throw new Error("File open settings are unavailable");
-      const app = settings.values.fileOpenApp;
       if (input.expectedApp !== undefined && input.expectedApp !== app) {
         return { revealed: null, error: "File open setting has not synchronized; try again", errorKind: "settings_unsynced" as const };
       }
-      errorApp = app;
-      if (app === "system") {
-        errorKind = "launch_failed";
-        await openWithShell(target, entry);
-      } else {
-        errorKind = "launch_failed";
-        const editor = await editorCommand(app);
-        const env = { ...process.env };
-        // Electron must not execute the selected file as a Node program.
-        for (const key of Object.keys(env)) {
-          if (key.toUpperCase() === "ELECTRON_RUN_AS_NODE") delete env[key];
-        }
-        if ((app === "vscode" || app === "cursor") && process.platform === "linux") env.DONT_PROMPT_WSL_INSTALL = "1";
-        const child = spawn(editor.command, [...editor.args, target], {
-          detached: true,
-          windowsHide: true,
-          stdio: ["ignore", "ignore", "pipe"],
-          env,
-        });
-        await waitForOpen(child, editor.completion === "spawn" ? "gui" : "exit", `Failed to open file with ${app}`);
-      }
+    }
+    try {
+      await (app === "system" ? openWithShell(target, entry) : openInEditor(app, target));
       return { revealed: target, error: null };
     } catch (error) {
-      if (error instanceof EditorUnavailableError) errorKind = "editor_unavailable";
-      if (error instanceof LaunchUnconfirmedError) errorKind = "launch_unconfirmed";
-      return {
-        revealed: null,
-        error: error instanceof Error ? error.message : String(error),
-        ...(errorKind ? { errorKind } : {}),
-        ...(errorApp ? { errorApp } : {}),
-      };
+      const kind = error instanceof EditorUnavailableError ? "editor_unavailable" : error instanceof LaunchUnconfirmedError ? "launch_unconfirmed" : "launch_failed";
+      return revealFailure(error, kind, app);
     }
   });
 

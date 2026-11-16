@@ -1,11 +1,12 @@
 import { getEnhancerPreferences } from "../preferences";
 import { resolveLanguage, type SettingsLanguage } from "./settings-strings";
 import type { FileOpenApp } from "../../shared/preferences-settings";
+import type { FileOpenErrorKind } from "../../shared/file-rpc";
 
 const names: Record<FileOpenApp, string> = { system: "System app", cursor: "Cursor", vscode: "VS Code", zed: "Zed", sublime: "Sublime Text" };
 
 /** Server details are retained for diagnosis, including with older servers. */
-export function fileOpenError(result: { error: string | null; errorKind?: "settings_unavailable" | "settings_unsynced" | "editor_unavailable" | "launch_failed" | "launch_unconfirmed"; errorApp?: FileOpenApp }, language: SettingsLanguage = resolveLanguage(getEnhancerPreferences().language)): string {
+export function fileOpenError(result: { error: string | null; errorKind?: FileOpenErrorKind; errorApp?: FileOpenApp }, language: SettingsLanguage = resolveLanguage(getEnhancerPreferences().language)): string {
   const detail = result.error ?? "";
   if (language !== "zh" || !result.errorKind) return detail;
   if (result.errorKind === "settings_unavailable") return "文件打开设置不可用";
