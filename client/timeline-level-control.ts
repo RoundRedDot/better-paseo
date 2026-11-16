@@ -84,7 +84,7 @@ export function timelineLevelButton(preferences: EnhancerPreferences): PluginBut
   return {
     title: text.title,
     label: text.levels[preferences.timelineLevel],
-    icon: "ListFilter",
+    icon: "Footprints",
     // The level only shapes the chat this plugin draws.
     visible: preferences.chatEnabled,
     behavior: { kind: "menu", items },
