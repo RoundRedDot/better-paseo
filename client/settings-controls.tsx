@@ -83,10 +83,12 @@ export function Segmented<T extends string>({
   look,
   label,
   contentWidth = false,
+  wrap = false,
 }: {
   value: T | null;
   options: ReadonlyArray<{ value: T; label: string; badge?: string }>;
   contentWidth?: boolean;
+  wrap?: boolean;
   onChange(value: T): void;
   look: PageLook;
   label: string;
@@ -99,6 +101,7 @@ export function Segmented<T extends string>({
       style={[
         styles.segmented,
         compact ? styles.segmentedFill : null,
+        wrap ? { flexWrap: "wrap", alignSelf: "stretch" } : null,
         { backgroundColor: tokens.v2.surface2, minHeight: compact ? 32 : 28 },
       ]}
     >
@@ -115,7 +118,8 @@ export function Segmented<T extends string>({
             onPress={() => onChange(option.value)}
             style={[
               styles.segment,
-              compact && !contentWidth ? styles.segmentFill : null,
+              compact && !contentWidth && !wrap ? styles.segmentFill : null,
+              wrap ? { flexGrow: 1, flexBasis: 0, minWidth: 140 } : null,
               selected
                 ? { backgroundColor: tokens.v2.surface0, borderColor: tokens.v2.border }
                 : styles.segmentIdle,

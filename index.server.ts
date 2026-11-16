@@ -512,7 +512,7 @@ export default function contribute(server: PluginServerContext) {
         const child = spawn(editor.command, [...editor.args, target], { detached: true, stdio: "ignore" });
         await new Promise<void>((resolve, reject) => {
           child.once("error", reject);
-          if (editor.command === "open") {
+          if (editor.completion === "exit") {
             child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`Failed to open file with ${app} (exit ${code})`)));
           } else {
             child.once("spawn", resolve);

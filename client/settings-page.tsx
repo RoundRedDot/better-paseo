@@ -1052,19 +1052,15 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         <SettingRow
           title={t.fileOpenTitle}
           description={t.fileOpenDescription}
-          control={<View style={{ gap: 6 }}>
-            <Segmented label={t.fileOpenTitle} value={preferences.fileOpenApp}
+          control={sync.status === "invalid" ? <Text accessibilityRole="alert" style={[settingsTextStyle(tokens, -1), { color: tokens.warning, fontFamily: tokens.fontUi }]}>{t.fileOpenUnavailable}</Text> :
+            <Segmented label={t.fileOpenTitle} value={preferences.fileOpenApp} wrap
               options={[
                 { value: "system", label: t.fileOpenSystem },
                 { value: "cursor", label: "Cursor" },
                 { value: "vscode", label: "VS Code" },
-              ]} onChange={(fileOpenApp) => updateEnhancerPreferences({ fileOpenApp })} look={look} />
-            <Segmented label={t.fileOpenTitle} value={preferences.fileOpenApp}
-              options={[
                 { value: "zed", label: "Zed" },
                 { value: "sublime", label: "Sublime Text" },
-              ]} onChange={(fileOpenApp) => updateEnhancerPreferences({ fileOpenApp })} look={look} />
-          </View>}
+              ]} onChange={(fileOpenApp) => updateEnhancerPreferences({ fileOpenApp })} look={look} />}
           look={look}
           stacked
         />

@@ -119,14 +119,14 @@ describe("the image viewer's spoken labels", () => {
   it("speaks English with English settings", () => {
     updateEnhancerPreferences({ language: "en" });
     const renderer = render();
-    expect(labels(renderer)).toEqual(["Zoom in", "Zoom out", "Reset zoom", "Open in default app", "Close the image"]);
+    expect(labels(renderer)).toEqual(["Zoom in", "Zoom out", "Reset zoom", "Open file", "Close the image"]);
     act(() => renderer.unmount());
   });
 
   it("speaks Chinese with Chinese settings on a hover device", () => {
     updateEnhancerPreferences({ language: "zh" });
     const renderer = render();
-    expect(labels(renderer)).toEqual(["放大", "缩小", "复原缩放", "用默认应用打开", "关闭图片"]);
+    expect(labels(renderer)).toEqual(["放大", "缩小", "复原缩放", "打开文件", "关闭图片"]);
     act(() => renderer.unmount());
   });
 
@@ -146,8 +146,8 @@ describe("the image viewer's spoken labels", () => {
 
 describe("the image viewer's hover names", () => {
   it.each([
-    ["en", ["Zoom in", "Zoom out", "Open in default app", "Close the image"]],
-    ["zh", ["放大", "缩小", "用默认应用打开", "关闭图片"]],
+    ["en", ["Zoom in", "Zoom out", "Open file", "Close the image"]],
+    ["zh", ["放大", "缩小", "打开文件", "关闭图片"]],
   ] as const)("names an enabled button after a resting pointer (%s)", (language, names) => {
     updateEnhancerPreferences({ language });
     const renderer = render();

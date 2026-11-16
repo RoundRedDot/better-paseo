@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
-const state = vi.hoisted(() => ({ pointer: true }));
+const state = vi.hoisted(() => ({ pointer: true, sync: "ready" as "ready" | "invalid" }));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", async (original) => {
   const rpc = async () => ({ state: "idle", entries: [], error: null });
@@ -16,7 +16,7 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
 vi.mock("../../client/ui/use-input-capabilities", () => ({
   useInputCapabilities: (compact = false) => ({ hover: state.pointer, touch: !state.pointer, compact, native: false }),
 }));
-vi.mock("../../client/state/preference-sync-slot", () => ({ usePreferenceSettings: () => ({ status: "ready", failed: false }) }));
+vi.mock("../../client/state/preference-sync-slot", () => ({ usePreferenceSettings: () => ({ status: state.sync, failed: false, error: state.sync === "invalid" ? "invalid" : null }) }));
 vi.mock("../../client/ui/host-appearance-shim", () => ({ useHostAppearance: () => null }));
 vi.mock("../../client/i18n/host-language", async (original) => ({
   ...await original<object>(),
@@ -77,7 +77,32 @@ afterEach(() => {
 beforeEach(() => {
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   state.pointer = true;
+  state.sync = "ready";
   resetEnhancerPreferences();
+});
+
+describe("file open setting", () => {
+  it("shows one group of five options and tracks the selection", () => {
+    updateEnhancerPreferences({ language: "en" });
+    const renderer = renderPage();
+    const groups = renderer.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radiogroup" && node.props.accessibilityLabel === "Open files with");
+    expect(groups).toHaveLength(1);
+    const radios = groups[0]!.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
+    expect(radios.map((node) => node.props.accessibilityLabel)).toEqual(["System app", "Cursor", "VS Code", "Zed", "Sublime Text"]);
+    act(() => radios[3]!.props.onPress());
+    expect(radios.map((node) => node.props.accessibilityState.checked)).toEqual([false, false, false, true, false]);
+    expect(getEnhancerPreferences().fileOpenApp).toBe("zed");
+    act(() => renderer.unmount());
+  });
+
+  it("does not present a default as active while the stored settings are invalid", () => {
+    updateEnhancerPreferences({ language: "en" });
+    state.sync = "invalid";
+    const renderer = renderPage();
+    expect(choiceGroup(renderer.root, "Open files with")).toBeUndefined();
+    expect(renderer.root.findAll((node) => node.props.accessibilityRole === "alert").some((node) => textOf(node).includes("File open setting unavailable"))).toBe(true);
+    act(() => renderer.unmount());
+  });
 });
 
 describe("block details settings", () => {

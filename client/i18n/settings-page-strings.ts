@@ -142,6 +142,7 @@ const en = {
   fileOpenTitle: "Open files with",
   fileOpenDescription: "Opens files on this host. The selected app must be installed there.",
   fileOpenSystem: "System app",
+  fileOpenUnavailable: "File open setting unavailable until settings are restored.",
   pathsTitle: "File paths",
   pathsDescription:
     "Relative paths start at the workspace; a worktree's main repository is shown by name. Copying always gives the absolute path.",
@@ -405,6 +406,7 @@ const zh: SettingsStrings = {
   fileOpenTitle: "文件打开方式",
   fileOpenDescription: "在此主机上打开文件，所选应用需安装在该主机。",
   fileOpenSystem: "系统应用",
+  fileOpenUnavailable: "设置恢复前，文件打开方式不可用。",
   pathsTitle: "文件路径",
   pathsDescription: "相对路径从工作区算起，worktree 的主仓库以名称显示。复制时总是得到绝对路径。",
   pathsRelative: "相对",

@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 const { spawn, editorCommand, settings } = vi.hoisted(() => ({
   spawn: vi.fn(),
   editorCommand: vi.fn(),
-  settings: { app: "system" },
+  settings: { app: "system", status: "ready" },
 }));
 vi.mock("../../server/editor-target", () => ({ editorCommand }));
 vi.mock("node:child_process", async (actual) => ({ ...(await actual<typeof import("node:child_process")>()), spawn }));
@@ -39,7 +39,7 @@ async function revealHandler(): Promise<Handler> {
   const { default: contribute } = await import("../../index.server");
   const handlers = new Map<string, Handler>();
   const server = new Proxy({}, {
-    get: (_, key) => key === "registerSettings" ? () => ({ read: async () => ({ status: "ready", revision: "test", values: { fileOpenApp: settings.app } }), subscribe: () => () => {} }) : key === "handle"
+    get: (_, key) => key === "registerSettings" ? () => ({ read: async () => ({ status: settings.status, revision: "test", values: { fileOpenApp: settings.app } }), subscribe: () => () => {} }) : key === "handle"
       ? (contract: { name: string }, handler: Handler) => handlers.set(contract.name, handler)
       : () => () => {},
   }) as PluginServerContext;
@@ -63,7 +63,7 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
   it("opens in the selected editor and reports an unavailable editor", async () => {
     spawn.mockClear();
     settings.app = "zed";
-    editorCommand.mockReturnValueOnce({ command: "/usr/bin/zed", args: [] });
+    editorCommand.mockReturnValueOnce({ command: "/usr/bin/zed", args: [], completion: "exit" });
     const reveal = await revealHandler();
     await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: null });
     expect(spawn).toHaveBeenCalledWith("/usr/bin/zed", [join(root, "notes.md")], expect.anything());
@@ -71,6 +71,45 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
     await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: "Zed is not installed" });
     await reveal({ cwd: root, path: "run" });
     expect(spawn).toHaveBeenLastCalledWith("open", ["-R", join(root, "run")], expect.anything());
+    settings.app = "system";
+  });
+
+  it("reports unavailable settings while still revealing folders and executables", async () => {
+    settings.status = "invalid";
+    spawn.mockClear();
+    const reveal = await revealHandler();
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ revealed: null, error: "File open settings are unavailable" });
+    expect(spawn).not.toHaveBeenCalled();
+    await reveal({ cwd: root, path: "run" });
+    expect(spawn).toHaveBeenLastCalledWith("open", ["-R", join(root, "run")], expect.anything());
+    settings.status = "ready";
+  });
+
+  it("returns after a long-running GUI process starts", async () => {
+    settings.app = "cursor";
+    editorCommand.mockReturnValueOnce({ command: "Cursor.exe", args: [], completion: "spawn" });
+    spawn.mockImplementationOnce(() => {
+      const child = new EventEmitter() as EventEmitter & { unref: () => void };
+      child.unref = vi.fn();
+      queueMicrotask(() => child.emit("spawn"));
+      return child;
+    });
+    const reveal = await revealHandler();
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: null });
+    settings.app = "system";
+  });
+
+  it("reports a launcher that starts but exits unsuccessfully", async () => {
+    settings.app = "zed";
+    editorCommand.mockReturnValueOnce({ command: "/usr/bin/zed", args: [], completion: "exit" });
+    spawn.mockImplementationOnce(() => {
+      const child = new EventEmitter() as EventEmitter & { unref: () => void };
+      child.unref = vi.fn();
+      queueMicrotask(() => { child.emit("spawn"); child.emit("exit", 1); });
+      return child;
+    });
+    const reveal = await revealHandler();
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ revealed: null, error: "Failed to open file with zed (exit 1)" });
     settings.app = "system";
   });
 });

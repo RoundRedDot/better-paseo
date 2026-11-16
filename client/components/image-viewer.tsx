@@ -386,7 +386,7 @@ function ViewerBody({ onClose, uri, width, height, label, tokens, path, onReveal
       onPress: () => void copy(path, { feedback: "icon", label: "Copy path" }),
     });
   } else if (!touchFirst && onReveal) {
-    actions.push({ key: "file", icon: "ExternalLink", label: "Open in default app", onPress: onReveal });
+    actions.push({ key: "file", icon: "ExternalLink", label: "Open file", onPress: onReveal });
   }
   actions.push({ icon: "X", label: "Close the image", onPress: onClose });
 

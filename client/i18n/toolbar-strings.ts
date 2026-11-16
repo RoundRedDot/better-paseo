@@ -75,7 +75,7 @@ const ZH: Readonly<Record<string, string>> = {
   "Zoom in": "放大",
   "Zoom out": "缩小",
   "Reset zoom": "复原缩放",
-  "Open in default app": "用默认应用打开",
+  "Open file": "打开文件",
   "Close the image": "关闭图片",
   "Close menu": "关闭菜单",
   Code: "代码",

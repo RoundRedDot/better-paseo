@@ -4,7 +4,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { SettingsTips, Toggle, type PageLook } from "../../client/settings-controls";
+import { Segmented, SettingsTips, Toggle, type PageLook } from "../../client/settings-controls";
 import { measureHostTree } from "./helpers/yoga-host-layout";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -79,6 +79,23 @@ describe("settings switch Space activation", () => {
   it.each(["ios", "android"])("adds no keyboard or blur props on %s", (os) => {
     const { toggle } = mount(os);
     for (const prop of ["onKeyDown", "onKeyUp", "onBlur"]) expect(toggle.props).not.toHaveProperty(prop);
+  });
+});
+
+describe("wrapped settings choices", () => {
+  it.each([320, 390])("keeps all options inside a %i-point mobile row", (width) => {
+    const mobileLook = { compact: true, tokens: { foreground: "#000", foregroundMuted: "#555", fontUi: "System", typography: { ui: { size: 16 } }, v2: { border: "#aaa", surface0: "#fff", surface2: "#eee" } } } as PageLook;
+    const options = ["System app", "Cursor", "VS Code", "Zed", "Sublime Text"].map((value) => ({ value, label: value }));
+    act(() => { renderer = TestRenderer.create(React.createElement(Segmented, { label: "Open files with", value: "Zed", options, onChange() {}, look: mobileLook, wrap: true })); });
+    const root = renderer.root.find((node) => node.props.accessibilityRole === "radiogroup");
+    const frames = measureHostTree(root, { width, wrapText: true });
+    const radios = root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
+    for (const radio of radios) {
+      const frame = frames.get(radio)!;
+      expect(frame.left + frame.width).toBeLessThanOrEqual(width);
+      expect(frame.width).toBeGreaterThanOrEqual(140);
+    }
+    expect(radios.map((radio) => radio.props.accessibilityState.checked)).toEqual([false, false, false, true, false]);
   });
 });
 
