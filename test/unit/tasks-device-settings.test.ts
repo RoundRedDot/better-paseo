@@ -53,6 +53,10 @@ function fakeHost(initial: DeviceRecord | null = null, options: { refuse?: numbe
   return {
     saves,
     record: (): DeviceRecord | null => raw === null ? null : (JSON.parse(raw) as { values: DeviceRecord }).values,
+    /** Refuses the next `count` saves, as a failing write does. */
+    refuseNext(count: number) {
+      refuse = count;
+    },
     /** Another window wrote the record; this one's hook has not heard. */
     writeElsewhere(values: DeviceRecord) {
       raw = JSON.stringify({ version: 1, values });
@@ -322,6 +326,20 @@ describe("device Tasks preferences in Paseo's device settings", () => {
     expect(store.snapshot().values?.hideSubtasks).toBe(seed.hideSubtasks);
     expect(mirrored.at(-1)).toEqual({ board: seed });
   }, 10_000);
+
+  it("shows the record a failed edit read again, keeping the failure", async () => {
+    const { host, adapter, store } = setup({ host: fakeHost({ board: seed }) });
+    host.mount(adapter);
+    store.load(seed);
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    host.writeElsewhere({ board: { ...seed, titleLines: "4" } });
+    host.refuseNext(2);
+    await expect(store.update({ hideSubtasks: !seed.hideSubtasks })).rejects.toThrow("Could not write device settings");
+    // The edit is rolled back to the record as read again, not to what this board showed before.
+    expect(store.snapshot()).toMatchObject({ values: { ...seed, titleLines: "4" }, error: "Could not write device settings" });
+    await store.update({ titleLines: "2" });
+    expect(host.record()?.board).toMatchObject({ titleLines: "2" });
+  });
 
   it("offers a provisional copy for the shortcut until the settings load", async () => {
     const adapter = createDeviceSettingsAdapter({ legacyBoard: async () => null, legacySidebar: async () => null, mirror() {} });

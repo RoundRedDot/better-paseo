@@ -45,6 +45,27 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
   let revision = 0;
   /** Writes not settled yet: a reported record waits for them, so a local edit is never undone. */
   let inflight = 0;
+  /** The latest record reported while a write was pending. */
+  let deferred: string | null = null;
+  /** Shows a reported record, keeping any error a failed write left. */
+  const take = (raw: string) => {
+    let values: DeviceBoardPreferences;
+    try {
+      values = decode(raw);
+    } catch {
+      return;
+    }
+    if (state.values && DEVICE_PREFERENCE_FIELDS.every((key) => state.values![key] === values[key])) return;
+    state = { ...state, values, ready: true };
+    emit();
+  };
+  /** After a write failed and rolled back: the record reported meanwhile, once nothing else is pending. */
+  const takeDeferred = () => {
+    if (inflight > 0 || deferred === null) return;
+    const raw = deferred;
+    deferred = null;
+    take(raw);
+  };
   const track = <T,>(pending: Promise<T>): Promise<T> => {
     inflight += 1;
     const done = () => { inflight -= 1; };
@@ -62,6 +83,8 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
   };
   /** A write's own record, when it differs (fields another writer saved, merged in): unless a newer edit replaced it. */
   const adopt = (ownRevision: number, stored: void | string | null) => {
+    // The saved record is newer than anything reported while it was pending.
+    if (inflight === 0) deferred = null;
     if (revision !== ownRevision || typeof stored !== "string") return;
     let values: DeviceBoardPreferences;
     try {
@@ -79,16 +102,14 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
      * record it saves.
      */
     receive(raw: string | null) {
-      if (!state.ready || inflight > 0 || raw === null) return;
-      let values: DeviceBoardPreferences;
-      try {
-        values = decode(raw);
-      } catch {
+      if (!state.ready || raw === null) return;
+      if (inflight > 0) {
+        // A pending write adopts the record it saves; if it fails, this one is taken then.
+        deferred = raw;
         return;
       }
-      if (!state.values || DEVICE_PREFERENCE_FIELDS.some((key) => state.values![key] !== values[key])) accept(values);
+      take(raw);
     },
-    /** The values, or until they load the provisional copy's; null when neither is there. */
     current(): DeviceBoardPreferences | null {
       if (state.values || state.ready || !provisional) return state.values;
       try {
@@ -137,6 +158,7 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
       }).catch((error: unknown) => {
         if (revision === ownRevision) state = previous;
         fail(error);
+        takeDeferred();
         throw error;
       });
     },
@@ -156,6 +178,7 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
       }).catch((error: unknown) => {
         if (revision === ownRevision) state = { ...state, values: previous };
         fail(error);
+        takeDeferred();
         throw error;
       });
     },
