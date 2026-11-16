@@ -33,7 +33,7 @@ function store() {
 
 beforeEach(() => {
   listeners = new Set();
-  vi.stubGlobal("navigator", { platform: "MacIntel" });
+  vi.stubGlobal("navigator", { platform: "MacIntel", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/142.0 Electron/39.0 Safari/537.36" });
   vi.stubGlobal("window", {
     addEventListener: (_name: string, callback: (event: KeyboardEvent) => void) => listeners.add(callback),
     removeEventListener: (_name: string, callback: (event: KeyboardEvent) => void) => listeners.delete(callback),
@@ -78,7 +78,7 @@ describe("open Tasks shortcut", () => {
   });
 
   it("uses Ctrl on Windows and does not accept extra modifiers", () => {
-    vi.stubGlobal("navigator", { platform: "Win32" });
+    vi.stubGlobal("navigator", { platform: "Win32", userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/142.0 Electron/39.0 Safari/537.36" });
     const open = vi.fn();
     cleanups.push(bindTasksShortcut(() => store().value, open));
     press();

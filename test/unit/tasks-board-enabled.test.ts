@@ -366,7 +366,7 @@ describe("Tasks board across a reconnect", () => {
 describe("Tasks registrations, opt-in", () => {
   it("opens from the shortcut and removes the listener when disabled or unloaded", async () => {
     vi.stubGlobal("__rnMockOS", "web");
-    vi.stubGlobal("navigator", { platform: "MacIntel" });
+    vi.stubGlobal("navigator", { platform: "MacIntel", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/142.0 Electron/39.0 Safari/537.36" });
     const target = new EventTarget();
     vi.stubGlobal("window", target);
     const press = () => target.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code: "KeyY", metaKey: true, ctrlKey: false, altKey: false, shiftKey: true, repeat: false, isComposing: false }));

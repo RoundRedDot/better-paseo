@@ -2,8 +2,22 @@ import { Platform } from "react-native";
 import type { DeviceTasksStore } from "./device-store";
 import { shortcutFromEvent } from "./shortcut-model";
 
-export function isShortcutMac(): boolean {
-  return typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+interface PlatformHints {
+  userAgent?: string;
+  userAgentData?: { platform?: string };
+}
+
+/**
+ * Whether shortcuts use the Mac modifiers (⌘ rather than Ctrl). Reads
+ * `userAgentData.platform` where the runtime has it (Chromium, so the desktop
+ * app), else the user agent; `navigator.platform` is deprecated. iPadOS Safari
+ * reports a Mac user agent, which is what the old `MacIntel` platform said too.
+ */
+export function isShortcutMac(hints: PlatformHints | null = typeof navigator !== "undefined" ? navigator as PlatformHints : null): boolean {
+  if (!hints) return false;
+  const platform = hints.userAgentData?.platform;
+  if (platform) return /mac|ios/i.test(platform);
+  return /Mac|iPhone|iPad/.test(hints.userAgent ?? "");
 }
 
 interface Registration { open(): void }

@@ -164,7 +164,7 @@ it("does not render an empty description as a native text node", () => {
 
 it("records, cancels, clears and restores the device shortcut without saving host settings", async () => {
   vi.stubGlobal("__rnMockOS", "web");
-  vi.stubGlobal("navigator", { platform: "MacIntel" });
+  vi.stubGlobal("navigator", { platform: "MacIntel", userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/142.0 Electron/39.0 Safari/537.36" });
   const target = new EventTarget();
   vi.stubGlobal("window", target);
   const press = (code: string, modifiers = {}) => target.dispatchEvent(Object.assign(new Event("keydown", { cancelable: true }), { code, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, repeat: false, isComposing: false, ...modifiers }));
