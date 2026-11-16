@@ -29,7 +29,11 @@ export function sharedTasksSettings(next: TasksSettings, saved: TasksSettings): 
   return { ...next, board: { ...next.board, hideSubtasks: saved.board.hideSubtasks, showArchived: saved.board.showArchived, showEmptyGroups: saved.board.showEmptyGroups, laneWidth: saved.board.laneWidth } };
 }
 
-export function createDeviceTasksStore(storage: DevicePreferenceStorage) {
+/**
+ * `provisional` reads a copy of the record that is usable before `storage` answers, or null:
+ * the web copy of Paseo's device settings, read synchronously at startup.
+ */
+export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisional?: () => string | null) {
   let state: { values: DeviceBoardPreferences | null; ready: boolean; error: string | null } = { values: null, ready: false, error: null };
   const listeners = new Set<() => void>();
   let loading = false;
@@ -46,6 +50,16 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage) {
   };
   return {
     snapshot: () => state,
+    /** The values, or until they load the provisional copy's; null when neither is there. */
+    current(): DeviceBoardPreferences | null {
+      if (state.values || state.ready || !provisional) return state.values;
+      try {
+        const raw = provisional();
+        return raw === null ? null : decode(raw);
+      } catch {
+        return null;
+      }
+    },
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     load(seed: DeviceBoardPreferences) {
       if (loading || state.ready) return;

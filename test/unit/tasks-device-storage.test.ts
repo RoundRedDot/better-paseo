@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 import { NativeModules } from "react-native";
 import { DEFAULT_TASKS_SETTINGS } from "../../shared/tasks-settings";
@@ -7,7 +7,12 @@ import { deviceTasksStore } from "../../client/tasks/device-preferences";
 
 const holder = globalThis as Record<string, unknown>;
 const seed = deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board);
+beforeEach(() => {
+  // These cover the board's own storage, which hosts without device settings keep (Paseo 0.14, 0.15).
+  holder.__betterPaseoLegacyDeviceStorageForTests = true;
+});
 afterEach(() => {
+  delete holder.__betterPaseoLegacyDeviceStorageForTests;
   delete holder.__rnMockOS;
   delete holder.localStorage;
   delete NativeModules.RNCAsyncStorage;
@@ -27,7 +32,7 @@ it.each(["ios", "android"])("persists the device preferences through %s AsyncSto
   const saved = { ...seed, hideSubtasks: true, showArchived: false, showEmptyGroups: false, laneWidth: "wide" as const, titleLines: "all" as const };
   await store.update(saved);
   expect(NativeModules.RNCAsyncStorage.multiSet).toHaveBeenCalledTimes(2);
-  delete holder.__betterPaseoDeviceTasksV3;
+  delete holder.__betterPaseoDeviceTasksV4;
   const restarted = deviceTasksStore();
   restarted.load(seed);
   await vi.waitFor(() => expect(restarted.snapshot().ready).toBe(true));
@@ -42,7 +47,7 @@ it("persists the same device record with web localStorage", async () => {
   const store = deviceTasksStore();
   store.load(seed);
   await store.update({ hideSubtasks: true });
-  delete holder.__betterPaseoDeviceTasksV3;
+  delete holder.__betterPaseoDeviceTasksV4;
   const restarted = deviceTasksStore();
   restarted.load(seed);
   expect(restarted.snapshot().values?.hideSubtasks).toBe(true);
@@ -55,7 +60,7 @@ it("replaces a stale runtime store when the device preference schema adds a shor
   const legacy = { hideSubtasks: true, showArchived: false, showEmptyGroups: false, laneWidth: "wide" as const, titleLines: "2" };
   let stored = JSON.stringify(legacy);
   holder.localStorage = { getItem: () => stored, setItem: (_key: string, value: string) => { stored = value; } };
-  holder.__betterPaseoDeviceTasksV2 = {
+  holder.__betterPaseoDeviceTasksV3 = {
     snapshot: () => ({ values: legacy, ready: true, error: null }),
     subscribe: () => () => {},
     load: vi.fn(),

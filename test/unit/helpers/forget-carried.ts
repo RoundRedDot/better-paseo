@@ -10,6 +10,8 @@ beforeEach(() => {
   delete holder.__betterPaseoDeviceTasksV1;
   delete holder.__betterPaseoDeviceTasksV2;
   delete holder.__betterPaseoDeviceTasksV3;
+  delete holder.__betterPaseoDeviceTasksV4;
+  delete holder.__betterPaseoDeviceSettingsV1;
   let stored: string | null = null;
   holder.__betterPaseoDeviceTasksStorageForTests = { read: () => stored, write: (value: string) => { stored = value; } };
 });

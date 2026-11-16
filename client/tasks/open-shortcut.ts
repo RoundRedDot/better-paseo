@@ -42,7 +42,7 @@ export function bindTasksShortcut(store: DeviceTasksStore, open: () => void): ()
       return;
     }
     if (shared.selected !== own) return;
-    const shortcut = store.snapshot().values?.openShortcut;
+    const shortcut = store.current()?.openShortcut;
     if (!shortcut || shortcutFromEvent(event, isShortcutMac()) !== shortcut) return;
     consume(event);
     if (!event.repeat) own.open();

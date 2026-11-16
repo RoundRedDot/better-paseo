@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { deviceSidebarSource, LEGACY_SIDEBAR_KEY } from "../device-settings";
 
 /**
  * The desktop board's details sidebar (`docs/prototypes/task-details-sidebar.md`):
@@ -134,14 +135,17 @@ export function escapeStep(selection: SidebarSelection, floatingOpen: boolean): 
   return null;
 }
 
-/** Whether the board shows its sidebar, and how wide, as the user left it. Session memory everywhere, web storage across reloads. */
+/**
+ * Whether the board shows its sidebar, and how wide, as the user left it. Session memory
+ * everywhere; across restarts the device settings (`device-settings.ts`) when the host has
+ * them, else web storage.
+ */
 export interface SidebarPreference {
   open: boolean;
   width: number;
   floatingWidth?: number;
 }
 
-const STORAGE_KEY = "paseo/better-chat/tasks/sidebar/v1";
 const DEFAULT_PREFERENCE: SidebarPreference = { open: true, width: SIDEBAR.width };
 let remembered: SidebarPreference | null = null;
 
@@ -154,23 +158,32 @@ function storage(): Storage | null {
   }
 }
 
+/** A stored preference, clamped; null when it is not one. */
+export function parseSidebarPreference(raw: unknown): SidebarPreference | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const parsed = raw as Partial<SidebarPreference>;
+  return {
+    open: typeof parsed.open === "boolean" ? parsed.open : DEFAULT_PREFERENCE.open,
+    width: typeof parsed.width === "number" && Number.isFinite(parsed.width) ? clampWidth(parsed.width) : DEFAULT_PREFERENCE.width,
+    ...(typeof parsed.floatingWidth === "number" && Number.isFinite(parsed.floatingWidth)
+      ? { floatingWidth: tabletSidebarWidth(Number.POSITIVE_INFINITY, parsed.floatingWidth) }
+      : {}),
+  };
+}
+
 export function readSidebarPreference(): SidebarPreference {
   if (remembered) return remembered;
   let read: SidebarPreference = DEFAULT_PREFERENCE;
-  try {
-    const raw = storage()?.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<SidebarPreference>;
-      read = {
-        open: typeof parsed.open === "boolean" ? parsed.open : DEFAULT_PREFERENCE.open,
-        width: typeof parsed.width === "number" && Number.isFinite(parsed.width) ? clampWidth(parsed.width) : DEFAULT_PREFERENCE.width,
-        ...(typeof parsed.floatingWidth === "number" && Number.isFinite(parsed.floatingWidth)
-          ? { floatingWidth: tabletSidebarWidth(Number.POSITIVE_INFINITY, parsed.floatingWidth) }
-          : {}),
-      };
+  // The device settings own it when the host has them; a board reads it once they loaded.
+  const device = deviceSidebarSource();
+  if (device) read = parseSidebarPreference(device.stored()) ?? DEFAULT_PREFERENCE;
+  else {
+    try {
+      const raw = storage()?.getItem(LEGACY_SIDEBAR_KEY);
+      if (raw) read = parseSidebarPreference(JSON.parse(raw)) ?? DEFAULT_PREFERENCE;
+    } catch {
+      // A broken entry reads as the default.
     }
-  } catch {
-    // A broken entry reads as the default.
   }
   remembered = read;
   return read;
@@ -178,8 +191,13 @@ export function readSidebarPreference(): SidebarPreference {
 
 export function writeSidebarPreference(next: SidebarPreference): void {
   remembered = next;
+  const device = deviceSidebarSource();
+  if (device) {
+    device.persist(next);
+    return;
+  }
   try {
-    storage()?.setItem(STORAGE_KEY, JSON.stringify(next));
+    storage()?.setItem(LEGACY_SIDEBAR_KEY, JSON.stringify(next));
   } catch {
     // Storage full or blocked: the session still remembers.
   }
