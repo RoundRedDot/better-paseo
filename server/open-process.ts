@@ -1,4 +1,5 @@
 import type { ChildProcess } from "node:child_process";
+import { Socket } from "node:net";
 
 export class LaunchUnconfirmedError extends Error {
   constructor() {
@@ -8,6 +9,11 @@ export class LaunchUnconfirmedError extends Error {
 
 /** Some launchers can remain attached to the application they start. */
 export async function waitForOpen(child: ChildProcess, completion: "spawn" | "exit", failure: string): Promise<void> {
+  let stderr = "";
+  child.stderr?.on("data", (chunk: Buffer) => {
+    if (stderr.length < 2048) stderr = (stderr + chunk.toString("utf8")).slice(0, 2048);
+  });
+  if (child.stderr instanceof Socket) child.stderr.unref();
   try {
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => reject(new LaunchUnconfirmedError()), 10_000);
@@ -18,7 +24,7 @@ export async function waitForOpen(child: ChildProcess, completion: "spawn" | "ex
       };
       child.once("error", finish);
       if (completion === "exit") {
-        child.once("exit", (code) => finish(code === 0 ? undefined : new Error(`${failure} (exit ${code})`)));
+        child.once("exit", (code) => finish(code === 0 ? undefined : new Error(`${failure} (exit ${code})${stderr.trim() ? `: ${stderr.trim()}` : ""}`)));
       } else {
         child.once("spawn", () => finish());
       }

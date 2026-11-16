@@ -141,8 +141,9 @@ async function resolveSelector(path: string, cwd: string): Promise<ResolvedSelec
 /** Runs a platform command without a shell and reports startup failures. */
 async function openWithShell(target: string, entry: PathEntry): Promise<void> {
   const { command, args, windowsVerbatimArguments } = shellOpenCommand(process.platform, target, entry);
-  const child = spawn(command, args, { detached: true, stdio: "ignore", ...(windowsVerbatimArguments ? { windowsVerbatimArguments } : null) });
-  await waitForOpen(child, process.platform === "win32" ? "spawn" : "exit", "Failed to open path");
+  const completion = process.platform === "win32" ? "spawn" : "exit";
+  const child = spawn(command, args, { detached: true, windowsHide: true, stdio: completion === "exit" ? ["ignore", "ignore", "pipe"] : "ignore", ...(windowsVerbatimArguments ? { windowsVerbatimArguments } : null) });
+  await waitForOpen(child, completion, "Failed to open path");
 }
 
 const DARK_THEME = "github-dark-default";
@@ -516,7 +517,12 @@ export default function contribute(server: PluginServerContext) {
         errorKind = "editor_unavailable";
         const editor = await editorCommand(app);
         errorKind = "launch_failed";
-        const child = spawn(editor.command, [...editor.args, target], { detached: true, stdio: "ignore" });
+        const child = spawn(editor.command, [...editor.args, target], {
+          detached: true,
+          windowsHide: true,
+          stdio: editor.completion === "exit" ? ["ignore", "ignore", "pipe"] : "ignore",
+          ...(app === "vscode" && process.platform === "linux" ? { env: { ...process.env, DONT_PROMPT_WSL_INSTALL: "1" } } : null),
+        });
         await waitForOpen(child, editor.completion, `Failed to open file with ${app}`);
       }
       return { revealed: target, error: null };

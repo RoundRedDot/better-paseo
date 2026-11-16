@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { editorCommand } from "../../server/editor-target";
 import { preferencesSchema } from "../../shared/preferences-settings";
 
-const fs = vi.hoisted(() => ({ existing: new Set<string>(), executable: new Set<string>(), realpath: new Map<string, string>(), appImages: new Set<string>(), handles: new Map<number, string>(), nextFd: 100, versions: new Map<string, string>() }));
+const fs = vi.hoisted(() => ({ existing: new Set<string>(), executable: new Set<string>(), realpath: new Map<string, string>(), appImages: new Set<string>(), elf: new Set<string>(), handles: new Map<number, string>(), nextFd: 100, versions: new Map<string, string>() }));
 vi.mock("node:child_process", async (original) => ({
   ...await original<object>(),
   execFile: (path: string, _args: string[], _options: unknown, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
@@ -17,14 +17,18 @@ vi.mock("node:fs", async (original) => ({
   realpathSync: (path: string) => fs.realpath.get(path) ?? path,
   openSync: (path: string) => { const fd = fs.nextFd++; fs.handles.set(fd, path); return fd; },
   readSync: (fd: number, buffer: Buffer) => {
+    if (fs.elf.has(fs.handles.get(fd)!)) {
+      Buffer.from([0x7f, 0x45, 0x4c, 0x46]).copy(buffer);
+      return 4;
+    }
     if (!fs.appImages.has(fs.handles.get(fd)!)) return 0;
     Buffer.from([0x7f, 0x45, 0x4c, 0x46, 0, 0, 0, 0, 0x41, 0x49, 2]).copy(buffer);
-    return 11;
+    return Math.min(buffer.length, 11);
   },
   closeSync: (fd: number) => { fs.handles.delete(fd); },
 }));
 const originalEnv = { ...process.env };
-afterEach(() => { process.env = { ...originalEnv }; fs.existing.clear(); fs.executable.clear(); fs.realpath.clear(); fs.appImages.clear(); fs.handles.clear(); fs.versions.clear(); });
+afterEach(() => { process.env = { ...originalEnv }; fs.existing.clear(); fs.executable.clear(); fs.realpath.clear(); fs.appImages.clear(); fs.elf.clear(); fs.handles.clear(); fs.versions.clear(); });
 
 describe("file open preference", () => {
   it("defaults to the system app and preserves a selected editor", () => {
@@ -52,6 +56,17 @@ describe("file open preference", () => {
     fs.existing.add("D:\\Tools\\Code.exe");
     fs.existing.add("C:\\Program Files\\Microsoft VS Code\\Code.exe");
     expect((await editorCommand("vscode", "win32")).command).toBe("C:\\Program Files\\Microsoft VS Code\\Code.exe");
+  });
+
+  it("prefers an installed Windows GUI over a command shim and waits for the shim when it is the only match", async () => {
+    process.env.PATH = "D:\\shims";
+    process.env.ProgramFiles = "C:\\Program Files";
+    delete process.env.LOCALAPPDATA;
+    fs.existing.add("D:\\shims\\code.exe");
+    fs.existing.add("C:\\Program Files\\Microsoft VS Code\\Code.exe");
+    expect(await editorCommand("vscode", "win32")).toEqual({ command: "C:\\Program Files\\Microsoft VS Code\\Code.exe", args: [], completion: "spawn" });
+    fs.existing.delete("C:\\Program Files\\Microsoft VS Code\\Code.exe");
+    expect(await editorCommand("vscode", "win32")).toEqual({ command: "D:\\shims\\code.exe", args: [], completion: "exit" });
   });
 
   it("recognises the VS Code Linux archive GUI on PATH", async () => {
@@ -94,6 +109,14 @@ describe("file open preference", () => {
     process.env.PATH = "/opt/bin";
     fs.executable.add("/opt/bin/cursor");
     fs.appImages.add("/opt/bin/cursor");
+    expect((await editorCommand("cursor", "linux")).completion).toBe("spawn");
+  });
+
+  it("recognises the extracted Cursor Electron executable", async () => {
+    process.env.PATH = "/opt/bin";
+    fs.executable.add("/opt/bin/cursor");
+    fs.realpath.set("/opt/bin/cursor", "/opt/cursor/cursor");
+    fs.elf.add("/opt/cursor/cursor");
     expect((await editorCommand("cursor", "linux")).completion).toBe("spawn");
   });
 

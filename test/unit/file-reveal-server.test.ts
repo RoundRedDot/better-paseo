@@ -114,6 +114,24 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
     }
   });
 
+  it("opens VS Code without an interactive WSL prompt", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    Object.defineProperty(process, "platform", { ...platform, value: "linux" });
+    settings.app = "vscode";
+    try {
+      editorCommand.mockReturnValueOnce({ command: "/usr/bin/code", args: [], completion: "exit" });
+      const reveal = await revealHandler();
+      await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: null });
+      expect(spawn).toHaveBeenLastCalledWith("/usr/bin/code", [join(root, "notes.md")], expect.objectContaining({
+        windowsHide: true,
+        env: expect.objectContaining({ DONT_PROMPT_WSL_INSTALL: "1" }),
+      }));
+    } finally {
+      settings.app = "system";
+      Object.defineProperty(process, "platform", platform);
+    }
+  });
+
   it("reports an asynchronous system opener spawn error", async () => {
     spawn.mockImplementationOnce(() => {
       const child = new EventEmitter() as EventEmitter & { unref: () => void };

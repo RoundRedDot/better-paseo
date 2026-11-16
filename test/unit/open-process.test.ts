@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
-import type { ChildProcess } from "node:child_process";
+import { PassThrough } from "node:stream";
+import { spawn, type ChildProcess } from "node:child_process";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LaunchUnconfirmedError, waitForOpen } from "../../server/open-process";
 
@@ -19,6 +20,21 @@ describe("open process completion", () => {
     child.emit("exit", 4);
     await expect(result).rejects.toThrow("Failed to open path (exit 4)");
     expect(child.unref).toHaveBeenCalledOnce();
+  });
+
+  it("includes bounded stderr when a launcher fails", async () => {
+    const child = childProcess();
+    const stderr = new PassThrough();
+    Object.defineProperty(child, "stderr", { value: stderr });
+    const result = waitForOpen(child, "exit", "Failed to open file with cursor");
+    stderr.write("Cursor IDE is not installed." + "x".repeat(4096));
+    child.emit("exit", 1);
+    await expect(result).rejects.toThrow(`Failed to open file with cursor (exit 1): ${("Cursor IDE is not installed." + "x".repeat(4096)).slice(0, 2048)}`);
+  });
+
+  it("captures an actual failing launcher's stderr", async () => {
+    const child = spawn(process.execPath, ["-e", "process.stderr.write('launcher detail'); process.exitCode = 1"], { stdio: ["ignore", "ignore", "pipe"] });
+    await expect(waitForOpen(child, "exit", "Failed to open path")).rejects.toThrow("Failed to open path (exit 1): launcher detail");
   });
 
   it("reports an unconfirmed launch without terminating a long-running process", async () => {

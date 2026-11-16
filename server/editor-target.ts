@@ -28,37 +28,41 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
   }
   if (platform === "win32") {
     const dirs = (process.env.PATH ?? "").split(win32.delimiter).filter(Boolean);
-    const paths: string[] = [];
+    const paths: { path: string; completion: "spawn" | "exit" }[] = [];
+    const shims: typeof paths = [];
     if (app === "vscode" || app === "cursor") {
       for (const dir of dirs) {
-        paths.push(win32.join(dir, `${editor.command}.exe`));
+        const command = win32.join(dir, `${editor.command}.exe`);
+        const gui = existsSync(win32.join(dir, "resources", "app", "product.json"));
+        (gui ? paths : shims).push({ path: command, completion: gui ? "spawn" : "exit" });
         const root = app === "vscode" ? win32.join(dir, "..") : win32.join(dir, "..", "..", "..");
         if (win32.basename(dir).toLowerCase() === "bin" && existsSync(win32.join(dir, `${editor.command}.cmd`)) &&
           existsSync(win32.join(root, "resources", "app", "product.json"))) {
-          paths.push(win32.join(root, app === "vscode" ? "Code.exe" : "Cursor.exe"));
+          paths.push({ path: win32.join(root, app === "vscode" ? "Code.exe" : "Cursor.exe"), completion: "spawn" });
         }
       }
       for (const root of [process.env.LOCALAPPDATA && win32.join(process.env.LOCALAPPDATA, "Programs"), process.env.ProgramFiles]) {
-        if (root) paths.push(win32.join(root, app === "vscode" ? "Microsoft VS Code" : "Cursor", app === "vscode" ? "Code.exe" : "Cursor.exe"));
+        if (root) paths.push({ path: win32.join(root, app === "vscode" ? "Microsoft VS Code" : "Cursor", app === "vscode" ? "Code.exe" : "Cursor.exe"), completion: "spawn" });
       }
+      paths.push(...shims);
     } else if (app === "zed") {
       for (const root of [process.env.LOCALAPPDATA && win32.join(process.env.LOCALAPPDATA, "Programs"), process.env.ProgramFiles]) {
-        if (root) paths.push(win32.join(root, "Zed", "bin", "zed.exe"));
+        if (root) paths.push({ path: win32.join(root, "Zed", "bin", "zed.exe"), completion: "exit" });
       }
       for (const dir of dirs) {
-        paths.push(win32.join(dir, "bin", "zed.exe"));
-        if (win32.basename(dir).toLowerCase() === "bin") paths.push(win32.join(dir, "zed.exe"));
+        paths.push({ path: win32.join(dir, "bin", "zed.exe"), completion: "exit" });
+        if (win32.basename(dir).toLowerCase() === "bin") paths.push({ path: win32.join(dir, "zed.exe"), completion: "exit" });
       }
     } else {
-      for (const dir of dirs) paths.push(win32.join(dir, `${editor.command}.exe`));
+      for (const dir of dirs) paths.push({ path: win32.join(dir, `${editor.command}.exe`), completion: "exit" });
       if (app === "sublime") {
         for (const root of [process.env.ProgramFiles, process.env["ProgramFiles(x86)"], process.env.LOCALAPPDATA && win32.join(process.env.LOCALAPPDATA, "Programs")]) {
-          if (root) paths.push(win32.join(root, "Sublime Text", "subl.exe"));
+          if (root) paths.push({ path: win32.join(root, "Sublime Text", "subl.exe"), completion: "exit" });
         }
       }
     }
-    for (const path of paths) {
-      if (existsSync(path)) return { command: path, args: [], completion: app === "sublime" || app === "zed" ? "exit" : "spawn" };
+    for (const candidate of paths) {
+      if (existsSync(candidate.path)) return { command: candidate.path, args: [], completion: candidate.completion };
     }
     throw new Error(`${editor.app} is not installed or its command is not on PATH`);
   }
@@ -89,20 +93,19 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
     const actualName = basename(actualPath);
     const gui = (app === "vscode" && platform === "linux" && existsSync(join(actualPath, "..", "resources", "app", "product.json"))) ||
       (app === "sublime" && actualName === "sublime_text") ||
-      (app === "cursor" && isAppImage(actualPath));
+      (app === "cursor" && platform === "linux" && isElf(actualPath));
     return { command: candidate, args: [], completion: gui ? "spawn" : "exit" };
   }
   throw new Error(`${editor.app} is not installed or its command is not on PATH`);
 }
 
-/** AppImage type 2 is identified at offset 8, regardless of its filename. */
-function isAppImage(path: string): boolean {
+/** Linux Cursor's Electron executable may be an AppImage or an extracted ELF. */
+function isElf(path: string): boolean {
   const fd = openSync(path, "r");
   try {
-    const header = Buffer.alloc(11);
+    const header = Buffer.alloc(4);
     const size = readSync(fd, header, 0, header.length, 0);
-    return size === header.length && header.subarray(0, 4).equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46])) &&
-      header.subarray(8, 11).equals(Buffer.from([0x41, 0x49, 0x02]));
+    return size === header.length && header.equals(Buffer.from([0x7f, 0x45, 0x4c, 0x46]));
   } finally {
     closeSync(fd);
   }
