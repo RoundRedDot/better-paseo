@@ -106,24 +106,25 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
   }
 
   /**
-   * Saves `build(record)` over the record as last reported; after a refusal (a conflict) it
+   * Saves `build(record)` over the record as last reported, and answers the record it ended up
+   * with; `build` answers null when there is nothing to save. After a refusal (a conflict) it
    * reads again and builds once more on the fresh record, so another window's fields survive.
-   * With `onlyIf`, it saves only while the record still has that revision: "moved" otherwise.
    */
-  async function save(build: (record: DeviceRecord) => DeviceRecord, onlyIf?: string): Promise<"saved" | "moved"> {
+  async function save(build: (record: DeviceRecord) => DeviceRecord | null): Promise<DeviceRecord> {
     for (let attempt = 0; ; attempt += 1) {
       await until(settled);
       const current = remote;
       if (current.status === "loading") continue;
       if (current.status === "error") throw new Error(current.error);
-      if (onlyIf !== undefined && current.revision !== onlyIf) return "moved";
-      const values = build(current.status === "ready" ? current.values : {});
+      const base = current.status === "ready" ? current.values : {};
+      const values = build(base);
+      if (values === null) return base;
       const act = actions();
       if (await act.save(values, current.revision)) {
         // The next write needs the revision the host gave this one; the hook reports it.
         await until(() => "revision" in remote && remote.revision !== current.revision, REPORT_WAIT_MS);
         deps.mirror(values);
-        return "saved";
+        return values;
       }
       if (attempt >= 1) throw new Error(act.saveError() ?? "Could not save device Tasks preferences");
       // The reread lands in the query first; the hooks report it on a later render.
@@ -135,7 +136,7 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
 
   const boardOf = (record: DeviceRecord): Record<string, unknown> | null =>
     record.board && typeof record.board === "object" && !Array.isArray(record.board) ? record.board as Record<string, unknown> : null;
-  const currentBoard = () => remote.status === "ready" && remote.values.board !== undefined ? JSON.stringify(remote.values.board) : null;
+  const boardText = (record: DeviceRecord) => record.board === undefined ? null : JSON.stringify(record.board);
 
   const storage: DevicePreferenceStorage = {
     async read() {
@@ -146,30 +147,35 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
       if (current.revision === NEVER_SAVED && current.values.board === undefined && current.values.sidebar === undefined) {
         // A failed read is not an empty one: the store reports it instead of seeding over the old record.
         const [board, sidebar] = await Promise.all([deps.legacyBoard(), deps.legacySidebar()]);
-        const imported: DeviceRecord = {};
         const boardValue = parseJson(board);
         const sidebarValue = parseJson(sidebar);
-        if (boardValue !== undefined) imported.board = boardValue;
-        if (sidebarValue !== undefined) imported.sidebar = sidebarValue;
         if (boardValue === undefined && sidebarValue === undefined) return null;
-        // Only into a record still never saved: one saved meanwhile (another window) wins.
-        const result = await serial(() => save(() => imported, NEVER_SAVED)).catch(() => "failed" as const);
-        if (result === "moved") return currentBoard();
-        // A refused import leaves the old record for the next start; this session uses it as read.
-        return boardValue === undefined ? null : JSON.stringify(boardValue);
+        // Only the parts the record still lacks: what another window saved meanwhile wins.
+        const fill = (record: DeviceRecord): DeviceRecord | null => {
+          const next = { ...record };
+          if (next.board === undefined && boardValue !== undefined) next.board = boardValue;
+          if (next.sidebar === undefined && sidebarValue !== undefined) next.sidebar = sidebarValue;
+          return next.board === record.board && next.sidebar === record.sidebar ? null : next;
+        };
+        try {
+          return boardText(await serial(() => save(fill)));
+        } catch {
+          // A refused import leaves the old record for the next start; this session uses it as read.
+          return boardValue === undefined ? null : JSON.stringify(boardValue);
+        }
       }
-      return currentBoard();
+      return boardText(current.values);
     },
-    write(value: string, intent?: DeviceWriteIntent) {
+    async write(value: string, intent?: DeviceWriteIntent) {
       const board = z.json().parse(JSON.parse(value));
-      // A seed goes only into a record still never saved; one saved meanwhile is answered instead.
-      if (intent?.kind === "seed") return serial(() => save((record) => ({ ...record, board }), NEVER_SAVED)).then((result) => result === "moved" ? currentBoard() : undefined);
+      // A seed fills a record without a board; one another window saved meanwhile is kept.
+      if (intent?.kind === "seed") return boardText(await serial(() => save((record) => record.board === undefined ? { ...record, board } : null)));
       if (intent?.kind === "patch") {
         // Only the fields this edit changed, over the board as read now.
         const patch = z.json().parse(intent.patch) as Record<string, unknown>;
-        return serial(() => save((record) => ({ ...record, board: { ...(boardOf(record) ?? board as Record<string, unknown>), ...patch } as DeviceRecord["board"] }))).then(() => undefined);
+        return boardText(await serial(() => save((record) => ({ ...record, board: { ...(boardOf(record) ?? board as Record<string, unknown>), ...patch } as DeviceRecord["board"] }))));
       }
-      return serial(() => save((record) => ({ ...record, board }))).then(() => undefined);
+      return boardText(await serial(() => save((record) => ({ ...record, board }))));
     },
   };
 

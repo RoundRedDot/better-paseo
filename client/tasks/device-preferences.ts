@@ -59,7 +59,7 @@ function deviceSettingsStorage(): DevicePreferenceStorage {
  * would keep running the old code. A newer bundle replaces them; an older one (another host
  * still on an older plugin) uses the newer ones.
  */
-const DEVICE_RUNTIME_VERSION = 2;
+const DEVICE_RUNTIME_VERSION = 3;
 
 interface DeviceRuntime {
   store: DeviceTasksStore;
@@ -85,6 +85,15 @@ function runtime(): DeviceRuntime {
 
 export function deviceTasksStore(): DeviceTasksStore {
   return runtime().store;
+}
+
+/**
+ * Keeps the device settings reported while nothing else reads the preferences: the sidebar's
+ * Tasks row mounts it whatever it shows, so the web shortcut loads at startup.
+ */
+export function useDeviceSettingsReport(): void {
+  // Fixed for the runtime, so the hook order never changes.
+  if (runtime().deviceSettings) useDeviceSettingsBridge();
 }
 
 /** One device-wide record, shared by this client's boards and settings pages, never by its daemon. */

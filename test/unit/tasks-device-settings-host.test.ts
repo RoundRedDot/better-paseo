@@ -166,4 +166,19 @@ describe("device Tasks preferences by host version", () => {
     expect(b.readSidebarPreference()).toMatchObject({ open: false, width: 400 });
     act(() => renderer.unmount());
   });
+
+  it("loads the store for the web shortcut through the sidebar row's hook alone", async () => {
+    const host = mockDeviceHook();
+    host.record = { revision: JSON.stringify({ board: { openShortcut: "Mod+Shift+KeyK" } }), values: { board: { ...(await import("../../client/tasks/device-store")).deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board), openShortcut: "Mod+Shift+KeyK" } } };
+    const { deviceTasksStore, useDeviceSettingsReport } = await import("../../client/tasks/device-preferences");
+    const { deviceBoardPreferences } = await import("../../client/tasks/device-store");
+    // Startup asks for the record (`contribute.tsx`); no board or settings page is open.
+    deviceTasksStore().load(deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board));
+    function Row() { useDeviceSettingsReport(); return null; }
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(Row)); });
+    await act(async () => { await vi.waitFor(() => expect(deviceTasksStore().snapshot().ready).toBe(true)); });
+    expect(deviceTasksStore().current()?.openShortcut).toBe("Mod+Shift+KeyK");
+    act(() => renderer.unmount());
+  });
 });

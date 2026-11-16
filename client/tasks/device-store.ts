@@ -52,6 +52,17 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
     state = { values, ready: true, error: null };
     emit();
   };
+  /** A write's own record, when it differs (fields another writer saved, merged in): unless a newer edit replaced it. */
+  const adopt = (ownRevision: number, stored: void | string | null) => {
+    if (revision !== ownRevision || typeof stored !== "string") return;
+    let values: DeviceBoardPreferences;
+    try {
+      values = decode(stored);
+    } catch {
+      return;
+    }
+    if (!state.values || DEVICE_PREFERENCE_FIELDS.some((key) => state.values![key] !== values[key])) accept(values);
+  };
   return {
     snapshot: () => state,
     /** The values, or until they load the provisional copy's; null when neither is there. */
@@ -97,8 +108,9 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
       accept(values);
       const pending = writes.then(() => storage.write(JSON.stringify(values)));
       writes = pending.then(() => {}, () => {});
-      return pending.then(() => {
+      return pending.then((stored) => {
         if (revision === ownRevision && state.error) { state = { ...state, error: null }; emit(); }
+        adopt(ownRevision, stored);
       }).catch((error: unknown) => {
         if (revision === ownRevision) state = previous;
         fail(error);
@@ -115,8 +127,9 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
       const changed = Object.fromEntries(DEVICE_PREFERENCE_FIELDS.filter((key) => previous[key] !== values[key]).map((key) => [key, values[key]])) as Partial<DeviceBoardPreferences>;
       const pending = writes.then(() => storage.write(JSON.stringify(values), { kind: "patch", patch: changed }));
       writes = pending.then(() => {}, () => {});
-      return pending.then(() => {
+      return pending.then((stored) => {
         if (revision === ownRevision && state.error) { state = { ...state, error: null }; emit(); }
+        adopt(ownRevision, stored);
       }).catch((error: unknown) => {
         if (revision === ownRevision) state = { ...state, values: previous };
         fail(error);

@@ -10,7 +10,7 @@ import { useTaskCounts, type CountScope } from "../data";
 import { firstPromptStoreFor } from "../data/first-prompt";
 import { subagentFirstPrompts } from "../data/subagent-timeline";
 import { conversationSearchFor } from "../data/search-conversations";
-import { useDeviceTasksPreferences } from "../device-preferences";
+import { useDeviceSettingsReport, useDeviceTasksPreferences } from "../device-preferences";
 import { LANE_STATUS, type TaskCard } from "../model";
 import { HOST_FONT, TaskText as Text, TasksTypography } from "../typography";
 import { useTasksLanguage } from "../i18n";
@@ -43,6 +43,7 @@ const SCREEN_ID = "tasks";
  * item only in providers, so a null item leaves no gap.
  */
 export function TasksSidebarEntry(props: PluginSidebarItemProps & { placeholder?: ReactNode }) {
+  useDeviceSettingsReport();
   const settings = useTasksSettings(props.host.id);
   const language = useTasksLanguage();
   if (!settings) return props.placeholder ?? null;

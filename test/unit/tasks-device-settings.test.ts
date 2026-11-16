@@ -160,6 +160,21 @@ describe("device Tasks preferences in Paseo's device settings", () => {
     host.writeElsewhere({ board: { ...seed, titleLines: "4" } });
     await store.update({ hideSubtasks: true });
     expect(host.record()).toEqual({ board: { ...seed, titleLines: "4", hideSubtasks: true } });
+    // The board shows the record as saved, so picking the old value again is a change.
+    expect(store.snapshot().values).toEqual({ ...seed, titleLines: "4", hideSubtasks: true });
+    await store.update({ titleLines: "2" });
+    expect(host.record()).toEqual({ board: { ...seed, titleLines: "2", hideSubtasks: true } });
+  });
+
+  it.each([
+    ["an old sidebar record only", null, JSON.stringify({ open: false, width: 380 })],
+    ["a device record with a sidebar and no board", { sidebar: { open: false, width: 380 } }, null],
+  ] as const)("saves the seeded board alongside %s", async (_name, initial, legacySidebar) => {
+    const { host, adapter, store } = setup({ host: fakeHost(initial), legacySidebar });
+    host.mount(adapter);
+    store.load(seed);
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    expect(host.record()).toEqual({ board: seed, sidebar: { open: false, width: 380 } });
   });
 
   it("does not import the old record over one another window saved while it was read", async () => {
