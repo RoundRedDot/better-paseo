@@ -9,7 +9,7 @@ whichever provider is behind it (Claude Code, Codex, Oh My Pi and the rest): too
 replies, prompts, checklists and errors become compact, typed, syntax-aware rows that follow the
 active Paseo theme. It adds a **Tasks** board that lays out every agent on the host in lanes by state,
 and it is drawn for the device in your hand: a phone gets a details drawer you can pinch and a
-one-lane board you swipe through, an iPad gets floating and side panels and a board with a details
+one-lane board you swipe through, a pad gets floating and side panels and a board with a details
 sidebar or sheet. The performance section compares timeline performance against native Paseo, with full measurements in [Performance Benchmarks](docs/performance.md).
 
 https://github.com/user-attachments/assets/493499a2-411f-45bb-9274-d33c92255099
@@ -34,10 +34,10 @@ https://github.com/user-attachments/assets/afe5505c-d5da-4418-bd78-3cbcb44ef790
 
 ## Highlights
 
-- **Made for phones and iPad.** A tap on a row opens it in a bottom drawer on a phone, where two
-  fingers set the text size, and in a floating or side panel on an iPad. The Tasks board shows one
-  lane at a time on a phone and lanes with a details sidebar, panel or sheet on a tablet. See
-  [Phones and iPad](#phones-and-ipad).
+- **Made for phones and pads.** A tap on a row opens it in a bottom drawer on a phone, where two
+  fingers set the text size, and in a floating or side panel on a pad. The Tasks board shows one
+  lane at a time on a phone and lanes with a details sidebar, panel or sheet on a pad. See
+  [Phones and pads](#phones-and-ipad).
 
 - **Measured performance.** Against Paseo 0.13.0, 220 serial Web and iOS replays (five runs per cell) show 66% less Web main-thread time on the long reply, 16.189 seconds down to 5.520. Details in [Performance](#performance) and [full benchmarks](docs/performance.md).
 
