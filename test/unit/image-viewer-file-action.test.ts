@@ -47,6 +47,7 @@ vi.mock("../../client/web", () => ({
   dropSelectionIn: () => {},
   bindPreviewPointer: () => () => {},
   openPreviewLayer: () => () => {},
+  pinTooltipLayer: () => () => {},
   watchNextPointerMove: () => () => {},
 }));
 import { buildThemeTokens } from "../../client/components/theme-tokens";

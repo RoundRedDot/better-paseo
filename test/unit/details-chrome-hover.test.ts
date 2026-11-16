@@ -19,6 +19,7 @@ vi.mock("../../client/web", () => ({
   watchNextPointerMove: () => () => {},
   watchPointerOutside: () => () => {},
   openPreviewLayer: () => () => {},
+  pinTooltipLayer: () => () => {},
 }));
 import { HoverPreview, HoverPreviewHeader, useHoverPreview } from "../../client/ui/hover-preview";
 import { BlockPlacementContext } from "../../client/details/contracts";

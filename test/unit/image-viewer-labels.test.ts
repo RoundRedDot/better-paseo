@@ -54,6 +54,7 @@ vi.mock("../../client/web", () => ({
   bindDetailsEscape: () => () => {},
   bindTouchDismiss: () => () => {},
   openToolbarDetailsLayer: () => () => {},
+  pinTooltipLayer: () => () => {},
   suppressTouchCallout: () => {},
 }));
 import { StyleSheet } from "react-native";

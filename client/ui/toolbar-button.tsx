@@ -13,7 +13,7 @@ import { FLOAT, floatShadow } from "./tokens/float";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { anchoredTooltipOrigin, liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement, type WindowBox } from "./tooltip-placement";
-import { bindDetailsEscape, bindRowHover, bindTouchDismiss, openToolbarDetailsLayer, suppressTouchCallout } from "../web";
+import { bindDetailsEscape, bindRowHover, bindTouchDismiss, openToolbarDetailsLayer, pinTooltipLayer, suppressTouchCallout } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { SafeInset } from "./safe-inset";
 import { usePreviewEntrance } from "./use-preview-entrance";
@@ -174,6 +174,7 @@ export function ToolbarItem({
   const hoverColor = useContext(ToolbarHoverColorContext) ?? tokens.v2.surface2;
   const anchorRef = useRef<View>(null);
   const detailsRef = useRef<View>(null);
+  const tooltipRef = useRef<View>(null);
   const [side, setSide] = useState<TooltipPlacement>("below");
   const preferences = useEnhancerPreferences();
   const spoken = useContext(SpokenLabelsContext);
@@ -200,6 +201,10 @@ export function ToolbarItem({
     const releaseHover = bindRowHover(detailsRef.current, () => setInsideDetails(true), () => setInsideDetails(false));
     return () => { releaseHover(); releaseLayer(); };
   }, [Boolean(details), open, side]);
+  useLayoutEffect(() => {
+    if (details || !open || Platform.OS !== "web") return;
+    return pinTooltipLayer?.(tooltipRef.current, anchorRef.current);
+  }, [Boolean(details), open]);
   useEffect(() => {
     if (details) suppressTouchCallout(anchorRef.current);
   }, [details]);
@@ -288,7 +293,7 @@ export function ToolbarItem({
       {pressedOpen && Platform.OS !== "web" ? (
         <AnchoredToolbarDetails anchor={anchorRef} close={closeDetails} width={detailsWidth} tokens={tokens}>{details}</AnchoredToolbarDetails>
       ) : open ? (
-        <View pointerEvents={details ? "box-none" : "none"}
+        <View ref={tooltipRef} collapsable={false} pointerEvents={details ? "box-none" : "none"}
           style={[styles.tooltipSlot, side === "above" ? styles.above : styles.below, ALIGN[align],
             sized && align === "center" && { left: metrics.button / 2 - TOOLTIP_SLOT / 2 },
             details ? { width: detailsWidth, marginTop: 0, marginBottom: 0 } : null]}>

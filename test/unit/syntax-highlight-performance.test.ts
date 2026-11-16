@@ -129,6 +129,10 @@ describe.each(["web", "ios", "android"])("code wrapping on %s", (os) => {
     expect(toggle().props.accessibilityState.selected).toBe(true);
     expect(toggle().findByProps({ name: "WrapText" })).toBeTruthy();
     expect(styleObject(toggle().props.style).backgroundColor).toBeUndefined();
+    act(() => toggle().props.onHoverIn());
+    expect(styleObject(toggle().findByProps({ testID: "block-icon-hover" }).props.style).backgroundColor).toBe(tokens.v2.surface2);
+    act(() => toggle().props.onHoverOut());
+    expect(toggle().findAllByProps({ testID: "block-icon-hover" })).toHaveLength(0);
     act(() => toggle().props.onPress());
     expect(renderer.root.findAllByType(HScroll)).toHaveLength(1);
     const unwrapped = renderer.root.findByProps({ accessibilityLabel: "Wrap lines" });

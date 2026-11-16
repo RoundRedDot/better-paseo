@@ -13,6 +13,8 @@ import { useHighlightedLines } from "../highlight";
 import { perfCount } from "../debug/perf";
 import { CopyButton } from "../ui/copy-button";
 import { ToolbarButton } from "../ui/toolbar-button";
+import { useHover } from "../ui/use-hover";
+import { iconHoverSize } from "../ui/icon-hover-size";
 import { SelectableSpan } from "../ui/prose-text";
 import { useZoomedTokens } from "../ui/text-zoom";
 import type { HighlightLine, HighlightToken } from "../../shared/highlight-rpc";
@@ -873,7 +875,7 @@ export function codeLanguageLabel(language: string | undefined, filename?: strin
   return LANGUAGE_LABELS[key] ?? key;
 }
 
-/** A 24pt icon button for the block's Wrap toggle. */
+/** A 24pt icon button for the block's Wrap toggle. The glyph already shows which state is on, so the resting fill stays empty. */
 function ToggleIconButton({
   icon,
   label,
@@ -887,6 +889,9 @@ function ToggleIconButton({
   onPress(): void;
   tokens: ExtendedThemeTokens;
 }) {
+  const { hovered, hoverProps } = useHover();
+  const iconSize = TYPE.button.size + 1;
+  const fill = iconHoverSize(iconSize);
   return (
     <Pressable
       accessibilityRole="button"
@@ -895,12 +900,19 @@ function ToggleIconButton({
       aria-pressed={active}
       hitSlop={4}
       onPress={onPress}
-      style={({ pressed }) => [
-        toggleStyles.button,
-        pressed && { backgroundColor: tokens.v2.surface2 },
-      ]}
+      {...hoverProps}
+      style={toggleStyles.button}
     >
-      <Icon name={icon} size={TYPE.button.size + 1} color={tokens.foregroundMuted} />
+      {({ pressed }) => (
+        <View pointerEvents="none" testID={hovered || pressed ? "block-icon-hover" : undefined}
+          style={hovered || pressed ? {
+            width: fill, height: fill, borderRadius: fill / 2,
+            alignItems: "center", justifyContent: "center",
+            backgroundColor: tokens.v2.surface2,
+          } : toggleStyles.icon}>
+          <Icon name={icon} size={iconSize} color={tokens.foregroundMuted} />
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -909,7 +921,13 @@ const toggleStyles = StyleSheet.create({
   button: {
     width: 24,
     height: 24,
-    borderRadius: radiusV2.chip,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  icon: {
+    width: TYPE.button.size + 1,
+    height: TYPE.button.size + 1,
     alignItems: "center",
     justifyContent: "center",
   },

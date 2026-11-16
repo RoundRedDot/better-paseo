@@ -34,6 +34,7 @@ vi.mock("../../client/web", () => ({
     return () => {};
   },
   openPreviewLayer: () => () => {},
+  pinTooltipLayer: () => () => {},
 }));
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { PathText } from "../../client/ui/path-text";

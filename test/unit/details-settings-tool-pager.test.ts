@@ -15,7 +15,7 @@ vi.mock("react-native", async () => {
 vi.mock("../../client/ui/hover-preview", () => ({ usePreviewPanel: () => ({ maximized: true }) }));
 vi.mock("../../client/ui/toolbar-button", () => ({ ToolbarButton: () => null }));
 vi.mock("../../client/components/selection", () => ({ unselectable: {} }));
-vi.mock("../../client/web", () => ({ bindPreviewPaging: paging.bind }));
+vi.mock("../../client/web", () => ({ bindPreviewPaging: paging.bind, pinTooltipLayer: () => () => {} }));
 
 await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");

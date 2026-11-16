@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { bindPreviewPointer, dropSelectionIn, linesFit, openOptionExpansion, optionTextClipped, openPreviewLayer, openToolbarDetailsLayer, PREVIEW_GROW, scrollsWithin } from "../../client/web";
+import { bindPreviewPointer, dropSelectionIn, linesFit, openOptionExpansion, optionTextClipped, openPreviewLayer, openToolbarDetailsLayer, pinTooltipLayer, PREVIEW_GROW, scrollsWithin } from "../../client/web";
 import { DESKTOP_OVERLAY } from "../../client/ui/tokens/motion";
 
 /** The system's reduce-motion setting and the anchor row's top, for the next `layer`. */
@@ -168,6 +168,44 @@ function layer(contentLeft: number, contentWidth: number, viewportWidth = 1600, 
   return { panel, anchor, view, viewport, body, closeButton, close, release,
     resize: () => resized(), mutate: () => mutated(), disconnectResize, disconnectMutation };
 }
+
+describe("pinTooltipLayer", () => {
+  it("keeps a name tooltip on the top layer and follows its button", () => {
+    const view = { addEventListener: vi.fn(), removeEventListener: vi.fn() };
+    let top = 40;
+    const panel = {
+      ownerDocument: { defaultView: view },
+      style: { cssText: "top: 100%;" } as { cssText: string } & Record<string, string>,
+      getAttribute: () => null,
+      setAttribute: vi.fn(),
+      removeAttribute: vi.fn(),
+      showPopover: vi.fn(),
+      hidePopover: vi.fn(),
+      matches: () => true,
+      getBoundingClientRect: () => ({ left: 200, top, width: 240, height: 26 }),
+    };
+    const anchor = { getBoundingClientRect: () => ({ left: 400, top: top - 28, bottom: top - 4 }) };
+    const release = pinTooltipLayer(panel, anchor);
+    expect(panel.showPopover).toHaveBeenCalledOnce();
+    expect(panel.style.position).toBe("fixed");
+    expect(panel.style.left).toBe("200px");
+    expect(panel.style.top).toBe("40px");
+    top = 80;
+    const onScroll = view.addEventListener.mock.calls.find((call) => call[0] === "scroll")?.[1] as () => void;
+    onScroll();
+    expect(panel.style.top).toBe("80px");
+    release();
+    expect(panel.hidePopover).toHaveBeenCalledOnce();
+    expect(panel.style.cssText).toBe("top: 100%;");
+  });
+
+  it("leaves the tooltip where it was drawn when the page cannot open a popover", () => {
+    const panel = { style: { cssText: "top: 100%;" }, getBoundingClientRect: () => ({ left: 0, top: 0, width: 10, height: 10 }) };
+    expect(pinTooltipLayer(panel, { getBoundingClientRect: () => ({ left: 0, top: 0 }) })).toBeTypeOf("function");
+    expect(panel.style.cssText).toBe("top: 100%;");
+    expect(pinTooltipLayer(null, null)()).toBeUndefined();
+  });
+});
 
 describe("hover preview content bounds", () => {
   it.each([24, 716])("uses the whole content column for a %s px anchor", (anchorWidth) => {

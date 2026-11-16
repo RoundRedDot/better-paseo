@@ -191,6 +191,56 @@ export function openOptionExpansion(labelNode: unknown, panelNode: unknown, redu
 }
 
 
+/**
+ * Lift a name tooltip onto the top layer, at the box it already occupies.
+ *
+ * A code block clips with `overflow: hidden`. The name drawn under its icon
+ * is cut off there, and the leftover of its shadow reads as a bar along the
+ * block's bottom edge. The popover keeps the name and the shadow outside
+ * that clip, and follows the button while the timeline scrolls.
+ */
+export function pinTooltipLayer(node: unknown, anchor: unknown): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const panel = node as HTMLElement | null;
+  const trigger = anchor as HTMLElement | null;
+  if (!panel || !trigger || typeof panel.showPopover !== "function" || typeof panel.getBoundingClientRect !== "function" || typeof trigger.getBoundingClientRect !== "function") return () => {};
+  const view = panel.ownerDocument?.defaultView;
+  if (!view) return () => {};
+  const originalStyle = panel.style.cssText;
+  const originalPopover = panel.getAttribute("popover");
+  const initial = panel.getBoundingClientRect();
+  const origin = trigger.getBoundingClientRect();
+  panel.setAttribute("popover", "manual");
+  const place = () => {
+    const next = trigger.getBoundingClientRect();
+    panel.style.left = `${initial.left + next.left - origin.left}px`;
+    panel.style.top = `${initial.top + next.top - origin.top}px`;
+  };
+  Object.assign(panel.style, {
+    position: "fixed", inset: "auto", margin: "0", width: `${initial.width}px`,
+    overflow: "visible", background: "transparent", border: "0",
+  });
+  place();
+  try {
+    panel.showPopover();
+  } catch {
+    panel.style.cssText = originalStyle;
+    if (originalPopover === null) panel.removeAttribute("popover");
+    else panel.setAttribute("popover", originalPopover);
+    return () => {};
+  }
+  view.addEventListener("scroll", place, true);
+  view.addEventListener("resize", place);
+  return () => {
+    view.removeEventListener("scroll", place, true);
+    view.removeEventListener("resize", place);
+    if (panel.matches?.(":popover-open")) panel.hidePopover();
+    if (originalPopover === null) panel.removeAttribute("popover");
+    else panel.setAttribute("popover", originalPopover);
+    panel.style.cssText = originalStyle;
+  };
+}
+
 /** Keep interactive toolbar details above timeline stacking contexts without moving their React tree. */
 export function openToolbarDetailsLayer(node: unknown, anchor: unknown, side: "above" | "below", matchBounds?: unknown, onPlacement?: (placement: "above" | "below") => void): () => void {
   if (Platform.OS !== "web") return () => {};

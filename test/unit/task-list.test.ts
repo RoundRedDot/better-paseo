@@ -36,6 +36,7 @@ vi.mock("../../client/web", () => ({
     state.layers.push(options);
     return () => {};
   },
+  pinTooltipLayer: () => () => {},
 }));
 
 await import("./helpers/quiet-renderer");

@@ -39,6 +39,7 @@ vi.mock("../../client/web", () => ({
     return () => {};
   },
   openPreviewLayer: () => () => {},
+  pinTooltipLayer: () => () => {},
   watchNextPointerMove: () => () => {},
 }));
 vi.mock("../../client/components/image-viewer", async () => {

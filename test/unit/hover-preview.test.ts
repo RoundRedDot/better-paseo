@@ -29,6 +29,7 @@ vi.mock("../../client/web", () => ({
   bindRowHover: state.bindRowHover,
   bindPreviewMaximize: state.bindPreviewMaximize,
   dropSelectionIn: state.dropSelectionIn,
+  pinTooltipLayer: () => () => {},
   bindPreviewPointer: () => () => {},
   watchNextPointerMove: (_anchor: unknown, moved: () => void) => {
     state.moves.push(moved);
