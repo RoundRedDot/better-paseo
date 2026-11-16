@@ -4258,7 +4258,15 @@ describe("TaskDetailCards", () => {
     const press = (id: string, index: number) => act(async () => hostByTestId(tree.root, id).findByType("EnrichedMarkdownText" as never).props.onLinkPress({ nativeEvent: { url: `bc-prose://${index}` } }));
     for (const [id, path] of [["detail-prompt", "/repo/docs/spec.md"], ["detail-human", "/repo/notes.md"], ["detail-message", "/repo/docs/delivery.md"]] as const) {
       await press(id, 0);
-      expect(folder.reveal).toHaveBeenLastCalledWith({ cwd: card.location.cwd, path });
+      expect(folder.reveal).toHaveBeenLastCalledWith({ cwd: card.location.cwd, path, expectedApp: getEnhancerPreferences().fileOpenApp });
+    }
+    const previousApp = getEnhancerPreferences().fileOpenApp;
+    try {
+      await act(async () => updateEnhancerPreferences({ fileOpenApp: "zed" }));
+      await press("detail-message", 0);
+      expect(folder.reveal).toHaveBeenLastCalledWith({ cwd: card.location.cwd, path: "/repo/docs/delivery.md", expectedApp: "zed" });
+    } finally {
+      await act(async () => updateEnhancerPreferences({ fileOpenApp: previousApp }));
     }
     expect(clipboard.copyText).not.toHaveBeenCalled();
     // A web link still opens in the browser.

@@ -24,7 +24,7 @@ import { surfaceProps } from "./components/view-props";
 import { useSelectionActions } from "./components/selection-actions";
 import { TurnUsageRow, type TurnUsage } from "./components/user-message";
 import { NoticeCallout } from "./components/notice-callout";
-import { useEnhancerPreferences } from "./preferences";
+import { getEnhancerPreferences, useEnhancerPreferences } from "./preferences";
 import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { useIsLatestPrompt } from "./state/latest-prompt";
 import { useTurnFooter } from "./state/turn-footers";
@@ -207,7 +207,7 @@ function LiveToolCallRendererBody(props: PluginTimelineItemProps<LiveToolCallPay
   const pathCwdRef = useRef<string | undefined>(undefined);
   const handleRevealPath = useCallback(
     (path: string) => {
-      void revealPath({ cwd: pathCwdRef.current ?? "", path }).then((result) => { if (result.error) toast.error(fileOpenError(result)); }).catch((error: unknown) => toast.error(String(error)));
+      void revealPath({ cwd: pathCwdRef.current ?? "", path, expectedApp: getEnhancerPreferences().fileOpenApp }).then((result) => { if (result.error) toast.error(fileOpenError(result)); }).catch((error: unknown) => toast.error(String(error)));
     },
     [revealPath, toast],
   );
@@ -526,7 +526,7 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp }: Plu
   const toast = useToast();
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const onRevealPath = useCallback((path: string) => {
-    void revealPath({ cwd: cwd ?? "", path }).then((result) => { if (result.error) toast.error(fileOpenError(result)); }).catch((error: unknown) => toast.error(String(error)));
+    void revealPath({ cwd: cwd ?? "", path, expectedApp: getEnhancerPreferences().fileOpenApp }).then((result) => { if (result.error) toast.error(fileOpenError(result)); }).catch((error: unknown) => toast.error(String(error)));
   }, [cwd, revealPath, toast]);
   const probe = probeCard("assistant", textItemKey("assistant", item.data.text), false);
   const hostSlotKey = useRef(`assistant:${agentId}:${timestamp.getTime()}:${item.data.blockIndex ?? "block"}`).current;
@@ -598,7 +598,7 @@ function LiveAssistantMessageRenderer({
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const handleRevealPath = useCallback(
     (path: string) => {
-      void revealPath({ cwd: cwd ?? "", path }).then((result) => { if (result.error) toast.error(fileOpenError(result)); }).catch((error: unknown) => toast.error(String(error)));
+      void revealPath({ cwd: cwd ?? "", path, expectedApp: getEnhancerPreferences().fileOpenApp }).then((result) => { if (result.error) toast.error(fileOpenError(result)); }).catch((error: unknown) => toast.error(String(error)));
     },
     [cwd, revealPath, toast],
   );

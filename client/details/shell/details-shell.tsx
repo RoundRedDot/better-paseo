@@ -125,7 +125,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   const toast = useToast();
   const cwd = useRef<string | undefined>(undefined);
   const reveal = useCallback((path: string) => {
-    void revealPath({ cwd: cwd.current ?? "", path }).then((result) => { if (result.error) toast.error(fileOpenError(result)); }).catch((error: unknown) => toast.error(String(error)));
+    void revealPath({ cwd: cwd.current ?? "", path, expectedApp: getEnhancerPreferences().fileOpenApp }).then((result) => { if (result.error) toast.error(fileOpenError(result)); }).catch((error: unknown) => toast.error(String(error)));
   }, [revealPath, toast]);
   const paths = usePathContextValue(agentId, reveal);
   cwd.current = paths.cwd;

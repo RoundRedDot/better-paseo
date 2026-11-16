@@ -10,7 +10,7 @@ import { openLink } from "../../components/open-link";
 import { MarkdownView } from "../../components/markdown/markdown-view";
 import { variantMetrics } from "../../components/markdown/render/styles";
 import { mix, useThemeTokens } from "../../components/theme-tokens";
-import { useEnhancerPreferences } from "../../preferences";
+import { getEnhancerPreferences, useEnhancerPreferences } from "../../preferences";
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
 import { HoverPreviewContext } from "../../ui/hover-preview";
 import { useHover } from "../../ui/use-hover";
@@ -1885,7 +1885,7 @@ function TimelineTextBody(props: Inner & {
   const onRevealPath = useCallback((path: string) => {
     const { revealPath: open, toast: notice, words: text, language, cwd } = reveal.current;
     const fail = (error: string) => notice.error(text.openLinkError(error));
-    open({ cwd, path })
+    open({ cwd, path, expectedApp: getEnhancerPreferences().fileOpenApp })
       .then((result) => {
         if (result.error) fail(fileOpenError(result, language));
       })

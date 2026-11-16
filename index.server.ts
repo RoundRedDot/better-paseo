@@ -509,6 +509,9 @@ export default function contribute(server: PluginServerContext) {
       const settings = await preferences.read();
       if (settings.status !== "ready") throw new Error("File open settings are unavailable");
       const app = settings.values.fileOpenApp;
+      if (input.expectedApp !== undefined && input.expectedApp !== app) {
+        return { revealed: null, error: "File open setting has not synchronized; try again", errorKind: "settings_unsynced" as const };
+      }
       errorApp = app;
       if (app === "system") {
         errorKind = "launch_failed";

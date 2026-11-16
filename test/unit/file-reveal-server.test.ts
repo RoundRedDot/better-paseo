@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { spawn, editorCommand, settings, EditorUnavailableError } = vi.hoisted(() => ({
   spawn: vi.fn(),
@@ -48,7 +48,10 @@ async function revealHandler(): Promise<Handler> {
   return handlers.get("file.reveal")!;
 }
 
-describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
+describe("file.reveal on macOS", () => {
+  const nativePlatform = Object.getOwnPropertyDescriptor(process, "platform")!;
+  beforeEach(() => { Object.defineProperty(process, "platform", { ...nativePlatform, value: "darwin" }); });
+  afterEach(() => { Object.defineProperty(process, "platform", nativePlatform); });
   it("opens a file in its default app and only reveals an executable", async () => {
     const reveal = await revealHandler();
     await expect(reveal({ cwd: root, path: "notes.md:3" })).resolves.toEqual({ revealed: join(root, "notes.md"), error: null });
@@ -86,6 +89,22 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
     await reveal({ cwd: root, path: "run" });
     expect(spawn).toHaveBeenLastCalledWith("open", ["-R", join(root, "run")], expect.anything());
     settings.status = "ready";
+  });
+
+  it("does not open a file using an older setting while the new choice is saving", async () => {
+    settings.app = "system";
+    spawn.mockClear();
+    const reveal = await revealHandler();
+    await expect(reveal({ cwd: root, path: "notes.md", expectedApp: "zed" })).resolves.toMatchObject({ revealed: null, errorKind: "settings_unsynced" });
+    expect(spawn).not.toHaveBeenCalled();
+    await expect(reveal({ cwd: root, path: root, expectedApp: "zed" })).resolves.toMatchObject({ error: null });
+    await expect(reveal({ cwd: root, path: "run", expectedApp: "zed" })).resolves.toMatchObject({ error: null });
+    expect(spawn).toHaveBeenLastCalledWith("open", ["-R", join(root, "run")], expect.anything());
+    settings.app = "zed";
+    editorCommand.mockReturnValueOnce({ command: "/usr/bin/zed", args: [], completion: "exit" });
+    await expect(reveal({ cwd: root, path: "notes.md", expectedApp: "zed" })).resolves.toMatchObject({ error: null });
+    expect(spawn).toHaveBeenLastCalledWith("/usr/bin/zed", [join(root, "notes.md")], expect.anything());
+    settings.app = "system";
   });
 
   it("reports a failed macOS system opener", async () => {

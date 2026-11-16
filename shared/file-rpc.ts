@@ -18,11 +18,12 @@ export const revealPathRpc = defineRpc({
   input: z.object({
     cwd: z.string(),
     path: z.string(),
+    expectedApp: z.enum(FILE_OPEN_APPS).optional(),
   }),
   output: z.object({
     revealed: z.string().nullable(),
     error: z.string().nullable(),
-    errorKind: z.enum(["settings_unavailable", "editor_unavailable", "launch_failed", "launch_unconfirmed"]).optional(),
+    errorKind: z.enum(["settings_unavailable", "settings_unsynced", "editor_unavailable", "launch_failed", "launch_unconfirmed"]).optional(),
     errorApp: z.enum(FILE_OPEN_APPS).optional(),
   }),
 });
