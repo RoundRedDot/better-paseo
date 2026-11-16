@@ -51,6 +51,13 @@ function button(root: ReactTestInstance, label: string) {
 }
 
 describe("AskUserQuestion transcript data", () => {
+  it("reads Claude's current custom answer summary", () => {
+    const question = 'Kafka 地址是否修正？';
+    const answer = '改成局域网的地址，内部 Kafka 只绑定 127.0.0.1';
+    const output = `The user answered: "${question}"="${answer}". Read the answers carefully — they may request clarification, changes, or that you not proceed — and follow what they actually say.`;
+    const data = call({ questions: [{ question, options: [{ label: "先查使用方" }, { label: "先不动" }] }] }, output);
+    expect(readUserQuestions(data)!.questions[0]!.answer).toBe(answer);
+  });
   it.each(["request_user_input", "request_user_input_async", "ask", "ask_user_question", "question", "custom-agent-form"])("reads provider-independent metadata for %s", (name) => {
     const data = classifyTool({ name, status: "completed", detail: { type: "plain_text", text: "Short" },
       questionData: { questions: [{ id: "scope", question: "Which platforms?", options: ["iOS", "Web"], multiSelect: true }],

@@ -82,7 +82,8 @@ export function readUserQuestions(call: ToolCallView): UserQuestionData | undefi
   const positionalAnswers = Array.isArray(input.answers) ? input.answers : Array.isArray(output?.answers) ? output.answers : undefined;
   const transcriptResponse = call.questionData && call.status !== "running" && input.status !== "pending" && input.status !== "dismissed" ? text(call.text) : undefined;
   const response = text(output?.output) ?? (output?.answers ? undefined : text(call.output)) ?? transcriptResponse;
-  const summary = response?.match(/^(?:Your questions have been answered|User has answered your questions): ([\s\S]*)\. You can now continue with (?:the (?:user's )?|these )answers in mind\.$/)?.[1];
+  const summary = response?.match(/^(?:Your questions have been answered|User has answered your questions): ([\s\S]*)\. You can now continue with (?:the (?:user's )?|these )answers in mind\.$/)?.[1] ??
+    response?.match(/^The user answered: ([\s\S]*)\. Read the answers carefully \u2014 they may request clarification, changes, or that you not proceed \u2014 and follow what they actually say\.$/)?.[1];
   for (const [index, question] of questions.entries()) {
     const value = (question.id ? answers?.[question.id] : undefined) ?? answers?.[question.question] ??
       (question.header ? answers?.[question.header] : undefined);
