@@ -19,6 +19,7 @@ import { conversationSearchRpc } from "../../shared/conversation-search";
 import { searchConversationPage } from "./conversation-search";
 import { createErrorDismissals } from "./error-dismissals";
 import { tasksDismissErrorRpc, tasksErrorDismissalsRpc } from "../../shared/tasks-rpc";
+import { onHookEvent, onSessionOpen } from "../hooks";
 
 const AGENT_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/;
 const STOP_TIMEOUT_MS = 10_000;
@@ -408,20 +409,20 @@ export function registerTasksServer(
   server.handle(tasksAvailabilityRpc, (input, { paseo }) => availability(paseo, input.agentIds));
   server.handle(conversationSearchRpc, (input, { paseo }) => searchConversationPage(paseo, host, input));
   // A new turn means a new prompt: the agent is no longer "stopped manually", nor read.
-  server.on("agent.turn_started", async ({ agent }, context) => {
+  onHookEvent(server, "agent.turn.before", async ({ agent }, context) => {
     void subagents.ensure(context?.paseo);
     void parentOrigins.ensure(context?.paseo);
     await Promise.all([stops.clear(agent.id), reads.clear(agent.id), unreads.clear(agent.id)]);
   });
   // A session opened from storage replays its subagents without an update; read its list after.
-  server.before("agent.session_open", ({ request }, context) => {
+  onSessionOpen(server, (request, context) => {
     if (request.purpose === "interactive" && request.reason !== "create") subagents.loaded(context?.paseo, request.agentId);
   });
   // A child created now is followed from its first snapshot, before its parent can be archived.
-  server.on("agent.created", (_event, context) => {
+  onHookEvent(server, "agent.create.after", (_event, context) => {
     void parentOrigins.ensure(context?.paseo);
   });
-  server.on("agent.archived", async ({ agent, archivedAt }, context) => {
+  onHookEvent(server, "agent.archive.after", async ({ agent, archivedAt }, context) => {
     subagents.dropParent(agent.id);
     // Its survivors are detached after this hook, and read again for a while: not awaited.
     void parentOrigins.archived(context?.paseo, agent.id, archivedAt).catch((error: unknown) => {

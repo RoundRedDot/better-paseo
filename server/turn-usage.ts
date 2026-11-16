@@ -4,6 +4,7 @@ import type { PaseoAgentTimelineHandle } from "./paseo-types";
 import type { PluginServerContext, PluginTurnOutcome } from "@getpaseo/plugin/server";
 import { z } from "zod";
 import { pluginDataDir } from "./plugin-data";
+import { onHookEvent } from "./hooks";
 import { lastTurnsRpc, recordedTurnSchema, turnUsageRpc, turnUsageSchema, type LastTurn, type RecordedTurn } from "../shared/turn-usage-rpc";
 
 /** A file-name safe agent ID; anything else is neither read nor written. */
@@ -118,13 +119,17 @@ export function registerTurnUsageServer(
   const ending = new Map<string, Promise<void>>();
   const key = (agentId: string, turnId: string) => `${agentId}\n${turnId}`;
 
-  server.on("agent.turn_started", ({ agent, turnId }) => {
+  onHookEvent(server, "agent.turn.before", ({ agent, turnId }) => {
     if (!turnId) return;
     starts.set(key(agent.id, turnId), now());
     if (starts.size > STARTS_KEPT) starts.delete(starts.keys().next().value!);
   });
 
-  server.on("agent.turn_ended", ({ agent, turnId, outcome, timeline }, { paseo }) => {
+  onHookEvent(server, "agent.turn.after", (event, context) => {
+    const { agent, turnId, outcome } = event;
+    // Paseo 0.14 and 0.15 send the turn's items; 0.16 sends none.
+    const timeline = (event as { timeline?: readonly TurnItem[] }).timeline;
+    const paseo = context?.paseo;
     if (!turnId) return;
     const endedAt = now();
     const startedAt = starts.get(key(agent.id, turnId));
@@ -133,7 +138,7 @@ export function registerTurnUsageServer(
       let items: readonly TurnItem[] = timeline ?? [];
       if (agent.provider === "claude" && outcome.kind === "completed" && items.length === 0) {
         try {
-          items = await readTurnTail(paseo.agents.ref(agent.id).timeline, turnId);
+          if (paseo) items = await readTurnTail(paseo.agents.ref(agent.id).timeline, turnId);
         } catch {
           // A failed timeline read costs error detection, never the turn record.
         }
@@ -148,7 +153,7 @@ export function registerTurnUsageServer(
       let usage: RecordedTurn["usage"];
       if (outcome.kind === "completed") {
         try {
-          const parsed = turnUsageSchema.safeParse((await paseo.agents.ref(agent.id).refresh())?.agent.lastUsage);
+          const parsed = turnUsageSchema.safeParse((await paseo?.agents.ref(agent.id).refresh())?.agent.lastUsage);
           if (parsed.success && Object.keys(parsed.data).length) usage = parsed.data;
         } catch {
           // A missed reading costs one turn's figures, never its timing.

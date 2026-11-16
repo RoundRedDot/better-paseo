@@ -614,7 +614,7 @@ describe("title when the first message starts", () => {
     f.original.agent.title = "Fix the card title";
     f.timeline.mockResolvedValue({ error: null, hasOlder: false, hasNewer: false, endCursor: null, startCursor: null, entries: entries.map((entry, index) => ({ ...entry, seqStart: index + 1 })) } as never);
     const started = (turnId: string | null = "t1", cwd = "/projects/app") =>
-      f.service.afterTurnStart({ agent: { id: "source", workspaceId: "source-ws", parentAgentId: null, provider: "codex", cwd, title: f.original.agent.title }, turnId }, f.api);
+      f.service.afterTurnStart({ agent: { id: "source", workspaceId: "source-ws", parentAgentId: null, provider: "codex", cwd, title: f.original.agent.title, background: false, metadata: {} }, turnId }, f.api);
     return { ...f, started };
   }
 
