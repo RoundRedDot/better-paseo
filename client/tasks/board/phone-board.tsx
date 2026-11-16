@@ -52,6 +52,7 @@ import type { DetailScrollOffsets } from "../cards/detail-cards";
 const nativeDriver = Platform.OS !== "web";
 /** iOS and Android page the lanes natively; web swipes them with pointer events. */
 const isNative = () => Platform.OS === "ios" || Platform.OS === "android";
+const ModalContent = Modal.Content as React.ComponentType<React.ComponentProps<typeof Modal.Content> & { footer?: React.ReactNode }>;
 const Separator = () => <View style={{ height: 12 }} />;
 /** A lane list's end space without the scroll shortcuts. */
 const LANE_END_SPACE = 46;
@@ -619,27 +620,21 @@ export function PhoneBoard(props: {
         </Modal.Content>
       </Modal>
       <Modal title={strings.details} open={detailsCard !== undefined} onOpenChange={(open) => !open && setSheet(null)}>
-        <Modal.Content contentContainerStyle={Platform.OS === "ios" ? { ...SHEET_FILTER_BODY, paddingBottom: 0 } : SHEET_FILTER_BODY} scrollable={false}>
-          <TasksTypography theme={theme}>
-            {detailsCard ? (
-              <DetailsSheetBody
-                card={detailsCard}
-                board={board}
-                theme={theme}
-                index={detailsIndex}
-                count={detailsList.length}
-                previousId={detailsList[detailsIndex - 1]?.id ?? null}
-                nextId={detailsList[detailsIndex + 1]?.id ?? null}
-                onShow={showDetails}
-                selection={selection}
-                initialScroll={sheet?.kind === "details" ? sheet.initialScroll : undefined}
-                backTitle={backId ? backCard?.title ?? cardStrings(board.language).parentUnknown : undefined}
-                navigate={navigateDetails}
-                onOpen={openFromDetails}
-              />
-            ) : null}
-          </TasksTypography>
-        </Modal.Content>
+        <DetailsSheetContent
+          card={detailsCard}
+          board={board}
+          theme={theme}
+          index={detailsIndex}
+          count={detailsList.length}
+          previousId={detailsList[detailsIndex - 1]?.id ?? null}
+          nextId={detailsList[detailsIndex + 1]?.id ?? null}
+          onShow={showDetails}
+          selection={selection}
+          initialScroll={sheet?.kind === "details" ? sheet.initialScroll : undefined}
+          backTitle={backId ? backCard?.title ?? cardStrings(board.language).parentUnknown : undefined}
+          navigate={navigateDetails}
+          onOpen={openFromDetails}
+        />
       </Modal>
     </View>
   );
@@ -665,6 +660,29 @@ interface DetailsSheetBodyProps {
   backTitle?: string;
   navigate(action: DetailNavigation): void;
   onOpen?(agentId: string): void;
+  edge: ReturnType<typeof createDetailChrome>;
+  inlineFooter: boolean;
+}
+
+function DetailsSheetContent(props: Omit<DetailsSheetBodyProps, "card" | "edge" | "inlineFooter"> & { card?: TaskCard }) {
+  const [edge] = useState(createDetailChrome);
+  // Hosts before the footer slot keep the original inline action bar.
+  const footerSlot = Platform.OS === "android" && (Modal as typeof Modal & { supportsFooter?: boolean }).supportsFooter === true;
+  const footer = props.card && !requestInSection(props.card, props.board.buttonsFor(props.card))
+    ? <DetailsSheetFooter card={props.card} board={props.board} theme={props.theme} onOpen={props.onOpen} edge={edge} />
+    : null;
+  const separateFooter = footerSlot && footer !== null;
+  return (
+    <ModalContent
+      contentContainerStyle={Platform.OS === "ios" || separateFooter ? { ...SHEET_FILTER_BODY, paddingBottom: 0 } : SHEET_FILTER_BODY}
+      scrollable={false}
+      footer={separateFooter ? <TasksTypography theme={props.theme}><View style={{ paddingBottom: SHEET_BODY.paddingBottom }}>{footer}</View></TasksTypography> : undefined}
+    >
+      <TasksTypography theme={props.theme}>
+        {props.card ? <DetailsSheetBody {...props} card={props.card} edge={edge} inlineFooter={!footerSlot} /> : null}
+      </TasksTypography>
+    </ModalContent>
+  );
 }
 
 /** Every running agent's update changes the board; the body draws again only for its own card (`sameDetailsBoard`). */
@@ -686,8 +704,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
   const stop = stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null;
   const onPermission = (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button);
   // Whether the card's content runs under the action bar: only the bar draws again when it changes.
-  const [edge] = useState(createDetailChrome);
-  const noteEdge = useCallback((under: boolean) => edge.set({ headerUnderBar: under }), [edge]);
+  const noteEdge = useCallback((under: boolean) => props.edge.set({ headerUnderBar: under }), [props.edge]);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
       {index >= 0 && props.count > 1 ? (
@@ -740,8 +757,18 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           onScrollEdge={noteEdge}
         />
       </View>
-      {!requestInSection(card, board.buttonsFor(card)) ? <EdgeActionBar
-        chrome={edge}
+      {props.inlineFooter && !requestInSection(card, board.buttonsFor(card)) ? <DetailsSheetFooter card={card} board={board} theme={theme} onOpen={props.onOpen} edge={props.edge} /> : null}
+    </View>
+  );
+}
+
+function DetailsSheetFooter(props: Pick<DetailsSheetBodyProps, "card" | "board" | "theme" | "onOpen" | "edge">) {
+  const { card, board, theme } = props;
+  const stopAvailable = !!board.callbacks.onStop && (card.stoppable || activeStopChildren(card).length > 0);
+  const stop = stopAvailable ? { phase: board.stop.phase(card.id), onPress: () => board.callbacks.onStop?.(card, { withChildren: !card.stoppable }) } : null;
+  const onPermission = (button: Parameters<NonNullable<typeof board.callbacks.onPermission>>[1]) => board.callbacks.onPermission?.(card, button);
+  return <EdgeActionBar
+        chrome={props.edge}
         scrollHeader
         flushBottom={Platform.OS === "ios"}
         card={card}
@@ -756,9 +783,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
         archive={board.archive}
         markRead={board.read.available ? board.read : null}
         markUnread={board.unread ?? null}
-      /> : null}
-    </View>
-  );
+      />;
 }
 
 function SheetStep(props: { icon: string; label: string; disabled: boolean; onPress(): void; theme: PluginTheme }) {

@@ -39,7 +39,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
   function Modal(props: Props) {
     return props.open ? React.createElement("Modal", { title: props.title }, props.children) : null;
   }
-  Modal.Content = (props: Props) => React.createElement("ModalContent", { contentContainerStyle: props.contentContainerStyle }, props.children);
+  Modal.Content = (props: Props) => React.createElement("ModalContent", { contentContainerStyle: props.contentContainerStyle }, props.children, props.footer as React.ReactNode);
+  Modal.supportsFooter = false;
   return {
     Icon: (props: Props) => React.createElement("Icon", { name: props.name, icon: props.icon, size: props.size, color: props.color }),
     FlatList,
@@ -426,6 +427,7 @@ function renderFocusBoard() {
 }
 
 beforeEach(() => {
+  (Modal as typeof Modal & { supportsFooter?: boolean }).supportsFooter = false;
   resetUpdateIndicatorsForTests();
   resetAgentUpdatesForTests();
   resetHostAppearanceForTests();
@@ -7775,6 +7777,24 @@ describe("Tasks board, phone", () => {
     act(() => cards()[0]!.props.onSelect(cards()[0]!.props.card));
     expect(sheet().findByType(TaskDetailCards).props.card.id).toBe("sample-input");
     expect(openAgent).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("keeps the Android detail actions available with footer support %s", async (supported) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+    (Modal as typeof Modal & { supportsFooter?: boolean }).supportsFooter = supported;
+    await act(async () => { renderer = TestRenderer.create(screen(true)); });
+    await act(async () => pressable("Running 2").props.onPress());
+    const running = cards().find((card) => card.props.card.id === "sample-running")!;
+    await act(async () => running.props.onSelect(running.props.card));
+    const content = renderer!.root.findByType(Modal.Content);
+    expect(Boolean(content.props.footer)).toBe(supported);
+    const bar = hostsById("detail-action-bar");
+    expect(bar).toHaveLength(1);
+    expect(hostsById("detail-bar-open")).toHaveLength(1);
+    expect(hostsById("detail-tab-short-scroll")).toHaveLength(1);
+    await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
+    expect(hostsById("detail-action-bar")).toHaveLength(1);
+    expect(hostsById("detail-bar-open")).toHaveLength(1);
   });
 
   it.each(["ios", "android", "web"])("answers a tool permission in its section, with no bottom bar, in the %s phone sheet", async (os) => {
