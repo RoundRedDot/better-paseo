@@ -1049,7 +1049,7 @@ function PermissionBlock(props: Inner) {
       </View>
       {permission.summary ? (
         <View style={{ marginHorizontal: 12, marginTop: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, borderWidth: 1, borderColor: tokens.border, backgroundColor: tokens.card.background }}>
-          <Text style={{ fontSize: prose ? F.base : F.sm, lineHeight: prose ? HOST_LINE.base : CODE_LINE, fontFamily: plan ? undefined : MONO, fontWeight: plan ? "500" : undefined, color: tokens.foreground }}>{permission.summary}</Text>
+          <Text style={{ fontSize: prose ? F.base : F.sm, lineHeight: prose ? HOST_LINE.base : CODE_LINE, fontFamily: plan || (props.compact && permission.kind === "question") ? undefined : MONO, fontWeight: plan ? "500" : undefined, color: tokens.foreground }}>{permission.summary}</Text>
         </View>
       ) : null}
       {planOpen !== null && planOpen === permission.requestId && permission.body ? (
@@ -1057,9 +1057,9 @@ function PermissionBlock(props: Inner) {
       ) : null}
       {buttons.length > 0 ? (
         <View testID="detail-permission-buttons" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
-          <ActionRow stack={buttons.some((button) => !button.answers && keepsAnswerLabel(button, buttons))} style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0, ...(props.touch && Platform.OS !== "web" ? { paddingVertical: 4, alignItems: "center" } : null) }} testID="detail-permission-actions">
+          <ActionRow stack={buttons.some((button) => (props.compact || !button.answers) && keepsAnswerLabel(button, buttons))} style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0, ...(props.touch && Platform.OS !== "web" ? { paddingVertical: 4, alignItems: "center" } : null) }} testID="detail-permission-actions">
             {buttons.map((button) => (
-              <RequestButton key={button.key} button={button} tokens={tokens} keepLabel={keepsAnswerLabel(button, buttons)} disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")} height={props.touch ? 36 : 34} onPress={() => props.onPermission?.(button)} />
+              <RequestButton key={button.key} button={button} tokens={tokens} keepLabel={keepsAnswerLabel(button, buttons)} wrapOption={props.compact} disabled={button.kind === "respond" && !!taskOperationIssue(card, "permission")} height={props.touch ? 36 : 34} onPress={() => props.onPermission?.(button)} />
             ))}
           </ActionRow>
           {waited !== null ? (
@@ -1077,7 +1077,7 @@ function PermissionBlock(props: Inner) {
 }
 
 /** The card's permission buttons, by `requestLook`: Allow's accent, Deny's danger, "Answer"'s amber, the rest plain. */
-function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; height: number; disabled?: boolean; keepLabel?: boolean; onPress(): void }) {
+function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; height: number; disabled?: boolean; keepLabel?: boolean; wrapOption?: boolean; onPress(): void }) {
   const { button, tokens } = props;
   const { hovered, hoverProps } = useHover();
   const hue = buttonHue(tokens, requestLook(button));
@@ -1087,7 +1087,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
   const option = !!button.answers;
   // One of several answers with the same icon keeps its words too (`keepsAnswerLabel`): its row stacks rather than cut them.
   const keep = !option && props.keepLabel === true;
-  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + (option ? 0 : 13 + 4) + 1, false, requestLook(button) === "primary", option, keep);
+  const fit = useActionFit(button.label, `${scale}|${useWindowDimensions().fontScale}`, props.height, 28 + (option ? 0 : 13 + 4) + 1, false, requestLook(button) === "primary", option, keep || (option && props.wrapOption === true));
   const icon = option ? null : button.kind === "question" ? "MessageCircleQuestion" : button.kind === "open" ? "ArrowUpRight" : button.action.behavior === "allow" ? "Check" : "X";
   return (
     <Pressable

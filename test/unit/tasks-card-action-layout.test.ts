@@ -1230,6 +1230,31 @@ describe("phone card action bar under native (Yoga) layout", () => {
     }
   });
 
+  it.each(["ios", "android"] as const)("keeps phone question options readable beside View question on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const card = choice(["重新发起安装", "不要重试"])();
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(TaskDetailCards, {
+        card, theme: THEME as never, language: "zh", strings: BOARD_STRINGS.zh.sidebar, now: NOW,
+        touch: true, compact: true, questionActionsInHeader: true,
+        permissionButtons: permissionButtons(card.permission!, "zh", true), onPermission() {},
+      }));
+    });
+    const row = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-permission-actions");
+    const block = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-permission");
+    const summary = block.find((node) => (node.type as unknown) === "Text" && node.children.join("") === card.permission!.summary);
+    expect((Object.assign({}, ...[summary.props.style].flat(Infinity).filter(Boolean)) as { fontFamily?: string }).fontFamily).toBeUndefined();
+    const frames = await settleHostLayout(row, { width: 210, wrapText: true });
+    const items = actionButtons(row());
+    expect(items.length).toBeGreaterThanOrEqual(3);
+    for (const item of items.slice(0, 2)) {
+      const text = labelsOf(item)[0]!;
+      const frame = frames.get(text)!;
+      const font = (Object.assign({}, ...[text.props.style].flat(Infinity).filter(Boolean)) as { fontSize: number }).fontSize;
+      expect(frame.width).toBeGreaterThanOrEqual(estimateTextWidth(item.props.accessibilityLabel, font) - 0.5);
+    }
+  });
+
   it.each([240, 300, 340].flatMap((width) => [1, 1.35, 1.8].flatMap((scale) => [WIDE_CJK, WIDE_LATIN, ["允许", "拒绝"] as const].map((labels) => [width, scale, labels] as const))))(
     "wraps a question's written options whole inside the details' request at %ipt, text scale %f: %j",
     async (width, textScale, labels) => {
