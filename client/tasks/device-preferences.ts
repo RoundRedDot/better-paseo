@@ -2,7 +2,7 @@ import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { NativeModules, Platform, TurboModuleRegistry } from "react-native";
 import type { TasksSettings } from "../../shared/tasks-settings";
 import { readDevicePreference, writeDevicePreference } from "../web";
-import { createDeviceTasksStore, DEFAULT_CARD_TITLE_LINES, deviceBoardPreferences, type DevicePreferenceStorage, type DeviceTasksStore } from "./device-store";
+import { createDeviceTasksStore, DEFAULT_CARD_TITLE_LINES, deviceBoardPreferences, type DeviceBoardPreferences, type DevicePreferenceStorage, type DeviceTasksStore } from "./device-store";
 import { DEVICE_RUNTIME_VERSION } from "./device-runtime-version";
 import { createDeviceSettingsAdapter, installDeviceSettings, LEGACY_BOARD_KEY, LEGACY_SIDEBAR_KEY, TASKS_DEVICE_SETTINGS, useDeviceSettingsBridge, type DeviceRecord } from "./device-settings";
 
@@ -89,13 +89,50 @@ function runtime(): DeviceRuntime {
     if (!deviceSettings) installDeviceSettings(null);
     // On web the shortcut works from the copy before a hook reports the device settings.
     const provisional = deviceSettings && Platform.OS === "web" ? startupCopy : undefined;
-    // The device settings report boards on their own; the store is made right after them.
     let store: DeviceTasksStore | null = null;
-    const storage = forTests ?? (deviceSettings ? deviceSettingsStorage((board) => store?.receive(board)) : legacyStorage());
-    store = createDeviceTasksStore(storage, provisional);
+    if (!forTests && !deviceSettings) store = sharedLegacyStore();
+    else {
+      // The device settings report boards on their own; the store is made right after them.
+      const storage = forTests ?? deviceSettingsStorage((board) => store?.receive(board));
+      store = createDeviceTasksStore(storage, provisional);
+    }
     holder[RUNTIME_KEY] = { store, deviceSettings } satisfies DeviceRuntime;
   }
   return holder[RUNTIME_KEY] as DeviceRuntime;
+}
+
+/**
+ * Without device settings (Paseo 0.14, 0.15), every plugin version writes the same whole old
+ * record, so they must share one store, as Better Paseo 1.6 already shared it across hosts:
+ * under the key it used. This store's code is a superset of 1.6's, so an older bundle that loads
+ * later takes it as its own; one that loaded first keeps its store, which this one fronts.
+ */
+const LEGACY_RUNTIME_KEY = "__betterPaseoDeviceTasksV3";
+
+/** The 1.6 store's interface: what an older bundle's store answers. */
+type LegacyStore = Pick<DeviceTasksStore, "snapshot" | "subscribe" | "load" | "update"> & {
+  restore(values: DeviceBoardPreferences): Promise<void>;
+};
+
+function sharedLegacyStore(): DeviceTasksStore {
+  const holder = globalThis as Record<string, unknown>;
+  const existing = holder[LEGACY_RUNTIME_KEY] as (LegacyStore & Partial<DeviceTasksStore>) | undefined;
+  if (!existing) {
+    const store = createDeviceTasksStore(legacyStorage());
+    holder[LEGACY_RUNTIME_KEY] = store;
+    return store;
+  }
+  if (typeof existing.current === "function" && typeof existing.receive === "function") return existing as DeviceTasksStore;
+  // An older bundle's store: no provisional copy, no reports, and a restore that writes whole.
+  return {
+    snapshot: () => existing.snapshot(),
+    subscribe: (listener) => existing.subscribe(listener),
+    load: (seed) => existing.load(seed),
+    update: (patch) => existing.update(patch),
+    restore: (values) => existing.restore(values),
+    current: () => existing.snapshot().values,
+    receive() {},
+  };
 }
 
 export function deviceTasksStore(): DeviceTasksStore {

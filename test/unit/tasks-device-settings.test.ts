@@ -357,6 +357,18 @@ describe("device Tasks preferences in Paseo's device settings", () => {
     expect(store.snapshot().values).toEqual({ ...seed, openShortcut: "Mod+Shift+KeyK", titleLines });
   });
 
+  it("saves nothing, and holds no queue, when a write changes nothing", async () => {
+    const { host, adapter, store } = setup({ host: fakeHost({ board: seed }) });
+    host.mount(adapter);
+    store.load(seed);
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    const started = Date.now();
+    await store.restore(seed);
+    await store.restore(seed, ["hideSubtasks"]);
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(host.saves).toEqual([]);
+  });
+
   it("offers a provisional copy for the shortcut until the settings load", async () => {
     const adapter = createDeviceSettingsAdapter({ legacyBoard: async () => null, legacySidebar: async () => null, mirror() {} });
     const copy = JSON.stringify({ ...seed, openShortcut: "Mod+Shift+KeyK" });

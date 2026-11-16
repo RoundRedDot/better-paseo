@@ -121,7 +121,8 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
       if (current.status === "error") throw new Error(current.error);
       const base = current.status === "ready" ? current.values : {};
       const values = build(base);
-      if (values === null) return base;
+      // Nothing changes: the host would keep the revision, and the save would wait for a report.
+      if (values === null || JSON.stringify(values) === JSON.stringify(base)) return base;
       const act = actions();
       if (await act.save(values, current.revision)) {
         // The next write needs the revision the host gave this one; the hook reports it.
