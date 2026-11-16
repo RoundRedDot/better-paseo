@@ -56,7 +56,11 @@ const FILE_EXTENSIONS: Record<string, true> = {
   pdf: true, csv: true, tsv: true, wasm: true, patch: true, diff: true,
 };
 
-const PATH_CHARS_RE = /^[\w.@+~\-/]+$/;
+// `\w` is ASCII-only even with the `u` flag, so letters and digits of any
+// script are added explicitly, so CJK file names count as paths too.
+const PATH_CHARS_RE = /^[\p{L}\p{Nd}_.@+~\-/]+$/u;
+// A real segment has a run of two or more letters or digits; `a/b` does not.
+const PATH_WORD_RE = /[\p{L}\p{Nd}_]{2,}/u;
 const LOCATION_RE = /(?::\d+){1,2}$/;
 
 /**
@@ -74,7 +78,7 @@ export function isPathLike(text: string): boolean {
   if (bare.includes("/")) {
     // `/` alone, `//`, `a/b/c` of single letters read as notation, not paths.
     if (bare.includes("//")) return false;
-    return /[A-Za-z0-9_]{2,}/.test(bare);
+    return PATH_WORD_RE.test(bare);
   }
   const dot = bare.lastIndexOf(".");
   if (dot <= 0) return false;

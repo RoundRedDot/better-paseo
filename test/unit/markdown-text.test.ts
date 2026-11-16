@@ -24,6 +24,19 @@ describe("isPathLike", () => {
     }
   });
 
+  it("accepts paths whose segments are CJK", () => {
+    for (const path of [
+      "output/pdf/第4课冀中的地道战与园地四_词语整理_A4.pdf",
+      "笔记/第4课.pdf",
+      "笔记/第4课.pdf:12",
+      "笔记/草稿",
+      "笔记/草稿:12:3",
+      "第4课.pdf",
+    ]) {
+      expect(isPathLike(path), path).toBe(true);
+    }
+  });
+
   it("rejects code, commands, URLs and member access", () => {
     for (const text of [
       "npm test",
@@ -36,6 +49,11 @@ describe("isPathLike", () => {
       "//",
       "x",
       "fn(a/b)",
+      "a/文",
+      "文/字",
+      "笔记/第4课 草稿.pdf",
+      "src/my file.ts",
+      "笔记（草稿）/a.md",
     ]) {
       expect(isPathLike(text), text).toBe(false);
     }
