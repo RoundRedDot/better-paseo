@@ -1,4 +1,4 @@
-Better Paseo puts every agent on one Tasks board, on phone, iPad and desktop. It also redraws conversations as compact rows for tool calls, reasoning, replies, prompts, checklists and errors.
+Better Paseo puts every agent on one Tasks board across your phone, pad, and desktop. It also redraws conversations as compact rows for tool calls, reasoning, replies, prompts, checklists and errors.
 
 Tool calls start collapsed. The timeline offers syntax highlighting, streaming Markdown, block details, previews and copying, including table-cell selection. The Tasks board supports search and filters, agent details, stop and archive actions, permission responses, and manual or model-generated titles. Available actions and selection controls vary by platform and host capabilities.
 

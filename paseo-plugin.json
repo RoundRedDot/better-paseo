@@ -1,7 +1,7 @@
 {
   "id": "better-paseo",
   "name": "Better Paseo",
-  "description": "Every agent on one board, on phone, iPad and desktop, plus a clearer, faster chat timeline.",
+  "description": "Every agent on one board across your phone, pad, and desktop, with a clearer, faster chat timeline.",
   "icon": "assets/icon.png",
   "media": [
     "https://github.com/RoundRedDot/better-paseo/releases/download/media-assets/better-paseo-promo-v14-tasks-web.mp4",

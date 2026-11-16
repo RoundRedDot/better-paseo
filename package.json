@@ -3,7 +3,7 @@
   "version": "1.6.0",
   "build": 202611161258,
   "private": true,
-  "description": "Paseo plugin: every agent on one board, on phone, iPad and desktop, plus a clearer, faster chat timeline",
+  "description": "Paseo plugin: every agent on one board across your phone, pad, and desktop, with a clearer, faster chat timeline",
   "license": "MIT",
   "packageManager": "npm@11.16.0",
   "scripts": {
