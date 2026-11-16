@@ -3,6 +3,23 @@ import { resolveLanguage, type SettingsLanguage } from "./settings-strings";
 import type { FileOpenApp } from "../../shared/preferences-settings";
 import type { FileOpenErrorKind } from "../../shared/file-rpc";
 
+type RevealResult = { error: string | null; errorKind?: FileOpenErrorKind; errorApp?: FileOpenApp };
+
+/**
+ * A path press: opens or reveals the path on the host with the current file
+ * open setting, and shows any failure in a toast.
+ */
+export function revealWithSetting(
+  revealPath: (input: { cwd: string; path: string; expectedApp: FileOpenApp }) => Promise<RevealResult>,
+  toast: { error(message: string): void },
+  cwd: string,
+  path: string,
+): void {
+  void revealPath({ cwd, path, expectedApp: getEnhancerPreferences().fileOpenApp })
+    .then((result) => { if (result.error) toast.error(fileOpenError(result)); })
+    .catch((error: unknown) => toast.error(String(error)));
+}
+
 const names: Record<FileOpenApp, string> = { system: "System app", cursor: "Cursor", vscode: "VS Code", zed: "Zed", sublime: "Sublime Text" };
 
 /** Server details are retained for diagnosis, including with older servers. */
