@@ -30,6 +30,7 @@ import { useIsLatestPrompt } from "./state/latest-prompt";
 import { useTurnFooter } from "./state/turn-footers";
 import { setPromptUsage, usePromptUsage } from "./state/prompt-usage";
 import { useAgentMessageSender } from "./state/agent-message-senders";
+import { useTimelineLevelPill } from "./timeline-level-control";
 import { useFooterModel } from "./state/footer-model";
 import type { AssistantRowData } from "./assistant-transform";
 import { HOST_REWIND_MENU } from "./ui/host-rewind";
@@ -160,6 +161,8 @@ function BlockPlacement({ agentId, timestamp, kind, children }: {
   const value = useMemo(() => ({ agentId, at, kind }), [agentId, at, kind]);
   // Work held back until the chat has drawn waits for the first row (`startup-settled.ts`).
   useEffect(noteTimelineRowShown, []);
+  // The agent's Agent steps pill (`timeline-level-control.ts`).
+  useTimelineLevelPill(agentId);
   return <BlockPlacementContext.Provider value={value}>{children}</BlockPlacementContext.Provider>;
 }
 

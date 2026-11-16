@@ -10,6 +10,7 @@ import { getEnhancerPreferences } from "./client/preferences";
 import { followPreference } from "./client/state/follow-preference";
 import { readPreferencesAtStartup, watchPreferenceChanges } from "./client/state/preference-sync-slot";
 import { perfSlashCommand } from "./client/debug/perf-command";
+import { installTimelineLevelControl } from "./client/timeline-level-control";
 import { loadMark } from "./client/debug/load-marks";
 import { scheduleLoadTraceDump } from "./client/debug/load-trace";
 import { transformCompaction, transformToolCall } from "./client/tools/transform";
@@ -304,6 +305,10 @@ export default function contribute(client: PluginClientContext) {
   // Debug only: `/bc-perf on|off|reset|dump [label]` for hosts without a console.
   const removePerfCommand = client.addSlashCommand(perfSlashCommand);
 
+  // General → Agent steps from the chat: a composer pill per agent with plugin
+  // rows, and `/bc-timeline` for any agent.
+  const removeTimelineLevelControl = installTimelineLevelControl(client);
+
   // The Tasks board: a screen, its sidebar entry and a Command Center item;
   // its options are the Tasks half of the settings page (docs/tasks-board.md).
   const removeTasks = contributeTasks(client);
@@ -320,6 +325,7 @@ export default function contribute(client: PluginClientContext) {
     removeSettings();
     removeUpdateIndicator?.();
     removePerfCommand();
+    removeTimelineLevelControl();
     removeFonts();
     setMarkLoader(null);
     removeFocusRing();
