@@ -1232,6 +1232,31 @@ describe("phone card action bar under native (Yoga) layout", () => {
     }
   });
 
+  it.each([true, false])("places desktop question text directly in its request card, with dialog action %s", async (dialogAction) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const card = choice()();
+    const buttons = permissionButtons(card.permission!, "zh", dialogAction);
+    const onPermission = vi.fn();
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(TaskDetailCards, {
+        card, theme: THEME as never, language: "zh", strings: BOARD_STRINGS.zh.sidebar, now: NOW,
+        tabs: true, permissionButtons: buttons, onPermission,
+      }));
+    });
+    const block = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-permission");
+    const summary = block.find((node) => (node.type as unknown) === "Text" && node.children.join("") === card.permission!.summary);
+    let parent = summary.parent;
+    while (parent && typeof parent.type !== "string") parent = parent.parent;
+    expect(parent?.props.testID).toBe("detail-permission");
+    expect(Object.assign({}, ...[summary.props.style].flat(Infinity).filter(Boolean)).fontFamily).toBeUndefined();
+    const actions = actionButtons(block);
+    expect(actions.map((button) => button.props.accessibilityLabel)).toEqual(buttons.map((button) => button.label));
+    for (const [index, action] of actions.entries()) {
+      act(() => action.props.onPress());
+      expect(onPermission).toHaveBeenLastCalledWith(buttons[index]);
+    }
+  });
+
   it.each((["ios", "android"] as const).flatMap((os) => [240, 300, 340].flatMap((width) => [1, 1.8].flatMap((textScale) => (["zh", "en"] as const).flatMap((language) => [false, true].map((compact) => [os, width, textScale, language, compact] as const))))))(
     "keeps the touch question entry inside %s details at %ipt, scale %f, %s, compact %s",
     async (os, width, textScale, language, compact) => {

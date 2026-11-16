@@ -955,8 +955,10 @@ A card that waits on a request names the request, then gives its answers.
 - In phone and tablet details, a question keeps one `sunk` request card: the question text sits
   directly in it, followed by the elapsed time at the left and a single "View questions" action
   at the right. The action opens the existing question dialog; the details do not repeat the
-  inline answer form. The board cards, desktop details and other request kinds keep their existing
-  actions and layout. If no question-dialog action is available, retain the existing request UI.
+  inline answer form. Desktop details also show question text directly inside the request card,
+  while keeping their existing quick answers and question-dialog action. Board cards and other
+  request kinds keep their existing actions and layout. On touch, if no question-dialog action is
+  available, retain the existing request UI.
 - Changes to this row must still pass the Yoga layout case in
   `test/unit/tasks-card-action-layout.test.ts`: "View plan" keeps its whole label inside the phone
   card, the desktop card and the details at 240 to 387 pt and text scale 1 to 1.8, in Chinese and

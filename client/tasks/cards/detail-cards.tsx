@@ -1050,7 +1050,7 @@ function PermissionBlock(props: Inner) {
           <PlanViewButton unifiedHover tokens={tokens} language={props.language} lineHeight={HOST_LINE.base} onPress={() => setPlanOpen(permission.requestId)} testID="detail-view-plan" />
         ) : null}
       </View>
-      {permission.summary && questionButton ? (
+      {permission.summary && permission.kind === "question" && (!props.touch || questionButton) ? (
         <Text style={{ marginHorizontal: 12, marginTop: 8, fontSize: F.base, lineHeight: HOST_LINE.base, color: tokens.foreground }}>{permission.summary}</Text>
       ) : permission.summary ? (
         <View style={{ marginHorizontal: 12, marginTop: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, borderWidth: 1, borderColor: tokens.border, backgroundColor: tokens.card.background }}>
