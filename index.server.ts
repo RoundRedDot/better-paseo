@@ -23,7 +23,7 @@ import { writePerfDump } from "./server/perf-dump";
 import { registerTasksServer } from "./server/tasks/register";
 import { registerTurnUsageServer } from "./server/turn-usage";
 import { shellOpenCommand, launches, type PathEntry } from "./server/open-path";
-import { editorCommand } from "./server/editor-target";
+import { editorCommand, EditorUnavailableError } from "./server/editor-target";
 import { LaunchUnconfirmedError, waitForOpen } from "./server/open-process";
 
 /**
@@ -514,19 +514,25 @@ export default function contribute(server: PluginServerContext) {
         errorKind = "launch_failed";
         await openWithShell(target, entry);
       } else {
-        errorKind = "editor_unavailable";
-        const editor = await editorCommand(app);
         errorKind = "launch_failed";
+        const editor = await editorCommand(app);
+        const env = { ...process.env };
+        // Electron must not execute the selected file as a Node program.
+        for (const key of Object.keys(env)) {
+          if (key.toUpperCase() === "ELECTRON_RUN_AS_NODE") delete env[key];
+        }
+        if ((app === "vscode" || app === "cursor") && process.platform === "linux") env.DONT_PROMPT_WSL_INSTALL = "1";
         const child = spawn(editor.command, [...editor.args, target], {
           detached: true,
           windowsHide: true,
           stdio: ["ignore", "ignore", "pipe"],
-          ...((app === "vscode" || app === "cursor") && process.platform === "linux" ? { env: { ...process.env, DONT_PROMPT_WSL_INSTALL: "1" } } : null),
+          env,
         });
         await waitForOpen(child, editor.completion === "spawn" ? "gui" : "exit", `Failed to open file with ${app}`);
       }
       return { revealed: target, error: null };
     } catch (error) {
+      if (error instanceof EditorUnavailableError) errorKind = "editor_unavailable";
       if (error instanceof LaunchUnconfirmedError) errorKind = "launch_unconfirmed";
       return {
         revealed: null,

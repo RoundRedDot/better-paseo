@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { editorCommand } from "../../server/editor-target";
+import { editorCommand, EditorUnavailableError } from "../../server/editor-target";
 import { preferencesSchema } from "../../shared/preferences-settings";
 
-const fs = vi.hoisted(() => ({ existing: new Set<string>(), executable: new Set<string>(), realpath: new Map<string, string>(), appImages: new Set<string>(), elf: new Set<string>(), handles: new Map<number, string>(), nextFd: 100, versions: new Map<string, string>() }));
+const fs = vi.hoisted(() => ({ existing: new Set<string>(), executable: new Set<string>(), directories: new Set<string>(), unreadable: new Set<string>(), realpath: new Map<string, string>(), appImages: new Set<string>(), elf: new Set<string>(), handles: new Map<number, string>(), nextFd: 100, versions: new Map<string, string>() }));
 vi.mock("node:child_process", async (original) => ({
   ...await original<object>(),
   execFile: (path: string, _args: string[], _options: unknown, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
@@ -14,8 +14,9 @@ vi.mock("node:fs", async (original) => ({
   ...await original<object>(),
   existsSync: (path: string) => fs.existing.has(path),
   accessSync: (path: string) => { if (!fs.executable.has(path)) throw new Error("ENOENT"); },
+  statSync: (path: string) => ({ isFile: () => !fs.directories.has(path) }),
   realpathSync: (path: string) => fs.realpath.get(path) ?? path,
-  openSync: (path: string) => { const fd = fs.nextFd++; fs.handles.set(fd, path); return fd; },
+  openSync: (path: string) => { if (fs.unreadable.has(path)) throw new Error("EACCES"); const fd = fs.nextFd++; fs.handles.set(fd, path); return fd; },
   readSync: (fd: number, buffer: Buffer) => {
     if (fs.elf.has(fs.handles.get(fd)!)) {
       Buffer.from([0x7f, 0x45, 0x4c, 0x46]).copy(buffer);
@@ -28,7 +29,7 @@ vi.mock("node:fs", async (original) => ({
   closeSync: (fd: number) => { fs.handles.delete(fd); },
 }));
 const originalEnv = { ...process.env };
-afterEach(() => { process.env = { ...originalEnv }; fs.existing.clear(); fs.executable.clear(); fs.realpath.clear(); fs.appImages.clear(); fs.elf.clear(); fs.handles.clear(); fs.versions.clear(); });
+afterEach(() => { process.env = { ...originalEnv }; fs.existing.clear(); fs.executable.clear(); fs.directories.clear(); fs.unreadable.clear(); fs.realpath.clear(); fs.appImages.clear(); fs.elf.clear(); fs.handles.clear(); fs.versions.clear(); });
 
 describe("file open preference", () => {
   it("defaults to the system app and preserves a selected editor", () => {
@@ -74,6 +75,13 @@ describe("file open preference", () => {
     fs.executable.add("/opt/VSCode/code");
     fs.existing.add("/opt/VSCode/resources/app/product.json");
     expect((await editorCommand("vscode", "linux")).completion).toBe("spawn");
+  });
+
+  it("waits for the Linux bin/code launcher rather than treating it as the GUI", async () => {
+    process.env.PATH = "/opt/VSCode/bin";
+    fs.executable.add("/opt/VSCode/bin/code");
+    fs.existing.add("/opt/VSCode/resources/app/product.json");
+    expect((await editorCommand("vscode", "linux")).completion).toBe("exit");
   });
 
   it("finds a macOS application and waits for the open command", async () => {
@@ -150,6 +158,21 @@ describe("file open preference", () => {
 
   it("reports an editor missing from PATH", async () => {
     process.env.PATH = "";
-    await expect(editorCommand("zed", "linux")).rejects.toThrow("Zed is not installed");
+    await expect(editorCommand("zed", "linux")).rejects.toBeInstanceOf(EditorUnavailableError);
+  });
+
+  it("skips a directory named like the command and finds the next executable", async () => {
+    process.env.PATH = "/first:/second";
+    fs.executable.add("/first/cursor");
+    fs.directories.add("/first/cursor");
+    fs.executable.add("/second/cursor");
+    expect((await editorCommand("cursor", "linux")).command).toBe("/second/cursor");
+  });
+
+  it("preserves an executable read error instead of reporting that it is absent", async () => {
+    process.env.PATH = "/first";
+    fs.executable.add("/first/cursor");
+    fs.unreadable.add("/first/cursor");
+    await expect(editorCommand("cursor", "linux")).rejects.toThrow("EACCES");
   });
 });

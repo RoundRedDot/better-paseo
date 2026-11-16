@@ -1,4 +1,4 @@
-import { accessSync, constants, existsSync, realpathSync, openSync, readSync, closeSync } from "node:fs";
+import { accessSync, constants, existsSync, realpathSync, openSync, readSync, closeSync, statSync } from "node:fs";
 import { delimiter, join, win32, basename } from "node:path";
 import { homedir } from "node:os";
 import { execFile } from "node:child_process";
@@ -16,6 +16,8 @@ export interface EditorCommand {
   args: string[];
   completion: "spawn" | "exit";
 }
+
+export class EditorUnavailableError extends Error {}
 
 /** Resolve on the daemon host, never through a shell. */
 export async function editorCommand(app: Exclude<FileOpenApp, "system">, platform = process.platform): Promise<EditorCommand> {
@@ -64,7 +66,7 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
     for (const candidate of paths) {
       if (existsSync(candidate.path)) return { command: candidate.path, args: [], completion: candidate.completion };
     }
-    throw new Error(`${editor.app} is not installed or its command is not on PATH`);
+    throw new EditorUnavailableError(`${editor.app} is not installed or its command is not on PATH`);
   }
   const dirs = (process.env.PATH ?? "").split(delimiter).filter(Boolean);
   const candidates = app === "zed" && platform === "linux"
@@ -77,6 +79,7 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
     } catch {
       continue;
     }
+    if (!statSync(candidate).isFile()) continue;
     const actualPath = realpathSync(candidate);
     if (zfs && actualPath === zfs) {
       // On merged-/usr systems /usr/bin/zed and /usr/sbin/zed may be the
@@ -96,7 +99,7 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
       (app === "cursor" && platform === "linux" && isElf(actualPath));
     return { command: candidate, args: [], completion: gui ? "spawn" : "exit" };
   }
-  throw new Error(`${editor.app} is not installed or its command is not on PATH`);
+  throw new EditorUnavailableError(`${editor.app} is not installed or its command is not on PATH`);
 }
 
 /** Linux Cursor's Electron executable may be an AppImage or an extracted ELF. */

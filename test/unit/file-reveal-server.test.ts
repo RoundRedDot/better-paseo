@@ -5,12 +5,13 @@ import { EventEmitter } from "node:events";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-const { spawn, editorCommand, settings } = vi.hoisted(() => ({
+const { spawn, editorCommand, settings, EditorUnavailableError } = vi.hoisted(() => ({
   spawn: vi.fn(),
   editorCommand: vi.fn(),
   settings: { app: "system", status: "ready" },
+  EditorUnavailableError: class EditorUnavailableError extends Error {},
 }));
-vi.mock("../../server/editor-target", () => ({ editorCommand }));
+vi.mock("../../server/editor-target", () => ({ editorCommand, EditorUnavailableError }));
 vi.mock("node:child_process", async (actual) => ({ ...(await actual<typeof import("node:child_process")>()), spawn }));
 
 type Handler = (input: unknown) => Promise<unknown>;
@@ -67,8 +68,10 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
     const reveal = await revealHandler();
     await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: null });
     expect(spawn).toHaveBeenCalledWith("/usr/bin/zed", [join(root, "notes.md")], expect.anything());
-    editorCommand.mockImplementationOnce(() => { throw new Error("Zed is not installed"); });
-    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: "Zed is not installed" });
+    editorCommand.mockImplementationOnce(() => { throw new EditorUnavailableError("Zed is not installed"); });
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: "Zed is not installed", errorKind: "editor_unavailable" });
+    editorCommand.mockImplementationOnce(() => { throw new Error("EACCES"); });
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: "EACCES", errorKind: "launch_failed" });
     await reveal({ cwd: root, path: "run" });
     expect(spawn).toHaveBeenLastCalledWith("open", ["-R", join(root, "run")], expect.anything());
     settings.app = "system";
@@ -129,6 +132,29 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
     } finally {
       settings.app = "system";
       Object.defineProperty(process, "platform", platform);
+    }
+  });
+
+  it("removes Electron's Node mode from editor children without changing the daemon environment", async () => {
+    const previous = process.env.ELECTRON_RUN_AS_NODE;
+    const previousMixedCase = process.env.Electron_Run_As_Node;
+    process.env.ELECTRON_RUN_AS_NODE = "1";
+    process.env.Electron_Run_As_Node = "1";
+    settings.app = "vscode";
+    try {
+      editorCommand.mockReturnValueOnce({ command: "/usr/bin/code", args: [], completion: "exit" });
+      const reveal = await revealHandler();
+      await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: null });
+      const options = spawn.mock.lastCall![2] as { env: NodeJS.ProcessEnv };
+      expect(options.env).not.toHaveProperty("ELECTRON_RUN_AS_NODE");
+      expect(options.env).not.toHaveProperty("Electron_Run_As_Node");
+      expect(process.env.ELECTRON_RUN_AS_NODE).toBe("1");
+    } finally {
+      settings.app = "system";
+      if (previous === undefined) delete process.env.ELECTRON_RUN_AS_NODE;
+      else process.env.ELECTRON_RUN_AS_NODE = previous;
+      if (previousMixedCase === undefined) delete process.env.Electron_Run_As_Node;
+      else process.env.Electron_Run_As_Node = previousMixedCase;
     }
   });
 
