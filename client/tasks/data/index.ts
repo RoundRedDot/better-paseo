@@ -205,6 +205,18 @@ const STATUS_FILTER: PaseoAgentListOptions["filter"] = { statuses: ["running", "
  */
 const ATTENTION_KEY = "active-attention";
 const ATTENTION_FILTER: PaseoAgentListOptions["filter"] = { requiresAttention: true, includeBackground: true };
+/** Thrown by the client when a list asks for background workspaces before the host has advertised them. */
+const BACKGROUND_WORKSPACES_GATE = "Update the host to use background workspaces.";
+
+function isBackgroundWorkspacesGate(caught: unknown): boolean {
+  return (caught instanceof Error ? caught.message : String(caught)) === BACKGROUND_WORKSPACES_GATE;
+}
+
+function withoutBackground<T extends { includeBackground?: boolean }>(filter: T): Omit<T, "includeBackground"> {
+  const { includeBackground: _includeBackground, ...rest } = filter;
+  return rest;
+}
+
 const DONE_SUBSCRIPTION = "done-first";
 const PAGE_SIZE = 50;
 /** The old first page's members a refreshed one pushed out, held as a done page until the rereads land (`done-page-` so they replace it). */
@@ -1169,6 +1181,23 @@ function createStore(api: PaseoApi): TaskStore {
   let recoveryAttempts = 0;
   /** The lists left with no live subscription (a first request, or a reconnect's re-subscribe, failed). */
   const listsToRecover = new Set<string>();
+  /**
+   * Lists served without background workspaces because the host gate refused
+   * the inclusive one. The board keeps this subscription, and still owes the
+   * inclusive list: a host that has the feature advertises it again after hello.
+   */
+  const backgroundFallbacks = new Set<string>();
+  /**
+   * An inclusive list (agents or workspaces) has landed since the board
+   * opened: the host has the feature, and the store holds background records.
+   * A later gate refusal is the client's hello flag going away for a moment,
+   * not a host without the feature, so no list without the flag replaces them.
+   */
+  let backgroundProven = false;
+  /** Set while a recovery refresh is reading, so its own fallback does not arm a second timer. */
+  let recoveryRunning = false;
+  /** Bumped when recovery is cancelled, so an older refresh cannot clear a newer one's flag. */
+  let recoveryEpoch = 0;
   const projectUnsubscribes: Array<() => void> = [];
   /** The providers enabled in Paseo, by id, with their names: the Agent filter lists them all, cards or not. */
   const enabledProviders = new Map<string, string>();
@@ -1442,24 +1471,53 @@ function createStore(api: PaseoApi): TaskStore {
     if (workspaceCheckRun === run) workspaceCheckRun = null;
   }
 
+  /** One pass of the workspace list. `includeBackground` is false after the host gate refused it. */
+  async function readWorkspaceList(includeBackground: boolean, alive: () => boolean): Promise<PaseoWorkspace[] | "stale"> {
+    const first = await api.workspaces.list({ filter: includeBackground ? { includeBackground: true } : {}, page: { limit: LIST_PAGE_SIZE } });
+    if (!alive()) return "stale";
+    const rest = first.pageInfo?.hasMore ? await readWorkspacePages(first.pageInfo.nextCursor, alive, includeBackground) : { kind: "read" as const, entries: [] as PaseoWorkspace[] };
+    if (rest.kind === "stale" || !alive()) return "stale";
+    if (rest.kind === "failed") throw rest.error;
+    return [...first.entries, ...rest.entries];
+  }
+
   /** Read the whole workspace list now: place the workspaces it has, and know gone those of agents seen before it answered. */
   async function checkWorkspaces(run: number) {
     const asked = recordClock;
     const alive = () => run === generation && consumers > 0;
     let all: PaseoWorkspace[];
     try {
-      const first = await api.workspaces.list({ filter: { includeBackground: true }, page: { limit: LIST_PAGE_SIZE } });
-      if (!alive()) { endWorkspaceCheck(run); return; }
-      const rest = first.pageInfo?.hasMore ? await readWorkspacePages(first.pageInfo.nextCursor, alive) : { kind: "read" as const, entries: [] as PaseoWorkspace[] };
-      if (rest.kind === "stale" || !alive()) { endWorkspaceCheck(run); return; }
-      if (rest.kind === "failed") throw rest.error;
-      all = [...first.entries, ...rest.entries];
+      const read = await readWorkspaceList(true, alive);
+      if (read === "stale") { endWorkspaceCheck(run); return; }
+      backgroundProven = true;
+      all = read;
     } catch (caught) {
-      endWorkspaceCheck(run);
-      if (!alive()) return;
-      pageError("workspaces-check", caught);
-      queueWorkspaceCheck(5_000);
-      return;
+      if (!alive()) { endWorkspaceCheck(run); return; }
+      // A host that has not advertised the feature still has a complete list without it.
+      // Asking again with the flag would toast, and would never place an archived workspace.
+      if (!isBackgroundWorkspacesGate(caught)) {
+        endWorkspaceCheck(run);
+        pageError("workspaces-check", caught);
+        queueWorkspaceCheck(5_000);
+        return;
+      }
+      // The host had the feature: a list without it would know the background workspaces gone. Ask again later.
+      if (backgroundProven) {
+        endWorkspaceCheck(run);
+        queueWorkspaceCheck(5_000);
+        return;
+      }
+      try {
+        const read = await readWorkspaceList(false, alive);
+        if (read === "stale") { endWorkspaceCheck(run); return; }
+        all = read;
+      } catch (again) {
+        endWorkspaceCheck(run);
+        if (!alive()) return;
+        pageError("workspaces-check", again);
+        queueWorkspaceCheck(5_000);
+        return;
+      }
     }
     endWorkspaceCheck(run);
     clearPageError("workspaces-check");
@@ -2173,7 +2231,7 @@ function createStore(api: PaseoApi): TaskStore {
       while (read.length < (session && searchPages !== session ? regularPages : pages) && cursor) {
         // A newer first page landed: this chain of pages follows the old one, so stop asking.
         if (doneSnapshots !== snapshotAsked) return "stale";
-        const result = await api.agents.list({ filter: doneFilter(), sort: DONE_SORT, page: { limit: PAGE_SIZE, cursor } });
+        const result = await listAgents({ filter: doneFilter(), sort: DONE_SORT, page: { limit: PAGE_SIZE, cursor } });
         if (!isCurrent(run) || doneSnapshots !== snapshotAsked) return "stale";
         read.push({ key: `done-page-${cursor}`, result });
         cursor = result.pageInfo.nextCursor;
@@ -2229,6 +2287,8 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function subscriptionError(caught: unknown) {
+    // The gate is handled where the list is opened. Reporting it here toasts on every retry.
+    if (isBackgroundWorkspacesGate(caught)) return;
     error = caught instanceof Error ? caught.message : String(caught);
     notify();
   }
@@ -2240,6 +2300,31 @@ function createStore(api: PaseoApi): TaskStore {
    * which makes it again (a refresh reads loaded lists, and a failed first
    * list counts as loaded), and again after a longer wait while it fails.
    */
+  /** A list is being read, or a refresh is about to take its place. */
+  function servingList(key: string): boolean {
+    return subscriptions.has(key) || replacements.has(key);
+  }
+
+  /**
+   * The list under `key` is the one opened without background workspaces.
+   * Keep asking for the inclusive list. A recovery already in flight will
+   * ask; arming another timer here would retry twice.
+   */
+  function rememberBackgroundFallback(key: string) {
+    backgroundFallbacks.add(key);
+    oweList(key);
+  }
+
+  /**
+   * The list under `key` is owed to recovery. A recovery refresh in flight
+   * reads `listsToRecover` when it ends and schedules the next one, so only
+   * the key is added; otherwise a timer is armed.
+   */
+  function oweList(key: string) {
+    if (recoveryRunning) listsToRecover.add(key);
+    else scheduleListRecovery(key);
+  }
+
   function scheduleListRecovery(key?: string) {
     if (key !== undefined) listsToRecover.add(key);
     if (recoveryTimer !== null) return;
@@ -2248,21 +2333,33 @@ function createStore(api: PaseoApi): TaskStore {
     recoveryTimer = setTimeout(() => {
       recoveryTimer = null;
       if (run !== generation || consumers === 0) return;
-      void refresh().then(() => {
-        if (run !== generation) return;
-        // A refresh can end "done" without a list it skipped (one still
-        // loading, as the workspaces wait for the status list's pages): only
-        // a list live again, or no longer wanted, is recovered.
-        for (const listKey of [...listsToRecover]) {
-          if (subscriptions.has(listKey) || !listWanted(listKey)) listsToRecover.delete(listKey);
-        }
-        if (listsToRecover.size === 0) {
-          recoveryAttempts = 0;
-          return;
-        }
-        recoveryAttempts += 1;
-        scheduleListRecovery();
-      });
+      const epoch = ++recoveryEpoch;
+      recoveryRunning = true;
+      void refresh()
+        .finally(() => {
+          if (epoch === recoveryEpoch) recoveryRunning = false;
+        })
+        .then(() => {
+          if (run !== generation) return;
+          // A refresh can end "done" without a list it skipped (one still
+          // loading, as the workspaces wait for the status list's pages): only
+          // a list live again, or no longer wanted, is recovered. A fallback
+          // is live, and still owes the inclusive list, so it stays owed.
+          for (const listKey of [...listsToRecover]) {
+            if (!listWanted(listKey)) {
+              listsToRecover.delete(listKey);
+              backgroundFallbacks.delete(listKey);
+              continue;
+            }
+            if (subscriptions.has(listKey) && !backgroundFallbacks.has(listKey)) listsToRecover.delete(listKey);
+          }
+          if (listsToRecover.size === 0) {
+            recoveryAttempts = 0;
+            return;
+          }
+          recoveryAttempts += 1;
+          scheduleListRecovery();
+        });
     }, delay);
   }
 
@@ -2305,6 +2402,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   /** A list whose later pages could not be read: the board says so until a later snapshot of it reads them all. */
   function pageError(key: string, caught: unknown) {
+    if (isBackgroundWorkspacesGate(caught)) return;
     const message = caught instanceof Error ? caught.message : String(caught);
     pageErrors.set(key, message);
     subscriptionError(message);
@@ -2861,10 +2959,29 @@ function createStore(api: PaseoApi): TaskStore {
     return { filter, subscribe: {} };
   }
 
+  /**
+   * A one-shot agent read. A subscribe is opened by `openAgentSubscription`,
+   * which keeps the inclusive list owed. Here the host gate is asked once
+   * more without the flag, so a later page still lands.
+   */
+  async function listAgents(options: PaseoAgentListOptions): Promise<PaseoAgentListResult> {
+    const asked = generation;
+    try {
+      const result = await api.agents.list(options);
+      if (options.filter?.includeBackground && asked === generation) backgroundProven = true;
+      return result;
+    } catch (caught) {
+      if (options.subscribe || !options.filter?.includeBackground || !isBackgroundWorkspacesGate(caught)) throw caught;
+      // Once an inclusive list landed, a page without the flag would follow an inclusive cursor with fewer records.
+      if (backgroundProven) throw caught;
+      return await api.agents.list({ ...options, filter: withoutBackground(options.filter) });
+    }
+  }
+
   /** A list's pages after the first, from its cursor. Stops once `alive` is false. */
   function readAgentPages(options: PaseoAgentListOptions, cursor: string | null | undefined, alive: () => boolean): Promise<PageRead<PaseoAgentListResult["entries"][number]>> {
     return readPages(cursor, alive, async (next) => {
-      const result = await api.agents.list({ filter: options.filter, ...(options.sort ? { sort: options.sort } : null), page: { limit: LIST_PAGE_SIZE, cursor: next } });
+      const result = await listAgents({ filter: options.filter, ...(options.sort ? { sort: options.sort } : null), page: { limit: LIST_PAGE_SIZE, cursor: next } });
       return { entries: result.entries, pageInfo: result.pageInfo };
     });
   }
@@ -2877,8 +2994,11 @@ function createStore(api: PaseoApi): TaskStore {
         await result.subscription?.release();
         return "stale";
       }
+      // The host answered the inclusive list: it has the feature, whether or not a later page reads.
+      if (options.filter?.includeBackground) backgroundProven = true;
       let first = refreshed !== undefined;
       const land = (list: PaseoAgentListResult, liveIds?: ReadonlySet<string>) => {
+        if (options.filter?.includeBackground) backgroundProven = true;
         replaceAgentSnapshot(key, list, first, liveIds);
         if (!first) return;
         first = false;
@@ -2927,6 +3047,8 @@ function createStore(api: PaseoApi): TaskStore {
         },
         (message) => applyAgentUpdate(key, message as AgentUpdateEnvelope),
         refreshed !== undefined);
+      // The inclusive list is serving: the fallback, if this replaced one, is paid.
+      if (options.filter?.includeBackground && landing === "landed") backgroundFallbacks.delete(key);
       // A first list whose subscription failed (its ready rejected) is not
       // still loading: mark it loaded, so the board leaves its skeleton and a
       // refresh, which reads only loaded lists again, retries it.
@@ -2934,6 +3056,25 @@ function createStore(api: PaseoApi): TaskStore {
       return landing;
     } catch (caught) {
       if (!isCurrent(run)) return "stale";
+      if (isBackgroundWorkspacesGate(caught) && options.filter?.includeBackground) {
+        // A list already serving stays, including one opened without the flag.
+        // Replacing it on every retry would redraw the board on a host that never advertises the feature.
+        if (servingList(key)) return "failed";
+        if (backgroundProven) {
+          // The store keeps the last inclusive list until one lands again: a
+          // list without the flag would drop the background children and move
+          // their parents. Not loading any more, and owed to recovery.
+          if (key === STATUS_KEY) statusReady = true;
+          if (key === ATTENTION_KEY) attentionReady = true;
+          if (key === DONE_SUBSCRIPTION) doneListLanded();
+          notify();
+          oweList(key);
+          return "failed";
+        }
+        const landing = await openAgentSubscription(key, { ...options, filter: withoutBackground(options.filter) }, run, refreshed);
+        if (landing !== "stale" && isCurrent(run) && servingList(key)) rememberBackgroundFallback(key);
+        return landing;
+      }
       // A failed list must not hold the board on its skeleton.
       if (key === STATUS_KEY) statusReady = true;
       if (key === ATTENTION_KEY) attentionReady = true;
@@ -3026,25 +3167,29 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   /** The workspace list's pages after the first, from its cursor. Stops once `alive` is false. */
-  function readWorkspacePages(cursor: string | null | undefined, alive: () => boolean): Promise<PageRead<PaseoWorkspace>> {
+  function readWorkspacePages(cursor: string | null | undefined, alive: () => boolean, includeBackground = true): Promise<PageRead<PaseoWorkspace>> {
     return readPages(cursor, alive, async (next) => {
-      const result = await api.workspaces.list({ filter: { includeBackground: true }, page: { limit: LIST_PAGE_SIZE, cursor: next } });
+      const result = await api.workspaces.list({ filter: includeBackground ? { includeBackground: true } : {}, page: { limit: LIST_PAGE_SIZE, cursor: next } });
       return { entries: result.entries, pageInfo: result.pageInfo };
     });
   }
 
-  async function startWorkspaceSubscription(run: Run, replace = false): Promise<Landing> {
+  async function startWorkspaceSubscription(run: Run, replace = false, includeBackground = true): Promise<Landing> {
     try {
-      const result = await api.workspaces.list({ filter: { includeBackground: true }, subscribe: {} });
+      const result = await api.workspaces.list({ filter: includeBackground ? { includeBackground: true } : {}, subscribe: {} });
       if (!isCurrent(run)) {
         await result.subscription?.release();
         return "stale";
       }
+      // The host answered the inclusive list: a later page refused by the gate must not
+      // let a list without background workspaces know them gone (`checkWorkspaces`).
+      if (includeBackground) backgroundProven = true;
       const landing = await observeOwned("workspaces", result, run, (snapshot, live, landed, gate) => {
         const firstPage = snapshot as PaseoWorkspaceListResult;
         // What the board knew when the daemon answered: agents seen after may be newer than this list.
         const asked = recordClock;
         if (!firstPage.pageInfo?.hasMore) {
+          if (includeBackground) backgroundProven = true;
           applyWorkspaceList(firstPage.entries, new Map(), asked);
           clearPageError("workspaces");
           return;
@@ -3060,7 +3205,7 @@ function createStore(api: PaseoApi): TaskStore {
         });
         const liveUpdates = new Map<string, "upsert" | "remove">();
         workspaceListUpdates.add(liveUpdates);
-        return readWorkspacePages(firstPage.pageInfo.nextCursor, live).then(async (read): Promise<Landing> => {
+        return readWorkspacePages(firstPage.pageInfo.nextCursor, live, includeBackground).then(async (read): Promise<Landing> => {
           if (read.kind === "stale" || !(await gate.whenLandable()) || !gate.landable()) {
             workspaceListUpdates.delete(liveUpdates);
             return "stale";
@@ -3079,6 +3224,7 @@ function createStore(api: PaseoApi): TaskStore {
             checkUnplacedWorkspaces();
             return "failed";
           }
+          if (includeBackground) backgroundProven = true;
           applyWorkspaceList([...firstPage.entries, ...read.entries], liveUpdates, asked);
           landed();
           clearPageError("workspaces");
@@ -3104,10 +3250,27 @@ function createStore(api: PaseoApi): TaskStore {
           notify();
         }
       }, replace);
+      if (includeBackground && landing === "landed") backgroundFallbacks.delete("workspaces");
       if (landing === "failed") firstListFailed("workspaces");
       return landing;
     } catch (caught) {
       if (!isCurrent(run)) return "stale";
+      if (includeBackground && isBackgroundWorkspacesGate(caught)) {
+        if (servingList("workspaces")) return "failed";
+        if (backgroundProven) {
+          // A list without the flag would know the background workspaces gone: keep what the board has.
+          if (!workspacesReady) {
+            workspacesReady = true;
+            notify();
+          }
+          checkUnplacedWorkspaces();
+          oweList("workspaces");
+          return "failed";
+        }
+        const landing = await startWorkspaceSubscription(run, replace, false);
+        if (landing !== "stale" && isCurrent(run) && servingList("workspaces")) rememberBackgroundFallback("workspaces");
+        return landing;
+      }
       workspacesReady = true;
       subscriptionError(caught);
       checkUnplacedWorkspaces();
@@ -3462,7 +3625,11 @@ function createStore(api: PaseoApi): TaskStore {
     if (recoveryTimer !== null) clearTimeout(recoveryTimer);
     recoveryTimer = null;
     recoveryAttempts = 0;
+    recoveryRunning = false;
+    recoveryEpoch += 1;
     listsToRecover.clear();
+    backgroundFallbacks.clear();
+    backgroundProven = false;
     generation += 1;
     for (const key of [...subscriptions.keys()]) stopSubscription(key);
     for (const [key, own] of [...replacements]) dropReplacement(key, own);
@@ -3771,7 +3938,7 @@ function createStore(api: PaseoApi): TaskStore {
     const snapshotAsked = doneSnapshots;
     loadingDone = true;
     notify();
-    void api.agents.list({
+    void listAgents({
       filter: doneFilter(),
       sort: [{ key: "updated_at", direction: "desc" }],
       page: { limit: PAGE_SIZE, cursor },
@@ -3803,6 +3970,8 @@ function createStore(api: PaseoApi): TaskStore {
     }).catch((caught: unknown) => {
       // A page of the old first page's chain failing says nothing about the list now.
       if (!isCurrent(run) || doneSnapshots !== snapshotAsked) return;
+      // The client's hello flag went away for a moment: the page is asked again on the next scroll, no notice.
+      if (isBackgroundWorkspacesGate(caught)) return;
       if (!current) { subscriptionError(caught); return; }
       if (!current()) return;
       historyError = caught instanceof Error ? caught.message : String(caught);

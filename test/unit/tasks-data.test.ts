@@ -5808,6 +5808,268 @@ describe("Tasks data store, archived lane", () => {
     });
   }
 
+  const HOST_GATE = "Update the host to use background workspaces.";
+
+  /**
+   * Inclusive lists throw the host gate until `accept` is true. Counts the fallback subscriptions.
+   * `defer`, when it returns a promise, holds a list call until it resolves; the gate is checked after.
+   */
+  function gateBackgroundLists(fake: Fake, accept: () => boolean, defer?: (options: { subscribe?: unknown; filter?: { includeBackground?: boolean } }) => Promise<void> | undefined) {
+    let inclusive = 0;
+    let plainSubscribes = 0;
+    const wrap = <T extends { subscribe?: unknown; filter?: { includeBackground?: boolean } }>(list: (options: T) => Promise<unknown>) => async (options: T) => {
+      const held = defer?.(options);
+      if (held) await held;
+      if (options.subscribe && !options.filter?.includeBackground) plainSubscribes += 1;
+      if (options.filter?.includeBackground && !accept()) {
+        inclusive += 1;
+        throw new Error(HOST_GATE);
+      }
+      return list(options);
+    };
+    const agents = fake.paseo.agents as { list: (options: { subscribe?: unknown; filter?: { includeBackground?: boolean } }) => Promise<unknown> };
+    const workspaces = fake.paseo.workspaces as { list: (options: { subscribe?: unknown; filter?: { includeBackground?: boolean } }) => Promise<unknown> };
+    agents.list = wrap(agents.list.bind(agents));
+    workspaces.list = wrap(workspaces.list.bind(workspaces));
+    return { get inclusive() { return inclusive; }, get plainSubscribes() { return plainSubscribes; } };
+  }
+
+  async function flushLists() {
+    await act(async () => {
+      for (let index = 0; index < 48; index += 1) await Promise.resolve();
+    });
+  }
+
+  it("lists tasks without toasting when the host has not advertised background workspaces, and keeps that list", async () => {
+    const fake = createFakePaseo({
+      agents: [activeAgent("running", { status: "running" })],
+      workspaces: [workspace()],
+    });
+    const gate = gateBackgroundLists(fake, () => false);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const mounted = await mountTasks(fake);
+    try {
+      await flushLists();
+      expect(mounted.current.error).toBeNull();
+      expect(mounted.current.byId.get("running")?.lane).toBe("running");
+      const fallbacks = gate.plainSubscribes;
+      expect(fallbacks).toBeGreaterThan(0);
+      const refused = gate.inclusive;
+      await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[0]! + 10);
+      await advanceRecovery(4, 10);
+      await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[1]! + 10);
+      await advanceRecovery(4, 10);
+      expect(mounted.current.error).toBeNull();
+      expect(mounted.current.byId.get("running")?.lane).toBe("running");
+      // The inclusive list is asked again. The fallback already serving is not opened again.
+      expect(gate.inclusive).toBeGreaterThan(refused);
+      expect(gate.plainSubscribes).toBe(fallbacks);
+    } finally {
+      vi.useRealTimers();
+      mounted.unmount();
+    }
+  });
+
+  it("asks for background workspaces again once the host advertises them", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("parent", { status: "running" }),
+        activeAgent("child", { status: "running", workspaceId: "ws-bg", labels: { "paseo.parent-agent-id": "parent" } }),
+      ],
+      workspaces: [workspace(), makeWorkspace({ id: "ws-bg", projectId: "project-id", name: "background", background: true })],
+    });
+    let accept = false;
+    gateBackgroundLists(fake, () => accept);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const mounted = await mountTasks(fake);
+    try {
+      await flushLists();
+      expect(mounted.current.error).toBeNull();
+      expect(mounted.current.byId.has("child")).toBe(false);
+      expect(mounted.current.byId.get("parent")?.children.map((child) => child.id)).toEqual([]);
+      accept = true;
+      await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[0]! + 10);
+      await advanceRecovery(8, 10);
+      expect(mounted.current.error).toBeNull();
+      expect(mounted.current.byId.get("parent")?.children.map((child) => child.id)).toContain("child");
+      expect(mounted.current.lanes.running.cards.map((card) => card.id)).not.toContain("child");
+    } finally {
+      vi.useRealTimers();
+      mounted.unmount();
+    }
+  });
+
+  it("keeps the background child on its parent when the host gate rejects after an inclusive list landed", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("parent", { status: "idle", updatedAt: recentIso(5_000) }),
+        activeAgent("child", { status: "running", workspaceId: "ws-bg", labels: { "paseo.parent-agent-id": "parent" } }),
+      ],
+      workspaces: [workspace(), makeWorkspace({ id: "ws-bg", projectId: "project-id", name: "background", background: true })],
+    });
+    let accept = true;
+    const gate = gateBackgroundLists(fake, () => accept);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const mounted = await mountTasks(fake);
+    try {
+      await flushLists();
+      expect(mounted.current.byId.get("parent")?.children.map((child) => child.id)).toContain("child");
+      expect(mounted.current.byId.get("parent")?.lane).toBe("running");
+      expect(mounted.current.lanes.running.cards.map((card) => card.id)).not.toContain("child");
+      const plain = gate.plainSubscribes;
+      // The client's hello flag goes away, then the status list's re-subscribe fails.
+      accept = false;
+      await act(async () => {
+        fake.failAgentResubscribeWhere((options) => options.filter?.statuses?.includes("running") === true);
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[0]! + 10);
+      await advanceRecovery(4, 10);
+      // A refresh while the gate still rejects.
+      await act(async () => {
+        void mounted.current.refresh();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[1]! + 10);
+      await advanceRecovery(4, 10);
+      expect(mounted.current.error).toBeNull();
+      expect(mounted.current.byId.get("parent")?.children.map((child) => child.id)).toContain("child");
+      expect(mounted.current.byId.get("parent")?.lane).toBe("running");
+      expect(mounted.current.lanes.running.cards.map((card) => card.id)).not.toContain("child");
+      expect(gate.plainSubscribes).toBe(plain);
+    } finally {
+      vi.useRealTimers();
+      mounted.unmount();
+    }
+  });
+
+  it("does not know a background workspace gone when the gate rejects a later page of the inclusive workspace list", async () => {
+    // A parent whose provider subagent failed, read by id since no list holds it yet: in a background workspace.
+    const prompted = "2026-10-22T09:10:56.339Z";
+    setSubagentLoader(async () => ({
+      version: "1",
+      subagents: [{
+        id: "sub",
+        parentAgentId: "bg-task",
+        provider: "claude",
+        title: "general-purpose",
+        description: "RRD-sub task",
+        status: "failed",
+        createdAt: "2026-10-22T09:12:00.000Z",
+        updatedAt: "2026-10-22T09:18:55.000Z",
+        subtitle: "general-purpose",
+      }],
+    }));
+    const fake = createFakePaseo({
+      agents: [activeAgent("bg-task", { status: "idle", workspaceId: "zz-bg", lastUserMessageAt: prompted, updatedAt: recentIso(60_000) })],
+      // Two a page, by id: the background workspace is on the second.
+      workspaces: [
+        makeWorkspace({ id: "a-0", projectId: "project-id", name: "a-0" }),
+        makeWorkspace({ id: "a-1", projectId: "project-id", name: "a-1" }),
+        workspace(),
+        makeWorkspace({ id: "zz-bg", projectId: "project-id", name: "background", background: true }),
+      ],
+      workspacePageSize: 2,
+    });
+    // The inclusive workspace subscription answers; the hello flag goes away before its next page.
+    let inclusiveWorkspaces = 0;
+    let rejecting = true;
+    const workspacesApi = fake.paseo.workspaces as { list: (options: { subscribe?: unknown; filter?: { includeBackground?: boolean } }) => Promise<unknown> };
+    const listWorkspaces = workspacesApi.list.bind(workspacesApi);
+    workspacesApi.list = async (options) => {
+      if (options.filter?.includeBackground) {
+        inclusiveWorkspaces += 1;
+        if (inclusiveWorkspaces > 1 && rejecting) throw new Error(HOST_GATE);
+      }
+      return listWorkspaces(options);
+    };
+    // The agent lists answer only once the flag is back: no inclusive agent list lands meanwhile.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const agentsApi = fake.paseo.agents as { list: (options: unknown) => Promise<unknown> };
+    const listAgents = agentsApi.list.bind(agentsApi);
+    agentsApi.list = async (options) => {
+      await held;
+      return listAgents(options);
+    };
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const mounted = await mountArchived(fake, true);
+    try {
+      await flushLists();
+      // The subagent read, the parent's read by id, and the check of its unplaced workspace.
+      await advanceRecovery(8, 10);
+      expect(inclusiveWorkspaces).toBeGreaterThan(2);
+      expect(mounted.current.error).toBeNull();
+      expect(mounted.current.byId.get("bg-task")?.lane).not.toBe("archived");
+      rejecting = false;
+      await act(async () => {
+        release();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      await advanceRecovery(1, 5_010);
+      await advanceRecovery(4, 10);
+      expect(mounted.current.error).toBeNull();
+      expect(mounted.current.byId.get("bg-task")?.lane).not.toBe("archived");
+      expect(mounted.current.lanes.archived.cards.map((card) => card.id)).not.toContain("bg-task");
+    } finally {
+      vi.useRealTimers();
+      mounted.unmount();
+      setSubagentLoader(null);
+    }
+  });
+
+  it("asks for the inclusive list of a list that fell back while a recovery refresh was in flight", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("running", { status: "running" }),
+        activeAgent("done", { status: "idle", updatedAt: recentIso(5_000) }),
+      ],
+      workspaces: [workspace()],
+    });
+    let accept = false;
+    let deferring = false;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    gateBackgroundLists(fake, () => accept, (options) => (deferring && options.subscribe ? held : undefined));
+    const doneSubscribes = () => fake.calls.filter((call) => {
+      const input = call.input as { subscribe?: unknown; filter?: { statuses?: string[]; includeBackground?: boolean } };
+      return call.method === "agents.list" && input.subscribe && input.filter?.statuses?.includes("closed") && input.filter.includeBackground === true;
+    }).length;
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    // A board without the done lane: the done list is opened later.
+    const board = await mountTasks(fake, "24h", false);
+    let doneBoard: Awaited<ReturnType<typeof mountTasks>> | null = null;
+    try {
+      await flushLists();
+      expect(board.current.error).toBeNull();
+      // The recovery refresh's inclusive lists hang on the wire.
+      deferring = true;
+      await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[0]! + 10);
+      deferring = false;
+      // The done list opens meanwhile, and the gate refuses it.
+      doneBoard = await mountTasks(fake, "24h", true);
+      await flushLists();
+      expect(doneSubscribes()).toBe(0);
+      // The host advertises the feature: the refresh's lists land inclusive.
+      accept = true;
+      await act(async () => {
+        release();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[1]! + 10);
+      await advanceRecovery(4, 10);
+      await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[2]! + 10);
+      await advanceRecovery(4, 10);
+      expect(doneSubscribes()).toBeGreaterThan(0);
+      expect(board.current.error).toBeNull();
+      expect(doneBoard.current.error).toBeNull();
+    } finally {
+      vi.useRealTimers();
+      if (doneBoard) doneBoard.unmount();
+      board.unmount();
+    }
+  });
+
   it("reads a workspace restored while the board was closed again, though the reopened board's first list fails", async () => {
     const fake = createFakePaseo({
       agents: [activeAgent("task", { status: "idle", requiresAttention: true, workspaceId: "ws-x", updatedAt: recentIso(1_000) })],
