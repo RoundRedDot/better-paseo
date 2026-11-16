@@ -1,7 +1,7 @@
 import React from "react";
 import { Platform, Pressable, View, type GestureResponderEvent } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon, Modal } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import { MarkdownView } from "../../components/markdown/markdown-view";
 import { useThemeTokens } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";

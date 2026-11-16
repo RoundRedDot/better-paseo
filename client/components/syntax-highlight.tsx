@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useEffect, useRef, useState, useMemo, type ReactNode } from "react";
 import { Platform, View, Text, Pressable, StyleSheet } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { StyleProp, TextProps, TextStyle } from "react-native";
 import { surfaceProps } from "./view-props";
 import { radiusV2, space, type ExtendedThemeTokens } from "./theme-tokens";

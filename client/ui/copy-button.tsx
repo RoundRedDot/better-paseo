@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { space } from "../components/theme-tokens";
 import { unselectable } from "../components/selection";

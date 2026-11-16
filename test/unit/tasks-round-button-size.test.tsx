@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const react = await import("react");
   const rn = await import("./helpers/rn-mock");
   return { Icon: (props: Record<string, unknown>) => react.createElement("Icon", props), ScrollView: rn.ScrollView, copyText: async () => {}, useToast: () => ({ show() {}, error() {} }) };

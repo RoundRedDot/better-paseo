@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform, Pressable, View } from "react-native";
-import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
+import { Icon, useToast } from "@getpaseo/plugin/client/ui";
 import { useTitleUndoState, type TitleUpdateControl } from "../actions/title-update";
 import type { TasksLanguage } from "../i18n";
 import { useReducedMotion } from "../../ui/use-reduced-motion";

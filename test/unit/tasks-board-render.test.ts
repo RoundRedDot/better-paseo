@@ -12,44 +12,55 @@ vi.mock("react-native", async () => {
   const AppState = { currentState: "active", addEventListener: () => ({ remove() {} }) };
   return { ...rn, AppState, findNodeHandle: (node: { nativeTag?: number } | null) => node?.nativeTag ?? null, default: { ...rn.default, AppState } };
 });
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
-  const rn = await import("./helpers/rn-mock");
-  const React = await import("react");
-  type Props = Record<string, unknown> & { children?: React.ReactNode };
-  // Renders every item, header and footer in place: enough to count what a lane shows.
-  function FlatList(props: Props) {
-    const data = (props.data as unknown[]) ?? [];
-    const render = props.renderItem as (info: { item: unknown; index: number }) => React.ReactNode;
-    const key = props.keyExtractor as (item: unknown, index: number) => string;
-    const empty = props.ListEmptyComponent as React.ReactNode;
-    return React.createElement(
-      "FlatList",
-      { ref: props.ref, testID: props.testID, refreshing: props.refreshing, onRefresh: props.onRefresh, refreshControl: props.refreshControl, alwaysBounceVertical: props.alwaysBounceVertical, onContentSizeChange: props.onContentSizeChange, onScroll: props.onScroll, contentOffset: props.contentOffset, contentContainerStyle: props.contentContainerStyle, onScrollToIndexFailed: props.onScrollToIndexFailed, onEndReached: props.onEndReached, data: props.data, viewabilityConfigCallbackPairs: props.viewabilityConfigCallbackPairs },
-      data.length
-        ? data.map((item, index) => {
-            host.rowRenders += 1;
-            const lane = (item as TaskCard).lane;
-            host.laneRowRenders[lane] = (host.laneRowRenders[lane] ?? 0) + 1;
-            return React.createElement(React.Fragment, { key: key(item, index) }, render({ item, index }));
-          })
-        : empty,
-      props.ListFooterComponent as React.ReactNode,
-    );
-  }
-  function Modal(props: Props) {
-    return props.open ? React.createElement("Modal", { title: props.title }, props.children) : null;
-  }
-  Modal.Content = (props: Props) => React.createElement("ModalContent", { contentContainerStyle: props.contentContainerStyle }, props.children, props.footer as React.ReactNode);
-  Modal.supportsFooter = false;
-  return {
-    Icon: (props: Props) => React.createElement("Icon", { name: props.name, icon: props.icon, size: props.size, color: props.color }),
-    FlatList,
-    Modal,
-    ScrollView: rn.ScrollView,
-    TextInput: rn.TextInput,
-    useToast: () => ({ show: host.toast, error: host.toast }),
-    copyText: async () => {},
-  };
+vi.mock("@getpaseo/plugin/client/ui", async () => {
+  // The plugin imports all of these from `client/ui` now; where both mocks name a key, the UI one wins.
+  const fromReactNative = await (async () => {
+    const rn = await import("./helpers/rn-mock");
+    const React = await import("react");
+    type Props = Record<string, unknown> & { children?: React.ReactNode };
+    // Renders every item, header and footer in place: enough to count what a lane shows.
+    function FlatList(props: Props) {
+      const data = (props.data as unknown[]) ?? [];
+      const render = props.renderItem as (info: { item: unknown; index: number }) => React.ReactNode;
+      const key = props.keyExtractor as (item: unknown, index: number) => string;
+      const empty = props.ListEmptyComponent as React.ReactNode;
+      return React.createElement(
+        "FlatList",
+        { ref: props.ref, testID: props.testID, refreshing: props.refreshing, onRefresh: props.onRefresh, refreshControl: props.refreshControl, alwaysBounceVertical: props.alwaysBounceVertical, onContentSizeChange: props.onContentSizeChange, onScroll: props.onScroll, contentOffset: props.contentOffset, contentContainerStyle: props.contentContainerStyle, onScrollToIndexFailed: props.onScrollToIndexFailed, onEndReached: props.onEndReached, data: props.data, viewabilityConfigCallbackPairs: props.viewabilityConfigCallbackPairs },
+        data.length
+          ? data.map((item, index) => {
+              host.rowRenders += 1;
+              const lane = (item as TaskCard).lane;
+              host.laneRowRenders[lane] = (host.laneRowRenders[lane] ?? 0) + 1;
+              return React.createElement(React.Fragment, { key: key(item, index) }, render({ item, index }));
+            })
+          : empty,
+        props.ListFooterComponent as React.ReactNode,
+      );
+    }
+    function Modal(props: Props) {
+      return props.open ? React.createElement("Modal", { title: props.title }, props.children) : null;
+    }
+    Modal.Content = (props: Props) => React.createElement("ModalContent", { contentContainerStyle: props.contentContainerStyle }, props.children, props.footer as React.ReactNode);
+    Modal.supportsFooter = false;
+    return {
+      Icon: (props: Props) => React.createElement("Icon", { name: props.name, icon: props.icon, size: props.size, color: props.color }),
+      FlatList,
+      Modal,
+      ScrollView: rn.ScrollView,
+      TextInput: rn.TextInput,
+      useToast: () => ({ show: host.toast, error: host.toast }),
+      copyText: async () => {},
+    };
+  })();
+  const fromUi = await (async () => {
+    const React = await import("react");
+    return {
+      SidebarRow: (props: Record<string, unknown> & { trailing?: React.ReactNode }) =>
+        React.createElement("SidebarRow", { label: props.label, active: props.active, onPress: props.onPress }, props.trailing),
+    };
+  })();
+  return { ...fromReactNative, ...fromUi };
 });
 const host = vi.hoisted(() => ({
   toast: vi.fn(),
@@ -85,13 +96,6 @@ vi.mock("@getpaseo/plugin/client", () => ({
     return values ? { status: "ready", values, revision: "1", saving: false, saveError: null, save: host.save, reload: host.reload } : { status: "loading" };
   },
 }));
-vi.mock("@getpaseo/plugin/client/ui", async () => {
-  const React = await import("react");
-  return {
-    SidebarRow: (props: Record<string, unknown> & { trailing?: React.ReactNode }) =>
-      React.createElement("SidebarRow", { label: props.label, active: props.active, onPress: props.onPress }, props.trailing),
-  };
-});
 // The data layer's real body needs a daemon; the board is tested against the samples.
 vi.mock("../../client/tasks/data", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../client/tasks/data")>();
@@ -138,7 +142,7 @@ vi.mock("../../client/tasks/board/filter-options", async (importOriginal) => {
 
 import { AccessibilityInfo, Animated, StyleSheet, View } from "react-native";
 import { buildFilterOptions } from "../../client/tasks/board/filter-options";
-import { Modal } from "@getpaseo/plugin/client/react-native";
+import { Modal } from "@getpaseo/plugin/client/ui";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import * as data from "../../client/tasks/data";
 import { firstPromptStoreFor } from "../../client/tasks/data/first-prompt";

@@ -13,27 +13,38 @@ vi.mock("react-native", async () => {
   const AppState = { currentState: "active", addEventListener: () => ({ remove() {} }) };
   return { ...rn, AppState, default: { ...rn.default, AppState } };
 });
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
-  const rn = await import("./helpers/rn-mock");
-  const React = await import("react");
-  type Props = Record<string, unknown> & { children?: React.ReactNode };
-  function FlatList(props: Props) {
-    const data = (props.data as unknown[]) ?? [];
-    const render = props.renderItem as (info: { item: unknown; index: number }) => React.ReactNode;
-    return React.createElement("FlatList", null, data.map((item, index) => React.createElement(React.Fragment, { key: index }, render({ item, index }))));
-  }
-  function Modal(props: Props) {
-    return props.open ? React.createElement("Modal", null, props.children) : null;
-  }
-  Modal.Content = (props: Props) => React.createElement("ModalContent", null, props.children);
-  return {
-    Icon: (props: Props) => React.createElement("Icon", { name: props.name }),
-    FlatList,
-    Modal,
-    ScrollView: rn.ScrollView,
-    TextInput: rn.TextInput,
-    useToast: () => ({ show() {}, error() {} }),
-  };
+vi.mock("@getpaseo/plugin/client/ui", async () => {
+  // The plugin imports all of these from `client/ui` now; where both mocks name a key, the UI one wins.
+  const fromReactNative = await (async () => {
+    const rn = await import("./helpers/rn-mock");
+    const React = await import("react");
+    type Props = Record<string, unknown> & { children?: React.ReactNode };
+    function FlatList(props: Props) {
+      const data = (props.data as unknown[]) ?? [];
+      const render = props.renderItem as (info: { item: unknown; index: number }) => React.ReactNode;
+      return React.createElement("FlatList", null, data.map((item, index) => React.createElement(React.Fragment, { key: index }, render({ item, index }))));
+    }
+    function Modal(props: Props) {
+      return props.open ? React.createElement("Modal", null, props.children) : null;
+    }
+    Modal.Content = (props: Props) => React.createElement("ModalContent", null, props.children);
+    return {
+      Icon: (props: Props) => React.createElement("Icon", { name: props.name }),
+      FlatList,
+      Modal,
+      ScrollView: rn.ScrollView,
+      TextInput: rn.TextInput,
+      useToast: () => ({ show() {}, error() {} }),
+    };
+  })();
+  const fromUi = await (async () => {
+    const React = await import("react");
+    return {
+      SidebarRow: (props: Record<string, unknown> & { trailing?: React.ReactNode }) =>
+        React.createElement("SidebarRow", { label: props.label }, props.trailing),
+    };
+  })();
+  return { ...fromReactNative, ...fromUi };
 });
 const host = vi.hoisted(() => ({
   settings: null as Record<string, unknown> | null,
@@ -44,13 +55,6 @@ vi.mock("@getpaseo/plugin/client", () => ({
   useRpc: (contract: { name: string }) => (input: { agentIds?: string[] }) => Promise.resolve(contract.name === "tasks.availability" ? { entries: input.agentIds!.map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) } : contract.name === "settings.agent-updates" ? { state: "idle", entries: [], error: null } : { stop: false }),
   useSettings: () => (host.settings ? { status: "ready", values: host.settings, revision: "1", saving: false, saveError: null } : { status: "loading" }),
 }));
-vi.mock("@getpaseo/plugin/client/ui", async () => {
-  const React = await import("react");
-  return {
-    SidebarRow: (props: Record<string, unknown> & { trailing?: React.ReactNode }) =>
-      React.createElement("SidebarRow", { label: props.label }, props.trailing),
-  };
-});
 
 import { TasksBoardScreen } from "../../client/tasks/board/board-screen";
 import { TasksSidebarEntry } from "../../client/tasks/board/sidebar-entry";

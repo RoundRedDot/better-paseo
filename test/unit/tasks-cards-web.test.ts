@@ -64,7 +64,7 @@ vi.mock("../../client/web", async (importOriginal) => ({
   },
 }));
 
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const react = await import("react");
   const rn = await import("./helpers/rn-mock");
   return {

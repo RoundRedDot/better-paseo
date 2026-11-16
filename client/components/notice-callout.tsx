@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, View, Text, StyleSheet } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { renderTerminalOutput } from "./syntax-highlight";

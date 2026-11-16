@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
-import { Icon, Modal, copyText, useToast } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal, copyText, useToast } from "@getpaseo/plugin/client/ui";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { CascadeMenu, MENU, type MenuSection } from "../board/menu";
 import { layoutMenu, MENU_EDGE } from "../board/menu-model";

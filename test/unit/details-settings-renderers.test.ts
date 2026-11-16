@@ -6,7 +6,7 @@ import "./helpers/quiet-renderer";
 (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: () => null, useToast: () => ({ error: () => {} }), useRevealedText: (text: string) => text }));
+vi.mock("@getpaseo/plugin/client/ui", () => ({ Icon: () => null, useToast: () => ({ error: () => {} }) }));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined,

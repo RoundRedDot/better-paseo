@@ -6,7 +6,7 @@ import "./helpers/quiet-renderer";
 const motion = vi.hoisted(() => ({ reduced: false }));
 vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced }));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   const React = await import("react");
   return {

@@ -1,5 +1,5 @@
 import { View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 
 export function QuestionSelectionMark({ multiSelect, selected, size, accent, accentForeground, muted }: {
   multiSelect: boolean; selected: boolean; size: number; accent: string; accentForeground: string; muted: string;

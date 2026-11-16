@@ -8,9 +8,8 @@ import type { LiveReasoningPayload, LiveToolCallPayload } from "../../client/liv
 // the render count. Layout is asserted on the real root views.
 const renders = vi.hoisted(() => ({ count: 0 }));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ useToast: () => toast,
+vi.mock("@getpaseo/plugin/client/ui", () => ({ useToast: () => toast,
   Icon: () => null,
-  useRevealedText: (text: string) => text,
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined,

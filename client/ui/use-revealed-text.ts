@@ -1,4 +1,4 @@
-import * as hostReactNative from "@getpaseo/plugin/client/react-native";
+import { LEGACY_HOST_ENTRY } from "./legacy-host-entry";
 
 type RevealedText = (text: string, phase: "streaming" | "complete") => string;
 
@@ -10,11 +10,13 @@ type RevealedText = (text: string, phase: "streaming" | "complete") => string;
  * The renderers need the revealed string itself (segmentation and Markdown work
  * on it), so a component does not replace the hook. Calling the missing hook threw
  * and the host drew "Plugin failed" for every live reply and thought; on such a
- * host the text is drawn whole instead.
+ * host the text is drawn whole instead. Only the old entry has the hook, and it
+ * goes away after 2027-04-20 (see `legacy-host-entry`); the text is then drawn
+ * whole too.
  *
  * Chosen once at load, so every render calls the same hook.
  */
-const hostHook: unknown = "useRevealedText" in hostReactNative ? hostReactNative.useRevealedText : undefined;
+const hostHook: unknown = LEGACY_HOST_ENTRY.useRevealedText;
 
 function useWholeText(text: string): string {
   return text;

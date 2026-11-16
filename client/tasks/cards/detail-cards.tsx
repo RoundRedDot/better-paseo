@@ -3,7 +3,7 @@ import { createDetailChrome, useDetailChrome, type DetailChrome, type DetailChro
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
-import { Icon, ScrollView as SheetScrollView, useToast } from "@getpaseo/plugin/client/react-native";
+import { Icon, ScrollView as SheetScrollView, useToast } from "@getpaseo/plugin/client/ui";
 import { revealPathRpc } from "../../../shared/file-rpc";
 import { fileOpenError } from "../../i18n/file-open-error";
 import { openLink } from "../../components/open-link";

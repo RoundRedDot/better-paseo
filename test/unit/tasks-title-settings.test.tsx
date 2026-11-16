@@ -12,7 +12,7 @@ const state = vi.hoisted(() => {
 });
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({ useSettings: () => state.current, useRpc: () => state.catalog }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const react = await import("react");
   return { TextInput: "TextInput", ScrollView: "ScrollView", Icon: "Icon", Modal: Object.assign(
     (props: { children: React.ReactNode }) => react.createElement("Modal", props, props.children),

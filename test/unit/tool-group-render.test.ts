@@ -18,7 +18,7 @@ vi.mock("@getpaseo/plugin/client", () => ({
   useRpc: () => () => Promise.resolve(null), usePaseo: () => ({}),
   useSettings: () => ({ status: "loading" }),
 }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput, copyText: async () => {}, useToast: () => ({ show() {}, error() {} }) };
 });

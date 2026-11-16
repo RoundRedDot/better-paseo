@@ -1,7 +1,7 @@
 import React from "react";
 import { Platform, Text, View } from "react-native";
 import type { MarkedToken, Token, Tokens } from "../../../vendor/marked";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { MathToken } from "../lex";
 import type { InsightToken } from "../insight";
 import { CodeBlock } from "./code-block";

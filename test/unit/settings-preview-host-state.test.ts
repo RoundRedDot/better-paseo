@@ -8,10 +8,10 @@ import "./helpers/quiet-renderer";
 // preview toolbar) must not call them; a timeline row still does.
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
-    copyText: async () => {}, useToast: () => ({ show() {}, error() {} }), useRevealedText: (text: string) => text };
+    copyText: async () => {}, useToast: () => ({ show() {}, error() {} }) };
 });
 const host = vi.hoisted(() => ({ inPanel: false, agentCalls: 0 }));
 vi.mock("@getpaseo/plugin/client", () => ({

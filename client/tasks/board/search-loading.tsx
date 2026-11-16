@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { AccessibilityInfo, Animated, Platform, Pressable, View, type TextInput as NativeTextInput } from "react-native";
-import { Icon, TextInput } from "@getpaseo/plugin/client/react-native";
+import { Icon, TextInput } from "@getpaseo/plugin/client/ui";
 import type { SearchCoverageControl } from "../data/search-first-prompts";
 import type { BoardStrings } from "./strings";
 import { TaskText as Text, taskControlHeight, useTasksFontScale } from "../typography";

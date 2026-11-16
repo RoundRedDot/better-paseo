@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { ProviderLogo } from "./provider-logo";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { useEnhancerPreferences } from "../preferences";

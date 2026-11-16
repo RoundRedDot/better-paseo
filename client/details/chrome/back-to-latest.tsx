@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { radiusV2, space } from "../../components/theme-tokens";
 import { unselectable } from "../../components/selection";

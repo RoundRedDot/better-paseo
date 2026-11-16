@@ -4,7 +4,7 @@ import { act, create, type ReactTestInstance } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({
+vi.mock("@getpaseo/plugin/client/ui", () => ({
   Icon: (props: Record<string, unknown>) => React.createElement("HostIcon", props),
   copyText: vi.fn(async () => {}),
   useToast: () => ({ show: vi.fn(), error: vi.fn() }),

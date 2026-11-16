@@ -6,9 +6,10 @@ import {
   useWindowDimensions,
   type LayoutChangeEvent,
 } from "react-native";
-// A namespace import: the 0.11.2 SDK types do not declare the hook, and a host
-// that predates it injects a module object without the key.
-import * as PluginReactNative from "@getpaseo/plugin/client/react-native";
+// A namespace import: the SDK types do not declare the hook, and a host that
+// predates it injects a module object without the key.
+import * as HostUi from "@getpaseo/plugin/client/ui";
+import { LEGACY_HOST_ENTRY } from "./legacy-host-entry";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { hairline } from "./tokens/platform";
 import { DISCLOSURE_HEADER } from "./disclosure-header";
@@ -32,8 +33,11 @@ export function resolveStickyHook(runtime: unknown): StickyHeaderHook | null {
   return typeof candidate === "function" ? (candidate as StickyHeaderHook) : null;
 }
 
-/** Read once: a host provides the hook for the whole session or not at all. */
-const HOST_STICKY_HOOK = resolveStickyHook(PluginReactNative);
+/**
+ * Read once: a host provides the hook for the whole session or not at all.
+ * The patched host adds it to the old entry; `client/ui` is checked first.
+ */
+const HOST_STICKY_HOOK = resolveStickyHook(HostUi) ?? resolveStickyHook(LEGACY_HOST_ENTRY);
 
 /** Whether this host can pin a card header (S6). */
 export const STICKY_SUPPORTED = HOST_STICKY_HOOK !== null;

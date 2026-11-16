@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions, type TextInput as NativeTextInput, type ViewStyle } from "react-native";
-import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
+import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/ui";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TASK_MONO, useTasksFontScale, taskControlHeight } from "../typography";
 import { HAIRLINE, devicePixel } from "./board-style";

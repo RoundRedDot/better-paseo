@@ -20,7 +20,7 @@ vi.mock("@getpaseo/plugin/client", () => ({
   useSettings: () => ({ data: undefined, status: "loading" }),
 }));
 // The 0.13 runtime behind the compatibility alias: everything but `useRevealedText`.
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return {
     Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
@@ -32,6 +32,8 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     useToast: () => ({ show() {}, error() {} }),
   };
 });
+// A host without the old `client/react-native` entry, or with it but without the hook.
+vi.mock("../../client/ui/legacy-host-entry", () => ({ LEGACY_HOST_ENTRY: {} }));
 vi.mock("../../client/components/hub-live", () => ({ TimelineTailHub: () => null }));
 vi.mock("../../client/state/preference-sync-slot", () => ({ PreferenceSyncSlot: () => null }));
 vi.mock("../../client/components/selection-actions", () => ({ useSelectionActions: () => {} }));

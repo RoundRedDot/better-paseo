@@ -3,7 +3,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "./helpers/quiet-renderer";
 vi.mock("react-native", async () => ({ ...await import("./helpers/rn-mock"), Platform: { OS: "web" } }));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: "Icon" }));
+vi.mock("@getpaseo/plugin/client/ui", () => ({ Icon: "Icon" }));
 vi.mock("../../client/ui/use-input-capabilities", () => ({ noteHover() {}, useInputCapabilities: () => ({ hover: true, touch: false }) }));
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
 import { buildThemeTokens } from "../../client/components/theme-tokens";

@@ -5,7 +5,7 @@ import "./helpers/quiet-renderer";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => vi.fn() }));
 const iconCalls = vi.hoisted(() => [] as Array<{ icon?: unknown }>);
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: (props: { icon?: unknown }) => { iconCalls.push(props); return null; }, ScrollView: rn.ScrollView, copyText: vi.fn(), useToast: () => ({ show() {}, error() {} }) };
 });

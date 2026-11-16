@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewProps } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { FLOAT, floatPressed } from "./tokens/float";
 import { unselectable } from "../components/selection";

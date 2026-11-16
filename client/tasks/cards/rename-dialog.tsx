@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { usePaseo, useRpc } from "@getpaseo/plugin/client";
-import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/ui";
 import { tasksRenameRpc } from "../../../shared/tasks-rpc";
 import { TaskText as Text, TasksTypography, HOST_FONT as F, HOST_LINE, taskControlHeight, useTasksFontScale } from "../typography";
 import type { cardStrings } from "./strings";

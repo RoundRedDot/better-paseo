@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Platform, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { withAlpha } from "../../components/theme-tokens";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { HoverControl } from "../hover-control";

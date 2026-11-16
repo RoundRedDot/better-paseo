@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useState, useMemo, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, Platform, type GestureResponderEvent } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { space } from "./theme-tokens";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface } from "./selection-actions";

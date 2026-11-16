@@ -7,7 +7,7 @@ import { recordPluginUpdate, useKnownPluginUpdate } from "./tasks/board/update-i
 import { openTerminalRpc, updateCommand } from "../shared/open-terminal";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type ViewStyle } from "react-native";
-import { copyText, Icon, TextInput } from "@getpaseo/plugin/client/react-native";
+import { copyText, Icon, TextInput } from "@getpaseo/plugin/client/ui";
 import { DETAILS_FONT_SIZE_DEFAULT, DETAILS_FONT_SIZE_MIN, DETAILS_FONT_SIZE_MAX, clampDetailsFontSize } from "../shared/preferences-settings";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import { codeSurface, itemRootFont } from "./components/host-font-escape";

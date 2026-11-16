@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, View, type ViewStyle } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { TaskIssue } from "../../../shared/task-availability";
 import type { TasksLanguage } from "../i18n";

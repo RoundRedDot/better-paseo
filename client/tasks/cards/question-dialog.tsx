@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Keyboard, Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/ui";
 import { questionRequestKey, type QuestionDialogState, type QuestionDialogStore } from "../actions/question-dialog";
 import type { TaskCard } from "../model";
 import { questionAnswers, questionDraftSupported, questionFormSupported, questionTextInput } from "../question-form";

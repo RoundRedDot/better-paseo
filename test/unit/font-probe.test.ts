@@ -6,7 +6,7 @@ import "./helpers/quiet-renderer";
 vi.mock("react-native", async () => ({
   ...await import("./helpers/rn-mock"), UIManager: { hasViewManagerConfig: () => true },
 }));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ copyText: vi.fn() }));
+vi.mock("@getpaseo/plugin/client/ui", () => ({ copyText: vi.fn() }));
 
 import { CommandFontProbe } from "../../client/debug/font-probe";
 import { beginFontProbe, fontProbeSnapshot, resetFontProbe, type FontProbeMetadata } from "../../client/debug/font-probe-store";

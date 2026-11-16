@@ -5,23 +5,26 @@ import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 const host = vi.hoisted(() => ({ mounts: vi.fn(), unmounts: vi.fn(), renders: vi.fn() }));
-vi.mock("@getpaseo/plugin/client/ui", () => ({
-  Markdown: function Markdown(props: { children: string }) {
-    expect(typeof props.children).toBe("string");
-    expect(Object.keys(props)).toEqual(["children"]);
-    host.renders(props.children);
-    React.useEffect(() => { host.mounts(); return () => { host.unmounts(); }; }, []);
-    return React.createElement("HostMarkdown", props);
-  },
-}));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
-  const rn = await import("./helpers/rn-mock");
-  return {
-    Icon: "Icon", TextInput: rn.TextInput, ScrollView: rn.ScrollView,
-    copyText: async () => true,
-    useToast: () => ({ show() {}, error() {}, success() {} }),
-    useRevealedText: (text: string) => text,
-  };
+vi.mock("@getpaseo/plugin/client/ui", async () => {
+  // The plugin imports all of these from `client/ui` now; where both mocks name a key, the UI one wins.
+  const fromReactNative = await (async () => {
+    const rn = await import("./helpers/rn-mock");
+    return {
+      Icon: "Icon", TextInput: rn.TextInput, ScrollView: rn.ScrollView,
+      copyText: async () => true,
+      useToast: () => ({ show() {}, error() {}, success() {} }),
+    };
+  })();
+  const fromUi = await (() => ({
+    Markdown: function Markdown(props: { children: string }) {
+      expect(typeof props.children).toBe("string");
+      expect(Object.keys(props)).toEqual(["children"]);
+      host.renders(props.children);
+      React.useEffect(() => { host.mounts(); return () => { host.unmounts(); }; }, []);
+      return React.createElement("HostMarkdown", props);
+    },
+  }))();
+  return { ...fromReactNative, ...fromUi };
 });
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined, useWorkspace: () => undefined,

@@ -9,14 +9,14 @@ import React from "react";
 
 afterEach(() => {
   vi.doUnmock("react-native");
-  vi.doUnmock("@getpaseo/plugin/client/react-native");
+  vi.doUnmock("@getpaseo/plugin/client/ui");
   vi.doUnmock("@getpaseo/plugin/client");
 });
 
 it("draws a plain_text body in the monospace face, marked as code", async () => {
   vi.resetModules();
   vi.doMock("react-native", () => import("./helpers/rn-mock"));
-  vi.doMock("@getpaseo/plugin/client/react-native", async () => {
+  vi.doMock("@getpaseo/plugin/client/ui", async () => {
     const rn = await import("./helpers/rn-mock");
     return {
       Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
@@ -26,7 +26,6 @@ it("draws a plain_text body in the monospace face, marked as code", async () => 
       Modal: rn.View,
       copyText: () => Promise.resolve(true),
       useToast: () => ({ show() {}, error() {}, success() {} }),
-      useRevealedText: (text: string) => text,
     };
   });
   vi.doMock("@getpaseo/plugin/client", () => ({

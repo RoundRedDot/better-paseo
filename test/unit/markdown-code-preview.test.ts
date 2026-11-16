@@ -5,11 +5,10 @@ import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 const state = vi.hoisted(() => ({ layers: [] as Array<{ maximized?: boolean; onLinesFit?(fits: boolean): void }>, copy: vi.fn(async (_text: string) => {}) }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: "Icon", TextInput: rn.TextInput, ScrollView: rn.ScrollView,
-    copyText: state.copy, useToast: () => ({ show() {}, error() {}, success() {} }),
-    useRevealedText: (text: string) => text };
+    copyText: state.copy, useToast: () => ({ show() {}, error() {}, success() {} }) };
 });
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined, useWorkspace: () => undefined, useRpc: () => () => Promise.resolve(null),

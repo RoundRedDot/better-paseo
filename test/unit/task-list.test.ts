@@ -6,7 +6,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({
+vi.mock("@getpaseo/plugin/client/ui", () => ({
   Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
   copyText: () => Promise.resolve(true),
   useToast: () => ({ show() {}, error() {}, success() {} }),

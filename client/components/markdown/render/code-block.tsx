@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
-import { Markdown } from "@getpaseo/plugin/client/ui";
+import { Icon, Markdown } from "@getpaseo/plugin/client/ui";
 import type { Tokens } from "../../../vendor/marked";
 import { SyntaxHighlightBlock } from "../../syntax-highlight";
 import type { RenderContext } from "./context";

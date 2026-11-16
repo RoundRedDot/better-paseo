@@ -24,11 +24,11 @@ vi.mock("@getpaseo/plugin/client", () => ({
   useWorkspace: () => null,
   useSettings: () => ({ data: undefined, status: "loading" }),
 }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
     TextInput: rn.TextInput, ScrollView: rn.ScrollView, FlatList: rn.ScrollView, Modal: rn.View,
-    useRevealedText: (text: string) => text, copyText: runtime.copyText,
+    copyText: runtime.copyText,
     useToast: () => ({ show() {}, error() {} }) };
 });
 vi.mock("../../client/components/hub-live", () => ({ TimelineTailHub: () => null }));

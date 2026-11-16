@@ -22,10 +22,10 @@ afterAll(() => {
 });
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
-    copyText: async () => {}, useToast: () => ({ show() {}, error() {} }), useRevealedText: (text: string) => text };
+    copyText: async () => {}, useToast: () => ({ show() {}, error() {} }) };
 });
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined, useWorkspace: () => undefined,

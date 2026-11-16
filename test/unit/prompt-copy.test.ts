@@ -13,7 +13,7 @@ afterEach(() => {
   delete scope.document;
   delete scope.window;
   vi.doUnmock("react-native");
-  vi.doUnmock("@getpaseo/plugin/client/react-native");
+  vi.doUnmock("@getpaseo/plugin/client/ui");
   vi.doUnmock("@getpaseo/plugin/client");
 });
 
@@ -32,7 +32,7 @@ it("keeps the prompt's Copy visible and enabled on a hover device, unhovered", a
     }),
   };
   vi.doMock("react-native", () => import("./helpers/rn-mock"));
-  vi.doMock("@getpaseo/plugin/client/react-native", async () => {
+  vi.doMock("@getpaseo/plugin/client/ui", async () => {
     const rn = await import("./helpers/rn-mock");
     return {
       Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
@@ -42,7 +42,6 @@ it("keeps the prompt's Copy visible and enabled on a hover device, unhovered", a
       Modal: rn.View,
       copyText: () => Promise.resolve(true),
       useToast: () => ({ show() {}, error() {}, success() {} }),
-      useRevealedText: (text: string) => text,
     };
   });
   vi.doMock("@getpaseo/plugin/client", () => ({

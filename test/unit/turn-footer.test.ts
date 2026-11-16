@@ -7,7 +7,7 @@ vi.mock("react-native", () => import("./helpers/rn-mock"));
 const motion = vi.hoisted(() => ({ reduced: false }));
 vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced }));
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}), show: vi.fn(), error: vi.fn() }));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({
+vi.mock("@getpaseo/plugin/client/ui", () => ({
   Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
   copyText: clipboard.copyText,
   useToast: () => ({ show: clipboard.show, error: clipboard.error }),

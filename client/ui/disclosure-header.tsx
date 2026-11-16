@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type TextProps } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { space } from "../components/theme-tokens";
 import { selectableTextStyle, unselectable } from "../components/selection";

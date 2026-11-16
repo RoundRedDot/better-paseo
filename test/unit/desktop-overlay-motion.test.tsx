@@ -26,7 +26,7 @@ vi.mock("react-native", async () => {
 });
 vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motion.reduced }));
 vi.mock("../../client/ui/use-copy", () => ({ useCopy: () => ({ copy: vi.fn() }) }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => ({ Icon: (await import("./helpers/rn-mock")).View }));
+vi.mock("@getpaseo/plugin/client/ui", async () => ({ Icon: (await import("./helpers/rn-mock")).View }));
 
 import { StyleSheet } from "react-native";
 import { buildThemeTokens } from "../../client/components/theme-tokens";

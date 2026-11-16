@@ -5,7 +5,7 @@ import { Animated } from "react-native";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { ScrollView: rn.ScrollView, TextInput: rn.TextInput, Icon: () => null };
 });

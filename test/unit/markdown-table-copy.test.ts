@@ -12,7 +12,7 @@ function listContext() {
   return store.__tableListContext ??= React.createContext<{ getScrollMetrics(): { offset: number } } | null>(null);
 }
 vi.mock("react-native", async () => ({ ...await import("./helpers/rn-mock"), VirtualizedList: { contextType: listContext() } }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return {
     Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
@@ -21,7 +21,6 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     Modal: rn.View,
     copyText,
     useToast: () => ({ show: toastShow, error() {}, success() {} }),
-    useRevealedText: (text: string) => text,
   };
 });
 vi.mock("@getpaseo/plugin/client", () => ({

@@ -1,7 +1,8 @@
 import type { ComponentType } from "react";
-// A namespace import: the 0.11.2 SDK types do not declare `RewindMenu`, and a
-// host without it injects the module without the key.
-import * as PluginReactNative from "@getpaseo/plugin/client/react-native";
+// A namespace import: the SDK types do not declare `RewindMenu`, and a host
+// without it injects the module without the key.
+import * as HostUi from "@getpaseo/plugin/client/ui";
+import { LEGACY_HOST_ENTRY } from "./legacy-host-entry";
 
 export interface HostRewindMenuProps {
   /** `host.id` from the renderer's props. */
@@ -27,5 +28,8 @@ export function resolveRewindMenu(runtime: unknown): ComponentType<HostRewindMen
   return typeof candidate === "function" ? (candidate as ComponentType<HostRewindMenuProps>) : null;
 }
 
-/** Read once: a host provides the menu for the whole session or not at all. */
-export const HOST_REWIND_MENU = resolveRewindMenu(PluginReactNative);
+/**
+ * Read once: a host provides the menu for the whole session or not at all.
+ * Newer patched hosts put it in `client/ui`; older ones only in the old entry.
+ */
+export const HOST_REWIND_MENU = resolveRewindMenu(HostUi) ?? resolveRewindMenu(LEGACY_HOST_ENTRY);

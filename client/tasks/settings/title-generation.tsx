@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState, useSyncExternalStore } from "r
 import { Platform, Pressable, Text, View } from "react-native";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
 import type { output as ZodOutput } from "zod";
-import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/ui";
 import { space } from "../../components/theme-tokens";
 import { ProviderLogo, providerBrand } from "../../components/provider-logo";
 import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema, titleModelsRpc } from "../../../shared/title-generation";

@@ -6,9 +6,8 @@ import { deriveTodoActivities, useLatestTodoItems, useMatchingTodo, type TodoTas
 import { grokTodoItems } from "../../client/tools/activity";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({
+vi.mock("@getpaseo/plugin/client/ui", () => ({
   Icon: () => null,
-  useRevealedText: (text: string) => text,
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined,

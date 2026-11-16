@@ -1,6 +1,6 @@
 import React, { type ReactElement } from "react";
 import { View, Image } from "react-native";
-import { Icon as HostIcon } from "@getpaseo/plugin/client/react-native";
+import { Icon as HostIcon } from "@getpaseo/plugin/client/ui";
 import { MARK_IDS, MONO_MARKS, useMarkBitmap } from "./marks";
 
 export interface IconProps {

@@ -6,10 +6,10 @@ import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}), show: vi.fn(), error: vi.fn() }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
-    copyText: clipboard.copyText, useToast: () => ({ show: clipboard.show, error: clipboard.error }), useRevealedText: (text: string) => text };
+    copyText: clipboard.copyText, useToast: () => ({ show: clipboard.show, error: clipboard.error }) };
 });
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined, useWorkspace: () => undefined,

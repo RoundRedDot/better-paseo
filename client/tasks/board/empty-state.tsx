@@ -1,6 +1,6 @@
 import React, { type ReactNode } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE } from "../typography";
 import { HAIRLINE } from "./board-style";

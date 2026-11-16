@@ -316,19 +316,31 @@ React.memo = function (type) { return { $$typeof: "react.memo", type: type }; };
 React.forwardRef = function (render) { return { $$typeof: "react.forward_ref", render: render }; };
 React.lazy = function (load) { return { $$typeof: "react.lazy", load: load }; };
 var RN = makeStub("react-native");
-// The host injects this module as a plain object, so a missing export reads as
-// undefined (not as a stub): the exact keys of Paseo 0.11.2's
-// \`pluginReactNativeRuntime\`, and with SHAPE "sticky" the hook the bc/sticky
-// host adds (H2b). The plugin must load under both.
-var STOCK_REACT_NATIVE_KEYS = ["Icon", "Modal", "ScrollView", "FlatList", "TextInput", "copyText", "useRevealedText", "useToast"];
-function pluginReactNative(shape) {
+// The host injects these modules as plain objects, so a missing export reads
+// as undefined (not as a stub). \`client/ui\` has the exact keys of Paseo 0.14's
+// (packages/app/src/plugins/react-native/ui.ts), the oldest host the manifest
+// accepts. The old \`client/react-native\` entry is \`client/ui\` plus
+// \`useRevealedText\` (Paseo 0.13 to 0.16), and with SHAPE "sticky" the hook the
+// bc/sticky host adds (H2b). SHAPE "no-legacy" is a host past 2027-04-20 that
+// no longer has the old entry. The plugin must load under all three.
+var UI_KEYS = [
+  "SettingsSection", "SettingsCard", "SettingsRow", "SettingsSwitch", "SettingsSelect", "SettingsInput", "SettingsAction",
+  "ExternalLink", "SidebarRow", "SidebarSeparator", "DocumentFrame", "Loading", "SettingsGroup",
+  "Icon", "Modal", "ScrollView", "FlatList", "TextInput", "copyText", "useToast", "StreamedText", "Markdown",
+];
+function pluginUi() {
   var runtime = {};
-  for (var k = 0; k < STOCK_REACT_NATIVE_KEYS.length; k++) {
-    runtime[STOCK_REACT_NATIVE_KEYS[k]] = makeStub("plugin/client/react-native." + STOCK_REACT_NATIVE_KEYS[k]);
-  }
+  for (var k = 0; k < UI_KEYS.length; k++) runtime[UI_KEYS[k]] = makeStub("plugin/client/ui." + UI_KEYS[k]);
+  return runtime;
+}
+function pluginReactNative(ui, shape) {
+  var runtime = {};
+  for (var key in ui) runtime[key] = ui[key];
+  runtime.useRevealedText = makeStub("plugin/client/react-native.useRevealedText");
   if (shape === "sticky") runtime.useTimelineStickyHeader = function () { return null; };
   return runtime;
 }
+var ui = pluginUi();
 var modules = {
   react: React,
   "react/jsx-runtime": makeStub("react/jsx-runtime"),
@@ -337,9 +349,9 @@ var modules = {
   "@tanstack/react-query": makeStub("react-query"),
   "@getpaseo/plugin": makeStub("plugin"),
   "@getpaseo/plugin/client": makeStub("plugin/client"),
-  "@getpaseo/plugin/client/ui": makeStub("plugin/client/ui"),
-  "@getpaseo/plugin/client/react-native": pluginReactNative(SHAPE),
+  "@getpaseo/plugin/client/ui": ui,
 };
+if (SHAPE !== "no-legacy") modules["@getpaseo/plugin/client/react-native"] = pluginReactNative(ui, SHAPE);
 function runtimeRequire(name) {
   if (name in modules) return modules[name];
   throw new Error('Module "' + name + '" is not available in plugin client code');
@@ -409,9 +421,10 @@ try {
 print("registered " + counts.transformers + " transformers, " + counts.renderers + " renderers, " + counts.settings + " settings screens (" + SHAPE + " host)");
 for (var i = 0; i < problems.length; i++) print("PROBLEM " + problems[i]);
 `;
-// Once against a stock 0.11.2 host and once against a host with the sticky
-// header hook (bc/sticky): feature detection must work both ways.
-for (const shape of ["stock", "sticky"]) {
+// Against a stock host, a host with the sticky header hook (bc/sticky), and a
+// host without the old \`client/react-native\` entry: feature detection must
+// work every way.
+for (const shape of ["stock", "sticky", "no-legacy"]) {
   const harnessPath = path.join(dir, `harness-${shape}.js`);
   writeFileSync(
     harnessPath,

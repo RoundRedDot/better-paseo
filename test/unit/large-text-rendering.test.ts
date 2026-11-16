@@ -7,7 +7,7 @@ const rpc = vi.hoisted(() => ({ call: vi.fn(async () => null) }));
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}) }));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => rpc.call }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => ({
+vi.mock("@getpaseo/plugin/client/ui", async () => ({
   Icon: (await import("./helpers/rn-mock")).View,
   copyText: clipboard.copyText, useToast: () => ({ show: vi.fn(), error: vi.fn() }),
 }));

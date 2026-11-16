@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState, type ReactNode } f
 import { Animated, Platform, Pressable, ScrollView, View, type LayoutChangeEvent, type TextLayoutEvent } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import type { PluginIcon } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { TaskText as Text, TASK_MONO, useTasksFontScale } from "../typography";
 import { orderedSearchHits, searchRanges, type SearchField, type SearchHit } from "../data/search-hits";
 import { useHover } from "../../ui/use-hover";

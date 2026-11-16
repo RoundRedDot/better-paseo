@@ -5,7 +5,7 @@ import "./helpers/quiet-renderer";
 
 const draws = vi.hoisted(() => new Map<unknown, number>());
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return {
     ...rn,

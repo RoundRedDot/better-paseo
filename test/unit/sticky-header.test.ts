@@ -1,8 +1,9 @@
 /**
  * S6: the plugin side of the host's sticky card header API (Paseo H2b).
  *
- * The hook exists only on hosts built with it (`bc/sticky`); a stock 0.11.2
- * host injects `@getpaseo/plugin/client/react-native` without the key. These
+ * The hook exists only on hosts built with it (`bc/sticky`), which add it to the
+ * old `client/react-native` entry (read through `legacy-host-entry`); a stock
+ * host has no such key. `client/ui` is checked first. These
  * tests load the real components once per host shape and check feature
  * detection, the enable rule, and what a collapsed row costs.
  */
@@ -22,11 +23,12 @@ function fakeNode(label: string) {
   return { label, interpolate: () => ({ label: `${label}:rule` }) };
 }
 
-async function load(shape: "stock" | "sticky") {
+/** `sticky`: the hook in the old entry, as the patched host has it; `sticky-ui`: in `client/ui`. */
+async function load(shape: "stock" | "sticky" | "sticky-ui") {
   vi.resetModules();
   const hook = vi.fn((_options: { headerHeight: number; enabled: boolean }) => fakeNode("translateY"));
   vi.doMock("react-native", () => import("./helpers/rn-mock"));
-  vi.doMock("@getpaseo/plugin/client/react-native", async () => {
+  vi.doMock("@getpaseo/plugin/client/ui", async () => {
     const rn = await import("./helpers/rn-mock");
     const stock = {
       Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
@@ -36,10 +38,15 @@ async function load(shape: "stock" | "sticky") {
       Modal: rn.View,
       copyText: () => Promise.resolve(true),
       useToast: () => ({ show() {}, error() {}, success() {} }),
-      useRevealedText: (text: string) => text,
     };
-    return shape === "sticky" ? { ...stock, useTimelineStickyHeader: hook } : stock;
+    return shape === "sticky-ui" ? { ...stock, useTimelineStickyHeader: hook } : stock;
   });
+  vi.doMock("../../client/ui/legacy-host-entry", () => ({
+    LEGACY_HOST_ENTRY: {
+      useRevealedText: (text: string) => text,
+      ...(shape === "sticky" ? { useTimelineStickyHeader: hook } : {}),
+    },
+  }));
   vi.doMock("@getpaseo/plugin/client", pluginClient);
   await import("./helpers/quiet-renderer");
   const TestRenderer = (await import("react-test-renderer")).default;
@@ -76,7 +83,8 @@ async function load(shape: "stock" | "sticky") {
 
 afterEach(() => {
   vi.doUnmock("react-native");
-  vi.doUnmock("@getpaseo/plugin/client/react-native");
+  vi.doUnmock("@getpaseo/plugin/client/ui");
+  vi.doUnmock("../../client/ui/legacy-host-entry");
   vi.doUnmock("@getpaseo/plugin/client");
 });
 
@@ -94,6 +102,7 @@ describe("resolveStickyHook", () => {
   it("reports the host shape it was loaded on", async () => {
     expect((await load("stock")).sticky.STICKY_SUPPORTED).toBe(false);
     expect((await load("sticky")).sticky.STICKY_SUPPORTED).toBe(true);
+    expect((await load("sticky-ui")).sticky.STICKY_SUPPORTED).toBe(true);
   });
 });
 

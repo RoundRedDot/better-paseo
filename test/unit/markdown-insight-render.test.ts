@@ -3,9 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const clipboard = vi.hoisted(() => vi.fn(async (_text: string) => {}));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({
+vi.mock("@getpaseo/plugin/client/ui", () => ({
   Icon: (props: object) => React.createElement("Icon", props),
-  useRevealedText: (text: string) => text,
   copyText: clipboard,
   useToast: () => ({ show() {}, error() {} }),
 }));

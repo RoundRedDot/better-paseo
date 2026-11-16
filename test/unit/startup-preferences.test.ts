@@ -7,7 +7,7 @@ import "./helpers/quiet-renderer";
 // defaults and then again once a row mounts the settings hook.
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: () => null }));
+vi.mock("@getpaseo/plugin/client/ui", () => ({ Icon: () => null }));
 // What the host's `useSettings` answers: its react-query cache.
 const host = vi.hoisted(() => ({ settings: { status: "loading" } as Record<string, unknown> }));
 vi.mock("@getpaseo/plugin/client", () => ({

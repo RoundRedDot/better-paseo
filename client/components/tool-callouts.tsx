@@ -22,7 +22,7 @@ import { isImagePath } from "../image-file";
 import type { ImageFile } from "../image-file";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionCodeText, selectionSurface } from "./selection-actions";
-import { useToast } from "@getpaseo/plugin/client/react-native";
+import { useToast } from "@getpaseo/plugin/client/ui";
 import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon, RowPaletteContext, RowText } from "../ui/disclosure-header";
 import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
 import { useScrollAnchor } from "../ui/scroll-anchor";

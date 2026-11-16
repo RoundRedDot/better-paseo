@@ -20,7 +20,26 @@ async function load(os: "web" | "ios", settleInEffect = false) {
   (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
   vi.resetModules();
   vi.doMock("react-native", () => import("./helpers/rn-mock"));
-  vi.doMock("@getpaseo/plugin/client/react-native", async () => {
+  const useRevealedText = (text: string, phase: string) => {
+    revealCalls.push({ text, phase });
+    // The pinned host begins fully revealed, retargets without advancing,
+    // and force-renders in a passive effect only when completing a backlog.
+    const position = React.useRef({ target: text, revealed: text.length });
+    const [, forceRender] = React.useState(0);
+    if (position.current.target !== text) {
+      position.current = { target: text, revealed: Math.min(position.current.revealed, text.length) };
+    }
+    React.useEffect(() => {
+      if (settleInEffect && phase !== "streaming" && position.current.revealed < position.current.target.length) {
+        position.current = { ...position.current, revealed: position.current.target.length };
+        forceRender((n) => n + 1);
+      }
+    }, [text, phase]);
+    return settleInEffect ? position.current.target.slice(0, position.current.revealed) : "STALE";
+  };
+  // Only the old entry has the hook; the plugin reads it through `legacy-host-entry`.
+  vi.doMock("../../client/ui/legacy-host-entry", () => ({ LEGACY_HOST_ENTRY: { useRevealedText } }));
+  vi.doMock("@getpaseo/plugin/client/ui", async () => {
     const rn = await import("./helpers/rn-mock");
     return {
       Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
@@ -30,23 +49,6 @@ async function load(os: "web" | "ios", settleInEffect = false) {
       Modal: rn.View,
       copyText: () => Promise.resolve(true),
       useToast: () => ({ show() {}, error() {}, success() {} }),
-      useRevealedText: (text: string, phase: string) => {
-        revealCalls.push({ text, phase });
-        // The pinned host begins fully revealed, retargets without advancing,
-        // and force-renders in a passive effect only when completing a backlog.
-        const position = React.useRef({ target: text, revealed: text.length });
-        const [, forceRender] = React.useState(0);
-        if (position.current.target !== text) {
-          position.current = { target: text, revealed: Math.min(position.current.revealed, text.length) };
-        }
-        React.useEffect(() => {
-          if (settleInEffect && phase !== "streaming" && position.current.revealed < position.current.target.length) {
-            position.current = { ...position.current, revealed: position.current.target.length };
-            forceRender((n) => n + 1);
-          }
-        }, [text, phase]);
-        return settleInEffect ? position.current.target.slice(0, position.current.revealed) : "STALE";
-      },
     };
   });
   vi.doMock("@getpaseo/plugin/client", () => ({

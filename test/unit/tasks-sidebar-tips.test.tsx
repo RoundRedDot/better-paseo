@@ -26,7 +26,7 @@ vi.mock("../../client/ui/use-input-capabilities", async (original) => ({
   ...await original<object>(),
   useInputCapabilities: () => ({ hover: true, touch: false, compact: false, native: false }),
 }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return {
     Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),

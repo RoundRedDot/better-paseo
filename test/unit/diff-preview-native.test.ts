@@ -7,7 +7,7 @@ vi.mock("react-native", async () => ({
   ...await import("./helpers/rn-mock"), UIManager: { hasViewManagerConfig: () => true },
 }));
 vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => async () => null }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => ({
+vi.mock("@getpaseo/plugin/client/ui", async () => ({
   Icon: (await import("./helpers/rn-mock")).View,
   copyText: vi.fn(), useToast: () => ({ show: vi.fn(), error: vi.fn() }),
 }));

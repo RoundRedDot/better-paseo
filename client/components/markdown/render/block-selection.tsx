@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { Token, Tokens } from "../../../vendor/marked";
 import type { ExtendedThemeTokens } from "../../theme-tokens";
 import { useCopy } from "../../../ui/use-copy";

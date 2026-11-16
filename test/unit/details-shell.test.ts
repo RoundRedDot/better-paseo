@@ -45,10 +45,10 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({
   },
 }));
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}) }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
-    copyText: clipboard.copyText, useToast: () => ({ show: vi.fn(), error: vi.fn() }), useRevealedText: (text: string) => text };
+    copyText: clipboard.copyText, useToast: () => ({ show: vi.fn(), error: vi.fn() }) };
 });
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined, useWorkspace: () => undefined,

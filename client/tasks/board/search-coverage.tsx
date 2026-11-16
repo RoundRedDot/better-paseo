@@ -2,7 +2,7 @@ import { HoverControl } from "../hover-control";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Animated, Modal, Platform, Pressable, View, useWindowDimensions } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { TaskText as Text, taskControlHeight, useTasksFontScale } from "../typography";
 import { panelChrome } from "../cards/panel";
 import { taskTokens } from "../cards/tokens";

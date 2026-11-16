@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ copyText: vi.fn() }));
+vi.mock("@getpaseo/plugin/client/ui", () => ({ copyText: vi.fn() }));
 
 // The DOM is a system boundary: a tree of elements, each composer a textarea
 // that is on screen unless its tab or pane is hidden.

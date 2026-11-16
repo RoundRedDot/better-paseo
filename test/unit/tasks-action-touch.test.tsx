@@ -11,7 +11,7 @@ vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
   return { ...rn, Platform: { ...rn.Platform, get OS() { return rn.Platform.OS; }, get isPad() { return device.tablet; } } };
 });
-vi.mock("@getpaseo/plugin/client/react-native", () => ({
+vi.mock("@getpaseo/plugin/client/ui", () => ({
   Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
   copyText: async () => {},
   useToast: () => ({ show() {}, error() {} }),

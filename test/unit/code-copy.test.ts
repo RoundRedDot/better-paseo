@@ -12,7 +12,7 @@ import React from "react";
 async function load() {
   vi.resetModules();
   vi.doMock("react-native", () => import("./helpers/rn-mock"));
-  vi.doMock("@getpaseo/plugin/client/react-native", async () => {
+  vi.doMock("@getpaseo/plugin/client/ui", async () => {
     const rn = await import("./helpers/rn-mock");
     return {
       Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
@@ -22,7 +22,6 @@ async function load() {
       Modal: rn.View,
       copyText: () => Promise.resolve(true),
       useToast: () => ({ show() {}, error() {}, success() {} }),
-      useRevealedText: (text: string) => text,
     };
   });
   vi.doMock("@getpaseo/plugin/client", () => ({
@@ -83,7 +82,7 @@ async function load() {
 
 afterEach(() => {
   vi.doUnmock("react-native");
-  vi.doUnmock("@getpaseo/plugin/client/react-native");
+  vi.doUnmock("@getpaseo/plugin/client/ui");
   vi.doUnmock("@getpaseo/plugin/client");
 });
 

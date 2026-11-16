@@ -1,7 +1,7 @@
 import React from "react";
 import { View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { TaskText as Text } from "../typography";
 import { todoTaskStatus, type TodoTask } from "../../state/todo-timeline";
 import { mix } from "../../components/theme-tokens";

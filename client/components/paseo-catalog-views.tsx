@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { AgentMarkdown, AgentSection, agentStateColor, modeColor, useCardMobile } from "./agent-card-content";
 import { ProviderLogo } from "./provider-logo";
 import { space, withAlpha, type ExtendedThemeTokens } from "./theme-tokens";

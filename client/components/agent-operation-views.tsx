@@ -1,6 +1,6 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import {
   AgentCode, AgentDivider, AgentErrorLine, AgentIdentityStrip, AgentMarkdown, AgentNote, AgentSection,
   useCardMobile, useLiveAgent, type AgentField,

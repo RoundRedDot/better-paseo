@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: () => null }));
+vi.mock("@getpaseo/plugin/client/ui", () => ({ Icon: () => null }));
 
 import { shownIssue, taskIssueText } from "../../client/tasks/cards/availability-tag";
 import { createTaskAvailability } from "../../server/tasks/availability";

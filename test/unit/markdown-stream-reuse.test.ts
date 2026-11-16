@@ -23,7 +23,7 @@ vi.mock("react-native", async () => {
     },
   };
 });
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return {
     Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
@@ -32,7 +32,6 @@ vi.mock("@getpaseo/plugin/client/react-native", async () => {
     Modal: rn.View,
     copyText: () => Promise.resolve(true),
     useToast: () => ({ show() {}, error() {}, success() {} }),
-    useRevealedText: (text: string) => text,
   };
 });
 vi.mock("@getpaseo/plugin/client", () => ({

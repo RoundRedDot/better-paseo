@@ -1,6 +1,6 @@
 import React, { useMemo, useState, type ReactNode } from "react";
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { useAgent } from "@getpaseo/plugin/client";
 import { Glyph } from "./glyph";
 import { ProviderLogo } from "./provider-logo";

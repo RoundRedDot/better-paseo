@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", async () => ({
+vi.mock("@getpaseo/plugin/client/ui", async () => ({
   ...await import("./helpers/rn-mock"),
   Icon: (props: object) => React.createElement("Icon", props),
 }));

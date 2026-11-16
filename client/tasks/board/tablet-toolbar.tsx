@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { Animated, Platform, Pressable, View, type LayoutRectangle, type TextInput as NativeTextInput } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, useTasksFontScale, taskControlHeight } from "../typography";
 import { tipProps } from "../cards/card-hints";

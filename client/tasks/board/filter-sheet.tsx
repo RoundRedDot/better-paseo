@@ -1,7 +1,7 @@
 import { TextUpdateDot } from "../../ui/text-update-dot";
 import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, View, type LayoutChangeEvent, type ScrollView as NativeScrollView } from "react-native";
-import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/react-native";
+import { Icon, ScrollView, TextInput } from "@getpaseo/plugin/client/ui";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";

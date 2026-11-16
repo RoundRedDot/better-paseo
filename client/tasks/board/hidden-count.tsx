@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon, Modal, ScrollView } from "@getpaseo/plugin/client/react-native";
+import { Icon, Modal, ScrollView } from "@getpaseo/plugin/client/ui";
 import type { CardSettings } from "../../../shared/tasks-settings";
 import { LANE_STATUS, type TaskCard } from "../model";
 import { HOST_FONT, HOST_LINE, TaskText as Text, taskControlHeight, useTasksFontScale } from "../typography";

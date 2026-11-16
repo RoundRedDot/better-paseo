@@ -35,7 +35,6 @@ const pluginRuntime = (sticky: boolean) => async () => {
   return {
     Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
     copyText: async () => {}, useToast: () => ({ show() {}, error() {} }),
-    useRevealedText: (text: string) => text,
     ...(sticky ? { useTimelineStickyHeader: () => null } : {}),
   };
 };
@@ -55,7 +54,7 @@ type Loaded = {
 
 async function load(sticky: boolean): Promise<Loaded> {
   vi.resetModules();
-  vi.doMock("@getpaseo/plugin/client/react-native", pluginRuntime(sticky));
+  vi.doMock("@getpaseo/plugin/client/ui", pluginRuntime(sticky));
   await import("./helpers/quiet-renderer");
   const { default: TestRenderer, act } = await import("react-test-renderer");
   const { buildThemeTokens } = await import("../../client/components/theme-tokens");
@@ -106,7 +105,7 @@ async function pressRow(card: (expanded: boolean, toggle: () => void) => React.R
 }
 
 afterEach(() => {
-  vi.doUnmock("@getpaseo/plugin/client/react-native");
+  vi.doUnmock("@getpaseo/plugin/client/ui");
 });
 
 describe("opening a disclosure row in the native timeline", () => {

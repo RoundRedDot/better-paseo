@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from "react";
 import { Pressable, Text, View } from "react-native";
 import { TasksTypography, HOST_FONT as F, HOST_LINE } from "../typography";
 import { usePaseo, type PluginScreenProps } from "@getpaseo/plugin/client";
-import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
+import { Icon, useToast } from "@getpaseo/plugin/client/ui";
 import { useDeviceTasksPreferences } from "../device-preferences";
 import { useTasksLanguage } from "../i18n";
 import { pluginRoot } from "../../components/focus-ring";

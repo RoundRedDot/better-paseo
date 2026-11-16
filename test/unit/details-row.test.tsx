@@ -22,10 +22,10 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({ noteHover: () => {}, 
   const native = (globalThis as { __rnMockOS?: string }).__rnMockOS !== "web";
   return { native, hover: !native, touch: native, compact: native };
 } }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
-    copyText: state.copy, useToast: () => ({ show() {}, error() {} }), useRevealedText: (text: string) => text };
+    copyText: state.copy, useToast: () => ({ show() {}, error() {} }) };
 });
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined, useWorkspace: () => undefined,

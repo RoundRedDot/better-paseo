@@ -93,7 +93,7 @@ vi.mock("react-native", async () => {
   };
 });
 
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const react = await import("react");
   return { Icon: (props: Record<string, unknown>) => react.createElement("Icon", props) };
 });

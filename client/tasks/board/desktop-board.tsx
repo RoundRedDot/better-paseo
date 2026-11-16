@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import { Animated, findNodeHandle, PanResponder, Platform, Pressable, ScrollView, View, type GestureResponderEvent, type FlatList as NativeFlatList, type TextInput as NativeTextInput } from "react-native";
-import { FlatList, Icon, Modal } from "@getpaseo/plugin/client/react-native";
+import { FlatList, Icon, Modal } from "@getpaseo/plugin/client/ui";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, laneTitle, TasksTypography, TasksTypographyScale, useTasksFontScale, taskControlHeight } from "../typography";

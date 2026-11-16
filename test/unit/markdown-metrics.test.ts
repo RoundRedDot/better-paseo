@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Tokens } from "../../client/vendor/marked";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: () => null }));
+vi.mock("@getpaseo/plugin/client/ui", () => ({ Icon: () => null }));
 vi.mock("@getpaseo/plugin/client", () => ({}));
 
 const { variantMetrics } = await import("../../client/components/markdown/render/styles");

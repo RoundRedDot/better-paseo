@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { MarkdownView } from "../../components/markdown/markdown-view";
 import { variantMetrics } from "../../components/markdown/render/styles";
 import { useThemeTokens } from "../../components/theme-tokens";

@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useLayoutEffect, useRef } from "react";
 import { ActivityIndicator, Animated, PixelRatio, Platform, View, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { probeAnimationLoop } from "../../debug/perf";
 import { steppedEasing } from "../../ui/tokens/motion";
 import { useReducedMotion } from "../../ui/use-reduced-motion";

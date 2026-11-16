@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import type { TextProps, ViewProps } from "react-native";
-import { copyText } from "@getpaseo/plugin/client/react-native";
+import { copyText } from "@getpaseo/plugin/client/ui";
 import { radiusV2 } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { FLOAT, FLOAT_EASE, floatHover, floatPressed, floatShadow } from "../ui/tokens/float";

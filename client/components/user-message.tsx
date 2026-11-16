@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { radiusV2, space } from "./theme-tokens";
 import { useCopy } from "../ui/use-copy";
 import { useInputCapabilities } from "../ui/use-input-capabilities";

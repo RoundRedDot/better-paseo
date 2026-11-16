@@ -9,7 +9,7 @@
  * never shows the check.
  */
 import { useEffect, useRef, useState } from "react";
-import { copyText, useToast } from "@getpaseo/plugin/client/react-native";
+import { copyText, useToast } from "@getpaseo/plugin/client/ui";
 import {
   createCopyController,
   type CopyController,

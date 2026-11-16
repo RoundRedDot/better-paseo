@@ -5,10 +5,10 @@ const copy = vi.hoisted(() => vi.fn(async (_text: string, _options?: object) => 
 const list = React.createContext<{ getScrollMetrics(): { offset: number } } | null>(null);
 vi.mock("react-native", async () => ({ ...await import("./helpers/rn-mock"), VirtualizedList: { get contextType() { return list; } } }));
 vi.mock("../../client/ui/use-copy", () => ({ useCopy: () => ({ copy }) }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: (props: object) => React.createElement("Icon", props), ScrollView: rn.ScrollView,
-    Modal: rn.View, TextInput: rn.TextInput, useRevealedText: (text: string) => text };
+    Modal: rn.View, TextInput: rn.TextInput };
 });
 vi.mock("@getpaseo/plugin/client", () => ({
   useSettings: () => ({ data: undefined }),

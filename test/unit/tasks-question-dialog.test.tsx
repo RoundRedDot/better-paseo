@@ -14,7 +14,7 @@ vi.mock("react-native", async () => {
     return { remove: () => { keyboard[key] = undefined; } };
   } } };
 });
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   const Input = React.forwardRef((_props: Record<string, unknown>, ref) => {
     React.useImperativeHandle(ref, () => ({ blur: keyboard.blur }));

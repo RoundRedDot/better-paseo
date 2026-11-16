@@ -47,7 +47,7 @@ vi.mock("@getpaseo/plugin/client", () => ({
     return contract.name === "tasks.capabilities" ? mocks.capabilities : contract.name === "tasks.stopped" ? mocks.stopped : mocks.stop;
   },
 }));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({
+vi.mock("@getpaseo/plugin/client/ui", () => ({
   useToast: () => ({ error: mocks.toastError, show: vi.fn() }),
 }));
 vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: mocks.language }));

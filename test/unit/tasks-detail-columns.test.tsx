@@ -21,14 +21,14 @@ vi.mock("react-native", async () => {
   };
 });
 vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => vi.fn() }));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
+vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("react-native");
   return { Icon: () => null, ScrollView: (props: React.ComponentProps<typeof rn.ScrollView>) => <rn.ScrollView {...props} />, copyText: vi.fn(), useToast: () => ({ show() {}, error() {} }) };
 });
 vi.mock("../../client/components/markdown/markdown-view", () => ({ MarkdownView: () => null }));
 
 import { TaskDetailCards, type TaskDetailCardsProps } from "../../client/tasks/cards/detail-cards";
-import { Icon, ScrollView } from "@getpaseo/plugin/client/react-native";
+import { Icon, ScrollView } from "@getpaseo/plugin/client/ui";
 import { taskTokens } from "../../client/tasks/cards/tokens";
 import { permissionButtons } from "../../client/tasks/actions";
 import { useLastMessage } from "../../client/tasks/data/last-message";

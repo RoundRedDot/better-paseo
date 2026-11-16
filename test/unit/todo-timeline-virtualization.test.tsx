@@ -6,8 +6,8 @@ import type { LiveTodoPayload, LiveToolCallPayload } from "../../client/live-ren
 import { measureHostTree, type Frame } from "./helpers/yoga-host-layout";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({
-  Icon: (props: object) => React.createElement("Icon", props), useRevealedText: (text: string) => text,
+vi.mock("@getpaseo/plugin/client/ui", () => ({
+  Icon: (props: object) => React.createElement("Icon", props),
   copyText: () => Promise.resolve(true), useToast: () => ({ show() {}, error() {}, success() {} }),
 }));
 vi.mock("@getpaseo/plugin/client", () => ({ useAgent: () => undefined, useWorkspace: () => undefined, useRpc: () => () => Promise.resolve(null) }));

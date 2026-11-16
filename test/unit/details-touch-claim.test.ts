@@ -5,7 +5,7 @@ import "./helpers/quiet-renderer";
 import type { View } from "react-native";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ copyText: vi.fn(), useToast: () => ({ show() {}, error() {} }) }));
+vi.mock("@getpaseo/plugin/client/ui", () => ({ copyText: vi.fn(), useToast: () => ({ show() {}, error() {} }) }));
 import { claimContentTouch, contentOwnsTouch, resetContentTouches } from "../../client/details/touch-claim";
 import { useLineSelection } from "../../client/ui/line-selection";
 import { useTableCellSelection } from "../../client/components/markdown/render/table-touch-selection";

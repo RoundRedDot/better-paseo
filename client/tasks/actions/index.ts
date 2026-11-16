@@ -1,6 +1,6 @@
 import type { PaseoApi } from "@getpaseo/client";
 import { usePaseo, useRpc } from "@getpaseo/plugin/client";
-import { useToast } from "@getpaseo/plugin/client/react-native";
+import { useToast } from "@getpaseo/plugin/client/ui";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Alert, Platform } from "react-native";
 import { tasksCapabilitiesRpc, tasksReadRpc, tasksStopRpc, tasksStoppedRpc, tasksUnarchiveRpc, tasksUnreadRpc } from "../../../shared/tasks-rpc";

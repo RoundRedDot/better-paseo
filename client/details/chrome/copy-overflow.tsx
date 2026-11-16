@@ -10,7 +10,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { radiusV2, space } from "../../components/theme-tokens";
 import { unselectable } from "../../components/selection";

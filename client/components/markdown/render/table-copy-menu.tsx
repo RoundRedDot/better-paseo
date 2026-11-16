@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Animated, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { ExtendedThemeTokens } from "../../theme-tokens";
 import { unselectable } from "../../selection";
 import { useCopy } from "../../../ui/use-copy";

@@ -12,7 +12,7 @@ import {
   type LayoutChangeEvent,
   useWindowDimensions,
 } from "react-native";
-import { FlatList, Icon, Modal, ScrollView } from "@getpaseo/plugin/client/react-native";
+import { FlatList, Icon, Modal, ScrollView } from "@getpaseo/plugin/client/ui";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, TasksTypography, taskControlHeight } from "../typography";

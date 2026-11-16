@@ -17,14 +17,18 @@ const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...
 const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh", rpc: vi.fn(async (): Promise<unknown> => ({ state: "idle" })), copyText: vi.fn(async () => {}), agents: vi.fn(async (): Promise<unknown> => ({ state: "idle", entries: [], error: null })), openTerminal: vi.fn(async (): Promise<unknown> => ({ status: "opened" })) }));
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({ useSettings: (definition: { id: string }) => definition.id === "title-generation" ? { status: "loading", reload: vi.fn() } : state.current, useRpc: (definition: { name: string }) => definition.name === "settings.agent-updates" ? state.agents : definition.name === "settings.open-terminal" ? state.openTerminal : state.rpc }));
-vi.mock("@getpaseo/plugin/client/ui", () => ({
-  SettingsSelect: "SettingsSelect", TextInput: "TextInput",
-  SidebarRow: () => { throw new Error("SidebarRow must render inside a sidebar item"); },
-}));
-vi.mock("@getpaseo/plugin/client/react-native", async () => {
-  const React = await import("react");
-  const Modal = Object.assign((props: { children?: React.ReactNode }) => React.createElement("Modal", null, props.children), { Content: (props: { children?: React.ReactNode }) => React.createElement("ModalContent", null, props.children) });
-  return { TextInput: "TextInput", Icon: "Icon", Modal, copyText: state.copyText, useToast: () => ({ show() {}, error() {} }) };
+vi.mock("@getpaseo/plugin/client/ui", async () => {
+  // The plugin imports all of these from `client/ui` now; where both mocks name a key, the UI one wins.
+  const fromReactNative = await (async () => {
+    const React = await import("react");
+    const Modal = Object.assign((props: { children?: React.ReactNode }) => React.createElement("Modal", null, props.children), { Content: (props: { children?: React.ReactNode }) => React.createElement("ModalContent", null, props.children) });
+    return { TextInput: "TextInput", Icon: "Icon", Modal, copyText: state.copyText, useToast: () => ({ show() {}, error() {} }) };
+  })();
+  const fromUi = await (() => ({
+    SettingsSelect: "SettingsSelect", TextInput: "TextInput",
+    SidebarRow: () => { throw new Error("SidebarRow must render inside a sidebar item"); },
+  }))();
+  return { ...fromReactNative, ...fromUi };
 });
 vi.mock("../../client/tasks/i18n", () => ({ useTasksLanguage: () => state.language, resolveTasksLanguage: () => state.language }));
 vi.mock("../../client/tasks/chunk/load", async () => import("../../client/tasks/settings/tasks-panel"));
