@@ -1,9 +1,10 @@
 /**
  * Paseo 0.13 (getpaseo/paseo#7474) maps the old `client/react-native` entry onto
- * its UI runtime, which no longer carries `useRevealedText`. A live reply or
- * thought calling the missing hook threw "undefined is not a function", and the
- * host drew "Plugin failed" in its place on iOS and Android. Without the hook the
- * renderers draw the text whole.
+ * its UI runtime, which no longer carries `useRevealedText`; a live reply calling
+ * the missing hook drew "Plugin failed" on iOS and Android. Paseo 0.16 deprecates
+ * the entry and removes it after 2027-04-20. The plugin now carries the reveal
+ * itself, so a host without the entry (or without the hook in it) still draws
+ * live replies and thoughts.
  */
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
@@ -64,7 +65,7 @@ function texts(renderer: ReturnType<typeof TestRenderer.create>): string {
   return renderer.root.findAllByType("Text" as never).map((node) => String(node.props.children ?? "")).join("|");
 }
 
-describe("live renderers on a host without useRevealedText", () => {
+describe("live renderers on a host without the old entry", () => {
   it("draws a streaming reply whole", async () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     await act(async () => {

@@ -336,7 +336,7 @@ function LiveReasoningRendererBody({
   const [expanded, setExpanded] = useDisclosure(storeKey, false);
   const toggle = useCallback(() => setExpanded(!expanded), [expanded, setExpanded]);
 
-  // The host's reveal runs a frame loop only for "streaming". A collapsed card
+  // The reveal runs a frame loop only for "streaming". A collapsed card
   // shows one line, so it takes the text whole. The hook still follows the text,
   // so a card opened mid-stream picks up the reveal where the text stands; but
   // its "complete" output lands a commit late (`useRevealedText` settles in a
@@ -498,7 +498,7 @@ const todoStyles = StyleSheet.create({
 export interface LiveAssistantPayload extends AssistantRowData {}
 
 /**
- * Whether a streamed reply reveals at the host's own cadence
+ * Whether a streamed reply reveals at the host's cadence
  * (`useRevealedText`, plan §3.1 item 8) or draws each chunk as it arrives.
  * Decided by an A/B (F1, 3+ alternating runs, markdown-long and
  * table-streaming): on the iOS simulator the reveal changed total assistant
@@ -586,7 +586,7 @@ function LiveAssistantMessageRenderer({
   // the model's words, so they are drawn as a card, not as prose.
   const envelope = useMemo(() => parseSystemEnvelope(item.data.text), [item.data.text]);
   const reveal = ASSISTANT_REVEAL[layout.platform === "web" ? "web" : "native"];
-  // Where the reply is not paced, it bypasses the host's hook: that hook shows
+  // Where the reply is not paced, it bypasses the reveal hook: that hook shows
   // a longer text one commit late (it settles in a passive effect), and Paseo's
   // web list follows the bottom in the commit that brings the stream data, so a
   // reply growing a commit later was painted pushed down for a frame, then

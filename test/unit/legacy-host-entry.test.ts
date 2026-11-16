@@ -8,7 +8,7 @@ import { readLegacyHostEntry } from "../../client/ui/legacy-host-entry";
 
 describe("readLegacyHostEntry", () => {
   it("is the host's module where the host has the entry", () => {
-    const entry = { useRevealedText: (text: string) => text };
+    const entry = { useTimelineStickyHeader: () => null };
     expect(readLegacyHostEntry(() => entry)).toBe(entry);
   });
 
@@ -17,7 +17,7 @@ describe("readLegacyHostEntry", () => {
       throw new Error('Module "@getpaseo/plugin/client/react-native" is not available in plugin client code');
     });
     expect(entry).toEqual({});
-    expect("useRevealedText" in entry).toBe(false);
+    expect("useTimelineStickyHeader" in entry).toBe(false);
   });
 
   it("is an empty module for anything that is not a module", () => {

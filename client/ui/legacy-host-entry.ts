@@ -5,8 +5,10 @@
  * Since Paseo 0.13 that entry is `client/ui` plus `useRevealedText`. Paseo 0.16
  * deprecates both, and the entry goes away after 2027-04-20. Plain UI imports
  * come from `client/ui`, which every supported host (0.14 and later) has. This
- * module is the one place that still reads the old entry, for the extras
- * `client/ui` lacks: `useRevealedText`, and what patched hosts add there.
+ * module is the one place that still reads the old entry, only for what
+ * patched hosts add there (`RewindMenu`, `useTimelineStickyHeader`), after
+ * `client/ui`. The paced reveal no longer comes from the host: the plugin
+ * carries its own (`use-revealed-text`).
  *
  * Not a static import: the bundle is CommonJS, so an import becomes a
  * top-level `require`, and once a host drops the entry its `require` throws
