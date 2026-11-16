@@ -72,7 +72,15 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
   const candidates = app === "zed" && platform === "linux"
     ? [...dirs.map((dir) => join(dir, "zeditor")), join(homedir(), ".local/zed.app/bin/zed"), ...dirs.map((dir) => join(dir, "zed")), ...dirs.map((dir) => join(dir, "zedit")), ...dirs.map((dir) => join(dir, "zed-cli"))]
     : dirs.map((dir) => join(dir, editor.command));
-  const zfs = app === "zed" && platform === "linux" && existsSync("/usr/sbin/zed") ? realpathSync("/usr/sbin/zed") : null;
+  let zfs: string | null = null;
+  let zfsError: unknown;
+  if (app === "zed" && platform === "linux" && existsSync("/usr/sbin/zed")) {
+    try {
+      zfs = realpathSync("/usr/sbin/zed");
+    } catch (error) {
+      zfsError = error;
+    }
+  }
   for (const candidate of candidates) {
     try {
       accessSync(candidate, constants.X_OK);
@@ -81,7 +89,7 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
     }
     if (!statSync(candidate).isFile()) continue;
     const actualPath = realpathSync(candidate);
-    if (zfs && actualPath === zfs) {
+    if ((zfs && actualPath === zfs) || zfsError !== undefined) {
       // On merged-/usr systems /usr/bin/zed and /usr/sbin/zed may be the
       // same file, whether it is the editor or the ZFS daemon.
       try {
@@ -99,6 +107,7 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
       (app === "cursor" && platform === "linux" && isElf(actualPath));
     return { command: candidate, args: [], completion: gui ? "spawn" : "exit" };
   }
+  if (zfsError !== undefined) throw zfsError;
   throw new EditorUnavailableError(`${editor.app} is not installed or its command is not on PATH`);
 }
 

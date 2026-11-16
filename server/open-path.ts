@@ -6,6 +6,7 @@ import { dirname } from "node:path";
  * interpreter (Python Launcher). They are revealed instead.
  */
 const LAUNCHES = /\.(app|command|tool|terminal|workflow|action|scpt|scptd|applescript|pkg|mpkg|dmg|sh|bash|zsh|py|rb|pl|jar|webloc|inetloc|fileloc)$/i;
+const WINDOWS_LAUNCHES = /\.(exe|com|bat|cmd|ps1|msi|msp|scr)$/i;
 
 export interface PathEntry {
   isDirectory(): boolean;
@@ -14,8 +15,9 @@ export interface PathEntry {
 }
 
 /** Whether opening the path would launch it: a launching type, or a file with an execute bit. */
-export function launches(target: string, entry: PathEntry): boolean {
-  return LAUNCHES.test(target.replace(/\/+$/, "")) || (entry.isFile() && (entry.mode & 0o111) !== 0);
+export function launches(target: string, entry: PathEntry, platform = process.platform): boolean {
+  const path = target.replace(/\/+$/, "");
+  return LAUNCHES.test(path) || (entry.isFile() && ((entry.mode & 0o111) !== 0 || (platform === "win32" && WINDOWS_LAUNCHES.test(path))));
 }
 
 /**

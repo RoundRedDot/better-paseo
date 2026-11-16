@@ -29,4 +29,9 @@ describe("path press shell command", () => {
     expect(shellOpenCommand("win32", "C:\\repo\\a.ts", file())).toEqual({ command: "explorer.exe", args: ["/select,C:\\repo\\a.ts"], windowsVerbatimArguments: true });
     expect(shellOpenCommand("linux", "/repo/a.ts", file())).toEqual({ command: "xdg-open", args: ["/repo"] });
   });
+
+  it.each(["exe", "com", "bat", "cmd", "ps1", "msi", "msp", "scr"])("recognises Windows .%s files without a Unix execute bit", (extension) => {
+    expect(launches(`C:\\repo\\setup.${extension.toUpperCase()}`, file(0o644), "win32")).toBe(true);
+    expect(launches(`/repo/setup.${extension}`, file(0o644), "linux")).toBe(false);
+  });
 });

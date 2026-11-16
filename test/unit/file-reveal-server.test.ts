@@ -29,6 +29,7 @@ beforeAll(async () => {
   await writeFile(join(root, "notes.md"), "# notes\n");
   await writeFile(join(root, "Better Paseo Icon.html"), "<html></html>");
   await writeFile(join(root, "run"), "#!/bin/sh\n");
+  await writeFile(join(root, "setup.exe"), "fixture\n");
   await chmod(join(root, "run"), 0o755);
 });
 
@@ -132,6 +133,22 @@ describe("file.reveal on macOS", () => {
       await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ revealed: null, error: "Failed to open path (exit 4)", errorKind: "launch_failed" });
       expect(spawn).toHaveBeenLastCalledWith("xdg-open", [root], expect.anything());
     } finally {
+      Object.defineProperty(process, "platform", platform);
+    }
+  });
+
+  it("reveals a Windows executable even when an editor is selected", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    Object.defineProperty(process, "platform", { ...platform, value: "win32" });
+    settings.app = "zed";
+    editorCommand.mockClear();
+    try {
+      const reveal = await revealHandler();
+      await expect(reveal({ cwd: root, path: "setup.exe", expectedApp: "zed" })).resolves.toMatchObject({ error: null });
+      expect(spawn).toHaveBeenLastCalledWith("explorer.exe", [`/select,${join(root, "setup.exe")}`], expect.anything());
+      expect(editorCommand).not.toHaveBeenCalled();
+    } finally {
+      settings.app = "system";
       Object.defineProperty(process, "platform", platform);
     }
   });

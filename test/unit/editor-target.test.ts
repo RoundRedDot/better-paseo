@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { editorCommand, EditorUnavailableError } from "../../server/editor-target";
 import { preferencesSchema } from "../../shared/preferences-settings";
 
-const fs = vi.hoisted(() => ({ existing: new Set<string>(), executable: new Set<string>(), directories: new Set<string>(), unreadable: new Set<string>(), realpath: new Map<string, string>(), appImages: new Set<string>(), elf: new Set<string>(), handles: new Map<number, string>(), nextFd: 100, versions: new Map<string, string>() }));
+const fs = vi.hoisted(() => ({ existing: new Set<string>(), executable: new Set<string>(), directories: new Set<string>(), unreadable: new Set<string>(), realpath: new Map<string, string>(), realpathErrors: new Set<string>(), appImages: new Set<string>(), elf: new Set<string>(), handles: new Map<number, string>(), nextFd: 100, versions: new Map<string, string>() }));
 vi.mock("node:child_process", async (original) => ({
   ...await original<object>(),
   execFile: (path: string, _args: string[], _options: unknown, callback: (error: Error | null, stdout: string, stderr: string) => void) => {
@@ -15,7 +15,7 @@ vi.mock("node:fs", async (original) => ({
   existsSync: (path: string) => fs.existing.has(path),
   accessSync: (path: string) => { if (!fs.executable.has(path)) throw new Error("ENOENT"); },
   statSync: (path: string) => ({ isFile: () => !fs.directories.has(path) }),
-  realpathSync: (path: string) => fs.realpath.get(path) ?? path,
+  realpathSync: (path: string) => { if (fs.realpathErrors.has(path)) throw new Error("EACCES"); return fs.realpath.get(path) ?? path; },
   openSync: (path: string) => { if (fs.unreadable.has(path)) throw new Error("EACCES"); const fd = fs.nextFd++; fs.handles.set(fd, path); return fd; },
   readSync: (fd: number, buffer: Buffer) => {
     if (fs.elf.has(fs.handles.get(fd)!)) {
@@ -29,7 +29,7 @@ vi.mock("node:fs", async (original) => ({
   closeSync: (fd: number) => { fs.handles.delete(fd); },
 }));
 const originalEnv = { ...process.env };
-afterEach(() => { process.env = { ...originalEnv }; fs.existing.clear(); fs.executable.clear(); fs.directories.clear(); fs.unreadable.clear(); fs.realpath.clear(); fs.appImages.clear(); fs.elf.clear(); fs.handles.clear(); fs.versions.clear(); });
+afterEach(() => { process.env = { ...originalEnv }; fs.existing.clear(); fs.executable.clear(); fs.directories.clear(); fs.unreadable.clear(); fs.realpath.clear(); fs.realpathErrors.clear(); fs.appImages.clear(); fs.elf.clear(); fs.handles.clear(); fs.versions.clear(); });
 
 describe("file open preference", () => {
   it("defaults to the system app and preserves a selected editor", () => {
@@ -160,6 +160,17 @@ describe("file open preference", () => {
     fs.realpath.set("/usr/sbin/zed", "/usr/bin/zed");
     fs.versions.set("/usr/bin/zed", "Zed 1.0 – /usr/libexec/zed-editor");
     expect((await editorCommand("zed", "linux")).command).toBe("/usr/bin/zed");
+  });
+
+  it("verifies a Zed candidate if the ZFS path cannot be resolved", async () => {
+    process.env.PATH = "/opt/bin";
+    fs.existing.add("/usr/sbin/zed");
+    fs.realpathErrors.add("/usr/sbin/zed");
+    fs.executable.add("/opt/bin/zeditor");
+    fs.versions.set("/opt/bin/zeditor", "Zed 1.0 – /opt/zed");
+    expect((await editorCommand("zed", "linux")).command).toBe("/opt/bin/zeditor");
+    fs.versions.delete("/opt/bin/zeditor");
+    await expect(editorCommand("zed", "linux")).rejects.toThrow("EACCES");
   });
 
   it("reports an editor missing from PATH", async () => {
