@@ -223,7 +223,7 @@ export function DesktopBoard(props: {
   const setPreference = useCallback((update: (current: SidebarPreference) => SidebarPreference) => {
     setPreferenceState((current) => {
       const next = update(current);
-      writeSidebarPreference(next);
+      writeSidebarPreference(next, current);
       return next;
     });
   }, []);

@@ -218,4 +218,22 @@ describe("device Tasks preferences by host version", () => {
     act(() => { a.unmount(); b.unmount(); });
     vi.doUnmock("../../client/tasks/device-runtime-version");
   });
+
+  it("saves only what a board changed in the sidebar, so another board's change survives", async () => {
+    const host = mockDeviceHook();
+    host.record = { revision: JSON.stringify({ sidebar: { open: true, width: 300 } }), values: { sidebar: { open: true, width: 300 } } };
+    const preferences = await import("../../client/tasks/device-preferences");
+    const sidebar = await import("../../client/tasks/board/sidebar-model");
+    function Probe() { preferences.useDeviceTasksPreferences(DEFAULT_TASKS_SETTINGS); return null; }
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(Probe)); });
+    await act(async () => { await vi.waitFor(() => expect(preferences.deviceTasksStore().snapshot().ready).toBe(true)); });
+    // Two mounted boards both showed { open: true, width: 300 }.
+    const shown = { open: true, width: 300 };
+    act(() => sidebar.writeSidebarPreference({ ...shown, width: 400 }, shown));
+    act(() => sidebar.writeSidebarPreference({ ...shown, open: false }, shown));
+    await act(async () => { await vi.waitFor(() => expect(host.record.values).toMatchObject({ sidebar: { open: false, width: 400 } })); });
+    expect(sidebar.readSidebarPreference()).toMatchObject({ open: false, width: 400 });
+    act(() => renderer.unmount());
+  });
 });

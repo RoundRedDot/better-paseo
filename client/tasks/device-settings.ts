@@ -126,9 +126,16 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
       if (await act.save(values, current.revision)) {
         // The next write needs the revision the host gave this one; the hook reports it.
         await until(() => "revision" in remote && remote.revision !== current.revision, REPORT_WAIT_MS);
-        // The report can already hold a later save over this one (another window, another
-        // version's bundle): that record is the one to show and copy.
-        const reported = remote.status === "ready" && remote.revision !== current.revision ? remote.values : values;
+        if ("revision" in remote && remote.revision === current.revision) {
+          // No report moved the record: either it is late, or a later save put the old content
+          // back (the revision is the content). A reread tells: it reports a moved record, and
+          // reports nothing when the record is the one already reported.
+          await act.reload().catch(() => undefined);
+          await until(() => "revision" in remote && remote.revision !== current.revision, REPORT_WAIT_MS);
+        }
+        // The record as last reported holds any later save over this one (another window,
+        // another version's bundle): that is the one to show and copy.
+        const reported = remote.status === "ready" ? remote.values : values;
         deps.mirror(reported);
         return reported;
       }
@@ -202,11 +209,16 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
      */
     sidebar: {
       stored: (): unknown => (sidebarSaving > 0 ? sidebarLatest : remote.status === "ready" ? remote.values.sidebar : undefined),
-      persist(next: unknown) {
-        const value = z.json().parse(next);
-        sidebarLatest = value;
+      /** Saves the fields `patch` changed, over the sidebar as read then: another board's other fields survive. */
+      persist(patch: Record<string, unknown>) {
+        const changes = z.json().parse(patch) as Record<string, unknown>;
+        const objectOf = (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+        const shown = sidebarSaving > 0 ? sidebarLatest : remote.status === "ready" ? remote.values.sidebar : undefined;
+        sidebarLatest = { ...objectOf(shown), ...changes } as DeviceRecord["sidebar"];
         sidebarSaving += 1;
-        void serial(() => save((record) => ({ ...record, sidebar: value })))
+        void serial(() => save((record) => ({ ...record, sidebar: { ...objectOf(record.sidebar), ...changes } as DeviceRecord["sidebar"] })))
+          // The last pending save's record; an earlier one would hide a later change still saving.
+          .then((saved) => { if (sidebarSaving === 1) sidebarLatest = saved.sidebar; })
           .catch((error: unknown) => console.error("Could not save the Tasks sidebar", error))
           .finally(() => { sidebarSaving -= 1; });
       },

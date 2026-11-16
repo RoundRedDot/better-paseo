@@ -307,6 +307,22 @@ describe("device Tasks preferences in Paseo's device settings", () => {
     expect(mirrored.at(-1)).toEqual({ board: { ...seed, hideSubtasks: true, titleLines: "4" } });
   });
 
+  it("shows the record a later save put back to its old content, not its own values", async () => {
+    let host!: ReturnType<typeof fakeHost>;
+    let once = true;
+    // Another writer restores the previous record before the hook reports this save: the
+    // revision (the content) is the one this save started from.
+    host = fakeHost({ board: seed }, { afterSave: () => { if (!once) return; once = false; host.writeElsewhere({ board: seed }); } });
+    const { adapter, store, mirrored } = setup({ host });
+    host.mount(adapter);
+    store.load(seed);
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    await store.update({ hideSubtasks: !seed.hideSubtasks });
+    expect(host.record()).toEqual({ board: seed });
+    expect(store.snapshot().values?.hideSubtasks).toBe(seed.hideSubtasks);
+    expect(mirrored.at(-1)).toEqual({ board: seed });
+  }, 10_000);
+
   it("offers a provisional copy for the shortcut until the settings load", async () => {
     const adapter = createDeviceSettingsAdapter({ legacyBoard: async () => null, legacySidebar: async () => null, mirror() {} });
     const copy = JSON.stringify({ ...seed, openShortcut: "Mod+Shift+KeyK" });

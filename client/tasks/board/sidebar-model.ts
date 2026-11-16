@@ -188,10 +188,13 @@ export function readSidebarPreference(): SidebarPreference {
   return read;
 }
 
-export function writeSidebarPreference(next: SidebarPreference): void {
+/** `previous` is what this board showed: only the fields it changed are saved, not another board's. */
+export function writeSidebarPreference(next: SidebarPreference, previous?: SidebarPreference): void {
   const device = deviceSidebarSource();
   if (device) {
-    device.persist(next);
+    const keys = [...new Set([...Object.keys(next), ...Object.keys(previous ?? {})])] as (keyof SidebarPreference)[];
+    const changed = previous ? Object.fromEntries(keys.filter((key) => next[key] !== previous[key]).map((key) => [key, next[key] ?? null])) : { ...next };
+    if (Object.keys(changed).length > 0) device.persist(changed);
     return;
   }
   remembered = next;
