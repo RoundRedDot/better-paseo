@@ -37,6 +37,33 @@ describe("open process completion", () => {
     await expect(waitForOpen(child, "exit", "Failed to open path")).rejects.toThrow("Failed to open path (exit 1): launcher detail");
   });
 
+  it("captures stderr delivered after a GUI process exits", async () => {
+    const child = childProcess();
+    const stderr = new PassThrough();
+    Object.defineProperty(child, "stderr", { value: stderr });
+    const result = waitForOpen(child, "gui", "Failed to open file with cursor");
+    child.emit("spawn");
+    child.emit("exit", 1);
+    stderr.end("AppImage requires FUSE");
+    await expect(result).rejects.toThrow("Failed to open file with cursor (exit 1): AppImage requires FUSE");
+    expect(child.unref).toHaveBeenCalledOnce();
+  });
+
+  it("returns for a GUI that stays running and never terminates it", async () => {
+    vi.useFakeTimers();
+    const child = childProcess();
+    child.kill = vi.fn();
+    Object.defineProperty(child, "stderr", { value: new PassThrough() });
+    const result = waitForOpen(child, "gui", "Failed to open path");
+    child.emit("spawn");
+    await vi.advanceTimersByTimeAsync(500);
+    await expect(result).resolves.toBeUndefined();
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(child.unref).toHaveBeenCalledOnce();
+    child.emit("exit", 1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("reports an unconfirmed launch without terminating a long-running process", async () => {
     vi.useFakeTimers();
     const child = childProcess();

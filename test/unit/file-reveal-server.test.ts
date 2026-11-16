@@ -114,10 +114,10 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
     }
   });
 
-  it("opens VS Code without an interactive WSL prompt", async () => {
+  it.each(["vscode", "cursor"])("opens %s without an interactive WSL prompt", async (app) => {
     const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
     Object.defineProperty(process, "platform", { ...platform, value: "linux" });
-    settings.app = "vscode";
+    settings.app = app;
     try {
       editorCommand.mockReturnValueOnce({ command: "/usr/bin/code", args: [], completion: "exit" });
       const reveal = await revealHandler();
@@ -155,6 +155,23 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
     const reveal = await revealHandler();
     await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: null });
     settings.app = "system";
+  });
+
+  it("reports a GUI process that exits immediately after starting", async () => {
+    settings.app = "cursor";
+    editorCommand.mockReturnValueOnce({ command: "/usr/bin/cursor", args: [], completion: "spawn" });
+    spawn.mockImplementationOnce(() => {
+      const child = new EventEmitter() as EventEmitter & { unref: () => void };
+      child.unref = vi.fn();
+      queueMicrotask(() => { child.emit("spawn"); child.emit("exit", 1); });
+      return child;
+    });
+    try {
+      const reveal = await revealHandler();
+      await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ errorKind: "launch_failed", errorApp: "cursor" });
+    } finally {
+      settings.app = "system";
+    }
   });
 
   it("reports a launcher that starts but exits unsuccessfully", async () => {

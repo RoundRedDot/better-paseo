@@ -520,10 +520,10 @@ export default function contribute(server: PluginServerContext) {
         const child = spawn(editor.command, [...editor.args, target], {
           detached: true,
           windowsHide: true,
-          stdio: editor.completion === "exit" ? ["ignore", "ignore", "pipe"] : "ignore",
-          ...(app === "vscode" && process.platform === "linux" ? { env: { ...process.env, DONT_PROMPT_WSL_INSTALL: "1" } } : null),
+          stdio: ["ignore", "ignore", "pipe"],
+          ...((app === "vscode" || app === "cursor") && process.platform === "linux" ? { env: { ...process.env, DONT_PROMPT_WSL_INSTALL: "1" } } : null),
         });
-        await waitForOpen(child, editor.completion, `Failed to open file with ${app}`);
+        await waitForOpen(child, editor.completion === "spawn" ? "gui" : "exit", `Failed to open file with ${app}`);
       }
       return { revealed: target, error: null };
     } catch (error) {
