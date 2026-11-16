@@ -84,7 +84,7 @@ describe("device Tasks preferences by host version", () => {
     act(() => renderer.unmount());
   });
 
-  it("reads and saves through the settings hook on Paseo 0.16, keeping a web copy", async () => {
+  it("reads and saves through the settings hook on Paseo 0.16, leaving the old records to an older plugin", async () => {
     const host = mockDeviceHook();
     (holder.localStorage as Storage).setItem("paseo/better-chat/tasks/sidebar/v1", JSON.stringify({ open: false, width: 380 }));
     const { deviceTasksStore, useDeviceTasksPreferences } = await import("../../client/tasks/device-preferences");
@@ -105,10 +105,12 @@ describe("device Tasks preferences by host version", () => {
     await act(async () => { await vi.waitFor(() => expect(host.record.values).toMatchObject({ sidebar: { open: true, width: 360 } })); });
     expect(host.record.values).toMatchObject({ board: { titleLines: "3" } });
     expect(host.saved.length).toBeGreaterThanOrEqual(2);
-    // The web copy follows, for the shortcut at startup and an older host.
-    const copy = JSON.parse((holder.localStorage as Storage).getItem("paseo/better-chat/tasks/device-board/v1")!);
+    // The web copy follows, for the shortcut at startup, in a key no older plugin uses.
+    const copy = JSON.parse((holder.localStorage as Storage).getItem("paseo/better-chat/tasks/device-settings-copy/v1")!);
     expect(copy.titleLines).toBe("3");
-    expect(JSON.parse((holder.localStorage as Storage).getItem("paseo/better-chat/tasks/sidebar/v1")!)).toEqual({ open: true, width: 360 });
+    // The old records were only read: another host's older plugin may still be writing them.
+    expect((holder.localStorage as Storage).getItem("paseo/better-chat/tasks/device-board/v1")).toBeNull();
+    expect(JSON.parse((holder.localStorage as Storage).getItem("paseo/better-chat/tasks/sidebar/v1")!)).toEqual({ open: false, width: 380 });
     act(() => renderer.unmount());
   });
 

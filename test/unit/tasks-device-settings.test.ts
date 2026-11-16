@@ -60,13 +60,15 @@ function fakeHost(initial: DeviceRecord | null = null) {
 function setup(options: { host?: ReturnType<typeof fakeHost>; legacyBoard?: string | null; legacySidebar?: string | null } = {}) {
   const host = options.host ?? fakeHost();
   const mirrored: DeviceRecord[] = [];
+  let store!: ReturnType<typeof createDeviceTasksStore>;
   const adapter = createDeviceSettingsAdapter({
     legacyBoard: async () => options.legacyBoard ?? null,
     legacySidebar: async () => options.legacySidebar ?? null,
     mirror: (record) => mirrored.push(record),
+    onBoard: (board) => store?.receive(board),
   });
   installDeviceSettings(adapter);
-  const store = createDeviceTasksStore(adapter.storage);
+  store = createDeviceTasksStore(adapter.storage);
   return { host, adapter, store, mirrored };
 }
 
@@ -219,6 +221,34 @@ describe("device Tasks preferences in Paseo's device settings", () => {
     await vi.waitFor(() => expect(host.record()?.sidebar).toEqual({ open: false, width: 400 }));
     await tick();
     expect(adapter.sidebar.stored()).toEqual({ open: false, width: 400 });
+  });
+
+  it("shows the board another window saved when a sidebar save reads it again", async () => {
+    const { host, adapter, store } = setup({ host: fakeHost({ board: seed }) });
+    host.mount(adapter);
+    store.load(seed);
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    host.writeElsewhere({ board: { ...seed, titleLines: "4" } });
+    adapter.sidebar.persist({ open: false, width: 400 });
+    await vi.waitFor(() => expect(host.record()?.sidebar).toEqual({ open: false, width: 400 }));
+    expect(store.snapshot().values?.titleLines).toBe("4");
+    await store.update({ titleLines: "2" });
+    expect(host.record()?.board).toMatchObject({ titleLines: "2" });
+  });
+
+  it("keeps a local edit that is still saving when another record is reported", async () => {
+    const { host, adapter, store } = setup({ host: fakeHost({ board: seed }) });
+    host.mount(adapter);
+    store.load(seed);
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    host.writeElsewhere({ board: { ...seed, titleLines: "4" } });
+    const seen: boolean[] = [];
+    store.subscribe(() => seen.push(store.snapshot().values!.hideSubtasks));
+    // The edit's own conflict reread reports the other board while the edit is pending.
+    await store.update({ hideSubtasks: true });
+    expect(seen.length).toBeGreaterThan(1);
+    expect(seen.every(Boolean)).toBe(true);
+    expect(store.snapshot().values).toMatchObject({ hideSubtasks: true, titleLines: "4" });
   });
 
   it("offers a provisional copy for the shortcut until the settings load", async () => {

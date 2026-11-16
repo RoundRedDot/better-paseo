@@ -32,18 +32,22 @@ function legacyStorage(): DevicePreferenceStorage {
   };
 }
 
-/** Paseo's device settings. The old records are read once to import them; web keeps them as a copy for an older host. */
-function deviceSettingsStorage(): DevicePreferenceStorage {
+/**
+ * Paseo's device settings. The old records are only read, once, to import them: another host
+ * may still run an older plugin that keeps writing them, and the two must not overwrite each
+ * other. Web keeps its own copy of the board for the shortcut at startup.
+ */
+function deviceSettingsStorage(receive: (board: string | null) => void): DevicePreferenceStorage {
   const web = Platform.OS === "web";
   const adapter = createDeviceSettingsAdapter({
+    onBoard: receive,
     legacyBoard: async () => web ? readDevicePreference(LEGACY_BOARD_KEY) : readNative(LEGACY_BOARD_KEY),
     // Only web kept the sidebar across restarts.
     legacySidebar: async () => web ? readDevicePreference(LEGACY_SIDEBAR_KEY) : null,
     mirror(record: DeviceRecord) {
-      if (!web) return;
+      if (!web || record.board === undefined) return;
       try {
-        if (record.board !== undefined) writeDevicePreference(LEGACY_BOARD_KEY, JSON.stringify(record.board));
-        if (record.sidebar !== undefined) writeDevicePreference(LEGACY_SIDEBAR_KEY, JSON.stringify(record.sidebar));
+        writeDevicePreference(STARTUP_COPY_KEY, JSON.stringify(record.board));
       } catch {
         // Storage full or blocked: the device settings still hold them.
       }
@@ -53,13 +57,21 @@ function deviceSettingsStorage(): DevicePreferenceStorage {
   return adapter.storage;
 }
 
+/** The board's last saved device preferences on web, read before the settings hook reports; never read by an older plugin. */
+const STARTUP_COPY_KEY = "paseo/better-chat/tasks/device-settings-copy/v1";
+
+/** The web copy, else (before the first save) the old record it was imported from. */
+function startupCopy(): string | null {
+  return readDevicePreference(STARTUP_COPY_KEY) ?? readDevicePreference(LEGACY_BOARD_KEY);
+}
+
 /**
  * The store and adapter code this bundle carries. Bump it whenever either changes: a plugin
  * update loads the new bundle into a runtime that still holds the old objects, whose closures
  * would keep running the old code. A newer bundle replaces them; an older one (another host
  * still on an older plugin) uses the newer ones.
  */
-const DEVICE_RUNTIME_VERSION = 3;
+const DEVICE_RUNTIME_VERSION = 4;
 
 interface DeviceRuntime {
   store: DeviceTasksStore;
@@ -76,9 +88,13 @@ function runtime(): DeviceRuntime {
     const forTests = holder.__betterPaseoDeviceTasksStorageForTests as DevicePreferenceStorage | undefined;
     const deviceSettings = !forTests && TASKS_DEVICE_SETTINGS !== null && holder.__betterPaseoLegacyDeviceStorageForTests !== true;
     if (!deviceSettings) installDeviceSettings(null);
-    // On web the old record is the device settings' copy: the shortcut works before a hook reports them.
-    const provisional = deviceSettings && Platform.OS === "web" ? () => readDevicePreference(LEGACY_BOARD_KEY) : undefined;
-    holder[RUNTIME_KEY] = { store: createDeviceTasksStore(forTests ?? (deviceSettings ? deviceSettingsStorage() : legacyStorage()), provisional), deviceSettings, version: DEVICE_RUNTIME_VERSION } satisfies DeviceRuntime;
+    // On web the shortcut works from the copy before a hook reports the device settings.
+    const provisional = deviceSettings && Platform.OS === "web" ? startupCopy : undefined;
+    // The device settings report boards on their own; the store is made right after them.
+    let store: DeviceTasksStore | null = null;
+    const storage = forTests ?? (deviceSettings ? deviceSettingsStorage((board) => store?.receive(board)) : legacyStorage());
+    store = createDeviceTasksStore(storage, provisional);
+    holder[RUNTIME_KEY] = { store, deviceSettings, version: DEVICE_RUNTIME_VERSION } satisfies DeviceRuntime;
   }
   return holder[RUNTIME_KEY] as DeviceRuntime;
 }

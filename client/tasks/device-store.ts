@@ -43,6 +43,14 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
   let loading = false;
   let writes = Promise.resolve();
   let revision = 0;
+  /** Writes not settled yet: a reported record waits for them, so a local edit is never undone. */
+  let inflight = 0;
+  const track = <T,>(pending: Promise<T>): Promise<T> => {
+    inflight += 1;
+    const done = () => { inflight -= 1; };
+    pending.then(done, done);
+    return pending;
+  };
   const emit = () => { for (const listener of [...listeners]) listener(); };
   const fail = (error: unknown) => {
     state = { ...state, error: error instanceof Error ? error.message : String(error) };
@@ -65,6 +73,21 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
   };
   return {
     snapshot: () => state,
+    /**
+     * A record the storage reported on its own (another window saved, a reread after a
+     * conflict). Taken while no write of this store is pending; a pending one adopts the
+     * record it saves.
+     */
+    receive(raw: string | null) {
+      if (!state.ready || inflight > 0 || raw === null) return;
+      let values: DeviceBoardPreferences;
+      try {
+        values = decode(raw);
+      } catch {
+        return;
+      }
+      if (!state.values || DEVICE_PREFERENCE_FIELDS.some((key) => state.values![key] !== values[key])) accept(values);
+    },
     /** The values, or until they load the provisional copy's; null when neither is there. */
     current(): DeviceBoardPreferences | null {
       if (state.values || state.ready || !provisional) return state.values;
@@ -106,7 +129,7 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
       const previous = state;
       const ownRevision = ++revision;
       accept(values);
-      const pending = writes.then(() => storage.write(JSON.stringify(values)));
+      const pending = track(writes.then(() => storage.write(JSON.stringify(values))));
       writes = pending.then(() => {}, () => {});
       return pending.then((stored) => {
         if (revision === ownRevision && state.error) { state = { ...state, error: null }; emit(); }
@@ -125,7 +148,7 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
       const ownRevision = ++revision;
       accept(values);
       const changed = Object.fromEntries(DEVICE_PREFERENCE_FIELDS.filter((key) => previous[key] !== values[key]).map((key) => [key, values[key]])) as Partial<DeviceBoardPreferences>;
-      const pending = writes.then(() => storage.write(JSON.stringify(values), { kind: "patch", patch: changed }));
+      const pending = track(writes.then(() => storage.write(JSON.stringify(values), { kind: "patch", patch: changed })));
       writes = pending.then(() => {}, () => {});
       return pending.then((stored) => {
         if (revision === ownRevision && state.error) { state = { ...state, error: null }; emit(); }

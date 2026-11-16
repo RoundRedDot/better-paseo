@@ -53,8 +53,10 @@ export interface DeviceSettingsDeps {
   /** The board's own record from before, raw; imported once into a record never saved. */
   legacyBoard(): Promise<string | null>;
   legacySidebar(): Promise<string | null>;
-  /** Copies a saved record back to the old storage, so an older host still finds it. */
+  /** Keeps a copy of each saved record where it can be read before a hook reports. */
   mirror(record: DeviceRecord): void;
+  /** Hears the board as each report brings it (another window's save, a reread). */
+  onBoard?(board: string | null): void;
 }
 
 function parseJson(raw: string | null): DeviceRecord["board"] {
@@ -187,6 +189,7 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
       bridges.set(token, own);
       remote = next;
       reports += 1;
+      if (next.status === "ready") deps.onBoard?.(boardText(next.values));
       for (const check of [...waiters]) check();
     },
     leave(token: object) {
