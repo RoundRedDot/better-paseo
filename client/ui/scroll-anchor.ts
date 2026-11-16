@@ -117,7 +117,7 @@ export function useListScrollLock(): (locked: boolean) => void {
 
 export interface ScrollAnchor {
   /** For the control that has to stay put. */
-  ref: React.MutableRefObject<View | null>;
+  ref: React.RefObject<View | null>;
   /** On press-in: remember where the control is. */
   hold(): void;
   /** On press, just before the change: correct the next layout. */

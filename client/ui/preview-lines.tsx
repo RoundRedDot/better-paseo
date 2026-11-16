@@ -5,8 +5,7 @@ import {
   Text,
   View,
   type LayoutChangeEvent,
-  type TextLayoutEventData,
-  type NativeSyntheticEvent,
+  type TextLayoutEvent,
   type TextStyle,
   type ViewStyle,
 } from "react-native";
@@ -305,7 +304,7 @@ function PreviewLinesBody({ text, lines, style: given, tokens: rowTokens, render
     if (sameLineTops(shown.current.tops, next) && (nextBottom === null || Math.abs(nextBottom - shown.current.bottom) < 0.5)) return;
     setMeasured({ tops: next, bottom: nextBottom });
   }, []);
-  const onTextLayout = useCallback((event: NativeSyntheticEvent<TextLayoutEventData>) => {
+  const onTextLayout = useCallback((event: TextLayoutEvent) => {
     const visual = (event.nativeEvent.lines as ReadonlyArray<VisualLine | string>)
       .map((line) => (typeof line === "string" ? { text: line } : line));
     place(sourceLineTops(visual, lineHeight, lines.length), layoutBottom(visual, lineHeight));

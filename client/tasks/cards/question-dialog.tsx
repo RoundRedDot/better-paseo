@@ -74,7 +74,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
   const ownContext = useQuestionContext(props.inline ? undefined : props.paseo, state.agentId, state.permission);
   const [index, setIndex] = useState(0);
   const [inputFocused, setInputFocused] = useState(false);
-  const scroll = useRef<React.ElementRef<typeof ScrollView>>(null);
+  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const revealInput = useCallback(() => {
     if (Platform.OS !== "web") scroll.current?.scrollToEnd({ animated: true });
   }, []);
@@ -175,7 +175,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
 
 function QuestionTextInput({ borderColor, focusColor, onFocusChange, onReveal, style, ...props }: React.ComponentProps<typeof TextInput> & { borderColor: string; focusColor: string; onFocusChange(focused: boolean): void; onReveal(): void }) {
   const [focused, setFocused] = useState(false);
-  const input = useRef<React.ElementRef<typeof TextInput>>(null);
+  const input = useRef<React.ComponentRef<typeof TextInput>>(null);
   useEffect(() => {
     if (!focused || Platform.OS === "web") return;
     const subscription = Keyboard.addListener("keyboardDidHide", () => {

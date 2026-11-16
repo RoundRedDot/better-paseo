@@ -57,7 +57,7 @@ export function CardButton(props: {
   const scale = useTasksFontScale();
   const { hovered: hover, hoverProps } = useHover();
   const reduced = useReducedMotion();
-  const labelRef = useRef<React.ElementRef<typeof Text>>(null);
+  const labelRef = useRef<React.ComponentRef<typeof Text>>(null);
   const panelRef = useRef<View>(null);
   const expansion = useRef<ReturnType<typeof openOptionExpansion> | null>(null);
   const [showExpansion, setShowExpansion] = useState(false);

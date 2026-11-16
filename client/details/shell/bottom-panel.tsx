@@ -12,7 +12,7 @@
  * never seen; then it slides up. On a phone, switching blocks holds the
  * drawer's height. The floating panel adjusts to the new content at fit.
  */
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject, type ReactNode } from "react";
 import { Animated, Platform, Pressable, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import type { Detent } from "../contracts";
@@ -83,7 +83,7 @@ export interface BottomPanelProps {
   /** The panel's resting top in the stage, for the timeline sync. */
   onTop(top: number): void;
   /** Filled with the vertical drag, for the header's handlers. */
-  dragRef: MutableRefObject<DragTarget | null>;
+  dragRef: RefObject<DragTarget | null>;
   /** Holds the host's pans while a finger drags; returns the release. */
   hold(): () => void;
   /** The body's pull-down hand-over: true at its top, null when unknown. */
