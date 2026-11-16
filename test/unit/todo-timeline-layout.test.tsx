@@ -1,3 +1,4 @@
+const toast = vi.hoisted(() => ({ error: () => {} }));
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ReactTestInstance } from "react-test-renderer";
@@ -6,7 +7,7 @@ import type { LiveTodoPayload, LiveToolCallPayload } from "../../client/live-ren
 import { measureHostTree, type Frame } from "./helpers/yoga-host-layout";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({ Icon: () => null, useRevealedText: (text: string) => text }));
+vi.mock("@getpaseo/plugin/client/react-native", () => ({ useToast: () => toast, Icon: () => null, useRevealedText: (text: string) => text }));
 vi.mock("@getpaseo/plugin/client", () => ({ useAgent: () => undefined, useWorkspace: () => undefined, useRpc: () => () => Promise.resolve(null) }));
 vi.mock("../../client/preferences", async (original) => ({ ...await original<object>(),
   useEnhancerPreferences: () => ({ compactRowSpacing: false, uiFont: "system" }) }));

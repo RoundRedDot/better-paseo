@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useAgent, usePaseo, useRpc } from "@getpaseo/plugin/client";
+import { useToast } from "@getpaseo/plugin/client/react-native";
 import { useRevealedText } from "./ui/use-revealed-text";
 import { ChatComposerContext, type ComposerTimelineItemProps as PluginTimelineItemProps } from "./ui/chat-composer";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -169,6 +170,7 @@ function LiveToolCallRendererBody(props: PluginTimelineItemProps<LiveToolCallPay
     item.data.phase === undefined ? null : item.data.phase === "streaming",
   );
   const revealPath = useRpc(revealPathRpc);
+  const toast = useToast();
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
@@ -205,9 +207,9 @@ function LiveToolCallRendererBody(props: PluginTimelineItemProps<LiveToolCallPay
   const pathCwdRef = useRef<string | undefined>(undefined);
   const handleRevealPath = useCallback(
     (path: string) => {
-      void revealPath({ cwd: pathCwdRef.current ?? "", path }).catch(() => {});
+      void revealPath({ cwd: pathCwdRef.current ?? "", path }).then((result) => { if (result.error) toast.error(result.error); }).catch((error: unknown) => toast.error(String(error)));
     },
-    [revealPath],
+    [revealPath, toast],
   );
   // Roots for relative paths (plan §3.9): workspace, project, agent cwd.
   const pathContext = usePathContextValue(agentId, handleRevealPath);
@@ -521,10 +523,11 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp }: Plu
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
   const revealPath = useRpc(revealPathRpc);
+  const toast = useToast();
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const onRevealPath = useCallback((path: string) => {
-    void revealPath({ cwd: cwd ?? "", path }).catch(() => {});
-  }, [cwd, revealPath]);
+    void revealPath({ cwd: cwd ?? "", path }).then((result) => { if (result.error) toast.error(result.error); }).catch((error: unknown) => toast.error(String(error)));
+  }, [cwd, revealPath, toast]);
   const probe = probeCard("assistant", textItemKey("assistant", item.data.text), false);
   const hostSlotKey = useRef(`assistant:${agentId}:${timestamp.getTime()}:${item.data.blockIndex ?? "block"}`).current;
   return <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}
@@ -591,12 +594,13 @@ function LiveAssistantMessageRenderer({
   // A path in the prose reveals like a path in a tool card: one daemon RPC,
   // relative to the agent's directory.
   const revealPath = useRpc(revealPathRpc);
+  const toast = useToast();
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const handleRevealPath = useCallback(
     (path: string) => {
-      void revealPath({ cwd: cwd ?? "", path }).catch(() => {});
+      void revealPath({ cwd: cwd ?? "", path }).then((result) => { if (result.error) toast.error(result.error); }).catch((error: unknown) => toast.error(String(error)));
     },
-    [cwd, revealPath],
+    [cwd, revealPath, toast],
   );
 
   return (

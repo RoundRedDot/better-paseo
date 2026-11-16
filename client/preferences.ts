@@ -14,6 +14,7 @@ import {
   clampHoverDelay,
   preferencesSchema,
   type StoredPreferences,
+  type FileOpenApp,
 } from "../shared/preferences-settings";
 import type { SettingsLanguagePreference } from "./i18n/settings-strings";
 
@@ -107,6 +108,7 @@ export interface EnhancerPreferences {
   blockFontSize: number;
   toolDetail: ToolDetailPreference;
   pathDisplay: PathDisplayPreference;
+  fileOpenApp: FileOpenApp;
   /** Show desktop hover previews for collapsed rows and file paths. */
   hoverPreview: boolean;
   /** Seconds the pointer rests before a desktop hover preview opens (0-10, tenths). */
@@ -226,6 +228,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   blockFontSize: BLOCK_FONT_SIZE_DEFAULT,
   toolDetail: "collapsed",
   pathDisplay: "relative",
+  fileOpenApp: "system",
   hoverPreview: true,
   hoverDelaySeconds: HOVER_DELAY_DEFAULT,
   previewWrap: true,

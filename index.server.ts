@@ -22,7 +22,8 @@ import { MARK_BITMAPS } from "./server/mark-bitmaps";
 import { writePerfDump } from "./server/perf-dump";
 import { registerTasksServer } from "./server/tasks/register";
 import { registerTurnUsageServer } from "./server/turn-usage";
-import { shellOpenCommand, type PathEntry } from "./server/open-path";
+import { shellOpenCommand, launches, type PathEntry } from "./server/open-path";
+import { editorCommand } from "./server/editor-target";
 
 /**
  * Image types worth inlining, and the mime each one needs in its data URI.
@@ -497,7 +498,28 @@ export default function contribute(server: PluginServerContext) {
     const target = isAbsolute(requested) ? requested : resolve(input.cwd, requested);
     try {
       const entry = await stat(target);
-      openWithShell(target, entry);
+      if (entry.isDirectory() || launches(target, entry)) {
+        openWithShell(target, entry);
+        return { revealed: target, error: null };
+      }
+      const settings = await preferences.read();
+      if (settings.status !== "ready") throw new Error("File open settings are unavailable");
+      const app = settings.values.fileOpenApp;
+      if (app === "system") {
+        openWithShell(target, entry);
+      } else {
+        const editor = editorCommand(app);
+        const child = spawn(editor.command, [...editor.args, target], { detached: true, stdio: "ignore" });
+        await new Promise<void>((resolve, reject) => {
+          child.once("error", reject);
+          if (editor.command === "open") {
+            child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`Failed to open file with ${app} (exit ${code})`)));
+          } else {
+            child.once("spawn", resolve);
+          }
+        });
+        child.unref();
+      }
       return { revealed: target, error: null };
     } catch (error) {
       return {

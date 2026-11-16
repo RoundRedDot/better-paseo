@@ -20,7 +20,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Animated, Modal, Platform, StyleSheet, View, useWindowDimensions, type ViewStyle } from "react-native";
 import { useRpc } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon, useToast } from "@getpaseo/plugin/client/react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { DetailsShellContext, type BlockEntry, type Detent, type DetailsForm, type DetailsShellValue, type DetailsZoom } from "../contracts";
 import { useBlock, useBlockList } from "../block-registry";
@@ -121,10 +121,11 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   const [insets, insetProbe] = useSafeInsets();
   const lockList = useListScrollLock();
   const revealPath = useRpc(revealPathRpc);
+  const toast = useToast();
   const cwd = useRef<string | undefined>(undefined);
   const reveal = useCallback((path: string) => {
-    void revealPath({ cwd: cwd.current ?? "", path }).catch(() => {});
-  }, [revealPath]);
+    void revealPath({ cwd: cwd.current ?? "", path }).then((result) => { if (result.error) toast.error(result.error); }).catch((error: unknown) => toast.error(String(error)));
+  }, [revealPath, toast]);
   const paths = usePathContextValue(agentId, reveal);
   cwd.current = paths.cwd;
 

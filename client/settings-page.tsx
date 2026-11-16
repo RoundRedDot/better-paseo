@@ -1050,6 +1050,25 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           stacked
         />
         <SettingRow
+          title={t.fileOpenTitle}
+          description={t.fileOpenDescription}
+          control={<View style={{ gap: 6 }}>
+            <Segmented label={t.fileOpenTitle} value={preferences.fileOpenApp}
+              options={[
+                { value: "system", label: t.fileOpenSystem },
+                { value: "cursor", label: "Cursor" },
+                { value: "vscode", label: "VS Code" },
+              ]} onChange={(fileOpenApp) => updateEnhancerPreferences({ fileOpenApp })} look={look} />
+            <Segmented label={t.fileOpenTitle} value={preferences.fileOpenApp}
+              options={[
+                { value: "zed", label: "Zed" },
+                { value: "sublime", label: "Sublime Text" },
+              ]} onChange={(fileOpenApp) => updateEnhancerPreferences({ fileOpenApp })} look={look} />
+          </View>}
+          look={look}
+          stacked
+        />
+        <SettingRow
           title={t.pathsTitle}
           description={t.pathsDescription}
           control={

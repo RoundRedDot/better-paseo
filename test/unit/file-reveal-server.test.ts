@@ -1,12 +1,16 @@
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { EventEmitter } from "node:events";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-const { spawn } = vi.hoisted(() => ({
-  spawn: vi.fn(() => ({ on: vi.fn(), unref: vi.fn() })),
+const { spawn, editorCommand, settings } = vi.hoisted(() => ({
+  spawn: vi.fn(),
+  editorCommand: vi.fn(),
+  settings: { app: "system" },
 }));
+vi.mock("../../server/editor-target", () => ({ editorCommand }));
 vi.mock("node:child_process", async (actual) => ({ ...(await actual<typeof import("node:child_process")>()), spawn }));
 
 type Handler = (input: unknown) => Promise<unknown>;
@@ -14,6 +18,12 @@ type Handler = (input: unknown) => Promise<unknown>;
 let root = "";
 
 beforeAll(async () => {
+  spawn.mockImplementation(() => {
+    const child = new EventEmitter() as EventEmitter & { unref: () => void };
+    child.unref = vi.fn();
+    queueMicrotask(() => { child.emit("spawn"); child.emit("exit", 0); });
+    return child;
+  });
   root = await mkdtemp(join(tmpdir(), "file-reveal-"));
   await writeFile(join(root, "notes.md"), "# notes\n");
   await writeFile(join(root, "Better Paseo Icon.html"), "<html></html>");
@@ -29,7 +39,7 @@ async function revealHandler(): Promise<Handler> {
   const { default: contribute } = await import("../../index.server");
   const handlers = new Map<string, Handler>();
   const server = new Proxy({}, {
-    get: (_, key) => key === "registerSettings" ? () => ({ read: async () => ({ status: "invalid", revision: "test", error: "test" }), subscribe: () => () => {} }) : key === "handle"
+    get: (_, key) => key === "registerSettings" ? () => ({ read: async () => ({ status: "ready", revision: "test", values: { fileOpenApp: settings.app } }), subscribe: () => () => {} }) : key === "handle"
       ? (contract: { name: string }, handler: Handler) => handlers.set(contract.name, handler)
       : () => () => {},
   }) as PluginServerContext;
@@ -49,4 +59,18 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
     await expect(reveal({ cwd: root, path: "missing.md" })).resolves.toMatchObject({ revealed: null });
     expect(spawn).toHaveBeenCalledTimes(3);
   }, 30_000);
+
+  it("opens in the selected editor and reports an unavailable editor", async () => {
+    spawn.mockClear();
+    settings.app = "zed";
+    editorCommand.mockReturnValueOnce({ command: "/usr/bin/zed", args: [] });
+    const reveal = await revealHandler();
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: null });
+    expect(spawn).toHaveBeenCalledWith("/usr/bin/zed", [join(root, "notes.md")], expect.anything());
+    editorCommand.mockImplementationOnce(() => { throw new Error("Zed is not installed"); });
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ error: "Zed is not installed" });
+    await reveal({ cwd: root, path: "run" });
+    expect(spawn).toHaveBeenLastCalledWith("open", ["-R", join(root, "run")], expect.anything());
+    settings.app = "system";
+  });
 });

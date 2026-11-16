@@ -2,9 +2,9 @@ import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 
 /**
- * Opens a path on the daemon's machine: on macOS a file in its default app
- * and a folder in Finder, while anything that would launch (an app, a script,
- * an executable) is only revealed; other platforms show it in the file manager.
+ * Opens a file with the configured editor on the daemon's machine. The system
+ * option opens it in its default app on macOS and reveals it on other platforms.
+ * Directories and paths that would launch retain the platform's reveal behavior.
  *
  * The client cannot reach the operating system, and Paseo exposes no file
  * navigation to plugins, so the daemon side does the work: it resolves the

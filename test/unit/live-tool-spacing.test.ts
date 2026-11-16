@@ -1,10 +1,11 @@
+const toast = vi.hoisted(() => ({ error: () => {} }));
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import type { LiveReasoningPayload, LiveToolCallPayload } from "../../client/live-renderers";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client/react-native", () => ({
+vi.mock("@getpaseo/plugin/client/react-native", () => ({ useToast: () => toast,
   Icon: () => null,
   useRevealedText: (text: string) => text,
 }));
