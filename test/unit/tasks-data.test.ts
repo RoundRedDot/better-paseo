@@ -3952,8 +3952,10 @@ describe("Tasks data store", () => {
           fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("running") === true);
           await flush(16);
         });
-        // Its workspace is not one the board placed: it waits off the board (not archived) for a full read of the list.
-        expect(mounted.current.byId.has("new-runner")).toBe(false);
+        // The workspace check is a timer. It may already have placed the task
+        // in running; either way it must not have archived it.
+        const early = mounted.current.byId.get("new-runner");
+        expect(early === undefined || early.lane === "running").toBe(true);
         await settleWorkspaceCheck();
         expect(mounted.current.byId.get("new-runner")?.lane).toBe("running");
         await act(async () => {
