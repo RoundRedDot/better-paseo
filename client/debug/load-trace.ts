@@ -6,7 +6,7 @@ import { loadMarks } from "./load-marks";
 /**
  * Bench builds only (`BC_LOAD_TRACE=1 node scripts/build-client.mjs`): send
  * this load's marks to the daemon machine `LOAD_TRACE_DUMP_MS` after
- * `contribute`, where `/bc-perf dump` would write them
+ * `contribute`, where `/bp-perf dump` would write them
  * (`/tmp/bc-perf/<platform>-load-*.json`). A normal install defines the flag
  * false and a checkout leaves it undefined, so neither sends anything.
  */

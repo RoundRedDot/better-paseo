@@ -7,7 +7,7 @@ import { ProseSelectionContext, SelectableText } from "../ui/prose-text";
 import { perfOn } from "./perf";
 import { beginFontProbe, FONT_SAMPLES, type FontProbeMetadata, type FontSample } from "./font-probe-store";
 
-/** Measures the command's own text path, only while /bc-perf is enabled. */
+/** Measures the command's own text path, only while /bp-perf is enabled. */
 export function CommandFontProbe({ tokens, style }: { tokens: ExtendedThemeTokens; style: TextProps["style"] }) {
   const { debugPerf } = useEnhancerPreferences();
   const selectionContext = useContext(ProseSelectionContext);

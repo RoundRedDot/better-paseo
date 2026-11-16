@@ -1,6 +1,6 @@
 /**
  * General → Agent steps, one tap from the chat: a composer pill that shows
- * the current level and switches it, and `/bc-timeline` as the fallback.
+ * the current level and switches it, and `/bp-timeline` as the fallback.
  *
  * Paseo hangs a composer pill on one agent, and tells a plugin neither which
  * agent is open nor when one opens. A timeline row this plugin draws does
@@ -59,7 +59,7 @@ export function nextTimelineLevel(level: TimelineLevel): TimelineLevel {
   return level === "simple" ? "standard" : level === "standard" ? "detailed" : "simple";
 }
 
-/** A `/bc-timeline` argument: empty cycles, a level name (either language) sets it, anything else is null. */
+/** A `/bp-timeline` argument: empty cycles, a level name (either language) sets it, anything else is null. */
 export function parseTimelineLevelArgument(args: string, current: TimelineLevel): TimelineLevel | null {
   const word = args.trim().toLowerCase();
   if (!word) return nextTimelineLevel(current);
@@ -135,7 +135,7 @@ let active: TimelineLevelControl | null = null;
 export function timelineLevelSlashCommand(control: TimelineLevelControl): PluginClientSlashCommandContribution {
   const text = strings(getEnhancerPreferences());
   return {
-    name: "bc-timeline",
+    name: "bp-timeline",
     description: text.command,
     argumentHint: text.hint,
     context: "agent",
@@ -147,7 +147,7 @@ export function timelineLevelSlashCommand(control: TimelineLevelControl): Plugin
   };
 }
 
-/** Installs the pills and `/bc-timeline`. Returns the cleanup. */
+/** Installs the pills and `/bp-timeline`. Returns the cleanup. */
 export function installTimelineLevelControl(client: Pick<PluginClientContext, "addComposerPill" | "addSlashCommand">): () => void {
   const control = createTimelineLevelControl(client);
   active = control;

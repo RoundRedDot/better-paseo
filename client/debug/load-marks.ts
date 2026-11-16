@@ -7,7 +7,7 @@
  *
  * The marks live on the JS runtime's global so the install build's entry
  * (`scripts/build-client.mjs`) can set the first ones before this bundle
- * exists; each evaluation of that entry starts a fresh record. `/bc-perf
+ * exists; each evaluation of that entry starts a fresh record. `/bp-perf
  * dump` ships them with its snapshot, and a bench build sends them on its
  * own (`scheduleLoadTraceDump`).
  */

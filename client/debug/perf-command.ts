@@ -1,5 +1,5 @@
 /**
- * `/bc-perf on | off | reset | dump [label]`: the perf probes' control surface
+ * `/bp-perf on | off | reset | dump [label]`: the perf probes' control surface
  * for hosts with no console (production Electron, iOS). Registered always, but
  * it does nothing until a user types it; `dump` ships the probe snapshot to the
  * daemon machine, which writes it under /tmp/bc-perf.
@@ -18,7 +18,7 @@ function heapBytes(): number | null {
 }
 
 export const perfSlashCommand: PluginClientSlashCommandContribution = {
-  name: "bc-perf",
+  name: "bp-perf",
   description: "Better Paseo perf probes (debug)",
   argumentHint: "on | off | reset | dump [label]",
   context: "agent",
@@ -57,7 +57,7 @@ export const perfSlashCommand: PluginClientSlashCommandContribution = {
         return;
       }
       default:
-        console.info("[better-paseo] /bc-perf on | off | reset | dump [label]");
+        console.info("[better-paseo] /bp-perf on | off | reset | dump [label]");
     }
   },
 };

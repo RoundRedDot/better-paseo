@@ -613,7 +613,7 @@ export default function contribute(server: PluginServerContext) {
     return { bitmaps };
   });
 
-  // Debug only: answers `/bc-perf dump`. Idle until a client calls it.
+  // Debug only: answers `/bp-perf dump`. Idle until a client calls it.
   server.handle(perfDumpRpc, async (input) => {
     try {
       return { path: await writePerfDump(input), error: null };

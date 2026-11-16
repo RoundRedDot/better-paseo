@@ -125,7 +125,7 @@ describe("timeline level pill", () => {
   });
 });
 
-describe("/bc-timeline", () => {
+describe("/bp-timeline", () => {
   it("cycles with no argument and sets a named level in either language", () => {
     expect(parseTimelineLevelArgument("", "simple")).toBe("standard");
     expect(parseTimelineLevelArgument(" ", "standard")).toBe("detailed");
@@ -138,7 +138,7 @@ describe("/bc-timeline", () => {
   it("sets the level and gives the agent its pill", () => {
     const client = fakeClient();
     const remove = installTimelineLevelControl(client as never);
-    const command = client.commands.find((entry) => entry.name === "bc-timeline")!;
+    const command = client.commands.find((entry) => entry.name === "bp-timeline")!;
     command.onSubmit({ args: "simple", agent: { id: "a9", workspaceId: "w9" } } as never);
     expect(getEnhancerPreferences().timelineLevel).toBe("simple");
     expect(client.pills.map((pill) => pill.contribution.agentId)).toEqual(["a9"]);

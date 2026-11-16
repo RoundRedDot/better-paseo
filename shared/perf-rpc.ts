@@ -4,7 +4,7 @@ import { z } from "zod";
 /**
  * Debug only. Carries a `__bcPerf` snapshot from a client that has no console
  * (production Electron, iOS) to the daemon machine, which writes it to disk.
- * Nothing calls it unless the `/bc-perf dump` slash command is run.
+ * Nothing calls it unless the `/bp-perf dump` slash command is run.
  */
 export const perfDumpRpc = defineRpc({
   name: "debug.perf.dump",
