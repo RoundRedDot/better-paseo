@@ -3,6 +3,7 @@ import { defineSettings, type SettingsDefinition } from "@getpaseo/plugin";
 import { useSettings } from "@getpaseo/plugin/client";
 import { z } from "zod";
 import type { DevicePreferenceStorage, DeviceWriteIntent } from "./device-store";
+import { DEVICE_RUNTIME_VERSION } from "./device-runtime-version";
 
 /**
  * The board's device preferences in Paseo's device settings (Paseo 0.16+, `scope: "device"`):
@@ -215,7 +216,7 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
 
 export type DeviceSettingsAdapter = ReturnType<typeof createDeviceSettingsAdapter>;
 
-const ADAPTER_KEY = "__betterPaseoDeviceSettingsV1";
+const ADAPTER_KEY = `__betterPaseoDeviceSettings_r${DEVICE_RUNTIME_VERSION}`;
 
 /** The adapter every bundle shares, once the device store chose the device settings. */
 export function installedDeviceSettings(): DeviceSettingsAdapter | null {

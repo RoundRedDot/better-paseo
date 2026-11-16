@@ -16,7 +16,9 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 function fakeHost(initial: DeviceRecord | null = null) {
   let raw: string | null = initial === null ? null : JSON.stringify({ version: 1, values: initial });
   const saves: DeviceRecord[] = [];
-  let bridge: { report: (remote: DeviceRemote) => void } | null = null;
+  /** Every mounted hook, of any bundle: the host's query re-renders them all. */
+  const bridges = new Set<(remote: DeviceRemote) => void>();
+  const reportAll = (remote: DeviceRemote) => { for (const report of bridges) report(remote); };
   const read = (): DeviceRemote => ({ status: "ready", revision: raw ?? "missing", values: raw === null ? {} : (JSON.parse(raw) as { values: DeviceRecord }).values });
   let saveError: string | null = null;
   const actions = {
@@ -30,14 +32,14 @@ function fakeHost(initial: DeviceRecord | null = null) {
       saves.push(values);
       saveError = null;
       // The query's new data renders, then the bridge's effect reports it.
-      setTimeout(() => bridge?.report(read()), 0);
+      setTimeout(() => reportAll(read()), 0);
       return true;
     },
     async reload() {
       await tick();
       // The query holds the reread now; the hook reports it on a later render.
       const reread = read();
-      setTimeout(() => bridge?.report(reread), 0);
+      setTimeout(() => reportAll(reread), 0);
     },
     saveError: () => saveError,
   };
@@ -50,9 +52,10 @@ function fakeHost(initial: DeviceRecord | null = null) {
     },
     mount(adapter: ReturnType<typeof createDeviceSettingsAdapter>) {
       const own = {};
-      bridge = { report: (remote) => adapter.report(own, remote, actions) };
-      bridge.report(read());
-      return () => { adapter.leave(own); bridge = null; };
+      const report = (remote: DeviceRemote) => adapter.report(own, remote, actions);
+      bridges.add(report);
+      report(read());
+      return () => { adapter.leave(own); bridges.delete(report); };
     },
   };
 }
@@ -249,6 +252,28 @@ describe("device Tasks preferences in Paseo's device settings", () => {
     expect(seen.length).toBeGreaterThan(1);
     expect(seen.every(Boolean)).toBe(true);
     expect(store.snapshot().values).toMatchObject({ hideSubtasks: true, titleLines: "4" });
+  });
+
+  it("lets two code versions on one device save without undoing each other", async () => {
+    // A host still on another plugin version runs its own store and adapter on the same record.
+    const host = fakeHost({ board: seed });
+    const make = () => {
+      let store!: ReturnType<typeof createDeviceTasksStore>;
+      const adapter = createDeviceSettingsAdapter({ legacyBoard: async () => null, legacySidebar: async () => null, mirror() {}, onBoard: (board) => store?.receive(board) });
+      store = createDeviceTasksStore(adapter.storage);
+      host.mount(adapter);
+      store.load(seed);
+      return { adapter, store };
+    };
+    const older = make();
+    const newer = make();
+    await vi.waitFor(() => expect(older.store.snapshot().ready && newer.store.snapshot().ready).toBe(true));
+    await Promise.all([older.store.update({ hideSubtasks: true }), newer.store.update({ titleLines: "4" })]);
+    newer.adapter.sidebar.persist({ open: false, width: 400 });
+    await vi.waitFor(() => expect(host.record()).toEqual({ board: { ...seed, hideSubtasks: true, titleLines: "4" }, sidebar: { open: false, width: 400 } }));
+    // Each shows the other's change once the host reports it.
+    await vi.waitFor(() => expect(older.store.snapshot().values).toMatchObject({ hideSubtasks: true, titleLines: "4" }));
+    expect(newer.store.snapshot().values).toMatchObject({ hideSubtasks: true, titleLines: "4" });
   });
 
   it("offers a provisional copy for the shortcut until the settings load", async () => {

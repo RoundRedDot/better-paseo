@@ -133,20 +133,27 @@ describe("device Tasks preferences by host version", () => {
     act(() => b.unmount());
   });
 
-  it("replaces the device runtime an older plugin left on a hot update, and keeps a newer one", async () => {
-    mockDeviceHook();
-    const stale = { snapshot: vi.fn(), subscribe: vi.fn(), load: vi.fn(), update: vi.fn(), restore: vi.fn(), current: vi.fn() };
-    // The first release of this runtime carried no version.
-    holder.__betterPaseoDeviceTasksV4 = { store: stale, deviceSettings: true };
-    const first = await import("../../client/tasks/device-preferences");
-    expect(first.deviceTasksStore()).not.toBe(stale);
-    const current = first.deviceTasksStore();
-    const newer = { store: stale, deviceSettings: true, version: 99 };
-    holder.__betterPaseoDeviceTasksV4 = newer;
-    vi.resetModules();
-    const second = await import("../../client/tasks/device-preferences");
-    expect(second.deviceTasksStore()).toBe(stale);
-    expect(current).not.toBe(stale);
+  it("keeps its own device runtime beside one another plugin version left, and works through its own hook", async () => {
+    const host = mockDeviceHook();
+    const other = { store: { snapshot: vi.fn(), subscribe: vi.fn(), load: vi.fn(), update: vi.fn(), restore: vi.fn(), current: vi.fn(), receive: vi.fn() }, deviceSettings: true };
+    const otherAdapter = { report: vi.fn(), leave: vi.fn(), storage: {}, sidebar: { stored: vi.fn(), persist: vi.fn() } };
+    // What an older plugin version left: its own keys, its own code.
+    holder.__betterPaseoDeviceTasks_r1 = other;
+    holder.__betterPaseoDeviceSettings_r1 = otherAdapter;
+    const { deviceTasksStore, useDeviceTasksPreferences } = await import("../../client/tasks/device-preferences");
+    expect(deviceTasksStore()).not.toBe(other.store);
+    function Probe() { useDeviceTasksPreferences(DEFAULT_TASKS_SETTINGS); return null; }
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(Probe)); });
+    await act(async () => { await vi.waitFor(() => expect(deviceTasksStore().snapshot().ready).toBe(true)); });
+    await act(async () => { await deviceTasksStore().update({ showEmptyGroups: false }); });
+    expect(host.record.values).toMatchObject({ board: { showEmptyGroups: false } });
+    // Neither of the other version's objects ran.
+    expect(otherAdapter.report).not.toHaveBeenCalled();
+    expect(other.store.load).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
+    delete holder.__betterPaseoDeviceTasks_r1;
+    delete holder.__betterPaseoDeviceSettings_r1;
   });
 
   it("shows one host's sidebar change to another host's board", async () => {
@@ -182,5 +189,33 @@ describe("device Tasks preferences by host version", () => {
     await act(async () => { await vi.waitFor(() => expect(deviceTasksStore().snapshot().ready).toBe(true)); });
     expect(deviceTasksStore().current()?.openShortcut).toBe("Mod+Shift+KeyK");
     act(() => renderer.unmount());
+  });
+
+  it("keeps a mounted bundle's board working when a bundle of a newer version loads beside it", async () => {
+    const host = mockDeviceHook();
+    host.record = { revision: JSON.stringify({ board: { titleLines: "2" } }), values: {} };
+    const older = await import("../../client/tasks/device-preferences");
+    function OlderProbe() { older.useDeviceTasksPreferences(DEFAULT_TASKS_SETTINGS); return null; }
+    let a!: TestRenderer.ReactTestRenderer;
+    await act(async () => { a = TestRenderer.create(React.createElement(OlderProbe)); });
+    await act(async () => { await vi.waitFor(() => expect(older.deviceTasksStore().snapshot().ready).toBe(true)); });
+    // Another host's bundle carries newer store and adapter code.
+    vi.resetModules();
+    vi.doMock("../../client/tasks/device-runtime-version", () => ({ DEVICE_RUNTIME_VERSION: 999 }));
+    const newer = await import("../../client/tasks/device-preferences");
+    function NewerProbe() { newer.useDeviceTasksPreferences(DEFAULT_TASKS_SETTINGS); return null; }
+    let b!: TestRenderer.ReactTestRenderer;
+    await act(async () => { b = TestRenderer.create(React.createElement(NewerProbe)); });
+    await act(async () => { await vi.waitFor(() => expect(newer.deviceTasksStore().snapshot().ready).toBe(true)); });
+    expect(newer.deviceTasksStore()).not.toBe(older.deviceTasksStore());
+    // The older bundle re-renders with the same revision, and its board still reads and saves.
+    await act(async () => { a.update(React.createElement(OlderProbe)); });
+    expect(older.deviceTasksStore().snapshot().ready).toBe(true);
+    await act(async () => { await older.deviceTasksStore().update({ hideSubtasks: true }); });
+    await act(async () => { await newer.deviceTasksStore().update({ laneWidth: "wide" }); });
+    expect(host.record.values).toMatchObject({ board: { hideSubtasks: true, laneWidth: "wide" } });
+    await act(async () => { await vi.waitFor(() => expect(older.deviceTasksStore().snapshot().values).toMatchObject({ hideSubtasks: true, laneWidth: "wide" })); });
+    act(() => { a.unmount(); b.unmount(); });
+    vi.doUnmock("../../client/tasks/device-runtime-version");
   });
 });

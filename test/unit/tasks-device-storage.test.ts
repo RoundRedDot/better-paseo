@@ -32,7 +32,7 @@ it.each(["ios", "android"])("persists the device preferences through %s AsyncSto
   const saved = { ...seed, hideSubtasks: true, showArchived: false, showEmptyGroups: false, laneWidth: "wide" as const, titleLines: "all" as const };
   await store.update(saved);
   expect(NativeModules.RNCAsyncStorage.multiSet).toHaveBeenCalledTimes(2);
-  delete holder.__betterPaseoDeviceTasksV4;
+  for (const key of Object.keys(holder)) if (key.startsWith("__betterPaseoDeviceTasks_r")) delete holder[key];
   const restarted = deviceTasksStore();
   restarted.load(seed);
   await vi.waitFor(() => expect(restarted.snapshot().ready).toBe(true));
@@ -47,7 +47,7 @@ it("persists the same device record with web localStorage", async () => {
   const store = deviceTasksStore();
   store.load(seed);
   await store.update({ hideSubtasks: true });
-  delete holder.__betterPaseoDeviceTasksV4;
+  for (const key of Object.keys(holder)) if (key.startsWith("__betterPaseoDeviceTasks_r")) delete holder[key];
   const restarted = deviceTasksStore();
   restarted.load(seed);
   expect(restarted.snapshot().values?.hideSubtasks).toBe(true);
