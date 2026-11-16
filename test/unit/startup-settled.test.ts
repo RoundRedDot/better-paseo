@@ -105,3 +105,36 @@ describe("afterStartup", () => {
     expect(loadMarks()["row.first"]).toBe(first);
   });
 });
+
+describe("afterIdle", () => {
+  it("waits for an idle callback, with a timeout, and cancels it", async () => {
+    const { afterIdle, IDLE_TIMEOUT_MS } = await import("../../client/state/startup-settled");
+    const pending: Array<() => void> = [];
+    const cancelIdleCallback = vi.fn();
+    const scope = {
+      requestIdleCallback: vi.fn((run: () => void) => pending.push(run)),
+      cancelIdleCallback,
+    };
+    const run = vi.fn();
+    const handle = afterIdle(run, scope);
+    expect(scope.requestIdleCallback).toHaveBeenCalledWith(expect.any(Function), { timeout: IDLE_TIMEOUT_MS });
+    expect(run).not.toHaveBeenCalled();
+    pending[0]!();
+    expect(run).toHaveBeenCalledTimes(1);
+    handle.cancel();
+    expect(cancelIdleCallback).toHaveBeenCalledWith(1);
+  });
+
+  it("falls back to a zero timeout where there is no idle callback (Safari)", async () => {
+    const { afterIdle } = await import("../../client/state/startup-settled");
+    const run = vi.fn();
+    afterIdle(run, {});
+    expect(run).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(0);
+    expect(run).toHaveBeenCalledTimes(1);
+    const cancelled = vi.fn();
+    afterIdle(cancelled, {}).cancel();
+    vi.advanceTimersByTime(10);
+    expect(cancelled).not.toHaveBeenCalled();
+  });
+});

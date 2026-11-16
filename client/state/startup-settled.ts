@@ -1,4 +1,3 @@
-import { InteractionManager } from "react-native";
 import { loadMark } from "../debug/load-marks";
 
 /**
@@ -8,11 +7,11 @@ import { loadMark } from "../debug/load-marks";
  * The first plugin row to mount reports itself (`noteTimelineRowShown`).
  * `afterStartup` then runs its callback `AFTER_ROW_MS` later, or
  * `MAX_WAIT_MS` after it was asked when no row shows (no chat open), and in
- * both cases after any running interaction (`InteractionManager`). It is a
- * scheduling choice, not a promise that the chat has finished drawing.
+ * both cases once the JS thread is idle (`afterIdle`). It is a scheduling
+ * choice, not a promise that the chat has finished drawing.
  *
- * No extra wait after the row: on a Release iOS simulator the interactions
- * already hold the callback about 100 ms past the first row, and the Tasks
+ * No extra wait after the row: on a Release iOS simulator (Paseo 0.12) the
+ * interactions already held the callback about 100 ms past the first row, and the Tasks
  * chunk then takes about 45 ms, so its counts land some 230 ms later than
  * when the chunk ran before the chat (a one-second wait put them a second
  * late), while the first row still comes about 45 ms sooner.
@@ -37,10 +36,36 @@ export interface StartupTimers {
   afterInteractions(run: () => void): { cancel(): void };
 }
 
+/** The longest an idle callback may be held when the thread never idles. */
+export const IDLE_TIMEOUT_MS = 500;
+
+interface IdleGlobals {
+  requestIdleCallback?: (run: () => void, options?: { timeout: number }) => unknown;
+  cancelIdleCallback?: (handle: unknown) => void;
+}
+
+/**
+ * Runs `run` when the JS thread is idle, which is what RN recommends in place
+ * of the deprecated `InteractionManager.runAfterInteractions` (in RN 0.86
+ * a stub that only defers to `setImmediate`). Paseo's native runtime and
+ * Chromium have `requestIdleCallback`; Safari does not, so a zero timeout
+ * stands in there.
+ */
+export function afterIdle(run: () => void, scope: IdleGlobals = globalThis as IdleGlobals): { cancel(): void } {
+  const request = scope.requestIdleCallback;
+  const cancelIdle = scope.cancelIdleCallback;
+  if (typeof request === "function") {
+    const handle = request.call(scope, () => run(), { timeout: IDLE_TIMEOUT_MS });
+    return { cancel: () => { if (typeof cancelIdle === "function") cancelIdle.call(scope, handle); } };
+  }
+  const handle = setTimeout(run, 0);
+  return { cancel: () => clearTimeout(handle) };
+}
+
 const defaultTimers: StartupTimers = {
   setTimeout: (run, ms) => setTimeout(run, ms),
   clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
-  afterInteractions: (run) => InteractionManager.runAfterInteractions(run),
+  afterInteractions: (run) => afterIdle(run),
 };
 
 /** Runs `run` once startup has settled (see above); returns a cancel. */
