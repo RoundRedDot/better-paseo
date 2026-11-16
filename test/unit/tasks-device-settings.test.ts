@@ -13,7 +13,8 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
  * "missing" before the first save; a save names the revision it read and is refused when the
  * record moved; the hook reports the saved record on a later render.
  */
-function fakeHost(initial: DeviceRecord | null = null) {
+function fakeHost(initial: DeviceRecord | null = null, options: { refuse?: number; afterSave?: () => void } = {}) {
+  let refuse = options.refuse ?? 0;
   let raw: string | null = initial === null ? null : JSON.stringify({ version: 1, values: initial });
   const saves: DeviceRecord[] = [];
   /** Every mounted hook, of any bundle: the host's query re-renders them all. */
@@ -24,6 +25,11 @@ function fakeHost(initial: DeviceRecord | null = null) {
   const actions = {
     async save(values: DeviceRecord, revision: string) {
       await tick();
+      if (refuse > 0) {
+        refuse -= 1;
+        saveError = "Could not write device settings";
+        return false;
+      }
       if ((raw ?? "missing") !== revision) {
         saveError = "Settings changed. Reload before saving.";
         return false;
@@ -31,6 +37,7 @@ function fakeHost(initial: DeviceRecord | null = null) {
       raw = JSON.stringify({ version: 1, values });
       saves.push(values);
       saveError = null;
+      options.afterSave?.();
       // The query's new data renders, then the bridge's effect reports it.
       setTimeout(() => reportAll(read()), 0);
       return true;
@@ -274,6 +281,30 @@ describe("device Tasks preferences in Paseo's device settings", () => {
     // Each shows the other's change once the host reports it.
     await vi.waitFor(() => expect(older.store.snapshot().values).toMatchObject({ hideSubtasks: true, titleLines: "4" }));
     expect(newer.store.snapshot().values).toMatchObject({ hideSubtasks: true, titleLines: "4" });
+  });
+
+  it("fails the load when the import cannot be saved, so a seed never closes the import", async () => {
+    const { host, adapter, store } = setup({ host: fakeHost(null, { refuse: 2 }), legacySidebar: JSON.stringify({ open: false, width: 380 }) });
+    host.mount(adapter);
+    store.load(seed);
+    // The retry waits for a report its reread never brings (the record did not move).
+    await vi.waitFor(() => expect(store.snapshot().error).toBe("Could not write device settings"), 5_000);
+    expect(store.snapshot().ready).toBe(false);
+    expect(host.record()).toBeNull();
+  });
+
+  it("shows a later save the hook reports in place of its own", async () => {
+    let host!: ReturnType<typeof fakeHost>;
+    let once = true;
+    // Another writer saves right after this one, before the hook reports either.
+    host = fakeHost({ board: seed }, { afterSave: () => { if (!once) return; once = false; host.writeElsewhere({ board: { ...seed, hideSubtasks: true, titleLines: "4" } }); } });
+    const { adapter, store, mirrored } = setup({ host });
+    host.mount(adapter);
+    store.load(seed);
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    await store.update({ hideSubtasks: true });
+    expect(store.snapshot().values).toMatchObject({ hideSubtasks: true, titleLines: "4" });
+    expect(mirrored.at(-1)).toEqual({ board: { ...seed, hideSubtasks: true, titleLines: "4" } });
   });
 
   it("offers a provisional copy for the shortcut until the settings load", async () => {

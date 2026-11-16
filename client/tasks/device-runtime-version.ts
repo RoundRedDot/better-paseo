@@ -3,4 +3,4 @@
  * key their shared objects by it). Bump it whenever either changes, so no bundle runs another
  * version's objects.
  */
-export const DEVICE_RUNTIME_VERSION = 5;
+export const DEVICE_RUNTIME_VERSION = 6;

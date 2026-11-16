@@ -126,8 +126,11 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
       if (await act.save(values, current.revision)) {
         // The next write needs the revision the host gave this one; the hook reports it.
         await until(() => "revision" in remote && remote.revision !== current.revision, REPORT_WAIT_MS);
-        deps.mirror(values);
-        return values;
+        // The report can already hold a later save over this one (another window, another
+        // version's bundle): that record is the one to show and copy.
+        const reported = remote.status === "ready" && remote.revision !== current.revision ? remote.values : values;
+        deps.mirror(reported);
+        return reported;
       }
       if (attempt >= 1) throw new Error(act.saveError() ?? "Could not save device Tasks preferences");
       // The reread lands in the query first; the hooks report it on a later render.
@@ -160,12 +163,9 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
           if (next.sidebar === undefined && sidebarValue !== undefined) next.sidebar = sidebarValue;
           return next.board === record.board && next.sidebar === record.sidebar ? null : next;
         };
-        try {
-          return boardText(await serial(() => save(fill)));
-        } catch {
-          // A refused import leaves the old record for the next start; this session uses it as read.
-          return boardValue === undefined ? null : JSON.stringify(boardValue);
-        }
+        // A refused import fails the read like a failed one: nothing is seeded over the old record,
+        // which the next start imports again.
+        return boardText(await serial(() => save(fill)));
       }
       return boardText(current.values);
     },
