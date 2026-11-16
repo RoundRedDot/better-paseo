@@ -373,6 +373,8 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const edgeListener = useRef(props.onScrollEdge);
   edgeListener.current = props.onScrollEdge;
   const questionInHeader = !!props.onPermission && requestInSection(card, props.permissionButtons ?? []) && (props.questionActionsInHeader === true || props.tabs === true && props.actions !== false);
+  const touchQuestion = props.touch === true && questionInHeader && card.permission?.kind === "question" && props.permissionButtons?.some((button) => button.kind === "question") === true;
+  const pendingQuestions = touchQuestion ? null : <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} context={props.questionContext} />;
   const tabs = props.tabs === true;
   const scrollHeader = props.scrollHeader === true;
   useEffect(() => {
@@ -472,7 +474,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
                 }}
               >
                 {(id === "info" ? info : messages).map((section, index) => sectionView(section, index > 0))}
-                {id === "messages" ? <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} context={props.questionContext} /> : null}
+                {id === "messages" ? pendingQuestions : null}
               </DetailTabPage>
             ))}
           </SheetScrollView>
@@ -491,7 +493,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
               <View style={props.touch ? { flex: 1, minHeight: 0, display: tab === "messages" ? "flex" : "none" } : { position: "absolute", inset: 0, ...({ visibility: tab === "messages" ? "visible" : "hidden" } as object) }}>
                 <ScrollView key={`${card.id}-messages`} style={{ flex: 1 }} {...detailScrollProps("inset")} scrollEventThrottle={16} onScroll={(event) => publishBody("messages", scrollEdgePatch(event.nativeEvent))} onLayout={(event) => publishBody("messages", { viewport: event.nativeEvent.layout.height })} onContentSizeChange={(_width, height) => publishBody("messages", { content: height })} testID="detail-tab-messages-scroll">
                   {messages.map((section, index) => sectionView(section, index > 0))}
-                  <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} context={props.questionContext} />
+                  {pendingQuestions}
                 </ScrollView>
               </View>
             </TabPages>
@@ -519,7 +521,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
         <View style={{ flex: 1, minWidth: 0 }}>
           <ScrollView key={`${card.id}-sections`} style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 2, paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-column-sections">
             {rightOrder.map((section, index) => sectionView(section, index > 0))}
-            <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} context={props.questionContext} />
+            {pendingQuestions}
           </ScrollView>
         </View>
       </View>
@@ -531,10 +533,10 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
       {props.scrollBody ? (
         <ScrollView key={card.id} style={{ flexGrow: 0, flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 4 }} {...detailScrollProps("inset")} testID="detail-body-scroll">
           {sections}
-          <PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} context={props.questionContext} />
+          {pendingQuestions}
         </ScrollView>
       ) : (
-        <View style={{ paddingBottom: 4 }}>{sections}<PendingQuestions card={card} tokens={tokens} language={props.language} theme={props.theme} compact={props.compact} submit={props.submitQuestions} source={props.questionDialog} context={props.questionContext} /></View>
+        <View style={{ paddingBottom: 4 }}>{sections}{pendingQuestions}</View>
       )}
     </View>
   );
@@ -1030,6 +1032,7 @@ function PermissionBlock(props: Inner) {
   const small = F.sm;
   const waited = since(card.timing.attentionAt, props.now) ?? since(card.timing.turnStartedAt, props.now);
   const buttons = props.actions !== false && props.onPermission ? (props.permissionButtons ?? []) : [];
+  const questionButton = props.touch && permission.kind === "question" ? buttons.find((button) => button.kind === "question") : undefined;
   // A plan's summary is its title, set as text; any other is the command, file or question as written.
   const plan = permission.kind === "plan";
   const prose = permission.kind === "question" || plan;
@@ -1047,7 +1050,9 @@ function PermissionBlock(props: Inner) {
           <PlanViewButton unifiedHover tokens={tokens} language={props.language} lineHeight={HOST_LINE.base} onPress={() => setPlanOpen(permission.requestId)} testID="detail-view-plan" />
         ) : null}
       </View>
-      {permission.summary ? (
+      {permission.summary && questionButton ? (
+        <Text style={{ marginHorizontal: 12, marginTop: 8, fontSize: F.base, lineHeight: HOST_LINE.base, color: tokens.foreground }}>{permission.summary}</Text>
+      ) : permission.summary ? (
         <View style={{ marginHorizontal: 12, marginTop: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, borderWidth: 1, borderColor: tokens.border, backgroundColor: tokens.card.background }}>
           <Text style={{ fontSize: prose ? F.base : F.sm, lineHeight: prose ? HOST_LINE.base : CODE_LINE, fontFamily: plan || (props.compact && permission.kind === "question") ? undefined : MONO, fontWeight: plan ? "500" : undefined, color: tokens.foreground }}>{permission.summary}</Text>
         </View>
@@ -1055,7 +1060,19 @@ function PermissionBlock(props: Inner) {
       {planOpen !== null && planOpen === permission.requestId && permission.body ? (
         <TaskPlanDialog text={permission.body} theme={props.theme} language={props.language} touch={props.touch === true} onClose={() => setPlanOpen(null)} />
       ) : null}
-      {buttons.length > 0 ? (
+      {questionButton ? (
+        <View testID="detail-permission-buttons" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
+          {waited !== null ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              <Icon name="Hourglass" size={12} color={tokens.foregroundMuted} />
+              <Text style={{ fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{formatSpan(waited)}</Text>
+            </View>
+          ) : null}
+          <View testID="detail-permission-actions" style={{ marginLeft: "auto", maxWidth: "100%", flexShrink: 1 }}>
+            <RequestButton button={questionButton} tokens={tokens} height={props.touch ? 36 : 34} keepLabel onPress={() => props.onPermission?.(questionButton)} />
+          </View>
+        </View>
+      ) : buttons.length > 0 ? (
         <View testID="detail-permission-buttons" style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 12 }}>
           <ActionRow stack={buttons.some((button) => (props.compact || !button.answers) && keepsAnswerLabel(button, buttons))} style={{ width: "auto", flexGrow: 1, flexShrink: 1, flexBasis: 0, ...(props.touch && Platform.OS !== "web" ? { paddingVertical: 4, alignItems: "center" } : null) }} testID="detail-permission-actions">
             {buttons.map((button) => (
@@ -1117,7 +1134,7 @@ function RequestButton(props: { button: PermissionButton; tokens: TaskTokens; he
       }}
     >
       {icon ? <Icon name={icon} size={13} color={hue.color} /> : null}
-      {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={option || keep ? undefined : 1} style={{ flexShrink: option ? 1 : 0, ...fit.labelStyle, ...(option || keep ? { textAlign: "center" as const } : null), fontSize: F.sm, fontWeight: "500", color: hue.color }}>
+      {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={option || keep ? undefined : 1} style={{ flexShrink: option || keep ? 1 : 0, ...fit.labelStyle, ...(option || keep ? { textAlign: "center" as const } : null), fontSize: F.sm, fontWeight: "500", color: hue.color }}>
         {button.label}
       </Text>}
     </Pressable>

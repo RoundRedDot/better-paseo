@@ -333,7 +333,7 @@ describe("phone card action bar under native (Yoga) layout", () => {
     },
   );
   it.each((["sidebar", "sheet"] as const).flatMap((surface) => (["question", "tool"] as const).map((kind) => [surface, kind] as const)))("places controls before the request on the %s and preserves each action (%s)", async (surface, kind) => {
-    // A tool's Allow and Deny answer in place as a question's options do: both sit under the section's rule.
+    // Tool answers and the question dialog entry both sit under the section's rule.
     const card = kind === "question" ? choice()() : sample("sample-input");
     const onOpen = vi.fn();
     const onClose = vi.fn();
@@ -358,12 +358,12 @@ describe("phone card action bar under native (Yoga) layout", () => {
       controls.find((node) => node.props.testID === "detail-bar-stop").props.onPress();
       controls.find((node) => node.props.testID === "detail-bar-open").props.onPress();
       controls.find((node) => node.props.testID === "detail-bar-close").props.onPress();
-      question.find((node) => node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "允许").props.onPress();
+      question.find((node) => node.props.accessibilityRole === "button" && node.props.accessibilityLabel === (kind === "question" ? "查看问题" : "允许")).props.onPress();
     });
     expect(onStop).toHaveBeenCalledOnce();
     expect(onOpen).toHaveBeenCalledWith(card.id);
     expect(onClose).toHaveBeenCalledOnce();
-    expect(onPermission).toHaveBeenCalledWith(expect.objectContaining({ label: "允许" }));
+    expect(onPermission).toHaveBeenCalledWith(expect.objectContaining({ label: kind === "question" ? "查看问题" : "允许" }));
   });
 
   it.each((["ios", "android"] as const).flatMap((os) => [300, 340].flatMap((width) => [1, 1.8].flatMap((scale) => (["zh", "en"] as const).map((language) => [os, width, scale, language] as const)))))
@@ -611,8 +611,9 @@ describe("phone card action bar under native (Yoga) layout", () => {
       const id = surface === "details" ? "detail-permission-actions" : surface === "phone" ? "task-card-question-actions" : "task-card-answer-actions";
       const answers = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === id);
       const pressables = answers.findAll((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityRole === "button");
-      expect(pressables.map((node) => node.props.accessibilityLabel)).toEqual(buttons.map((button) => button.label));
-      expect(pressables.map((node) => node.props.disabled === true)).toEqual(buttons.map((button) => button.kind === "respond"));
+      const visibleButtons = surface === "details" && kind === "question" ? buttons.filter((button) => button.kind === "question") : buttons;
+      expect(pressables.map((node) => node.props.accessibilityLabel)).toEqual(visibleButtons.map((button) => button.label));
+      expect(pressables.map((node) => node.props.disabled === true)).toEqual(visibleButtons.map((button) => button.kind === "respond"));
     },
   );
 
@@ -663,11 +664,12 @@ describe("phone card action bar under native (Yoga) layout", () => {
       expect(controls.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button").map((node) => node.props.testID)).toEqual(kind === "other" ? ["detail-bar-stop", "detail-bar-close"] : ["detail-bar-stop", "detail-bar-open", "detail-bar-close"]);
       const answers = section.find((node) => typeof node.type === "string" && node.props.testID === "detail-permission-actions");
       const pressables = answers.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
-      expect(pressables.map((node) => node.props.accessibilityLabel)).toEqual(buttons.map((button) => button.label));
+      const visibleButtons = kind === "question" ? buttons.filter((button) => button.kind === "question") : buttons;
+      expect(pressables.map((node) => node.props.accessibilityLabel)).toEqual(visibleButtons.map((button) => button.label));
       if (kind === "plan" || kind === "plan-resume") expect(labelsOf(section).map((node) => node.children.join(""))).toContain("计划");
       for (const [index, pressable] of pressables.entries()) {
         await act(async () => pressable.props.onPress());
-        expect(onPermission).toHaveBeenLastCalledWith(buttons[index]);
+        expect(onPermission).toHaveBeenLastCalledWith(visibleButtons[index]);
       }
       expect(onOpen).not.toHaveBeenCalled();
     },
@@ -1230,29 +1232,41 @@ describe("phone card action bar under native (Yoga) layout", () => {
     }
   });
 
-  it.each(["ios", "android"] as const)("keeps phone question options readable beside View question on %s", async (os) => {
+  it.each((["ios", "android"] as const).flatMap((os) => [240, 300, 340].flatMap((width) => [1, 1.8].flatMap((textScale) => (["zh", "en"] as const).flatMap((language) => [false, true].map((compact) => [os, width, textScale, language, compact] as const))))))(
+    "keeps the touch question entry inside %s details at %ipt, scale %f, %s, compact %s",
+    async (os, width, textScale, language, compact) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     const card = choice(["重新发起安装", "不要重试"])();
+    const onPermission = vi.fn();
     await act(async () => {
-      renderer = TestRenderer.create(React.createElement(TaskDetailCards, {
-        card, theme: THEME as never, language: "zh", strings: BOARD_STRINGS.zh.sidebar, now: NOW,
-        touch: true, compact: true, questionActionsInHeader: true,
-        permissionButtons: permissionButtons(card.permission!, "zh", true), onPermission() {},
-      }));
+      renderer = TestRenderer.create(React.createElement(TasksTypographyScale, { factor: textScale, children: React.createElement(TaskDetailCards, {
+        card, theme: THEME as never, language, strings: BOARD_STRINGS[language].sidebar, now: NOW,
+        touch: true, compact, questionActionsInHeader: true,
+        permissionButtons: permissionButtons(card.permission!, language, true), onPermission,
+      }) }));
     });
-    const row = () => renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-permission-actions");
     const block = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "detail-permission");
     const summary = block.find((node) => (node.type as unknown) === "Text" && node.children.join("") === card.permission!.summary);
     expect((Object.assign({}, ...[summary.props.style].flat(Infinity).filter(Boolean)) as { fontFamily?: string }).fontFamily).toBeUndefined();
-    const frames = await settleHostLayout(row, { width: 210, wrapText: true });
-    const items = actionButtons(row());
-    expect(items.length).toBeGreaterThanOrEqual(3);
-    for (const item of items.slice(0, 2)) {
-      const text = labelsOf(item)[0]!;
-      const frame = frames.get(text)!;
-      const font = (Object.assign({}, ...[text.props.style].flat(Infinity).filter(Boolean)) as { fontSize: number }).fontSize;
-      expect(frame.width).toBeGreaterThanOrEqual(estimateTextWidth(item.props.accessibilityLabel, font) - 0.5);
-    }
+    let parent = summary.parent;
+    while (parent && typeof parent.type !== "string") parent = parent.parent;
+    expect(parent?.props.testID).toBe("detail-permission");
+    const buttons = actionButtons(block);
+    expect(buttons.map((button) => button.props.accessibilityLabel)).toEqual([language === "zh" ? "查看问题" : "View questions"]);
+    const frames = await settleHostLayout(() => block, { width, textScale, wrapText: true });
+    const outer = frames.get(block)!;
+    const button = frames.get(buttons[0]!)!;
+    expect(button.left).toBeGreaterThanOrEqual(outer.left - 0.5);
+    expect(button.left + button.width).toBeLessThanOrEqual(outer.left + outer.width + 0.5);
+    const text = labelsOf(buttons[0]!)[0]!;
+    const font = (Object.assign({}, ...[text.props.style].flat(Infinity).filter(Boolean)) as { fontSize: number }).fontSize;
+    const labelFrame = frames.get(text)!;
+    const lines = Math.round(labelFrame.height / Math.ceil(font * 1.25));
+    expect(labelFrame.width * lines).toBeGreaterThanOrEqual(estimateTextWidth(buttons[0]!.props.accessibilityLabel, font) * textScale - 0.5);
+    expect(labelFrame.top + labelFrame.height).toBeLessThanOrEqual(button.top + button.height + 0.5);
+    act(() => buttons[0]!.props.onPress());
+    expect(onPermission).toHaveBeenCalledOnce();
+    expect(onPermission.mock.calls[0]![0]).toMatchObject({ kind: "question" });
   });
 
   it.each([240, 300, 340].flatMap((width) => [1, 1.35, 1.8].flatMap((scale) => [WIDE_CJK, WIDE_LATIN, ["允许", "拒绝"] as const].map((labels) => [width, scale, labels] as const))))(

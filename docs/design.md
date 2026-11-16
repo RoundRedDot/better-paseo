@@ -952,6 +952,11 @@ A card that waits on a request names the request, then gives its answers.
 - The details' request block uses the same row: the request's icon, its kind, then "View plan". A
   plan's title sits in the summary box as text in weight 500. Commands and files keep the code
   face.
+- In phone and tablet details, a question keeps one `sunk` request card: the question text sits
+  directly in it, followed by the elapsed time at the left and a single "View questions" action
+  at the right. The action opens the existing question dialog; the details do not repeat the
+  inline answer form. The board cards, desktop details and other request kinds keep their existing
+  actions and layout. If no question-dialog action is available, retain the existing request UI.
 - Changes to this row must still pass the Yoga layout case in
   `test/unit/tasks-card-action-layout.test.ts`: "View plan" keeps its whole label inside the phone
   card, the desktop card and the details at 240 to 387 pt and text scale 1 to 1.8, in Chinese and

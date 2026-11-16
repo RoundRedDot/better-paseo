@@ -560,6 +560,53 @@ describe("a real ExitPlanMode request on the board", () => {
 });
 
 describe("card question dialog integration", () => {
+  it.each([
+    ["phone", "ios", true, 390],
+    ["small tablet", "android", false, 600],
+    ["tablet sidebar", "ios", false, 900],
+    ["desktop", "web", false, 1600],
+  ] as const)("answers a question from %s details", async (_surface, os, phone, width) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    const handle = (data as unknown as { __handle: data.TasksHandle }).__handle;
+    const saved = { lanes: handle.lanes, byId: handle.byId };
+    const card: TaskCard = { ...handle.lanes.needs_input.cards[0]!, id: `detail-dialog-${os}-${width}`, permission: {
+      requestId: `detail-request-${os}-${width}`, kind: "question", name: "request_user_input_async", title: "Question", summary: "Confirm?", actions: [], remaining: 0,
+      questions: [{ header: "Question 1", question: "Confirm?", multiSelect: false, options: [{ label: "Keep" }, { label: "Reject" }], allowOther: true }],
+    } };
+    handle.lanes = { ...handle.lanes, needs_input: { ...handle.lanes.needs_input, cards: [card] } };
+    handle.byId = new Map(handle.byId).set(card.id, card);
+    const respond = vi.fn(async () => {});
+    const ref = vi.spyOn(paseo.agents, "ref").mockReturnValue({ respondToPermission: respond, timeline: { refetch: async () => ({ entries: [] }), subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }) } } as never);
+    try {
+      await act(async () => { renderer = TestRenderer.create(screen(phone)); });
+      layOut(width);
+      const view = cards().find((node) => node.props.card.id === card.id)!;
+      await act(async () => view.props.onSelect(card));
+      if (!phone && width < 760) {
+        await act(async () => { vi.advanceTimersByTime(350); });
+      }
+      const section = hostsById("detail-permission")[0]!;
+      const buttons = section.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "button");
+      expect(buttons.map((button) => button.props.accessibilityLabel)).toEqual(os === "web" ? ["Keep", "Reject", "View questions"] : ["View questions"]);
+      expect(hostsById("detail-pending-questions").length).toBe(os === "web" ? 1 : 0);
+      await act(async () => buttons.at(-1)!.props.onPress());
+      const dialog = () => hostsById("task-question-dialog").at(-1)!;
+      expect(hostsById("task-question-dialog")).toHaveLength(os === "web" ? 2 : 1);
+      await act(async () => dialog().findByProps({ testID: "task-question-option-0-1" }).props.onPress());
+      await act(async () => dialog().findByProps({ testID: "task-question-close" }).props.onPress());
+      await act(async () => buttons.at(-1)!.props.onPress());
+      expect(dialog().findByProps({ testID: "task-question-submit" }).props.disabled).toBe(false);
+      await act(async () => dialog().findByProps({ testID: "task-question-submit" }).props.onPress());
+      expect(respond).toHaveBeenCalledExactlyOnceWith({ requestId: card.permission!.requestId, response: { behavior: "allow", updatedInput: { answers: { "Question 1": "Reject" } } } });
+      expect(openAgent).not.toHaveBeenCalled();
+    } finally {
+      act(() => questionDialogStore(paseo as never).close());
+      ref.mockRestore();
+      handle.lanes = saved.lanes;
+      handle.byId = saved.byId;
+    }
+  });
+
   it("opens one dialog when multiple board instances share a client", async () => {
     const handle = (data as unknown as { __handle: data.TasksHandle }).__handle;
     const saved = { lanes: handle.lanes, byId: handle.byId };
