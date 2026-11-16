@@ -19,6 +19,11 @@ import { SearchCoverageItems } from "./search-coverage";
 import { PanelMark, SearchQueryChip } from "./filter-bar";
 import { TASK_TOOLBAR_METRICS } from "../toolbar-metrics";
 import { LANES } from "./navigation";
+import { tasksSettingsOpener } from "./enabled";
+import { useUpdateIndicator } from "./update-indicator";
+import { UPDATE_INDICATOR_COLOR } from "../../ui/update-indicator";
+import { SETTINGS_STRINGS } from "../../i18n/settings-page-strings";
+import { useTasksLanguage } from "../i18n";
 
 type ViewPage = "view" | "sort";
 
@@ -42,6 +47,9 @@ export function TabletToolbar(props: {
   const { board, theme } = props;
   const colors = theme.colors;
   const strings = board.strings;
+  const openSettings = tasksSettingsOpener();
+  const updateAvailable = useUpdateIndicator(board.hostId, board.visible) && !!openSettings;
+  const updateLabel = SETTINGS_STRINGS[useTasksLanguage()].versionBadge;
   const scale = useTasksFontScale();
   const compact = props.width < 680 * Math.max(1, scale);
   const target = taskControlHeight(TASK_TOOLBAR_METRICS.touch.button, scale);
@@ -96,6 +104,7 @@ export function TabletToolbar(props: {
       { key: "empty-lanes", label: props.emptyLanes.collapsed ? strings.emptyLanes.expand : strings.emptyLanes.collapse, icon: props.emptyLanes.collapsed ? "UnfoldHorizontal" : "FoldHorizontal", checked: props.emptyLanes.collapsed, disabled: props.emptyLanes.disabled, keepOpen: true, onSelect: props.emptyLanes.onToggle },
       { key: "archived", label: strings.archivedLane.row, icon: "Archive", checked: board.showArchived, keepOpen: true, onSelect: () => board.setShowArchived(!board.showArchived) },
     ] },
+    ...(openSettings ? [{ key: "settings", items: [{ key: "settings", label: strings.openSettings, accessibilityLabel: updateAvailable ? `${strings.openSettings}, ${updateLabel}` : undefined, icon: "Bolt", onSelect: openSettings, trailing: updateAvailable ? <View testID="tablet-settings-update-dot" pointerEvents="none" style={{ width: 4, height: 4, borderRadius: 2, alignSelf: "center", backgroundColor: UPDATE_INDICATOR_COLOR }} /> : undefined }] }] : []),
   ];
   // Touch drill-down stays inside the same panel, including in iPad split view.
   const level = trail.reduce((current, key) => current.flatMap((section) => section.items).find((item) => item.key === key)?.submenu ?? current, sections);
@@ -165,7 +174,8 @@ export function TabletToolbar(props: {
         <ToolbarButton icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} toggle badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => { closeEmptySearch(); board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })); }} />
         {separateFilters ? <View testID="tablet-filter-anchor" onLayout={(event) => setFilterLayout(event.nativeEvent.layout)}><ToolbarButton icon="Filter" label={strings.filters} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /></View> : null}
         <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
-          <ToolbarButton icon="MoreVertical" label={strings.view} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); closeEmptySearch(); openPage(page ? null : "view"); }} />
+          <ToolbarButton icon="MoreVertical" label={updateAvailable ? `${strings.view}, ${updateLabel}` : strings.view} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); closeEmptySearch(); openPage(page ? null : "view"); }} />
+          {updateAvailable ? <View testID="tablet-view-update-dot" pointerEvents="none" style={{ position: "absolute", bottom: 10, right: 11, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
         </View>
         <ToolbarButton icon={<PanelMark open={props.sidebar.open} side={props.sidebar.sheet ? "bottom" : "right"} color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} hideSelectedBackground theme={theme} testID="sidebar-switch" onPress={() => { closeEmptySearch(); props.sidebar.onToggle(); }} />
         </View>

@@ -1292,6 +1292,23 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(hostsById("desktop-settings-update-dot")).toHaveLength(0);
   });
 
+  it.each(["ios", "android"] as const)("shows tablet update indicators and opens settings on %s", async (os) => {
+    const openSettings = vi.fn();
+    setTasksSettingsOpener(openSettings);
+    host.agentUpdates = { state: "done", entries: [{ provider: "codex", status: "available", updateAvailable: true }], error: null };
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    layOut(1600);
+    expect(hostsById("tablet-view-update-dot")).toHaveLength(1);
+    act(() => hostsById("tablet-view")[0]!.props.onPress());
+    expect(hostsById("tablet-settings-update-dot")).toHaveLength(1);
+    act(() => menuOption(BOARD_STRINGS.en.openSettings).props.onPress());
+    expect(openSettings).toHaveBeenCalledOnce();
+    host.agentUpdates = { state: "done", entries: [{ provider: "codex", status: "current", updateAvailable: false }], error: null };
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+    expect(hostsById("tablet-view-update-dot")).toHaveLength(0);
+  });
+
   it.each(["web", "ios"] as const)("%s keeps every action available when a narrow side slot needs the View menu", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(screen(false)); });
