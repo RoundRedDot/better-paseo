@@ -173,9 +173,9 @@ export function TabletToolbar(props: {
         <View testID="tablet-toolbar-end" pointerEvents="box-none" onLayout={(event) => setActionLayout(event.nativeEvent.layout)} style={{ flex: searching || searchInToolbar || !centered ? 0 : 1, flexBasis: searching || searchInToolbar || !centered ? "auto" : 0, minWidth: compact && centered ? minimumActionsWidth : 0, marginLeft: 6, marginRight: -6, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: TASK_TOOLBAR_METRICS.touch.gap }}>
         <ToolbarButton icon={resolved.filters.hideSubtasks ? "List" : "Network"} label={strings.showSubtasks} selected={!resolved.filters.hideSubtasks} toggle badge={board.hiddenSubtasks} badgeTestID="subtasks-toggle-count" theme={theme} testID="subtasks-toggle" onPress={() => { closeEmptySearch(); board.setParams((p) => ({ ...p, hideSubtasks: !resolved.filters.hideSubtasks })); }} />
         {separateFilters ? <View testID="tablet-filter-anchor" onLayout={(event) => setFilterLayout(event.nativeEvent.layout)}><ToolbarButton icon="Filter" label={strings.filters} badge={count} expanded={Boolean(props.filters)} theme={theme} testID="toolbar-filters" onPress={() => { close(); if (!props.filters) props.onFilters(); }} /></View> : null}
-        <View pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
-          <ToolbarButton icon="MoreVertical" label={updateAvailable ? `${strings.view}, ${updateLabel}` : strings.view} badge={separateFilters ? undefined : count} expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); closeEmptySearch(); openPage(page ? null : "view"); }} />
-          {updateAvailable ? <View testID="tablet-view-update-dot" pointerEvents="none" style={{ position: "absolute", bottom: 10, right: 11, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
+        <View testID="tablet-view-container" pointerEvents="box-none" onLayout={(event) => setViewLayout(event.nativeEvent.layout)} style={{ zIndex: 20 }}>
+          <ToolbarButton icon="MoreVertical" label={updateAvailable ? `${strings.view}, ${updateLabel}` : strings.view} badge={separateFilters ? undefined : count} badgeTop expanded={page !== null} theme={theme} testID="tablet-view" onPress={() => { props.filters?.onClose(); closeEmptySearch(); openPage(page ? null : "view"); }} />
+          {updateAvailable ? <View testID="tablet-view-update-dot" pointerEvents="none" style={{ position: "absolute", bottom: target / 2 - 12, right: target / 2 - 11, width: 4, height: 4, borderRadius: 2, backgroundColor: UPDATE_INDICATOR_COLOR }} /> : null}
         </View>
         <ToolbarButton icon={<PanelMark open={props.sidebar.open} side={props.sidebar.sheet ? "bottom" : "right"} color={colors.foreground} />} label={props.sidebar.open ? strings.sidebar.hide : strings.sidebar.show} selected={props.sidebar.open} hideSelectedBackground theme={theme} testID="sidebar-switch" onPress={() => { closeEmptySearch(); props.sidebar.onToggle(); }} />
         </View>
@@ -237,7 +237,7 @@ function StatusQueryChip(props: { board: BoardController; theme: PluginTheme; on
   return <SearchQueryChip board={props.board} theme={props.theme} lead={<SearchStatusMark theme={props.theme} />} editHint={hint} onEdit={props.onEdit} />;
 }
 
-function ToolbarButton(props: { icon: string | React.ReactElement; label: string; theme: PluginTheme; onPress(): void; testID: string; selected?: boolean; toggle?: boolean; hideSelectedBackground?: boolean; expanded?: boolean; badge?: number; badgeTestID?: string; slashed?: boolean; size?: number }) {
+function ToolbarButton(props: { icon: string | React.ReactElement; label: string; theme: PluginTheme; onPress(): void; testID: string; selected?: boolean; toggle?: boolean; hideSelectedBackground?: boolean; expanded?: boolean; badge?: number; badgeTop?: boolean; badgeTestID?: string; slashed?: boolean; size?: number }) {
   const colors = props.theme.colors;
   const scale = useTasksFontScale();
   const target = taskControlHeight(props.size ?? TASK_TOOLBAR_METRICS.touch.button, scale);
@@ -247,7 +247,7 @@ function ToolbarButton(props: { icon: string | React.ReactElement; label: string
       <View style={{ width: iconSize, height: iconSize, alignItems: "center", justifyContent: "center" }}>
         {typeof props.icon === "string" ? <Icon name={props.icon} size={iconSize} color={colors.foreground} /> : props.icon}
         {props.slashed ? <SlashMark size={iconSize} color={colors.foreground} gap={colors.surface0} /> : null}
-        <CornerBadge count={props.badge ?? 0} theme={props.theme} style={{ bottom: -4, right: -4 }} testID={props.badgeTestID ?? "tablet-filter-count"} />
+        <CornerBadge count={props.badge ?? 0} theme={props.theme} style={props.badgeTop ? { top: -4, right: -4 } : { bottom: -4, right: -4 }} testID={props.badgeTestID ?? "tablet-filter-count"} />
       </View>
     </HoverPressable>
   );

@@ -1292,14 +1292,25 @@ describe("Tasks search coverage and centred toolbar", () => {
     expect(hostsById("desktop-settings-update-dot")).toHaveLength(0);
   });
 
-  it.each(["ios", "android"] as const)("shows tablet update indicators and opens settings on %s", async (os) => {
+  it.each(["ios", "android"].flatMap((os) => [14, 21].map((base) => ({ os, base }))))("shows tablet update indicators and opens settings on $os at UI $base", async ({ os, base }) => {
     const openSettings = vi.fn();
     setTasksSettingsOpener(openSettings);
     host.agentUpdates = { state: "done", entries: [{ provider: "codex", status: "available", updateAvailable: true }], error: null };
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
-    await act(async () => { renderer = TestRenderer.create(screen(false)); });
+    await act(async () => { renderer = TestRenderer.create(screen(false, { agent: "codex" }, { ...(theme as object), typography: { fontSize: { ui: base } } })); });
     layOut(1600);
+    act(() => hostsById("tablet-toolbar-end")[0]!.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 20, height: 40 } } }));
     expect(hostsById("tablet-view-update-dot")).toHaveLength(1);
+    const anchor = hostsById("tablet-view-container")[0]!;
+    const dot = hostsById("tablet-view-update-dot")[0]!;
+    const frames = measureHostTree(anchor, { width: base === 14 ? 32 : 48 });
+    const buttonFrame = frames.get(hostsById("tablet-view")[0]!)!;
+    const dotFrame = frames.get(dot)!;
+    expect(dotFrame.left - (buttonFrame.left + buttonFrame.width / 2)).toBe(7);
+    expect(dotFrame.top - (buttonFrame.top + buttonFrame.height / 2)).toBe(8);
+    const badge = hostParentOf(hostsById("tablet-filter-count")[0]!)!;
+    const badgeFrame = frames.get(badge)!;
+    expect(badgeFrame.top + badgeFrame.height).toBeLessThanOrEqual(dotFrame.top);
     act(() => hostsById("tablet-view")[0]!.props.onPress());
     expect(hostsById("tablet-settings-update-dot")).toHaveLength(1);
     act(() => menuOption(BOARD_STRINGS.en.openSettings).props.onPress());
