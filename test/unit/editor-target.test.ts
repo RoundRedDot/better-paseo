@@ -132,9 +132,26 @@ describe("file open preference", () => {
     process.env.PATH = "C:\\Users\\a\\AppData\\Local\\Programs\\Zed";
     process.env.LOCALAPPDATA = "C:\\Users\\a\\AppData\\Local";
     const cli = "C:\\Users\\a\\AppData\\Local\\Programs\\Zed\\bin\\zed.exe";
-    fs.existing.add("C:\\Users\\a\\AppData\\Local\\Programs\\Zed\\zed.exe");
+    fs.existing.add("C:\\Users\\a\\AppData\\Local\\Programs\\Zed\\Zed.exe");
     fs.existing.add(cli);
     expect(await editorCommand("zed", "win32")).toEqual({ command: cli, args: [], completion: "exit" });
+  });
+
+  it("opens with the Windows Zed GUI when the CLI is absent", async () => {
+    process.env.PATH = "C:\\Users\\a\\AppData\\Local\\Programs\\Zed";
+    process.env.LOCALAPPDATA = "C:\\Users\\a\\AppData\\Local";
+    const gui = "C:\\Users\\a\\AppData\\Local\\Programs\\Zed\\Zed.exe";
+    fs.existing.add(gui);
+    expect(await editorCommand("zed", "win32")).toEqual({ command: gui, args: [], completion: "spawn" });
+  });
+
+  it("finds a Windows Zed GUI in a custom PATH directory", async () => {
+    process.env.PATH = "D:\\Apps\\Zed";
+    delete process.env.LOCALAPPDATA;
+    delete process.env.ProgramFiles;
+    const gui = "D:\\Apps\\Zed\\Zed.exe";
+    fs.existing.add(gui);
+    expect(await editorCommand("zed", "win32")).toEqual({ command: gui, args: [], completion: "spawn" });
   });
 
   it("finds zeditor and avoids the ZFS daemon", async () => {
@@ -171,6 +188,13 @@ describe("file open preference", () => {
     expect((await editorCommand("zed", "linux")).command).toBe("/opt/bin/zeditor");
     fs.versions.delete("/opt/bin/zeditor");
     await expect(editorCommand("zed", "linux")).rejects.toThrow("EACCES");
+  });
+
+  it("reports Zed missing when there are no candidates, even if the ZFS path is unreadable", async () => {
+    process.env.PATH = "";
+    fs.existing.add("/usr/sbin/zed");
+    fs.realpathErrors.add("/usr/sbin/zed");
+    await expect(editorCommand("zed", "linux")).rejects.toBeInstanceOf(EditorUnavailableError);
   });
 
   it("reports an editor missing from PATH", async () => {

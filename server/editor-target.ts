@@ -48,13 +48,19 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
       }
       paths.push(...shims);
     } else if (app === "zed") {
+      const guiPaths: string[] = [];
       for (const root of [process.env.LOCALAPPDATA && win32.join(process.env.LOCALAPPDATA, "Programs"), process.env.ProgramFiles]) {
-        if (root) paths.push({ path: win32.join(root, "Zed", "bin", "zed.exe"), completion: "exit" });
+        if (root) {
+          paths.push({ path: win32.join(root, "Zed", "bin", "zed.exe"), completion: "exit" });
+          guiPaths.push(win32.join(root, "Zed", "Zed.exe"));
+        }
       }
       for (const dir of dirs) {
         paths.push({ path: win32.join(dir, "bin", "zed.exe"), completion: "exit" });
         if (win32.basename(dir).toLowerCase() === "bin") paths.push({ path: win32.join(dir, "zed.exe"), completion: "exit" });
+        else guiPaths.push(win32.join(dir, "Zed.exe"));
       }
+      paths.push(...guiPaths.map((path) => ({ path, completion: "spawn" as const })));
     } else {
       for (const dir of dirs) paths.push({ path: win32.join(dir, `${editor.command}.exe`), completion: "exit" });
       if (app === "sublime") {
@@ -82,6 +88,7 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
     }
   }
   let candidateError: unknown;
+  let foundCandidate = false;
   for (const candidate of candidates) {
     try {
       accessSync(candidate, constants.X_OK);
@@ -91,6 +98,7 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
     let actualPath: string;
     try {
       if (!statSync(candidate).isFile()) continue;
+      foundCandidate = true;
       actualPath = realpathSync(candidate);
     } catch (error) {
       candidateError ??= error;
@@ -119,7 +127,7 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
     }
   }
   if (candidateError !== undefined) throw candidateError;
-  if (zfsError !== undefined) throw zfsError;
+  if (zfsError !== undefined && foundCandidate) throw zfsError;
   throw new EditorUnavailableError(`${editor.app} is not installed or its command is not on PATH`);
 }
 
