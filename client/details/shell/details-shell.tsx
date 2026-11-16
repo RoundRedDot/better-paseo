@@ -38,6 +38,7 @@ import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
 import { useListScrollLock } from "../../ui/scroll-anchor";
 import { revealPathRpc } from "../../../shared/file-rpc";
+import { fileOpenError } from "../../i18n/file-open-error";
 import { DETAILS_MOTION, animate } from "./motion";
 import { OVERDRAG, panelResponder, type DragTarget } from "./gestures";
 import { useSafeInsets } from "./safe-area";
@@ -124,7 +125,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   const toast = useToast();
   const cwd = useRef<string | undefined>(undefined);
   const reveal = useCallback((path: string) => {
-    void revealPath({ cwd: cwd.current ?? "", path }).then((result) => { if (result.error) toast.error(result.error); }).catch((error: unknown) => toast.error(String(error)));
+    void revealPath({ cwd: cwd.current ?? "", path }).then((result) => { if (result.error) toast.error(fileOpenError(result)); }).catch((error: unknown) => toast.error(String(error)));
   }, [revealPath, toast]);
   const paths = usePathContextValue(agentId, reveal);
   cwd.current = paths.cwd;

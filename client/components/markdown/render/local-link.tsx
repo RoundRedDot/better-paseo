@@ -8,8 +8,8 @@ import type { RenderContext } from "./context";
 
 /**
  * A link in the prose that points at a file. It behaves as a path does
- * everywhere else (plan §3.9): a pointer reveals the file in the file
- * manager, and touch copies the absolute path, because revealing would open
+ * everywhere else (plan §3.9): a pointer opens or reveals the path on the
+ * host, and touch copies the absolute path, because opening would show
  * a window on the daemon's machine rather than the phone in hand.
  */
 export function LocalLink({
@@ -34,7 +34,7 @@ export function LocalLink({
       selectable
       accessibilityRole="link"
       accessibilityLabel={absolutePath}
-      accessibilityHint={copies ? "Copies the path" : "Reveals the file"}
+      accessibilityHint={copies ? "Copies the path" : "Opens or reveals the path"}
       onPress={() => (copies ? void copy(absolutePath, { feedback: "toast", label: "Copy path" }) : reveal(absolutePath))}
       style={context.styles.link}
     >

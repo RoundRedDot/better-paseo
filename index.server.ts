@@ -137,13 +137,18 @@ async function resolveSelector(path: string, cwd: string): Promise<ResolvedSelec
   return isNetworkOrDevicePath(stripped) ? { error: "Not a local path" } : { path: stripped };
 }
 
-/** Runs the path press's shell command (`shellOpenCommand`), detached. */
-function openWithShell(target: string, entry: PathEntry): void {
+/** Runs a platform command without a shell and reports startup failures. */
+async function openWithShell(target: string, entry: PathEntry): Promise<void> {
   const { command, args, windowsVerbatimArguments } = shellOpenCommand(process.platform, target, entry);
   const child = spawn(command, args, { detached: true, stdio: "ignore", ...(windowsVerbatimArguments ? { windowsVerbatimArguments } : null) });
-  // Explorer reports a non-zero exit even when it opened the window, so the
-  // result is never read. Detaching keeps the daemon free of a zombie child.
-  child.on("error", () => {});
+  await new Promise<void>((resolve, reject) => {
+    child.once("error", reject);
+    if (process.platform === "darwin") {
+      child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`Failed to open path (exit ${code})`)));
+    } else {
+      child.once("spawn", resolve);
+    }
+  });
   child.unref();
 }
 
@@ -496,19 +501,28 @@ export default function contribute(server: PluginServerContext) {
     const requested = resolved.path;
 
     const target = isAbsolute(requested) ? requested : resolve(input.cwd, requested);
+    let errorKind: "settings_unavailable" | "editor_unavailable" | "launch_failed" | undefined;
+    let errorApp: "system" | "cursor" | "vscode" | "zed" | "sublime" | undefined;
     try {
       const entry = await stat(target);
       if (entry.isDirectory() || launches(target, entry)) {
-        openWithShell(target, entry);
+        errorKind = "launch_failed";
+        errorApp = "system";
+        await openWithShell(target, entry);
         return { revealed: target, error: null };
       }
+      errorKind = "settings_unavailable";
       const settings = await preferences.read();
       if (settings.status !== "ready") throw new Error("File open settings are unavailable");
       const app = settings.values.fileOpenApp;
+      errorApp = app;
       if (app === "system") {
-        openWithShell(target, entry);
+        errorKind = "launch_failed";
+        await openWithShell(target, entry);
       } else {
-        const editor = editorCommand(app);
+        errorKind = "editor_unavailable";
+        const editor = await editorCommand(app);
+        errorKind = "launch_failed";
         const child = spawn(editor.command, [...editor.args, target], { detached: true, stdio: "ignore" });
         await new Promise<void>((resolve, reject) => {
           child.once("error", reject);
@@ -525,6 +539,8 @@ export default function contribute(server: PluginServerContext) {
       return {
         revealed: null,
         error: error instanceof Error ? error.message : String(error),
+        ...(errorKind ? { errorKind } : {}),
+        ...(errorApp ? { errorApp } : {}),
       };
     }
   });

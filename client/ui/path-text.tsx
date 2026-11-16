@@ -235,7 +235,7 @@ export function PathText({
         // it is a <div> with role="button" (see `useContainerButton`).
         accessibilityRole={button.accessibilityRole}
         accessibilityLabel={formatted.absolutePath}
-        accessibilityHint={touchFirst || !reveal ? "Copies the path" : "Reveals the file"}
+        accessibilityHint={touchFirst || !reveal ? "Copies the path" : "Opens or reveals the path"}
         onPress={rowBodyPress ?? onPress}
         delayLongPress={rowBodyPress ? 500 : undefined}
         onLongPress={rowLongPress ?? (capabilities.touch ? copyAbsolute : undefined)}

@@ -78,11 +78,33 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
     settings.status = "invalid";
     spawn.mockClear();
     const reveal = await revealHandler();
-    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ revealed: null, error: "File open settings are unavailable" });
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ revealed: null, error: "File open settings are unavailable", errorKind: "settings_unavailable" });
     expect(spawn).not.toHaveBeenCalled();
     await reveal({ cwd: root, path: "run" });
     expect(spawn).toHaveBeenLastCalledWith("open", ["-R", join(root, "run")], expect.anything());
     settings.status = "ready";
+  });
+
+  it("reports a failed macOS system opener", async () => {
+    spawn.mockImplementationOnce(() => {
+      const child = new EventEmitter() as EventEmitter & { unref: () => void };
+      child.unref = vi.fn();
+      queueMicrotask(() => { child.emit("spawn"); child.emit("exit", 1); });
+      return child;
+    });
+    const reveal = await revealHandler();
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ revealed: null, error: "Failed to open path (exit 1)", errorKind: "launch_failed", errorApp: "system" });
+  });
+
+  it("reports an asynchronous system opener spawn error", async () => {
+    spawn.mockImplementationOnce(() => {
+      const child = new EventEmitter() as EventEmitter & { unref: () => void };
+      child.unref = vi.fn();
+      queueMicrotask(() => child.emit("error", new Error("open missing")));
+      return child;
+    });
+    const reveal = await revealHandler();
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ revealed: null, error: "open missing", errorKind: "launch_failed", errorApp: "system" });
   });
 
   it("returns after a long-running GUI process starts", async () => {
@@ -109,7 +131,7 @@ describe.runIf(process.platform === "darwin")("file.reveal on macOS", () => {
       return child;
     });
     const reveal = await revealHandler();
-    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ revealed: null, error: "Failed to open file with zed (exit 1)" });
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ revealed: null, error: "Failed to open file with zed (exit 1)", errorKind: "launch_failed", errorApp: "zed" });
     settings.app = "system";
   });
 });

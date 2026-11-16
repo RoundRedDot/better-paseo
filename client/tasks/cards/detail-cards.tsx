@@ -5,6 +5,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
 import { Icon, ScrollView as SheetScrollView, useToast } from "@getpaseo/plugin/client/react-native";
 import { revealPathRpc } from "../../../shared/file-rpc";
+import { fileOpenError } from "../../i18n/file-open-error";
 import { openLink } from "../../components/open-link";
 import { MarkdownView } from "../../components/markdown/markdown-view";
 import { variantMetrics } from "../../components/markdown/render/styles";
@@ -1360,7 +1361,7 @@ function Properties(props: Inner) {
   const openFolder = async () => {
     try {
       const result = await revealPath({ cwd: location.cwd, path: location.cwd });
-      if (result.error) toast.error(details.openFolderError(result.error));
+      if (result.error) toast.error(details.openFolderError(fileOpenError(result, props.language)));
     } catch (error) {
       toast.error(details.openFolderError(error instanceof Error ? error.message : String(error)));
     }
@@ -1879,14 +1880,14 @@ function TimelineTextBody(props: Inner & {
   const revealPath = useRpc(revealPathRpc);
   const toast = useToast();
   // Kept the same across renders: a new one would draw the prose again.
-  const reveal = useRef({ revealPath, toast, words, cwd: props.card.location.cwd });
-  reveal.current = { revealPath, toast, words, cwd: props.card.location.cwd };
+  const reveal = useRef({ revealPath, toast, words, language: props.language, cwd: props.card.location.cwd });
+  reveal.current = { revealPath, toast, words, language: props.language, cwd: props.card.location.cwd };
   const onRevealPath = useCallback((path: string) => {
-    const { revealPath: open, toast: notice, words: text, cwd } = reveal.current;
+    const { revealPath: open, toast: notice, words: text, language, cwd } = reveal.current;
     const fail = (error: string) => notice.error(text.openLinkError(error));
     open({ cwd, path })
       .then((result) => {
-        if (result.error) fail(result.error);
+        if (result.error) fail(fileOpenError(result, language));
       })
       .catch((error: unknown) => fail(error instanceof Error ? error.message : String(error)));
   }, []);

@@ -60,6 +60,16 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe("path action accessibility", () => {
+  it("announces opening or revealing when the path is clickable", () => {
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(PathText, { path: "/tmp/project/a.ts", tokens, onReveal() {} })); });
+    const path = renderer.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "/tmp/project/a.ts");
+    expect(path.props.accessibilityHint).toBe("Opens or reveals the path");
+    act(() => renderer.unmount());
+  });
+});
+
 describe("a path's desktop preview", () => {
   it("has the preview toolbar: copy the path, and maximize", async () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
