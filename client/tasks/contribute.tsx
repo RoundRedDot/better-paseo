@@ -74,7 +74,7 @@ export function contributeTasks(client: PluginClientContext): () => void {
   const registerBoard = () => {
     const titles = BOARD_STRINGS[language];
     const cleanups = [
-      bindTasksShortcut(deviceTasksStore(), () => {
+      bindTasksShortcut(deviceTasksStore, () => {
         requestChunk();
         client.openScreen(boardRoute());
       }),

@@ -44,7 +44,7 @@ afterEach(() => { for (const cleanup of cleanups.splice(0)) cleanup(); vi.unstub
 describe("open Tasks shortcut", () => {
   it("opens directly once, ignores repeat and IME, and removes its listener", () => {
     const open = vi.fn();
-    const stop = bindTasksShortcut(store().value, open);
+    const stop = bindTasksShortcut(() => store().value, open);
     cleanups.push(stop);
     expect(press().defaultPrevented).toBe(true);
     press({ repeat: true });
@@ -60,7 +60,7 @@ describe("open Tasks shortcut", () => {
   it("applies edits immediately, persists across restart, and supports clearing and resetting", async () => {
     const disk = store();
     const open = vi.fn();
-    cleanups.push(bindTasksShortcut(disk.value, open));
+    cleanups.push(bindTasksShortcut(() => disk.value, open));
     await disk.value.update({ openShortcut: "Mod+Alt+KeyJ" });
     press();
     expect(open).not.toHaveBeenCalled();
@@ -80,7 +80,7 @@ describe("open Tasks shortcut", () => {
   it("uses Ctrl on Windows and does not accept extra modifiers", () => {
     vi.stubGlobal("navigator", { platform: "Win32" });
     const open = vi.fn();
-    cleanups.push(bindTasksShortcut(store().value, open));
+    cleanups.push(bindTasksShortcut(() => store().value, open));
     press();
     press({ metaKey: false, ctrlKey: true });
     expect(open).toHaveBeenCalledTimes(1);
@@ -90,8 +90,8 @@ describe("open Tasks shortcut", () => {
     const first = vi.fn();
     const second = vi.fn();
     const selected = vi.fn();
-    cleanups.push(bindTasksShortcut(store().value, first));
-    const stopSecond = bindTasksShortcut(store().value, second);
+    cleanups.push(bindTasksShortcut(() => store().value, first));
+    const stopSecond = bindTasksShortcut(() => store().value, second);
     cleanups.push(stopSecond);
     selectTasksShortcut(selected);
     press();
@@ -107,7 +107,7 @@ describe("open Tasks shortcut", () => {
   it("suspends opening while recording, resumes after cancel, and records with no board listener", () => {
     const open = vi.fn();
     const receive = vi.fn();
-    const stop = bindTasksShortcut(store().value, open);
+    const stop = bindTasksShortcut(() => store().value, open);
     cleanups.push(stop);
     const cancel = captureTasksShortcut(receive);
     cleanups.push(cancel);
@@ -127,7 +127,7 @@ describe("open Tasks shortcut", () => {
     const open = vi.fn();
     const storage = { read: () => JSON.stringify(defaults), write: () => { throw new Error("Disk full"); } };
     const value = createDeviceTasksStore(storage);
-    cleanups.push(bindTasksShortcut(value, open));
+    cleanups.push(bindTasksShortcut(() => value, open));
     press();
     expect(open).not.toHaveBeenCalled();
     value.load(defaults);
@@ -150,5 +150,19 @@ describe("shortcut codec", () => {
   });
   it.each(["", "KeyY", "Shift+KeyY", "Mod+Mod+KeyY", "Mod+KeyUnknown", 4, {}])("rejects invalid stored shortcuts: %s", (value) => {
     expect(validTasksShortcut(value)).toBe(false);
+  });
+
+  it("follows the device store that replaced the one it was bound with", () => {
+    const open = vi.fn();
+    let current = store().value;
+    cleanups.push(bindTasksShortcut(() => current, open));
+    press();
+    expect(open).toHaveBeenCalledTimes(1);
+    // A plugin update replaced the runtime; the shortcut was cleared there.
+    const cleared = store();
+    void cleared.value.update({ openShortcut: null });
+    current = cleared.value;
+    press();
+    expect(open).toHaveBeenCalledTimes(1);
   });
 });

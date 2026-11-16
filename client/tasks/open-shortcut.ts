@@ -27,7 +27,11 @@ export function selectTasksShortcut(open: () => void): void {
   runtime().selected = registration;
 }
 
-export function bindTasksShortcut(store: DeviceTasksStore, open: () => void): () => void {
+/**
+ * `store` answers the device store when a key is pressed: a plugin update can replace it while
+ * this listener lives (`device-preferences.ts`), and the shortcut follows the current one.
+ */
+export function bindTasksShortcut(store: () => DeviceTasksStore, open: () => void): () => void {
   if (Platform.OS !== "web" || typeof window === "undefined") return () => {};
   const own = { open };
   registration = own;
@@ -42,7 +46,7 @@ export function bindTasksShortcut(store: DeviceTasksStore, open: () => void): ()
       return;
     }
     if (shared.selected !== own) return;
-    const shortcut = store.current()?.openShortcut;
+    const shortcut = store().current()?.openShortcut;
     if (!shortcut || shortcutFromEvent(event, isShortcutMac()) !== shortcut) return;
     consume(event);
     if (!event.repeat) own.open();
