@@ -341,6 +341,22 @@ describe("device Tasks preferences in Paseo's device settings", () => {
     expect(host.record()?.board).toMatchObject({ titleLines: "2" });
   });
 
+  it.each([
+    ["the board options", ["hideSubtasks", "showArchived", "showEmptyGroups", "laneWidth"], "4"],
+    ["every option but the shortcut", ["hideSubtasks", "showArchived", "showEmptyGroups", "laneWidth", "titleLines"], "2"],
+  ] as const)("resets only %s, keeping another window's newer fields", async (_name, reset, titleLines) => {
+    const edited = { ...seed, hideSubtasks: !seed.hideSubtasks, laneWidth: "wide" as const };
+    const { host, adapter, store } = setup({ host: fakeHost({ board: edited }) });
+    host.mount(adapter);
+    store.load(seed);
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    // Another window set a shortcut and title lines; this one has not heard yet.
+    host.writeElsewhere({ board: { ...edited, openShortcut: "Mod+Shift+KeyK", titleLines: "4" } });
+    await store.restore({ ...seed, openShortcut: store.snapshot().values!.openShortcut }, reset);
+    expect(host.record()?.board).toEqual({ ...seed, openShortcut: "Mod+Shift+KeyK", titleLines });
+    expect(store.snapshot().values).toEqual({ ...seed, openShortcut: "Mod+Shift+KeyK", titleLines });
+  });
+
   it("offers a provisional copy for the shortcut until the settings load", async () => {
     const adapter = createDeviceSettingsAdapter({ legacyBoard: async () => null, legacySidebar: async () => null, mirror() {} });
     const copy = JSON.stringify({ ...seed, openShortcut: "Mod+Shift+KeyK" });

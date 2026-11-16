@@ -94,7 +94,8 @@ export function useTasksForm() {
   const restoreDefaults = useCallback(async () => {
     setConflict(false);
     setLocalError(null);
-    try { await device.restore({ ...deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board), openShortcut }); }
+    // The board fields and title lines reset; the shortcut stays as this device has it now.
+    try { await device.restore({ ...deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board), openShortcut }, [...DEVICE_BOARD_FIELDS, "titleLines"]); }
     catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); return; }
     if (enabled === null) await reset();
     else await commit({ ...DEFAULT_TASKS_SETTINGS, enabled });
@@ -111,7 +112,7 @@ export function useTasksForm() {
     if (settings.status !== "ready") return;
     setConflict(false);
     setLocalError(null);
-    try { await device.restore({ ...deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board), titleLines: device.titleLines, openShortcut }); }
+    try { await device.restore({ ...deviceBoardPreferences(DEFAULT_TASKS_SETTINGS.board), titleLines: device.titleLines, openShortcut }, DEVICE_BOARD_FIELDS); }
     catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); return; }
     await commit({ ...settings.values, board: DEFAULT_TASKS_SETTINGS.board });
   }, [commit, device.restore, device.titleLines, openShortcut, settings]);

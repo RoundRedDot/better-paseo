@@ -146,11 +146,19 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
       } catch (error) { fail(error); }
     },
     /** An explicit reset also repairs an unreadable local record. */
-    restore(values: DeviceBoardPreferences): Promise<void> {
+    /**
+     * Resets the `reset` fields to `values`' and saves only those, over the record as read when
+     * saving, so another window's other fields survive. Without `reset`, or with no readable
+     * record to keep fields from, it replaces the whole record: that also repairs a broken one.
+     */
+    restore(defaults: DeviceBoardPreferences, reset?: readonly (keyof DeviceBoardPreferences)[]): Promise<void> {
       const previous = state;
       const ownRevision = ++revision;
+      const partial = reset !== undefined && state.ready && state.values !== null;
+      const patch = partial ? Object.fromEntries(reset.map((key) => [key, defaults[key]])) as Partial<DeviceBoardPreferences> : null;
+      const values = partial ? { ...state.values!, ...patch } : defaults;
       accept(values);
-      const pending = track(writes.then(() => storage.write(JSON.stringify(values))));
+      const pending = track(writes.then(() => patch ? storage.write(JSON.stringify(values), { kind: "patch", patch }) : storage.write(JSON.stringify(values))));
       writes = pending.then(() => {}, () => {});
       return pending.then((stored) => {
         if (revision === ownRevision && state.error) { state = { ...state, error: null }; emit(); }
