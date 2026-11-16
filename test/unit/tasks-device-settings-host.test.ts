@@ -130,4 +130,40 @@ describe("device Tasks preferences by host version", () => {
     expect(host.record.values).toMatchObject({ board: { showArchived: false } });
     act(() => b.unmount());
   });
+
+  it("replaces the device runtime an older plugin left on a hot update, and keeps a newer one", async () => {
+    mockDeviceHook();
+    const stale = { snapshot: vi.fn(), subscribe: vi.fn(), load: vi.fn(), update: vi.fn(), restore: vi.fn(), current: vi.fn() };
+    // The first release of this runtime carried no version.
+    holder.__betterPaseoDeviceTasksV4 = { store: stale, deviceSettings: true };
+    const first = await import("../../client/tasks/device-preferences");
+    expect(first.deviceTasksStore()).not.toBe(stale);
+    const current = first.deviceTasksStore();
+    const newer = { store: stale, deviceSettings: true, version: 99 };
+    holder.__betterPaseoDeviceTasksV4 = newer;
+    vi.resetModules();
+    const second = await import("../../client/tasks/device-preferences");
+    expect(second.deviceTasksStore()).toBe(stale);
+    expect(current).not.toBe(stale);
+  });
+
+  it("shows one host's sidebar change to another host's board", async () => {
+    const host = mockDeviceHook();
+    host.record = { revision: JSON.stringify({ sidebar: { open: true, width: 300 } }), values: { sidebar: { open: true, width: 300 } } };
+    const preferences = await import("../../client/tasks/device-preferences");
+    const a = await import("../../client/tasks/board/sidebar-model");
+    vi.resetModules();
+    const b = await import("../../client/tasks/board/sidebar-model");
+    expect(b).not.toBe(a);
+    function Probe() { preferences.useDeviceTasksPreferences(DEFAULT_TASKS_SETTINGS); return null; }
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(Probe)); });
+    await act(async () => { await vi.waitFor(() => expect(preferences.deviceTasksStore().snapshot().ready).toBe(true)); });
+    expect(b.readSidebarPreference()).toMatchObject({ open: true, width: 300 });
+    act(() => a.writeSidebarPreference({ open: false, width: 400 }));
+    expect(b.readSidebarPreference()).toMatchObject({ open: false, width: 400 });
+    await act(async () => { await vi.waitFor(() => expect(host.record.values).toMatchObject({ sidebar: { open: false, width: 400 } })); });
+    expect(b.readSidebarPreference()).toMatchObject({ open: false, width: 400 });
+    act(() => renderer.unmount());
+  });
 });

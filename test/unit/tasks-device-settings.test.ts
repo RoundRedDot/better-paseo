@@ -152,6 +152,60 @@ describe("device Tasks preferences in Paseo's device settings", () => {
     expect(host.saves).toEqual([]);
   });
 
+  it("keeps another window's board fields when an edit retries after a conflict", async () => {
+    const { host, adapter, store } = setup({ host: fakeHost({ board: seed }) });
+    host.mount(adapter);
+    store.load(seed);
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    host.writeElsewhere({ board: { ...seed, titleLines: "4" } });
+    await store.update({ hideSubtasks: true });
+    expect(host.record()).toEqual({ board: { ...seed, titleLines: "4", hideSubtasks: true } });
+  });
+
+  it("does not import the old record over one another window saved while it was read", async () => {
+    let release!: (raw: string) => void;
+    const legacy = new Promise<string>((resolve) => { release = resolve; });
+    const host = fakeHost();
+    const adapter = createDeviceSettingsAdapter({ legacyBoard: () => legacy, legacySidebar: async () => null, mirror() {} });
+    installDeviceSettings(adapter);
+    const store = createDeviceTasksStore(adapter.storage);
+    host.mount(adapter);
+    store.load(seed);
+    await tick();
+    host.writeElsewhere({ board: { ...seed, titleLines: "4" } });
+    release(JSON.stringify({ ...seed, titleLines: "1" }));
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    expect(host.record()).toEqual({ board: { ...seed, titleLines: "4" } });
+    expect(store.snapshot().values?.titleLines).toBe("4");
+    expect(host.saves).toEqual([]);
+  });
+
+  it("takes the record another window saved instead of seeding over it", async () => {
+    const host = fakeHost();
+    const adapter = createDeviceSettingsAdapter({ legacyBoard: async () => null, legacySidebar: async () => null, mirror() {} });
+    installDeviceSettings(adapter);
+    // The seed waits on the queue behind a sidebar save that the other window's write refuses.
+    const store = createDeviceTasksStore(adapter.storage);
+    host.mount(adapter);
+    store.load(seed);
+    host.writeElsewhere({ board: { ...seed, laneWidth: "wide" } });
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    expect(host.record()).toEqual({ board: { ...seed, laneWidth: "wide" } });
+    expect(store.snapshot().values?.laneWidth).toBe("wide");
+  });
+
+  it("answers a sidebar change at once and keeps it after the hook reports", async () => {
+    const { host, adapter, store } = setup({ host: fakeHost({ board: seed, sidebar: { open: true, width: 300 } }) });
+    host.mount(adapter);
+    store.load(seed);
+    await vi.waitFor(() => expect(store.snapshot().ready).toBe(true));
+    adapter.sidebar.persist({ open: false, width: 400 });
+    expect(adapter.sidebar.stored()).toEqual({ open: false, width: 400 });
+    await vi.waitFor(() => expect(host.record()?.sidebar).toEqual({ open: false, width: 400 }));
+    await tick();
+    expect(adapter.sidebar.stored()).toEqual({ open: false, width: 400 });
+  });
+
   it("offers a provisional copy for the shortcut until the settings load", async () => {
     const adapter = createDeviceSettingsAdapter({ legacyBoard: async () => null, legacySidebar: async () => null, mirror() {} });
     const copy = JSON.stringify({ ...seed, openShortcut: "Mod+Shift+KeyK" });

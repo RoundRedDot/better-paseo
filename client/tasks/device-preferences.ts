@@ -53,21 +53,32 @@ function deviceSettingsStorage(): DevicePreferenceStorage {
   return adapter.storage;
 }
 
+/**
+ * The store and adapter code this bundle carries. Bump it whenever either changes: a plugin
+ * update loads the new bundle into a runtime that still holds the old objects, whose closures
+ * would keep running the old code. A newer bundle replaces them; an older one (another host
+ * still on an older plugin) uses the newer ones.
+ */
+const DEVICE_RUNTIME_VERSION = 2;
+
 interface DeviceRuntime {
   store: DeviceTasksStore;
   /** Whether the store reads Paseo's device settings: fixed for the runtime. */
   deviceSettings: boolean;
+  /** Absent on the first release of this runtime. */
+  version?: number;
 }
 
 function runtime(): DeviceRuntime {
   const holder = globalThis as Record<string, unknown>;
-  if (!holder[RUNTIME_KEY]) {
+  const existing = holder[RUNTIME_KEY] as DeviceRuntime | undefined;
+  if (!existing || (existing.version ?? 1) < DEVICE_RUNTIME_VERSION) {
     const forTests = holder.__betterPaseoDeviceTasksStorageForTests as DevicePreferenceStorage | undefined;
     const deviceSettings = !forTests && TASKS_DEVICE_SETTINGS !== null && holder.__betterPaseoLegacyDeviceStorageForTests !== true;
     if (!deviceSettings) installDeviceSettings(null);
     // On web the old record is the device settings' copy: the shortcut works before a hook reports them.
     const provisional = deviceSettings && Platform.OS === "web" ? () => readDevicePreference(LEGACY_BOARD_KEY) : undefined;
-    holder[RUNTIME_KEY] = { store: createDeviceTasksStore(forTests ?? (deviceSettings ? deviceSettingsStorage() : legacyStorage()), provisional), deviceSettings } satisfies DeviceRuntime;
+    holder[RUNTIME_KEY] = { store: createDeviceTasksStore(forTests ?? (deviceSettings ? deviceSettingsStorage() : legacyStorage()), provisional), deviceSettings, version: DEVICE_RUNTIME_VERSION } satisfies DeviceRuntime;
   }
   return holder[RUNTIME_KEY] as DeviceRuntime;
 }

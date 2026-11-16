@@ -172,30 +172,29 @@ export function parseSidebarPreference(raw: unknown): SidebarPreference | null {
 }
 
 export function readSidebarPreference(): SidebarPreference {
+  // The device settings own it when the host has them: one value for every host's bundle,
+  // read each time a board mounts (they have loaded by then).
+  const device = deviceSidebarSource();
+  if (device) return parseSidebarPreference(device.stored()) ?? DEFAULT_PREFERENCE;
   if (remembered) return remembered;
   let read: SidebarPreference = DEFAULT_PREFERENCE;
-  // The device settings own it when the host has them; a board reads it once they loaded.
-  const device = deviceSidebarSource();
-  if (device) read = parseSidebarPreference(device.stored()) ?? DEFAULT_PREFERENCE;
-  else {
-    try {
-      const raw = storage()?.getItem(LEGACY_SIDEBAR_KEY);
-      if (raw) read = parseSidebarPreference(JSON.parse(raw)) ?? DEFAULT_PREFERENCE;
-    } catch {
-      // A broken entry reads as the default.
-    }
+  try {
+    const raw = storage()?.getItem(LEGACY_SIDEBAR_KEY);
+    if (raw) read = parseSidebarPreference(JSON.parse(raw)) ?? DEFAULT_PREFERENCE;
+  } catch {
+    // A broken entry reads as the default.
   }
   remembered = read;
   return read;
 }
 
 export function writeSidebarPreference(next: SidebarPreference): void {
-  remembered = next;
   const device = deviceSidebarSource();
   if (device) {
     device.persist(next);
     return;
   }
+  remembered = next;
   try {
     storage()?.setItem(LEGACY_SIDEBAR_KEY, JSON.stringify(next));
   } catch {

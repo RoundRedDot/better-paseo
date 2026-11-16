@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { defineSettings, type SettingsDefinition } from "@getpaseo/plugin";
 import { useSettings } from "@getpaseo/plugin/client";
 import { z } from "zod";
-import type { DevicePreferenceStorage } from "./device-store";
+import type { DevicePreferenceStorage, DeviceWriteIntent } from "./device-store";
 
 /**
  * The board's device preferences in Paseo's device settings (Paseo 0.16+, `scope: "device"`):
@@ -72,6 +72,9 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
   const bridges = new Map<object, DeviceActions>();
   /** Counts reports, so a retry can wait for the one its reread brings. */
   let reports = 0;
+  /** The sidebar change being saved, and how many saves of it are in flight. */
+  let sidebarLatest: DeviceRecord["sidebar"] = undefined;
+  let sidebarSaving = 0;
   const waiters = new Set<() => void>();
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -102,20 +105,25 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
     return result;
   }
 
-  /** Writes `patch` over the record as last reported; one retry on a fresh read after a refusal (a conflict). */
-  async function save(patch: DeviceRecord): Promise<void> {
+  /**
+   * Saves `build(record)` over the record as last reported; after a refusal (a conflict) it
+   * reads again and builds once more on the fresh record, so another window's fields survive.
+   * With `onlyIf`, it saves only while the record still has that revision: "moved" otherwise.
+   */
+  async function save(build: (record: DeviceRecord) => DeviceRecord, onlyIf?: string): Promise<"saved" | "moved"> {
     for (let attempt = 0; ; attempt += 1) {
       await until(settled);
       const current = remote;
       if (current.status === "loading") continue;
       if (current.status === "error") throw new Error(current.error);
-      const values: DeviceRecord = { ...(current.status === "ready" ? current.values : {}), ...patch };
+      if (onlyIf !== undefined && current.revision !== onlyIf) return "moved";
+      const values = build(current.status === "ready" ? current.values : {});
       const act = actions();
       if (await act.save(values, current.revision)) {
         // The next write needs the revision the host gave this one; the hook reports it.
         await until(() => "revision" in remote && remote.revision !== current.revision, REPORT_WAIT_MS);
         deps.mirror(values);
-        return;
+        return "saved";
       }
       if (attempt >= 1) throw new Error(act.saveError() ?? "Could not save device Tasks preferences");
       // The reread lands in the query first; the hooks report it on a later render.
@@ -124,6 +132,10 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
       await until(() => reports > before && "revision" in remote && remote.revision !== current.revision, REPORT_WAIT_MS);
     }
   }
+
+  const boardOf = (record: DeviceRecord): Record<string, unknown> | null =>
+    record.board && typeof record.board === "object" && !Array.isArray(record.board) ? record.board as Record<string, unknown> : null;
+  const currentBoard = () => remote.status === "ready" && remote.values.board !== undefined ? JSON.stringify(remote.values.board) : null;
 
   const storage: DevicePreferenceStorage = {
     async read() {
@@ -140,14 +152,24 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
         if (boardValue !== undefined) imported.board = boardValue;
         if (sidebarValue !== undefined) imported.sidebar = sidebarValue;
         if (boardValue === undefined && sidebarValue === undefined) return null;
+        // Only into a record still never saved: one saved meanwhile (another window) wins.
+        const result = await serial(() => save(() => imported, NEVER_SAVED)).catch(() => "failed" as const);
+        if (result === "moved") return currentBoard();
         // A refused import leaves the old record for the next start; this session uses it as read.
-        await serial(() => save(imported)).catch(() => undefined);
         return boardValue === undefined ? null : JSON.stringify(boardValue);
       }
-      return current.values.board === undefined ? null : JSON.stringify(current.values.board);
+      return currentBoard();
     },
-    write(value: string) {
-      return serial(() => save({ board: z.json().parse(JSON.parse(value)) }));
+    write(value: string, intent?: DeviceWriteIntent) {
+      const board = z.json().parse(JSON.parse(value));
+      // A seed goes only into a record still never saved; one saved meanwhile is answered instead.
+      if (intent?.kind === "seed") return serial(() => save((record) => ({ ...record, board }), NEVER_SAVED)).then((result) => result === "moved" ? currentBoard() : undefined);
+      if (intent?.kind === "patch") {
+        // Only the fields this edit changed, over the board as read now.
+        const patch = z.json().parse(intent.patch) as Record<string, unknown>;
+        return serial(() => save((record) => ({ ...record, board: { ...(boardOf(record) ?? board as Record<string, unknown>), ...patch } as DeviceRecord["board"] }))).then(() => undefined);
+      }
+      return serial(() => save((record) => ({ ...record, board }))).then(() => undefined);
     },
   };
 
@@ -164,10 +186,19 @@ export function createDeviceSettingsAdapter(deps: DeviceSettingsDeps) {
     leave(token: object) {
       bridges.delete(token);
     },
+    /**
+     * The board sidebar's preference. Every host's bundle reads it here, so a change made in one
+     * shows in the others; while it saves, the change is answered before the hook reports it.
+     */
     sidebar: {
-      stored: (): unknown => (remote.status === "ready" ? remote.values.sidebar : undefined),
+      stored: (): unknown => (sidebarSaving > 0 ? sidebarLatest : remote.status === "ready" ? remote.values.sidebar : undefined),
       persist(next: unknown) {
-        void serial(() => save({ sidebar: z.json().parse(next) })).catch((error: unknown) => console.error("Could not save the Tasks sidebar", error));
+        const value = z.json().parse(next);
+        sidebarLatest = value;
+        sidebarSaving += 1;
+        void serial(() => save((record) => ({ ...record, sidebar: value })))
+          .catch((error: unknown) => console.error("Could not save the Tasks sidebar", error))
+          .finally(() => { sidebarSaving -= 1; });
       },
     },
   };

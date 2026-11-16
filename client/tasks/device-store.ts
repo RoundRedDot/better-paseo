@@ -7,9 +7,13 @@ const DEVICE_PREFERENCE_FIELDS = [...DEVICE_BOARD_FIELDS, "titleLines", "openSho
 export type CardTitleLineCount = (typeof CARD_TITLE_LINE_COUNTS)[number];
 export const DEFAULT_CARD_TITLE_LINES: CardTitleLineCount = "2";
 export type DeviceBoardPreferences = Pick<TasksSettings["board"], (typeof DEVICE_BOARD_FIELDS)[number]> & { titleLines: CardTitleLineCount; openShortcut: string | null };
+/** Why a record is written: a first seed, an edit of some fields, or (none) a full replace. */
+export type DeviceWriteIntent = { kind: "seed" } | { kind: "patch"; patch: Partial<DeviceBoardPreferences> };
+
 export interface DevicePreferenceStorage {
   read(): string | null | Promise<string | null>;
-  write(value: string): void | Promise<void>;
+  /** May answer the record it ended up with (a seed that another writer beat). */
+  write(value: string, intent?: DeviceWriteIntent): void | string | null | Promise<void | string | null>;
 }
 
 export function deviceBoardPreferences(board: TasksSettings["board"]): DeviceBoardPreferences {
@@ -69,12 +73,13 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
       const read = (raw: string | null) => {
         if (revision !== loadRevision) return;
         if (raw !== null) { accept(decode(raw)); return; }
-        const result = storage.write(JSON.stringify(seed));
+        const result = storage.write(JSON.stringify(seed), { kind: "seed" });
+        const settle = (stored: void | string | null) => accept(typeof stored === "string" ? decode(stored) : seed);
         if (result instanceof Promise) {
-          writes = result.catch(() => {});
-          return result.then(() => { if (revision === loadRevision) accept(seed); });
+          writes = result.then(() => {}, () => {});
+          return result.then((stored) => { if (revision === loadRevision) settle(stored); });
         }
-        accept(seed);
+        settle(result);
       };
       try {
         const result = storage.read();
@@ -91,7 +96,7 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
       const ownRevision = ++revision;
       accept(values);
       const pending = writes.then(() => storage.write(JSON.stringify(values)));
-      writes = pending.catch(() => {});
+      writes = pending.then(() => {}, () => {});
       return pending.then(() => {
         if (revision === ownRevision && state.error) { state = { ...state, error: null }; emit(); }
       }).catch((error: unknown) => {
@@ -107,8 +112,9 @@ export function createDeviceTasksStore(storage: DevicePreferenceStorage, provisi
       if (DEVICE_PREFERENCE_FIELDS.every((key) => previous[key] === values[key])) return Promise.resolve();
       const ownRevision = ++revision;
       accept(values);
-      const pending = writes.then(() => storage.write(JSON.stringify(values)));
-      writes = pending.catch(() => {});
+      const changed = Object.fromEntries(DEVICE_PREFERENCE_FIELDS.filter((key) => previous[key] !== values[key]).map((key) => [key, values[key]])) as Partial<DeviceBoardPreferences>;
+      const pending = writes.then(() => storage.write(JSON.stringify(values), { kind: "patch", patch: changed }));
+      writes = pending.then(() => {}, () => {});
       return pending.then(() => {
         if (revision === ownRevision && state.error) { state = { ...state, error: null }; emit(); }
       }).catch((error: unknown) => {
