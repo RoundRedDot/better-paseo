@@ -81,14 +81,21 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
       zfsError = error;
     }
   }
+  let candidateError: unknown;
   for (const candidate of candidates) {
     try {
       accessSync(candidate, constants.X_OK);
     } catch {
       continue;
     }
-    if (!statSync(candidate).isFile()) continue;
-    const actualPath = realpathSync(candidate);
+    let actualPath: string;
+    try {
+      if (!statSync(candidate).isFile()) continue;
+      actualPath = realpathSync(candidate);
+    } catch (error) {
+      candidateError ??= error;
+      continue;
+    }
     if ((zfs && actualPath === zfs) || zfsError !== undefined) {
       // On merged-/usr systems /usr/bin/zed and /usr/sbin/zed may be the
       // same file, whether it is the editor or the ZFS daemon.
@@ -102,11 +109,16 @@ export async function editorCommand(app: Exclude<FileOpenApp, "system">, platfor
       }
     }
     const actualName = basename(actualPath);
-    const gui = (app === "vscode" && platform === "linux" && existsSync(join(actualPath, "..", "resources", "app", "product.json"))) ||
-      (app === "sublime" && actualName === "sublime_text") ||
-      (app === "cursor" && platform === "linux" && isElf(actualPath));
-    return { command: candidate, args: [], completion: gui ? "spawn" : "exit" };
+    try {
+      const gui = (app === "vscode" && platform === "linux" && existsSync(join(actualPath, "..", "resources", "app", "product.json"))) ||
+        (app === "sublime" && actualName === "sublime_text") ||
+        (app === "cursor" && platform === "linux" && isElf(actualPath));
+      return { command: candidate, args: [], completion: gui ? "spawn" : "exit" };
+    } catch (error) {
+      candidateError ??= error;
+    }
   }
+  if (candidateError !== undefined) throw candidateError;
   if (zfsError !== undefined) throw zfsError;
   throw new EditorUnavailableError(`${editor.app} is not installed or its command is not on PATH`);
 }
