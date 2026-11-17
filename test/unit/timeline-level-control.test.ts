@@ -87,6 +87,8 @@ describe("timeline level pill", () => {
       const label = row.findByType("Text" as never);
       expect(label.props.style).toMatchObject({ fontSize: 14, lineHeight: 18 });
     }
+    const title = renderer.root.findAll((node) => String(node.type) === "Text" && node.props.children === "Agent steps")[0]!;
+    expect(title.props.style).toMatchObject({ fontSize: 14, fontWeight: "normal" });
     const menu = renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === "timeline-level-menu")[0]!;
     expect(menu.props.style).toEqual(compact ? undefined : { margin: -8 });
     act(() => renderer.unmount());

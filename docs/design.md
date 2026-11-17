@@ -525,6 +525,26 @@ control row is rounded at 6. An icon in a pill or row is the size of the Lucide 
 
 All heights grow with the host's interface text size through `taskControlHeight`.
 
+### Timeline level pill
+
+The composer pill and its popover are registered in `client/timeline-level-control.ts`;
+`client/timeline-level-menu.tsx` draws the popover contents. The host owns the pill,
+the outer surface and its placement. Keep the popover's title and option labels at
+14/18 pt, normal weight, matching the primary text in Paseo's subagent popover.
+The title is Agent steps / 工作过程, with a 16 pt Settings icon on the right; a
+hairline separates it from the three choices. The header and option rows are 28 pt
+on wide layouts and 44 pt on compact layouts. On wide layouts the content pulls back
+8 pt of the host's 12 pt popover padding, leaving a 4 pt inset. The settings target
+is square and matches the row height.
+
+Simple, Standard and Detailed use 16 pt `Minus`, `Equal` and `Menu` icons in
+`foregroundMuted`, an 8 pt gap, and a trailing 16 pt `Check` in `foreground` for
+the current level. Rows have 8 pt horizontal padding, radius 6, and use `surface2`
+on hover or press. Selecting a level closes the popover, updates the shared preference
+and shows the existing confirmation toast. Settings closes the popover and opens
+Better Paseo on its Chat settings tab. Keep the labels and accessibility state in
+sync with the selected preference in both languages.
+
 ### Thinking level labels
 
 Use `formatThinkingLevel` in `client/tasks/cards/format.ts` for visible structured

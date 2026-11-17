@@ -15,7 +15,7 @@ export function TimelineLevelMenu(props: PluginButtonContentProps & { select(lev
   return (
     <View testID="timeline-level-menu" style={props.layout.compact ? undefined : { margin: -8 }}>
       <View style={{ flexDirection: "row", alignItems: "center", height: rowHeight, paddingHorizontal: 8 }}>
-        <Text style={{ flex: 1, color: colors.foreground, fontSize: 14, lineHeight: 18, fontWeight: "500" }}>{text.title}</Text>
+        <Text style={{ flex: 1, color: colors.foreground, fontSize: 14, lineHeight: 18, fontWeight: "normal" }}>{text.title}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel={text.settings} onPress={() => { props.close(); props.openSettings(); }}
           style={{ width: rowHeight, height: rowHeight, alignItems: "center", justifyContent: "center" }}>
           <Icon name="Settings" size={16} color={colors.foregroundMuted} />
