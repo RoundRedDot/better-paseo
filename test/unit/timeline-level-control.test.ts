@@ -132,7 +132,8 @@ describe("timeline level pill", () => {
     for (const row of rows) {
       expect(row.props.style.minHeight).toBe(compact ? 44 : 28);
       const label = row.findAllByType("Text" as never)[0]!;
-      expect(label.props.style).toMatchObject({ fontSize: 14, lineHeight: 18 });
+      expect(label.props.style).toMatchObject({ fontSize: 13, lineHeight: 17 });
+      expect(row.findAllByType("Text" as never)[1]!.props.style).toMatchObject({ fontSize: 11, lineHeight: 15 });
     }
     // The compact sheet header already carries the title, so the menu draws it only on wide layouts.
     const titles = renderer.root.findAll((node) => String(node.type) === "Text" && node.props.children === "Agent steps");
@@ -145,6 +146,7 @@ describe("timeline level pill", () => {
     }
     const menu = renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === "timeline-level-menu")[0]!;
     expect(menu.props.style).toEqual(compact ? undefined : { margin: -8 });
+    if (!compact) expect(menu.findAll((node) => String(node.type) === "View" && node.props.style?.height === 0.5)).toHaveLength(1);
     act(() => renderer.unmount());
   });
 

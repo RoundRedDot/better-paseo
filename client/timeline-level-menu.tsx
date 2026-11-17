@@ -35,7 +35,7 @@ export function TimelineLevelMenu(props: PluginButtonContentProps & { select(lev
           <Icon name="Settings" size={16} color={colors.foregroundMuted} />
         </Pressable>
       </View>
-      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 4 }} />
+      <View style={{ height: 0.5, backgroundColor: colors.border, marginVertical: 4 }} />
       {levels}
     </View>
   );
@@ -60,8 +60,8 @@ function MenuRow(props: { icon: string; title: string; description?: string; acc
         <Icon name={props.icon} size={16} color={props.colors.foregroundMuted} />
       </View>
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text style={{ fontSize: 14, lineHeight: 18, color: props.colors.foreground }}>{props.title}</Text>
-        {props.description ? <Text style={{ fontSize: 12, lineHeight: 17, color: props.colors.foregroundMuted }}>{props.description}</Text> : null}
+        <Text style={{ fontSize: props.description ? 13 : 14, lineHeight: props.description ? 17 : 18, color: props.colors.foreground }}>{props.title}</Text>
+        {props.description ? <Text style={{ fontSize: 11, lineHeight: 15, color: props.colors.foregroundMuted }}>{props.description}</Text> : null}
       </View>
       {props.checked ? <View style={props.description ? { alignSelf: "flex-start", marginTop: 1 } : undefined}><Icon name="Check" size={16} color={props.colors.foreground} /></View> : null}
     </Pressable>
