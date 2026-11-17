@@ -1489,6 +1489,18 @@ describe("TaskCardView rows", () => {
     }
   });
 
+  it.each([
+    { compact: false, size: 24, hitSlop: 8, icon: 12 },
+    { compact: true, size: 36, hitSlop: 4, icon: 14 },
+  ])("keeps the error dismiss mark at $size when compact is $compact", async ({ compact, size, hitSlop, icon }) => {
+    const tree = await render(cardElement(sample("sample-failed"), { compact }));
+    const dismiss = byLabel(tree.root, "关闭错误提示");
+    const style = flat(typeof dismiss.props.style === "function" ? dismiss.props.style({ pressed: false }) : dismiss.props.style);
+    expect(style).toMatchObject({ width: size, height: size, borderRadius: size / 2 });
+    expect(dismiss.props.hitSlop).toBe(hitSlop);
+    expect(dismiss.find((node) => (node.type as unknown) === "Icon" && node.props.name === "X").props.size).toBe(icon);
+  });
+
   it("dismisses the current error without changing the task and shows a later error", async () => {
     const rpc = vi.fn(async (contract: { name: string }, input: { agentId: string; error: string }) =>
       contract.name === "tasks.error-dismissals" ? { entries: [] } : { ...input, dismissedAt: Date.now() });

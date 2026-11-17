@@ -572,10 +572,10 @@ function EdgeFade(props: { color: string }) {
   );
 }
 
-function ErrorDismissButton(props: { label: string; size: number; iconSize: number; color: string; background: string; tokens: TaskTokens; onPress(event: GestureResponderEvent): void }) {
+function ErrorDismissButton(props: { label: string; size: number; iconSize: number; hitSlop: number; color: string; background: string; tokens: TaskTokens; onPress(event: GestureResponderEvent): void }) {
   const { hovered, hoverProps } = useHover();
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={props.label} hitSlop={8} {...hoverProps} onPress={props.onPress}
+    <Pressable accessibilityRole="button" accessibilityLabel={props.label} hitSlop={props.hitSlop} {...hoverProps} onPress={props.onPress}
       style={({ pressed }) => [{ width: props.size, height: props.size, borderRadius: props.size / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.background, props.tokens.foreground, hovered, pressed, "transparent") }, webTransition]}>
       <Icon name="X" size={props.iconSize} color={props.color} />
     </Pressable>
@@ -1489,7 +1489,8 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {failureAction ? <Text testID="task-card-error-action" style={[text(m.blockSize, m.blockLine, muted), { marginTop: 4 }]}>{failureAction}</Text> : null}
       </View>
       {!card.stoppedManually && !card.subagent ? (
-        <ErrorDismissButton label={strings.dismissTaskError} size={taskControlHeight(compact ? 44 : 28, scale)} iconSize={m.icon} color={failureColor} background={background} tokens={tokens} onPress={(event) => {
+        // The cross sits with the error text. The phone keeps a 44 target through hit slop.
+        <ErrorDismissButton label={strings.dismissTaskError} size={taskControlHeight(compact ? 36 : 24, scale)} hitSlop={compact ? 4 : 8} iconSize={m.icon} color={failureColor} background={background} tokens={tokens} onPress={(event) => {
           event.stopPropagation();
           void dismissError().catch((error: unknown) => toast.error(`${strings.dismissTaskErrorFailed}: ${error instanceof Error ? error.message : String(error)}`));
         }} />
