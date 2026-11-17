@@ -6,6 +6,7 @@ import { Icon, Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/ui";
 import { space } from "../../components/theme-tokens";
 import { ProviderLogo, providerBrand } from "../../components/provider-logo";
 import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema, titleModelsRpc } from "../../../shared/title-generation";
+import { ChoiceMenuSelect, type MenuChoice } from "../../settings-choice-menu";
 import { PlainButton, Section, SectionNote, SettingsTips, SettingRow, Toggle, settingsTextStyle, type PageLook } from "../../settings-controls";
 import { useTasksLanguage } from "../i18n";
 
@@ -35,12 +36,13 @@ const WORDS = {
 type TitleModels = ZodOutput<typeof titleModelsRpc.output>;
 interface TitleCatalog {
   providers: string[];
+  providerLabels: Record<string, string>;
   models: TitleModels["models"];
   loading: boolean;
   error: string | null;
 }
 
-const NO_CATALOG: TitleCatalog = { providers: [], models: [], loading: false, error: null };
+const NO_CATALOG: TitleCatalog = { providers: [], providerLabels: {}, models: [], loading: false, error: null };
 
 // The host's model catalog for automatic titles, by provider: one snapshot
 // per read's start, success and failure. Module-level state is connection-local
@@ -67,7 +69,7 @@ function readTitleCatalog(provider: string, load: () => Promise<TitleModels>): P
   publishTitleCatalog(provider, { ...(titleCatalogs.get(provider) ?? NO_CATALOG), loading: true, error: null });
   return Promise.resolve().then(load).then((result) => {
     if (!latest()) return null;
-    publishTitleCatalog(provider, { providers: result.providers, models: result.models, loading: false, error: result.error });
+    publishTitleCatalog(provider, { providers: result.providers, providerLabels: result.providerLabels ?? {}, models: result.models, loading: false, error: result.error });
     return result;
   }, (failure: unknown) => {
     if (latest()) publishTitleCatalog(provider, { ...(titleCatalogs.get(provider) ?? NO_CATALOG), loading: false, error: failure instanceof Error ? failure.message : String(failure) });
@@ -88,7 +90,7 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   const [draft, setDraft] = useState(() => settings.status === "ready" ? settings.values : titleGenerationSettingsSchema.parse({}));
   const [saveError, setSaveError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
-  const [choosing, setChoosing] = useState<"provider" | "model" | "thinkingOptionId" | null>(null);
+  const [choosing, setChoosing] = useState<"model" | "thinkingOptionId" | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [promptDraft, setPromptDraft] = useState<string | null>(null);
   const [promptHeight, setPromptHeight] = useState(0);
@@ -153,13 +155,17 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   };
   const providers = [...new Set([...catalog.providers, ...(draft.provider ? [draft.provider] : [])])]
     .sort((a, b) => Number(a === "cursor") - Number(b === "cursor"))
-    .map((provider) => ({ id: provider, label: `${providerBrand(provider).displayName}${provider === "cursor" ? ` · ${words.notRecommended}` : ""}` }));
+    .map((provider) => ({ id: provider, label: `${catalog.providerLabels[provider] || providerBrand(provider).displayName}${provider === "cursor" ? ` · ${words.notRecommended}` : ""}` }));
+  const providerChoices: MenuChoice[] = providers.map((provider) => ({
+    value: provider.id, name: provider.label,
+    logo: <ProviderLogo provider={provider.id} size={20} color={providerBrand(provider.id).monochrome ? look.tokens.foreground : undefined} />,
+  }));
   const models = catalog.models.some((model) => model.id === draft.model) || !draft.model ? catalog.models : [...catalog.models, { id: draft.model, label: draft.model }];
   const selectedModel = catalog.models.find((model) => model.id === draft.model);
   const thinkingOptions = selectedModel?.thinkingOptions ?? [];
   const modelDefault = `${words.modelDefault}${selectedModel?.defaultThinkingOptionId ? ` · ${selectedModel.defaultThinkingOptionId}` : ""}`;
   const thinkingChoices = [{ id: "", label: modelDefault }, ...thinkingOptions];
-  const choices = choosing === "provider" ? providers : choosing === "model" ? models : thinkingChoices;
+  const choices = choosing === "model" ? models : thinkingChoices;
   const mobile = Platform.OS !== "web";
   const InputContainer = mobile ? ScrollView : View;
   return (
@@ -187,12 +193,18 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
               : draft.disableThinking ? words.automaticThinking
               : draft.thinkingOptionId ? thinkingOptions.find((option) => option.id === draft.thinkingOptionId)?.label ?? draft.thinkingOptionId
                 : thinkingOptions.length > 0 ? modelDefault : draft.model && selectedModel ? words.noThinking : words.choose;
+          if (field === "provider") {
+            return <SettingRow key={field} title={words.provider} look={look} control={<ChoiceMenuSelect
+              label={words.provider} value={draft.provider} disabled={disabled}
+              selected={providerChoices.find((choice) => choice.value === draft.provider) ?? null}
+              choices={providerChoices} look={look}
+              onChange={(provider) => setDraft(provider === draft.provider ? draft : { ...draft, provider, model: "", thinkingOptionId: "" })} />} />;
+          }
           return <SettingRow key={field} title={words[field]} look={look} control={<View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
             {field === "model" ? <Pressable accessibilityRole="button" accessibilityLabel={words.refresh} accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => setRefresh((value) => value + 1)} style={{ width: 40, height: 44, alignItems: "center", justifyContent: "center", opacity: loading ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable> : null}
             <Pressable accessibilityRole="button" accessibilityLabel={words[field]} accessibilityState={{ expanded: choosing === field, disabled }}
               disabled={disabled} onPress={() => setChoosing(field)}
               style={{ minHeight: 44, maxWidth: "100%", flexShrink: 1, paddingHorizontal: space.md, flexDirection: "row", alignItems: "center", gap: space.sm, borderWidth: 1, borderRadius: 8, borderColor: look.tokens.v2.border, opacity: disabled ? 0.5 : 1 }}>
-              {field === "provider" && draft.provider ? <ProviderLogo provider={draft.provider} size={18} color={providerBrand(draft.provider).monochrome ? look.tokens.foreground : undefined} /> : null}
               <Text numberOfLines={1} style={[textStyle, { flexShrink: 1 }]}>{label || words.choose}</Text>
               <Icon name="ChevronDown" size={16} color={look.tokens.foregroundMuted} />
             </Pressable></View>
@@ -243,10 +255,6 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
               accessibilityState={{ checked: draft[choosing] === choice.id }} aria-checked={draft[choosing] === choice.id}
               onPress={() => {
                 setChoosing(null);
-                if (choosing === "provider") {
-                  setDraft(choice.id === draft.provider ? draft : { ...draft, provider: choice.id, model: "", thinkingOptionId: "" });
-                  return;
-                }
                 if (choosing === "model") {
                   const nextModel = catalog.models.find((model) => model.id === choice.id);
                   setDraft({ ...draft, model: choice.id, thinkingOptionId: nextModel?.thinkingOptions.some((option) => option.id === draft.thinkingOptionId) ? draft.thinkingOptionId : "" });
@@ -255,7 +263,6 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
                 setDraft({ ...draft, thinkingOptionId: choice.id });
               }}
               style={{ minHeight: 48, padding: space.md, flexDirection: "row", alignItems: "center", gap: 10 }}>
-              {choosing === "provider" ? <ProviderLogo provider={choice.id} size={20} color={providerBrand(choice.id).monochrome ? look.tokens.foreground : undefined} /> : null}
               <Text style={[textStyle, { flex: 1 }]}>{choice.label}</Text>
               {draft[choosing] === choice.id ? <Icon name="Check" size={18} color={look.tokens.accent} /> : null}
             </Pressable>)}

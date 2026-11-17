@@ -301,6 +301,23 @@ describe("automatic title settings", () => {
     expect(settings.save).not.toHaveBeenCalled();
   });
 
+  it("names providers with the host's labels in an anchored menu, like the agent versions list", async () => {
+    state.catalog.mockResolvedValue({ providers: ["codex", "codex-newapi", "antigravity"], providerLabels: { codex: "Codex", "codex-newapi": "Codex (NewAPI)" }, models: [{ id: "haiku", label: "Haiku", thinkingOptions: [], defaultThinkingOptionId: null }], error: null });
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "codex-newapi", model: "haiku" }) });
+    const providerButton = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider");
+    expect(providerButton.props.accessibilityValue).toEqual({ text: "Codex (NewAPI)" });
+    expect(providerButton.findByType(ProviderLogo).props.provider).toBe("codex-newapi");
+    await act(async () => providerButton.props.onPress());
+    expect(tree.root.findAllByType("ModalContent" as never)).toHaveLength(0);
+    const options = tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
+    expect(options.map((node) => node.props.accessibilityLabel)).toEqual(["Codex", "Codex (NewAPI)", "Antigravity"]);
+    expect(options.map((node) => node.props.accessibilityState.checked)).toEqual([false, true, false]);
+    await act(async () => options[2]!.props.onPress());
+    expect(tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio")).toHaveLength(0);
+    await flushSave();
+    expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ provider: "antigravity", model: "haiku" }), "r1");
+  });
+
   it("keeps the section note outside the grouped rows and uses a single first row", async () => {
     await mount();
     const section = tree.root.findByType(Section);

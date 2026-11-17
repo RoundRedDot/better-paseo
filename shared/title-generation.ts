@@ -52,6 +52,8 @@ export const titleModelsRpc = defineRpc({
   input: z.object({ provider: z.string() }),
   output: z.object({
     providers: z.array(z.string()),
+    /** Display names from the host's provider snapshot, keyed by provider id. */
+    providerLabels: z.record(z.string(), z.string()).default({}),
     models: z.array(z.object({
       id: z.string(), label: z.string(),
       thinkingOptions: z.array(z.object({ id: z.string(), label: z.string() })),

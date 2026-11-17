@@ -279,14 +279,14 @@ describe("background title generation", () => {
     registerTitleGeneration({ registerSettings: vi.fn(), handle, on: vi.fn() } as unknown as Parameters<typeof registerTitleGeneration>[0], vi.fn(), () => true, vi.fn());
     const models = handle.mock.calls.find(([contract]) => contract.name === titleModelsRpc.name)![1];
     const paseo = { providers: {
-      snapshot: async () => ({ entries: [{ provider: "claude", enabled: true }, { provider: "cursor", enabled: false }] }),
+      snapshot: async () => ({ entries: [{ provider: "claude", enabled: true, label: "Claude" }, { provider: "codex-newapi", enabled: true, label: "Codex (NewAPI)" }, { provider: "omp", enabled: true }, { provider: "cursor", enabled: false, label: "Cursor" }] }),
       listModels: async () => ({ error: null, models: [
         { id: "haiku", label: "Haiku", thinkingOptions: [{ id: "off", label: "Off", description: "No thinking" }], defaultThinkingOptionId: "off" },
         { id: "old", label: "Old" },
         { id: "hidden", label: "Hidden", isSelectable: false },
       ] }),
     } };
-    expect(await models({ provider: "claude" }, { paseo })).toEqual({ providers: ["claude"], models: [
+    expect(await models({ provider: "claude" }, { paseo })).toEqual({ providers: ["claude", "codex-newapi", "omp"], providerLabels: { claude: "Claude", "codex-newapi": "Codex (NewAPI)" }, models: [
       { id: "haiku", label: "Haiku", thinkingOptions: [{ id: "off", label: "Off" }], defaultThinkingOptionId: "off" },
       { id: "old", label: "Old", thinkingOptions: [], defaultThinkingOptionId: null },
     ], error: null });
