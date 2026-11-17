@@ -8,6 +8,7 @@ vi.mock("@getpaseo/plugin/client/ui", () => ({ Icon: (props: unknown) => React.c
 import { afterEach, describe, expect, it } from "vitest";
 import type { PluginButton, PluginComposerPillContribution } from "@getpaseo/plugin/client";
 import {
+  AGENT_PILL_PAGE,
   createTimelineLevelControl,
   installTimelineLevelControl,
   parseTimelineLevelArgument,
@@ -55,6 +56,52 @@ function fakeClient() {
       };
     },
   };
+}
+
+interface FakeObserver {
+  snapshot(snapshot: { entries: { agent: { id: string; workspaceId?: string } }[] }): void;
+  update(message: unknown): void;
+}
+
+/** `paseo.agents.list` with a subscription, as the SDK has it: `subscribe` replays the first page at once. */
+function fakePaseo(entries: { id: string; workspaceId?: string }[], failures: unknown[] = []) {
+  const calls: Record<string, unknown>[] = [];
+  const observers: FakeObserver[] = [];
+  let released = 0;
+  let answer!: () => void;
+  let held: Promise<void> | null = null;
+  const paseo = {
+    calls,
+    observers,
+    get released() { return released; },
+    hold() { held = new Promise((resolve) => { answer = resolve; }); },
+    answer: () => answer(),
+    agents: {
+      async list(options: Record<string, unknown>) {
+        calls.push(options);
+        const failure = failures.shift();
+        if (failure) throw failure;
+        if (held) await held;
+        const first = { entries: entries.map((agent) => ({ agent })), subscriptionId: "s1" };
+        return {
+          ...first,
+          subscription: {
+            subscribe(observer: FakeObserver) {
+              observers.push(observer);
+              observer.snapshot(first);
+              return () => { observers.splice(observers.indexOf(observer), 1); };
+            },
+            async release() { released += 1; },
+          },
+        };
+      },
+    },
+  };
+  return paseo;
+}
+
+async function settle() {
+  for (let i = 0; i < 5; i++) await Promise.resolve();
 }
 
 function menuItems(button: PluginButton, close = () => {}) {
@@ -258,5 +305,101 @@ describe("/bp-timeline", () => {
     remove();
     expect(command.removed).toBe(true);
     expect(client.pills[0]!.removed).toBe(true);
+  });
+});
+
+describe("agent steps pills before the chat opens", () => {
+  it("gives the most recently updated agents a pill without waiting for a timeline row", async () => {
+    const paseo = fakePaseo([{ id: "a1", workspaceId: "w1" }, { id: "a2", workspaceId: "w2" }, { id: "a3" }]);
+    const client = { ...fakeClient(), paseo };
+    const remove = installTimelineLevelControl(client as never);
+    await settle();
+    expect(paseo.calls).toEqual([{ filter: { includeBackground: true }, sort: [{ key: "updated_at", direction: "desc" }], page: { limit: AGENT_PILL_PAGE }, subscribe: {} }]);
+    // No workspace yet: the host cannot place the pill, so a later update or row asks.
+    expect(client.pills.map((pill) => [pill.contribution.agentId, pill.contribution.workspaceId])).toEqual([["a1", "w1"], ["a2", "w2"]]);
+    remove();
+  });
+
+  it("adds a new agent's pill when the daemon reports it, once", async () => {
+    const paseo = fakePaseo([{ id: "a1", workspaceId: "w1" }]);
+    const client = { ...fakeClient(), paseo };
+    const remove = installTimelineLevelControl(client as never);
+    await settle();
+    const [observer] = paseo.observers;
+    observer!.update({ type: "agent_update", payload: { kind: "upsert", agent: { id: "a2", workspaceId: "w1", status: "initializing" } } });
+    observer!.update({ type: "agent_update", payload: { kind: "upsert", agent: { id: "a2", workspaceId: "w1", status: "running" } } });
+    observer!.update({ type: "agent_stream", payload: { agentId: "a3" } });
+    expect(client.pills.map((pill) => pill.contribution.agentId)).toEqual(["a1", "a2"]);
+    // A row and the slash command for an agent that already has its pill add none.
+    const command = client.commands.find((entry) => entry.name === "bp-timeline")!;
+    command.onSubmit({ args: "3", agent: { id: "a2", workspaceId: "w1" } } as never);
+    expect(client.pills).toHaveLength(2);
+    // The level change reaches the pills that went up early.
+    for (const pill of client.pills) expect(pill.button.label).toBe("Detailed");
+    // An agent leaving the list keeps its pill.
+    observer!.update({ type: "agent_update", payload: { kind: "remove", agentId: "a1" } });
+    expect(client.pills.every((pill) => !pill.removed)).toBe(true);
+    remove();
+  });
+
+  it("picks up the agents of a fresh first page after a reconnect", async () => {
+    const paseo = fakePaseo([{ id: "a1", workspaceId: "w1" }]);
+    const client = { ...fakeClient(), paseo };
+    const remove = installTimelineLevelControl(client as never);
+    await settle();
+    paseo.observers[0]!.snapshot({ entries: [{ agent: { id: "a1", workspaceId: "w1" } }, { agent: { id: "a4", workspaceId: "w2" } }] });
+    expect(client.pills.map((pill) => pill.contribution.agentId)).toEqual(["a1", "a4"]);
+    remove();
+  });
+
+  it("releases the list and removes the pills on cleanup", async () => {
+    const paseo = fakePaseo([{ id: "a1", workspaceId: "w1" }]);
+    const client = { ...fakeClient(), paseo };
+    const remove = installTimelineLevelControl(client as never);
+    await settle();
+    remove();
+    expect(paseo.released).toBe(1);
+    expect(paseo.observers).toHaveLength(0);
+    expect(client.pills[0]!.removed).toBe(true);
+  });
+
+  it("releases a list that answers after cleanup, and adds no pill", async () => {
+    const paseo = fakePaseo([{ id: "a1", workspaceId: "w1" }]);
+    paseo.hold();
+    const client = { ...fakeClient(), paseo };
+    const remove = installTimelineLevelControl(client as never);
+    await settle();
+    remove();
+    paseo.answer();
+    await settle();
+    expect(paseo.released).toBe(1);
+    expect(paseo.observers).toHaveLength(0);
+    expect(client.pills).toHaveLength(0);
+  });
+
+  it("asks an older host for the list without background workspaces", async () => {
+    const paseo = fakePaseo([{ id: "a1", workspaceId: "w1" }], [new Error("Update the host to use background workspaces.")]);
+    const client = { ...fakeClient(), paseo };
+    const remove = installTimelineLevelControl(client as never);
+    await settle();
+    expect(paseo.calls.map((call) => call.filter)).toEqual([{ includeBackground: true }, {}]);
+    expect(client.pills.map((pill) => pill.contribution.agentId)).toEqual(["a1"]);
+    remove();
+  });
+
+  it("leaves the pills to the timeline rows when the list fails", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const paseo = fakePaseo([{ id: "a1", workspaceId: "w1" }], [new Error("socket closed")]);
+    const client = { ...fakeClient(), paseo };
+    const remove = installTimelineLevelControl(client as never);
+    await settle();
+    expect(paseo.calls).toHaveLength(1);
+    expect(client.pills).toHaveLength(0);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const command = client.commands.find((entry) => entry.name === "bp-timeline")!;
+    command.onSubmit({ args: "2", agent: { id: "a1", workspaceId: "w1" } } as never);
+    expect(client.pills.map((pill) => pill.contribution.agentId)).toEqual(["a1"]);
+    remove();
+    warn.mockRestore();
   });
 });

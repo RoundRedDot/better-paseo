@@ -305,8 +305,8 @@ export default function contribute(client: PluginClientContext) {
   // Debug only: `/bp-perf on|off|reset|dump [label]` for hosts without a console.
   const removePerfCommand = client.addSlashCommand(perfSlashCommand);
 
-  // General → Agent steps from the chat: a composer pill per agent with plugin
-  // rows, and `/bp-timeline` for any agent.
+  // General → Agent steps from the chat: a composer pill per agent, up before
+  // its chat opens, and `/bp-timeline` for any agent.
   const removeTimelineLevelControl = installTimelineLevelControl(client);
 
   // The Tasks board: a screen, its sidebar entry and a Command Center item;

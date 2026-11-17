@@ -3,17 +3,22 @@
  * the current level and switches it, and `/bp-timeline` as the fallback.
  *
  * Paseo hangs a composer pill on one agent, and tells a plugin neither which
- * agent is open nor when one opens. A timeline row this plugin draws does
- * know its agent, so the first such row asks for the agent's pill
- * (`useTimelineLevelPill`), once the host knows the agent's workspace; the
- * pill then stays for the session. An agent
- * whose timeline has no plugin row gets none, and keeps the slash command.
+ * agent is open nor when one opens. So the pills go up ahead of time
+ * (`watchAgentPills`): one for each of the daemon's most recently updated
+ * agents, and one for any agent the daemon reports a change for later, such
+ * as a new one. A pill only shows in its own agent's composer, so a chat
+ * opened at the standard level, where this plugin may draw no row for
+ * minutes, has its pill from the start. An agent outside that list (an older
+ * one nobody has touched since) still gets its pill from the first timeline
+ * row this plugin draws for it (`useTimelineLevelPill`), or from
+ * `/bp-timeline`. A pill stays for the session.
  *
  * The level is the shared preference, so every pill, the settings page and
  * the other clients follow one switch; the transformers re-register on it
  * (`followPreference`).
  */
 import { createElement, useEffect } from "react";
+import type { PaseoApi, PaseoAgentListOptions } from "@getpaseo/client";
 import type {
   PluginButton,
   PluginButtonRegistration,
@@ -167,19 +172,86 @@ export function timelineLevelSlashCommand(control: TimelineLevelControl): Plugin
   };
 }
 
+/** How many of the most recently updated agents get a pill up front. */
+export const AGENT_PILL_PAGE = 50;
+
+const AGENT_PILL_LIST: PaseoAgentListOptions = {
+  filter: { includeBackground: true },
+  sort: [{ key: "updated_at", direction: "desc" }],
+  page: { limit: AGENT_PILL_PAGE },
+  subscribe: {},
+};
+
+/** What `paseo.agents.list` throws on a host without background workspaces. */
+const BACKGROUND_WORKSPACES_GATE = "Update the host to use background workspaces.";
+
+type ListedAgent = { id: string; workspaceId?: string | null };
+
+/**
+ * Gives the daemon's recent agents their pills before their chats open, and
+ * every agent the daemon reports a change for after that (a new agent comes
+ * in as one). Pills stay when an agent leaves the list. A failed list leaves
+ * the timeline rows and the slash command to ask. Returns the cleanup.
+ */
+export function watchAgentPills(paseo: Pick<PaseoApi, "agents"> | undefined, control: TimelineLevelControl): () => void {
+  if (typeof paseo?.agents?.list !== "function") return () => {};
+  let stopped = false;
+  let release: (() => void) | null = null;
+  const take = (agent: ListedAgent) => {
+    if (!stopped && agent.workspaceId) control.request(agent.id, agent.workspaceId);
+  };
+  const open = async (options: PaseoAgentListOptions) => {
+    const result = await paseo.agents.list({ ...options, subscribe: {} });
+    const subscription = result.subscription;
+    if (stopped) {
+      await subscription?.release();
+      return;
+    }
+    for (const entry of result.entries) take(entry.agent);
+    // A reconnect brings a fresh first page; a change brings one agent.
+    const unobserve = subscription?.subscribe({
+      snapshot: (snapshot) => { for (const entry of snapshot.entries) take(entry.agent); },
+      update: (message) => {
+        if (message.type === "agent_update" && message.payload.kind === "upsert") take(message.payload.agent);
+      },
+      error: () => {},
+    });
+    release = () => {
+      unobserve?.();
+      subscription?.release().catch(() => {});
+    };
+  };
+  const failed = (caught: unknown) => {
+    if (!stopped) console.warn("[better-paseo] agent steps pills wait for timeline rows", caught);
+  };
+  open(AGENT_PILL_LIST).catch((caught: unknown) => {
+    if (stopped) return;
+    if ((caught instanceof Error ? caught.message : String(caught)) !== BACKGROUND_WORKSPACES_GATE) return failed(caught);
+    // An older host: the same list without background workspaces.
+    return open({ ...AGENT_PILL_LIST, filter: {} }).catch(failed);
+  });
+  return () => {
+    stopped = true;
+    release?.();
+    release = null;
+  };
+}
+
 /** Installs the pills and `/bp-timeline`. Returns the cleanup. */
-export function installTimelineLevelControl(client: Pick<PluginClientContext, "addComposerPill" | "addSlashCommand" | "openSettings">): () => void {
+export function installTimelineLevelControl(client: Pick<PluginClientContext, "addComposerPill" | "addSlashCommand" | "openSettings"> & { paseo?: Pick<PaseoApi, "agents"> }): () => void {
   const control = createTimelineLevelControl(client);
   active = control;
   const removeCommand = client.addSlashCommand(timelineLevelSlashCommand(control));
+  const stopWatching = watchAgentPills(client.paseo, control);
   return () => {
+    stopWatching();
     removeCommand();
     control.remove();
     if (active === control) active = null;
   };
 }
 
-/** A plugin row's request for its agent's pill; it also lends `/bp-timeline` its toast. */
+/** A plugin row's request for its agent's pill, for an agent the list missed; it also lends `/bp-timeline` its toast. */
 export function useTimelineLevelPill(agentId: string): void {
   const workspaceId = useAgent(agentId, (agent) => agent.workspaceId);
   const toast = useToast();
