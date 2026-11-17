@@ -73,8 +73,14 @@ export function parseTimelineLevelArgument(args: string, current: TimelineLevel)
   return match ?? null;
 }
 
-function setLevel(level: TimelineLevel): void {
+// The menu and the slash command run outside React, so they borrow the toast of a mounted plugin row.
+let rowToast: ToastApi | null = null;
+
+/** Sets the level and says so: the rows on screen may not change, so the toast is the confirmation. */
+function switchLevel(level: TimelineLevel): void {
   if (getEnhancerPreferences().timelineLevel !== level) updateEnhancerPreferences({ timelineLevel: level });
+  const text = strings(getEnhancerPreferences());
+  rowToast?.show(text.switched.replace("{level}", text.levels[level]));
 }
 
 /** One, two, three lines: each level's icon in the menu. */
@@ -94,7 +100,7 @@ export function timelineLevelButton(preferences: EnhancerPreferences): PluginBut
     // current level is marked in its title.
     title: level === preferences.timelineLevel ? `${text.levels[level]} ✓` : text.levels[level],
     icon: TIMELINE_LEVEL_ICONS[level],
-    behavior: { kind: "action", onPress: () => setLevel(level) },
+    behavior: { kind: "action", onPress: () => switchLevel(level) },
   }));
   return {
     title: text.title,
@@ -146,8 +152,6 @@ export function createTimelineLevelControl(client: Pick<PluginClientContext, "ad
 }
 
 let active: TimelineLevelControl | null = null;
-// A slash command runs outside React, so it borrows the toast of a mounted plugin row.
-let rowToast: ToastApi | null = null;
 
 export function timelineLevelSlashCommand(control: TimelineLevelControl): PluginClientSlashCommandContribution {
   const text = strings(getEnhancerPreferences());
@@ -159,14 +163,11 @@ export function timelineLevelSlashCommand(control: TimelineLevelControl): Plugin
     onSubmit(context) {
       const level = parseTimelineLevelArgument(context.args, getEnhancerPreferences().timelineLevel);
       control.request(context.agent.id, context.agent.workspaceId);
-      const now = strings(getEnhancerPreferences());
       if (!level) {
-        rowToast?.error(`/bp-timeline ${now.hint}`);
+        rowToast?.error(`/bp-timeline ${strings(getEnhancerPreferences()).hint}`);
         return;
       }
-      setLevel(level);
-      // Nothing on screen may change, so say what the chat shows now.
-      rowToast?.show(now.switched.replace("{level}", now.levels[level]));
+      switchLevel(level);
     },
   };
 }

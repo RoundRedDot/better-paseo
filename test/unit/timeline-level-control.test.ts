@@ -102,6 +102,36 @@ describe("timeline level pill", () => {
     control.remove();
   });
 
+  it("confirms a switch from the menu with a toast", () => {
+    updateEnhancerPreferences({ language: "zh" });
+    const shown: string[] = [];
+    setTimelineLevelToast({ show: (message) => shown.push(message), error() {} });
+    const client = fakeClient();
+    const control = createTimelineLevelControl(client);
+    control.request("a1", "w1");
+    void menuItems(client.pills[0]!.button).find((item) => item.id === "simple")!.press();
+    expect(shown).toEqual(["工作过程：简洁"]);
+    control.remove();
+    setTimelineLevelToast(null);
+  });
+
+  it("refreshes every pill when the slash command switches the level", () => {
+    updateEnhancerPreferences({ language: "en" });
+    const client = fakeClient();
+    const remove = installTimelineLevelControl(client as never);
+    const command = client.commands.find((entry) => entry.name === "bp-timeline")!;
+    command.onSubmit({ args: "", agent: { id: "a1", workspaceId: "w1" } } as never);
+    command.onSubmit({ args: "1", agent: { id: "a2", workspaceId: "w1" } } as never);
+    expect(client.pills.map((pill) => pill.contribution.agentId)).toEqual(["a1", "a2"]);
+    for (const pill of client.pills) {
+      expect(pill.button.label).toBe("Simple");
+      expect(menuItems(pill.button).find((item) => item.checked)?.id).toBe("simple");
+    }
+    command.onSubmit({ args: "3", agent: { id: "a2", workspaceId: "w1" } } as never);
+    for (const pill of client.pills) expect(pill.button.label).toBe("Detailed");
+    remove();
+  });
+
   it("leaves the pills alone when an unrelated preference changes", () => {
     const client = fakeClient();
     const control = createTimelineLevelControl(client);
