@@ -71,7 +71,8 @@ const TECHNICAL =
 export function NoticeCallout({ data, tokens, at, compact = false }: NoticeCalloutProps): React.ReactElement {
   const look = levelLook(data, tokens);
   const message = data.message.trim();
-  const asData = message.includes("\n") || message.length > INLINE_LIMIT || TECHNICAL.test(message);
+  const job = /^Background job ([^\s()]+) \(([\s\S]+)$/.exec(message);
+  const asData = Boolean(job) || message.includes("\n") || message.length > INLINE_LIMIT || TECHNICAL.test(message);
   const [open, setOpen] = useState(false);
   const height = compact ? tokens.typography.block.rowHeight.compact : tokens.typography.block.rowHeight.desktop;
   const block = tokens.typography.block;
@@ -110,6 +111,32 @@ export function NoticeCallout({ data, tokens, at, compact = false }: NoticeCallo
           lineHeight: block.label.lineHeight,
           color: tokens.foreground,
           paddingVertical: open ? space.xs : 0,
+        },
+        jobLabel: {
+          fontFamily: tokens.fontUi,
+          fontSize: block.label.size,
+          lineHeight: block.label.lineHeight,
+          fontWeight: "600",
+          color: tokens.foreground,
+          flexShrink: 0,
+        },
+        jobId: {
+          fontFamily: tokens.fontMono,
+          fontSize: block.meta.size,
+          color: tokens.foregroundMuted,
+          backgroundColor: tokens.v2.surface1,
+          borderRadius: radiusV2.block,
+          paddingHorizontal: space.xs,
+          paddingVertical: 2,
+          overflow: "hidden",
+          flexShrink: 0,
+        },
+        jobCommand: {
+          flex: 1,
+          minWidth: 0,
+          fontFamily: tokens.fontMono,
+          fontSize: block.meta.size,
+          color: tokens.foregroundMuted,
         },
         time: {
           fontFamily: tokens.fontMono,
@@ -155,14 +182,23 @@ export function NoticeCallout({ data, tokens, at, compact = false }: NoticeCallo
         <View style={styles.slot}>
           <Icon name={look.icon} size={DISCLOSURE_HEADER.icon} color={look.mark} />
         </View>
-        <Text
-          selectable={open}
-          numberOfLines={open && !asData ? undefined : 1}
-          style={[styles.message, { fontWeight: look.weight }]}
-        >
-          {message}
-        </Text>
+        {job ? (
+          <>
+            <Text numberOfLines={1} style={styles.jobLabel}>Background job</Text>
+            <Text numberOfLines={1} style={styles.jobId}>{job[1]}</Text>
+            <Text numberOfLines={1} style={styles.jobCommand}>{compact ? "" : job[2]}</Text>
+          </>
+        ) : (
+          <Text
+            selectable={open}
+            numberOfLines={open && !asData ? undefined : 1}
+            style={[styles.message, { fontWeight: look.weight }]}
+          >
+            {message}
+          </Text>
+        )}
         {at ? <Text style={styles.time}>{formatStamp(at)}</Text> : null}
+        {job ? <Icon name={open ? "ChevronDown" : "ChevronRight"} size={14} color={tokens.foregroundMuted} /> : null}
       </Pressable>
       {asData && open ? (
         <FadeIn style={styles.dataBlock}>
