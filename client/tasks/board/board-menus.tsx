@@ -1,6 +1,8 @@
 import React from "react";
 import type { PluginTheme } from "@getpaseo/plugin";
+import type { PluginHostSummary } from "@getpaseo/plugin/client";
 import { LANE_WIDTHS, type LaneWidth } from "../../../shared/tasks-settings";
+import { DEFAULT_LOCAL_LABEL } from "../data/multi-host";
 import { BrandMark, ProjectIcon, TagMark, foldPath, taskTokens, tildePath } from "../cards";
 import { FILTER_ICONS, type ActiveChip, type ChipGroup, type FilterOption, type ProjectOption, type ShownFilterOptions } from "./filter-options";
 import type { BoardParams } from "./params";
@@ -143,6 +145,49 @@ export function workspaceMenuSections(options: ShownFilterOptions, theme: Plugin
     titleLeading: group.projectId ? <ProjectIcon location={group} size={14} hostId={hostId} /> : undefined,
     items: group.items.map((item) => optionItem(item, toggle, { icon: FILTER_ICONS.workspace })),
   }));
+}
+
+/**
+ * The host filter's rows: "All hosts" first (clears the selection), then
+ * every known host, the local one standing in when `useHosts` lists none.
+ * A host that is not online says so at the right; picking a row is a
+ * multi-select toggle, as the other filters are.
+ */
+export function hostMenuSections(
+  hosts: readonly PluginHostSummary[],
+  selectedHostIds: readonly string[],
+  strings: BoardStrings,
+  onToggle: (hostId: string) => void,
+  onSelectAll: () => void,
+  currentHostId?: string,
+): MenuSection[] {
+  const known: PluginHostSummary[] = hosts.length
+    ? [...hosts]
+    : currentHostId
+      ? [{ serverId: currentHostId, label: DEFAULT_LOCAL_LABEL, status: "online" }]
+      : [];
+  const seen = new Set<string>();
+  const rows: MenuItem[] = [{
+    key: "all-hosts",
+    label: strings.allHosts,
+    icon: FILTER_ICONS.host,
+    checked: selectedHostIds.length === 0,
+    onSelect: onSelectAll,
+  }];
+  for (const host of known) {
+    if (seen.has(host.serverId)) continue;
+    seen.add(host.serverId);
+    rows.push({
+      key: host.serverId,
+      label: host.label,
+      icon: FILTER_ICONS.host,
+      hint: host.status === "online" ? undefined : host.status,
+      checked: selectedHostIds.includes(host.serverId),
+      keepOpen: true,
+      onSelect: () => onToggle(host.serverId),
+    });
+  }
+  return [{ key: "hosts", items: rows }];
 }
 
 export function agentMenuSections(options: ShownFilterOptions, theme: PluginTheme, strings: BoardStrings, toggle: (id: string) => void): MenuSection[] {

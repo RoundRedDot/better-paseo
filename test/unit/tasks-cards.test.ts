@@ -1094,6 +1094,35 @@ describe("TaskCardView rows", () => {
     expect(texts(hostByTestId(tree.root, "task-card-timer"))).toEqual([expected]);
   });
 
+  it("tags a card from another host with its label and leaves the board's own cards untagged", async () => {
+    const remote = { ...sample("sample-running"), hostId: "host-2", hostLabel: "Studio" };
+    const tagged = await render(cardElement(remote, { hostId: "host-1" }));
+    expect(texts(hostByTestId(tagged.root, "task-card-host"))).toEqual(["Studio"]);
+    act(() => tagged.unmount());
+    const local = { ...sample("sample-running"), hostId: "host-1", hostLabel: "This host" };
+    const plain = await render(cardElement(local, { hostId: "host-1" }));
+    expect(plain.root.findAll((node) => node.props.testID === "task-card-host")).toHaveLength(0);
+  });
+
+  it("draws the host tag only while the Host switch is on", async () => {
+    const remote = { ...sample("sample-running"), hostId: "host-2", hostLabel: "Studio" };
+    const on = await render(cardElement(remote, { hostId: "host-1" }));
+    expect(texts(hostByTestId(on.root, "task-card-host"))).toEqual(["Studio"]);
+    act(() => on.unmount());
+    const off = await render(cardElement(remote, { hostId: "host-1", fields: fields("standard", { host: false }) }));
+    expect(off.root.findAll((node) => node.props.testID === "task-card-host")).toHaveLength(0);
+    // Minimal keeps it off too, whatever the card carries.
+    act(() => off.unmount());
+    const minimal = await render(cardElement(remote, { hostId: "host-1", fields: fields("minimal") }));
+    expect(minimal.root.findAll((node) => node.props.testID === "task-card-host")).toHaveLength(0);
+  });
+
+  it("renders the host tag on compact cards even without project or workspace metadata", async () => {
+    const remote = { ...sample("sample-running"), hostId: "host-2", hostLabel: "Studio", location: { ...sample("sample-running").location, projectName: null, workspaceName: null } };
+    const tree = await render(cardElement(remote, { hostId: "host-1", compact: true, fields: fields("standard", { host: true }) }));
+    expect(texts(hostByTestId(tree.root, "task-card-host"))).toEqual(["Studio"]);
+  });
+
   it("switches from relative time to a full timestamp when the board clock crosses midnight", async () => {
     let time = new Date(2026, 9, 21, 23, 59, 59).getTime();
     const clock = createTaskClock(() => time);
@@ -1351,7 +1380,7 @@ describe("TaskCardView rows", () => {
     // Non-breaking spaces around the separator: a web text box drops a leading space.
     expect(String(separator.props.children)).toBe("\u00a0\u203a\u00a0");
     byLabel(tree.root, "定位到父任务").props.onPress();
-    expect(onReveal).toHaveBeenCalledWith("sample-running");
+    expect(onReveal).toHaveBeenCalledWith("sample-running", undefined, undefined);
     // The card's long-press menu shows the parent's card too.
     onReveal.mockClear();
     await act(async () => hostByTestId(tree.root, "task-card-sample-child-1").props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
@@ -1359,7 +1388,7 @@ describe("TaskCardView rows", () => {
       (node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "显示父任务卡片",
     );
     await act(async () => reveal.props.onPress());
-    expect(onReveal).toHaveBeenCalledWith("sample-running");
+    expect(onReveal).toHaveBeenCalledWith("sample-running", undefined, undefined);
 
     const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: null, missing: true, archived: true } };
     await act(async () => tree.update(cardElement(orphan, { onReveal, fields: fields("minimal") })));
@@ -1402,7 +1431,7 @@ describe("TaskCardView rows", () => {
       expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(en);
     }
     await act(async () => hostByTestId(tree.root, "task-card-meta-parent").props.onPress());
-    expect(onReveal).toHaveBeenLastCalledWith("former");
+    expect(onReveal).toHaveBeenLastCalledWith("former", undefined, undefined);
 
     const platform = globalThis as { __rnMockOS?: string };
     const saved = platform.__rnMockOS;
@@ -2596,7 +2625,7 @@ describe("TaskCardView actions", () => {
       tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
     );
     byLabel(tree.root, "Measure the sidebar ring 运行中").props.onPress();
-    expect(onReveal).toHaveBeenCalledWith("sample-child-1", "sample-running");
+    expect(onReveal).toHaveBeenCalledWith("sample-child-1", "sample-running", undefined);
     const list = hostByTestId(tree.root, "task-card-subtasks");
     // Each row: the agent's mark on the left, aligned with the title's first line, its status on the
     // corner in every state; no state words.
@@ -2645,7 +2674,7 @@ describe("TaskCardView actions", () => {
       expect(flat(hostByTestId(content, `subtask-meta-${child.id}`).props.style).marginRight).toBeUndefined();
       expect(content.findAll((node) => node === open)).toHaveLength(1);
       row.props.onPress();
-      expect(onReveal).toHaveBeenLastCalledWith(child.id, base.id);
+      expect(onReveal).toHaveBeenLastCalledWith(child.id, base.id, undefined);
     }
     if (compact) {
       byLabel(byLabel(list, `${base.children[0]!.title} ${cardStrings("zh").status[base.children[0]!.status]}`), cardStrings("zh").openInWorkspace).props.onPress();
@@ -2737,7 +2766,7 @@ describe("TaskCardView actions", () => {
     for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-parent-tab-${child.id}`)).toHaveLength(0);
     // The row reveals the subagent's card, naming the parent for the board's fallback; the button opens the parent's tab.
     byLabel(tree.root, "mac studio run check 运行中").props.onPress();
-    expect(onReveal).toHaveBeenCalledWith("sub-1", base.id);
+    expect(onReveal).toHaveBeenCalledWith("sub-1", base.id, undefined);
     expect(onOpen).not.toHaveBeenCalled();
     byLabel(list, "在父任务的 tab 中打开").props.onPress();
     expect(onOpen).toHaveBeenCalledWith(base.id);

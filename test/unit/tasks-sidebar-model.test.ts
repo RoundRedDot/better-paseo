@@ -128,6 +128,18 @@ describe("sidebar selection", () => {
     expect(selectionReducer(jumped, { type: "click", id: "c" })).toEqual({ id: "c", tab: "messages", back: [] });
   });
 
+  it("keeps two hosts' cards with the same id apart", () => {
+    const local = selectionReducer(NO_SELECTION, { type: "click", id: "a", hostId: "host-1" });
+    // The same id on another host is another card: a jump there keeps this one to go back to.
+    const remote = selectionReducer(local, { type: "jump", id: "a", hostId: "host-2" });
+    expect(remote).toEqual({ id: "a", hostId: "host-2", tab: "messages", back: [{ id: "a", hostId: "host-1", tab: "messages" }] });
+    expect(selectionReducer(remote, { type: "back" })).toEqual({ id: "a", hostId: "host-1", tab: "messages", back: [] });
+    // The same card on the same host is the same selection; another host is another card.
+    expect(selectionReducer(local, { type: "click", id: "a", hostId: "host-1" })).toBe(local);
+    expect(selectionReducer(local, { type: "click", id: "a", hostId: "host-2" })).not.toBe(local);
+    expect(selectionReducer(local, { type: "jump", id: "a", hostId: "host-2" })).not.toBe(local);
+  });
+
   it("keeps the parent to go back to when a card's subtask row shows the subtask", () => {
     const shown = run({ type: "click", id: "a" }, { type: "click", id: "child", parent: "p" });
     expect(shown).toEqual({ id: "child", tab: "messages", back: [{ id: "p", tab: "messages" }] });

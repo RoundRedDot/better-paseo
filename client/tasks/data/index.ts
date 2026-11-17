@@ -24,7 +24,7 @@ import { resolveTasksLanguage } from "../i18n";
 import { fallbackLabelColor } from "../label-colors";
 import { subagentModel, subagentType } from "../subagent-type";
 import { matchesTaskSearch } from "./search";
-import { LANE_ORDER, isHistoryLane, settledAt, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
+import { LANE_ORDER, isHistoryLane, settledAt, workspaceKey, type BoardCounts, type BoardFilters, type LaneId, type LaneModel, type TaskCard, type TaskChild, type TaskLabel, type TaskTiming, type TaskUsage } from "../model";
 
 export interface WorkspaceOption {
   id: string;
@@ -38,6 +38,8 @@ export interface WorkspaceOption {
   folder?: string | null;
   /** The project's root directory, the project filter's second line. */
   projectPath?: string | null;
+  /** The host whose daemon listed it; absent when the board reads one host. */
+  hostId?: string;
 }
 
 export interface TasksOptions {
@@ -106,10 +108,10 @@ export interface TasksHandle extends TasksSnapshot {
   refresh(): Promise<TasksRefreshResult>;
   /** Fetch the done lane's next page (50), which the archived lane shares. */
   loadMoreDone(): void;
-  /** Resolve a parent that is not on the board (archived, or an old done task): `agents.ref(id).refresh()`. */
-  resolveParent(agentId: string): void;
+  /** Resolve a parent that is not on the board (archived, or an old done task): `agents.ref(id).refresh()`. `hostId` picks the daemon that owns the id. */
+  resolveParent(agentId: string, hostId?: string): void;
   /** Read the parent again, as after an unarchive: whether it is archived, or null when it is gone. */
-  refreshParent(agentId: string): Promise<boolean | null>;
+  refreshParent(agentId: string, hostId?: string): Promise<boolean | null>;
   /** Read the server's read marks again, as after a Mark read. */
   refreshReads(): void;
   /** Read the server's unread marks again, as after a Mark unread. */
@@ -686,7 +688,7 @@ function archivedOrderAt(card: TaskCard): string {
 }
 
 /** A lane's default order: waiting and running oldest first, the rest newest first. Archived is by archive time. */
-function laneCompare(lane: LaneId): (left: TaskCard, right: TaskCard) => number {
+export function laneCompare(lane: LaneId): (left: TaskCard, right: TaskCard) => number {
   if (lane === "needs_input") return (left, right) => timestamp(left.timing.attentionAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.attentionAt, Number.POSITIVE_INFINITY);
   if (lane === "running") return (left, right) => timestamp(left.timing.turnStartedAt, Number.POSITIVE_INFINITY) - timestamp(right.timing.turnStartedAt, Number.POSITIVE_INFINITY);
   if (lane === "review") return (left, right) => timestamp(right.timing.attentionAt ?? right.timing.updatedAt, Number.NEGATIVE_INFINITY) - timestamp(left.timing.attentionAt ?? left.timing.updatedAt, Number.NEGATIVE_INFINITY);
@@ -1067,7 +1069,7 @@ interface WarmHold {
   timer: ReturnType<typeof setTimeout> | null;
 }
 
-interface TaskStore {
+export interface TaskStore {
   subscribe(listener: () => void, demand: TasksDemand): () => void;
   /** Keep the board's subscriptions open for `reason`: until `ms` from now, or with no deadline when null. */
   hold(reason: TasksHoldReason, ms: number | null): void;
@@ -4331,7 +4333,7 @@ function createStore(api: PaseoApi): TaskStore {
   return store;
 }
 
-function getStore(api: PaseoApi): TaskStore {
+export function getStore(api: PaseoApi): TaskStore {
   let store = stores.get(api);
   if (!store) {
     store = createStore(api);
@@ -4443,7 +4445,9 @@ export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilt
   const query = filters.query.trim().toLowerCase();
   const matches = (card: TaskCard) => {
     return matchesTaskSearch(card, query, firstMessages?.get(card.id)) &&
-      (filters.workspaceIds.length === 0 || (card.location.workspaceId !== null && filters.workspaceIds.includes(card.location.workspaceId))) &&
+      (filters.workspaceIds.length === 0 || (card.location.workspaceId !== null && filters.workspaceIds.includes(workspaceKey(card.hostId, card.location.workspaceId)))) &&
+      // A card without a host is a single-host board's, which a host filter does not narrow.
+      (filters.hostIds.length === 0 || card.hostId === undefined || filters.hostIds.includes(card.hostId)) &&
       (filters.providers.length === 0 || filters.providers.includes(card.provider)) &&
       (filters.labels.length === 0 || card.labels.some((label) => filters.labels.includes(label.name)));
   };

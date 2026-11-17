@@ -118,6 +118,7 @@ describe("board params", () => {
       workspaceIds: ["wks_1", "wks,2"],
       providers: ["claude", "codex"],
       labels: ["上游 PR", "a/b%c"],
+      hostIds: ["host_a", "host,b"],
       hideSubtasks: false,
       doneWindow: "7d",
       sort: { key: "branch", direction: "desc" },
@@ -137,6 +138,18 @@ describe("board params", () => {
     expect(isEmptyParams({ q: "x" })).toBe(false);
   });
 
+  it("carries host ids as the h param and decodes them back", () => {
+    expect(EMPTY_PARAMS.hostIds).toEqual([]);
+    const params: BoardParams = { ...EMPTY_PARAMS, hostIds: ["host_a", "host,b"] };
+    const encoded = encodeBoardParams(params);
+    expect(encoded).toEqual({ h: "host_a,host%2Cb" });
+    expect(decodeBoardParams(encoded).hostIds).toEqual(["host_a", "host,b"]);
+    expect(decodeBoardParams({ h: "%E0%A4%A,host_a,,host_a" }).hostIds).toEqual(["host_a"]);
+    expect(isEmptyParams({ h: "host_a" })).toBe(false);
+    expect(resolveBoardParams(params, defaults).filters.hostIds).toEqual(["host_a", "host,b"]);
+    expect(activeFilterCount(params, defaults)).toBe(2);
+  });
+
   it("decodes garbage to empty values without throwing", () => {
     expect(decodeBoardParams(undefined)).toEqual(EMPTY_PARAMS);
     expect(decodeBoardParams({ ws: "%E0%A4%A,ok,,ok", sub: "maybe", win: "1y", tabs: "true" })).toEqual({
@@ -147,7 +160,7 @@ describe("board params", () => {
 
   it("resolves switches that follow the settings", () => {
     expect(resolveBoardParams(EMPTY_PARAMS, { hideSubtasks: true, doneWindow: "all" })).toEqual({
-      filters: { query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: true },
+      filters: { query: "", workspaceIds: [], providers: [], labels: [], hostIds: [], hideSubtasks: true },
       doneWindow: "all",
     });
     expect(resolveBoardParams({ ...EMPTY_PARAMS, hideSubtasks: false, doneWindow: "7d" }, { hideSubtasks: true, doneWindow: "all" }).doneWindow).toBe("7d");

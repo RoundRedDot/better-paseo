@@ -8,6 +8,8 @@ export function questionRequestKey(card: TaskCard): string {
 
 export interface QuestionDialogState {
   agentId: string;
+  /** The host the card came from; null for this board's own. */
+  hostId?: string;
   key: string;
   permission: TaskPermission;
   draft: QuestionDraft;
@@ -50,7 +52,7 @@ export function createQuestionDialogStore(shared: SharedQuestions = { drafts: ne
       if (!card.permission || state?.pending) return;
       const key = questionRequestKey(card);
       if (state?.key === key || submitted.has(key)) return;
-      publish({ agentId: card.id, key, permission: card.permission, draft: drafts.get(key) ?? EMPTY_QUESTION_DRAFT,
+      publish({ agentId: card.id, hostId: card.hostId, key, permission: card.permission, draft: drafts.get(key) ?? EMPTY_QUESTION_DRAFT,
         pending: shared.pending.has(key), submitted: submitted.has(key), error: null });
     },
     close() { if (!state?.pending) publish(null); },
@@ -81,7 +83,7 @@ export function createQuestionDialogStore(shared: SharedQuestions = { drafts: ne
           const next = cards?.slice(originalIndex + 1).find((card) => available.includes(card)) ?? available.at(-1);
           if (next?.permission) {
             const key = questionRequestKey(next);
-            publish({ agentId: next.id, key, permission: next.permission, draft: drafts.get(key) ?? EMPTY_QUESTION_DRAFT, pending: false, submitted: false, error: null });
+            publish({ agentId: next.id, hostId: next.hostId, key, permission: next.permission, draft: drafts.get(key) ?? EMPTY_QUESTION_DRAFT, pending: false, submitted: false, error: null });
           } else publish(null);
         }
       } catch (error) {
