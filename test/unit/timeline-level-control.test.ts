@@ -1,3 +1,10 @@
+import React from "react";
+import TestRenderer, { act } from "react-test-renderer";
+import { vi } from "vitest";
+import "./helpers/quiet-renderer";
+vi.mock("react-native", () => import("./helpers/rn-mock"));
+vi.mock("@getpaseo/plugin/client/ui", () => ({ Icon: (props: unknown) => React.createElement("Icon", props as never), useToast: () => ({ show() {}, error() {} }) }));
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 import { afterEach, describe, expect, it } from "vitest";
 import type { PluginButton, PluginComposerPillContribution } from "@getpaseo/plugin/client";
 import {
@@ -7,6 +14,7 @@ import {
   setTimelineLevelToast,
   timelineLevelButton,
 } from "../../client/timeline-level-control";
+import { setSettingsTab, settingsTab } from "../../client/settings-tab";
 import { DEFAULT_PREFERENCES, getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 interface FakePill {
@@ -19,7 +27,10 @@ interface FakePill {
 function fakeClient() {
   const pills: FakePill[] = [];
   const commands: { name: string; onSubmit: (context: never) => void; removed: boolean }[] = [];
+  const opened: string[] = [];
   return {
+    opened,
+    openSettings(id: string) { opened.push(id); },
     pills,
     commands,
     addComposerPill(contribution: PluginComposerPillContribution) {
@@ -46,12 +57,17 @@ function fakeClient() {
   };
 }
 
-function menuItems(button: PluginButton) {
-  if (button.behavior.kind !== "menu") throw new Error("expected a menu");
-  return button.behavior.items.map((entry) => {
-    if (entry.kind !== "item" || entry.behavior.kind !== "action") throw new Error("expected action items");
-    return { id: entry.id, title: entry.title, icon: entry.icon, checked: String(entry.title).endsWith(" ✓"), press: entry.behavior.onPress };
-  });
+function menuItems(button: PluginButton, close = () => {}) {
+  if (button.behavior.kind !== "popover") throw new Error("expected a popover");
+  const Content = button.behavior.Content;
+  let renderer!: TestRenderer.ReactTestRenderer;
+  act(() => { renderer = TestRenderer.create(React.createElement(Content, { theme: { colors: { foreground: "black", foregroundMuted: "gray", border: "gray", surface2: "gray" } }, layout: { compact: false }, host: { id: "h", label: "h" }, context: "agent", agentId: "a", workspaceId: "w", close } as never)); });
+  const rows = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityRole === "radio");
+  const result = rows.map((node, index) => ({ id: ["simple", "standard", "detailed"][index], title: node.props.accessibilityLabel as string,
+    icon: node.findAllByType("Icon" as never)[0]!.props.name as string, checked: node.props.accessibilityState.checked as boolean, press: node.props.onPress as () => void }));
+  const settings = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === (getEnhancerPreferences().language === "zh" ? "聊天设置" : "Chat settings"))[0]!.props.onPress as () => void;
+  act(() => renderer.unmount());
+  return { rows: result, settings };
 }
 
 afterEach(() => {
@@ -59,21 +75,37 @@ afterEach(() => {
 });
 
 describe("timeline level pill", () => {
+  it("closes the popover and opens chat settings even after another tab was selected", () => {
+    updateEnhancerPreferences({ language: "zh" });
+    setSettingsTab("tasks");
+    const client = fakeClient();
+    const control = createTimelineLevelControl(client);
+    control.request("a1", "w1");
+    let closed = 0;
+    menuItems(client.pills[0]!.button, () => { closed++; }).settings();
+    expect(closed).toBe(1);
+    expect(client.opened).toEqual(["chat-presentation"]);
+    expect(settingsTab()).toBe("display");
+    control.remove();
+  });
+
+
   it("shows the current level and checks it in the menu", () => {
-    const button = timelineLevelButton({ ...DEFAULT_PREFERENCES, language: "zh" });
+    updateEnhancerPreferences({ language: "zh" });
+    const button = timelineLevelButton({ ...DEFAULT_PREFERENCES, language: "zh" }, () => {});
     expect(button.title).toBe("工作过程");
     expect(button.label).toBe("标准");
     expect(button.visible).toBe(true);
     expect(button.icon).toBe("ListCollapse");
-    expect(menuItems(button).map(({ id, title, icon }) => [id, title, icon])).toEqual([
+    expect(menuItems(button).rows.map(({ id, title, icon }) => [id, title, icon])).toEqual([
       ["simple", "简洁", "Minus"],
-      ["standard", "标准 ✓", "Equal"],
+      ["standard", "标准", "Equal"],
       ["detailed", "详细", "Menu"],
     ]);
   });
 
   it("hides while Better Paseo chat is off", () => {
-    expect(timelineLevelButton({ ...DEFAULT_PREFERENCES, chatEnabled: false }).visible).toBe(false);
+    expect(timelineLevelButton({ ...DEFAULT_PREFERENCES, chatEnabled: false }, () => {}).visible).toBe(false);
   });
 
   it("registers one pill per agent, however many rows ask", () => {
@@ -92,12 +124,14 @@ describe("timeline level pill", () => {
     const control = createTimelineLevelControl(client);
     control.request("a1", "w1");
     control.request("a2", "w2");
-    const detailed = menuItems(client.pills[0]!.button).find((item) => item.id === "detailed")!;
+    let closed = 0;
+    const detailed = menuItems(client.pills[0]!.button, () => { closed++; }).rows.find((item) => item.id === "detailed")!;
     void detailed.press();
     expect(getEnhancerPreferences().timelineLevel).toBe("detailed");
+    expect(closed).toBe(1);
     for (const pill of client.pills) {
       expect(pill.button.label).toBe("Detailed");
-      expect(menuItems(pill.button).find((item) => item.checked)?.id).toBe("detailed");
+      expect(menuItems(pill.button).rows.find((item) => item.checked)?.id).toBe("detailed");
     }
     control.remove();
   });
@@ -109,7 +143,7 @@ describe("timeline level pill", () => {
     const client = fakeClient();
     const control = createTimelineLevelControl(client);
     control.request("a1", "w1");
-    void menuItems(client.pills[0]!.button).find((item) => item.id === "simple")!.press();
+    void menuItems(client.pills[0]!.button).rows.find((item) => item.id === "simple")!.press();
     expect(shown).toEqual(["工作过程：简洁"]);
     control.remove();
     setTimelineLevelToast(null);
@@ -125,7 +159,7 @@ describe("timeline level pill", () => {
     expect(client.pills.map((pill) => pill.contribution.agentId)).toEqual(["a1", "a2"]);
     for (const pill of client.pills) {
       expect(pill.button.label).toBe("Simple");
-      expect(menuItems(pill.button).find((item) => item.checked)?.id).toBe("simple");
+      expect(menuItems(pill.button).rows.find((item) => item.checked)?.id).toBe("simple");
     }
     command.onSubmit({ args: "3", agent: { id: "a2", workspaceId: "w1" } } as never);
     for (const pill of client.pills) expect(pill.button.label).toBe("Detailed");

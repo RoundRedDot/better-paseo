@@ -13,10 +13,9 @@
  * the other clients follow one switch; the transformers re-register on it
  * (`followPreference`).
  */
-import { useEffect } from "react";
+import { createElement, useEffect } from "react";
 import type {
   PluginButton,
-  PluginButtonMenuEntry,
   PluginButtonRegistration,
   PluginClientContext,
   PluginClientSlashCommandContribution,
@@ -30,13 +29,16 @@ import {
   type EnhancerPreferences,
   type TimelineLevel,
 } from "./preferences";
+import { TimelineLevelMenu } from "./timeline-level-menu";
+import { SETTINGS_SCREEN_ID, setSettingsTab } from "./settings-tab";
 import { resolveLanguage, type SettingsLanguage } from "./i18n/settings-strings";
 
 export const TIMELINE_LEVELS: readonly TimelineLevel[] = ["simple", "standard", "detailed"];
 
-const STRINGS: Readonly<Record<SettingsLanguage, { title: string; levels: Record<TimelineLevel, string>; command: string; hint: string; switched: string }>> = {
+const STRINGS: Readonly<Record<SettingsLanguage, { title: string; settings: string; levels: Record<TimelineLevel, string>; command: string; hint: string; switched: string }>> = {
   en: {
     title: "Agent steps",
+    settings: "Chat settings",
     levels: { simple: "Simple", standard: "Standard", detailed: "Detailed" },
     command: "Switch how many agent steps the chat shows",
     hint: "1 simple | 2 standard | 3 detailed",
@@ -44,6 +46,7 @@ const STRINGS: Readonly<Record<SettingsLanguage, { title: string; levels: Record
   },
   zh: {
     title: "工作过程",
+    settings: "聊天设置",
     levels: { simple: "简洁", standard: "标准", detailed: "详细" },
     command: "切换对话里显示多少工作过程",
     hint: "1 简洁 | 2 标准 | 3 详细",
@@ -53,7 +56,7 @@ const STRINGS: Readonly<Record<SettingsLanguage, { title: string; levels: Record
 
 const PILL_ID = "better-paseo-timeline-level";
 
-function strings(preferences: EnhancerPreferences) {
+export function timelineLevelStrings(preferences: EnhancerPreferences) {
   // A partial record from the daemon can leave the language unset.
   return STRINGS[resolveLanguage(preferences.language)] ?? STRINGS.en;
 }
@@ -79,7 +82,7 @@ let rowToast: ToastApi | null = null;
 /** Sets the level and says so: the rows on screen may not change, so the toast is the confirmation. */
 function switchLevel(level: TimelineLevel): void {
   if (getEnhancerPreferences().timelineLevel !== level) updateEnhancerPreferences({ timelineLevel: level });
-  const text = strings(getEnhancerPreferences());
+  const text = timelineLevelStrings(getEnhancerPreferences());
   rowToast?.show(text.switched.replace("{level}", text.levels[level]));
 }
 
@@ -91,24 +94,15 @@ export const TIMELINE_LEVEL_ICONS: Readonly<Record<TimelineLevel, string>> = {
 };
 
 /** The pill as the preferences have it now; a complete button, so `update` replaces the menu too. */
-export function timelineLevelButton(preferences: EnhancerPreferences): PluginButton {
-  const text = strings(preferences);
-  const items: PluginButtonMenuEntry[] = TIMELINE_LEVELS.map((level) => ({
-    kind: "item",
-    id: level,
-    // A menu item has only a leading icon and no checked state, so the
-    // current level is marked in its title.
-    title: level === preferences.timelineLevel ? `${text.levels[level]} ✓` : text.levels[level],
-    icon: TIMELINE_LEVEL_ICONS[level],
-    behavior: { kind: "action", onPress: () => switchLevel(level) },
-  }));
+export function timelineLevelButton(preferences: EnhancerPreferences, openSettings: () => void): PluginButton {
+  const text = timelineLevelStrings(preferences);
   return {
     title: text.title,
     label: text.levels[preferences.timelineLevel],
     icon: "ListCollapse",
     // The level only shapes the chat this plugin draws.
     visible: preferences.chatEnabled,
-    behavior: { kind: "menu", items },
+    behavior: { kind: "popover", Content: (props) => createElement(TimelineLevelMenu, { ...props, select: switchLevel, openSettings }) },
   };
 }
 
@@ -123,7 +117,8 @@ export interface TimelineLevelControl {
   remove(): void;
 }
 
-export function createTimelineLevelControl(client: Pick<PluginClientContext, "addComposerPill">): TimelineLevelControl {
+export function createTimelineLevelControl(client: Pick<PluginClientContext, "addComposerPill" | "openSettings">): TimelineLevelControl {
+  const openSettings = () => { setSettingsTab("display"); client.openSettings(SETTINGS_SCREEN_ID); };
   const pills = new Map<string, PluginButtonRegistration>();
   let removed = false;
   let key = buttonKey(getEnhancerPreferences());
@@ -133,14 +128,14 @@ export function createTimelineLevelControl(client: Pick<PluginClientContext, "ad
     const next = buttonKey(preferences);
     if (next === key) return;
     key = next;
-    const button = timelineLevelButton(preferences);
+    const button = timelineLevelButton(preferences, openSettings);
     pills.forEach((pill) => pill.update(button));
   });
 
   return {
     request(agentId, workspaceId) {
       if (removed || pills.has(agentId)) return;
-      pills.set(agentId, client.addComposerPill({ id: PILL_ID, workspaceId, agentId, button: timelineLevelButton(getEnhancerPreferences()) }));
+      pills.set(agentId, client.addComposerPill({ id: PILL_ID, workspaceId, agentId, button: timelineLevelButton(getEnhancerPreferences(), openSettings) }));
     },
     remove() {
       removed = true;
@@ -154,7 +149,7 @@ export function createTimelineLevelControl(client: Pick<PluginClientContext, "ad
 let active: TimelineLevelControl | null = null;
 
 export function timelineLevelSlashCommand(control: TimelineLevelControl): PluginClientSlashCommandContribution {
-  const text = strings(getEnhancerPreferences());
+  const text = timelineLevelStrings(getEnhancerPreferences());
   return {
     name: "bp-timeline",
     description: text.command,
@@ -164,7 +159,7 @@ export function timelineLevelSlashCommand(control: TimelineLevelControl): Plugin
       const level = parseTimelineLevelArgument(context.args, getEnhancerPreferences().timelineLevel);
       control.request(context.agent.id, context.agent.workspaceId);
       if (!level) {
-        rowToast?.error(`/bp-timeline ${strings(getEnhancerPreferences()).hint}`);
+        rowToast?.error(`/bp-timeline ${timelineLevelStrings(getEnhancerPreferences()).hint}`);
         return;
       }
       switchLevel(level);
@@ -173,7 +168,7 @@ export function timelineLevelSlashCommand(control: TimelineLevelControl): Plugin
 }
 
 /** Installs the pills and `/bp-timeline`. Returns the cleanup. */
-export function installTimelineLevelControl(client: Pick<PluginClientContext, "addComposerPill" | "addSlashCommand">): () => void {
+export function installTimelineLevelControl(client: Pick<PluginClientContext, "addComposerPill" | "addSlashCommand" | "openSettings">): () => void {
   const control = createTimelineLevelControl(client);
   active = control;
   const removeCommand = client.addSlashCommand(timelineLevelSlashCommand(control));
