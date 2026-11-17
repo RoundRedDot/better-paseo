@@ -54,20 +54,19 @@ function jetbrains(apps: readonly string[], command: string, folders: readonly (
 export const EDITOR_LAUNCH: Record<EditorId, EditorLaunch> = {
   cursor: launch(["Cursor"], ["cursor"], { kind: "cursor" }),
   vscode: electron(["Visual Studio Code"], "code", "Code.exe", [["Microsoft VS Code"]]),
-  insiders: electron(
-    ["Visual Studio Code - Insiders", "Code - Insiders"],
-    "code-insiders",
-    "Code - Insiders.exe",
-    [["Microsoft VS Code Insiders"], ["Visual Studio Code - Insiders"]],
-  ),
-  codium: electron(["VSCodium"], "codium", "VSCodium.exe", [["VSCodium"]], { commands: ["codium", "vscodium"] }),
-  windsurf: electron(["Windsurf"], "windsurf", "Windsurf.exe", [["Windsurf"]]),
-  devin: electron(["Devin"], "devin", "Devin.exe", [["Devin"]]),
+  // Windsurf now ships as Devin Desktop; an older Windsurf install still counts.
+  windsurf: electron(["Devin", "Windsurf"], "devin", "Devin.exe", [["Devin"], ["Windsurf"]], {
+    commands: ["devin", "windsurf"],
+    windowsExes: ["Devin.exe", "Windsurf.exe"],
+    windowsShims: ["devin.cmd", "devin.exe", "windsurf.cmd", "windsurf.exe"],
+  }),
   trae: electron(["Trae", "Trae CN"], "trae", "Trae.exe", [["Trae"], ["Trae CN"]], {
     windowsExes: ["Trae.exe", "Trae CN.exe"],
   }),
   kiro: electron(["Kiro"], "kiro", "Kiro.exe", [["Kiro"]]),
-  antigravity: electron(["Antigravity"], "antigravity", "Antigravity.exe", [["Antigravity"]]),
+  antigravity: electron(["Antigravity IDE", "Antigravity"], "antigravity", "Antigravity.exe", [["Antigravity"], ["Antigravity IDE"]], {
+    windowsExes: ["Antigravity.exe", "Antigravity IDE.exe"],
+  }),
   qoder: electron(
     ["Qoder IDE", "Qoder CN IDE", "Qoder", "Qoder CN"],
     "qoder",
@@ -82,17 +81,9 @@ export const EDITOR_LAUNCH: Record<EditorId, EditorLaunch> = {
     [["CodeBuddy"], ["CodeBuddy CN"]],
     { windowsExes: ["CodeBuddy.exe", "CodeBuddy CN.exe"] },
   ),
-  comate: electron(["Comate"], "comate", "comate.exe", [["Comate"]]),
-  hbuilder: electron(["HBuilderX"], "hbuilderx", "HBuilderX.exe", [["HBuilderX"]], {
-    commands: ["hbuilderx", "hbuilderx.sh", "hbuilder"],
-  }),
   zed: launch(["Zed"], ["zed"], { kind: "zed" }),
   sublime: launch(["Sublime Text"], ["subl"], { kind: "sublime" }),
   xcode: launch(["Xcode"], ["xed"], { trustPath: true }),
-  nova: launch(["Nova"], ["nova"]),
-  bbedit: launch(["BBEdit"], ["bbedit"]),
-  textmate: launch(["TextMate"], ["mate"]),
-  coteditor: launch(["CotEditor"], ["cot"]),
   idea: jetbrains(
     ["IntelliJ IDEA", "IntelliJ IDEA Ultimate", "IntelliJ IDEA CE", "IntelliJ IDEA Community Edition"],
     "idea",
@@ -104,13 +95,6 @@ export const EDITOR_LAUNCH: Record<EditorId, EditorLaunch> = {
     "pycharm",
     [["PyCharm"], ["PyCharm Professional"], ["PyCharm Community Edition"]],
   ),
-  goland: jetbrains(["GoLand"], "goland", [["GoLand"]]),
-  clion: jetbrains(["CLion"], "clion", [["CLion"]]),
-  phpstorm: jetbrains(["PhpStorm"], "phpstorm", [["PhpStorm"]]),
-  rider: jetbrains(["Rider", "JetBrains Rider"], "rider", [["Rider"], ["JetBrains Rider"]]),
-  rustrover: jetbrains(["RustRover"], "rustrover", [["RustRover"]]),
-  rubymine: jetbrains(["RubyMine"], "rubymine", [["RubyMine"]]),
-  datagrip: jetbrains(["DataGrip"], "datagrip", [["DataGrip"]]),
   androidstudio: launch(["Android Studio"], ["studio", "android-studio"], {
     windowsExes: ["studio64.exe", "studio.exe"],
     windowsShims: ["studio.cmd", "studio.bat"],

@@ -14,9 +14,9 @@ const DEFAULT_TASKS_SETTINGS = { ...STOCK_SETTINGS, enabled: false, board: { ...
 // a hand edit makes the density custom, the preview follows the switches,
 // reset asks first, and an unusable record offers a reset.
 
-const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh", rpc: vi.fn(async (): Promise<unknown> => ({ state: "idle" })), copyText: vi.fn(async () => {}), agents: vi.fn(async (): Promise<unknown> => ({ state: "idle", entries: [], error: null })), openTerminal: vi.fn(async (): Promise<unknown> => ({ status: "opened" })) }));
+const state = vi.hoisted(() => ({ current: null as unknown, previews: [] as Array<Record<string, unknown>>, language: "en" as "en" | "zh", rpc: vi.fn(async (): Promise<unknown> => ({ state: "idle" })), copyText: vi.fn(async () => {}), agents: vi.fn(async (): Promise<unknown> => ({ state: "idle", entries: [], error: null })), openTerminal: vi.fn(async (): Promise<unknown> => ({ status: "opened" })), editors: vi.fn(async (): Promise<unknown> => ({ apps: [] })) }));
 vi.mock("react-native", async () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client", () => ({ useSettings: (definition: { id: string }) => definition.id === "title-generation" ? { status: "loading", reload: vi.fn() } : state.current, useRpc: (definition: { name: string }) => definition.name === "settings.agent-updates" ? state.agents : definition.name === "settings.open-terminal" ? state.openTerminal : state.rpc }));
+vi.mock("@getpaseo/plugin/client", () => ({ useSettings: (definition: { id: string }) => definition.id === "title-generation" ? { status: "loading", reload: vi.fn() } : state.current, useRpc: (definition: { name: string }) => definition.name === "file.editors" ? state.editors : definition.name === "settings.agent-updates" ? state.agents : definition.name === "settings.open-terminal" ? state.openTerminal : state.rpc }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   // The plugin imports all of these from `client/ui` now; where both mocks name a key, the UI one wins.
   const fromReactNative = await (async () => {

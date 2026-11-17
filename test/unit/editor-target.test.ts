@@ -35,7 +35,9 @@ describe("file open preference", () => {
   it("defaults to the system app and preserves a selected editor", () => {
     expect(preferencesSchema.parse({}).fileOpenApp).toBe("system");
     expect(preferencesSchema.parse({ fileOpenApp: "sublime" }).fileOpenApp).toBe("sublime");
-    expect(preferencesSchema.parse({ fileOpenApp: "windsurf" }).fileOpenApp).toBe("windsurf");
+    expect(preferencesSchema.parse({ fileOpenApp: "kiro" }).fileOpenApp).toBe("kiro");
+    // Editors dropped from the menu fall back to the system app.
+    expect(preferencesSchema.parse({ fileOpenApp: "bbedit" }).fileOpenApp).toBe("system");
     expect(preferencesSchema.parse({ fileOpenApp: "nope" }).fileOpenApp).toBe("system");
   });
 
@@ -251,31 +253,33 @@ describe("file open preference", () => {
     process.env.PATH = "";
     fs.existing.add("/Applications/Visual Studio Code.app");
     fs.existing.add("/Applications/Zed.app");
-    fs.existing.add("/Applications/BBEdit.app");
-    expect(await installedEditors("darwin")).toEqual(["vscode", "zed", "bbedit"]);
+    fs.existing.add("/Applications/WebStorm.app");
+    expect(await installedEditors("darwin")).toEqual(["vscode", "zed", "webstorm"]);
   });
 
-  it("opens Windows Windsurf from its install folder and waits for the GUI", async () => {
+  it("opens Windows Kiro from its install folder and waits for the GUI", async () => {
     process.env.PATH = "";
     process.env.LOCALAPPDATA = "C:\\Users\\a\\AppData\\Local";
     delete process.env.ProgramFiles;
     delete process.env["ProgramFiles(x86)"];
-    const exe = "C:\\Users\\a\\AppData\\Local\\Programs\\Windsurf\\Windsurf.exe";
+    const exe = "C:\\Users\\a\\AppData\\Local\\Programs\\Kiro\\Kiro.exe";
     fs.existing.add(exe);
-    expect(await editorCommand("windsurf", "win32")).toEqual({ command: exe, args: [], completion: "spawn" });
+    expect(await editorCommand("kiro", "win32")).toEqual({ command: exe, args: [], completion: "spawn" });
   });
 
-  it("treats a Linux Windsurf binary beside product.json as the GUI", async () => {
-    process.env.PATH = "/opt/Windsurf";
-    fs.executable.add("/opt/Windsurf/windsurf");
-    fs.existing.add("/opt/Windsurf/resources/app/product.json");
-    expect(await editorCommand("windsurf", "linux")).toEqual({ command: "/opt/Windsurf/windsurf", args: [], completion: "spawn" });
+  it("treats a Linux Kiro binary beside product.json as the GUI", async () => {
+    process.env.PATH = "/opt/Kiro";
+    fs.executable.add("/opt/Kiro/kiro");
+    fs.existing.add("/opt/Kiro/resources/app/product.json");
+    expect(await editorCommand("kiro", "linux")).toEqual({ command: "/opt/Kiro/kiro", args: [], completion: "spawn" });
   });
 
-  it("trusts Xcode's command when the app bundle is absent", async () => {
-    process.env.PATH = "/usr/bin";
-    fs.executable.add("/usr/bin/xed");
-    expect(await editorCommand("xcode", "darwin")).toEqual({ command: "/usr/bin/xed", args: [], completion: "exit" });
+  it("finds Devin Desktop, and an older Windsurf install, as Windsurf", async () => {
+    process.env.PATH = "";
+    fs.existing.add("/Applications/Windsurf.app");
+    expect(await installedEditors("darwin")).toEqual(["windsurf"]);
+    fs.existing.add("/Applications/Devin.app");
+    expect(await installedEditors("darwin")).toEqual(["windsurf"]);
   });
 
   it("does not treat the Antigravity agent command as the IDE", async () => {
@@ -285,4 +289,11 @@ describe("file open preference", () => {
     fs.executable.add("/Users/a/.local/bin/antigravity");
     expect((await editorCommand("antigravity", "linux")).command).toBe("/Users/a/.local/bin/antigravity");
   });
+
+  it("trusts Xcode's command when the app bundle is absent", async () => {
+    process.env.PATH = "/usr/bin";
+    fs.executable.add("/usr/bin/xed");
+    expect(await editorCommand("xcode", "darwin")).toEqual({ command: "/usr/bin/xed", args: [], completion: "exit" });
+  });
+
 });

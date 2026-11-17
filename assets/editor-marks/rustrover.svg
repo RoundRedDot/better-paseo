@@ -1,5 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-  <!-- Original simplified mark for RustRover. -->
-  <rect width="24" height="24" rx="5" fill="#1C1C1C"/>
-  <path fill="#E85D04" fill-rule="evenodd" d="M7 5.4h6.1c2.5 0 4 1.35 4 3.4 0 1.55-.85 2.7-2.2 3.15L17.7 18h-2.55l-2.45-5.35H9.4V18H7V5.4zm2.4 2.05v3.2h3.35c1.05 0 1.7-.5 1.7-1.6s-.65-1.6-1.7-1.6H9.4z"/>
-</svg>

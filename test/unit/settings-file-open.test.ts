@@ -88,9 +88,9 @@ describe("file open choices", () => {
   });
 
   it("lists only the editors this host can launch", () => {
-    const { renderer } = render("system", true, ["system", "vscode", "bbedit"]);
+    const { renderer } = render("system", true, ["system", "vscode", "webstorm"]);
     open(renderer);
-    expect(radios(renderer).map((node) => node.props.accessibilityLabel)).toEqual(["System app", "VS Code", "BBEdit"]);
+    expect(radios(renderer).map((node) => node.props.accessibilityLabel)).toEqual(["System app", "VS Code", "WebStorm"]);
     act(() => renderer.unmount());
   });
 
