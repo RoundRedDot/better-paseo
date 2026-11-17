@@ -318,6 +318,28 @@ describe("automatic title settings", () => {
     expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ provider: "antigravity", model: "haiku" }), "r1");
   });
 
+  it("opens model and thinking level as anchored menus, not host modals", async () => {
+    state.catalog.mockResolvedValue({ providers: ["claude"], models: [
+      { id: "haiku", label: "Haiku", thinkingOptions: [{ id: "off", label: "Off" }, { id: "low", label: "Low" }], defaultThinkingOptionId: "low" },
+      { id: "sonnet", label: "Sonnet", thinkingOptions: [], defaultThinkingOptionId: null },
+    ], error: null });
+    const settings = await mount();
+    const button = (label: string) => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === label);
+    const radios = () => tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
+    await act(async () => button("思考等级").props.onPress());
+    expect(tree.root.findAllByType("ModalContent" as never)).toHaveLength(0);
+    expect(radios().map((node) => node.props.accessibilityLabel)).toEqual(["模型默认 · low", "Off", "Low"]);
+    await act(async () => radios()[1]!.props.onPress());
+    expect(button("思考等级").props.accessibilityValue).toEqual({ text: "Off" });
+    await act(async () => button("模型").props.onPress());
+    expect(tree.root.findAllByType("ModalContent" as never)).toHaveLength(0);
+    expect(radios().map((node) => [node.props.accessibilityLabel, node.props.accessibilityState.checked])).toEqual([["Haiku", true], ["Sonnet", false]]);
+    await act(async () => radios()[1]!.props.onPress());
+    expect(radios()).toHaveLength(0);
+    await flushSave();
+    expect(settings.save).toHaveBeenLastCalledWith(expect.objectContaining({ model: "sonnet", thinkingOptionId: "" }), "r1");
+  });
+
   it("keeps the section note outside the grouped rows and uses a single first row", async () => {
     await mount();
     const section = tree.root.findByType(Section);

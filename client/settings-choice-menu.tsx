@@ -280,6 +280,8 @@ const styles = StyleSheet.create({
   trigger: {
     alignSelf: "flex-start",
     maxWidth: "100%",
+    flexShrink: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: space.sm,

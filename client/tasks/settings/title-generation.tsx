@@ -90,7 +90,6 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   const [draft, setDraft] = useState(() => settings.status === "ready" ? settings.values : titleGenerationSettingsSchema.parse({}));
   const [saveError, setSaveError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
-  const [choosing, setChoosing] = useState<"model" | "thinkingOptionId" | null>(null);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [promptDraft, setPromptDraft] = useState<string | null>(null);
   const [promptHeight, setPromptHeight] = useState(0);
@@ -150,7 +149,6 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   const reset = async () => {
     setSaveError(null);
     if (!await settings.reset()) return;
-    setChoosing(null);
     setDraft(titleGenerationSettingsSchema.parse({}));
   };
   const providers = [...new Set([...catalog.providers, ...(draft.provider ? [draft.provider] : [])])]
@@ -165,7 +163,6 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   const thinkingOptions = selectedModel?.thinkingOptions ?? [];
   const modelDefault = `${words.modelDefault}${selectedModel?.defaultThinkingOptionId ? ` · ${selectedModel.defaultThinkingOptionId}` : ""}`;
   const thinkingChoices = [{ id: "", label: modelDefault }, ...thinkingOptions];
-  const choices = choosing === "model" ? models : thinkingChoices;
   const mobile = Platform.OS !== "web";
   const InputContainer = mobile ? ScrollView : View;
   return (
@@ -176,13 +173,11 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
         } />
         <SettingRow title={words.customModel} description={words.followSource} look={look} disabled={settings.saving} control={
           <Toggle value={draft.customModel} label={words.customModel} look={look} onChange={(customModel) => {
-            setChoosing(null);
             setDraft({ ...draft, customModel });
           }} />
         } />
         <SettingRow title={words.disableThinking} description={words.thinkingHint} look={look} disabled={settings.saving} control={
           <Toggle value={draft.disableThinking} label={words.disableThinking} look={look} onChange={(disableThinking) => {
-            setChoosing(null);
             setDraft({ ...draft, disableThinking });
           }} />
         } />
@@ -193,22 +188,24 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
               : draft.disableThinking ? words.automaticThinking
               : draft.thinkingOptionId ? thinkingOptions.find((option) => option.id === draft.thinkingOptionId)?.label ?? draft.thinkingOptionId
                 : thinkingOptions.length > 0 ? modelDefault : draft.model && selectedModel ? words.noThinking : words.choose;
-          if (field === "provider") {
-            return <SettingRow key={field} title={words.provider} look={look} control={<ChoiceMenuSelect
-              label={words.provider} value={draft.provider} disabled={disabled}
-              selected={providerChoices.find((choice) => choice.value === draft.provider) ?? null}
-              choices={providerChoices} look={look}
-              onChange={(provider) => setDraft(provider === draft.provider ? draft : { ...draft, provider, model: "", thinkingOptionId: "" })} />} />;
-          }
-          return <SettingRow key={field} title={words[field]} look={look} control={<View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-            {field === "model" ? <Pressable accessibilityRole="button" accessibilityLabel={words.refresh} accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => setRefresh((value) => value + 1)} style={{ width: 40, height: 44, alignItems: "center", justifyContent: "center", opacity: loading ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable> : null}
-            <Pressable accessibilityRole="button" accessibilityLabel={words[field]} accessibilityState={{ expanded: choosing === field, disabled }}
-              disabled={disabled} onPress={() => setChoosing(field)}
-              style={{ minHeight: 44, maxWidth: "100%", flexShrink: 1, paddingHorizontal: space.md, flexDirection: "row", alignItems: "center", gap: space.sm, borderWidth: 1, borderRadius: 8, borderColor: look.tokens.v2.border, opacity: disabled ? 0.5 : 1 }}>
-              <Text numberOfLines={1} style={[textStyle, { flexShrink: 1 }]}>{label || words.choose}</Text>
-              <Icon name="ChevronDown" size={16} color={look.tokens.foregroundMuted} />
-            </Pressable></View>
-          } />;
+          const choices: MenuChoice[] = field === "provider" ? providerChoices
+            : field === "model" ? models.map((model) => ({ value: model.id, name: model.label, logo: null }))
+              : thinkingChoices.map((option) => ({ value: option.id, name: option.label, logo: null }));
+          const selected = field === "provider" ? providerChoices.find((choice) => choice.value === draft.provider) ?? null
+            : { value: draft[field], name: label || words.choose, logo: null };
+          const menu = <ChoiceMenuSelect label={words[field]} value={draft[field]} disabled={disabled} selected={selected} choices={choices} look={look}
+            onChange={(next) => {
+              if (field === "provider") return setDraft(next === draft.provider ? draft : { ...draft, provider: next, model: "", thinkingOptionId: "" });
+              if (field === "model") {
+                const nextModel = catalog.models.find((model) => model.id === next);
+                return setDraft({ ...draft, model: next, thinkingOptionId: nextModel?.thinkingOptions.some((option) => option.id === draft.thinkingOptionId) ? draft.thinkingOptionId : "" });
+              }
+              setDraft({ ...draft, thinkingOptionId: next });
+            }} />;
+          return <SettingRow key={field} title={words[field]} look={look} control={field !== "model" ? menu : <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, maxWidth: "100%" }}>
+            <Pressable accessibilityRole="button" accessibilityLabel={words.refresh} accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => setRefresh((value) => value + 1)} style={{ width: 40, height: 44, alignItems: "center", justifyContent: "center", opacity: loading ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable>
+            {menu}
+          </View>} />;
         })}
         <SettingRow title={words.prompt} look={look} control={<Pressable accessibilityRole="button" accessibilityLabel={words.editPrompt} disabled={settings.saving} onPress={() => { setPromptHeight(0); setPromptDraft(draft.prompt); }} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}><Icon name="Pencil" size={18} color={look.tokens.foregroundMuted} /></Pressable>} below={
           <TextInput testID="title-generation-prompt" accessibilityLabel={words.prompt} multiline value={draft.prompt}
@@ -245,27 +242,6 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
               <Pressable accessibilityRole="button" accessibilityLabel={words.cancel} onPress={() => setPromptDraft(null)} style={{ minHeight: Platform.OS !== "web" ? 44 : 32, paddingHorizontal: mobile ? 18 : 12, flex: mobile ? undefined : 1, justifyContent: "center", alignItems: "center", borderRadius: Platform.OS !== "web" ? 22 : 12, borderWidth: Platform.OS !== "web" ? 1 : 0, borderColor: look.tokens.v2.border, backgroundColor: Platform.OS === "web" ? look.tokens.v2.surface2 : undefined }}><Text style={textStyle}>{words.cancel}</Text></Pressable>
               <Pressable accessibilityRole="button" accessibilityLabel={words.save} disabled={!promptDraft.trim() || promptDraft === draft.prompt} onPress={() => { setDraft({ ...draft, prompt: promptDraft }); setPromptDraft(null); }} style={{ minHeight: Platform.OS !== "web" ? 44 : 32, flex: 1, justifyContent: "center", alignItems: "center", borderRadius: Platform.OS !== "web" ? 22 : 12, backgroundColor: look.tokens.accent, opacity: !promptDraft.trim() || promptDraft === draft.prompt ? 0.5 : 1 }}><Text style={[textStyle, { color: look.tokens.accentForeground }]}>{words.save}</Text></Pressable>
             </View>
-          </View>
-        </Modal.Content>
-      </Modal> : null}
-      {draft.customModel && choosing ? <Modal title={words[choosing]} open onOpenChange={(open) => { if (!open) setChoosing(null); }}>
-        <Modal.Content>
-          <View accessibilityRole="radiogroup" accessibilityLabel={words[choosing]}>
-            {choices.map((choice) => <Pressable key={choice.id} accessibilityRole="radio" accessibilityLabel={choice.label}
-              accessibilityState={{ checked: draft[choosing] === choice.id }} aria-checked={draft[choosing] === choice.id}
-              onPress={() => {
-                setChoosing(null);
-                if (choosing === "model") {
-                  const nextModel = catalog.models.find((model) => model.id === choice.id);
-                  setDraft({ ...draft, model: choice.id, thinkingOptionId: nextModel?.thinkingOptions.some((option) => option.id === draft.thinkingOptionId) ? draft.thinkingOptionId : "" });
-                  return;
-                }
-                setDraft({ ...draft, thinkingOptionId: choice.id });
-              }}
-              style={{ minHeight: 48, padding: space.md, flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <Text style={[textStyle, { flex: 1 }]}>{choice.label}</Text>
-              {draft[choosing] === choice.id ? <Icon name="Check" size={18} color={look.tokens.accent} /> : null}
-            </Pressable>)}
           </View>
         </Modal.Content>
       </Modal> : null}
