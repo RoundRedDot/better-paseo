@@ -71,20 +71,29 @@ function setLevel(level: TimelineLevel): void {
   if (getEnhancerPreferences().timelineLevel !== level) updateEnhancerPreferences({ timelineLevel: level });
 }
 
+/** One, two, three lines: each level's icon in the menu. */
+export const TIMELINE_LEVEL_ICONS: Readonly<Record<TimelineLevel, string>> = {
+  simple: "Minus",
+  standard: "Equal",
+  detailed: "Menu",
+};
+
 /** The pill as the preferences have it now; a complete button, so `update` replaces the menu too. */
 export function timelineLevelButton(preferences: EnhancerPreferences): PluginButton {
   const text = strings(preferences);
   const items: PluginButtonMenuEntry[] = TIMELINE_LEVELS.map((level) => ({
     kind: "item",
     id: level,
-    title: text.levels[level],
-    icon: level === preferences.timelineLevel ? "Check" : undefined,
+    // A menu item has only a leading icon and no checked state, so the
+    // current level is marked in its title.
+    title: level === preferences.timelineLevel ? `${text.levels[level]} ✓` : text.levels[level],
+    icon: TIMELINE_LEVEL_ICONS[level],
     behavior: { kind: "action", onPress: () => setLevel(level) },
   }));
   return {
     title: text.title,
     label: text.levels[preferences.timelineLevel],
-    icon: "Footprints",
+    icon: "ListCollapse",
     // The level only shapes the chat this plugin draws.
     visible: preferences.chatEnabled,
     behavior: { kind: "menu", items },

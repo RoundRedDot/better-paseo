@@ -49,7 +49,7 @@ function menuItems(button: PluginButton) {
   if (button.behavior.kind !== "menu") throw new Error("expected a menu");
   return button.behavior.items.map((entry) => {
     if (entry.kind !== "item" || entry.behavior.kind !== "action") throw new Error("expected action items");
-    return { id: entry.id, title: entry.title, checked: entry.icon === "Check", press: entry.behavior.onPress };
+    return { id: entry.id, title: entry.title, icon: entry.icon, checked: String(entry.title).endsWith(" ✓"), press: entry.behavior.onPress };
   });
 }
 
@@ -63,10 +63,11 @@ describe("timeline level pill", () => {
     expect(button.title).toBe("工作过程");
     expect(button.label).toBe("标准");
     expect(button.visible).toBe(true);
-    expect(menuItems(button).map(({ id, title, checked }) => [id, title, checked])).toEqual([
-      ["simple", "简洁", false],
-      ["standard", "标准", true],
-      ["detailed", "详细", false],
+    expect(button.icon).toBe("ListCollapse");
+    expect(menuItems(button).map(({ id, title, icon }) => [id, title, icon])).toEqual([
+      ["simple", "简洁", "Minus"],
+      ["standard", "标准 ✓", "Equal"],
+      ["detailed", "详细", "Menu"],
     ]);
   });
 
