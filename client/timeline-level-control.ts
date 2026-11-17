@@ -40,11 +40,12 @@ import { resolveLanguage, type SettingsLanguage } from "./i18n/settings-strings"
 
 export const TIMELINE_LEVELS: readonly TimelineLevel[] = ["simple", "standard", "detailed"];
 
-const STRINGS: Readonly<Record<SettingsLanguage, { title: string; settings: string; levels: Record<TimelineLevel, string>; command: string; hint: string; switched: string }>> = {
+const STRINGS: Readonly<Record<SettingsLanguage, { title: string; settings: string; levels: Record<TimelineLevel, string>; descriptions: Record<TimelineLevel, string>; command: string; hint: string; switched: string }>> = {
   en: {
     title: "Agent steps",
     settings: "Chat settings",
     levels: { simple: "Simple", standard: "Standard", detailed: "Detailed" },
+    descriptions: { simple: "Conversation and results", standard: "Changes and failed steps", detailed: "Every step" },
     command: "Switch how many agent steps the chat shows",
     hint: "1 simple | 2 standard | 3 detailed",
     switched: "Agent steps: {level}",
@@ -53,6 +54,7 @@ const STRINGS: Readonly<Record<SettingsLanguage, { title: string; settings: stri
     title: "工作过程",
     settings: "聊天设置",
     levels: { simple: "简洁", standard: "标准", detailed: "详细" },
+    descriptions: { simple: "只看对话和结果", standard: "加上改动和失败步骤", detailed: "显示每一步" },
     command: "切换对话里显示多少工作过程",
     hint: "1 简洁 | 2 标准 | 3 详细",
     switched: "工作过程：{level}",
@@ -91,11 +93,11 @@ function switchLevel(level: TimelineLevel): void {
   rowToast?.show(text.switched.replace("{level}", text.levels[level]));
 }
 
-/** One, two, three lines: each level's icon in the menu. */
+/** Each level has an icon that reflects its content. */
 export const TIMELINE_LEVEL_ICONS: Readonly<Record<TimelineLevel, string>> = {
-  simple: "Minus",
-  standard: "Equal",
-  detailed: "Menu",
+  simple: "MessageSquareText",
+  standard: "FileText",
+  detailed: "ListChecks",
 };
 
 /** The pill as the preferences have it now; a complete button, so `update` replaces the menu too. */

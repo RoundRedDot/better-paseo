@@ -110,7 +110,7 @@ function menuItems(button: PluginButton, close = () => {}, compact = false) {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => { renderer = TestRenderer.create(React.createElement(Content, { theme: { colors: { foreground: "black", foregroundMuted: "gray", border: "gray", surface2: "gray" } }, layout: { compact }, host: { id: "h", label: "h" }, context: "agent", agentId: "a", workspaceId: "w", close } as never)); });
   const rows = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityRole === "radio");
-  const result = rows.map((node, index) => ({ id: ["simple", "standard", "detailed"][index], title: node.props.accessibilityLabel as string,
+  const result = rows.map((node, index) => ({ id: ["simple", "standard", "detailed"][index], title: node.findAllByType("Text" as never)[0]!.props.children as string, description: node.findAllByType("Text" as never)[1]!.props.children as string,
     icon: node.findAllByType("Icon" as never)[0]!.props.name as string, checked: node.props.accessibilityState.checked as boolean, press: node.props.onPress as () => void }));
   const settings = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === (getEnhancerPreferences().language === "zh" ? "聊天设置" : "Chat settings"))[0]!.props.onPress as () => void;
   act(() => renderer.unmount());
@@ -130,8 +130,8 @@ describe("timeline level pill", () => {
     act(() => { renderer = TestRenderer.create(React.createElement(Content, { theme: { colors: { foreground: "black", foregroundMuted: "gray", border: "gray", surface2: "gray" } }, layout: { compact }, host: { id: "h", label: "h" }, context: "agent", agentId: "a", workspaceId: "w", close() {} } as never)); });
     const rows = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityRole === "radio");
     for (const row of rows) {
-      expect(row.props.style.height).toBe(compact ? 44 : 28);
-      const label = row.findByType("Text" as never);
+      expect(row.props.style.minHeight).toBe(compact ? 44 : 28);
+      const label = row.findAllByType("Text" as never)[0]!;
       expect(label.props.style).toMatchObject({ fontSize: 14, lineHeight: 18 });
     }
     // The compact sheet header already carries the title, so the menu draws it only on wide layouts.
@@ -140,7 +140,7 @@ describe("timeline level pill", () => {
     else expect(titles[0]!.props.style).toMatchObject({ fontSize: 14, fontWeight: "normal" });
     const settings = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Chat settings")[0]!;
     if (compact) {
-      expect(settings.props.style.height).toBe(44);
+      expect(settings.props.style.minHeight).toBe(44);
       expect(settings.findByType("Text" as never).props.children).toBe("Chat settings");
     }
     const menu = renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === "timeline-level-menu")[0]!;
@@ -170,11 +170,17 @@ describe("timeline level pill", () => {
     expect(button.label).toBe("标准");
     expect(button.visible).toBe(true);
     expect(button.icon).toBe("ListCollapse");
-    expect(menuItems(button).rows.map(({ id, title, icon }) => [id, title, icon])).toEqual([
-      ["simple", "简洁", "Minus"],
-      ["standard", "标准", "Equal"],
-      ["detailed", "详细", "Menu"],
+    expect(menuItems(button).rows.map(({ id, title, description, icon }) => [id, title, description, icon])).toEqual([
+      ["simple", "简洁", "只看对话和结果", "MessageSquareText"],
+      ["standard", "标准", "加上改动和失败步骤", "FileText"],
+      ["detailed", "详细", "显示每一步", "ListChecks"],
     ]);
+  });
+
+  it.each([false, true])("shows English descriptions in both layouts (compact=%s)", (compact) => {
+    updateEnhancerPreferences({ language: "en" });
+    const rows = menuItems(timelineLevelButton(getEnhancerPreferences(), () => {}), () => {}, compact).rows;
+    expect(rows.map((row) => row.description)).toEqual(["Conversation and results", "Changes and failed steps", "Every step"]);
   });
 
   it("hides while Better Paseo chat is off", () => {

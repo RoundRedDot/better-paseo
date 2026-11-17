@@ -11,7 +11,7 @@ export function TimelineLevelMenu(props: PluginButtonContentProps & { select(lev
   const text = timelineLevelStrings(preferences);
   const colors = props.theme.colors;
   const rowHeight = props.layout.compact ? 44 : 28;
-  const levels = TIMELINE_LEVELS.map((level) => <LevelRow key={level} level={level} title={text.levels[level]} selected={preferences.timelineLevel === level}
+  const levels = TIMELINE_LEVELS.map((level) => <LevelRow key={level} level={level} title={text.levels[level]} description={text.descriptions[level]} selected={preferences.timelineLevel === level}
     colors={colors} height={rowHeight} onPress={() => { props.close(); props.select(level); }} />);
   const openSettings = () => { props.close(); props.openSettings(); };
   // On compact the host's sheet header already shows the title and has no slot for a trailing button,
@@ -43,22 +43,27 @@ export function TimelineLevelMenu(props: PluginButtonContentProps & { select(lev
 
 type Colors = PluginButtonContentProps["theme"]["colors"];
 
-function LevelRow(props: { level: TimelineLevel; title: string; selected: boolean; colors: Colors; height: number; onPress(): void }) {
+function LevelRow(props: { level: TimelineLevel; title: string; description: string; selected: boolean; colors: Colors; height: number; onPress(): void }) {
   return (
-    <MenuRow icon={TIMELINE_LEVEL_ICONS[props.level]} title={props.title} accessibilityRole="radio" checked={props.selected}
+    <MenuRow icon={TIMELINE_LEVEL_ICONS[props.level]} title={props.title} description={props.description} accessibilityRole="radio" checked={props.selected}
       colors={props.colors} height={props.height} onPress={props.onPress} />
   );
 }
 
-function MenuRow(props: { icon: string; title: string; accessibilityRole: "radio" | "button"; checked?: boolean; colors: Colors; height: number; onPress(): void }) {
+function MenuRow(props: { icon: string; title: string; description?: string; accessibilityRole: "radio" | "button"; checked?: boolean; colors: Colors; height: number; onPress(): void }) {
   const { hovered, hoverProps } = useHover();
   return (
     <Pressable accessibilityRole={props.accessibilityRole} accessibilityState={props.checked === undefined ? undefined : { checked: props.checked }}
-      accessibilityLabel={props.title} onPress={props.onPress} {...hoverProps} style={({ pressed }) => ({ height: props.height, borderRadius: 6, paddingHorizontal: 8,
+      accessibilityLabel={props.description ? `${props.title}, ${props.description}` : props.title} onPress={props.onPress} {...hoverProps} style={({ pressed }) => ({ minHeight: props.height, paddingVertical: props.description ? 8 : 0, borderRadius: 6, paddingHorizontal: 8,
         flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: pressed || hovered ? props.colors.surface2 : "transparent" })}>
-      <Icon name={props.icon} size={16} color={props.colors.foregroundMuted} />
-      <Text style={{ flex: 1, fontSize: 14, lineHeight: 18, color: props.colors.foreground }}>{props.title}</Text>
-      {props.checked ? <Icon name="Check" size={16} color={props.colors.foreground} /> : null}
+      <View style={props.description ? { alignSelf: "flex-start", marginTop: 1 } : undefined}>
+        <Icon name={props.icon} size={16} color={props.colors.foregroundMuted} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <Text style={{ fontSize: 14, lineHeight: 18, color: props.colors.foreground }}>{props.title}</Text>
+        {props.description ? <Text style={{ fontSize: 12, lineHeight: 17, color: props.colors.foregroundMuted }}>{props.description}</Text> : null}
+      </View>
+      {props.checked ? <View style={props.description ? { alignSelf: "flex-start", marginTop: 1 } : undefined}><Icon name="Check" size={16} color={props.colors.foreground} /></View> : null}
     </Pressable>
   );
 }
