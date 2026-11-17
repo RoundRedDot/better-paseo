@@ -104,11 +104,11 @@ async function settle() {
   for (let i = 0; i < 5; i++) await Promise.resolve();
 }
 
-function menuItems(button: PluginButton, close = () => {}) {
+function menuItems(button: PluginButton, close = () => {}, compact = false) {
   if (button.behavior.kind !== "popover") throw new Error("expected a popover");
   const Content = button.behavior.Content;
   let renderer!: TestRenderer.ReactTestRenderer;
-  act(() => { renderer = TestRenderer.create(React.createElement(Content, { theme: { colors: { foreground: "black", foregroundMuted: "gray", border: "gray", surface2: "gray" } }, layout: { compact: false }, host: { id: "h", label: "h" }, context: "agent", agentId: "a", workspaceId: "w", close } as never)); });
+  act(() => { renderer = TestRenderer.create(React.createElement(Content, { theme: { colors: { foreground: "black", foregroundMuted: "gray", border: "gray", surface2: "gray" } }, layout: { compact }, host: { id: "h", label: "h" }, context: "agent", agentId: "a", workspaceId: "w", close } as never)); });
   const rows = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityRole === "radio");
   const result = rows.map((node, index) => ({ id: ["simple", "standard", "detailed"][index], title: node.props.accessibilityLabel as string,
     icon: node.findAllByType("Icon" as never)[0]!.props.name as string, checked: node.props.accessibilityState.checked as boolean, press: node.props.onPress as () => void }));
@@ -134,21 +134,28 @@ describe("timeline level pill", () => {
       const label = row.findByType("Text" as never);
       expect(label.props.style).toMatchObject({ fontSize: 14, lineHeight: 18 });
     }
-    const title = renderer.root.findAll((node) => String(node.type) === "Text" && node.props.children === "Agent steps")[0]!;
-    expect(title.props.style).toMatchObject({ fontSize: 14, fontWeight: "normal" });
+    // The compact sheet header already carries the title, so the menu draws it only on wide layouts.
+    const titles = renderer.root.findAll((node) => String(node.type) === "Text" && node.props.children === "Agent steps");
+    if (compact) expect(titles).toEqual([]);
+    else expect(titles[0]!.props.style).toMatchObject({ fontSize: 14, fontWeight: "normal" });
+    const settings = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Chat settings")[0]!;
+    if (compact) {
+      expect(settings.props.style.height).toBe(44);
+      expect(settings.findByType("Text" as never).props.children).toBe("Chat settings");
+    }
     const menu = renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === "timeline-level-menu")[0]!;
     expect(menu.props.style).toEqual(compact ? undefined : { margin: -8 });
     act(() => renderer.unmount());
   });
 
-  it("closes the popover and opens chat settings even after another tab was selected", () => {
+  it.each([false, true])("closes the popover and opens chat settings even after another tab was selected (compact=%s)", (compact) => {
     updateEnhancerPreferences({ language: "zh" });
     setSettingsTab("tasks");
     const client = fakeClient();
     const control = createTimelineLevelControl(client);
     control.request("a1", "w1");
     let closed = 0;
-    menuItems(client.pills[0]!.button, () => { closed++; }).settings();
+    menuItems(client.pills[0]!.button, () => { closed++; }, compact).settings();
     expect(closed).toBe(1);
     expect(client.opened).toEqual(["chat-presentation"]);
     expect(settingsTab()).toBe("display");
