@@ -75,6 +75,23 @@ afterEach(() => {
 });
 
 describe("timeline level pill", () => {
+  it.each([false, true])("matches the host menu density for compact=%s", (compact) => {
+    const button = timelineLevelButton(DEFAULT_PREFERENCES, () => {});
+    if (button.behavior.kind !== "popover") throw new Error("expected a popover");
+    const Content = button.behavior.Content;
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(React.createElement(Content, { theme: { colors: { foreground: "black", foregroundMuted: "gray", border: "gray", surface2: "gray" } }, layout: { compact }, host: { id: "h", label: "h" }, context: "agent", agentId: "a", workspaceId: "w", close() {} } as never)); });
+    const rows = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityRole === "radio");
+    for (const row of rows) {
+      expect(row.props.style.height).toBe(compact ? 44 : 28);
+      const label = row.findByType("Text" as never);
+      expect(label.props.style).toMatchObject({ fontSize: 14, lineHeight: 18 });
+    }
+    const menu = renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === "timeline-level-menu")[0]!;
+    expect(menu.props.style).toEqual(compact ? undefined : { margin: -8 });
+    act(() => renderer.unmount());
+  });
+
   it("closes the popover and opens chat settings even after another tab was selected", () => {
     updateEnhancerPreferences({ language: "zh" });
     setSettingsTab("tasks");
