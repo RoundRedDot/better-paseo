@@ -22,6 +22,7 @@ import type {
   PluginClientSlashCommandContribution,
 } from "@getpaseo/plugin/client";
 import { useAgent } from "@getpaseo/plugin/client";
+import { useToast, type ToastApi } from "@getpaseo/plugin/client/ui";
 import {
   getEnhancerPreferences,
   subscribeEnhancerPreferences,
@@ -33,18 +34,20 @@ import { resolveLanguage, type SettingsLanguage } from "./i18n/settings-strings"
 
 export const TIMELINE_LEVELS: readonly TimelineLevel[] = ["simple", "standard", "detailed"];
 
-const STRINGS: Readonly<Record<SettingsLanguage, { title: string; levels: Record<TimelineLevel, string>; command: string; hint: string }>> = {
+const STRINGS: Readonly<Record<SettingsLanguage, { title: string; levels: Record<TimelineLevel, string>; command: string; hint: string; switched: string }>> = {
   en: {
     title: "Agent steps",
     levels: { simple: "Simple", standard: "Standard", detailed: "Detailed" },
     command: "Switch how many agent steps the chat shows",
-    hint: "simple | standard | detailed",
+    hint: "1 simple | 2 standard | 3 detailed",
+    switched: "Agent steps: {level}",
   },
   zh: {
     title: "工作过程",
     levels: { simple: "简洁", standard: "标准", detailed: "详细" },
     command: "切换对话里显示多少工作过程",
-    hint: "简洁 | 标准 | 详细",
+    hint: "1 简洁 | 2 标准 | 3 详细",
+    switched: "工作过程：{level}",
   },
 };
 
@@ -59,11 +62,14 @@ export function nextTimelineLevel(level: TimelineLevel): TimelineLevel {
   return level === "simple" ? "standard" : level === "standard" ? "detailed" : "simple";
 }
 
-/** A `/bp-timeline` argument: empty cycles, a level name (either language) sets it, anything else is null. */
+/**
+ * A `/bp-timeline` argument: empty cycles, 1, 2 or 3 picks a level (the menu's
+ * order), as does a level name in either language; anything else is null.
+ */
 export function parseTimelineLevelArgument(args: string, current: TimelineLevel): TimelineLevel | null {
   const word = args.trim().toLowerCase();
   if (!word) return nextTimelineLevel(current);
-  const match = TIMELINE_LEVELS.find((level) => level === word || STRINGS.zh.levels[level] === word || STRINGS.en.levels[level].toLowerCase() === word);
+  const match = TIMELINE_LEVELS.find((level, index) => word === String(index + 1) || level === word || STRINGS.zh.levels[level] === word || STRINGS.en.levels[level].toLowerCase() === word);
   return match ?? null;
 }
 
@@ -140,6 +146,8 @@ export function createTimelineLevelControl(client: Pick<PluginClientContext, "ad
 }
 
 let active: TimelineLevelControl | null = null;
+// A slash command runs outside React, so it borrows the toast of a mounted plugin row.
+let rowToast: ToastApi | null = null;
 
 export function timelineLevelSlashCommand(control: TimelineLevelControl): PluginClientSlashCommandContribution {
   const text = strings(getEnhancerPreferences());
@@ -150,8 +158,15 @@ export function timelineLevelSlashCommand(control: TimelineLevelControl): Plugin
     context: "agent",
     onSubmit(context) {
       const level = parseTimelineLevelArgument(context.args, getEnhancerPreferences().timelineLevel);
-      if (level) setLevel(level);
       control.request(context.agent.id, context.agent.workspaceId);
+      const now = strings(getEnhancerPreferences());
+      if (!level) {
+        rowToast?.error(`/bp-timeline ${now.hint}`);
+        return;
+      }
+      setLevel(level);
+      // Nothing on screen may change, so say what the chat shows now.
+      rowToast?.show(now.switched.replace("{level}", now.levels[level]));
     },
   };
 }
@@ -168,10 +183,19 @@ export function installTimelineLevelControl(client: Pick<PluginClientContext, "a
   };
 }
 
-/** A plugin row's request for its agent's pill. */
+/** A plugin row's request for its agent's pill; it also lends `/bp-timeline` its toast. */
 export function useTimelineLevelPill(agentId: string): void {
   const workspaceId = useAgent(agentId, (agent) => agent.workspaceId);
+  const toast = useToast();
   useEffect(() => {
     if (workspaceId) active?.request(agentId, workspaceId);
   }, [agentId, workspaceId]);
+  useEffect(() => {
+    rowToast = toast;
+  }, [toast]);
+}
+
+/** Tests: the toast a command would use. */
+export function setTimelineLevelToast(toast: ToastApi | null): void {
+  rowToast = toast;
 }

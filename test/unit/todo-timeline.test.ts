@@ -8,6 +8,7 @@ import { grokTodoItems } from "../../client/tools/activity";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/ui", () => ({
   Icon: () => null,
+  useToast: () => ({ show() {}, error() {} }),
 }));
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined,

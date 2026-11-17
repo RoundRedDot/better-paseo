@@ -4,6 +4,7 @@ import {
   createTimelineLevelControl,
   installTimelineLevelControl,
   parseTimelineLevelArgument,
+  setTimelineLevelToast,
   timelineLevelButton,
 } from "../../client/timeline-level-control";
 import { DEFAULT_PREFERENCES, getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
@@ -134,6 +135,32 @@ describe("/bp-timeline", () => {
     expect(parseTimelineLevelArgument("Detailed", "simple")).toBe("detailed");
     expect(parseTimelineLevelArgument("简洁", "detailed")).toBe("simple");
     expect(parseTimelineLevelArgument("verbose", "standard")).toBeNull();
+  });
+
+  it("picks a level by its number in the menu", () => {
+    expect(parseTimelineLevelArgument("1", "detailed")).toBe("simple");
+    expect(parseTimelineLevelArgument(" 2 ", "simple")).toBe("standard");
+    expect(parseTimelineLevelArgument("3", "simple")).toBe("detailed");
+    expect(parseTimelineLevelArgument("0", "simple")).toBeNull();
+    expect(parseTimelineLevelArgument("4", "simple")).toBeNull();
+  });
+
+  it("says which level it switched to, or how to use it", () => {
+    updateEnhancerPreferences({ language: "zh" });
+    const shown: string[] = [];
+    const errors: string[] = [];
+    setTimelineLevelToast({ show: (message) => shown.push(message), error: (message) => errors.push(message) });
+    const client = fakeClient();
+    const remove = installTimelineLevelControl(client as never);
+    const command = client.commands.find((entry) => entry.name === "bp-timeline")!;
+    command.onSubmit({ args: "3", agent: { id: "a1", workspaceId: "w1" } } as never);
+    expect(getEnhancerPreferences().timelineLevel).toBe("detailed");
+    expect(shown).toEqual(["工作过程：详细"]);
+    command.onSubmit({ args: "9", agent: { id: "a1", workspaceId: "w1" } } as never);
+    expect(getEnhancerPreferences().timelineLevel).toBe("detailed");
+    expect(errors).toEqual(["/bp-timeline 1 简洁 | 2 标准 | 3 详细"]);
+    remove();
+    setTimelineLevelToast(null);
   });
 
   it("sets the level and gives the agent its pill", () => {

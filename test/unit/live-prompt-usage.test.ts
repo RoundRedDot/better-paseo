@@ -26,6 +26,10 @@ vi.mock("@getpaseo/plugin/client", async () => {
     useRpc: () => async () => null,
   };
 });
+vi.mock("@getpaseo/plugin/client/ui", async (original) => ({
+  ...(await original<typeof import("@getpaseo/plugin/client/ui")>()),
+  useToast: () => ({ show() {}, error() {} }),
+}));
 vi.mock("../../client/ui/chat-composer", async () => {
   const ReactModule = await import("react");
   return { ChatComposerContext: ReactModule.createContext(null) };
