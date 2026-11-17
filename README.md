@@ -767,6 +767,14 @@ subscription, and the board's code is not fetched. Its options are listed under
   collapse, expand or change width, and a lane's count rolls to its new value. Reduced Motion
   turns these off.
 
+### Asking for a human without a question
+
+An idle agent with the label `paseo.needs-you=<reason>` sits in the Waiting lane with the reason on
+its card, with no permission request pending. Another plugin, a script or an approval gate can set it
+on a settled agent (`update_agent_request` labels, so the `paseo` SDK or CLI) and remove it when the
+human has answered; removing the label clears the card. A running agent, an error and a real
+permission request keep their own state, and a blank value is ignored.
+
 ### Filters, sort and keys
 
 - Filter by agent, label, project and workspace. The project and workspace menus have a search
