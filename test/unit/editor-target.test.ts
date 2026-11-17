@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { editorCommand, EditorUnavailableError } from "../../server/editor-target";
+import { editorCommand, EditorUnavailableError, installedEditors } from "../../server/editor-target";
 import { preferencesSchema } from "../../shared/preferences-settings";
 
 const fs = vi.hoisted(() => ({ existing: new Set<string>(), executable: new Set<string>(), directories: new Set<string>(), unreadable: new Set<string>(), statErrors: new Set<string>(), realpath: new Map<string, string>(), realpathErrors: new Set<string>(), appImages: new Set<string>(), elf: new Set<string>(), handles: new Map<number, string>(), nextFd: 100, versions: new Map<string, string>() }));
@@ -35,6 +35,8 @@ describe("file open preference", () => {
   it("defaults to the system app and preserves a selected editor", () => {
     expect(preferencesSchema.parse({}).fileOpenApp).toBe("system");
     expect(preferencesSchema.parse({ fileOpenApp: "sublime" }).fileOpenApp).toBe("sublime");
+    expect(preferencesSchema.parse({ fileOpenApp: "windsurf" }).fileOpenApp).toBe("windsurf");
+    expect(preferencesSchema.parse({ fileOpenApp: "nope" }).fileOpenApp).toBe("system");
   });
 
   it.each([
@@ -225,5 +227,62 @@ describe("file open preference", () => {
     expect((await editorCommand("cursor", "linux")).command).toBe("/second/cursor");
     fs.executable.delete("/second/cursor");
     await expect(editorCommand("cursor", "linux")).rejects.toThrow("EACCES");
+  });
+
+  it("rejects a macOS PATH shim that does not live inside the app", async () => {
+    process.env.PATH = "/Users/a/.local/bin";
+    fs.executable.add("/Users/a/.local/bin/cursor");
+    fs.realpath.set("/Users/a/.local/bin/cursor", "/Users/a/.local/bin/cursor");
+    await expect(editorCommand("cursor", "darwin")).rejects.toBeInstanceOf(EditorUnavailableError);
+  });
+
+  it("accepts a macOS PATH command that resolves inside the app bundle", async () => {
+    process.env.PATH = "/Users/a/.local/bin";
+    fs.executable.add("/Users/a/.local/bin/cursor");
+    fs.realpath.set("/Users/a/.local/bin/cursor", "/Applications/Cursor.app/Contents/Resources/app/bin/cursor");
+    expect(await editorCommand("cursor", "darwin")).toEqual({
+      command: "/Users/a/.local/bin/cursor",
+      args: [],
+      completion: "exit",
+    });
+  });
+
+  it("lists installed macOS apps in menu order and skips the rest", async () => {
+    process.env.PATH = "";
+    fs.existing.add("/Applications/Visual Studio Code.app");
+    fs.existing.add("/Applications/Zed.app");
+    fs.existing.add("/Applications/BBEdit.app");
+    expect(await installedEditors("darwin")).toEqual(["vscode", "zed", "bbedit"]);
+  });
+
+  it("opens Windows Windsurf from its install folder and waits for the GUI", async () => {
+    process.env.PATH = "";
+    process.env.LOCALAPPDATA = "C:\\Users\\a\\AppData\\Local";
+    delete process.env.ProgramFiles;
+    delete process.env["ProgramFiles(x86)"];
+    const exe = "C:\\Users\\a\\AppData\\Local\\Programs\\Windsurf\\Windsurf.exe";
+    fs.existing.add(exe);
+    expect(await editorCommand("windsurf", "win32")).toEqual({ command: exe, args: [], completion: "spawn" });
+  });
+
+  it("treats a Linux Windsurf binary beside product.json as the GUI", async () => {
+    process.env.PATH = "/opt/Windsurf";
+    fs.executable.add("/opt/Windsurf/windsurf");
+    fs.existing.add("/opt/Windsurf/resources/app/product.json");
+    expect(await editorCommand("windsurf", "linux")).toEqual({ command: "/opt/Windsurf/windsurf", args: [], completion: "spawn" });
+  });
+
+  it("trusts Xcode's command when the app bundle is absent", async () => {
+    process.env.PATH = "/usr/bin";
+    fs.executable.add("/usr/bin/xed");
+    expect(await editorCommand("xcode", "darwin")).toEqual({ command: "/usr/bin/xed", args: [], completion: "exit" });
+  });
+
+  it("does not treat the Antigravity agent command as the IDE", async () => {
+    process.env.PATH = "/Users/a/.local/bin";
+    fs.executable.add("/Users/a/.local/bin/agy");
+    await expect(editorCommand("antigravity", "linux")).rejects.toBeInstanceOf(EditorUnavailableError);
+    fs.executable.add("/Users/a/.local/bin/antigravity");
+    expect((await editorCommand("antigravity", "linux")).command).toBe("/Users/a/.local/bin/antigravity");
   });
 });

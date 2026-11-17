@@ -52,6 +52,9 @@ import { selectionCodeText } from "./components/selection-actions";
 import { CommandBand } from "./ui/command-band";
 import { SelectableSpan, SelectableText } from "./ui/prose-text";
 import { PHONE_PREVIEW_WIDTH, PlainButton, Section, SectionNote, Segmented, SettingsTips, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "./settings-controls";
+import { FileOpenChoices } from "./settings-file-open";
+import { installedEditorsRpc } from "../shared/file-rpc";
+import { FILE_OPEN_APPS, type FileOpenApp } from "../shared/file-open-apps";
 import { setSettingsTab, useSettingsTab, type SettingsTab } from "./settings-tab";
 import { TasksSettingsPanel } from "./tasks/settings/tasks-panel";
 import type { SyncStatus } from "./state/preference-sync";
@@ -567,6 +570,25 @@ function ResetButton({ look }: { look: PageLook }) {
   );
 }
 
+/** Editors installed on this host. Null until the scan returns; a failed scan lists every supported editor. */
+function useInstalledFileOpenApps(): readonly FileOpenApp[] | null {
+  const list = useRpc(installedEditorsRpc);
+  const [apps, setApps] = useState<readonly FileOpenApp[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void list({}).then((result) => {
+      if (!live) return;
+      if (!Array.isArray(result.apps)) {
+        setApps([...FILE_OPEN_APPS]);
+        return;
+      }
+      setApps(["system", ...result.apps]);
+    }).catch(() => { if (live) setApps([...FILE_OPEN_APPS]); });
+    return () => { live = false; };
+  }, [list]);
+  return apps;
+}
+
 function useVersionCheck(hostId: string) {
   const check = useRpc(updateCheckRpc);
   const [state, setState] = useState<Awaited<ReturnType<typeof check>> | { state: "starting" }>({ state: "idle" });
@@ -815,6 +837,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
   // The settings screen reads (and, through the store, saves) the daemon
   // record itself, so it works with no chat open.
   const sync = usePreferenceSettings();
+  const installedEditors = useInstalledFileOpenApps();
   // "Follow Paseo" on iOS and Android learns the host's language a turn later.
   useHostLanguageVersion();
   const t = SETTINGS_STRINGS[resolveLanguage(preferences.language)];
@@ -920,15 +943,18 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         <SettingRow
           title={t.fileOpenTitle}
           description={t.fileOpenDescription}
-          control={sync.status === "invalid" ? <Text accessibilityRole="alert" style={[settingsTextStyle(tokens, -1), { color: tokens.warning, fontFamily: tokens.fontUi }]}>{t.fileOpenUnavailable}</Text> :
-            <Segmented label={t.fileOpenTitle} value={preferences.fileOpenApp} wrap
-              options={[
-                { value: "system", label: t.fileOpenSystem },
-                { value: "cursor", label: "Cursor" },
-                { value: "vscode", label: "VS Code" },
-                { value: "zed", label: "Zed" },
-                { value: "sublime", label: "Sublime Text" },
-              ]} onChange={(fileOpenApp) => updateEnhancerPreferences({ fileOpenApp })} look={look} />}
+          control={sync.status === "invalid"
+            ? <Text accessibilityRole="alert" style={[settingsTextStyle(tokens, -1), { color: tokens.warning, fontFamily: tokens.fontUi }]}>{t.fileOpenUnavailable}</Text>
+            : (
+              <FileOpenChoices
+                label={t.fileOpenTitle}
+                systemLabel={t.fileOpenSystem}
+                value={preferences.fileOpenApp}
+                available={installedEditors}
+                onChange={(fileOpenApp) => updateEnhancerPreferences({ fileOpenApp })}
+                look={look}
+              />
+            )}
           look={look}
           stacked
         />

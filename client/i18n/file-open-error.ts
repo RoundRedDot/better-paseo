@@ -1,6 +1,6 @@
 import { getEnhancerPreferences } from "../preferences";
 import { resolveLanguage, type SettingsLanguage } from "./settings-strings";
-import type { FileOpenApp } from "../../shared/preferences-settings";
+import { FILE_OPEN_LABELS, type FileOpenApp } from "../../shared/file-open-apps";
 import type { FileOpenErrorKind } from "../../shared/file-rpc";
 
 type RevealResult = { error: string | null; errorKind?: FileOpenErrorKind; errorApp?: FileOpenApp };
@@ -20,7 +20,7 @@ export function revealWithSetting(
     .catch((error: unknown) => toast.error(String(error)));
 }
 
-const names: Record<FileOpenApp, string> = { system: "System app", cursor: "Cursor", vscode: "VS Code", zed: "Zed", sublime: "Sublime Text" };
+const names: Record<FileOpenApp, string> = { system: "System app", ...FILE_OPEN_LABELS };
 
 /** Server details are retained for diagnosis, including with older servers. */
 export function fileOpenError(result: { error: string | null; errorKind?: FileOpenErrorKind; errorApp?: FileOpenApp }, language: SettingsLanguage = resolveLanguage(getEnhancerPreferences().language)): string {

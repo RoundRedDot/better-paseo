@@ -1,5 +1,8 @@
 import { defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";
+import { FILE_OPEN_APPS } from "./file-open-apps";
+
+export { FILE_OPEN_APPS, type FileOpenApp } from "./file-open-apps";
 
 /**
  * Presentation preferences, stored by the daemon (plan §11.6: configuration
@@ -34,8 +37,6 @@ export const UI_FONTS = ["host", "inter", "system"] as const;
 export const MONO_FONTS = ["host", "custom"] as const;
 export const TIMELINE_LEVELS = ["simple", "standard", "detailed"] as const;
 export const TOOL_DETAILS = ["collapsed", "expand-failed"] as const;
-export const FILE_OPEN_APPS = ["system", "cursor", "vscode", "zed", "sublime"] as const;
-export type FileOpenApp = (typeof FILE_OPEN_APPS)[number];
 export const PATH_DISPLAYS = ["relative", "absolute"] as const;
 export const ROW_LABEL_STYLES = ["icon", "label", "both"] as const;
 export const MARKDOWN_VARIANTS_STORED = ["document", "compact", "terminal"] as const;

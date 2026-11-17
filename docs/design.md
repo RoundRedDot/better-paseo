@@ -1277,6 +1277,7 @@ with a Chat and a Tasks tab.
 | --- | --- |
 | `Toggle` | the 40 × 24 `SwitchTrack` with an 18 knob, a 10 hit slop; see [Switches](#switches) |
 | `Segmented` | a `surface2` track padded 2, radius 6, 28 high (32 on touch, equal widths); the chosen segment on `surface0` with a border, weight 500 |
+| File open | a dropdown (`client/settings-file-open.tsx`). Closed, it shows the current editor's 20pt colour logo, its name and a chevron. The menu lists System app plus the editors this host can launch (`file.editors`, the same lookup that opens a file). While that scan has not returned, the menu offers System app and the saved choice; if the scan fails, every supported editor is listed. The chosen row uses `surface2`. Logos are the colour rasters `editor:*` (`assets/editor-marks`, `node scripts/build-editor-marks.mjs`), not the monochrome tool marks |
 | `PlainButton` | at least 32 high, 1 pt border, radius 6, 13 weight 500 muted; `surface2` pressed, 0.4 opacity disabled |
 | Section | a muted 13 weight-500 title over a `surface1` card of radius 8, bordered on the desktop, a grouped list on touch |
 | Setting row | at least 44 on touch, padded 11, rules inset 16; padded 14 × 16 on the desktop, its control wrapping under the text when narrow; 0.45 opacity disabled |

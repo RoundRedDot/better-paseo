@@ -2,9 +2,10 @@ import { accessSync, closeSync, constants, existsSync, openSync, readSync, realp
 import { basename, delimiter, dirname, join, win32 } from "node:path";
 import { homedir } from "node:os";
 import { execFile } from "node:child_process";
-import type { FileOpenApp } from "../shared/preferences-settings";
+import { FILE_OPEN_APPS, FILE_OPEN_LABELS } from "../shared/file-open-apps";
+import { EDITOR_LAUNCH, type EditorId } from "./editor-catalog";
 
-export type Editor = Exclude<FileOpenApp, "system">;
+export type Editor = EditorId;
 
 /** `spawn`: the editor itself, which keeps running. `exit`: a launcher whose exit code reports the outcome. */
 type Completion = "spawn" | "exit";
@@ -26,20 +27,80 @@ const editors = {
  * candidates in preference order and the first usable one wins.
  */
 export async function editorCommand(app: Editor, platform = process.platform): Promise<EditorCommand> {
-  const { app: name } = editors[app];
+  const spec = EDITOR_LAUNCH[app];
+  const missing = () => new EditorUnavailableError(`${FILE_OPEN_LABELS[app]} is not installed or its command is not on PATH`);
   if (platform === "darwin") {
-    const bundle = ["/Applications", join(homedir(), "Applications")].map((root) => join(root, `${name}.app`)).find((path) => existsSync(path));
+    const bundle = spec.apps
+      .flatMap((name) => ["/Applications", join(homedir(), "Applications")].map((root) => join(root, `${name}.app`)))
+      .find((path) => existsSync(path));
     if (bundle) return { command: "open", args: ["-a", bundle], completion: "exit" };
   }
-  const found = platform === "win32" ? windowsCandidates(app).find((candidate) => existsSync(candidate.path)) : await firstExecutable(app, platform);
-  if (!found) throw new EditorUnavailableError(`${name} is not installed or its command is not on PATH`);
+  const found = platform === "win32"
+    ? (isLegacyWindows(app) ? windowsCandidates(app) : windowsGeneric(app)).find((candidate) => existsSync(candidate.path))
+    : await firstExecutable(app, platform);
+  if (!found) throw missing();
+  // A bare PATH shim (the Cursor agent wrapper, for one) is not the IDE.
+  if (platform === "darwin" && !spec.trustPath) {
+    let actual = found.path;
+    try { actual = realpathSync(found.path); } catch { /* run the path we already resolved */ }
+    if (!actual.includes(".app/")) throw missing();
+  }
   return { command: found.path, args: [], completion: found.completion };
+}
+
+const LEGACY_WINDOWS = ["cursor", "vscode", "zed", "sublime"] as const;
+type LegacyWindows = (typeof LEGACY_WINDOWS)[number];
+function isLegacyWindows(app: Editor): app is LegacyWindows {
+  return (LEGACY_WINDOWS as readonly string[]).includes(app);
+}
+
+/** Install folders and PATH for editors that share one layout, unlike the four originals. */
+function windowsGeneric(app: Editor): Candidate[] {
+  const spec = EDITOR_LAUNCH[app];
+  const at = win32.join;
+  const dirs = pathDirs(win32.delimiter);
+  const programs = process.env.LOCALAPPDATA ? at(process.env.LOCALAPPDATA, "Programs") : undefined;
+  const roots = defined([programs, process.env.ProgramFiles, process.env["ProgramFiles(x86)"]]);
+  const gui = (path: string): Candidate => ({ path, completion: "spawn" });
+  const launcher = (path: string): Candidate => ({ path, completion: "exit" });
+  const exes: Candidate[] = [];
+  const shims: Candidate[] = [];
+  for (const root of roots) {
+    for (const folder of spec.windowsFolders) {
+      for (const exe of spec.windowsExes) exes.push(gui(at(root, ...folder, exe)), gui(at(root, ...folder, "bin", exe)));
+      for (const shim of spec.windowsShims) shims.push(launcher(at(root, ...folder, shim)), launcher(at(root, ...folder, "bin", shim)));
+    }
+  }
+  for (const dir of dirs) {
+    for (const exe of spec.windowsExes) exes.push(gui(at(dir, exe)));
+    for (const shim of spec.windowsShims) shims.push(launcher(at(dir, shim)));
+  }
+  return [...exes, ...shims];
+}
+
+/** Editors this host can launch, in menu order. A miss is omitted; opening still reports its own error. */
+export async function installedEditors(platform = process.platform): Promise<Editor[]> {
+  const editors = FILE_OPEN_APPS.filter((app): app is Editor => app !== "system");
+  const found = await Promise.all(editors.map(async (app) => {
+    try {
+      await editorCommand(app, platform);
+      return app;
+    } catch {
+      return null;
+    }
+  }));
+  return found.filter((app): app is Editor => app !== null);
+}
+
+export function isElectronEditor(app: Editor): boolean {
+  const kind = EDITOR_LAUNCH[app].kind;
+  return kind === "electron" || kind === "cursor";
 }
 
 const pathDirs = (separator: string) => (process.env.PATH ?? "").split(separator).filter(Boolean);
 const defined = (values: (string | undefined)[]) => values.filter((value): value is string => !!value);
 
-function windowsCandidates(app: Editor): Candidate[] {
+function windowsCandidates(app: LegacyWindows): Candidate[] {
   const at = win32.join;
   const dirs = pathDirs(win32.delimiter);
   const programs = process.env.LOCALAPPDATA && at(process.env.LOCALAPPDATA, "Programs");
@@ -88,7 +149,7 @@ async function firstExecutable(app: Editor, platform: NodeJS.Platform): Promise<
   // Distributions package the Zed CLI under several names; plain `zed` may be the ZFS event daemon.
   const candidates = linuxZed
     ? [...onPath("zeditor"), join(homedir(), ".local/zed.app/bin/zed"), ...onPath("zed"), ...onPath("zedit"), ...onPath("zed-cli")]
-    : onPath(editors[app].command);
+    : EDITOR_LAUNCH[app].commands.flatMap((command) => onPath(command));
   let zfs: string | undefined;
   let zfsError: unknown;
   if (linuxZed && existsSync("/usr/sbin/zed")) {
@@ -123,10 +184,11 @@ function reportsZed(path: string): Promise<boolean> {
 
 /** Whether the resolved command is the editor's GUI rather than a launcher. */
 function isGui(app: Editor, platform: NodeJS.Platform, actual: string): boolean {
-  if (app === "vscode") return platform === "linux" && existsSync(join(dirname(actual), "resources", "app", "product.json"));
+  const kind = EDITOR_LAUNCH[app].kind;
+  if (kind === "electron") return platform === "linux" && existsSync(join(dirname(actual), "resources", "app", "product.json"));
   // Linux Cursor's Electron executable may be an AppImage or an extracted ELF.
-  if (app === "cursor") return platform === "linux" && isElf(actual);
-  return app === "sublime" && basename(actual) === "sublime_text";
+  if (kind === "cursor") return platform === "linux" && isElf(actual);
+  return kind === "sublime" && basename(actual) === "sublime_text";
 }
 
 function isElf(path: string): boolean {

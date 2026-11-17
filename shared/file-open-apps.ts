@@ -1,0 +1,76 @@
+/**
+ * Editors the file-open setting can launch. `system` is the platform opener.
+ * Product names stay in English; only "System app" is translated in the client.
+ * The menu shows `system` plus whichever of these the host can actually launch.
+ */
+export const FILE_OPEN_EDITOR_IDS = [
+  "cursor",
+  "vscode",
+  "insiders",
+  "codium",
+  "windsurf",
+  "devin",
+  "trae",
+  "kiro",
+  "antigravity",
+  "qoder",
+  "codebuddy",
+  "comate",
+  "hbuilder",
+  "zed",
+  "sublime",
+  "xcode",
+  "nova",
+  "bbedit",
+  "textmate",
+  "coteditor",
+  "idea",
+  "webstorm",
+  "pycharm",
+  "goland",
+  "clion",
+  "phpstorm",
+  "rider",
+  "rustrover",
+  "rubymine",
+  "datagrip",
+  "androidstudio",
+] as const;
+
+export const FILE_OPEN_APPS = ["system", ...FILE_OPEN_EDITOR_IDS] as const;
+export type FileOpenApp = (typeof FILE_OPEN_APPS)[number];
+export type FileOpenEditor = (typeof FILE_OPEN_EDITOR_IDS)[number];
+
+export const FILE_OPEN_LABELS: Record<FileOpenEditor, string> = {
+  cursor: "Cursor",
+  vscode: "VS Code",
+  insiders: "VS Code Insiders",
+  codium: "VSCodium",
+  windsurf: "Windsurf",
+  devin: "Devin",
+  trae: "Trae",
+  kiro: "Kiro",
+  antigravity: "Antigravity",
+  qoder: "Qoder",
+  codebuddy: "CodeBuddy",
+  comate: "Comate",
+  hbuilder: "HBuilderX",
+  zed: "Zed",
+  sublime: "Sublime Text",
+  xcode: "Xcode",
+  nova: "Nova",
+  bbedit: "BBEdit",
+  textmate: "TextMate",
+  coteditor: "CotEditor",
+  idea: "IntelliJ IDEA",
+  webstorm: "WebStorm",
+  pycharm: "PyCharm",
+  goland: "GoLand",
+  clion: "CLion",
+  phpstorm: "PhpStorm",
+  rider: "Rider",
+  rustrover: "RustRover",
+  rubymine: "RubyMine",
+  datagrip: "DataGrip",
+  androidstudio: "Android Studio",
+};

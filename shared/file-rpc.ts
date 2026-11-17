@@ -1,6 +1,6 @@
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
-import { FILE_OPEN_APPS } from "./preferences-settings";
+import { FILE_OPEN_APPS, FILE_OPEN_EDITOR_IDS } from "./file-open-apps";
 
 const FILE_OPEN_ERROR_KINDS = ["settings_unavailable", "settings_unsynced", "editor_unavailable", "launch_failed", "launch_unconfirmed"] as const;
 export type FileOpenErrorKind = (typeof FILE_OPEN_ERROR_KINDS)[number];
@@ -15,6 +15,15 @@ export type FileOpenErrorKind = (typeof FILE_OPEN_ERROR_KINDS)[number];
  * path against the agent's working directory and asks the platform shell
  * (`server/open-path.ts`). The name stays `file.reveal` for older clients.
  */
+/** Editors this daemon host can launch. `system` is always offered by the client. */
+export const installedEditorsRpc = defineRpc({
+  name: "file.editors",
+  input: z.object({}),
+  output: z.object({
+    apps: z.array(z.enum(FILE_OPEN_EDITOR_IDS)),
+  }),
+});
+
 export const revealPathRpc = defineRpc({
   // The host accepts lower-case, dotted RPC names only.
   name: "file.reveal",

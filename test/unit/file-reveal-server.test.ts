@@ -11,7 +11,10 @@ const { spawn, editorCommand, settings, EditorUnavailableError } = vi.hoisted(()
   settings: { app: "system", status: "ready" },
   EditorUnavailableError: class EditorUnavailableError extends Error {},
 }));
-vi.mock("../../server/editor-target", () => ({ editorCommand, EditorUnavailableError }));
+vi.mock("../../server/editor-target", async (actual) => {
+  const real = await actual<typeof import("../../server/editor-target")>();
+  return { ...real, editorCommand, EditorUnavailableError };
+});
 vi.mock("node:child_process", async (actual) => ({ ...(await actual<typeof import("node:child_process")>()), spawn }));
 
 type Handler = (input: unknown) => Promise<unknown>;

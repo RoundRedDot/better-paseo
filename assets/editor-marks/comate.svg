@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Original simplified mark for Comate. -->
+  <rect width="24" height="24" rx="6" fill="#2932E1"/>
+  <path fill="#FFFFFF" d="M7.2 8.2 9.4 10.4 12 7.8l2.6 2.6 2.2-2.2L12 3.4 7.2 8.2zm0 7.6L12 20.6l4.8-4.8-2.2-2.2L12 16.2 9.4 13.6 7.2 15.8zM3.4 12l4.8-4.8 2.2 2.2L7.8 12l2.6 2.6-2.2 2.2L3.4 12zm12.2-2.6 2.2-2.2L20.6 12l-4.8 4.8-2.2-2.2 2.6-2.6-2.6-2.6 2.2-2.2z"/>
+</svg>

@@ -10,7 +10,7 @@ import { createUpdateCheck, startAutomaticUpdateCheck } from "./server/update-ch
 import { pluginDataDir } from "./server/plugin-data";
 import { openSystemTerminal } from "./server/open-terminal";
 import { PREFERENCES_SETTINGS, type FileOpenApp } from "./shared/preferences-settings";
-import { revealPathRpc, type FileOpenErrorKind } from "./shared/file-rpc";
+import { installedEditorsRpc, revealPathRpc, type FileOpenErrorKind } from "./shared/file-rpc";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { type HighlightLine, type HighlightToken, highlightRpc } from "./shared/highlight-rpc";
 import { imageRpc } from "./shared/image-rpc";
@@ -23,7 +23,7 @@ import { writePerfDump } from "./server/perf-dump";
 import { registerTasksServer } from "./server/tasks/register";
 import { registerTurnUsageServer } from "./server/turn-usage";
 import { launches } from "./server/open-path";
-import { EditorUnavailableError } from "./server/editor-target";
+import { EditorUnavailableError, installedEditors } from "./server/editor-target";
 import { LaunchUnconfirmedError, openInEditor, openWithShell } from "./server/open-process";
 
 /**
@@ -486,6 +486,7 @@ export default function contribute(server: PluginServerContext) {
   // Each turn's token usage, kept on disk for the turn details.
   registerTurnUsageServer(server);
 
+  server.handle(installedEditorsRpc, async () => ({ apps: await installedEditors() }));
   server.handle(revealPathRpc, async (input) => {
     const resolved = await resolveSelector(input.path, input.cwd);
     if ("error" in resolved) return { revealed: null, error: resolved.error };

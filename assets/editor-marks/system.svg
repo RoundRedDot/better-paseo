@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Original mark for the operating system's default application. -->
+  <rect width="24" height="24" rx="6" fill="#14B8A6"/>
+  <rect x="5" y="5.5" width="14" height="13" rx="2" fill="#FFFFFF"/>
+  <path fill="#0F766E" d="M5 7.5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2H5v-2z"/>
+  <circle cx="7.3" cy="7.5" r="0.7" fill="#FFFFFF"/>
+  <circle cx="9.4" cy="7.5" r="0.7" fill="#FFFFFF"/>
+</svg>

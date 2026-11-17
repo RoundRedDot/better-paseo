@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { Socket } from "node:net";
-import { editorCommand, type Editor } from "./editor-target";
+import { editorCommand, isElectronEditor, type Editor } from "./editor-target";
 import { shellOpenCommand, type PathEntry } from "./open-path";
 
 export class LaunchUnconfirmedError extends Error {
@@ -26,7 +26,7 @@ export async function openInEditor(app: Editor, target: string): Promise<void> {
   for (const key of Object.keys(env)) {
     if (key.toUpperCase() === "ELECTRON_RUN_AS_NODE") delete env[key];
   }
-  if ((app === "vscode" || app === "cursor") && process.platform === "linux") env.DONT_PROMPT_WSL_INSTALL = "1";
+  if (isElectronEditor(app) && process.platform === "linux") env.DONT_PROMPT_WSL_INSTALL = "1";
   const child = spawn(editor.command, [...editor.args, target], { detached: true, windowsHide: true, stdio: ["ignore", "ignore", "pipe"], env });
   await waitForOpen(child, editor.completion === "spawn" ? "gui" : "exit", `Failed to open file with ${app}`);
 }

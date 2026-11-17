@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Original simplified mark for BBEdit. -->
+  <rect width="24" height="24" rx="6" fill="#3E6B99"/>
+  <path fill="#FFFFFF" d="M7 4.6h6.8L18 8.8V19.4H7V4.6z"/>
+  <path fill="#3E6B99" d="M13.8 4.6v4.2H18L13.8 4.6z"/>
+  <path fill="#3E6B99" d="M9 12.2h6v1.3H9v-1.3zm0 2.6h6v1.3H9v-1.3z"/>
+</svg>
