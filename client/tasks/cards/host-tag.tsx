@@ -1,6 +1,6 @@
 import React from "react";
 import { View } from "react-native";
-import { Icon } from "@getpaseo/plugin/client/react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import { TaskText as Text, HOST_LINE, HOST_FONT as F, useTasksFontScale } from "../typography";
 import { withAlpha } from "../../components/theme-tokens";
 import type { TaskTokens } from "./tokens";

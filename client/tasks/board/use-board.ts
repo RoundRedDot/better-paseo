@@ -600,7 +600,7 @@ export function useBoard(
         if (!requestId) return;
         write(card.id, "permission", () => {
           // A remote card's request lives on its own daemon; the local client cannot answer it.
-          let target = latest.current.paseo;
+          let target: PaseoApi = latest.current.paseo;
           if (card.hostId && card.hostId !== hostId) {
             try {
               target = getPaseoClient(card.hostId);
