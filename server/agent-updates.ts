@@ -177,7 +177,7 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
         if (result.method === "homebrew") result.issue = "homebrew_command_unverified";
         stage = "config_failed";
         const config = await providerConfig();
-        const custom = entry.source === "custom" || config.get(entry.provider)?.overridden === true;
+        const custom = entry.source === "custom" || (!server && config.get(entry.provider)?.overridden === true);
         let parentPackage = entry.source === "custom" ? null : releasePackage(entry.provider, result.current);
         if (entry.source === "custom") {
           const seen = new Set([entry.provider]);

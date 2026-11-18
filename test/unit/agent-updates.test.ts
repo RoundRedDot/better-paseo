@@ -141,6 +141,14 @@ it("keeps the remote OpenCode service unknown when the host only supplies its ad
   expect(releaseFetch).not.toHaveBeenCalled();
 });
 
+it("checks the selected OpenCode server independently of a local command override", async () => {
+  const paseo = api([entry("opencode")], async () => ({ diagnostic: "OpenCode server: http://127.0.0.1:49374" }));
+  vi.mocked(paseo.config.get).mockResolvedValue({ config: { providers: { opencode: { command: ["/custom/opencode"] } } } } as never);
+  const check = createAgentUpdateCheck({ fetchVersion: vi.fn(async () => new Response(JSON.stringify({ latest: "2.3.0" }))) as unknown as typeof fetch, identify, serverVersion: async () => "2.2.6" });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ current: "2.2.6", latest: "2.3.0", status: "available", updateAvailable: true });
+});
+
 it("compares the server version when the diagnostic only supplies its address", async () => {
   const paseo = api([entry("opencode")], async () => ({ diagnostic: "OpenCode server: http://127.0.0.1:49374" }));
   const serverVersion = vi.fn(async () => "2.2.6");
