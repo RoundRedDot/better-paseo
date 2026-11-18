@@ -670,11 +670,13 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
   const { t, tokens, compact } = look;
   const text = { ...settingsTextStyle(tokens, -1), color: tokens.foregroundMuted, fontFamily: tokens.fontUi };
   const methods = { npm: "npm", homebrew: "Homebrew", native: t.agentNative, unknown: t.agentUnknownMethod };
-  const statuses = { available: t.agentUpdateTo(entry.latest ?? "—"), current: t.versionUpToDate, error: t.agentCheckFailed, unknown: t.agentUnknownVersion };
+  const statuses = { available: t.agentUpdateTo(entry.latest ?? "—"), current: t.versionUpToDate, reference: t.agentReferenceVersion(entry.latest ?? "—"), error: t.agentCheckFailed, unknown: t.agentUnknownVersion };
   const status = statuses[entry.status].replace(/[.\u3002]+$/, "");
   const statusColor = entry.status === "available" ? tokens.danger : entry.status === "error" || entry.status === "unknown" ? tokens.warning : tokens.foregroundMuted;
   const brand = providerBrand(entry.provider);
   const executable = entry.server ? "OpenCode server" : entry.executable ? tildePath(entry.executable) : t.agentUnknownExecutable;
+  let source = t.agentLatestSource;
+  if (entry.releasePackage) source = entry.status === "reference" ? t.agentReferencePackage(entry.releasePackage) : t.agentLatestPackage(entry.releasePackage);
   return <View testID={`agent-version-${entry.provider}`} style={{ borderTopWidth: 1, borderTopColor: tokens.v2.border }}>
     <Pressable
       testID={`agent-version-toggle-${entry.provider}`}
@@ -712,10 +714,10 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
       <Text selectable style={[text, { fontFamily: tokens.fontMono }]}>{executable}</Text>
       <View style={styles.agentDetailLine}>
         <Text style={text}>{t.versionInstalled}: {entry.current ?? "—"}</Text>
-        <Text style={text}>{t.versionDirectory}: {entry.latest ?? "—"}</Text>
+        <Text style={text}>{entry.status === "reference" ? t.agentReferenceLabel : t.versionDirectory}: {entry.latest ?? "—"}</Text>
         <Text style={text}>{t.agentInstallMethod}: {methods[entry.method]}</Text>
       </View>
-      {entry.latest ? <Text style={text}>{entry.releasePackage ? t.agentLatestPackage(entry.releasePackage) : t.agentLatestSource}</Text> : null}
+      {entry.latest ? <Text style={text}>{source}</Text> : null}
       {entry.issue ? <Text accessibilityRole="alert" style={[text, { color: tokens.warning }]}>{t.agentIssues[entry.issue]}</Text> : null}
       {entry.status === "available" ? <>
         <View style={styles.agentDetailLine}>

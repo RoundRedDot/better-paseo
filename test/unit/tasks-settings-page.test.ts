@@ -1071,6 +1071,22 @@ const layoutAgent: AgentUpdate = {
   issue: "npm_runtime_unverified", command: null,
 };
 
+it.each(["en", "zh"] as const)("labels an inherited version as a reference in %s", async (language) => {
+  makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
+  state.rpc.mockResolvedValue({ state: "idle" });
+  state.agents.mockResolvedValue({ state: "done", error: null, entries: [{ ...layoutAgent, provider: "copy", status: "reference", method: "unknown", releasePackage: "@openai/codex", updateAvailable: false, issue: "release_source_unknown" }] });
+  let r!: Renderer;
+  try {
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false }, host: { id: `reference-${language}`, label: "Host" } })); });
+    const row = byTestID(r, "agent-version-copy")[0]!;
+    expect(textOf(row)).toContain(language === "zh" ? "参考版本 1.2.0" : "Reference 1.2.0");
+    expect(textOf(row)).not.toContain(language === "zh" ? "可更新至" : "Update to");
+    act(() => byTestID(r, "agent-version-toggle-copy")[0]!.props.onPress());
+    expect(textOf(row)).toContain(language === "zh" ? "参考版本来源：npm @openai/codex 的 latest 标签" : "Reference source: npm @openai/codex latest tag");
+    expect(byTestID(r, "version-item-update-dot")).toHaveLength(0);
+  } finally { act(() => r?.unmount()); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }
+});
+
 it.each(["en", "zh"] as const)("names the package actually used for a custom Agent check in %s", async (language) => {
   makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
   state.rpc.mockResolvedValue({ state: "idle" });

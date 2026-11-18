@@ -204,6 +204,7 @@ const en = {
 
   agentIssues: {
     diagnostic_failed: "The host's provider diagnostic request failed. Retry the check.",
+    config_failed: "Could not read the host's provider configuration. Check again.",
     executable_unknown: "The host could not identify a unique executable path.",
     server_installation_unknown: "OpenCode is running as a server; its installation path and update method are unknown.",
     version_unknown: "The executable's current version is missing or unrecognized.",
@@ -227,6 +228,9 @@ const en = {
   agentUnknownExecutable: "Executable unknown or not found",
   agentCheckFailed: "Check failed. Retry.",
   agentUnknownVersion: "Version information unknown",
+  agentReferenceVersion: (version: string) => `Reference ${version}`,
+  agentReferenceLabel: "Reference version",
+  agentReferencePackage: (name: string) => `Reference source: npm ${name} latest tag`,
   agentLatestSource: "Latest source: official npm package latest tag",
   agentLatestPackage: (name: string) => `Latest source: npm ${name} latest tag`,
   agentOriginalInstaller: "An update command cannot be verified for this installation. Use its original installer.",
@@ -459,6 +463,7 @@ const zh: SettingsStrings = {
 
   agentIssues: {
     diagnostic_failed: "主机的 provider 诊断请求失败，请重新检查。",
+    config_failed: "无法读取主机的 provider 配置，请重新检查。",
     executable_unknown: "主机未能确认唯一的可执行文件路径。",
     server_installation_unknown: "OpenCode 正在以 server 运行，安装路径和更新方式未知。",
     version_unknown: "可执行文件的当前版本缺失或格式无法识别。",
@@ -482,6 +487,9 @@ const zh: SettingsStrings = {
   agentUnknownExecutable: "可执行文件未知或未找到",
   agentCheckFailed: "检查失败，请重试。",
   agentUnknownVersion: "版本信息未知",
+  agentReferenceVersion: (version: string) => `参考版本 ${version}`,
+  agentReferenceLabel: "参考版本",
+  agentReferencePackage: (name: string) => `参考版本来源：npm ${name} 的 latest 标签`,
   agentLatestSource: "最新版本来源：npm 官方包的 latest 标签",
   agentLatestPackage: (name: string) => `最新版本来源：npm ${name} 的 latest 标签`,
   agentOriginalInstaller: "无法可靠确定此安装的更新命令，请使用原安装方式更新。",

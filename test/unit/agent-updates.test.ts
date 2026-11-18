@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createAgentUpdateCheck, customReleasePackage, identifyInstallation, parseAgentDiagnostic, openCodeServerVersion } from "../../server/agent-updates";
-import { hasAgentUpdate, agentUpdatesRpc } from "../../shared/agent-updates";
+import { hasAgentUpdate, agentUpdatesRpc, retainAgentUpdates } from "../../shared/agent-updates";
 
 const directories: string[] = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true, force: true }))); });
@@ -14,10 +14,65 @@ async function finish(check: ReturnType<typeof createAgentUpdateCheck>, paseo: P
   return agentUpdatesRpc.output.parse(check("status", paseo));
 }
 function api(entries = [entry("codex")], read = async () => ({ diagnostic: diagnostic("/opt/codex") })) {
-  return { providers: { snapshot: vi.fn(async () => ({ entries })), diagnostic: vi.fn(read) } } as unknown as Parameters<ReturnType<typeof createAgentUpdateCheck>>[1];
+  return { providers: { snapshot: vi.fn(async () => ({ entries })), diagnostic: vi.fn(read) }, config: { get: vi.fn(async () => ({ config: { providers: {} } })) } } as unknown as Parameters<ReturnType<typeof createAgentUpdateCheck>>[1];
 }
 const fetchVersion = vi.fn(async () => new Response(JSON.stringify({ latest: "1.2.0" }))) as unknown as typeof fetch;
 const identify = vi.fn(async () => ({ method: "unknown" as const, command: null }));
+
+it("shows a configured parent provider as a reference without claiming a verified update", async () => {
+  const paseo = api([entry("copy-one", true, "custom"), entry("copy-two", true, "custom")], async () => ({ diagnostic: diagnostic("/different/wrapper", "1.0.0") }));
+  vi.mocked(paseo.config.get).mockResolvedValue({ config: { providers: { "copy-one": { extends: "codex", env: { SECRET: "secret-value" } }, "copy-two": { extends: "copy-one" } } } } as never);
+  const check = createAgentUpdateCheck({ fetchVersion, identify, customSource: async () => null });
+  check("check", paseo);
+  const result = await finish(check, paseo);
+  expect(result.entries).toEqual(["copy-one", "copy-two"].map((provider) => expect.objectContaining({ provider, current: "1.0.0", latest: "1.2.0", status: "reference", releasePackage: "@openai/codex", updateAvailable: false, command: null })));
+  expect(paseo.config.get).toHaveBeenCalledOnce();
+  expect(JSON.stringify(result)).not.toContain("secret-value");
+  expect(hasAgentUpdate(result)).toBe(false);
+});
+
+it("reports configuration failure without claiming a reference or leaking errors", async () => {
+  const paseo = api([entry("custom", true, "custom")]);
+  vi.mocked(paseo.config.get).mockRejectedValue(new Error("secret-config"));
+  const check = createAgentUpdateCheck({ fetchVersion, identify, customSource: async () => null });
+  check("check", paseo);
+  const result = await finish(check, paseo);
+  expect(result.entries[0]).toMatchObject({ status: "error", issue: "config_failed", latest: null });
+  expect(JSON.stringify(result)).not.toContain("secret-config");
+});
+
+it("does not infer a release from unsupported or cyclic provider ancestry", async () => {
+  const paseo = api([entry("custom", true, "custom")]);
+  vi.mocked(paseo.config.get).mockResolvedValue({ config: { providers: { custom: { extends: "next" }, next: { extends: "custom" } } } } as never);
+  const fetchLatest = vi.fn(fetchVersion);
+  const check = createAgentUpdateCheck({ fetchVersion: fetchLatest as unknown as typeof fetch, identify, customSource: async () => null });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ status: "unknown", latest: null, updateAvailable: false });
+  expect(fetchLatest).not.toHaveBeenCalled();
+});
+
+it.each([["copy-claude", "claude", "@anthropic-ai%2fclaude-code"], ["copy-omp", "omp", "@oh-my-pi%2fpi-coding-agent"]])("uses the configured parent for %s", async (id, parent, packageName) => {
+  const paseo = api([entry(id, true, "custom")]);
+  vi.mocked(paseo.config.get).mockResolvedValue({ config: { providers: { [id]: { extends: parent } } } } as never);
+  const releaseFetch = vi.fn(fetchVersion);
+  const check = createAgentUpdateCheck({ fetchVersion: releaseFetch as unknown as typeof fetch, identify, customSource: async () => null });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ status: "reference", updateAvailable: false });
+  expect(String(releaseFetch.mock.calls[0]?.[0])).toContain(packageName);
+});
+
+it("clears a prior verified update when only a reference remains", async () => {
+  const paseo = api([entry("custom", true, "custom")]);
+  vi.mocked(paseo.config.get).mockResolvedValue({ config: { providers: { custom: { extends: "codex" } } } } as never);
+  const source = vi.fn(async (): Promise<string | null> => null)
+    .mockResolvedValueOnce("@openai/codex").mockResolvedValueOnce(null);
+  const check = createAgentUpdateCheck({ fetchVersion, identify, customSource: source });
+  check("check", paseo); const previous = await finish(check, paseo);
+  expect(hasAgentUpdate(previous)).toBe(true);
+  check("check", paseo); const next = await finish(check, paseo);
+  expect(next.entries[0]).toMatchObject({ status: "reference", updateAvailable: false });
+  expect(hasAgentUpdate(retainAgentUpdates(previous, next))).toBe(false);
+});
 
 it("reads the selected authenticated OpenCode service version", async () => {
   const dir = await mkdtemp(join(tmpdir(), "better-paseo-opencode-")); directories.push(dir);
@@ -229,23 +284,6 @@ it("recognizes only verified custom binaries and absolute wrappers", async () =>
   await writeFile(join(grokRoot, "package.json"), JSON.stringify({ name: "@xai-official/grok", version: "1.0.77" }));
   await writeFile(join(grokRoot, "index.js"), "");
   expect(await customReleasePackage("grok", join(grokRoot, "index.js"), "1.0.77", home)).toBe("@xai-official/grok");
-});
-
-it("recognizes a matching Codex standalone installation through an absolute wrapper", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "better-paseo-codex-standalone-")); directories.push(dir);
-  const home = await realpath(dir);
-  const release = join(home, ".codex/packages/standalone/releases/0.170.0-aarch64-apple-darwin");
-  const binary = join(release, "bin/codex");
-  await mkdir(join(release, "bin"), { recursive: true });
-  await writeFile(binary, "");
-  const manifest = { layoutVersion: 1, variant: "codex", version: "0.170.0", target: "aarch64-apple-darwin", entrypoint: "bin/codex" };
-  await writeFile(join(release, "codex-package.json"), JSON.stringify(manifest));
-  const link = join(home, "codex"); await symlink(binary, link);
-  const wrapper = join(home, "codex-newapi"); await writeFile(wrapper, `#!/bin/zsh\nset -euo pipefail\nexec "${link}" "$@"\n`);
-  expect(await customReleasePackage("codex-newapi", wrapper, "0.170.0", home)).toBe("@openai/codex");
-  expect(await customReleasePackage("codex-newapi", wrapper, "0.169.0", home)).toBeNull();
-  await writeFile(join(release, "codex-package.json"), JSON.stringify({ ...manifest, entrypoint: "bin/other" }));
-  expect(await customReleasePackage("codex-newapi", wrapper, "0.170.0", home)).toBeNull();
 });
 
 it("compares custom providers only after release ownership is verified", async () => {

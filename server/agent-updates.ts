@@ -1,5 +1,5 @@
 import { readFile, realpath, stat } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join } from "node:path";
+import { basename, isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
 import { z } from "zod";
 import type { PaseoApi } from "./paseo-types";
@@ -60,14 +60,6 @@ async function npmOwner(executable: string, expected: string, current: string): 
   return metadata.name === expected && metadata.version === current;
 }
 
-async function codexStandaloneOwner(executable: string, current: string, home: string): Promise<boolean> {
-  const target = await realpath(executable);
-  const release = dirname(dirname(target));
-  if (dirname(release) !== join(await realpath(home), ".codex/packages/standalone/releases") || target !== join(release, "bin/codex")) return false;
-  const metadata = z.object({ layoutVersion: z.literal(1), variant: z.literal("codex"), version: z.string(), target: z.string().regex(/^[A-Za-z0-9_-]+$/), entrypoint: z.literal("bin/codex") }).safeParse(JSON.parse(await readFile(join(release, "codex-package.json"), "utf8")));
-  return metadata.success && metadata.data.version === current && basename(release) === `${current}-${metadata.data.target}`;
-}
-
 export async function customReleasePackage(provider: string, executable: string, current: string, home = homedir(), verifiedTarget?: string): Promise<string | null> {
   const target = await realpath(executable);
   if (provider === "grok") {
@@ -79,13 +71,11 @@ export async function customReleasePackage(provider: string, executable: string,
   for (const expected of candidates) {
     if (await npmOwner(executable, expected, current)) return expected;
   }
-  if (provider !== "grok" && await codexStandaloneOwner(executable, current, home)) return packages.codex!;
   const wrapped = verifiedTarget ?? await wrapperTarget(executable);
   if (!wrapped) return null;
   for (const expected of candidates) {
     if (await npmOwner(wrapped, expected, current)) return expected;
   }
-  if (provider !== "grok" && await codexStandaloneOwner(wrapped, current, home)) return packages.codex!;
   return null;
 }
 
@@ -135,18 +125,37 @@ async function latestVersion(packageName: string, fetchVersion: typeof fetch): P
   return z.object({ latest: z.string().regex(stableVersion) }).parse(JSON.parse(Buffer.concat(chunks).toString("utf8"))).latest;
 }
 
+function releasePackage(provider: string, current: string | null): string | null {
+  if (provider === "opencode") {
+    const major = current?.split(".")[0];
+    return major === "1" ? "opencode-ai" : major === "2" ? "@opencode/cli" : null;
+  }
+  return Object.hasOwn(packages, provider) ? packages[provider]! : null;
+}
+
 export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; identify: typeof identifyInstallation; customSource?: typeof customReleasePackage; serverVersion?: typeof openCodeServerVersion } = { fetchVersion: fetch, identify: identifyInstallation }) {
   let state: AgentUpdates = { state: "idle", entries: [], error: null };
   let running: Promise<void> | null = null;
   let lastAttempt = 0;
-  async function run(paseo: Pick<PaseoApi, "providers">) {
+  async function run(paseo: Pick<PaseoApi, "providers" | "config">) {
     const snapshot = await paseo.providers.snapshot();
     const entries = snapshot.entries.filter((entry) => entry.enabled);
+    let parents: Promise<Map<string, string>> | undefined;
+    function providerParents() {
+      return parents ??= paseo.config.get().then(({ config }) => {
+        const result = new Map<string, string>();
+        for (const [id, provider] of Object.entries(config.providers)) {
+          const parent = z.string().safeParse(provider.extends);
+          if (parent.success) result.set(id, parent.data);
+        }
+        return result;
+      });
+    }
     state = { state: "checking", entries: state.entries.filter((row) => entries.some((entry) => entry.provider === row.provider)), error: null };
     // Publish each completed row independently of slow or failing providers.
     await Promise.all(entries.map(async (entry) => {
       const result: AgentUpdate = { provider: entry.provider, label: entry.label ?? entry.provider, executable: null, current: null, latest: null, method: "unknown", status: "unknown", issue: null, command: null, updateAvailable: state.entries.find((row) => row.provider === entry.provider)?.updateAvailable ?? false };
-      let stage: "diagnostic_failed" | "latest_fetch_failed" = "diagnostic_failed";
+      let stage: "diagnostic_failed" | "config_failed" | "latest_fetch_failed" = "diagnostic_failed";
       try {
         const diagnostic = await paseo.providers.diagnostic(entry.provider);
         Object.assign(result, parseAgentDiagnostic(diagnostic.diagnostic));
@@ -166,11 +175,8 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
         if (!result.issue && result.method === "unknown") result.issue = "installation_unknown";
         if (result.method === "npm") result.issue = "npm_runtime_unverified";
         if (result.method === "homebrew") result.issue = "homebrew_command_unverified";
-        let packageName = entry.source === "custom" ? null : packages[entry.provider] ?? null;
-        if (entry.provider === "opencode" && entry.source !== "custom") {
-          const major = result.current?.split(".")[0];
-          packageName = major === "1" ? "opencode-ai" : major === "2" ? "@opencode/cli" : null;
-        }
+        let packageName = entry.source === "custom" ? null : releasePackage(entry.provider, result.current);
+        let reference = false;
         if (entry.source === "custom" && result.executable && result.current) {
           const targets = [...diagnostic.diagnostic.matchAll(/^  Wrapper target: (.+)$/gm)];
           const target = targets.length === 1 && isAbsolute(targets[0]![1]!) && diagnostic.diagnostic.includes(`  Resolved path: ${result.executable}\n  Wrapper target: ${targets[0]![1]}\n`) ? targets[0]![1] : undefined;
@@ -179,12 +185,28 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
             : await (deps.customSource ?? customReleasePackage)(entry.provider, result.executable, result.current); }
           catch { result.issue = "installation_unreadable"; }
         }
+        if (entry.source === "custom" && !packageName && result.current) {
+          stage = "config_failed";
+          const ancestry = await providerParents();
+          const seen = new Set([entry.provider]);
+          let parent = ancestry.get(entry.provider);
+          while (parent && !seen.has(parent)) {
+            seen.add(parent);
+            packageName = releasePackage(parent, result.current);
+            if (packageName) { reference = true; break; }
+            parent = ancestry.get(parent);
+          }
+        }
         result.releasePackage = packageName ?? null;
         stage = "latest_fetch_failed";
         if (packageName) result.latest = await latestVersion(packageName, deps.fetchVersion);
         if (result.current && result.latest) {
-          result.updateAvailable = isNewerVersion(result.current, result.latest, 0, 0);
-          result.status = result.updateAvailable ? "available" : "current";
+          result.updateAvailable = !reference && isNewerVersion(result.current, result.latest, 0, 0);
+          result.status = reference ? "reference" : result.updateAvailable ? "available" : "current";
+          if (reference) {
+            result.command = null;
+            if (result.issue !== "installation_unreadable") result.issue = "release_source_unknown";
+          }
         }
         if (!result.current) result.issue = "version_unknown";
         if (!result.executable) result.issue = "executable_unknown";
@@ -199,7 +221,7 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
     }));
     state = { ...state, state: "done" };
   }
-  return (action: "check" | "status", paseo: Pick<PaseoApi, "providers">, automatic = false): AgentUpdates => {
+  return (action: "check" | "status", paseo: Pick<PaseoApi, "providers" | "config">, automatic = false): AgentUpdates => {
     if (!running && (action === "check" || (automatic && Date.now() - lastAttempt >= 24 * 60 * 60 * 1000))) {
       lastAttempt = Date.now();
       state = { ...state, state: "checking", error: null };

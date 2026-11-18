@@ -7,9 +7,9 @@ const agentUpdate = z.object({
   server: z.boolean().optional(),
   current: z.string().nullable(), latest: z.string().nullable(),
   method: z.enum(["npm", "homebrew", "native", "unknown"]),
-  status: z.enum(["available", "current", "unknown", "error"]),
+  status: z.enum(["available", "current", "reference", "unknown", "error"]),
   updateAvailable: z.boolean(),
-  issue: z.enum(["diagnostic_failed", "executable_unknown", "version_unknown", "installation_unknown", "installation_unreadable", "release_source_unknown", "latest_fetch_failed", "npm_runtime_unverified", "homebrew_command_unverified", "server_installation_unknown"]).nullable(), command: z.string().nullable(),
+  issue: z.enum(["diagnostic_failed", "config_failed", "executable_unknown", "version_unknown", "installation_unknown", "installation_unreadable", "release_source_unknown", "latest_fetch_failed", "npm_runtime_unverified", "homebrew_command_unverified", "server_installation_unknown"]).nullable(), command: z.string().nullable(),
 });
 export const agentUpdatesRpc = defineRpc({
   name: "settings.agent-updates",
@@ -25,7 +25,7 @@ export function hasAgentUpdate(state: AgentUpdates): boolean {
 /** Failed or incomplete checks cannot disprove an already confirmed update. */
 export function retainAgentUpdates(previous: AgentUpdates, next: AgentUpdates): AgentUpdates {
   const entries = next.entries.map((entry) => {
-    if (entry.status === "available" || entry.status === "current") return entry;
+    if (entry.status === "available" || entry.status === "current" || entry.status === "reference") return entry;
     const known = previous.entries.find((row) => row.provider === entry.provider);
     return known?.updateAvailable ? { ...entry, updateAvailable: true } : entry;
   });
