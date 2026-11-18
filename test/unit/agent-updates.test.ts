@@ -19,6 +19,38 @@ function api(entries = [entry("codex")], read = async () => ({ diagnostic: diagn
 const fetchVersion = vi.fn(async () => new Response(JSON.stringify({ latest: "1.2.0" }))) as unknown as typeof fetch;
 const identify = vi.fn(async () => ({ method: "unknown" as const, command: null }));
 
+it.each([["gemini", "@google/gemini-cli"], ["claude", "@anthropic-ai/claude-code"]])("verifies an inherited %s installation from its parent package", async (parent, packageName) => {
+  const dir = await mkdtemp(join(tmpdir(), "better-paseo-inherited-owner-")); directories.push(dir);
+  const root = join(await realpath(dir), "lib/node_modules", packageName);
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, "package.json"), JSON.stringify({ name: packageName, version: "1.0.0" }));
+  const executable = join(root, "cli.js"); await writeFile(executable, "");
+  const paseo = api([entry("copy", true, "custom")], async () => ({ diagnostic: diagnostic(executable, "1.0.0") }));
+  vi.mocked(paseo.config.get).mockResolvedValue({ config: { providers: { copy: { extends: "middle" }, middle: { extends: parent } } } } as never);
+  const check = createAgentUpdateCheck({ fetchVersion, identify });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ releasePackage: packageName, status: "available", updateAvailable: true });
+  await writeFile(join(root, "package.json"), JSON.stringify({ name: packageName, version: "0.9.0" }));
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ releasePackage: packageName, status: "reference", updateAvailable: false });
+});
+
+it("verifies overridden built-in commands before claiming an update", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "better-paseo-override-owner-")); directories.push(dir);
+  const root = join(await realpath(dir), "lib/node_modules/@openai/codex");
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, "package.json"), JSON.stringify({ name: "@openai/codex", version: "1.0.0" }));
+  const executable = join(root, "cli.js"); await writeFile(executable, "");
+  const paseo = api([entry("codex")], async () => ({ diagnostic: diagnostic(executable) }));
+  vi.mocked(paseo.config.get).mockResolvedValue({ config: { providers: { codex: { command: [executable] } } } } as never);
+  const check = createAgentUpdateCheck({ fetchVersion, identify });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ status: "available", updateAvailable: true });
+  await writeFile(join(root, "package.json"), JSON.stringify({ name: "@openai/codex", version: "0.9.0" }));
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ status: "reference", updateAvailable: false, command: null });
+});
+
 it("shows a configured parent provider as a reference without claiming a verified update", async () => {
   const paseo = api([entry("copy-one", true, "custom"), entry("copy-two", true, "custom")], async () => ({ diagnostic: diagnostic("/different/wrapper", "1.0.0") }));
   vi.mocked(paseo.config.get).mockResolvedValue({ config: { providers: { "copy-one": { extends: "codex", env: { SECRET: "secret-value" } }, "copy-two": { extends: "copy-one" } } } } as never);
@@ -84,6 +116,29 @@ it("reads the selected authenticated OpenCode service version", async () => {
   expect(probe).toHaveBeenCalledOnce();
   const changed = vi.fn(async () => new Response(JSON.stringify({ version: "2.2.6", pid: 124 }), { headers: { "content-type": "application/json" } }));
   expect(await openCodeServerVersion("http://127.0.0.1:49374", file, changed as unknown as typeof fetch)).toBeNull();
+});
+
+it("does not send local service credentials to remote or redirected endpoints", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "better-paseo-opencode-boundaries-")); directories.push(dir);
+  const file = join(dir, "service.json");
+  await writeFile(file, JSON.stringify({ url: "http://127.0.0.1:49374", password: "test-secret", pid: 123, version: "2.2.6" }));
+  const probe = vi.fn(async (_url: string | URL | Request, options?: RequestInit) => {
+    expect(options?.redirect).toBe("error");
+    return new Response("not json", { headers: { "content-type": "text/plain" } });
+  });
+  expect(await openCodeServerVersion("http://remote.example:49374", file, probe as typeof fetch)).toBeNull();
+  expect(probe).not.toHaveBeenCalled();
+  expect(await openCodeServerVersion("http://127.0.0.1:49374", file, probe as typeof fetch)).toBeNull();
+  expect(probe).toHaveBeenCalledOnce();
+});
+
+it("keeps the remote OpenCode service unknown when the host only supplies its address", async () => {
+  const paseo = api([entry("opencode")], async () => ({ diagnostic: "OpenCode server: http://remote.example:1234" }));
+  const releaseFetch = vi.fn(fetchVersion);
+  const check = createAgentUpdateCheck({ fetchVersion: releaseFetch as unknown as typeof fetch, identify });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ current: null, latest: null, status: "unknown", updateAvailable: false });
+  expect(releaseFetch).not.toHaveBeenCalled();
 });
 
 it("compares the server version when the diagnostic only supplies its address", async () => {
@@ -292,7 +347,7 @@ it("compares custom providers only after release ownership is verified", async (
   const check = createAgentUpdateCheck({ fetchVersion, identify, customSource });
   check("check", paseo);
   expect((await finish(check, paseo)).entries[0]).toMatchObject({ provider: "grok", current: "1.0.77", latest: "1.2.0", releasePackage: "@xai-official/grok", status: "available" });
-  expect(customSource).toHaveBeenCalledWith("grok", "/selected/grok", "1.0.77");
+  expect(customSource).toHaveBeenCalledWith("grok", "/selected/grok", "1.0.77", expect.any(String), undefined, null);
 });
 
 it("uses a daemon-verified wrapper target to identify a custom release source", async () => {

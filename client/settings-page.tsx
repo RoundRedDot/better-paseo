@@ -674,7 +674,7 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
   const status = statuses[entry.status].replace(/[.\u3002]+$/, "");
   const statusColor = entry.status === "available" ? tokens.danger : entry.status === "error" || entry.status === "unknown" ? tokens.warning : tokens.foregroundMuted;
   const brand = providerBrand(entry.provider);
-  const executable = entry.server ? "OpenCode server" : entry.executable ? tildePath(entry.executable) : t.agentUnknownExecutable;
+  const executable = entry.server ? t.agentOpenCodeServer : entry.executable ? tildePath(entry.executable) : t.agentUnknownExecutable;
   let source = t.agentLatestSource;
   if (entry.releasePackage) source = entry.status === "reference" ? t.agentReferencePackage(entry.releasePackage) : t.agentLatestPackage(entry.releasePackage);
   return <View testID={`agent-version-${entry.provider}`} style={{ borderTopWidth: 1, borderTopColor: tokens.v2.border }}>

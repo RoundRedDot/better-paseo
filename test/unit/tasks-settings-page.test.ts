@@ -1071,6 +1071,17 @@ const layoutAgent: AgentUpdate = {
   issue: "npm_runtime_unverified", command: null,
 };
 
+it.each(["en", "zh"] as const)("localizes the OpenCode server label in %s", async (language) => {
+  makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
+  state.rpc.mockResolvedValue({ state: "idle" });
+  state.agents.mockResolvedValue({ state: "done", error: null, entries: [{ ...layoutAgent, provider: "opencode", label: "OpenCode", server: true, executable: null }] });
+  let r!: Renderer;
+  try {
+    await act(async () => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false }, host: { id: `server-${language}`, label: "Host" } })); });
+    expect(textOf(byTestID(r, "agent-version-opencode")[0]!)).toContain(language === "zh" ? "OpenCode 服务器" : "OpenCode server");
+  } finally { act(() => r?.unmount()); state.agents.mockResolvedValue({ state: "idle", entries: [], error: null }); }
+});
+
 it.each(["en", "zh"] as const)("labels an inherited version as a reference in %s", async (language) => {
   makeSettings(); setSettingsTab("version"); updateEnhancerPreferences({ language });
   state.rpc.mockResolvedValue({ state: "idle" });

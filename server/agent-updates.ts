@@ -60,14 +60,14 @@ async function npmOwner(executable: string, expected: string, current: string): 
   return metadata.name === expected && metadata.version === current;
 }
 
-export async function customReleasePackage(provider: string, executable: string, current: string, home = homedir(), verifiedTarget?: string): Promise<string | null> {
+export async function customReleasePackage(provider: string, executable: string, current: string, home = homedir(), verifiedTarget?: string, inheritedPackage?: string | null): Promise<string | null> {
   const target = await realpath(executable);
   if (provider === "grok") {
     const directory = join(home, ".grok/downloads") + "/";
     const filename = basename(target);
     if (target.startsWith(directory) && filename.startsWith(`grok-${current}-`)) return packages.grok!;
   }
-  const candidates = provider === "grok" ? [packages.grok!] : [packages.codex!, "agy-acp-bridge"];
+  const candidates = inheritedPackage ? [inheritedPackage] : provider === "grok" ? [packages.grok!] : [packages.codex!, "agy-acp-bridge"];
   for (const expected of candidates) {
     if (await npmOwner(executable, expected, current)) return expected;
   }
@@ -140,13 +140,13 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
   async function run(paseo: Pick<PaseoApi, "providers" | "config">) {
     const snapshot = await paseo.providers.snapshot();
     const entries = snapshot.entries.filter((entry) => entry.enabled);
-    let parents: Promise<Map<string, string>> | undefined;
-    function providerParents() {
-      return parents ??= paseo.config.get().then(({ config }) => {
-        const result = new Map<string, string>();
+    let providers: Promise<Map<string, { parent?: string; overridden: boolean }>> | undefined;
+    function providerConfig() {
+      return providers ??= paseo.config.get().then(({ config }) => {
+        const result = new Map<string, { parent?: string; overridden: boolean }>();
         for (const [id, provider] of Object.entries(config.providers)) {
           const parent = z.string().safeParse(provider.extends);
-          if (parent.success) result.set(id, parent.data);
+          result.set(id, { parent: parent.success ? parent.data : undefined, overridden: provider.command !== undefined });
         }
         return result;
       });
@@ -175,27 +175,31 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
         if (!result.issue && result.method === "unknown") result.issue = "installation_unknown";
         if (result.method === "npm") result.issue = "npm_runtime_unverified";
         if (result.method === "homebrew") result.issue = "homebrew_command_unverified";
-        let packageName = entry.source === "custom" ? null : releasePackage(entry.provider, result.current);
-        let reference = false;
-        if (entry.source === "custom" && result.executable && result.current) {
-          const targets = [...diagnostic.diagnostic.matchAll(/^  Wrapper target: (.+)$/gm)];
-          const target = targets.length === 1 && isAbsolute(targets[0]![1]!) && diagnostic.diagnostic.includes(`  Resolved path: ${result.executable}\n  Wrapper target: ${targets[0]![1]}\n`) ? targets[0]![1] : undefined;
-          try { packageName = target
-            ? await (deps.customSource ?? customReleasePackage)(entry.provider, result.executable, result.current, homedir(), target)
-            : await (deps.customSource ?? customReleasePackage)(entry.provider, result.executable, result.current); }
-          catch { result.issue = "installation_unreadable"; }
-        }
-        if (entry.source === "custom" && !packageName && result.current) {
-          stage = "config_failed";
-          const ancestry = await providerParents();
+        stage = "config_failed";
+        const config = await providerConfig();
+        const custom = entry.source === "custom" || config.get(entry.provider)?.overridden === true;
+        let parentPackage = entry.source === "custom" ? null : releasePackage(entry.provider, result.current);
+        if (entry.source === "custom") {
           const seen = new Set([entry.provider]);
-          let parent = ancestry.get(entry.provider);
+          let parent = config.get(entry.provider)?.parent;
           while (parent && !seen.has(parent)) {
             seen.add(parent);
-            packageName = releasePackage(parent, result.current);
-            if (packageName) { reference = true; break; }
-            parent = ancestry.get(parent);
+            parentPackage = releasePackage(parent, result.current);
+            if (parentPackage) break;
+            parent = config.get(parent)?.parent;
           }
+        }
+        let packageName = custom ? null : parentPackage;
+        let reference = false;
+        if (custom && result.executable && result.current) {
+          const targets = [...diagnostic.diagnostic.matchAll(/^  Wrapper target: (.+)$/gm)];
+          const target = targets.length === 1 && isAbsolute(targets[0]![1]!) && diagnostic.diagnostic.includes(`  Resolved path: ${result.executable}\n  Wrapper target: ${targets[0]![1]}\n`) ? targets[0]![1] : undefined;
+          try { packageName = await (deps.customSource ?? customReleasePackage)(entry.provider, result.executable, result.current, homedir(), target, parentPackage); }
+          catch { result.issue = "installation_unreadable"; }
+        }
+        if (custom && !packageName && result.current && parentPackage) {
+          packageName = parentPackage;
+          reference = true;
         }
         result.releasePackage = packageName ?? null;
         stage = "latest_fetch_failed";
