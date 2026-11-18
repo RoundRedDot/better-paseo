@@ -19,7 +19,7 @@ export function parseAgentDiagnostic(diagnostic: string) {
   const versions = [...diagnostic.matchAll(/^  Version: (.+)$/gm)];
   const executable = paths.length === 1 && isAbsolute(paths[0]![1]!) ? paths[0]![1]! : null;
   const raw = versions.length === 1 ? versions[0]![1]! : "";
-  const match = /^(?:codex-cli |claude |v|omp[ /]|oh-my-pi v?|grok )?(\d+\.\d+\.\d+)(?: \((?:Claude Code|[a-f0-9]{7,40})\))?$/.exec(raw)
+  const match = /^(?:codex-cli |claude |v|omp[ /]|oh-my-pi v?|grok |opencode v?)?(\d+\.\d+\.\d+)(?: \((?:Claude Code|[a-f0-9]{7,40})\))?$/.exec(raw)
     ?? /^grok (\d+\.\d+\.\d+)(?: \([a-f0-9]{7,40}\))? \[stable\]$/.exec(raw);
   const current = match && stableVersion.test(match[1]!) ? match[1]! : null;
   return { executable, current };
@@ -81,12 +81,13 @@ export async function identifyInstallation(executable: string, provider: string)
   }
   if (!expected) return { method: "unknown", command: null };
   // An npm global package has one exact ownership path. Local packages and wrappers remain unknown.
-  const suffix = `/lib/node_modules/${expected}/`;
-  const at = target.lastIndexOf(suffix);
-  if (at < 0) return { method: "unknown", command: null };
-  const root = target.slice(0, at) + suffix.slice(0, -1);
+  const candidates = provider === "opencode" ? [expected, "@opencode/cli"] : [expected];
+  const owned = candidates.find((name) => target.includes(`/lib/node_modules/${name}/`));
+  if (!owned) return { method: "unknown", command: null };
+  const suffix = `/lib/node_modules/${owned}/`;
+  const root = target.slice(0, target.lastIndexOf(suffix)) + suffix.slice(0, -1);
   const metadata = z.object({ name: z.string() }).parse(JSON.parse(await readFile(join(root, "package.json"), "utf8")));
-  if (metadata.name !== expected) return { method: "unknown", command: null };
+  if (metadata.name !== owned) return { method: "unknown", command: null };
   // The daemon may be Electron running as Node. Its execPath is not a verified terminal Node.
   return { method: "npm", command: null };
 }
@@ -127,6 +128,8 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
       try {
         const diagnostic = await paseo.providers.diagnostic(entry.provider);
         Object.assign(result, parseAgentDiagnostic(diagnostic.diagnostic));
+        const server = entry.provider === "opencode" && /^OpenCode server: /m.test(diagnostic.diagnostic);
+        if (server) result.server = true;
         if (result.executable) {
           try { Object.assign(result, await deps.identify(result.executable, entry.provider)); }
           catch { result.issue = "installation_unreadable"; }
@@ -135,6 +138,10 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
         if (result.method === "npm") result.issue = "npm_runtime_unverified";
         if (result.method === "homebrew") result.issue = "homebrew_command_unverified";
         let packageName = entry.source === "custom" ? null : packages[entry.provider] ?? null;
+        if (entry.provider === "opencode" && entry.source !== "custom") {
+          const major = result.current?.split(".")[0];
+          packageName = major === "1" ? "opencode-ai" : major === "2" ? "@opencode/cli" : null;
+        }
         if (entry.source === "custom" && result.executable && result.current) {
           try { packageName = await (deps.customSource ?? customReleasePackage)(entry.provider, result.executable, result.current); }
           catch { result.issue = "installation_unreadable"; }
@@ -149,6 +156,8 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
         if (!result.current) result.issue = "version_unknown";
         if (!result.executable) result.issue = "executable_unknown";
         if (!packageName && result.issue !== "installation_unreadable") result.issue = "release_source_unknown";
+        if (entry.provider === "opencode" && !result.current) result.issue = "version_unknown";
+        if (server && result.current) result.issue = "server_installation_unknown";
       } catch {
         result.status = "error";
         result.issue = stage;

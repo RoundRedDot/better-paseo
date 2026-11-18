@@ -4,11 +4,12 @@ import { z } from "zod";
 const agentUpdate = z.object({
   provider: z.string(), label: z.string(), executable: z.string().nullable(),
   releasePackage: z.string().nullable().optional(),
+  server: z.boolean().optional(),
   current: z.string().nullable(), latest: z.string().nullable(),
   method: z.enum(["npm", "homebrew", "native", "unknown"]),
   status: z.enum(["available", "current", "unknown", "error"]),
   updateAvailable: z.boolean(),
-  issue: z.enum(["diagnostic_failed", "executable_unknown", "version_unknown", "installation_unknown", "installation_unreadable", "release_source_unknown", "latest_fetch_failed", "npm_runtime_unverified", "homebrew_command_unverified"]).nullable(), command: z.string().nullable(),
+  issue: z.enum(["diagnostic_failed", "executable_unknown", "version_unknown", "installation_unknown", "installation_unreadable", "release_source_unknown", "latest_fetch_failed", "npm_runtime_unverified", "homebrew_command_unverified", "server_installation_unknown"]).nullable(), command: z.string().nullable(),
 });
 export const agentUpdatesRpc = defineRpc({
   name: "settings.agent-updates",

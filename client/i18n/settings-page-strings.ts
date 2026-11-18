@@ -205,6 +205,7 @@ const en = {
   agentIssues: {
     diagnostic_failed: "The host's provider diagnostic request failed. Retry the check.",
     executable_unknown: "The host could not identify a unique executable path.",
+    server_installation_unknown: "OpenCode is running as a server; its installation path and update method are unknown.",
     version_unknown: "The executable's current version is missing or unrecognized.",
     installation_unknown: "The executable's installation method could not be verified.",
     installation_unreadable: "Installation ownership files could not be read or verified.",
@@ -459,6 +460,7 @@ const zh: SettingsStrings = {
   agentIssues: {
     diagnostic_failed: "主机的 provider 诊断请求失败，请重新检查。",
     executable_unknown: "主机未能确认唯一的可执行文件路径。",
+    server_installation_unknown: "OpenCode 正在以 server 运行，安装路径和更新方式未知。",
     version_unknown: "可执行文件的当前版本缺失或格式无法识别。",
     installation_unknown: "无法确认该可执行文件的安装方式。",
     installation_unreadable: "无法读取或验证安装归属文件。",

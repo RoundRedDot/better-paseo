@@ -160,6 +160,7 @@ it.each([
   ["grok 1.0.77 (abcdef123456)", "1.0.77"],
   ["grok 1.0.77", "1.0.77"],
   ["grok 1.0.77 (abcdef123456) [stable]", "1.0.77"],
+  ["opencode v2.2.6", "2.2.6"],
 ])("recognizes the verified provider version format %s", (raw, version) => {
   expect(parseAgentDiagnostic(diagnostic("/selected/provider", raw))).toEqual({ executable: "/selected/provider", current: version });
 });
@@ -235,6 +236,33 @@ it("compares actual OMP and Grok diagnostic versions against their official stab
     "https://registry.npmjs.org/-/package/@oh-my-pi%2fpi-coding-agent/dist-tags",
     "https://registry.npmjs.org/-/package/@xai-official%2fgrok/dist-tags",
   ]);
+});
+
+it("compares the selected OpenCode server version against the v2 release source", async () => {
+  const paseo = api([entry("opencode")], async () => ({ diagnostic: "OpenCode server: http://127.0.0.1:1234\n  Version: 2.2.6" }));
+  const releaseFetch = vi.fn(async (_url: string | URL | Request) => new Response(JSON.stringify({ latest: "2.3.0" })));
+  const check = createAgentUpdateCheck({ fetchVersion: releaseFetch as unknown as typeof fetch, identify });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ current: "2.2.6", latest: "2.3.0", releasePackage: "@opencode/cli", updateAvailable: true, executable: null, issue: "server_installation_unknown" });
+  expect(releaseFetch.mock.calls[0]?.[0]).toContain("@opencode%2fcli");
+});
+
+it("does not use a v1 release source when the OpenCode version is unknown", async () => {
+  const paseo = api([entry("opencode")], async () => ({ diagnostic: "OpenCode server: http://127.0.0.1:1234" }));
+  const releaseFetch = vi.fn(fetchVersion);
+  const check = createAgentUpdateCheck({ fetchVersion: releaseFetch as unknown as typeof fetch, identify });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ current: null, latest: null, issue: "version_unknown" });
+  expect(releaseFetch).not.toHaveBeenCalled();
+});
+
+it.each([["1.19.5", "opencode-ai"], ["opencode v2.2.6", "@opencode%2fcli"]])("selects the OpenCode release source for %s", async (version, packageName) => {
+  const paseo = api([entry("opencode")], async () => ({ diagnostic: diagnostic("/opt/opencode", version) }));
+  const releaseFetch = vi.fn(async (_url: string | URL | Request) => new Response(JSON.stringify({ latest: "2.3.0" })));
+  const check = createAgentUpdateCheck({ fetchVersion: releaseFetch as unknown as typeof fetch, identify });
+  check("check", paseo);
+  await finish(check, paseo);
+  expect(releaseFetch.mock.calls[0]?.[0]).toContain(packageName);
 });
 
 it("does not fall through to another registry or release source when stable tags are invalid", async () => {
