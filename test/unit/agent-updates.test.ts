@@ -231,6 +231,23 @@ it("recognizes only verified custom binaries and absolute wrappers", async () =>
   expect(await customReleasePackage("grok", join(grokRoot, "index.js"), "1.0.77", home)).toBe("@xai-official/grok");
 });
 
+it("recognizes a matching Codex standalone installation through an absolute wrapper", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "better-paseo-codex-standalone-")); directories.push(dir);
+  const home = await realpath(dir);
+  const release = join(home, ".codex/packages/standalone/releases/0.170.0-aarch64-apple-darwin");
+  const binary = join(release, "bin/codex");
+  await mkdir(join(release, "bin"), { recursive: true });
+  await writeFile(binary, "");
+  const manifest = { layoutVersion: 1, variant: "codex", version: "0.170.0", target: "aarch64-apple-darwin", entrypoint: "bin/codex" };
+  await writeFile(join(release, "codex-package.json"), JSON.stringify(manifest));
+  const link = join(home, "codex"); await symlink(binary, link);
+  const wrapper = join(home, "codex-newapi"); await writeFile(wrapper, `#!/bin/zsh\nset -euo pipefail\nexec "${link}" "$@"\n`);
+  expect(await customReleasePackage("codex-newapi", wrapper, "0.170.0", home)).toBe("@openai/codex");
+  expect(await customReleasePackage("codex-newapi", wrapper, "0.169.0", home)).toBeNull();
+  await writeFile(join(release, "codex-package.json"), JSON.stringify({ ...manifest, entrypoint: "bin/other" }));
+  expect(await customReleasePackage("codex-newapi", wrapper, "0.170.0", home)).toBeNull();
+});
+
 it("compares custom providers only after release ownership is verified", async () => {
   const paseo = api([entry("grok", true, "custom")], async () => ({ diagnostic: diagnostic("/selected/grok", "grok 1.0.77 (abcdef123456) [stable]") }));
   const customSource = vi.fn(async () => "@xai-official/grok");

@@ -1,5 +1,5 @@
 import { readFile, realpath, stat } from "node:fs/promises";
-import { basename, isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
 import { z } from "zod";
 import type { PaseoApi } from "./paseo-types";
@@ -60,6 +60,14 @@ async function npmOwner(executable: string, expected: string, current: string): 
   return metadata.name === expected && metadata.version === current;
 }
 
+async function codexStandaloneOwner(executable: string, current: string, home: string): Promise<boolean> {
+  const target = await realpath(executable);
+  const release = dirname(dirname(target));
+  if (dirname(release) !== join(await realpath(home), ".codex/packages/standalone/releases") || target !== join(release, "bin/codex")) return false;
+  const metadata = z.object({ layoutVersion: z.literal(1), variant: z.literal("codex"), version: z.string(), target: z.string().regex(/^[A-Za-z0-9_-]+$/), entrypoint: z.literal("bin/codex") }).safeParse(JSON.parse(await readFile(join(release, "codex-package.json"), "utf8")));
+  return metadata.success && metadata.data.version === current && basename(release) === `${current}-${metadata.data.target}`;
+}
+
 export async function customReleasePackage(provider: string, executable: string, current: string, home = homedir(), verifiedTarget?: string): Promise<string | null> {
   const target = await realpath(executable);
   if (provider === "grok") {
@@ -71,11 +79,13 @@ export async function customReleasePackage(provider: string, executable: string,
   for (const expected of candidates) {
     if (await npmOwner(executable, expected, current)) return expected;
   }
+  if (provider !== "grok" && await codexStandaloneOwner(executable, current, home)) return packages.codex!;
   const wrapped = verifiedTarget ?? await wrapperTarget(executable);
   if (!wrapped) return null;
   for (const expected of candidates) {
     if (await npmOwner(wrapped, expected, current)) return expected;
   }
+  if (provider !== "grok" && await codexStandaloneOwner(wrapped, current, home)) return packages.codex!;
   return null;
 }
 
