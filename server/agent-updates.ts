@@ -60,7 +60,7 @@ async function npmOwner(executable: string, expected: string, current: string): 
   return metadata.name === expected && metadata.version === current;
 }
 
-export async function customReleasePackage(provider: string, executable: string, current: string, home = homedir()): Promise<string | null> {
+export async function customReleasePackage(provider: string, executable: string, current: string, home = homedir(), verifiedTarget?: string): Promise<string | null> {
   const target = await realpath(executable);
   if (provider === "grok") {
     const directory = join(home, ".grok/downloads") + "/";
@@ -71,7 +71,7 @@ export async function customReleasePackage(provider: string, executable: string,
   for (const expected of candidates) {
     if (await npmOwner(executable, expected, current)) return expected;
   }
-  const wrapped = await wrapperTarget(executable);
+  const wrapped = verifiedTarget ?? await wrapperTarget(executable);
   if (!wrapped) return null;
   for (const expected of candidates) {
     if (await npmOwner(wrapped, expected, current)) return expected;
@@ -162,7 +162,11 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
           packageName = major === "1" ? "opencode-ai" : major === "2" ? "@opencode/cli" : null;
         }
         if (entry.source === "custom" && result.executable && result.current) {
-          try { packageName = await (deps.customSource ?? customReleasePackage)(entry.provider, result.executable, result.current); }
+          const targets = [...diagnostic.diagnostic.matchAll(/^  Wrapper target: (.+)$/gm)];
+          const target = targets.length === 1 && isAbsolute(targets[0]![1]!) && diagnostic.diagnostic.includes(`  Resolved path: ${result.executable}\n  Wrapper target: ${targets[0]![1]}\n`) ? targets[0]![1] : undefined;
+          try { packageName = target
+            ? await (deps.customSource ?? customReleasePackage)(entry.provider, result.executable, result.current, homedir(), target)
+            : await (deps.customSource ?? customReleasePackage)(entry.provider, result.executable, result.current); }
           catch { result.issue = "installation_unreadable"; }
         }
         result.releasePackage = packageName ?? null;

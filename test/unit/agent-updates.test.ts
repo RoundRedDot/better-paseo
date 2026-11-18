@@ -240,6 +240,22 @@ it("compares custom providers only after release ownership is verified", async (
   expect(customSource).toHaveBeenCalledWith("grok", "/selected/grok", "1.0.77");
 });
 
+it("uses a daemon-verified wrapper target to identify a custom release source", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "better-paseo-wrapper-owner-")); directories.push(dir);
+  const root = join(await realpath(dir), "lib/node_modules/agy-acp-bridge");
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, "package.json"), JSON.stringify({ name: "agy-acp-bridge", version: "0.3.4" }));
+  const target = join(root, "index.js"); await writeFile(target, "");
+  const wrapper = join(dir, "wrapper"); await writeFile(wrapper, '#!/bin/sh\nexec agy-acp-bridge "$@"\n');
+  const paseo = api([entry("antigravity", true, "custom")], async () => ({ diagnostic: `Antigravity\n  Resolved path: ${wrapper}\n  Wrapper target: ${target}\n  Version: 0.3.4` }));
+  const check = createAgentUpdateCheck({ fetchVersion, identify });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ current: "0.3.4", releasePackage: "agy-acp-bridge", latest: "1.2.0", status: "available" });
+  await writeFile(join(root, "package.json"), JSON.stringify({ name: "agy-acp-bridge", version: "0.3.5" }));
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ releasePackage: null, latest: null, status: "unknown" });
+});
+
 it("compares actual OMP and Grok diagnostic versions against their official stable dist-tags", async () => {
   const paseo = api([entry("omp"), entry("grok")]);
   vi.mocked(paseo.providers.diagnostic)
