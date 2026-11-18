@@ -13,6 +13,18 @@ const packages: Record<string, string> = {
 const stableVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const quote = (value: string) => `'${value.replace(/'/g, "'\\''")}'`;
 
+/** The discovered service file provides credentials only for its own loopback endpoint. */
+export async function openCodeServerVersion(url: string, file = join(process.env.XDG_STATE_HOME ?? join(homedir(), ".local/state"), "opencode/service.json"), fetchInfo: typeof fetch = fetch): Promise<string | null> {
+  const endpoint = new URL(url);
+  if (endpoint.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(endpoint.hostname) || endpoint.username || endpoint.password || endpoint.pathname !== "/" || endpoint.search || endpoint.hash) return null;
+  const service = z.object({ url: z.string(), password: z.string(), pid: z.number(), version: z.string() }).parse(JSON.parse(await readFile(file, "utf8")));
+  if (service.url.replace(/\/$/, "") !== endpoint.origin) return null;
+  const response = await fetchInfo(new URL("/api/info", endpoint), { headers: { Authorization: `Basic ${Buffer.from(`opencode:${service.password}`).toString("base64")}` }, signal: AbortSignal.timeout(5000), redirect: "error" });
+  if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) return null;
+  const info = z.object({ version: z.string(), pid: z.number() }).parse(await response.json());
+  return info.pid === service.pid && info.version === service.version && stableVersion.test(info.version) ? info.version : null;
+}
+
 /** Read only the two single-line fields we need; diagnostics can contain environment secrets. */
 export function parseAgentDiagnostic(diagnostic: string) {
   const paths = [...diagnostic.matchAll(/^  Resolved path: (.+)$/gm)];
@@ -113,7 +125,7 @@ async function latestVersion(packageName: string, fetchVersion: typeof fetch): P
   return z.object({ latest: z.string().regex(stableVersion) }).parse(JSON.parse(Buffer.concat(chunks).toString("utf8"))).latest;
 }
 
-export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; identify: typeof identifyInstallation; customSource?: typeof customReleasePackage } = { fetchVersion: fetch, identify: identifyInstallation }) {
+export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; identify: typeof identifyInstallation; customSource?: typeof customReleasePackage; serverVersion?: typeof openCodeServerVersion } = { fetchVersion: fetch, identify: identifyInstallation }) {
   let state: AgentUpdates = { state: "idle", entries: [], error: null };
   let running: Promise<void> | null = null;
   let lastAttempt = 0;
@@ -130,6 +142,13 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
         Object.assign(result, parseAgentDiagnostic(diagnostic.diagnostic));
         const server = entry.provider === "opencode" && /^OpenCode server: /m.test(diagnostic.diagnostic);
         if (server) result.server = true;
+        if (server && !result.current) {
+          const url = /^OpenCode server: (\S+)$/m.exec(diagnostic.diagnostic)?.[1];
+          if (url) {
+            try { result.current = await (deps.serverVersion ?? openCodeServerVersion)(url); }
+            catch { /* A service without verifiable local credentials remains unknown. */ }
+          }
+        }
         if (result.executable) {
           try { Object.assign(result, await deps.identify(result.executable, entry.provider)); }
           catch { result.issue = "installation_unreadable"; }

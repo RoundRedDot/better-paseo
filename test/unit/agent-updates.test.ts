@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgentUpdateCheck, customReleasePackage, identifyInstallation, parseAgentDiagnostic } from "../../server/agent-updates";
+import { createAgentUpdateCheck, customReleasePackage, identifyInstallation, parseAgentDiagnostic, openCodeServerVersion } from "../../server/agent-updates";
 import { hasAgentUpdate, agentUpdatesRpc } from "../../shared/agent-updates";
 
 const directories: string[] = [];
@@ -18,6 +18,27 @@ function api(entries = [entry("codex")], read = async () => ({ diagnostic: diagn
 }
 const fetchVersion = vi.fn(async () => new Response(JSON.stringify({ latest: "1.2.0" }))) as unknown as typeof fetch;
 const identify = vi.fn(async () => ({ method: "unknown" as const, command: null }));
+
+it("reads the selected authenticated OpenCode service version", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "better-paseo-opencode-")); directories.push(dir);
+  const file = join(dir, "service.json");
+  await writeFile(file, JSON.stringify({ url: "http://127.0.0.1:49374", password: "test-secret", pid: 123, version: "2.2.6" }));
+  const probe = vi.fn(async () => new Response(JSON.stringify({ version: "2.2.6", pid: 123 }), { headers: { "content-type": "application/json" } }));
+  expect(await openCodeServerVersion("http://127.0.0.1:49374", file, probe as unknown as typeof fetch)).toBe("2.2.6");
+  expect(await openCodeServerVersion("http://127.0.0.1:49375", file, probe as unknown as typeof fetch)).toBeNull();
+  expect(probe).toHaveBeenCalledOnce();
+  const changed = vi.fn(async () => new Response(JSON.stringify({ version: "2.2.6", pid: 124 }), { headers: { "content-type": "application/json" } }));
+  expect(await openCodeServerVersion("http://127.0.0.1:49374", file, changed as unknown as typeof fetch)).toBeNull();
+});
+
+it("compares the server version when the diagnostic only supplies its address", async () => {
+  const paseo = api([entry("opencode")], async () => ({ diagnostic: "OpenCode server: http://127.0.0.1:49374" }));
+  const serverVersion = vi.fn(async () => "2.2.6");
+  const check = createAgentUpdateCheck({ fetchVersion: vi.fn(async () => new Response(JSON.stringify({ latest: "2.3.0" }))) as unknown as typeof fetch, identify, serverVersion });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ current: "2.2.6", latest: "2.3.0", status: "available", issue: "server_installation_unknown" });
+  expect(serverVersion).toHaveBeenCalledWith("http://127.0.0.1:49374");
+});
 
 describe("host-scoped agent checks", () => {
   it("checks only enabled snapshot providers, coalesces calls and reports actual diagnostic binary", async () => {
