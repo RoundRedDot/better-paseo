@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createServer } from "node:http";
 import { createAgentUpdateCheck, customReleasePackage, identifyInstallation, parseAgentDiagnostic, openCodeServerVersion } from "../../server/agent-updates";
 import { hasAgentUpdate, agentUpdatesRpc, retainAgentUpdates } from "../../shared/agent-updates";
 
@@ -104,6 +105,47 @@ it("clears a prior verified update when only a reference remains", async () => {
   check("check", paseo); const next = await finish(check, paseo);
   expect(next.entries[0]).toMatchObject({ status: "reference", updateAvailable: false });
   expect(hasAgentUpdate(retainAgentUpdates(previous, next))).toBe(false);
+});
+
+it("reads a wildcard OpenCode server through its verified loopback registration", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "better-paseo-opencode-wildcard-")); directories.push(dir);
+  const file = join(dir, "service.json");
+  const requests: Array<{ host: string | undefined; auth: string | undefined }> = [];
+  const server = createServer((request, response) => {
+    requests.push({ host: request.headers.host, auth: request.headers.authorization });
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ version: "2.3.1", pid: process.pid }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("No test port");
+  const selected = `http://0.0.0.0:${address.port}`;
+  try {
+    await writeFile(file, JSON.stringify({ url: selected, password: "fixture-secret", pid: process.pid, version: "2.3.1" }));
+    const paseo = api([entry("opencode")], async () => ({ diagnostic: `OpenCode server: ${selected}` }));
+    const check = createAgentUpdateCheck({ fetchVersion: vi.fn(async () => new Response(JSON.stringify({ latest: "2.3.2" }))) as unknown as typeof fetch, identify, serverVersion: (url) => openCodeServerVersion(url, file) });
+    check("check", paseo);
+    expect((await finish(check, paseo)).entries[0]).toMatchObject({ current: "2.3.1", latest: "2.3.2", status: "available", updateAvailable: true });
+    expect(requests).toEqual([{ host: `127.0.0.1:${address.port}`, auth: `Basic ${Buffer.from("opencode:fixture-secret").toString("base64")}` }]);
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+it("only uses a wildcard server credential for a matching local endpoint", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "better-paseo-opencode-wildcard-owner-")); directories.push(dir);
+  const file = join(dir, "service.json");
+  const probe = vi.fn(async (_url: string | URL | Request) => new Response(JSON.stringify({ version: "2.3.1", pid: 123 }), { headers: { "content-type": "application/json" } }));
+  const service = { url: "http://127.0.0.1:4096", password: "fixture-secret", pid: 123, version: "2.3.1" };
+  await writeFile(file, JSON.stringify(service));
+  expect(await openCodeServerVersion("http://0.0.0.0:4096", file, probe as unknown as typeof fetch)).toBe("2.3.1");
+  expect(String(probe.mock.calls[0]?.[0])).toBe("http://127.0.0.1:4096/api/info");
+  probe.mockClear();
+  for (const url of ["http://127.0.0.1:4097", "http://0.0.0.0:4097", "http://remote.example:4096"]) {
+    await writeFile(file, JSON.stringify({ ...service, url }));
+    expect(await openCodeServerVersion("http://0.0.0.0:4096", file, probe as unknown as typeof fetch)).toBeNull();
+  }
+  expect(probe).not.toHaveBeenCalled();
 });
 
 it("reads the selected authenticated OpenCode service version", async () => {

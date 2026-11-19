@@ -16,9 +16,12 @@ const quote = (value: string) => `'${value.replace(/'/g, "'\\''")}'`;
 /** The discovered service file provides credentials only for its own loopback endpoint. */
 export async function openCodeServerVersion(url: string, file = join(process.env.XDG_STATE_HOME ?? join(homedir(), ".local/state"), "opencode/service.json"), fetchInfo: typeof fetch = fetch): Promise<string | null> {
   const endpoint = new URL(url);
-  if (endpoint.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(endpoint.hostname) || endpoint.username || endpoint.password || endpoint.pathname !== "/" || endpoint.search || endpoint.hash) return null;
+  if (endpoint.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]", "0.0.0.0"].includes(endpoint.hostname) || endpoint.username || endpoint.password || endpoint.pathname !== "/" || endpoint.search || endpoint.hash) return null;
   const service = z.object({ url: z.string(), password: z.string(), pid: z.number(), version: z.string() }).parse(JSON.parse(await readFile(file, "utf8")));
-  if (service.url.replace(/\/$/, "") !== endpoint.origin) return null;
+  const selectedOrigin = endpoint.origin;
+  if (endpoint.hostname === "0.0.0.0") endpoint.hostname = "127.0.0.1";
+  const registeredOrigin = service.url.replace(/\/$/, "");
+  if (registeredOrigin !== selectedOrigin && registeredOrigin !== endpoint.origin) return null;
   const response = await fetchInfo(new URL("/api/info", endpoint), { headers: { Authorization: `Basic ${Buffer.from(`opencode:${service.password}`).toString("base64")}` }, signal: AbortSignal.timeout(5000), redirect: "error" });
   if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) return null;
   const info = z.object({ version: z.string(), pid: z.number() }).parse(await response.json());
