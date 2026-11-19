@@ -56,7 +56,6 @@ import { probeCard, textItemKey } from "./debug/perf";
 import {
   TranslateButton,
   TranslationBlock,
-  translationRowStyles,
   useAssistantTranslation,
   useReasoningTranslation,
 } from "./translation/ui";
@@ -555,26 +554,18 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp }: Plu
   const showSegmentTranslation = translation.enabled && Boolean(item.data.externalSegment) && translation.active;
   const probe = probeCard("assistant", textItemKey("assistant", item.data.text), false);
   const hostSlotKey = useRef(`assistant:${agentId}:${timestamp.getTime()}:${item.data.blockIndex ?? "block"}`).current;
-  const blockMarkdown = (
-    <MarkdownView text={item.data.text} tokens={tokens} variant={preferences.markdownVariant}
-      compact={layout.compact} firstBlock={item.data.blockIndex === 0} onRevealPath={onRevealPath}
-      listContinuation={item.data.listContinuation}
-      probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} />
-  );
+  const translateAction = showTranslateButton ? (
+    <TranslateButton controller={translation} tokens={tokens} compact={layout.compact} />
+  ) : undefined;
   return <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}
     style={assistantBlockStyles.continuation}>
     {probe.node}
     <PreferenceSyncSlot />
-    {showTranslateButton ? (
-      <View testID="translation-row" style={translationRowStyles.row}>
-        <View style={translationRowStyles.body}>{blockMarkdown}</View>
-        <View style={translationRowStyles.actionSlot}>
-          <TranslateButton controller={translation} tokens={tokens} compact={layout.compact} />
-        </View>
-      </View>
-    ) : (
-      blockMarkdown
-    )}
+    <MarkdownView text={item.data.text} tokens={tokens} variant={preferences.markdownVariant}
+      compact={layout.compact} firstBlock={item.data.blockIndex === 0} onRevealPath={onRevealPath}
+      listContinuation={item.data.listContinuation}
+      firstBlockAction={translateAction}
+      probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} />
     {showSegmentTranslation ? (
       <TranslationBlock
         controller={translation}
@@ -653,19 +644,9 @@ function LiveAssistantMessageRenderer({
     data: item.data,
   });
   const showTranslateButton = translation.enabled && !envelope && translation.isLeadBlock;
-  const replyMarkdown = (
-    <MarkdownView
-      text={revealed}
-      firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0}
-      listContinuation={item.data.listContinuation}
-      tokens={tokens}
-      variant={preferences.markdownVariant}
-      compact={layout.compact}
-      streaming={streaming}
-      onRevealPath={handleRevealPath}
-      probeId={`assistant:${timestamp.getTime()}`}
-    />
-  );
+  const translateAction = showTranslateButton ? (
+    <TranslateButton controller={translation} tokens={tokens} compact={layout.compact} />
+  ) : undefined;
 
   return (
     <View
@@ -680,15 +661,19 @@ function LiveAssistantMessageRenderer({
       <PreferenceSyncSlot />
       {envelope ? (
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
-      ) : showTranslateButton ? (
-        <View testID="translation-row" style={translationRowStyles.row}>
-          <View style={translationRowStyles.body}>{replyMarkdown}</View>
-          <View style={translationRowStyles.actionSlot}>
-            <TranslateButton controller={translation} tokens={tokens} compact={layout.compact} />
-          </View>
-        </View>
       ) : (
-        replyMarkdown
+        <MarkdownView
+          text={revealed}
+          firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0}
+          listContinuation={item.data.listContinuation}
+          tokens={tokens}
+          variant={preferences.markdownVariant}
+          compact={layout.compact}
+          streaming={streaming}
+          onRevealPath={handleRevealPath}
+          firstBlockAction={translateAction}
+          probeId={`assistant:${timestamp.getTime()}`}
+        />
       )}
       {!envelope && translation.enabled && translation.isTailBlock ? (
         <TranslationBlock

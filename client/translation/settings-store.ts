@@ -1,8 +1,5 @@
-import { useEffect, useSyncExternalStore } from "react";
-import { settingsRpc } from "@getpaseo/plugin";
-import type { PluginClientContext } from "@getpaseo/plugin/client";
+import { useSyncExternalStore } from "react";
 import {
-  TIMELINE_TRANSLATION_SETTINGS,
   timelineTranslationSettingsSchema,
   type TimelineTranslationSettings,
 } from "../../shared/timeline-translation";
@@ -10,16 +7,27 @@ import {
 export const DEFAULT_TIMELINE_TRANSLATION_SETTINGS: TimelineTranslationSettings =
   timelineTranslationSettingsSchema.parse({});
 
-let currentSettings: TimelineTranslationSettings = DEFAULT_TIMELINE_TRANSLATION_SETTINGS;
-let registeredClient: Pick<PluginClientContext, "rpc"> | null = null;
-let initialLoadStarted = false;
-const listeners = new Set<() => void>();
+export type RemoteTranslationSettings =
+  | { status: "loading" }
+  | { status: "error"; error: string }
+  | { status: "invalid"; error: string; revision: string }
+  | { status: "ready"; values: TimelineTranslationSettings; revision: string };
 
-function notify() {
-  for (const listener of listeners) listener();
+export interface TranslationSettingsSnapshot {
+  status: RemoteTranslationSettings["status"];
+  values: TimelineTranslationSettings;
+  error: string | null;
+  revision: string | null;
 }
 
-function sameSettings(a: TimelineTranslationSettings, b: TimelineTranslationSettings): boolean {
+const INITIAL_SNAPSHOT: TranslationSettingsSnapshot = {
+  status: "loading",
+  values: DEFAULT_TIMELINE_TRANSLATION_SETTINGS,
+  error: null,
+  revision: null,
+};
+
+function sameValues(a: TimelineTranslationSettings, b: TimelineTranslationSettings): boolean {
   return (
     a.enabled === b.enabled &&
     a.customModel === b.customModel &&
@@ -32,105 +40,128 @@ function sameSettings(a: TimelineTranslationSettings, b: TimelineTranslationSett
   );
 }
 
-export function getTranslationSettings(): TimelineTranslationSettings {
-  return currentSettings;
-}
+export function createTranslationSettingsSync() {
+  let snapshot: TranslationSettingsSnapshot = INITIAL_SNAPSHOT;
+  let lastSeen: string | null = null;
+  const listeners = new Set<() => void>();
 
-export function subscribeTranslationSettings(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
+
+  return {
+    report(state: RemoteTranslationSettings): void {
+      const seen =
+        state.status === "ready" || state.status === "invalid"
+          ? `${state.status}:${state.revision}`
+          : state.status === "error"
+            ? `error:${state.error}`
+            : state.status;
+      if (seen === lastSeen) return;
+      lastSeen = seen;
+
+      if (state.status === "ready") {
+        const parsed = timelineTranslationSettingsSchema.parse(state.values ?? {});
+        if (
+          snapshot.status === "ready" &&
+          snapshot.revision === state.revision &&
+          sameValues(snapshot.values, parsed)
+        ) {
+          return;
+        }
+        snapshot = {
+          status: "ready",
+          values: parsed,
+          error: null,
+          revision: state.revision,
+        };
+        notify();
+        return;
+      }
+
+      if (state.status === "invalid") {
+        snapshot = {
+          status: "invalid",
+          values: DEFAULT_TIMELINE_TRANSLATION_SETTINGS,
+          error: state.error,
+          revision: state.revision,
+        };
+        notify();
+        return;
+      }
+
+      if (state.status === "error") {
+        snapshot = {
+          status: "error",
+          values: snapshot.values,
+          error: state.error,
+          revision: snapshot.revision,
+        };
+        notify();
+        return;
+      }
+
+      if (snapshot.status !== "loading") {
+        snapshot = INITIAL_SNAPSHOT;
+        notify();
+      }
+    },
+
+    snapshot(): TranslationSettingsSnapshot {
+      return snapshot;
+    },
+
+    subscribe(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+
+    resetForTests(): void {
+      snapshot = INITIAL_SNAPSHOT;
+      lastSeen = null;
+      notify();
+    },
   };
 }
 
-export function publishTranslationSettings(values: unknown): TimelineTranslationSettings {
+export const translationSettingsSync = createTranslationSettingsSync();
+
+export function getTranslationSettingsState(): TranslationSettingsSnapshot {
+  return translationSettingsSync.snapshot();
+}
+
+export function getTranslationSettings(): TimelineTranslationSettings {
+  return translationSettingsSync.snapshot().values;
+}
+
+export function reportTranslationSettings(state: RemoteTranslationSettings): void {
+  translationSettingsSync.report(state);
+}
+
+/** Test and story helper to publish a ready settings snapshot cleanly. */
+export function publishTranslationSettings(
+  values: unknown,
+  revision = `local-${Date.now().toString(36)}`,
+): TimelineTranslationSettings {
   const parsed = timelineTranslationSettingsSchema.parse(values ?? {});
-  if (!sameSettings(currentSettings, parsed)) {
-    currentSettings = parsed;
-    notify();
-  }
-  return currentSettings;
+  translationSettingsSync.report({ status: "ready", values: parsed, revision });
+  return parsed;
 }
 
 export function resetTranslationSettingsStoreForTests(): void {
-  currentSettings = DEFAULT_TIMELINE_TRANSLATION_SETTINGS;
-  registeredClient = null;
-  initialLoadStarted = false;
-  notify();
+  translationSettingsSync.resetForTests();
 }
 
-async function readRecord(client: Pick<PluginClientContext, "rpc">): Promise<TimelineTranslationSettings | null> {
-  const result: unknown = await client.rpc(settingsRpc(TIMELINE_TRANSLATION_SETTINGS.id).read, {});
-  if (!result || typeof result !== "object") return null;
-  const record = result as { status?: unknown; values?: unknown };
-  if (record.status === "ready") {
-    return timelineTranslationSettingsSchema.parse(record.values ?? {});
-  }
-  return null;
-}
-
-export function ensureTranslationSettingsLoaded(): void {
-  if (initialLoadStarted || !registeredClient) return;
-  initialLoadStarted = true;
-  const client = registeredClient;
-  readRecord(client)
-    .then((parsed) => {
-      if (registeredClient === client && parsed) publishTranslationSettings(parsed);
-    })
-    .catch(() => {
-      initialLoadStarted = false;
-    });
+export function useTranslationSettingsState(): TranslationSettingsSnapshot {
+  return useSyncExternalStore(
+    translationSettingsSync.subscribe,
+    translationSettingsSync.snapshot,
+    translationSettingsSync.snapshot,
+  );
 }
 
 export function useTimelineTranslationSettings(): TimelineTranslationSettings {
-  const snapshot = useSyncExternalStore(
-    subscribeTranslationSettings,
-    getTranslationSettings,
-    getTranslationSettings,
-  );
-  useEffect(() => {
-    ensureTranslationSettingsLoaded();
-  }, []);
-  return snapshot;
-}
-
-export function registerTranslationSettingsClient(client: Pick<PluginClientContext, "rpc">): () => void {
-  registeredClient = client;
-  initialLoadStarted = false;
-  return () => {
-    if (registeredClient === client) {
-      registeredClient = null;
-      initialLoadStarted = false;
-    }
-  };
-}
-
-export function watchTranslationSettingsChanges(
-  client: Pick<PluginClientContext, "paseo" | "rpc">,
-): () => void {
-  let live = true;
-  let latestRead = 0;
-  const read = () => {
-    const id = ++latestRead;
-    readRecord(client)
-      .then((parsed) => {
-        if (live && id === latestRead && parsed) publishTranslationSettings(parsed);
-      })
-      .catch(() => {});
-  };
-  const observation = client.paseo.observeEvents(["status.plugin_settings_changed"]);
-  const unsubscribe = observation.subscribe({
-    snapshot() {},
-    update(message) {
-      if (message.type !== "status") return;
-      const { status, settingsId } = message.payload;
-      if (status !== "plugin_settings_changed" || settingsId !== TIMELINE_TRANSLATION_SETTINGS.id) return;
-      read();
-    },
-  });
-  return () => {
-    live = false;
-    unsubscribe();
-    void observation.release();
-  };
+  return useTranslationSettingsState().values;
 }

@@ -27,7 +27,8 @@ import {
 import { SearchableLanguageSelect } from "./language-picker";
 import {
   DEFAULT_TIMELINE_TRANSLATION_SETTINGS,
-  publishTranslationSettings,
+  reportTranslationSettings,
+  type RemoteTranslationSettings,
 } from "./settings-store";
 
 export interface TranslationModelEntry {
@@ -261,9 +262,20 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
     return DEFAULT_TIMELINE_TRANSLATION_SETTINGS;
   }, [state]);
 
+  const remote: RemoteTranslationSettings =
+    state.status === "ready"
+      ? { status: "ready", values: state.values, revision: state.revision }
+      : state.status === "invalid"
+        ? { status: "invalid", error: state.error, revision: state.revision }
+        : state.status === "error"
+          ? { status: "error", error: state.error }
+          : { status: "loading" };
+  const revision = "revision" in remote ? remote.revision : "";
+  const remoteError = "error" in remote ? remote.error : "";
+
   useEffect(() => {
-    if (state.status === "ready") publishTranslationSettings(state.values);
-  }, [state]);
+    reportTranslationSettings(remote);
+  }, [remote.status, revision, remoteError]);
 
   const [catalog, setCatalog] = useState<TranslationCatalogState>(() => ({
     ...catalogCache,
@@ -318,8 +330,10 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   const savePatch = useCallback(async (patch: Partial<TimelineTranslationSettings>) => {
     if (state.status !== "ready") return;
     const next = { ...state.values, ...patch };
-    publishTranslationSettings(next);
-    await state.save(next, state.revision);
+    const ok = await state.save(next, state.revision);
+    if (!ok) {
+      void state.reload?.();
+    }
   }, [state]);
 
   const activeProvider = settings.provider || catalog.providers[0] || "";
@@ -367,7 +381,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   return (
     <Section title={t.sectionTitle} look={look}>
       {state.status === "error" || state.status === "invalid" ? (
-        <SectionNote text={t.unavailable} look={look} />
+        <SectionNote text={state.error ? `${t.unavailable} (${state.error})` : t.unavailable} look={look} />
       ) : null}
 
       <SettingRow

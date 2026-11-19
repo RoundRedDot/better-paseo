@@ -10,13 +10,16 @@ import { DEFAULT_PREFERENCES, resetEnhancerPreferences, updateEnhancerPreference
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import {
   DEFAULT_TIMELINE_TRANSLATION_SETTINGS,
+  getTranslationSettingsState,
   publishTranslationSettings,
+  reportTranslationSettings,
   resetTranslationSettingsStoreForTests,
 } from "../../client/translation/settings-store";
 import {
   resetTranslationStoreForTests,
   resolveAssistantSource,
   resolveReasoningSource,
+  setTranslationPaseo,
   translationStore,
 } from "../../client/translation/store";
 
@@ -122,6 +125,7 @@ beforeEach(() => {
   resetEnhancerPreferences();
   updateEnhancerPreferences({ language: "en", assistantMarkdown: true });
   resetTranslationSettingsStoreForTests();
+  publishTranslationSettings(DEFAULT_TIMELINE_TRANSLATION_SETTINGS, "init-1");
   resetTranslationStoreForTests();
 });
 
@@ -415,70 +419,371 @@ describe("timeline translation UI and source state", () => {
     expect((TRANSLATE_ICON as { svg: string }).svg).toContain('viewBox="0 0 24 24"');
   });
 
-  it("never overlaps text or adds block spacing at rest across desktop and mobile widths", async () => {
+  it("handles unloaded, invalid, error, and external settings transitions without silent fallback", async () => {
+    resetTranslationSettingsStoreForTests();
     const props = {
+      agentId: "agent-sync",
+      item: {
+        id: "row-sync",
+        type: "plugin" as const,
+        kind: "omp-assistant",
+        version: 1,
+        data: { text: "Sync state check", phase: "complete", sourceId: "msg-sync" },
+      },
+      theme,
+      layout: { compact: false, platform: "web" as const },
+      timestamp: new Date("2026-11-19T10:00:00Z"),
+    };
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, props as never));
+    });
+
+    // While settings are loading, the button stays disabled and never triggers RPC.
+    const loadingBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Loading translation settings...",
+    );
+    expect(loadingBtn.props.disabled).toBe(true);
+    await act(async () => {
+      loadingBtn.props.onPress?.();
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+
+    // Error and invalid states disable the entry point cleanly without falling back to defaults.
+    await act(async () => {
+      reportTranslationSettings({ status: "error", error: "Daemon offline" });
+    });
+    expect(getTranslationSettingsState()).toMatchObject({ status: "error", error: "Daemon offline" });
+    const errBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Could not load translation settings",
+    );
+    expect(errBtn.props.disabled).toBe(true);
+
+    await act(async () => {
+      reportTranslationSettings({ status: "invalid", error: "Invalid schema", revision: "r2" });
+    });
+    const invalidBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translation settings are invalid",
+    );
+    expect(invalidBtn.props.disabled).toBe(true);
+
+    // Ready enables it; subsequent external change turning enabled=false hides it.
+    await act(async () => {
+      publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, "r3");
+    });
+    const readyBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply",
+    );
+    expect(readyBtn.props.disabled).toBe(false);
+
+    await act(async () => {
+      publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false }, "r4");
+    });
+    expect(
+      renderer!.root.findAll((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply"),
+    ).toHaveLength(0);
+  });
+
+  it("preserves full multi-block source after virtual remounts and refuses incomplete block fallback", async () => {
+    const longReply = Array.from({ length: 85 }, (_, i) => `Section ${i}: ${"detail ".repeat(30)}\n\n`).join("");
+    const split = assistantRows(longReply, "complete", "msg-first-long");
+    expect(split.length).toBeGreaterThan(1);
+
+    // Generate >500 other multi-block replies and clear session cache to simulate heavy scroll + remount.
+    for (let i = 0; i < 450; i += 1) {
+      assistantRows(longReply, "complete", `msg-other-${i}`);
+    }
+    translationStore.clearAll();
+
+    mocks.rpc.mockResolvedValue({
+      state: "done",
+      translation: "完整长译文",
+      targetLanguageCode: "zh-CN",
+      provider: "claude",
+      model: "claude-sonnet-4-5",
+      thinkingMode: "none",
+      thinkingOptionId: null,
+    });
+
+    await act(async () => {
+      renderer = TestRenderer.create(
+        React.createElement(LiveAssistantRenderer, {
+          agentId: "agent-long",
+          item: {
+            id: "row-long-0",
+            type: "plugin",
+            kind: "omp-assistant",
+            version: 1,
+            data: split[0]!.data,
+          },
+          theme,
+          layout: { compact: false, platform: "web" },
+          timestamp: new Date("2026-11-19T10:00:00Z"),
+        } as never),
+      );
+    });
+
+    const leadBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply",
+    );
+    await act(async () => {
+      leadBtn.props.onPress();
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: "start",
+        text: longReply,
+      }),
+    );
+
+    // An incomplete multi-block row without sourceText or messageText must NOT silently translate block 0 alone.
+    const incomplete = resolveAssistantSource("agent-long", {
+      text: "Only block 0 slice",
+      phase: "complete",
+      blockIndex: 0,
+      sourceId: "msg-incomplete",
+    });
+    expect(incomplete.sourceAvailable).toBe(false);
+    await act(async () => {
+      renderer!.update(
+        React.createElement(LiveAssistantRenderer, {
+          agentId: "agent-long",
+          item: {
+            id: "row-incomplete",
+            type: "plugin",
+            kind: "omp-assistant",
+            version: 1,
+            data: { text: "Only block 0 slice", phase: "complete", blockIndex: 0, sourceId: "msg-incomplete" },
+          },
+          theme,
+          layout: { compact: false, platform: "web" },
+          timestamp: new Date("2026-11-19T10:00:01Z"),
+        } as never),
+      );
+    });
+    const unavailableBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Full reply text is unavailable for this block",
+    );
+    expect(unavailableBtn.props.disabled).toBe(true);
+  });
+
+  it("preserves collapsed visibility if user hides while translation is still running across done, error, and idle", async () => {
+    setTranslationPaseo({
+      agents: { ref: () => ({ timeline: { subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }) as never } }) },
+    });
+
+    let statusCall = 0;
+    let currentOutcome: Record<string, unknown> = {
+      state: "done",
+      translation: "异步完成译文",
+      targetLanguageCode: "zh-CN",
+      provider: "claude",
+      model: "claude-sonnet-4-5",
+      thinkingMode: "none",
+      thinkingOptionId: null,
+    };
+    mocks.rpc.mockImplementation(async (input: { action: string }) => {
+      if (input.action === "start") {
+        statusCall = 0;
+        return { state: "running", helperId: "helper-async", text: "部分..." };
+      }
+      statusCall += 1;
+      return currentOutcome;
+    });
+
+    const props = {
+      agentId: "agent-async",
+      item: {
+        id: "row-async-done",
+        type: "plugin" as const,
+        kind: "omp-assistant",
+        version: 1,
+        data: { text: "Async message", phase: "complete", sourceId: "msg-async-1" },
+      },
+      theme,
+      layout: { compact: false, platform: "web" as const },
+      timestamp: new Date("2026-11-19T10:00:00Z"),
+    };
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, props as never));
+    });
+
+    const translateBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply",
+    );
+    await act(async () => {
+      translateBtn.props.onPress();
+    });
+    expect(collectTexts(renderer!.root).join("\n")).toContain("部分...");
+
+    // Collapse while request is still in-flight.
+    const hideBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Hide",
+    );
+    await act(async () => {
+      hideBtn.props.onPress();
+    });
+    expect(collectTexts(renderer!.root).join("\n")).not.toContain("部分...");
+
+    // Wait for background status poll to finish -> must stay hidden until user expands.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1150));
+    });
+    expect(statusCall).toBeGreaterThanOrEqual(1);
+    expect(translationStore.read("agent-async:assistant:msg-async-1")?.state.state).toBe("done");
+    expect(translationStore.read("agent-async:assistant:msg-async-1")?.visible).toBe(false);
+    expect(collectTexts(renderer!.root).join("\n")).not.toContain("异步完成译文");
+
+    // Manual re-expand reveals cached translation without calling RPC again.
+    const rpcCountBeforeExpand = mocks.rpc.mock.calls.length;
+    const showBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Show translation",
+    );
+    await act(async () => {
+      showBtn.props.onPress();
+    });
+    expect(collectTexts(renderer!.root).join("\n")).toContain("异步完成译文");
+    expect(mocks.rpc.mock.calls.length).toBe(rpcCountBeforeExpand);
+
+    // Repeat with error / idle loss: collapsing while running stays collapsed on error settlement.
+    currentOutcome = { state: "idle" };
+    const errProps = {
+      ...props,
+      item: { ...props.item, data: { text: "Async fail message", phase: "complete", sourceId: "msg-async-err" } },
+    };
+    await act(async () => {
+      renderer!.update(React.createElement(LiveAssistantRenderer, errProps as never));
+    });
+    const startErrBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply",
+    );
+    await act(async () => {
+      startErrBtn.props.onPress();
+    });
+    const hideErrBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Hide",
+    );
+    await act(async () => {
+      hideErrBtn.props.onPress();
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1150));
+    });
+    expect(translationStore.read("agent-async:assistant:msg-async-err")?.state.state).toBe("error");
+    expect(translationStore.read("agent-async:assistant:msg-async-err")?.visible).toBe(false);
+    expect(collectTexts(renderer!.root).join("\n")).not.toContain("was lost");
+
+    const showErrBtn = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Show translation",
+    );
+    await act(async () => {
+      showErrBtn.props.onPress();
+    });
+    expect(collectTexts(renderer!.root).join("\n")).toContain("was lost");
+  });
+
+  it("keeps subsequent blocks full-width on multi-block replies and measures Yoga width/height constraints on long replies", async () => {
+    const multiBlockReply = [
+      "Short intro paragraph introducing the architecture.",
+      "",
+      "Second paragraph is much longer and spans multiple wrapped lines across narrow mobile and desktop viewports without shrinking its available width when inline translation is enabled.",
+      "",
+      "Third paragraph continues with code `pnpm test --filter timeline-translation` and detailed verification notes.",
+    ].join("\n");
+
+    const singleParagraphLongReply =
+      "This single paragraph intentionally runs across many lines on both mobile phones and desktop panels to measure real Yoga text wrapping height and width behavior when a top-right action slot reserves clearance beside the first block without rewriting the Markdown renderer.";
+
+    const makeProps = (text: string, compact: boolean) => ({
       agentId: "agent-layout",
       item: {
         id: "row-layout",
         type: "plugin" as const,
         kind: "omp-assistant",
         version: 1,
-        data: {
-          text: "First paragraph of the assistant reply explaining how layout works on narrow mobile viewports.",
-          phase: "complete",
-          sourceId: "msg-layout",
-        },
+        data: { text, phase: "complete", sourceId: `msg-${text.length}` },
       },
       theme,
-      layout: { compact: true, platform: "ios" as const },
+      layout: { compact, platform: compact ? ("ios" as const) : ("web" as const) },
       timestamp: new Date("2026-11-19T10:00:00Z"),
-    };
+    });
 
-    // Baseline height without translation enabled.
-    await act(async () => {
-      publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false });
-      renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, props as never));
-    });
-    const baselineFrames = measureHostTree(renderer!.root.findByType("View" as never), {
-      width: 390,
-      wrapText: true,
-      wordWrap: true,
-    });
-    const baselineRoot = baselineFrames.get(renderer!.root.findByType("View" as never))!;
-
-    // Enable translation (idle state): button sits at top-right without adding vertical block height or overlapping prose.
-    await act(async () => {
-      publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true });
-    });
+    // 1. Multi-block long reply across 720 / 390 / 320: blocks 1..N stay 100% baseline width & 0pt height delta.
     for (const width of [720, 390, 320]) {
+      const compact = width < 500;
       await act(async () => {
-        renderer!.update(
-          React.createElement(LiveAssistantRenderer, {
-            ...props,
-            layout: { compact: width < 500, platform: width < 500 ? "ios" : "web" },
-          } as never),
-        );
+        publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false }, `off-${width}`);
+        if (!renderer) renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, makeProps(multiBlockReply, compact) as never));
+        else renderer.update(React.createElement(LiveAssistantRenderer, makeProps(multiBlockReply, compact) as never));
       });
-      const rootView = renderer!.root.findByType("View" as never);
-      const frames = measureHostTree(rootView, { width, wrapText: true, wordWrap: true });
-      const rootFrame = frames.get(rootView)!;
-      expect(rootFrame.width).toBeLessThanOrEqual(width);
+      const baseRootView = renderer!.root.findByType("View" as never);
+      const baseFrames = measureHostTree(baseRootView, { width, wrapText: true, wordWrap: true });
+      const baseBlockFrames = renderer!.root
+        .findAll((n) => (n.type as unknown) === "Text")
+        .map((n) => baseFrames.get(n))
+        .filter((f): f is NonNullable<typeof f> => f !== undefined);
 
-      if (width === 390) {
-        expect(rootFrame.height).toBeGreaterThanOrEqual(baselineRoot.height);
-        expect(rootFrame.height).toBeLessThanOrEqual(baselineRoot.height + 24);
-      }
+      await act(async () => {
+        publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, `on-${width}`);
+      });
+      const onRootView = renderer!.root.findByType("View" as never);
+      const onFrames = measureHostTree(onRootView, { width, wrapText: true, wordWrap: true });
+      const onRoot = onFrames.get(onRootView)!;
+      expect(onRoot.width).toBeLessThanOrEqual(width);
 
+      // Block 0 action row has zero overlap between block 0 body and top-right button.
       const rowView = renderer!.root.find((n) => (n.type as unknown) === "View" && n.props.testID === "translation-row");
       const directViews = rowView.children
         .map((c) => (typeof c === "string" ? null : c.find((h) => (h.type as unknown) === "View")))
         .filter((h): h is ReactTestInstance => h !== null);
       expect(directViews).toHaveLength(2);
-      const bodyFrame = frames.get(directViews[0]!)!;
-      const actionFrame = frames.get(directViews[1]!)!;
+      const bodyFrame = onFrames.get(directViews[0]!)!;
+      const actionFrame = onFrames.get(directViews[1]!)!;
       expect(bodyFrame.left + bodyFrame.width).toBeLessThanOrEqual(actionFrame.left + 0.01);
       expect(actionFrame.left + actionFrame.width).toBeLessThanOrEqual(width + 0.01);
       expect(actionFrame.top).toBe(bodyFrame.top);
+
+      // Paragraphs 2 and 3 (blocks 1 and 2) keep exact full width and exact height vs disabled baseline.
+      const onBlockFrames = renderer!.root
+        .findAll((n) => (n.type as unknown) === "Text")
+        .map((n) => onFrames.get(n))
+        .filter((f): f is NonNullable<typeof f> => f !== undefined);
+      expect(onBlockFrames.slice(1)).toHaveLength(baseBlockFrames.slice(1).length);
+      for (let i = 1; i < baseBlockFrames.length; i += 1) {
+        expect(onBlockFrames[i]!.width).toBe(baseBlockFrames[i]!.width);
+        expect(onBlockFrames[i]!.height).toBe(baseBlockFrames[i]!.height);
+      }
+      // First block only takes the action clearance (~28pt), while remaining blocks retain 100% baseline width.
+      expect(onBlockFrames[1]!.width).toBe(width);
+    }
+
+    // 2. Long single-paragraph reply: measure non-overlap & concrete Yoga first-block width/height trade-off.
+    for (const width of [720, 390, 320]) {
+      const compact = width < 500;
+      await act(async () => {
+        publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false }, `sp-off-${width}`);
+        renderer!.update(React.createElement(LiveAssistantRenderer, makeProps(singleParagraphLongReply, compact) as never));
+      });
+      const baseRootView = renderer!.root.findByType("View" as never);
+      const baseFrames = measureHostTree(baseRootView, { width, wrapText: true, wordWrap: true });
+      const baseRoot = baseFrames.get(baseRootView)!;
+
+      await act(async () => {
+        publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, `sp-on-${width}`);
+      });
+      const onRootView = renderer!.root.findByType("View" as never);
+      const onFrames = measureHostTree(onRootView, { width, wrapText: true, wordWrap: true });
+      const onRoot = onFrames.get(onRootView)!;
+      const rowView = renderer!.root.find((n) => (n.type as unknown) === "View" && n.props.testID === "translation-row");
+      const directViews = rowView.children
+        .map((c) => (typeof c === "string" ? null : c.find((h) => (h.type as unknown) === "View")))
+        .filter((h): h is ReactTestInstance => h !== null);
+      const bodyFrame = onFrames.get(directViews[0]!)!;
+      const actionFrame = onFrames.get(directViews[1]!)!;
+      expect(bodyFrame.left + bodyFrame.width).toBeLessThanOrEqual(actionFrame.left + 0.01);
+      expect(bodyFrame.width).toBeLessThan(baseRoot.width);
+      expect(onRoot.height).toBeGreaterThanOrEqual(baseRoot.height);
     }
   });
 });

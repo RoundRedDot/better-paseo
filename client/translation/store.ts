@@ -47,25 +47,7 @@ type CallTranslate = (input: TranslateStartInput | TranslateStatusInput) => Prom
 type WatchHelper = (helperId: string, onChunk: () => void) => () => void;
 
 const POLL_MS = 1000;
-const MAX_REPLY_SOURCES = 400;
 const MAX_ENTRIES = 500;
-
-const replySources = new Map<string, string>();
-
-export function registerReplySource(sourceId: string, text: string): void {
-  if (!sourceId) return;
-  if (replySources.has(sourceId)) replySources.delete(sourceId);
-  replySources.set(sourceId, text);
-  while (replySources.size > MAX_REPLY_SOURCES) {
-    const oldest = replySources.keys().next().value;
-    if (oldest === undefined) break;
-    replySources.delete(oldest);
-  }
-}
-
-export function getReplySource(sourceId: string | undefined): string | undefined {
-  return sourceId ? replySources.get(sourceId) : undefined;
-}
 
 export function hashTranslationText(text: string): string {
   let h1 = 2166136261;
@@ -83,6 +65,7 @@ export interface AssistantSourceInput {
   phase?: string;
   blockIndex?: number;
   messageText?: string;
+  sourceText?: string;
   sourceId?: string;
   externalSegment?: boolean;
 }
@@ -90,6 +73,7 @@ export interface AssistantSourceInput {
 export interface ResolvedAssistantSource {
   sourceKey: string;
   sourceText: string;
+  sourceAvailable: boolean;
   isMultiBlock: boolean;
   isLeadBlock: boolean;
   isTailBlock: boolean;
@@ -105,19 +89,33 @@ export function resolveAssistantSource(
     return {
       sourceKey: `${agentId}:assistant:${base}:seg:${data.blockIndex ?? 0}`,
       sourceText,
+      sourceAvailable: true,
       isMultiBlock: false,
       isLeadBlock: true,
       isTailBlock: true,
     };
   }
-  const sourceText = data.messageText ?? getReplySource(data.sourceId) ?? data.text;
   const isMultiBlock = data.blockIndex !== undefined;
   const isLeadBlock = !isMultiBlock || data.blockIndex === 0;
   const isTailBlock = !isMultiBlock || data.messageText !== undefined;
-  const base = data.sourceId ?? hashTranslationText(sourceText);
+  const fullText = isMultiBlock ? (data.messageText ?? data.sourceText) : (data.messageText ?? data.text);
+  if (fullText === undefined) {
+    // Do not silently fall back to an incomplete block slice when full reply text is absent.
+    const base = data.sourceId ?? `incomplete:${data.blockIndex ?? 0}`;
+    return {
+      sourceKey: `${agentId}:assistant:${base}`,
+      sourceText: "",
+      sourceAvailable: false,
+      isMultiBlock,
+      isLeadBlock,
+      isTailBlock,
+    };
+  }
+  const base = data.sourceId ?? hashTranslationText(fullText);
   return {
     sourceKey: `${agentId}:assistant:${base}`,
-    sourceText,
+    sourceText: fullText,
+    sourceAvailable: true,
     isMultiBlock,
     isLeadBlock,
     isTailBlock,
@@ -209,9 +207,8 @@ export function createTranslationStore() {
     },
 
     clearAll(): void {
-      if (entries.size === 0 && replySources.size === 0) return;
+      if (entries.size === 0) return;
       entries.clear();
-      replySources.clear();
       notify();
     },
 
@@ -300,14 +297,14 @@ export function createTranslationStore() {
           if (!isLatestJob(seed)) return;
           const current = entries.get(seed.sourceKey);
           if (!current) return;
+          // Preserve the user's current expand/collapse choice (`current.visible`) across settlement.
           if (result.state === "idle") {
             setEntry({
               ...current,
-              visible: true,
               state: { state: "error", error: "The translation task was lost. Please retry." },
             });
           } else {
-            setEntry({ ...current, visible: true, state: result });
+            setEntry({ ...current, state: result });
           }
         } catch (error) {
           if (!isLatestJob(seed)) return;
@@ -315,7 +312,6 @@ export function createTranslationStore() {
           if (!current) return;
           setEntry({
             ...current,
-            visible: true,
             state: {
               state: "error",
               error: error instanceof Error ? error.message : String(error),

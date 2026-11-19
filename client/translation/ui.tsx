@@ -11,7 +11,7 @@ import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useEnhancerPreferences } from "../preferences";
 import { resolveLanguage, type SettingsLanguagePreference } from "../i18n/settings-strings";
 import { toolbarLabel } from "../i18n/toolbar-strings";
-import { useTimelineTranslationSettings } from "./settings-store";
+import { useTranslationSettingsState } from "./settings-store";
 import {
   resolveAssistantSource,
   resolveReasoningSource,
@@ -50,6 +50,9 @@ function getInterfaceLanguage(languagePreference: SettingsLanguagePreference | u
 
 export interface TranslationController {
   enabled: boolean;
+  settingsStatus: "loading" | "ready" | "invalid" | "error";
+  settingsError: string | null;
+  sourceAvailable: boolean;
   streaming: boolean;
   active: boolean;
   entry: TranslationEntry | undefined;
@@ -65,30 +68,52 @@ export function useItemTranslation(options: {
   sourceKind: TranslationSourceKind;
   agentId: string;
   text: string;
+  sourceAvailable?: boolean;
   streaming: boolean;
   onActivate?: () => void;
 }): TranslationController {
-  const settings = useTimelineTranslationSettings();
+  const settingsState = useTranslationSettingsState();
+  const settings = settingsState.values;
   const preferences = useEnhancerPreferences();
   const interfaceLanguage = getInterfaceLanguage(preferences?.language);
   const caller = useTranslateCaller();
   const entry = useTranslationEntry(options.sourceKey, options.text, settings, interfaceLanguage);
 
+  const sourceAvailable = options.sourceAvailable ?? true;
+  const enabled = settingsState.status === "ready" ? settings.enabled : true;
   const target = resolveTranslationTarget(settings.targetLanguage, interfaceLanguage);
   const targetLabel = interfaceLanguage === "zh" ? target.entry.zhName : target.entry.enName;
   const active = Boolean(entry && entry.visible);
 
   const latestRef = useRef({
     options,
+    settingsState,
     settings,
+    sourceAvailable,
     interfaceLanguage,
     caller,
     entry,
   });
-  latestRef.current = { options, settings, interfaceLanguage, caller, entry };
+  latestRef.current = {
+    options,
+    settingsState,
+    settings,
+    sourceAvailable,
+    interfaceLanguage,
+    caller,
+    entry,
+  };
 
   const start = useCallback(() => {
-    const { options: opt, settings: cfg, interfaceLanguage: lang, caller: rpc } = latestRef.current;
+    const {
+      options: opt,
+      settingsState: st,
+      settings: cfg,
+      sourceAvailable: available,
+      interfaceLanguage: lang,
+      caller: rpc,
+    } = latestRef.current;
+    if (st.status !== "ready" || !cfg.enabled || !available || opt.streaming || !opt.text.trim()) return;
     opt.onActivate?.();
     translationStore.startTranslation(
       {
@@ -105,27 +130,29 @@ export function useItemTranslation(options: {
   }, []);
 
   const onPressTranslate = useCallback(() => {
-    const { options: opt, settings: cfg, entry: current } = latestRef.current;
-    if (!cfg.enabled || opt.streaming || !opt.text.trim()) return;
-    if (current?.state.state === "running") {
-      if (!current.visible) {
-        opt.onActivate?.();
-        translationStore.setVisible(opt.sourceKey, true);
-      }
-      return;
-    }
-    if (current?.state.state === "done") {
+    const {
+      options: opt,
+      settingsState: st,
+      settings: cfg,
+      sourceAvailable: available,
+      entry: current,
+    } = latestRef.current;
+    if (st.status !== "ready" || !cfg.enabled || !available || opt.streaming || !opt.text.trim()) return;
+    if (current?.state.state === "running" || current?.state.state === "done") {
       const nextVisible = !current.visible;
       if (nextVisible) opt.onActivate?.();
       translationStore.setVisible(opt.sourceKey, nextVisible);
+      return;
+    }
+    if (current?.state.state === "error" && !current.visible) {
+      opt.onActivate?.();
+      translationStore.setVisible(opt.sourceKey, true);
       return;
     }
     start();
   }, [start]);
 
   const onRetry = useCallback(() => {
-    const { options: opt, settings: cfg } = latestRef.current;
-    if (!cfg.enabled || opt.streaming || !opt.text.trim()) return;
     start();
   }, [start]);
 
@@ -134,7 +161,10 @@ export function useItemTranslation(options: {
   }, []);
 
   return useMemo(() => ({
-    enabled: settings.enabled,
+    enabled,
+    settingsStatus: settingsState.status,
+    settingsError: settingsState.error,
+    sourceAvailable,
     streaming: options.streaming,
     active,
     entry,
@@ -144,7 +174,10 @@ export function useItemTranslation(options: {
     onRetry,
     onHide,
   }), [
-    settings.enabled,
+    enabled,
+    settingsState.status,
+    settingsState.error,
+    sourceAvailable,
     options.streaming,
     active,
     entry,
@@ -167,6 +200,7 @@ export function useAssistantTranslation(options: {
     sourceKind: "assistant_message",
     agentId: options.agentId,
     text: resolved.sourceText,
+    sourceAvailable: resolved.sourceAvailable,
     streaming,
   });
   return {
@@ -188,6 +222,7 @@ export function useReasoningTranslation(options: {
     sourceKind: "reasoning",
     agentId: options.agentId,
     text: resolved.sourceText,
+    sourceAvailable: true,
     streaming: options.streaming,
     onActivate: options.onActivate,
   });
@@ -207,21 +242,33 @@ export function TranslateButton({
   const existingHover = useContext(ToolbarHoverColorContext);
   const existingSide = useContext(TooltipSideContext);
   const isRunning = controller.entry?.state.state === "running";
+  const isRunningHidden = isRunning && !controller.entry?.visible;
   const isDoneVisible = controller.entry?.state.state === "done" && controller.entry.visible;
   const isDoneHidden = controller.entry?.state.state === "done" && !controller.entry.visible;
+  const isErrorHidden = controller.entry?.state.state === "error" && !controller.entry.visible;
+  const notReady = controller.settingsStatus !== "ready";
+  const disabled = controller.streaming || notReady || !controller.sourceAvailable;
 
   let label = controller.sourceKind === "reasoning" ? "Translate thought" : "Translate reply";
-  if (controller.streaming) {
+  if (controller.settingsStatus === "loading") {
+    label = "Loading translation settings...";
+  } else if (controller.settingsStatus === "invalid") {
+    label = "Translation settings are invalid";
+  } else if (controller.settingsStatus === "error") {
+    label = "Could not load translation settings";
+  } else if (!controller.sourceAvailable) {
+    label = "Full reply text is unavailable for this block";
+  } else if (controller.streaming) {
     label =
       controller.sourceKind === "reasoning"
         ? "Wait until the thought finishes streaming"
         : "Wait until the reply finishes streaming";
+  } else if (isRunningHidden || isDoneHidden || isErrorHidden) {
+    label = "Show translation";
   } else if (isRunning) {
     label = "Translating...";
   } else if (isDoneVisible) {
     label = "Hide translation";
-  } else if (isDoneHidden) {
-    label = "Show translation";
   }
 
   const iconColor = isRunning || isDoneVisible ? colors.accent : tokens.foregroundMuted;
@@ -231,7 +278,7 @@ export function TranslateButton({
     <ToolbarItem
       label={label}
       tokens={tokens}
-      disabled={controller.streaming}
+      disabled={disabled}
       checked={isDoneVisible}
       align="end"
       hitSlop={hitSlop}

@@ -2,6 +2,11 @@ import { memo, useEffect, useRef, useSyncExternalStore } from "react";
 import { settingsRpc } from "@getpaseo/plugin";
 import { useSettings, type PluginClientContext } from "@getpaseo/plugin/client";
 import { PREFERENCES_SETTINGS, preferencesSchema } from "../../shared/preferences-settings";
+import { TIMELINE_TRANSLATION_SETTINGS } from "../../shared/timeline-translation";
+import {
+  reportTranslationSettings,
+  type RemoteTranslationSettings,
+} from "../translation/settings-store";
 import {
   DEFAULT_PREFERENCES,
   applyStoredPreferences,
@@ -202,8 +207,26 @@ function notifySlots() {
   for (const listener of slotListeners) listener();
 }
 
+function useTranslationSettingsBridge(): void {
+  const state = useSettings(TIMELINE_TRANSLATION_SETTINGS);
+  const remote: RemoteTranslationSettings =
+    state.status === "ready"
+      ? { status: "ready", values: state.values, revision: state.revision }
+      : state.status === "invalid"
+        ? { status: "invalid", error: state.error, revision: state.revision }
+        : state.status === "error"
+          ? { status: "error", error: state.error }
+          : { status: "loading" };
+  const revision = "revision" in remote ? remote.revision : "";
+  const error = "error" in remote ? remote.error : "";
+  useEffect(() => {
+    reportTranslationSettings(remote);
+  }, [remote.status, revision, error]);
+}
+
 function PreferenceSyncLeader() {
   usePreferenceSettings();
+  useTranslationSettingsBridge();
   return null;
 }
 

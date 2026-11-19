@@ -11,6 +11,8 @@ import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { DEFAULT_PREFERENCES, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import {
+  getTranslationSettingsState,
+  reportTranslationSettings,
   resetTranslationSettingsStoreForTests,
 } from "../../client/translation/settings-store";
 
@@ -70,7 +72,7 @@ function makeLook(compact = false, lang: "en" | "zh" = "en") {
   return { compact, tokens, t: SETTINGS_STRINGS[lang] };
 }
 
-function makeReadySettings(values: Partial<TimelineTranslationSettings> = {}) {
+function makeReadySettings(values: Partial<TimelineTranslationSettings> = {}, options?: { saveResult?: boolean; reload?: () => Promise<void> }) {
   const parsed = timelineTranslationSettingsSchema.parse(values);
   return {
     status: "ready" as const,
@@ -79,10 +81,11 @@ function makeReadySettings(values: Partial<TimelineTranslationSettings> = {}) {
     saving: false,
     saveError: null,
     save: vi.fn(async (next: TimelineTranslationSettings, rev: string) => {
-      mocks.saveSpy(next, rev);
-      return true;
+      await mocks.saveSpy(next, rev);
+      return options?.saveResult ?? true;
     }),
     reset: vi.fn(async () => true),
+    reload: options?.reload ?? vi.fn(async () => {}),
   };
 }
 
@@ -333,5 +336,54 @@ describe("timeline translation settings", () => {
       trigger.props.onPress();
     });
     expect(renderer!.root.findAll((n) => (n.type as unknown) === "Modal")).toHaveLength(1);
+  });
+
+  it("syncs through useSettings without optimistic overwrite on conflict and surfaces invalid/error states", async () => {
+    const reload = vi.fn(async () => {});
+    mocks.settingsState = makeReadySettings({ enabled: true, targetLanguage: "interface" }, { saveResult: false, reload });
+
+    await act(async () => {
+      renderer = TestRenderer.create(
+        React.createElement(TimelineTranslationSettingsSection, { look: makeLook() }),
+      );
+    });
+
+    expect(getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "rev-1", values: { enabled: true } });
+
+    const masterSwitch = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable inline translation",
+    );
+    await act(async () => {
+      masterSwitch.props.onPress();
+    });
+    // Failed save must not leave store diverged from daemon; triggers reload instead.
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(getTranslationSettingsState().values.enabled).toBe(true);
+
+    // External host change updates revision cleanly.
+    const rev2 = timelineTranslationSettingsSchema.parse({ enabled: true, targetLanguage: "ja" });
+    await act(async () => {
+      mocks.settingsState = { ...makeReadySettings(rev2), revision: "rev-2" };
+      renderer!.update(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() }));
+    });
+    expect(getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "rev-2", values: { targetLanguage: "ja" } });
+
+    // Stale/duplicate error & invalid states surface explicitly without swallowing.
+    await act(async () => {
+      reportTranslationSettings({ status: "invalid", error: "Corrupt JSON schema", revision: "rev-3" });
+      mocks.settingsState = {
+        status: "invalid",
+        error: "Corrupt JSON schema",
+        revision: "rev-3",
+        saving: false,
+        saveError: null,
+        save: vi.fn(async () => false),
+        reset: vi.fn(async () => true),
+        reload: vi.fn(async () => {}),
+      };
+      renderer!.update(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() }));
+    });
+    expect(getTranslationSettingsState()).toMatchObject({ status: "invalid", error: "Corrupt JSON schema" });
+    expect(textValues(renderer!.root).join("\n")).toContain("Corrupt JSON schema");
   });
 });

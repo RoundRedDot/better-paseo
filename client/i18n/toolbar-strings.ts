@@ -158,6 +158,10 @@ const ZH: Readonly<Record<string, string>> = {
   "Hide": "隐藏",
   "Wait until the reply finishes streaming": "等待回复生成完成后翻译",
   "Wait until the thought finishes streaming": "等待思考完成后翻译",
+  "Loading translation settings...": "正在加载翻译设置…",
+  "Translation settings are invalid": "翻译设置无效",
+  "Could not load translation settings": "无法加载翻译设置",
+  "Full reply text is unavailable for this block": "当前区块缺少完整回复内容，无法翻译",
 };
 
 /** A button's English label as the reader's chosen language shows it; an unknown label stays English. */
