@@ -702,10 +702,14 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(collectTexts(header).join(" ")).not.toContain("Translation ·");
     expect(collectTexts(header).join(" ")).not.toContain("Claude ·");
     expect(panelText()).not.toContain("Thinking was NOT disabled");
-    // Prose in the popup is not itself translatable.
-    const popupScope = renderer!.root.find((node) => node.props.testID === "selection-translation-panel")
-      .findAll((node) => node.props.testID === "markdown-block-selection");
-    for (const block of popupScope) expect(block.findAll((node) => node.props.accessibilityLabel === "Translate selected block")).toHaveLength(0);
+    // Touching translated prose must not cancel the source block and unmount the modal.
+    const body = renderer!.root.findByProps({ testID: "selection-translation-body" });
+    expect(body.props.nestedScrollEnabled).toBe(true);
+    expect(body.findAll((node) => node.props.testID === "markdown-block-selection")).toHaveLength(0);
+    const translatedMarkdown = body.findByType(MarkdownView);
+    const markdownRoot = translatedMarkdown.find((node) => String(node.type) === "View");
+    expect(markdownRoot.props.onTouchStart).toBeUndefined();
+    expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-block-highlight")).toHaveLength(1);
 
     // Closing the popup ends the selection with it.
     const modal = renderer!.root.find((node) => String(node.type) === "Modal");

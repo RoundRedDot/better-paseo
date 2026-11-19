@@ -46,6 +46,8 @@ export interface MarkdownViewProps {
   compact?: boolean;
   /** One step quieter: muted text a size down (a thought, not the answer). */
   quiet?: boolean;
+  /** Whether native double-tap block selection is enabled. */
+  blockSelection?: boolean;
   /**
    * Metrics base instead of the reply's content size. Tool and thought prose
    * pass `blockProseBase`, which equals the content size at the default block
@@ -93,6 +95,7 @@ export function MarkdownView({
   collapseCode = false,
   compact = false,
   quiet = false,
+  blockSelection = true,
   size,
   onRevealPath,
   probeId,
@@ -153,10 +156,11 @@ export function MarkdownView({
       variant,
       collapseCode,
       plainProse,
+      blockSelection,
       onRevealPath,
       renderText,
     }),
-    [styles, tokens, metrics, variant, collapseCode, plainProse, onRevealPath, renderText],
+    [styles, tokens, metrics, variant, collapseCode, plainProse, blockSelection, onRevealPath, renderText],
   );
 
   // A streamed chunk changes the tail and leaves every block before it as it
@@ -205,7 +209,7 @@ export function MarkdownView({
     // reply is a code surface the host's UI font rule must skip.
     <View
       ref={web && scope ? bindScope : undefined}
-      onTouchStart={dismissBlockSelection}
+      onTouchStart={blockSelection ? dismissBlockSelection : undefined}
       {...(scopeData ? surfaceProps(surface, { dataSet: scopeData } as never) : surface)}
       style={[styles.root, !firstBlock && { paddingTop: listContinuation ? metrics.itemGap : metrics.blockGap }]}
     >

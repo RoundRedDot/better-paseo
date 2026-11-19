@@ -42,7 +42,7 @@ function MdBlockBody({ raw, open, first, context, id }: MdBlockProps) {
   const drawn = useRef<{ context: RenderContext; nodes: NodeReuse["next"] } | null>(null);
   const reuse = nextReuse(drawn, context, open && !hasReferences(tokens, raw));
   const nodes = renderBlocks(tokens, context, id, { first, open, reuse });
-  return blockSelectionPlatform() && selectableBlock(tokens)
+  return context.blockSelection !== false && blockSelectionPlatform() && selectableBlock(tokens)
     ? <BlockSelection source={raw} blocks={tokens} tokens={context.tokens}>{nodes}</BlockSelection>
     : <>{nodes}</>;
 }

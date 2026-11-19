@@ -20,6 +20,7 @@ export interface RenderContext {
    * list notifies all of them (see `prose.tsx`). Settled prose goes native.
    */
   plainProse?: boolean;
+  blockSelection?: boolean;
   /** Press on a path in the prose; absent: `PathText` falls back to its context. */
   onRevealPath?: (path: string) => void;
 }

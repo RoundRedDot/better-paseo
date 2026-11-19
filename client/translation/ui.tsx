@@ -112,7 +112,7 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
         <ScrollView testID="selection-translation-body" nestedScrollEnabled
           style={{ maxHeight: Math.max(120, Math.round(window.height * 0.45)) }}>
           <SelectionTranslationContext.Provider value={null}>
-            <MarkdownView text={text} tokens={tokens} variant="compact" compact streaming={view.status === "running"} />
+            <MarkdownView text={text} tokens={tokens} variant="compact" compact blockSelection={false} streaming={view.status === "running"} />
           </SelectionTranslationContext.Provider>
         </ScrollView>
       ) : null}
