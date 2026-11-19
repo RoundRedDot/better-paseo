@@ -318,6 +318,32 @@ describe("automatic title settings", () => {
     expect(settings.save).toHaveBeenCalledWith(expect.objectContaining({ provider: "antigravity", model: "haiku" }), "r1");
   });
 
+  it.each([
+    { old: "high", expected: "high" },
+    { old: "", expected: "low" },
+    { old: "ultra", expected: "low" },
+  ])("chooses the first model and a supported thinking level when changing provider: $old", async ({ old, expected }) => {
+    state.catalog.mockResolvedValue({ providers: ["claude", "codex"], providerLabels: { claude: "Claude", codex: "Codex" }, models: [
+      { id: "first", label: "First", thinkingOptions: [{ id: "high", label: "High" }, { id: "low", label: "Low" }], defaultThinkingOptionId: "high" },
+      { id: "second", label: "Second", thinkingOptions: [], defaultThinkingOptionId: null },
+    ], error: null });
+    const settings = await mount({ values: titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "claude", model: "first", thinkingOptionId: old }) });
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider").props.onPress());
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === "Codex").props.onPress());
+    await flushSave();
+    expect(settings.save).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "codex", model: "first", thinkingOptionId: expected }), "r1");
+  });
+
+  it("keeps its current provider if the new catalog fails", async () => {
+    const settings = await mount();
+    state.catalog.mockResolvedValueOnce({ providers: ["claude", "codex"], models: [], error: "Catalog unavailable" });
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider").props.onPress());
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === "Codex").props.onPress());
+    await flushSave();
+    expect(settings.save).not.toHaveBeenCalled();
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert").children.join("")).toContain("Catalog unavailable");
+  });
+
   it("opens model and thinking level as anchored menus, not host modals", async () => {
     state.catalog.mockResolvedValue({ providers: ["claude"], models: [
       { id: "haiku", label: "Haiku", thinkingOptions: [{ id: "off", label: "Off" }, { id: "low", label: "Low" }], defaultThinkingOptionId: "low" },

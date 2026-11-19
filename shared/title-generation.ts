@@ -1,3 +1,4 @@
+import { modelCatalogSchema } from "./model-catalog";
 export const TITLE_HELPER_LABEL = "better-paseo.purpose";
 export const TITLE_HELPER_PURPOSE = "title-generation";
 
@@ -50,15 +51,5 @@ export const titleLanguageRpc = defineRpc({
 export const titleModelsRpc = defineRpc({
   name: "tasks.title-models",
   input: z.object({ provider: z.string() }),
-  output: z.object({
-    providers: z.array(z.string()),
-    /** Display names from the host's provider snapshot, keyed by provider id. */
-    providerLabels: z.record(z.string(), z.string()).default({}),
-    models: z.array(z.object({
-      id: z.string(), label: z.string(),
-      thinkingOptions: z.array(z.object({ id: z.string(), label: z.string() })),
-      defaultThinkingOptionId: z.string().nullable(),
-    })),
-    error: z.string().nullable(),
-  }),
+  output: modelCatalogSchema,
 });

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
-import { Icon, Modal } from "@getpaseo/plugin/client/ui";
+import { Modal } from "@getpaseo/plugin/client/ui";
 import {
   DEFAULT_TRANSLATION_PROMPT,
   resolveThinkingCapability,
@@ -10,11 +10,11 @@ import {
   type TimelineTranslationSettings,
   type ThinkingOptionInfo,
 } from "../../shared/timeline-translation";
-import { ProviderLogo, providerBrand } from "../components/provider-logo";
-import { radiusV2, space } from "../components/theme-tokens";
+import { ModelSettingsControls } from "../model-settings-controls";
+import { modelSelection } from "../../shared/model-catalog";
+import { radiusV2 } from "../components/theme-tokens";
 import { resolveLanguage } from "../i18n/settings-strings";
 import { useEnhancerPreferences } from "../preferences";
-import { ChoiceMenuSelect, type MenuChoice } from "../settings-choice-menu";
 import {
   PlainButton,
   Section,
@@ -283,6 +283,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
     loading: false,
     error: null,
   }));
+  const [switchingProvider, setSwitchingProvider] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
   const [promptDraft, setPromptDraft] = useState(settings.prompt);
   const [confirmReset, setConfirmReset] = useState(false);
@@ -311,12 +312,14 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         loading: false,
         error: res.error,
       });
+      return res.error ? null : res.models;
     } catch (error) {
       setCatalog((prev) => ({
         ...prev,
         loading: false,
         error: error instanceof Error ? error.message : String(error),
       }));
+      return null;
     }
   }, [fetchModels]);
 
@@ -337,31 +340,23 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
     }
   }, [state]);
 
+  const selectProvider = async (provider: string) => {
+    if (provider === settings.provider || switchingProvider) return;
+    setSwitchingProvider(true);
+    try {
+      const models = await loadModels(provider);
+      if (models === null) return;
+      const firstModel = models[0];
+      await savePatch({ provider, ...modelSelection(firstModel, settings.thinkingOptionId) });
+    } finally {
+      setSwitchingProvider(false);
+    }
+  };
+
   const activeProvider = settings.provider || catalog.providers[0] || "";
   const models = catalog.modelsByProvider[activeProvider] ?? [];
   const selectedModel = models.find((m) => m.id === settings.model);
   const thinkingStatus = describeThinkingStatus(settings, selectedModel, catalog.loading, lang);
-
-  const providerChoices: MenuChoice[] = [...new Set([...catalog.providers, ...(settings.provider ? [settings.provider] : [])])]
-    .sort((a, b) => Number(a === "cursor") - Number(b === "cursor"))
-    .map((id) => ({
-      value: id,
-      name: `${catalog.providerLabels[id] || providerBrand(id).displayName}${id === "cursor" ? ` · ${lang === "zh" ? "不推荐" : "Not recommended"}` : ""}`,
-      logo: <ProviderLogo provider={id} size={20} color={providerBrand(id).monochrome ? look.tokens.foreground : undefined} />,
-    }));
-
-  const modelChoices: MenuChoice[] = models.map((model) => ({ value: model.id, name: model.label || model.id, logo: null }));
-  const selectedModelChoice = modelChoices.find((choice) => choice.value === settings.model)
-    ?? { value: settings.model, name: settings.model || t.modelPlaceholder, logo: null };
-
-  const thinkingChoices: MenuChoice[] = [
-    { value: "", name: t.thinkingDefaultOption, logo: null },
-    ...(selectedModel?.thinkingOptions ?? []).map((opt) => ({
-      value: opt.id,
-      name: opt.label,
-      logo: null,
-    })),
-  ];
 
   const writeDisabled = state.status !== "ready" || state.saving;
   const controlsDisabled = writeDisabled || !settings.enabled;
@@ -430,58 +425,6 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         disabled={controlsDisabled}
       />
 
-      {settings.customModel ? (
-        <>
-          <SettingRow
-            title={t.providerTitle}
-            control={
-              <ChoiceMenuSelect
-                value={settings.provider}
-                selected={providerChoices.find((choice) => choice.value === settings.provider) ?? { value: "", name: t.providerPlaceholder, logo: null }}
-                choices={providerChoices}
-                onChange={(provider) => {
-                  void savePatch({ provider, model: "", thinkingOptionId: "" });
-                  if (provider) void loadModels(provider);
-                }}
-                look={look}
-                label={t.providerTitle}
-                disabled={controlsDisabled}
-              />
-            }
-            look={look}
-            disabled={controlsDisabled}
-          />
-
-          <SettingRow
-            title={t.modelTitle}
-            control={
-              <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, maxWidth: "100%" }}>
-                <Pressable accessibilityRole="button" accessibilityLabel={t.refreshTitle} accessibilityState={{ disabled: controlsDisabled || catalog.loading }} disabled={controlsDisabled || catalog.loading} onPress={() => void loadModels(settings.provider)} style={{ width: 40, height: 44, alignItems: "center", justifyContent: "center", opacity: controlsDisabled || catalog.loading ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable>
-                <ChoiceMenuSelect
-                  value={settings.model}
-                  selected={selectedModelChoice}
-                  choices={modelChoices}
-                  onChange={(model) => void savePatch({ model, thinkingOptionId: "" })}
-                  look={look}
-                  label={t.modelTitle}
-                  disabled={controlsDisabled}
-                />
-              </View>
-            }
-            look={look}
-            disabled={controlsDisabled}
-          />
-
-          {catalog.error ? (
-            <View style={styles.noticeRow}>
-              <Text style={[styles.noticeText, settingsTextStyle(tokens, -1), { color: tokens.danger, fontFamily: tokens.fontUi }]}>
-                {catalog.error}
-              </Text>
-            </View>
-          ) : null}
-        </>
-      ) : null}
-
       <SettingRow
         title={t.disableThinkingTitle}
         description={t.disableThinkingDescription}
@@ -512,24 +455,15 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         </Text>
       </View>
 
-      {settings.customModel && !settings.disableThinking && (selectedModel?.thinkingOptions.length ?? 0) > 0 ? (
-        <SettingRow
-          title={t.thinkingOptionTitle}
-          control={
-            <ChoiceMenuSelect
-              value={settings.thinkingOptionId}
-              selected={thinkingChoices.find((c) => c.value === settings.thinkingOptionId) ?? null}
-              choices={thinkingChoices}
-              onChange={(thinkingOptionId) => void savePatch({ thinkingOptionId })}
-              look={look}
-              label={t.thinkingOptionTitle}
-              disabled={controlsDisabled}
-            />
-          }
-          look={look}
-          disabled={controlsDisabled}
-        />
-      ) : null}
+      {settings.customModel ? <>
+        <ModelSettingsControls look={look} language={lang} provider={settings.provider} model={settings.model} thinkingOptionId={settings.thinkingOptionId}
+          disableThinking={settings.disableThinking} disabledThinkingLabel={t.disableThinkingTitle} disabled={controlsDisabled || switchingProvider} loading={catalog.loading}
+          providers={catalog.providers} providerLabels={catalog.providerLabels} models={models}
+          onProvider={(provider) => void selectProvider(provider)}
+          onModel={(model) => void savePatch(modelSelection(models.find((entry) => entry.id === model), settings.thinkingOptionId))}
+          onThinking={(thinkingOptionId) => void savePatch({ thinkingOptionId })} onRefresh={() => void loadModels(settings.provider)} />
+        {catalog.error ? <View style={styles.noticeRow}><Text style={[styles.noticeText, settingsTextStyle(tokens, -1), { color: tokens.danger, fontFamily: tokens.fontUi }]}>{catalog.error}</Text></View> : null}
+      </> : null}
 
       <SettingRow
         title={t.promptTitle}

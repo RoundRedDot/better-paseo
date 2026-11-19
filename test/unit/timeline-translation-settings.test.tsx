@@ -253,7 +253,12 @@ describe("timeline translation settings", () => {
   });
 
   it("shows provider logos in the shared menu and refreshes beside the model", async () => {
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5", thinkingOptionId: "high" });
+    const originalModels = await mocks.modelsRpc({ provider: "claude" });
+    mocks.modelsRpc.mockClear();
+    mocks.modelsRpc.mockImplementation(async ({ provider }: { provider: string }) => provider === "codex"
+      ? { ...originalModels, models: [{ id: "gpt-first", label: "GPT First", thinkingOptions: [{ id: "high", label: "High" }, { id: "low", label: "Low" }], defaultThinkingOptionId: "high" }, { id: "gpt-second", label: "GPT Second", thinkingOptions: [], defaultThinkingOptionId: null }] }
+      : originalModels);
     await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
     const provider = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
     expect(provider.findAllByType(ProviderLogo).length).toBe(1);
@@ -261,11 +266,68 @@ describe("timeline translation settings", () => {
     const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex");
     expect(option.findAllByType(ProviderLogo).length).toBe(1);
     await act(async () => { option.props.onPress(); });
-    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "codex", model: "" }), "rev-1");
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "codex", model: "gpt-first", thinkingOptionId: "high" }), "rev-1");
     const refresh = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models");
     expect(refresh.findAll((n) => n.props.name === "RefreshCw").length).toBeGreaterThan(0);
     await act(async () => { refresh.props.onPress(); });
     expect(mocks.modelsRpc).toHaveBeenCalledWith({ provider: "claude" });
+  });
+
+  it.each([
+    { current: "", expected: "low" },
+    { current: "ultra", expected: "low" },
+    { current: "high", expected: "high" },
+  ])("picks a supported thinking level on provider change: $current → $expected", async ({ current, expected }) => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5", thinkingOptionId: current });
+    mocks.modelsRpc.mockResolvedValue({
+      providers: ["claude", "codex"], providerLabels: { claude: "Claude", codex: "Codex" },
+      models: [{ id: "first", label: "First", thinkingOptions: [{ id: "high", label: "High" }, { id: "low", label: "Low" }], defaultThinkingOptionId: "high" }], error: null,
+    });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    const provider = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
+    await act(async () => { provider.props.onPress(); });
+    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex");
+    await act(async () => { option.props.onPress(); });
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "codex", model: "first", thinkingOptionId: expected }), "rev-1");
+  });
+
+  it.each([
+    { current: "high", expected: "high" },
+    { current: "", expected: "minimal" },
+    { current: "ultra", expected: "minimal" },
+  ])("keeps or picks a supported level when the model changes: $current → $expected", async ({ current, expected }) => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-opus-4-1", thinkingOptionId: current });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
+    await act(async () => { trigger.props.onPress(); });
+    const model = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Claude Sonnet 4.5");
+    await act(async () => { model.props.onPress(); });
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ model: "claude-sonnet-4-5", thinkingOptionId: expected }), "rev-1");
+  });
+
+  it("saves the new provider with no model when its catalog is empty", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5", thinkingOptionId: "high" });
+    mocks.modelsRpc.mockResolvedValue({ providers: ["claude", "codex"], providerLabels: { codex: "Codex" }, models: [], error: null });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
+    await act(async () => { trigger.props.onPress(); });
+    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex");
+    await act(async () => { option.props.onPress(); });
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "codex", model: "", thinkingOptionId: "" }), "rev-1");
+  });
+
+  it("keeps the current provider when its new model catalog fails to load", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
+    mocks.modelsRpc.mockImplementation(async ({ provider }: { provider: string }) => provider === "codex"
+      ? { providers: ["claude", "codex"], providerLabels: { codex: "Codex" }, models: [], error: "Catalog unavailable" }
+      : { providers: ["claude", "codex"], providerLabels: { codex: "Codex" }, models: [], error: null });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
+    await act(async () => { trigger.props.onPress(); });
+    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex");
+    await act(async () => { option.props.onPress(); });
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+    expect(textValues(renderer!.root)).toContain("Catalog unavailable");
   });
 
   it("loads custom provider/model catalog, warns honestly when off is missing, and edits/resets prompt", async () => {

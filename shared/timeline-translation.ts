@@ -1,3 +1,4 @@
+import { modelCatalogSchema } from "./model-catalog";
 import { defineRpc, defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";
 import {
@@ -167,15 +168,5 @@ export type TranslateTimelineItemInput = z.output<typeof translateTimelineItemRp
 export const translationModelsRpc = defineRpc({
   name: "translation.models",
   input: z.object({ provider: z.string() }),
-  output: z.object({
-    providers: z.array(z.string()),
-    providerLabels: z.record(z.string(), z.string()).default({}),
-    models: z.array(z.object({
-      id: z.string(),
-      label: z.string(),
-      thinkingOptions: z.array(z.object({ id: z.string(), label: z.string() })),
-      defaultThinkingOptionId: z.string().nullable(),
-    })),
-    error: z.string().nullable(),
-  }),
+  output: modelCatalogSchema,
 });
