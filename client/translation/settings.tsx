@@ -158,8 +158,8 @@ export function describeThinkingStatus(
 const STRINGS = {
   en: {
     sectionTitle: "Timeline Translation",
-    enableTitle: "Enable inline translation",
-    enableDescription: "Show a manual translate button on assistant replies and reasoning cards. Original text stays visible.",
+    enableTitle: "Enable selection translation",
+    enableDescription: "Adds Translate to the menu for text you select in a reply or thought: the floating selection bar on desktop and web, the double-tap block menu on iOS and Android. The original text stays as it is.",
     targetTitle: "Target language",
     targetDescription: "Follows the interface language by default. Search by language name or code.",
     targetPlaceholder: "Search language or code...",
@@ -176,7 +176,7 @@ const STRINGS = {
     thinkingOptionTitle: "Thinking level",
     thinkingDefaultOption: "Model default",
     promptTitle: "Translation prompt",
-    promptDescription: "Sent only with the selected message or reasoning block.",
+    promptDescription: "Sent only with the text you selected.",
     editPrompt: "Edit prompt",
     resetPrompt: "Reset prompt",
     promptModalTitle: "Translation prompt",
@@ -190,22 +190,22 @@ const STRINGS = {
     tips: [
       {
         label: "Manual only",
-        text: "Replies and thoughts are never translated automatically across the timeline.",
+        text: "Nothing is translated until you select text and press Translate.",
       },
       {
         label: "Privacy",
-        text: "Only the clicked reply or thought, target language, and translation prompt are sent.",
+        text: "Only the selected text, the target language, and the translation prompt are sent.",
       },
       {
         label: "Session cache",
-        text: "Translations stay in memory for this client session and refresh when source text or settings change.",
+        text: "Translations stay in memory for this client session; selecting the same text again reuses one until the settings or the conversation model change.",
       },
     ],
   },
   zh: {
     sectionTitle: "时间线翻译",
-    enableTitle: "启用行内翻译",
-    enableDescription: "在助手回复与思考过程右上角显示手动翻译按钮，并保留原文。",
+    enableTitle: "启用选中文本翻译",
+    enableDescription: "在回复或思考过程中选中文本后，菜单里提供「翻译」：桌面端和网页端在浮动选择栏里，iOS 和 Android 在双击选中段落后的菜单里。原文保持不变。",
     targetTitle: "目标语言",
     targetDescription: "默认跟随当前界面语言，可在下拉菜单中按语言名或代码搜索。",
     targetPlaceholder: "搜索语言名称或代码...",
@@ -222,7 +222,7 @@ const STRINGS = {
     thinkingOptionTitle: "思考挡位",
     thinkingDefaultOption: "模型默认",
     promptTitle: "翻译 Prompt",
-    promptDescription: "仅与当前选中的单条回复或思考内容一起发送。",
+    promptDescription: "仅与你选中的文本一起发送。",
     editPrompt: "编辑 Prompt",
     resetPrompt: "重置 Prompt",
     promptModalTitle: "编辑翻译 Prompt",
@@ -236,15 +236,15 @@ const STRINGS = {
     tips: [
       {
         label: "仅手动触发",
-        text: "不会自动整条时间线翻译。",
+        text: "只有选中文本并点击「翻译」时才会翻译，不会自动翻译时间线。",
       },
       {
         label: "隐私保护",
-        text: "仅将用户点击的那条回复或思考文本与翻译提示词发送给选定模型。",
+        text: "仅将选中的文本、目标语言与翻译提示词发送给翻译模型。",
       },
       {
         label: "会话缓存",
-        text: "译文仅缓存在当前客户端会话内存中，原文或配置变更时自动失效。",
+        text: "译文仅缓存在当前客户端会话内存中；再次选中相同文本时直接复用，翻译设置或对话模型变更后失效。",
       },
     ],
   },

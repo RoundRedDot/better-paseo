@@ -49,80 +49,6 @@ export function hashTranslationText(text: string): string {
   return `${text.length}:${(h1 >>> 0).toString(36)}:${(h2 >>> 0).toString(36)}`;
 }
 
-export interface AssistantSourceInput {
-  text: string;
-  phase?: string;
-  blockIndex?: number;
-  messageText?: string;
-  sourceText?: string;
-  sourceId?: string;
-  externalSegment?: boolean;
-}
-
-export interface ResolvedAssistantSource {
-  sourceKey: string;
-  sourceText: string;
-  sourceAvailable: boolean;
-  isMultiBlock: boolean;
-  isLeadBlock: boolean;
-  isTailBlock: boolean;
-}
-
-export function resolveAssistantSource(
-  agentId: string,
-  data: AssistantSourceInput,
-): ResolvedAssistantSource {
-  if (data.externalSegment) {
-    const sourceText = data.text;
-    const base = data.sourceId ?? hashTranslationText(sourceText);
-    return {
-      sourceKey: `${agentId}:assistant:${base}:seg:${data.blockIndex ?? 0}`,
-      sourceText,
-      sourceAvailable: true,
-      isMultiBlock: false,
-      isLeadBlock: true,
-      isTailBlock: true,
-    };
-  }
-  const isMultiBlock = data.blockIndex !== undefined;
-  const isLeadBlock = !isMultiBlock || data.blockIndex === 0;
-  const isTailBlock = !isMultiBlock || data.messageText !== undefined;
-  const fullText = isMultiBlock ? (data.messageText ?? data.sourceText) : (data.messageText ?? data.text);
-  if (fullText === undefined) {
-    // Do not silently fall back to an incomplete block slice when full reply text is absent.
-    const base = data.sourceId ?? `incomplete:${data.blockIndex ?? 0}`;
-    return {
-      sourceKey: `${agentId}:assistant:${base}`,
-      sourceText: "",
-      sourceAvailable: false,
-      isMultiBlock,
-      isLeadBlock,
-      isTailBlock,
-    };
-  }
-  const base = data.sourceId ?? hashTranslationText(fullText);
-  return {
-    sourceKey: `${agentId}:assistant:${base}`,
-    sourceText: fullText,
-    sourceAvailable: true,
-    isMultiBlock,
-    isLeadBlock,
-    isTailBlock,
-  };
-}
-
-export function resolveReasoningSource(
-  agentId: string,
-  storeKey: string | undefined,
-  text: string,
-): { sourceKey: string; sourceText: string } {
-  const id = storeKey ? storeKey : hashTranslationText(text);
-  return {
-    sourceKey: `${agentId}:reasoning:${id}`,
-    sourceText: text,
-  };
-}
-
 export function isEntryCurrent(
   entry: TranslationEntry | undefined,
   sourceText: string,
@@ -322,7 +248,7 @@ export function createTranslationStore() {
 
 export const translationStore = createTranslationStore();
 
-type AgentConfigState =
+export type AgentConfigState =
   | { status: "loading" | "error" }
   | { status: "ready"; config: ConversationAgentModelConfig };
 
@@ -455,10 +381,18 @@ export function createTranslationAgentConfigStore(paseo: Pick<PaseoApi, "agents"
 
 const agentConfigStores = new WeakMap<PaseoApi, ReturnType<typeof createTranslationAgentConfigStore>>();
 
+export type TranslationAgentConfigStore = ReturnType<typeof createTranslationAgentConfigStore>;
+
+/** One configuration feed per host: every reader on the same `PaseoApi` shares it. */
+export function translationAgentConfigStoreFor(paseo: PaseoApi): TranslationAgentConfigStore {
+  let store = agentConfigStores.get(paseo);
+  if (!store) agentConfigStores.set(paseo, store = createTranslationAgentConfigStore(paseo));
+  return store;
+}
+
 export function useTranslationAgentConfig(agentId: string, enabled: boolean): AgentConfigState {
   const paseo = usePaseo();
-  let store = enabled ? agentConfigStores.get(paseo) : undefined;
-  if (enabled && !store) agentConfigStores.set(paseo, store = createTranslationAgentConfigStore(paseo));
+  const store = enabled ? translationAgentConfigStoreFor(paseo) : undefined;
   const subscribe = useCallback(
     (listener: () => void) => store ? store.subscribe(agentId, listener) : () => {},
     [store, agentId],

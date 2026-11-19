@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   FOLLOW_INTERFACE_LANGUAGE_CODE,
@@ -21,20 +20,19 @@ describe("timeline translation language catalog", () => {
     expect(codes).not.toContain("auto-detect");
   });
 
-  it("matches the prototype language catalog exactly", () => {
-    const raw = fs.readFileSync("/tmp/better-paseo-timeline-translation-orchestration/catalog-extract.json", "utf8");
-    const prototypeEntries = JSON.parse(raw) as Array<{
-      code: string;
-      label: string;
-      search: string;
-    }>;
-
-    expect(TRANSLATION_LANGUAGES.map((e) => e.code)).toEqual(prototypeEntries.map((e) => e.code));
-    for (let i = 0; i < prototypeEntries.length; i += 1) {
-      const expected = prototypeEntries[i]!;
-      const actual = TRANSLATION_LANGUAGES[i]!;
-      expect(actual.code).toBe(expected.code);
-      expect(expected.label).toContain(actual.zhName);
+  it("gives every entry complete, distinct names", () => {
+    for (const entry of TRANSLATION_LANGUAGES) {
+      expect(entry.zhName.trim()).not.toBe("");
+      expect(entry.enName.trim()).not.toBe("");
+      expect(entry.nativeName.trim()).not.toBe("");
+    }
+    expect(new Set(TRANSLATION_LANGUAGES.map((entry) => entry.zhName)).size).toBe(119);
+    expect(new Set(TRANSLATION_LANGUAGES.map((entry) => entry.enName)).size).toBe(119);
+    // Every real target resolves to itself, with a prompt name for the model.
+    for (const entry of TRANSLATION_LANGUAGES.slice(1)) {
+      const target = resolveTranslationTarget(entry.code, "en");
+      expect(target.code).toBe(entry.code);
+      expect(target.promptTarget.trim()).not.toBe("");
     }
   });
 

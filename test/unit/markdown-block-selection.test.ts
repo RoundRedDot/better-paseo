@@ -149,9 +149,26 @@ describe("iOS single Markdown block selection", () => {
     const root = renderer!.root.findAll((node) => String(node.type) === "View" && node.props.dataSet?.bcselection)[0]!;
     act(() => root.props.onTouchStart()); expect(menus()).toHaveLength(0);
   });
-  it.each(["web", "android"])("leaves %s selection unchanged", (platform) => {
-    os.__rnMockOS = platform; render("First.\n\nSecond.");
+  it("leaves web selection unchanged", () => {
+    os.__rnMockOS = "web"; render("First.\n\nSecond.");
     expect(frames()).toHaveLength(0); expect(menus()).toHaveLength(0);
+  });
+  it("selects one block on Android without taking native text selection or the responder", async () => {
+    os.__rnMockOS = "android"; render("First.\n\nSecond **bold**.");
+    const prose = (index: number) => frames()[index]!.findAll((node) => String(node.type) === "Text")[0]!;
+    // Observers only: no responder props, so a long press still starts native range selection.
+    for (const frame of frames()) {
+      expect(Object.keys(frame.props).filter((key) => /Responder/.test(key))).toEqual([]);
+    }
+    expect([prose(0).props.selectable, prose(1).props.selectable]).toEqual([true, true]);
+    tap(1, 100); tap(1, 230);
+    expect(highlights()).toHaveLength(1);
+    // The selected block drops a natively selected word; its neighbour keeps native selection.
+    expect([prose(0).props.selectable, prose(1).props.selectable]).toEqual([true, false]);
+    await act(async () => menus()[0]!.props.onPress());
+    expect(copy).toHaveBeenCalledExactlyOnceWith("Second bold.", { feedback: "toast" });
+    expect(highlights()).toHaveLength(0);
+    expect(prose(1).props.selectable).toBe(true);
   });
 });
 

@@ -1,594 +1,126 @@
-import React, { useCallback, useContext, useMemo, useRef } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, type ReactNode } from "react";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
-import type { TranslationThinkingMode } from "../../shared/timeline-translation";
-import { findTranslationLanguage, resolveTranslationTarget } from "../../shared/translation-languages";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
-import { radiusV2 } from "../components/theme-tokens";
-import { MarkdownView, type MarkdownVariant } from "../components/markdown/markdown-view";
-import { ToolbarCopyButton, ToolbarHoverColorContext, ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
-import { useInputCapabilities } from "../ui/use-input-capabilities";
+import { MarkdownView } from "../components/markdown/markdown-view";
+import { ToolbarCopyButton } from "../ui/toolbar-button";
 import { useEnhancerPreferences } from "../preferences";
-import { resolveLanguage, type SettingsLanguagePreference } from "../i18n/settings-strings";
+import { resolveLanguage } from "../i18n/settings-strings";
 import { toolbarLabel } from "../i18n/toolbar-strings";
-import { useTranslationSettingsState } from "./settings-store";
+import type { TranslationSourceKind } from "./store";
 import {
-  resolveAssistantSource,
-  resolveReasoningSource,
-  translationStore,
-  useTranslateCaller,
-  useTranslationAgentConfig,
-  useTranslationEntry,
-  type AssistantSourceInput,
-  type TranslationEntry,
-  type TranslationSourceKind,
-} from "./store";
+  SelectionTranslationContext,
+  selectionViewMessage,
+  selectionViewRetryable,
+  selectionViewText,
+  useLentTranslator,
+  type SelectionTranslationView,
+} from "./selection";
+import { selectionViewNotice, selectionViewTitle } from "./view-text";
+
+export { describeResultThinkingNotice, selectionViewNotice, selectionViewTitle } from "./view-text";
 
 export const TRANSLATE_ICON: PluginIcon = {
   svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>',
 };
 
-function safeColors(tokens: ExtendedThemeTokens) {
-  const anyTokens = tokens as ExtendedThemeTokens & {
-    v2?: Partial<ExtendedThemeTokens["v2"]>;
-    surface2?: string;
-    border?: string;
-    accent?: string;
-    danger?: string;
-  };
-  return {
-    hover: anyTokens.v2?.surface2 ?? anyTokens.surface2 ?? "transparent",
-    surface: anyTokens.v2?.surface2 ?? anyTokens.surface2 ?? "transparent",
-    border: anyTokens.v2?.border ?? anyTokens.border ?? "rgba(128,128,128,0.25)",
-    accent: anyTokens.accent ?? anyTokens.foreground,
-    danger: anyTokens.danger ?? anyTokens.foreground,
-  };
-}
-
-function getInterfaceLanguage(languagePreference: SettingsLanguagePreference | undefined): "en" | "zh" {
-  return resolveLanguage(languagePreference ?? "system");
-}
-
-export function describeResultThinkingNotice(
-  thinkingMode: TranslationThinkingMode,
-  model: string,
-  thinkingOptionId: string | null,
-  disableThinkingRequested: boolean,
-  lang: "en" | "zh",
-): { tone: "warning" | "neutral"; text: string } | null {
-  if (thinkingMode === "unsupported_off") {
-    const applied = thinkingOptionId ? thinkingOptionId : (lang === "zh" ? "模型默认" : "model default");
-    return {
-      tone: "warning",
-      text: lang === "zh"
-        ? `当前模型 ${model} 不支持 off / none / disabled 思考选项，本次翻译未能关闭思考（实际使用：${applied}）。`
-        : `Thinking was NOT disabled for ${model}: no off, none, or disabled option is available (used ${applied}).`,
-    };
-  }
-  if (disableThinkingRequested && thinkingMode === "none") {
-    return {
-      tone: "neutral",
-      text: lang === "zh"
-        ? `${model} 未暴露可选思考开关，无法强制关闭或确认思考状态。`
-        : `${model} exposes no thinking control; unable to force thinking off or confirm thinking state.`,
-    };
-  }
-  return null;
-}
-
-export interface TranslationController {
-  enabled: boolean;
-  disableThinking: boolean;
-  settingsStatus: "loading" | "ready" | "invalid" | "error";
-  settingsError: string | null;
-  agentConfigStatus: "loading" | "ready" | "error";
-  sourceAvailable: boolean;
-  streaming: boolean;
-  active: boolean;
-  entry: TranslationEntry | undefined;
-  sourceKind: TranslationSourceKind;
-  targetLabel: string;
-  onPressTranslate: () => void;
-  onRetry: () => void;
-  onHide: () => void;
-}
-
-export function useItemTranslation(options: {
-  sourceKey: string;
-  sourceKind: TranslationSourceKind;
+/**
+ * Marks the prose inside as one conversation's reply or thought, so a
+ * selection in it can be translated. On web it also lends the selection bar
+ * this tree's translator, bound to the prose's own element. A disabled scope removes the marking, for content in
+ * the same row that is not the model's words (a system card).
+ */
+export function SelectionTranslationScope({ agentId, kind, streaming, enabled = true, children }: {
   agentId: string;
-  text: string;
-  sourceAvailable?: boolean;
+  kind: TranslationSourceKind;
   streaming: boolean;
-  onActivate?: () => void;
-}): TranslationController {
-  const settingsState = useTranslationSettingsState();
-  const settings = settingsState.values;
-  const preferences = useEnhancerPreferences();
-  const interfaceLanguage = getInterfaceLanguage(preferences?.language);
-  const sourceAvailable = (options.sourceAvailable ?? true) && Boolean(options.text.trim());
-  const observedAgentConfig = useTranslationAgentConfig(
-    options.agentId,
-    settingsState.status === "ready" && settings.enabled && !settings.customModel &&
-      sourceAvailable && !options.streaming,
+  enabled?: boolean;
+  children: ReactNode;
+}) {
+  const lent = useLentTranslator(enabled);
+  const value = useMemo(
+    () => enabled ? { agentId, kind, streaming, ...(lent ? { lent } : null) } : null,
+    [agentId, kind, streaming, enabled, lent],
   );
-  const agentConfigStatus = settings.customModel ? "ready" : observedAgentConfig.status;
-  const agentConfig = observedAgentConfig.status === "ready" ? observedAgentConfig.config : null;
-  const caller = useTranslateCaller();
-  const entry = useTranslationEntry(options.sourceKey, options.text, settings, interfaceLanguage, agentConfig);
-
-  const enabled = settingsState.status === "ready" ? settings.enabled : true;
-  const target = resolveTranslationTarget(settings.targetLanguage, interfaceLanguage);
-  const targetLabel = interfaceLanguage === "zh" ? target.entry.zhName : target.entry.enName;
-  const active = Boolean(entry && entry.visible);
-
-  const latestRef = useRef({
-    options,
-    settingsState,
-    settings,
-    agentConfig,
-    sourceAvailable,
-    interfaceLanguage,
-    caller,
-    entry,
-  });
-  latestRef.current = {
-    options,
-    settingsState,
-    settings,
-    agentConfig,
-    sourceAvailable,
-    interfaceLanguage,
-    caller,
-    entry,
-  };
-
-  const start = useCallback(() => {
-    const {
-      options: opt,
-      settingsState: st,
-      settings: cfg,
-      agentConfig: currentAgentConfig,
-      sourceAvailable: available,
-      interfaceLanguage: lang,
-      caller: rpc,
-    } = latestRef.current;
-    if (st.status !== "ready" || !cfg.enabled || !available || opt.streaming ||
-      (!cfg.customModel && !currentAgentConfig)) return;
-    opt.onActivate?.();
-    translationStore.startTranslation(
-      {
-        sourceKey: opt.sourceKey,
-        sourceKind: opt.sourceKind,
-        agentId: opt.agentId,
-        text: opt.text,
-        interfaceLanguage: lang,
-        settings: cfg,
-        agentConfig: currentAgentConfig,
-      },
-      rpc.call,
-      rpc.watch,
-    );
-  }, []);
-
-  const onPressTranslate = useCallback(() => {
-    const {
-      options: opt,
-      settingsState: st,
-      settings: cfg,
-      sourceAvailable: available,
-      entry: current,
-    } = latestRef.current;
-    if (st.status !== "ready" || !cfg.enabled || !available || opt.streaming) return;
-    if (current?.state.state === "running" || current?.state.state === "done") {
-      const nextVisible = !current.visible;
-      if (nextVisible) opt.onActivate?.();
-      translationStore.setVisible(opt.sourceKey, nextVisible);
-      return;
-    }
-    if (current?.state.state === "error" && !current.visible) {
-      opt.onActivate?.();
-      translationStore.setVisible(opt.sourceKey, true);
-      return;
-    }
-    start();
-  }, [start]);
-
-  const onRetry = useCallback(() => {
-    start();
-  }, [start]);
-
-  const onHide = useCallback(() => {
-    translationStore.setVisible(latestRef.current.options.sourceKey, false);
-  }, []);
-
-  return useMemo(() => ({
-    enabled,
-    disableThinking: settings.disableThinking,
-    settingsStatus: settingsState.status,
-    settingsError: settingsState.error,
-    agentConfigStatus,
-    sourceAvailable,
-    streaming: options.streaming,
-    active,
-    entry,
-    sourceKind: options.sourceKind,
-    targetLabel,
-    onPressTranslate,
-    onRetry,
-    onHide,
-  }), [
-    enabled,
-    settings.disableThinking,
-    settingsState.status,
-    settingsState.error,
-    agentConfigStatus,
-    sourceAvailable,
-    options.streaming,
-    active,
-    entry,
-    options.sourceKind,
-    targetLabel,
-    onPressTranslate,
-    onRetry,
-    onHide,
-  ]);
+  return <SelectionTranslationContext.Provider value={value}>{children}</SelectionTranslationContext.Provider>;
 }
 
-export function useAssistantTranslation(options: {
-  agentId: string;
-  data: AssistantSourceInput;
-}) {
-  const resolved = resolveAssistantSource(options.agentId, options.data);
-  const streaming = options.data.phase !== "complete";
-  const controller = useItemTranslation({
-    sourceKey: resolved.sourceKey,
-    sourceKind: "assistant_message",
-    agentId: options.agentId,
-    text: resolved.sourceText,
-    sourceAvailable: resolved.sourceAvailable,
-    streaming,
-  });
-  return {
-    ...controller,
-    ...resolved,
-  };
-}
-
-export function useReasoningTranslation(options: {
-  agentId: string;
-  storeKey: string;
-  text: string;
-  streaming: boolean;
-  onActivate?: () => void;
-}) {
-  const resolved = resolveReasoningSource(options.agentId, options.storeKey, options.text);
-  return useItemTranslation({
-    sourceKey: resolved.sourceKey,
-    sourceKind: "reasoning",
-    agentId: options.agentId,
-    text: resolved.sourceText,
-    sourceAvailable: true,
-    streaming: options.streaming,
-    onActivate: options.onActivate,
-  });
-}
-
-export function TranslateButton({
-  controller,
-  tokens,
-  compact = false,
-}: {
-  controller: TranslationController;
+/**
+ * A native selection menu's translation: status, the translation as it
+ * streams, its thinking notice, Copy and Retry. The body scrolls within a
+ * height bounded by the window. Prose in it is not itself translatable.
+ */
+export function SelectionTranslationPanel({ view, tokens, onRetry }: {
+  view: SelectionTranslationView;
   tokens: ExtendedThemeTokens;
-  compact?: boolean;
+  onRetry(): void;
 }) {
-  const capabilities = useInputCapabilities();
-  const colors = safeColors(tokens);
-  const existingHover = useContext(ToolbarHoverColorContext);
-  const existingSide = useContext(TooltipSideContext);
-  const isRunning = controller.entry?.state.state === "running";
-  const isRunningHidden = isRunning && !controller.entry?.visible;
-  const isDoneVisible = controller.entry?.state.state === "done" && controller.entry.visible;
-  const isDoneHidden = controller.entry?.state.state === "done" && !controller.entry.visible;
-  const isErrorHidden = controller.entry?.state.state === "error" && !controller.entry.visible;
-  const notReady = controller.settingsStatus !== "ready";
-  const disabled = controller.streaming || notReady || !controller.sourceAvailable || controller.agentConfigStatus !== "ready";
-
-  let label = controller.sourceKind === "reasoning" ? "Translate thought" : "Translate reply";
-  if (controller.settingsStatus === "loading") {
-    label = "Loading translation settings...";
-  } else if (controller.settingsStatus === "invalid") {
-    label = "Translation settings are invalid";
-  } else if (controller.settingsStatus === "error") {
-    label = "Could not load translation settings";
-  } else if (!controller.sourceAvailable) {
-    label = "Full reply text is unavailable for this block";
-  } else if (controller.streaming) {
-    label =
-      controller.sourceKind === "reasoning"
-        ? "Wait until the thought finishes streaming"
-        : "Wait until the reply finishes streaming";
-  } else if (controller.agentConfigStatus === "loading") {
-    label = "Loading conversation model...";
-  } else if (controller.agentConfigStatus === "error") {
-    label = "Could not load conversation model";
-  } else if (isRunningHidden || isDoneHidden || isErrorHidden) {
-    label = "Show translation";
-  } else if (isRunning) {
-    label = "Translating...";
-  } else if (isDoneVisible) {
-    label = "Hide translation";
-  }
-
-  const iconColor = isRunning || isDoneVisible ? colors.accent : tokens.foregroundMuted;
-  const hitSlop = compact || !capabilities.hover ? 8 : 4;
-
-  const button = (
-    <ToolbarItem
-      label={label}
-      tokens={tokens}
-      disabled={disabled}
-      checked={isDoneVisible}
-      align="end"
-      hitSlop={hitSlop}
-      onPress={controller.onPressTranslate}
-    >
-      {isRunning ? (
-        <ActivityIndicator size="small" color={colors.accent} />
-      ) : (
-        <Icon icon={TRANSLATE_ICON} size={14} color={iconColor} />
-      )}
-    </ToolbarItem>
-  );
-
-  const withSide = existingSide === "auto"
-    ? button
-    : <TooltipSideContext.Provider value="auto">{button}</TooltipSideContext.Provider>;
-
-  return existingHover !== null
-    ? withSide
-    : <ToolbarHoverColorContext.Provider value={colors.hover}>{withSide}</ToolbarHoverColorContext.Provider>;
-}
-
-export function TranslationBlock({
-  controller,
-  tokens,
-  variant = "document",
-  compact = false,
-  quiet = false,
-  size,
-  onRevealPath,
-}: {
-  controller: TranslationController;
-  tokens: ExtendedThemeTokens;
-  variant?: MarkdownVariant;
-  compact?: boolean;
-  quiet?: boolean;
-  size?: number;
-  onRevealPath?: (path: string) => void;
-}) {
-  const { entry } = controller;
-  const preferences = useEnhancerPreferences();
-  const colors = safeColors(tokens);
-  if (!controller.enabled || !entry || !entry.visible || entry.state.state === "idle") return null;
-
-  const langPreference = preferences?.language ?? "system";
-  const lang = resolveLanguage(langPreference);
-  const doneTarget =
-    entry.state.state === "done"
-      ? findTranslationLanguage(entry.state.targetLanguageCode)
-      : undefined;
-  const languageTitle = doneTarget
-    ? (lang === "zh" ? doneTarget.zhName : doneTarget.enName)
-    : controller.targetLabel;
-  const headerPrefix = toolbarLabel("Translation", langPreference);
-  const hideLabel = toolbarLabel("Hide", langPreference);
-  const retryLabel = toolbarLabel("Retry", langPreference);
-  const translatingLabel = toolbarLabel("Translating...", langPreference);
-  const mutedText = tokens.foregroundSubtle ?? tokens.foregroundMuted;
-  const warningText = (tokens as ExtendedThemeTokens & { warning?: string }).warning ?? colors.danger;
-  const thinkingNotice =
-    entry.state.state === "done"
-      ? describeResultThinkingNotice(
-          entry.state.thinkingMode,
-          entry.state.model,
-          entry.state.thinkingOptionId,
-          controller.disableThinking,
-          lang,
-        )
-      : null;
-
+  const { language } = useEnhancerPreferences();
+  const lang = resolveLanguage(language ?? "system");
+  const window = useWindowDimensions();
+  const message = selectionViewMessage(view);
+  const text = selectionViewText(view);
+  const notice = selectionViewNotice(view, lang);
+  const danger = tokens.danger ?? tokens.foreground;
+  const muted = tokens.foregroundSubtle ?? tokens.foregroundMuted;
+  const warning = tokens.warning ?? danger;
+  const running = view.status === "running" || view.status === "config-loading" || view.status === "settings-loading";
   return (
-    <ToolbarHoverColorContext.Provider value={colors.hover}>
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
-            borderLeftColor: entry.state.state === "error" ? colors.danger : colors.accent,
-          },
-        ]}
-      >
-        <View style={styles.cardHeader}>
-          <View style={styles.cardTitleGroup}>
-            <Icon icon={TRANSLATE_ICON} size={13} color={entry.state.state === "error" ? colors.danger : colors.accent} />
-            <Text style={[styles.cardTitle, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]} numberOfLines={1}>
-              {headerPrefix} · {languageTitle}
-            </Text>
-            {entry.state.state === "running" ? (
-              <View style={styles.runningBadge}>
-                <ActivityIndicator size="small" color={colors.accent} />
-                <Text style={[styles.runningText, { color: mutedText, fontFamily: tokens.fontUi }]}>{translatingLabel}</Text>
-              </View>
-            ) : null}
-          </View>
-          <View style={styles.cardActions}>
-            {entry.state.state === "done" ? (
-              <ToolbarCopyButton
-                text={entry.state.translation}
-                tokens={tokens}
-                label="Copy translation"
-              />
-            ) : null}
-            {entry.state.state === "error" || entry.state.state === "done" ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={retryLabel}
-                onPress={controller.onRetry}
-                hitSlop={6}
-                style={styles.textAction}
-              >
-                <Text style={[styles.actionText, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{retryLabel}</Text>
-              </Pressable>
-            ) : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={hideLabel}
-              onPress={controller.onHide}
-              hitSlop={6}
-              style={styles.textAction}
-            >
-              <Text style={[styles.actionText, { color: mutedText, fontFamily: tokens.fontUi }]}>{hideLabel}</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {entry.state.state === "running" ? (
-          entry.state.text ? (
-            <MarkdownView
-              text={entry.state.text}
-              tokens={tokens}
-              variant={variant}
-              compact={compact}
-              quiet={quiet}
-              size={size}
-              onRevealPath={onRevealPath}
-            />
-          ) : null
-        ) : entry.state.state === "error" ? (
-          <View style={styles.errorRow}>
-            <Text style={[styles.errorText, { color: colors.danger, fontFamily: tokens.fontUi }]}>
-              {toolbarLabel("Translation failed", langPreference)}: {entry.state.error}
-            </Text>
-          </View>
-        ) : (
-          <>
-            {thinkingNotice ? (
-              <View style={styles.thinkingNoticeRow}>
-                <Text
-                  style={[
-                    styles.thinkingNoticeText,
-                    {
-                      color: thinkingNotice.tone === "warning" ? warningText : mutedText,
-                      fontFamily: tokens.fontUi,
-                    },
-                  ]}
-                >
-                  {thinkingNotice.text}
-                </Text>
-              </View>
-            ) : null}
-            <MarkdownView
-              text={entry.state.translation}
-              tokens={tokens}
-              variant={variant}
-              compact={compact}
-              quiet={quiet}
-              size={size}
-              onRevealPath={onRevealPath}
-            />
-          </>
-        )}
+    <View testID="selection-translation-panel" style={styles.panel}>
+      <View style={styles.header}>
+        <Icon icon={TRANSLATE_ICON} size={13} color={view.status === "error" ? danger : tokens.accent} />
+        <Text selectable={false} numberOfLines={1}
+          style={[styles.title, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+          {selectionViewTitle(view, lang)}
+        </Text>
+        {running ? <ActivityIndicator size="small" color={tokens.accent} /> : null}
       </View>
-    </ToolbarHoverColorContext.Provider>
+      {message ? (
+        <Text testID="selection-translation-message" selectable={false}
+          style={[styles.message, { color: view.status === "error" ? danger : muted, fontFamily: tokens.fontUi }]}>
+          {toolbarLabel(message, lang)}{view.status === "error" ? `: ${view.error}` : ""}
+        </Text>
+      ) : null}
+      {notice ? (
+        <Text testID="selection-translation-notice" selectable={false}
+          style={[styles.message, { color: notice.tone === "warning" ? warning : muted, fontFamily: tokens.fontUi }]}>
+          {notice.text}
+        </Text>
+      ) : null}
+      {text ? (
+        <ScrollView testID="selection-translation-body" nestedScrollEnabled
+          style={{ maxHeight: Math.max(120, Math.round(window.height * 0.45)) }}>
+          <SelectionTranslationContext.Provider value={null}>
+            <MarkdownView text={text} tokens={tokens} variant="compact" compact streaming={view.status === "running"} />
+          </SelectionTranslationContext.Provider>
+        </ScrollView>
+      ) : null}
+      {view.status === "done" || selectionViewRetryable(view) ? (
+        <View style={styles.actions}>
+          {view.status === "done" ? (
+            <ToolbarCopyButton text={view.result.translation} tokens={tokens} label="Copy translation" />
+          ) : null}
+          {selectionViewRetryable(view) ? (
+            <Pressable accessibilityRole="button" accessibilityLabel="Retry" onPress={onRetry} hitSlop={6}
+              style={styles.textAction}>
+              <Text selectable={false} style={[styles.actionText, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+                {toolbarLabel("Retry", lang)}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
   );
 }
-
-export const translationRowStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  body: {
-    flex: 1,
-    minWidth: 0,
-  },
-  actionSlot: {
-    flexShrink: 0,
-    marginLeft: 4,
-  },
-});
 
 const styles = StyleSheet.create({
-  card: {
-    marginTop: 8,
-    paddingTop: 8,
-    paddingBottom: 8,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderLeftWidth: 2,
-    borderRadius: radiusV2.block,
-    gap: 6,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  cardTitleGroup: {
-    flex: 1,
-    minWidth: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  cardTitle: {
-    fontWeight: "500",
-    fontSize: 11.5,
-    lineHeight: 16,
-    flexShrink: 1,
-  },
-  runningBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    flexShrink: 0,
-  },
-  runningText: {
-    fontSize: 11,
-    lineHeight: 14,
-  },
-  cardActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flexShrink: 0,
-  },
-  textAction: {
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  actionText: {
-    fontWeight: "500",
-    fontSize: 11.5,
-    lineHeight: 16,
-  },
-  errorRow: {
-    paddingVertical: 2,
-  },
-  errorText: {
-    fontSize: 12.5,
-    lineHeight: 18,
-  },
-  thinkingNoticeRow: {
-    paddingVertical: 2,
-  },
-  thinkingNoticeText: {
-    fontSize: 11.5,
-    lineHeight: 16,
-  },
+  panel: { paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
+  header: { flexDirection: "row", alignItems: "center", gap: 6 },
+  title: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontWeight: "500" },
+  message: { fontSize: 12.5, lineHeight: 18 },
+  actions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 },
+  textAction: { paddingHorizontal: 6, paddingVertical: 4 },
+  actionText: { fontSize: 12.5, lineHeight: 16, fontWeight: "500" },
 });

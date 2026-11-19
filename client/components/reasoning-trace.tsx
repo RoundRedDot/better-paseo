@@ -33,7 +33,6 @@ import { useEnhancerPreferences } from "../preferences";
 import { fitsRow } from "../tools/detail";
 import { CLAMPED_LINES, splitBodyRuns, type BodyRun } from "../reasoning/paragraphs";
 import { TYPE, blockProseBase } from "../ui/tokens/typography";
-import { TranslateButton, TranslationBlock, type TranslationController } from "../translation/ui";
 
 /** Four lines of a thought's body: quiet compact Markdown at the block's size. */
 function clampHeight(tokens: ExtendedThemeTokens): number {
@@ -311,8 +310,6 @@ export interface ReasoningCardProps {
   storeKey: string;
   /** What "copy" puts on the clipboard: the whole thought. */
   copyText: string;
-  /** Optional inline translation state and actions for this thought card. */
-  translation?: TranslationController;
 }
 
 /**
@@ -335,11 +332,9 @@ export function ReasoningCard({
   compact = false,
   storeKey,
   copyText,
-  translation,
 }: ReasoningCardProps) {
   const label = reasoningHeaderText(segmentation, streaming, durationMs);
   const { language } = useEnhancerPreferences();
-  const capabilities = useInputCapabilities(compact);
   // A finished one-sentence thought is all on the row already: nothing to open.
   const budget = compact ? DISCLOSURE_HEADER.targetBudget.compact : DISCLOSURE_HEADER.targetBudget.desktop;
   const inert =
@@ -404,27 +399,13 @@ export function ReasoningCard({
         ) : undefined
       }
       meta={label.meta.map((part) => toolbarLabel(part, language))}
-      actionsActive={Boolean(translation?.enabled && translation.active)}
-      actionsAlwaysVisible={Boolean(translation?.enabled && inert && !capabilities.hover)}
-      actions={
-        translation?.enabled ? (
-          <>
-            <TranslateButton controller={translation} tokens={tokens} compact={compact} />
-            <ToolbarCopyButton text={copySource} tokens={tokens} label="Copy thought" />
-          </>
-        ) : (
-          <ToolbarCopyButton text={copySource} tokens={tokens} label="Copy thought" />
-        )
-      }
+      actions={<ToolbarCopyButton text={copySource} tokens={tokens} label="Copy thought" />}
       onLongPress={onLongPress}
       accessibilityLabel={label.preview ? `${label.verb}: ${label.preview}` : label.verb}
       previewContent={() => (
         <>
           <HoverPreviewHeader tokens={tokens} streaming={streaming}>
             <View style={styles.previewActions}>
-              {translation?.enabled ? (
-                <TranslateButton controller={translation} tokens={tokens} compact={compact} />
-              ) : null}
               <ToolbarCopyButton text={copySource} tokens={tokens} label="Copy thought" />
             </View>
           </HoverPreviewHeader>
@@ -435,15 +416,6 @@ export function ReasoningCard({
       )}
     />
   );
-  const translationBlock = translation?.enabled ? (
-    <TranslationBlock
-      controller={translation}
-      tokens={tokens}
-      variant="compact"
-      compact={compact}
-      quiet
-    />
-  ) : null;
   const body = expanded ? (
     <FadeIn>
       <View {...surfaceProps(selectionSurface)} style={[styles.body, selectableSurface]}>
@@ -454,11 +426,8 @@ export function ReasoningCard({
           streaming={streaming}
           compact={compact}
         />
-        {translationBlock}
       </View>
     </FadeIn>
-  ) : translation?.enabled && translation.active ? (
-    <View style={styles.body}>{translationBlock}</View>
   ) : null;
 
   // A long opened thought pins its row on a host with the sticky API (S6).

@@ -213,7 +213,7 @@ describe("timeline translation settings", () => {
     });
 
     const masterSwitch = renderer!.root.find(
-      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable inline translation",
+      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable selection translation",
     );
     await act(async () => {
       masterSwitch.props.onPress();
@@ -358,7 +358,7 @@ describe("timeline translation settings", () => {
     expect(texts).not.toContain("Translate the supplied text");
 
     const masterSwitch = renderer!.root.find(
-      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable inline translation",
+      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable selection translation",
     );
     await act(async () => {
       masterSwitch.props.onPress();
@@ -406,7 +406,7 @@ describe("timeline translation settings", () => {
     expect(getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "rev-1", values: { enabled: true } });
 
     const masterSwitch = renderer!.root.find(
-      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable inline translation",
+      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable selection translation",
     );
     await act(async () => {
       masterSwitch.props.onPress();

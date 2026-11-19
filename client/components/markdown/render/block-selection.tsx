@@ -1,5 +1,5 @@
-import React, { createContext, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import type { Token, Tokens } from "../../../vendor/marked";
 import type { ExtendedThemeTokens } from "../../theme-tokens";
@@ -8,8 +8,23 @@ import { useScrollDismiss } from "../../../ui/scroll-anchor";
 import { FLOAT, floatPressed } from "../../../ui/tokens/float";
 import { useEnhancerPreferences } from "../../../preferences";
 import { toolbarLabel } from "../../../i18n/toolbar-strings";
+import { AnchoredToolbarDetails } from "../../../ui/toolbar-button";
+import { SelectionTranslationContext, useSelectionTranslation, type SelectionTranslationScopeValue } from "../../../translation/selection";
+import { SelectionTranslationPanel, TRANSLATE_ICON } from "../../../translation/ui";
+import { useTranslationSettingsState } from "../../../translation/settings-store";
 import { inlineText } from "./inline";
 import { localImagePath } from "./local-path";
+
+/**
+ * iOS and Android: a double tap selects one block. Both observe touches
+ * without becoming the responder, so the platform's own long-press range
+ * selection and the list's scrolling keep working; while a block is selected
+ * its prose stops being natively selectable, which also drops the word a
+ * double tap may have selected natively.
+ */
+export function blockSelectionPlatform(os: string = Platform.OS): boolean {
+  return os === "ios" || os === "android";
+}
 
 const DOUBLE_TAP_MS = 300;
 const TAP_MS = 250;
@@ -119,28 +134,69 @@ export function BlockSelection({ source, blocks, tokens, children }: {
 function BlockCopyMenu({ text, tokens, dismiss }: { text: string; tokens: ExtendedThemeTokens; dismiss(): void }) {
   // Only a selected block observes the list: idle blocks keep their streamed reuse.
   useScrollDismiss(true, dismiss);
+  const scope = useContext(SelectionTranslationContext);
+  const settings = useTranslationSettingsState();
+  // Off in settings hides Translate; any other state explains itself in the popup.
+  const translatable = scope !== null && !(settings.status === "ready" && !settings.values.enabled);
   const { copy } = useCopy();
   const { language } = useEnhancerPreferences();
   const mounted = useRef(true);
+  const frame = useRef<View>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   return <View style={styles.slot} onTouchStart={(event) => event.stopPropagation()}>
-    <Pressable accessibilityRole="button" accessibilityLabel="Copy selected block"
-      style={({ pressed }) => [styles.menu, tokens.v2.elevation.overlay, {
-        backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0, borderColor: tokens.v2.border,
-      }]}
-      onPress={() => { void copy(text, { feedback: "toast" }).then((ok) => { if (ok && mounted.current) dismiss(); }); }}>
-      <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+    <View ref={frame} collapsable={false} testID="markdown-block-menu"
+      style={[styles.menu, tokens.v2.elevation.overlay, { backgroundColor: tokens.surface0, borderColor: tokens.v2.border }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Copy selected block"
+        style={({ pressed }) => [styles.item, pressed && { backgroundColor: floatPressed(tokens) }]}
+        onPress={() => { void copy(text, { feedback: "toast" }).then((ok) => { if (ok && mounted.current) dismiss(); }); }}>
+        <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+        <Text selectable={false} style={[styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+          {toolbarLabel("Copy selected", language)}
+        </Text>
+      </Pressable>
+      {translatable ? <BlockTranslate scope={scope} text={text} tokens={tokens} anchor={frame} dismiss={dismiss} /> : null}
+    </View>
+  </View>;
+}
+
+/**
+ * Translate for the selected block's text, and only that text. The result
+ * opens in a popup anchored to the menu: a native modal, because a panel in
+ * the row would be clipped by the timeline's next row. Closing the popup ends
+ * the selection, as every other menu action does.
+ */
+function BlockTranslate({ scope, text, tokens, anchor, dismiss }: {
+  scope: SelectionTranslationScopeValue;
+  text: string;
+  tokens: ExtendedThemeTokens;
+  anchor: React.RefObject<View | null>;
+  dismiss(): void;
+}) {
+  const { language } = useEnhancerPreferences();
+  const { view, start } = useSelectionTranslation(scope, text);
+  const window = useWindowDimensions();
+  return <>
+    <Pressable accessibilityRole="button" accessibilityLabel="Translate selected block"
+      style={({ pressed }) => [styles.item, pressed && { backgroundColor: floatPressed(tokens) }]}
+      onPress={start}>
+      <Icon icon={TRANSLATE_ICON} size={FLOAT.iconSize} color={view ? tokens.accent : tokens.foregroundMuted} />
       <Text selectable={false} style={[styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-        {toolbarLabel("Copy selected", language)}
+        {toolbarLabel("Translate", language)}
       </Text>
     </Pressable>
-  </View>;
+    {view ? (
+      <AnchoredToolbarDetails anchor={anchor} close={dismiss} tokens={tokens} width={Math.min(360, window.width - 16)}>
+        <SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} />
+      </AnchoredToolbarDetails>
+    ) : null}
+  </>;
 }
 
 const styles = StyleSheet.create({
   block: { position: "relative" },
   slot: { position: "absolute", top: 0, right: 0, zIndex: 2 },
-  menu: { minHeight: 40, borderWidth: 1, borderRadius: FLOAT.radius, paddingHorizontal: 12,
-    flexDirection: "row", alignItems: "center", gap: FLOAT.iconText },
+  menu: { minHeight: 40, borderWidth: 1, borderRadius: FLOAT.radius, overflow: "hidden",
+    flexDirection: "row", alignItems: "stretch" },
+  item: { paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: FLOAT.iconText },
   label: { fontSize: 13, fontWeight: "500" },
 });

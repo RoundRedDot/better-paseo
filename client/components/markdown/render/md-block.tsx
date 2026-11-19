@@ -1,12 +1,11 @@
 import React, { memo, useEffect, useRef } from "react";
-import { Platform } from "react-native";
 import { perfCount, perfOn } from "../../../debug/perf";
 import type { Token } from "../../../vendor/marked";
 import { lexBlock } from "../lex";
 import { renderBlocks } from "./blocks";
 import { nextReuse, type NodeReuse } from "./reuse";
 import type { RenderContext } from "./context";
-import { BlockSelection, selectableBlock } from "./block-selection";
+import { BlockSelection, blockSelectionPlatform, selectableBlock } from "./block-selection";
 
 export interface MdBlockProps {
   /** The block's source; for the streaming tail, already repaired. */
@@ -43,7 +42,7 @@ function MdBlockBody({ raw, open, first, context, id }: MdBlockProps) {
   const drawn = useRef<{ context: RenderContext; nodes: NodeReuse["next"] } | null>(null);
   const reuse = nextReuse(drawn, context, open && !hasReferences(tokens, raw));
   const nodes = renderBlocks(tokens, context, id, { first, open, reuse });
-  return Platform.OS === "ios" && selectableBlock(tokens)
+  return blockSelectionPlatform() && selectableBlock(tokens)
     ? <BlockSelection source={raw} blocks={tokens} tokens={context.tokens}>{nodes}</BlockSelection>
     : <>{nodes}</>;
 }

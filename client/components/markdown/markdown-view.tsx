@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useMemo, useRef } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import React, { createContext, useCallback, useContext, useMemo, useRef } from "react";
+import { Platform, View } from "react-native";
 import type { ExtendedThemeTokens } from "../theme-tokens";
 import { selectionSurface } from "../selection-actions";
 import { codeSurface } from "../host-font-escape";
@@ -13,6 +13,7 @@ import { MdBlock } from "./render/md-block";
 import { buildStyles, variantMetrics, type MarkdownVariant } from "./render/styles";
 import { useZoomedTokens } from "../../ui/text-zoom";
 import { dismissBlockSelection } from "./render/block-selection";
+import { SelectionTranslationContext, bindSelectionScopeElement, selectionScopeDataSet } from "../../translation/selection";
 
 export { MARKDOWN_VARIANTS, type MarkdownVariant } from "./render/styles";
 
@@ -53,26 +54,9 @@ export interface MarkdownViewProps {
   size?: number;
   /** Press on a file path in the prose. */
   onRevealPath?: (path: string) => void;
-  /** Optional action control aligned with the first block's top-right edge. */
-  firstBlockAction?: React.ReactNode;
   /** Debug only: names this message so the perf probes can track it across chunks. */
   probeId?: string;
 }
-
-const firstActionStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-  body: {
-    flex: 1,
-    minWidth: 0,
-  },
-  actionSlot: {
-    flexShrink: 0,
-    marginLeft: 4,
-  },
-});
 
 // Off the render path, once the plugin has loaded: see `warmLexer`.
 if (typeof setTimeout === "function") setTimeout(warmLexer, 0);
@@ -111,7 +95,6 @@ export function MarkdownView({
   quiet = false,
   size,
   onRevealPath,
-  firstBlockAction,
   probeId,
 }: MarkdownViewProps) {
   // The phone drawer's pinch zoom, when inside it.
@@ -203,26 +186,30 @@ export function MarkdownView({
     return next.map((block) => block.node);
   }, [displayBlocks, streaming, context, firstBlock]);
 
-  const renderedNodes =
-    firstBlockAction && nodes.length > 0
-      ? [
-          <View key="first-block-action-row" testID="translation-row" style={firstActionStyles.row}>
-            <View style={firstActionStyles.body}>{nodes[0]}</View>
-            <View style={firstActionStyles.actionSlot}>{firstBlockAction}</View>
-          </View>,
-          ...nodes.slice(1),
-        ]
-      : nodes;
+  // On web the selection bar is DOM and reads the conversation a selection
+  // belongs to from the surface it was made in.
+  // The element itself carries the scope and its translator (React Native Web
+  // hands the DOM node to the ref); the attributes only mark it for `closest`.
+  const scope = useContext(SelectionTranslationContext);
+  const web = Platform.OS === "web";
+  const scopeData = web ? selectionScopeDataSet(scope) : null;
+  const surface = metrics.mono ? surfaceProps(selectionSurface, codeSurface) : selectionSurface;
+  const bindScope = useCallback((node: View | null) => {
+    if (!node || !scope) return;
+    bindSelectionScopeElement(node, scope);
+    return () => bindSelectionScopeElement(node, null);
+  }, [scope]);
 
   return (
     // The terminal variant sets the whole body in the mono face, so the whole
     // reply is a code surface the host's UI font rule must skip.
     <View
+      ref={web && scope ? bindScope : undefined}
       onTouchStart={dismissBlockSelection}
-      {...(metrics.mono ? surfaceProps(selectionSurface, codeSurface) : selectionSurface)}
+      {...(scopeData ? surfaceProps(surface, { dataSet: scopeData } as never) : surface)}
       style={[styles.root, !firstBlock && { paddingTop: listContinuation ? metrics.itemGap : metrics.blockGap }]}
     >
-      {renderedNodes}
+      {nodes}
     </View>
   );
 }

@@ -34,9 +34,12 @@ interface Props extends TextProps {
 
 /** A paragraph, heading or list body; code fences and tables keep their existing renderers. */
 export function MarkdownProse({ context, tokens, text, prefix, bold, style, ...rest }: Props) {
+  const selection = useContext(BlockSelectionContext);
   if (Platform.OS !== "ios" || context.plainProse) {
     const body = text === undefined ? renderInline(tokens, context, "p", bold) : context.renderText ? context.renderText(text) : text;
-    return <ProseText style={style} {...rest}>{prefix
+    // A selected block (iOS while streaming, Android) gives up native selection
+    // as the native prose does, so a double tap leaves one highlight, not two.
+    return <ProseText style={style} {...rest} {...(selection?.selected ? { selectable: false } : null)}>{prefix
       ? [<ProseSpan key="prefix" style={context.styles.headingHash}>{prefix}</ProseSpan>, body]
       : body}</ProseText>;
   }
