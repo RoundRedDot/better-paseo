@@ -129,7 +129,7 @@ const TRANSLATION_TOOLBAR_METRICS = { button: 28, icon: 16 };
 
 const styles = StyleSheet.create({
   panel: { paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
-  header: { flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 },
+  header: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 },
   divider: { height: 0.5, marginHorizontal: -12 },
   title: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontWeight: "500", includeFontPadding: false, textAlignVertical: "center" },
   model: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 6, flexGrow: 1, flexShrink: 1, minWidth: 0 },

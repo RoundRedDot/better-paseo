@@ -630,6 +630,7 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     }
     expect(collectTexts(renderer!.root.findByProps({ testID: "translation-model" })).join(" ")).toBe("claude-sonnet-4-5");
     const header = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header");
+    expect(header.props.style).toMatchObject({ minHeight: 36, alignItems: "center" });
     expect(header.findAll((node) => node.props.testID === "translation-language").length).toBeGreaterThan(0);
     expect(header.findAll((node) => node.props.testID === "translation-model").length).toBeGreaterThan(0);
     const divider = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header-divider");
