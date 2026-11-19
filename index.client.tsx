@@ -9,6 +9,8 @@ import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import { followPreference } from "./client/state/follow-preference";
 import { readPreferencesAtStartup, watchPreferenceChanges } from "./client/state/preference-sync-slot";
+import { registerTranslationSettingsClient, watchTranslationSettingsChanges } from "./client/translation/settings-store";
+import { setTranslationPaseo } from "./client/translation/store";
 import { perfSlashCommand } from "./client/debug/perf-command";
 import { installTimelineLevelControl } from "./client/timeline-level-control";
 import { loadMark } from "./client/debug/load-marks";
@@ -48,6 +50,9 @@ export default function contribute(client: PluginClientContext) {
   // Other clients' changes, also while no plugin row or settings page is
   // mounted (the chat switch off): the switch must be able to come back on.
   const stopPreferenceWatch = watchPreferenceChanges(client);
+  const stopTranslationClient = registerTranslationSettingsClient(client);
+  const stopTranslationPaseo = setTranslationPaseo(client.paseo);
+  const stopTranslationWatch = watchTranslationSettingsChanges(client);
 
   // Every chat contribution follows General → Enable Better Paseo chat. Off
   // leaves the whole timeline to Paseo; the Tasks board does not depend on it.
@@ -247,7 +252,7 @@ export default function contribute(client: PluginClientContext) {
           if (!getEnhancerPreferences().assistantMarkdown) return undefined;
           if (!item.text.trim()) return undefined;
           if (getEnhancerPreferences().liveUiReplies && hasUiFence(item.text, phase)) return undefined;
-          return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
+          return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase, item.messageId) };
         },
       }),
   );
@@ -257,7 +262,8 @@ export default function contribute(client: PluginClientContext) {
     version: 1,
     schema: z.object({ text: z.string(), phase: z.string().optional(),
       blockIndex: z.number().int().nonnegative().optional(), messageText: z.string().optional(),
-      listContinuation: z.boolean().optional() }),
+      listContinuation: z.boolean().optional(), sourceId: z.string().optional(),
+      externalSegment: z.boolean().optional() }),
     Component: LiveAssistantRenderer,
   });
 
@@ -321,6 +327,9 @@ export default function contribute(client: PluginClientContext) {
     stopLoadTrace();
     stopPreferenceRead();
     stopPreferenceWatch();
+    stopTranslationClient();
+    stopTranslationPaseo();
+    stopTranslationWatch();
     removeTasks();
     removeSettings();
     removeUpdateIndicator?.();

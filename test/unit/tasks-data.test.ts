@@ -5566,6 +5566,24 @@ describe("Tasks data store, archived lane", () => {
     }
   });
 
+  it("hides timeline translation helpers even after their background workspace is archived", async () => {
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("tl-helper", { status: "closed", workspaceId: "ws-tl", archivedAt: recentIso(2_000), updatedAt: recentIso(2_000), labels: { "better-paseo.purpose": "timeline-translation" } }),
+        activeAgent("ordinary", { status: "closed", workspaceId: "ws-tl", archivedAt: recentIso(2_000), updatedAt: recentIso(2_000) }),
+      ],
+      workspaces: [workspace()],
+      archivedWorkspaceIds: ["ws-tl"],
+    });
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(ids(mounted.current.lanes.archived)).toEqual(["ordinary"]);
+      expect(mounted.current.byId.has("tl-helper")).toBe(false);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
   it("archives a task of a workspace archived while disconnected when its list comes back after the workspaces", async () => {
     const fake = createFakePaseo({
       agents: [activeAgent("old", { status: "idle", requiresAttention: true, updatedAt: recentIso(5_000) })],

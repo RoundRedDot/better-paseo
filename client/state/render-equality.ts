@@ -79,6 +79,8 @@ interface TextData {
   blockIndex?: number;
   messageText?: string;
   listContinuation?: boolean;
+  sourceId?: string;
+  externalSegment?: boolean;
 }
 
 export function reasoningPropsEqual<T extends TextData>(prev: Props<T>, next: Props<T>): boolean {
@@ -96,7 +98,11 @@ export function assistantPropsEqual<T extends TextData>(prev: Props<T>, next: Pr
     sameFrame(prev, next) &&
     sameTime(prev.timestamp, next.timestamp) &&
     a.phase === b.phase &&
-    a.blockIndex === b.blockIndex && a.listContinuation === b.listContinuation && sameText(a.messageText, b.messageText) &&
+    a.blockIndex === b.blockIndex &&
+    a.listContinuation === b.listContinuation &&
+    a.sourceId === b.sourceId &&
+    a.externalSegment === b.externalSegment &&
+    sameText(a.messageText, b.messageText) &&
     sameText(a.text, b.text)
   );
 }

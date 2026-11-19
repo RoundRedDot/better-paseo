@@ -54,6 +54,13 @@ import { defaultToolExpanded, toolDisclosureKey } from "./tools/disclosure";
 import { PathContext, usePathContextValue } from "./ui/path-text";
 import { probeCard, textItemKey } from "./debug/perf";
 import {
+  TranslateButton,
+  TranslationBlock,
+  translationRowStyles,
+  useAssistantTranslation,
+  useReasoningTranslation,
+} from "./translation/ui";
+import {
   assistantPropsEqual,
   noticePropsEqual,
   reasoningPropsEqual,
@@ -335,6 +342,14 @@ function LiveReasoningRendererBody({
   const storeKey = useReasoningKey(agentId, text);
   const [expanded, setExpanded] = useDisclosure(storeKey, false);
   const toggle = useCallback(() => setExpanded(!expanded), [expanded, setExpanded]);
+  const expandThought = useCallback(() => setExpanded(true), [setExpanded]);
+  const translation = useReasoningTranslation({
+    agentId,
+    storeKey,
+    text,
+    streaming,
+    onActivate: expandThought,
+  });
 
   // The reveal runs a frame loop only for "streaming". A collapsed card
   // shows one line, so it takes the text whole. The hook still follows the text,
@@ -382,6 +397,7 @@ function LiveReasoningRendererBody({
         compact={layout.compact}
         storeKey={storeKey}
         copyText={text}
+        translation={translation}
       />
       <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
     </View>
@@ -531,16 +547,43 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp }: Plu
   const onRevealPath = useCallback((path: string) => {
     revealWithSetting(revealPath, toast, cwd ?? "", path);
   }, [cwd, revealPath, toast]);
+  const translation = useAssistantTranslation({
+    agentId,
+    data: item.data,
+  });
+  const showTranslateButton = translation.enabled && translation.isLeadBlock;
+  const showSegmentTranslation = translation.enabled && Boolean(item.data.externalSegment) && translation.active;
   const probe = probeCard("assistant", textItemKey("assistant", item.data.text), false);
   const hostSlotKey = useRef(`assistant:${agentId}:${timestamp.getTime()}:${item.data.blockIndex ?? "block"}`).current;
-  return <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}
-    style={assistantBlockStyles.continuation}>
-    {probe.node}
-    <PreferenceSyncSlot />
+  const blockMarkdown = (
     <MarkdownView text={item.data.text} tokens={tokens} variant={preferences.markdownVariant}
       compact={layout.compact} firstBlock={item.data.blockIndex === 0} onRevealPath={onRevealPath}
       listContinuation={item.data.listContinuation}
       probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} />
+  );
+  return <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}
+    style={assistantBlockStyles.continuation}>
+    {probe.node}
+    <PreferenceSyncSlot />
+    {showTranslateButton ? (
+      <View testID="translation-row" style={translationRowStyles.row}>
+        <View style={translationRowStyles.body}>{blockMarkdown}</View>
+        <View style={translationRowStyles.actionSlot}>
+          <TranslateButton controller={translation} tokens={tokens} compact={layout.compact} />
+        </View>
+      </View>
+    ) : (
+      blockMarkdown
+    )}
+    {showSegmentTranslation ? (
+      <TranslationBlock
+        controller={translation}
+        tokens={tokens}
+        variant={preferences.markdownVariant}
+        compact={layout.compact}
+        onRevealPath={onRevealPath}
+      />
+    ) : null}
     <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
   </View>;
 }
@@ -605,6 +648,24 @@ function LiveAssistantMessageRenderer({
     },
     [cwd, revealPath, toast],
   );
+  const translation = useAssistantTranslation({
+    agentId,
+    data: item.data,
+  });
+  const showTranslateButton = translation.enabled && !envelope && translation.isLeadBlock;
+  const replyMarkdown = (
+    <MarkdownView
+      text={revealed}
+      firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0}
+      listContinuation={item.data.listContinuation}
+      tokens={tokens}
+      variant={preferences.markdownVariant}
+      compact={layout.compact}
+      streaming={streaming}
+      onRevealPath={handleRevealPath}
+      probeId={`assistant:${timestamp.getTime()}`}
+    />
+  );
 
   return (
     <View
@@ -619,19 +680,25 @@ function LiveAssistantMessageRenderer({
       <PreferenceSyncSlot />
       {envelope ? (
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
+      ) : showTranslateButton ? (
+        <View testID="translation-row" style={translationRowStyles.row}>
+          <View style={translationRowStyles.body}>{replyMarkdown}</View>
+          <View style={translationRowStyles.actionSlot}>
+            <TranslateButton controller={translation} tokens={tokens} compact={layout.compact} />
+          </View>
+        </View>
       ) : (
-        <MarkdownView
-          text={revealed}
-          firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0}
-          listContinuation={item.data.listContinuation}
+        replyMarkdown
+      )}
+      {!envelope && translation.enabled && translation.isTailBlock ? (
+        <TranslationBlock
+          controller={translation}
           tokens={tokens}
           variant={preferences.markdownVariant}
           compact={layout.compact}
-          streaming={streaming}
           onRevealPath={handleRevealPath}
-          probeId={`assistant:${timestamp.getTime()}`}
         />
-      )}
+      ) : null}
       {/* A streaming row only observes completion usage; the visible footer
           still belongs exclusively to the final reply of a completed turn. */}
       {!envelope ? (

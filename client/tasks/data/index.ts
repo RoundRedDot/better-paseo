@@ -1,4 +1,5 @@
 import { TITLE_HELPER_LABEL, TITLE_HELPER_PURPOSE } from "../../../shared/title-generation";
+import { TRANSLATION_HELPER_LABEL, TRANSLATION_HELPER_PURPOSE } from "../../../shared/timeline-translation";
 import { useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 import type {
   PaseoAgent,
@@ -3758,7 +3759,12 @@ function createStore(api: PaseoApi): TaskStore {
     const cutoff = doneWindowMs(options.doneWindow);
     const now = Date.now();
     const filteredCards = [...cards.values()].filter((card) => {
-      if (isBackground(card) || entries.get(card.id)?.agent.labels?.[TITLE_HELPER_LABEL] === TITLE_HELPER_PURPOSE) return false;
+      const labels = entries.get(card.id)?.agent.labels;
+      if (
+        isBackground(card) ||
+        labels?.[TITLE_HELPER_LABEL] === TITLE_HELPER_PURPOSE ||
+        labels?.[TRANSLATION_HELPER_LABEL] === TRANSLATION_HELPER_PURPOSE
+      ) return false;
       if (!isHistoryLane(card.lane)) return true;
       if (!options.includeDone || (card.lane === "archived" && !showArchived)) return false;
       if (cutoff === null) return true;
@@ -3861,7 +3867,12 @@ function createStore(api: PaseoApi): TaskStore {
         if (card.lane === "needs_input" || card.lane === "running" || (card.lane === "review" && reviewKnown)) lanes[card.lane].cards.push(card);
       };
       for (const card of cards.values()) {
-        if (isBackground(card) || entries.get(card.id)?.agent.labels?.[TITLE_HELPER_LABEL] === TITLE_HELPER_PURPOSE) continue;
+        const labels = entries.get(card.id)?.agent.labels;
+        if (
+          isBackground(card) ||
+          labels?.[TITLE_HELPER_LABEL] === TITLE_HELPER_PURPOSE ||
+          labels?.[TRANSLATION_HELPER_LABEL] === TRANSLATION_HELPER_PURPOSE
+        ) continue;
         add(card);
         // A provider subagent's card counts in its lane, as the board draws it (`withSubagentCards`).
         if (card.lane !== "archived" && card.children.some((child) => child.kind === "provider")) {

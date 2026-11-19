@@ -83,6 +83,7 @@ describe.skipIf(!paseoBin())("lanes on a private daemon, from stored records", (
     seed("workspace-archived", archivedWorkspace, { requiresAttention: true, attentionReason: "finished" });
     seed("parent", early, {});
     seed("child", early, { requiresAttention: true, attentionReason: "finished", labels: { "paseo.parent-agent-id": ids.parent! } });
+    seed("translation-helper", early, { labels: { "better-paseo.purpose": "timeline-translation" } });
     for (let index = 0; index < EXTRA_UNREAD; index += 1) {
       // Older than the done window: only the attention list brings these to review, not a done page.
       const at = iso(50 * HOUR + index * 60_000);
@@ -136,6 +137,8 @@ describe.skipIf(!paseoBin())("lanes on a private daemon, from stored records", (
   it("keeps old and orphaned tasks off the active lanes", () => {
     // Outside the 24h done window.
     expect(board.current.byId.has(ids["done-old"]!)).toBe(false);
+    // Translation helpers never surface as Tasks cards.
+    expect(board.current.byId.has(ids["translation-helper"]!)).toBe(false);
     // Its workspace was archived without it: unread, but not in review.
     expect(laneOf("workspace-archived")).toBe("archived");
   });

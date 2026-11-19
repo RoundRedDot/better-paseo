@@ -2,6 +2,7 @@ import { isAssistantPlaceholder } from "./assistant-text";
 import { splitBlocks } from "./components/markdown/blocks";
 import { parseSystemEnvelope } from "./system-envelope";
 import { lexBlockTokens } from "./components/markdown/lex";
+import { hashTranslationText, registerReplySource } from "./translation/store";
 import type { Tokens } from "./vendor/marked";
 
 export interface AssistantRowData {
@@ -11,6 +12,8 @@ export interface AssistantRowData {
   /** Only the last row carries the original text for copy and turn attribution. */
   messageText?: string;
   listContinuation?: boolean;
+  sourceId?: string;
+  externalSegment?: boolean;
 }
 
 function historyBlockRows(text: string): Array<{ text: string; listContinuation?: boolean }> {
@@ -63,16 +66,19 @@ export function hasUiFence(text: string, phase = "complete"): boolean {
 }
 
 /** Completed long replies use the host's existing row virtualization. */
-export function assistantRows(text: string, phase: string) {
+export function assistantRows(text: string, phase: string, messageId?: string) {
   if (isAssistantPlaceholder(text)) return [];
   // Definitions and their references share a lexer context, as do system cards.
   const blocks = phase === "complete" && text.length > 16_384 &&
     !/^ {0,3}\[[^\]]+\]:/m.test(text) && !parseSystemEnvelope(text)
     ? splitBlocks(text).flatMap(historyBlockRows) : [{ text }];
+  const sourceId = blocks.length > 1 ? (messageId ?? `msg:${hashTranslationText(text)}`) : messageId;
+  if (blocks.length > 1 && sourceId) registerReplySource(sourceId, text);
   return blocks.map((block, index) => ({
     type: "plugin" as const, kind: "omp-assistant", version: 1,
     data: {
       ...block, phase,
+      ...(sourceId ? { sourceId } : {}),
       ...(blocks.length > 1 ? { blockIndex: index,
         ...(index === blocks.length - 1 ? { messageText: text } : {}) } : {}),
     } satisfies AssistantRowData,

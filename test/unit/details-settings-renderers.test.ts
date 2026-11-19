@@ -23,9 +23,11 @@ vi.mock("../../client/preferences", () => ({
     toolDetail: "collapsed", markdownVariant: "document", pathDisplay: "relative", previewWrap: true,
   }),
 }));
-vi.mock("../../client/components/theme-tokens", () => ({
+vi.mock("../../client/components/theme-tokens", async (original) => ({
+  ...await original<object>(),
   useThemeTokens: () => ({
     fontUi: "system", fontMono: "monospace", foreground: "#111", foregroundMuted: "#666",
+    v2: { surface0: "#fff", surface1: "#f6f6f7", surface2: "#eee", border: "#ccc", elevation: { overlay: {} } },
     typography: { block: { rowHeight: { compact: 22, desktop: 26 }, caption: { size: 11 } } },
   }),
 }));

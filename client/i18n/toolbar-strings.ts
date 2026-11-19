@@ -143,6 +143,21 @@ const ZH: Readonly<Record<string, string>> = {
   "Open Markdown in a window": "在窗口中打开 Markdown",
   "Render Markdown": "渲染 Markdown",
   "Show raw text": "显示原始文本",
+  "Translate": "翻译",
+  "Translate reply": "翻译回复",
+  "Translate thought": "翻译思考过程",
+  "Show translation": "显示翻译",
+  "Hide translation": "隐藏翻译",
+  "Translating": "翻译中",
+  "Translating...": "翻译中…",
+  "Copy translation": "复制译文",
+  "Retry translation": "重新翻译",
+  "Translation": "译文",
+  "Translation failed": "翻译失败",
+  "Retry": "重试",
+  "Hide": "隐藏",
+  "Wait until the reply finishes streaming": "等待回复生成完成后翻译",
+  "Wait until the thought finishes streaming": "等待思考完成后翻译",
 };
 
 /** A button's English label as the reader's chosen language shows it; an unknown label stays English. */

@@ -7,11 +7,15 @@ const state = vi.hoisted(() => ({ pointer: true, sync: "ready" as "ready" | "inv
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", async (original) => {
   const rpc = async () => ({ state: "idle", entries: [], error: null });
-  return { ...await original<object>(), useRpc: () => rpc };
+  return {
+    ...await original<object>(),
+    useRpc: () => rpc,
+    useSettings: () => ({ status: "loading", saving: false, saveError: null, save: async () => true, reset: async () => true }),
+  };
 });
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
-  return { TextInput: rn.TextInput, useToast: () => ({ show() {}, error() {} }) };
+  return { Icon: rn.View, TextInput: rn.TextInput, useToast: () => ({ show() {}, error() {} }) };
 });
 vi.mock("../../client/ui/use-input-capabilities", () => ({
   useInputCapabilities: (compact = false) => ({ hover: state.pointer, touch: !state.pointer, compact, native: false }),

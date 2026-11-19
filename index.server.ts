@@ -21,6 +21,7 @@ import { EMBEDDED_FONTS } from "./server/font-data";
 import { MARK_BITMAPS } from "./server/mark-bitmaps";
 import { writePerfDump } from "./server/perf-dump";
 import { registerTasksServer } from "./server/tasks/register";
+import { registerTimelineTranslation } from "./server/translation/service";
 import { registerTurnUsageServer } from "./server/turn-usage";
 import { launches } from "./server/open-path";
 import { EditorUnavailableError, installedEditors } from "./server/editor-target";
@@ -483,6 +484,8 @@ export default function contribute(server: PluginServerContext) {
   server.handle(openTerminalRpc, () => openSystemTerminal(updateCommand()));
   // The Tasks board's settings and its stop RPCs.
   registerTasksServer(server);
+  // Timeline translation helper RPCs and settings.
+  registerTimelineTranslation(server);
   // Each turn's token usage, kept on disk for the turn details.
   registerTurnUsageServer(server);
 

@@ -2,6 +2,7 @@ import { UPDATE_INDICATOR_COLOR } from "./ui/update-indicator";
 import { useRpc } from "@getpaseo/plugin/client";
 import { updateCheckRpc } from "../shared/update-check";
 import { hasAgentUpdate, type AgentUpdate } from "../shared/agent-updates";
+import { TimelineTranslationSettings } from "./translation/settings";
 import { useAgentUpdates } from "./agent-updates";
 import { recordPluginUpdate, useKnownPluginUpdate } from "./tasks/board/update-indicator";
 import { openTerminalRpc, updateCommand } from "../shared/open-terminal";
@@ -1325,6 +1326,8 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           disabled={!previews}
         />
       </Section>
+
+      {chat ? <TimelineTranslationSettings look={look} /> : null}
 
       <ResetButton look={look} />
     </View>
