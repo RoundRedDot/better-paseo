@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
-import { useRpc } from "@getpaseo/plugin/client";
-import type { PaseoAgentTimelineHandle } from "@getpaseo/client";
+import { usePaseo, useRpc } from "@getpaseo/plugin/client";
+import type { PaseoAgent, PaseoAgentListResult, PaseoAgentTimelineHandle, PaseoApi } from "@getpaseo/client";
 import {
   translateTimelineItemRpc,
   translationConfigSignature,
   type ConversationAgentModelConfig,
   type TimelineTranslationSettings,
+  type TranslateTimelineItemInput,
   type TranslationJobState,
 } from "../../shared/timeline-translation";
 
@@ -31,21 +32,7 @@ export interface TranslationRequestInput {
   agentConfig?: ConversationAgentModelConfig | null;
 }
 
-type TranslateStartInput = {
-  action: "start";
-  jobId: string;
-  agentId: string;
-  text: string;
-  sourceKind: TranslationSourceKind;
-  interfaceLanguage: "en" | "zh";
-};
-
-type TranslateStatusInput = {
-  action: "status";
-  jobId: string;
-};
-
-type CallTranslate = (input: TranslateStartInput | TranslateStatusInput) => Promise<TranslationJobState>;
+type CallTranslate = (input: TranslateTimelineItemInput) => Promise<TranslationJobState>;
 type WatchHelper = (helperId: string, onChunk: () => void) => () => void;
 
 const POLL_MS = 1000;
@@ -269,6 +256,7 @@ export function createTranslationStore() {
             text: input.text,
             sourceKind: input.sourceKind,
             interfaceLanguage: input.interfaceLanguage,
+            configSignature: configSig,
           });
           let failures = 0;
 
@@ -334,6 +322,151 @@ export function createTranslationStore() {
 
 export const translationStore = createTranslationStore();
 
+type AgentConfigState =
+  | { status: "loading" | "error" }
+  | { status: "ready"; config: ConversationAgentModelConfig };
+
+interface AgentConfigEntry {
+  listeners: Set<() => void>;
+  snapshot: AgentConfigState;
+  version: number;
+  updatedAt?: string;
+}
+
+const AGENT_CONFIG_LOADING: AgentConfigState = { status: "loading" };
+const AGENT_CONFIG_ERROR: AgentConfigState = { status: "error" };
+
+export function createTranslationAgentConfigStore(paseo: Pick<PaseoApi, "agents">) {
+  const agents = new Map<string, AgentConfigEntry>();
+  let stop: (() => void) | undefined;
+  let feedStatus: AgentConfigState["status"] = "loading";
+
+  const publish = (entry: AgentConfigEntry, snapshot: AgentConfigState) => {
+    if (entry.snapshot === snapshot) return;
+    entry.snapshot = snapshot;
+    for (const listener of entry.listeners) listener();
+  };
+
+  const apply = (entry: AgentConfigEntry, agent: Pick<PaseoAgent,
+    "provider" | "model" | "thinkingOptionId" | "effectiveThinkingOptionId" | "updatedAt">) => {
+    entry.updatedAt = agent.updatedAt;
+    entry.version += 1;
+    const thinkingOptionId = agent.effectiveThinkingOptionId ?? agent.thinkingOptionId ?? null;
+    const previous = entry.snapshot.status === "ready" ? entry.snapshot.config : null;
+    if (previous?.provider === agent.provider && previous.model === agent.model &&
+      previous.thinkingOptionId === thinkingOptionId) return;
+    publish(entry, { status: "ready", config: { provider: agent.provider, model: agent.model, thinkingOptionId } });
+  };
+
+  const refresh = async (agentId: string, entry: AgentConfigEntry) => {
+    const version = ++entry.version;
+    publish(entry, AGENT_CONFIG_LOADING);
+    const isCurrent = () => agents.get(agentId) === entry && entry.version === version;
+    try {
+      const result = await paseo.agents.ref(agentId).refresh();
+      if (!isCurrent()) return;
+      if (result) apply(entry, result.agent);
+      else publish(entry, AGENT_CONFIG_ERROR);
+    } catch {
+      if (isCurrent()) publish(entry, AGENT_CONFIG_ERROR);
+    }
+  };
+
+  const watch = () => {
+    let closed = false;
+    const pending = new AbortController();
+    let subscription: PaseoAgentListResult["subscription"];
+    let unobserve: (() => void) | undefined;
+    const fail = () => {
+      if (closed) return;
+      feedStatus = "error";
+      for (const entry of agents.values()) {
+        entry.version += 1;
+        publish(entry, AGENT_CONFIG_ERROR);
+      }
+    };
+
+    void (async () => {
+      // The first page establishes a live feed for the host. A visible agent can be on any page.
+      const list = await paseo.agents.list({
+        filter: { includeArchived: true }, page: { limit: 1 }, subscribe: {}, signal: pending.signal,
+      });
+      if (closed) {
+        await list.subscription.release();
+        return;
+      }
+      subscription = list.subscription;
+      unobserve = subscription.subscribe({
+        snapshot: () => {
+          if (closed) return;
+          feedStatus = "ready";
+          for (const [agentId, entry] of agents) void refresh(agentId, entry);
+        },
+        update: (message) => {
+          if (closed || feedStatus !== "ready" || message.type !== "agent_update") return;
+          const update = message.payload;
+          const entry = agents.get(update.kind === "upsert" ? update.agent.id : update.agentId);
+          if (!entry) return;
+          if (update.kind === "upsert") {
+            if (entry.updatedAt === undefined || update.agent.updatedAt >= entry.updatedAt) apply(entry, update.agent);
+          } else {
+            entry.version += 1;
+            publish(entry, AGENT_CONFIG_ERROR);
+          }
+        },
+        error: fail,
+      });
+    })().catch(fail);
+
+    return () => {
+      closed = true;
+      feedStatus = "loading";
+      unobserve?.();
+      if (subscription) void subscription.release().catch(console.error);
+      else pending.abort();
+    };
+  };
+
+  return {
+    read: (agentId: string) => agents.get(agentId)?.snapshot ?? AGENT_CONFIG_LOADING,
+    subscribe(agentId: string, listener: () => void) {
+      let entry = agents.get(agentId);
+      if (!entry) {
+        entry = {
+          listeners: new Set(),
+          snapshot: feedStatus === "error" ? AGENT_CONFIG_ERROR : AGENT_CONFIG_LOADING,
+          version: 0,
+        };
+        agents.set(agentId, entry);
+        if (feedStatus === "ready") void refresh(agentId, entry);
+      }
+      entry.listeners.add(listener);
+      stop ??= watch();
+      return () => {
+        entry.listeners.delete(listener);
+        if (entry.listeners.size === 0) agents.delete(agentId);
+        if (agents.size > 0) return;
+        stop?.();
+        stop = undefined;
+      };
+    },
+  };
+}
+
+const agentConfigStores = new WeakMap<PaseoApi, ReturnType<typeof createTranslationAgentConfigStore>>();
+
+export function useTranslationAgentConfig(agentId: string, enabled: boolean): AgentConfigState {
+  const paseo = usePaseo();
+  let store = enabled ? agentConfigStores.get(paseo) : undefined;
+  if (enabled && !store) agentConfigStores.set(paseo, store = createTranslationAgentConfigStore(paseo));
+  const subscribe = useCallback(
+    (listener: () => void) => store ? store.subscribe(agentId, listener) : () => {},
+    [store, agentId],
+  );
+  const snapshot = useCallback(() => store?.read(agentId) ?? AGENT_CONFIG_LOADING, [store, agentId]);
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
+}
+
 type LiveApi = { agents: { ref(id: string): { timeline: Pick<PaseoAgentTimelineHandle, "subscribe"> } } };
 
 let activePaseoApi: LiveApi | null = null;
@@ -368,10 +501,12 @@ export function useTranslationEntry(
   sourceText: string,
   settings: TimelineTranslationSettings,
   interfaceLanguage: "en" | "zh",
-  agentConfig?: ConversationAgentModelConfig | null,
+  agentConfig: ConversationAgentModelConfig | null,
 ): TranslationEntry | undefined {
   const snapshot = useCallback(
-    () => translationStore.readValid(sourceKey, sourceText, settings, interfaceLanguage, agentConfig),
+    () => settings.customModel || agentConfig
+      ? translationStore.readValid(sourceKey, sourceText, settings, interfaceLanguage, agentConfig)
+      : undefined,
     [sourceKey, sourceText, settings, interfaceLanguage, agentConfig],
   );
   return useSyncExternalStore(translationStore.subscribe, snapshot, snapshot);
@@ -380,7 +515,7 @@ export function useTranslationEntry(
 export function useTranslateCaller() {
   const call = useRpc(translateTimelineItemRpc);
   return useMemo(() => ({
-    call: (input: TranslateStartInput | TranslateStatusInput) => call(input),
+    call: (input: TranslateTimelineItemInput) => call(input),
     watch: (helperId: string, onChunk: () => void) =>
       activePaseoApi ? watchTranslationReply(activePaseoApi, helperId, onChunk) : () => {},
   }), [call]);

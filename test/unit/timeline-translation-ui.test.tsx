@@ -1,6 +1,7 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
+import type { PaseoAgent, PaseoAgentListResult, PaseoApi } from "@getpaseo/client";
 import "./helpers/quiet-renderer";
 import { measureHostTree } from "./helpers/yoga-host-layout";
 import { assistantRows } from "../../client/assistant-transform";
@@ -16,6 +17,7 @@ import {
   resetTranslationSettingsStoreForTests,
 } from "../../client/translation/settings-store";
 import {
+  createTranslationAgentConfigStore,
   resetTranslationStoreForTests,
   resolveAssistantSource,
   resolveReasoningSource,
@@ -23,57 +25,76 @@ import {
   translationStore,
 } from "../../client/translation/store";
 
+type RawAgentConfig = Pick<PaseoAgent, "provider" | "model" | "thinkingOptionId" | "effectiveThinkingOptionId" | "updatedAt">;
+type AgentListObserver = Parameters<NonNullable<PaseoAgentListResult["subscription"]>["subscribe"]>[0];
+
 const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   toastError: vi.fn(),
   hover: true,
-  agent: {
-    provider: "claude",
-    model: "claude-sonnet-4-5",
-    thinkingOptionId: "high",
-    effectiveThinkingOptionId: "high",
-  } as {
-    provider?: string;
-    model?: string;
-    thinkingOptionId?: string | null;
-    effectiveThinkingOptionId?: string | null;
-    cwd?: string;
-  } | undefined,
-  agentListeners: new Set<() => void>(),
+  api: null as PaseoApi | null,
 }));
 
-function setMockAgent(next: typeof mocks.agent) {
-  mocks.agent = next;
-  for (const listener of mocks.agentListeners) listener();
+const initialAgent: RawAgentConfig = {
+  provider: "claude",
+  model: "claude-sonnet-4-5",
+  thinkingOptionId: "high",
+  effectiveThinkingOptionId: "high",
+  updatedAt: "2026-11-19T10:00:00.000Z",
+};
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((accept) => { resolve = accept; });
+  return { promise, resolve };
+}
+
+function createMockAgentApi() {
+  let agent = initialAgent;
+  const subscriptions: Array<ReturnType<typeof makeSubscription>> = [];
+  function makeSubscription() {
+    const snapshot = { subscriptionId: "agent-directory", entries: [] } as unknown as Parameters<AgentListObserver["snapshot"]>[0];
+    const observers = new Set<AgentListObserver>();
+    const unobserve = vi.fn();
+    return {
+      subscribe(observer: AgentListObserver) {
+        observers.add(observer);
+        observer.snapshot(snapshot);
+        return () => { observers.delete(observer); unobserve(); };
+      },
+      release: vi.fn(async () => { observers.clear(); }),
+      unobserve,
+      reconnect() { for (const observer of observers) observer.snapshot(snapshot); },
+      update(agentId: string, config: RawAgentConfig) {
+        for (const observer of observers) {
+          observer.update({ type: "agent_update", payload: { kind: "upsert", agent: { ...config, id: agentId } } } as Parameters<AgentListObserver["update"]>[0]);
+        }
+      },
+    };
+  }
+  const refresh = vi.fn(async (_agentId: string): Promise<{ agent: RawAgentConfig } | null> => ({ agent }));
+  const list = vi.fn(async (_options: { signal?: AbortSignal }) => {
+    const subscription = makeSubscription();
+    subscriptions.push(subscription);
+    return { subscription };
+  });
+  const api = { agents: { list, ref: (agentId: string) => ({ refresh: () => refresh(agentId) }) } } as unknown as PaseoApi;
+  return {
+    api, list, refresh, subscriptions,
+    current: () => agent,
+    setAgent(next: Partial<RawAgentConfig>, agentId = "agent-model-switch") {
+      agent = { ...agent, ...next };
+      for (const subscription of subscriptions) subscription.update(agentId, agent);
+    },
+  };
 }
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client", async () => {
-  const ReactModule = await import("react");
-  return {
-    useAgent: (_id: string, selector: (agent: NonNullable<typeof mocks.agent>) => unknown) =>
-      ReactModule.useSyncExternalStore(
-        (listener) => {
-          mocks.agentListeners.add(listener);
-          return () => {
-            mocks.agentListeners.delete(listener);
-          };
-        },
-        () => (mocks.agent ? selector(mocks.agent) : undefined),
-      ),
-    usePaseo: () => ({
-      agents: {
-        ref: () => ({
-          refresh: async () => null,
-          timeline: {
-            subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }),
-          },
-        }),
-      },
-    }),
-    useRpc: () => mocks.rpc,
-  };
-});
+vi.mock("@getpaseo/plugin/client", () => ({
+  useAgent: () => undefined,
+  usePaseo: () => mocks.api,
+  useRpc: () => mocks.rpc,
+}));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const ReactModule = await import("react");
   return {
@@ -146,16 +167,13 @@ function collectTexts(root: ReactTestInstance): string[] {
 }
 
 let renderer: ReturnType<typeof TestRenderer.create> | undefined;
+let agentApi: ReturnType<typeof createMockAgentApi>;
 
 beforeEach(() => {
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   mocks.hover = true;
-  mocks.agent = {
-    provider: "claude",
-    model: "claude-sonnet-4-5",
-    thinkingOptionId: "high",
-    effectiveThinkingOptionId: "high",
-  };
+  agentApi = createMockAgentApi();
+  mocks.api = agentApi.api;
   mocks.rpc.mockReset();
   mocks.toastError.mockReset();
   resetEnhancerPreferences();
@@ -169,6 +187,94 @@ afterEach(() => {
   if (renderer) act(() => renderer!.unmount());
   renderer = undefined;
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+});
+
+describe("timeline translation agent configuration", () => {
+  it("shares one feed per host and one initial refresh per visible agent", async () => {
+    const config = createTranslationAgentConfigStore(agentApi.api);
+    const retireReply = config.subscribe("agent-1", vi.fn());
+    const retireThought = config.subscribe("agent-1", vi.fn());
+    const retireOther = config.subscribe("agent-2", vi.fn());
+    expect(config.read("agent-1")).toEqual({ status: "loading" });
+    expect(agentApi.refresh).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => expect(config.read("agent-1").status).toBe("ready"));
+    expect(agentApi.list).toHaveBeenCalledOnce();
+    expect(agentApi.refresh.mock.calls).toEqual([["agent-1"], ["agent-2"]]);
+
+    const otherApi = createMockAgentApi();
+    otherApi.setAgent({ effectiveThinkingOptionId: "low" });
+    const otherHost = createTranslationAgentConfigStore(otherApi.api);
+    const retireHost = otherHost.subscribe("agent-1", vi.fn());
+    await vi.waitFor(() => expect(otherHost.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "low" } }));
+    expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "high" } });
+
+    const feed = agentApi.subscriptions[0]!;
+    retireReply();
+    retireThought();
+    expect(feed.release).not.toHaveBeenCalled();
+    retireOther();
+    expect(feed.unobserve).toHaveBeenCalledOnce();
+    expect(feed.release).toHaveBeenCalledOnce();
+    expect(otherApi.subscriptions[0]!.release).not.toHaveBeenCalled();
+    retireHost();
+  });
+
+  it("refreshes on reconnect and keeps live configuration ahead of late reads", async () => {
+    const config = createTranslationAgentConfigStore(agentApi.api);
+    const listener = vi.fn();
+    const retire = config.subscribe("agent-1", listener);
+    await vi.waitFor(() => expect(config.read("agent-1").status).toBe("ready"));
+    const feed = agentApi.subscriptions[0]!;
+    const delayed = deferred<{ agent: RawAgentConfig }>();
+    agentApi.refresh.mockReturnValueOnce(delayed.promise);
+    feed.reconnect();
+    expect(config.read("agent-1")).toEqual({ status: "loading" });
+    expect(agentApi.refresh).toHaveBeenCalledTimes(2);
+
+    const beforeUpdate = listener.mock.calls.length;
+    agentApi.setAgent({ effectiveThinkingOptionId: "low", updatedAt: "2026-11-19T10:01:00.000Z" }, "agent-1");
+    expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "low" } });
+    feed.update("agent-1", initialAgent);
+    delayed.resolve({ agent: initialAgent });
+    await delayed.promise;
+    expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "low" } });
+    expect(listener).toHaveBeenCalledTimes(beforeUpdate + 1);
+
+    agentApi.setAgent({ effectiveThinkingOptionId: null, thinkingOptionId: "off" }, "other-agent");
+    feed.reconnect();
+    await vi.waitFor(() => expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "off" } }));
+    expect(agentApi.list).toHaveBeenCalledOnce();
+    retire();
+  });
+
+  it("releases a late feed after the last row leaves and ignores refreshes from retired entries", async () => {
+    const firstFeed = await agentApi.list({});
+    const opening = deferred<typeof firstFeed>();
+    agentApi.list.mockClear().mockReturnValueOnce(opening.promise);
+    const config = createTranslationAgentConfigStore(agentApi.api);
+    const retire = config.subscribe("agent-1", vi.fn());
+    retire();
+    expect(agentApi.list.mock.calls[0]?.[0].signal?.aborted).toBe(true);
+
+    const oldRefresh = deferred<{ agent: RawAgentConfig }>();
+    agentApi.refresh.mockReturnValueOnce(oldRefresh.promise);
+    const retireOld = config.subscribe("agent-1", vi.fn());
+    await vi.waitFor(() => expect(agentApi.refresh).toHaveBeenCalledOnce());
+    opening.resolve(firstFeed);
+    await opening.promise;
+    expect(firstFeed.subscription.release).toHaveBeenCalledOnce();
+    expect(agentApi.refresh).toHaveBeenCalledOnce();
+
+    retireOld();
+    agentApi.setAgent({ effectiveThinkingOptionId: "medium" });
+    const retireNew = config.subscribe("agent-1", vi.fn());
+    await vi.waitFor(() => expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "medium" } }));
+    oldRefresh.resolve({ agent: initialAgent });
+    await oldRefresh.promise;
+    expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "medium" } });
+    retireNew();
+  });
 });
 
 describe("timeline translation UI and source state", () => {
@@ -247,10 +353,21 @@ describe("timeline translation UI and source state", () => {
     expect(texts).toContain("Hello Paseo");
     expect(texts).toContain("你好，Paseo");
 
-    // Unmount and remount -> cached translation still shows without calling RPC again.
+    // A remounted row only shows the cache once the raw config is known again.
     act(() => renderer!.unmount());
+    const remountConfig = deferred<{ agent: RawAgentConfig }>();
+    agentApi.refresh.mockReturnValueOnce(remountConfig.promise);
     await act(async () => {
       renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, props as never));
+    });
+    expect(collectTexts(renderer!.root).join("\n")).not.toContain("你好，Paseo");
+    const waiting = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Loading conversation model...",
+    );
+    expect(waiting.props.disabled).toBe(true);
+    await act(async () => {
+      waiting.props.onPress?.();
+      remountConfig.resolve({ agent: initialAgent });
     });
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
     texts = collectTexts(renderer!.root).join("\n");
@@ -276,13 +393,13 @@ describe("timeline translation UI and source state", () => {
 
     // Changing targetLanguage invalidates the cached translation for that source.
     await act(async () => {
-      publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, targetLanguage: "ja" });
+      publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, targetLanguage: "ja" }, "target-ja");
     });
     expect(collectTexts(renderer!.root).join("\n")).not.toContain("你好，Paseo");
 
     // Restoring settings to verify source text change invalidates too.
     await act(async () => {
-      publishTranslationSettings(DEFAULT_TIMELINE_TRANSLATION_SETTINGS);
+      publishTranslationSettings(DEFAULT_TIMELINE_TRANSLATION_SETTINGS, "target-restored");
     });
     expect(collectTexts(renderer!.root).join("\n")).toContain("你好，Paseo");
 
@@ -867,8 +984,8 @@ describe("timeline translation UI and source state", () => {
           state: "done",
           translation: `译文 #${round}`,
           targetLanguageCode: "zh-CN",
-          provider: String(mocks.agent?.provider ?? "claude"),
-          model: String(mocks.agent?.model ?? "claude-sonnet-4-5"),
+          provider: agentApi.current().provider,
+          model: agentApi.current().model,
           thinkingMode: "disabled",
           thinkingOptionId: "off",
         };
@@ -902,7 +1019,7 @@ describe("timeline translation UI and source state", () => {
 
     // 2. Switching agent model invalidates cache immediately.
     await act(async () => {
-      setMockAgent({
+      agentApi.setAgent({
         provider: "claude",
         model: "claude-opus-4-1",
         thinkingOptionId: "high",
@@ -917,12 +1034,12 @@ describe("timeline translation UI and source state", () => {
     });
     expect(collectTexts(renderer!.root).join("\n")).toContain("译文 #2");
 
-    // 3. Switching agent thinking config invalidates cache too.
+    // 3. The effective thinking option can change without a change to the configured option.
     await act(async () => {
-      setMockAgent({
+      agentApi.setAgent({
         provider: "claude",
         model: "claude-opus-4-1",
-        thinkingOptionId: "low",
+        thinkingOptionId: "high",
         effectiveThinkingOptionId: "low",
       });
     });
@@ -933,9 +1050,10 @@ describe("timeline translation UI and source state", () => {
       renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply").props.onPress();
     });
     expect(translationStore.read("agent-model-switch:assistant:msg-model-switch")?.state.state).toBe("running");
+    expect(JSON.parse(mocks.rpc.mock.lastCall?.[0].configSignature)).toMatchObject({ thinkingOptionId: "low" });
 
     await act(async () => {
-      setMockAgent({
+      agentApi.setAgent({
         provider: "codex",
         model: "gpt-5",
         thinkingOptionId: "medium",
@@ -967,13 +1085,14 @@ describe("timeline translation UI and source state", () => {
         "custom-on",
       );
     });
+    expect(agentApi.subscriptions[0]!.release).toHaveBeenCalledOnce();
     await act(async () => {
       renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply").props.onPress();
     });
     expect(collectTexts(renderer!.root).join("\n")).toContain("译文 #4");
 
     await act(async () => {
-      setMockAgent({
+      agentApi.setAgent({
         provider: "gemini",
         model: "gemini-3",
         thinkingOptionId: "high",

@@ -131,6 +131,7 @@ export const translateTimelineItemRpc = defineRpc({
       text: z.string().trim().min(1).max(200_000),
       sourceKind: z.enum(["assistant_message", "reasoning"]),
       interfaceLanguage: z.enum(["en", "zh"]).default("en"),
+      configSignature: z.string().min(1),
     }),
     z.object({
       action: z.literal("status"),
@@ -139,6 +140,8 @@ export const translateTimelineItemRpc = defineRpc({
   ]),
   output: translationJobStateSchema,
 });
+
+export type TranslateTimelineItemInput = z.output<typeof translateTimelineItemRpc.input>;
 
 export const translationModelsRpc = defineRpc({
   name: "translation.models",

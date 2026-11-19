@@ -6,6 +6,9 @@ import {
   DEFAULT_TRANSLATION_PROMPT,
   resolveThinkingCapability,
   timelineTranslationSettingsSchema,
+  translateTimelineItemRpc,
+  translationConfigSignature,
+  type ConversationAgentModelConfig,
   type TimelineTranslationSettings,
 } from "../../shared/timeline-translation";
 import {
@@ -14,6 +17,9 @@ import {
   createTimelineTranslator,
 } from "../../server/translation/service";
 import type { PaseoApi } from "../../server/paseo-types";
+import { createTranslationStore } from "../../client/translation/store";
+
+vi.mock("@getpaseo/plugin/client", () => ({ useRpc: vi.fn() }));
 
 const tempDirs: string[] = [];
 
@@ -36,6 +42,7 @@ function createMockEnv(options?: {
   model?: string;
   thinkingOptions?: Array<{ id: string; label: string }>;
   agentThinkingId?: string | null;
+  refreshAgent?: () => Promise<ConversationAgentModelConfig>;
   runResult?: { status: string; lastMessage?: string | null; error?: string | null };
   streamChunks?: Array<{ text: string; messageId?: string }>;
   throwOnRun?: boolean;
@@ -82,6 +89,7 @@ function createMockEnv(options?: {
                   cwd: "/secret/user/project-should-not-load",
                   effectiveThinkingOptionId: options?.agentThinkingId ?? null,
                   thinkingOptionId: options?.agentThinkingId ?? null,
+                  ...await options?.refreshAgent?.(),
                 },
                 project: { projectKey: "proj-1" },
               };
@@ -196,7 +204,12 @@ function createMockEnv(options?: {
     timeoutMs: 5000,
   });
 
-  return { translator, paseo: paseo as unknown as PaseoApi, captured, dir };
+  const configSignature = translationConfigSignature(parsed, "en", {
+    provider,
+    model,
+    thinkingOptionId: options?.agentThinkingId,
+  });
+  return { translator, paseo: paseo as unknown as PaseoApi, captured, dir, settings: parsed, configSignature };
 }
 
 async function waitForJob(
@@ -213,8 +226,81 @@ async function waitForJob(
 }
 
 describe("timeline translation server service", () => {
+  it.each([
+    { provider: "codex", model: "gpt-5", effectiveThinkingOptionId: "medium" },
+    { provider: "claude", model: "claude-opus-4-1", effectiveThinkingOptionId: "high" },
+    { provider: "claude", model: "claude-sonnet-4-5", effectiveThinkingOptionId: "medium" },
+  ])("rejects a config change during refresh (%j) without caching the other config's translation", async (nextConfig) => {
+    const clickConfig = {
+      provider: "claude",
+      model: "claude-sonnet-4-5",
+      thinkingOptionId: "high",
+      effectiveThinkingOptionId: "high",
+    };
+    let currentConfig = clickConfig;
+    let releaseRefresh!: () => void;
+    const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+    const refreshAgent = vi.fn(async () => {
+      await refreshGate;
+      return currentConfig;
+    });
+    const { translator, paseo, captured, settings } = createMockEnv({
+      provider: nextConfig.provider,
+      model: nextConfig.model,
+      thinkingOptions: [{ id: "high", label: "High" }, { id: "medium", label: "Medium" }],
+      refreshAgent,
+    });
+    const store = createTranslationStore();
+    const sourceKey = "source-agent-1:assistant:message-1";
+    const text = "Original text";
+    const call = vi.fn(async (input: Parameters<typeof translator.request>[0]) => {
+      translator.request(translateTimelineItemRpc.input.parse(input), paseo);
+      return waitForJob(translator, paseo, input.jobId);
+    });
+    const readCurrent = () => store.readValid(sourceKey, text, settings, "en", currentConfig);
+
+    store.startTranslation({
+      sourceKey, text, settings, agentId: "source-agent-1", sourceKind: "assistant_message",
+      interfaceLanguage: "en", agentConfig: clickConfig,
+    }, call);
+    await vi.waitFor(() => expect(refreshAgent).toHaveBeenCalledOnce());
+    currentConfig = { ...clickConfig, ...nextConfig };
+    expect(readCurrent()).toBeUndefined();
+    releaseRefresh();
+    await call.mock.results[0]!.value;
+    expect(readCurrent()).toBeUndefined();
+
+    currentConfig = clickConfig;
+    expect(readCurrent()?.state).toEqual({
+      state: "error", error: "Translation configuration changed. Please retry.",
+    });
+    expect(captured.workspaceInputs).toHaveLength(0);
+  });
+
+  it("rejects a stale settings snapshot even when the model and target are unchanged", async () => {
+    const { translator, paseo, captured, settings } = createMockEnv();
+    const configSignature = translationConfigSignature(
+      { ...settings, prompt: "Use the previous translation instructions." },
+      "en",
+      { provider: "claude", model: "claude-sonnet-4-5" },
+    );
+    translator.request({
+      action: "start",
+      jobId: "job-stale-prompt",
+      agentId: "source-agent-1",
+      text: "Original text",
+      sourceKind: "assistant_message",
+      interfaceLanguage: "en",
+      configSignature,
+    }, paseo);
+    expect(await waitForJob(translator, paseo, "job-stale-prompt")).toEqual({
+      state: "error", error: "Translation configuration changed. Please retry.",
+    });
+    expect(captured.workspaceInputs).toHaveLength(0);
+  });
+
   it("never accesses source timeline, isolates helper workspace, and sends only selected content", async () => {
-    const { translator, paseo, captured, dir } = createMockEnv({
+    const { translator, paseo, captured, dir, configSignature } = createMockEnv({
       streamChunks: [
         { text: "你好", messageId: "m1" },
         { text: "世界", messageId: "m1" },
@@ -229,6 +315,7 @@ describe("timeline translation server service", () => {
         text: "Hello **world**\n\n`npm test`",
         sourceKind: "assistant_message",
         interfaceLanguage: "en",
+        configSignature,
       },
       paseo,
     );
@@ -269,7 +356,7 @@ describe("timeline translation server service", () => {
   });
 
   it("does not silently downgrade thinking when model lacks off/none/disabled", async () => {
-    const { translator, paseo, captured } = createMockEnv({
+    const { translator, paseo, captured, configSignature } = createMockEnv({
       thinkingOptions: [
         { id: "minimal", label: "Minimal" },
         { id: "low", label: "Low" },
@@ -286,6 +373,7 @@ describe("timeline translation server service", () => {
         text: "Reasoning trace",
         sourceKind: "reasoning",
         interfaceLanguage: "en",
+        configSignature,
       },
       paseo,
     );
@@ -302,7 +390,7 @@ describe("timeline translation server service", () => {
   });
 
   it("handles models with no thinking options honestly", async () => {
-    const { translator, paseo, captured } = createMockEnv({
+    const { translator, paseo, captured, configSignature } = createMockEnv({
       thinkingOptions: [],
     });
 
@@ -314,6 +402,7 @@ describe("timeline translation server service", () => {
         text: "Short text",
         sourceKind: "assistant_message",
         interfaceLanguage: "en",
+        configSignature,
       },
       paseo,
     );
@@ -328,7 +417,7 @@ describe("timeline translation server service", () => {
   });
 
   it("cleans up workspace and helper even when helper run fails", async () => {
-    const { translator, paseo, captured } = createMockEnv({
+    const { translator, paseo, captured, configSignature } = createMockEnv({
       throwOnRun: true,
     });
 
@@ -340,6 +429,7 @@ describe("timeline translation server service", () => {
         text: "Failure path test",
         sourceKind: "assistant_message",
         interfaceLanguage: "en",
+        configSignature,
       },
       paseo,
     );
@@ -350,7 +440,7 @@ describe("timeline translation server service", () => {
   });
 
   it("rejects translation when disabled in settings", async () => {
-    const { translator, paseo } = createMockEnv({
+    const { translator, paseo, configSignature } = createMockEnv({
       settings: { enabled: false },
     });
     await translator.request(
@@ -361,6 +451,7 @@ describe("timeline translation server service", () => {
         text: "Disabled check",
         sourceKind: "assistant_message",
         interfaceLanguage: "en",
+        configSignature,
       },
       paseo,
     );

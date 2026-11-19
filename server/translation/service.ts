@@ -12,8 +12,10 @@ import {
   translateTimelineItemRpc,
   TRANSLATION_HELPER_LABEL,
   TRANSLATION_HELPER_PURPOSE,
+  translationConfigSignature,
   translationModelsRpc,
   type TimelineTranslationSettings,
+  type TranslateTimelineItemInput,
   type TranslationJobState,
   type TranslationThinkingMode,
 } from "../../shared/timeline-translation";
@@ -30,14 +32,7 @@ const SYSTEM_PROMPT = [
 const TRANSLATION_TIMEOUT_MS = 90_000;
 const MAX_JOBS = 200;
 
-interface TranslationRequestInput {
-  action: "start" | "status";
-  jobId: string;
-  agentId?: string;
-  text?: string;
-  sourceKind?: "assistant_message" | "reasoning";
-  interfaceLanguage?: "en" | "zh";
-}
+type TranslationStartInput = Extract<TranslateTimelineItemInput, { action: "start" }>;
 
 interface Dependencies {
   settings: PluginSettings<typeof timelineTranslationSettingsSchema>;
@@ -136,7 +131,7 @@ export function createTimelineTranslator(deps: Dependencies) {
   }
 
   async function translate(
-    input: { agentId: string; text: string; sourceKind: "assistant_message" | "reasoning"; interfaceLanguage: "en" | "zh" },
+    input: TranslationStartInput,
     paseo: PaseoApi,
     stream: (update: { text?: string; helperId: string }) => void,
   ): Promise<Extract<TranslationJobState, { state: "done" }>> {
@@ -151,6 +146,10 @@ export function createTimelineTranslator(deps: Dependencies) {
     const source = paseo.agents.ref(input.agentId);
     const original = await source.refresh();
     if (!original) throw new Error("The original agent no longer exists.");
+    // The client caches this job under the configuration it saw when starting it.
+    if (input.configSignature !== translationConfigSignature(config, input.interfaceLanguage, original.agent)) {
+      throw new Error("Translation configuration changed. Please retry.");
+    }
 
     const provider = config.customModel ? config.provider : original.agent.provider;
     const model = config.customModel ? config.model : original.agent.model;
@@ -263,10 +262,10 @@ export function createTimelineTranslator(deps: Dependencies) {
   }
 
   function start(
-    jobId: string,
-    input: { agentId: string; text: string; sourceKind: "assistant_message" | "reasoning"; interfaceLanguage: "en" | "zh" },
+    input: TranslationStartInput,
     paseo: PaseoApi,
   ): TranslationJobState {
+    const { jobId } = input;
     const known = jobs.get(jobId);
     if (known?.state === "running") return known;
     pruneJobs();
@@ -288,23 +287,11 @@ export function createTimelineTranslator(deps: Dependencies) {
   }
 
   return {
-    request(input: TranslationRequestInput, paseo: PaseoApi): TranslationJobState {
+    request(input: TranslateTimelineItemInput, paseo: PaseoApi): TranslationJobState {
       if (input.action === "status") {
         return jobs.get(input.jobId) ?? { state: "idle" };
       }
-      if (!input.agentId || !input.text || !input.sourceKind) {
-        return { state: "error", error: "Missing translation request fields." };
-      }
-      return start(
-        input.jobId,
-        {
-          agentId: input.agentId,
-          text: input.text,
-          sourceKind: input.sourceKind,
-          interfaceLanguage: input.interfaceLanguage ?? "en",
-        },
-        paseo,
-      );
+      return start(input, paseo);
     },
   };
 }

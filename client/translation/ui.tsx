@@ -1,8 +1,8 @@
 import React, { useCallback, useContext, useMemo, useRef } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { useAgent, type PluginIcon } from "@getpaseo/plugin/client";
+import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
-import type { ConversationAgentModelConfig, TranslationThinkingMode } from "../../shared/timeline-translation";
+import type { TranslationThinkingMode } from "../../shared/timeline-translation";
 import { findTranslationLanguage, resolveTranslationTarget } from "../../shared/translation-languages";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2 } from "../components/theme-tokens";
@@ -18,6 +18,7 @@ import {
   resolveReasoningSource,
   translationStore,
   useTranslateCaller,
+  useTranslationAgentConfig,
   useTranslationEntry,
   type AssistantSourceInput,
   type TranslationEntry,
@@ -81,6 +82,7 @@ export interface TranslationController {
   disableThinking: boolean;
   settingsStatus: "loading" | "ready" | "invalid" | "error";
   settingsError: string | null;
+  agentConfigStatus: "loading" | "ready" | "error";
   sourceAvailable: boolean;
   streaming: boolean;
   active: boolean;
@@ -105,21 +107,17 @@ export function useItemTranslation(options: {
   const settings = settingsState.values;
   const preferences = useEnhancerPreferences();
   const interfaceLanguage = getInterfaceLanguage(preferences?.language);
-  const agentProvider = useAgent(options.agentId, (agent) => agent?.provider);
-  const agentModel = useAgent(options.agentId, (agent) => agent?.model);
-  const agentThinkingOptionId = useAgent(options.agentId, (agent) => agent?.thinkingOptionId);
-  const agentConfig = useMemo<ConversationAgentModelConfig>(
-    () => ({
-      provider: agentProvider ?? null,
-      model: agentModel ?? null,
-      thinkingOptionId: agentThinkingOptionId ?? null,
-    }),
-    [agentProvider, agentModel, agentThinkingOptionId],
+  const sourceAvailable = (options.sourceAvailable ?? true) && Boolean(options.text.trim());
+  const observedAgentConfig = useTranslationAgentConfig(
+    options.agentId,
+    settingsState.status === "ready" && settings.enabled && !settings.customModel &&
+      sourceAvailable && !options.streaming,
   );
+  const agentConfigStatus = settings.customModel ? "ready" : observedAgentConfig.status;
+  const agentConfig = observedAgentConfig.status === "ready" ? observedAgentConfig.config : null;
   const caller = useTranslateCaller();
   const entry = useTranslationEntry(options.sourceKey, options.text, settings, interfaceLanguage, agentConfig);
 
-  const sourceAvailable = options.sourceAvailable ?? true;
   const enabled = settingsState.status === "ready" ? settings.enabled : true;
   const target = resolveTranslationTarget(settings.targetLanguage, interfaceLanguage);
   const targetLabel = interfaceLanguage === "zh" ? target.entry.zhName : target.entry.enName;
@@ -156,7 +154,8 @@ export function useItemTranslation(options: {
       interfaceLanguage: lang,
       caller: rpc,
     } = latestRef.current;
-    if (st.status !== "ready" || !cfg.enabled || !available || opt.streaming || !opt.text.trim()) return;
+    if (st.status !== "ready" || !cfg.enabled || !available || opt.streaming ||
+      (!cfg.customModel && !currentAgentConfig)) return;
     opt.onActivate?.();
     translationStore.startTranslation(
       {
@@ -181,7 +180,7 @@ export function useItemTranslation(options: {
       sourceAvailable: available,
       entry: current,
     } = latestRef.current;
-    if (st.status !== "ready" || !cfg.enabled || !available || opt.streaming || !opt.text.trim()) return;
+    if (st.status !== "ready" || !cfg.enabled || !available || opt.streaming) return;
     if (current?.state.state === "running" || current?.state.state === "done") {
       const nextVisible = !current.visible;
       if (nextVisible) opt.onActivate?.();
@@ -209,6 +208,7 @@ export function useItemTranslation(options: {
     disableThinking: settings.disableThinking,
     settingsStatus: settingsState.status,
     settingsError: settingsState.error,
+    agentConfigStatus,
     sourceAvailable,
     streaming: options.streaming,
     active,
@@ -223,6 +223,7 @@ export function useItemTranslation(options: {
     settings.disableThinking,
     settingsState.status,
     settingsState.error,
+    agentConfigStatus,
     sourceAvailable,
     options.streaming,
     active,
@@ -293,7 +294,7 @@ export function TranslateButton({
   const isDoneHidden = controller.entry?.state.state === "done" && !controller.entry.visible;
   const isErrorHidden = controller.entry?.state.state === "error" && !controller.entry.visible;
   const notReady = controller.settingsStatus !== "ready";
-  const disabled = controller.streaming || notReady || !controller.sourceAvailable;
+  const disabled = controller.streaming || notReady || !controller.sourceAvailable || controller.agentConfigStatus !== "ready";
 
   let label = controller.sourceKind === "reasoning" ? "Translate thought" : "Translate reply";
   if (controller.settingsStatus === "loading") {
@@ -309,6 +310,10 @@ export function TranslateButton({
       controller.sourceKind === "reasoning"
         ? "Wait until the thought finishes streaming"
         : "Wait until the reply finishes streaming";
+  } else if (controller.agentConfigStatus === "loading") {
+    label = "Loading conversation model...";
+  } else if (controller.agentConfigStatus === "error") {
+    label = "Could not load conversation model";
   } else if (isRunningHidden || isDoneHidden || isErrorHidden) {
     label = "Show translation";
   } else if (isRunning) {
