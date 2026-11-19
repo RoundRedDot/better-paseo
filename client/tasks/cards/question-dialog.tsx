@@ -17,6 +17,8 @@ import { QuestionContextNote } from "./question-context-note";
 import { QuestionSelectionMark } from "../../components/question-selection-mark";
 import { HoverControl } from "../hover-control";
 import { tipProps } from "./card-hints";
+import { PreferenceSyncSlot } from "../../state/preference-sync-slot";
+import { TranslationSettingsParentCloseContext } from "../../translation/navigation";
 
 export function TaskQuestionDialog(props: {
   store: QuestionDialogStore;
@@ -42,7 +44,10 @@ export function TaskQuestionDialog(props: {
         <Text style={{ color: props.theme.colors.foregroundMuted }}>{props.language === "zh" ? `任务 ${index + 1} / ${cards.length}` : `Task ${index + 1} / ${cards.length}`}</Text>
         <HoverControl base={props.theme.colors.surface0} foreground={props.theme.colors.foreground} testID="task-question-next-card" accessibilityRole="button" accessibilityLabel={props.language === "zh" ? "下一个任务" : "Next task"} disabled={index === cards.length - 1 || state?.pending} onPress={() => props.store.open(cards[index + 1]!)}><Icon name="ChevronRight" size={18} color={props.theme.colors.foregroundMuted} /></HoverControl>
       </View> : null}
-      <QuestionDialogContent key={key} {...props} requestKey={key} />
+      <TranslationSettingsParentCloseContext.Provider value={props.store.close}>
+        <PreferenceSyncSlot />
+        <QuestionDialogContent key={key} {...props} requestKey={key} />
+      </TranslationSettingsParentCloseContext.Provider>
     </Modal.Content>
   </Modal>;
 }
@@ -70,6 +75,7 @@ export function TaskInlineQuestions(props: { card: TaskCard; source: QuestionDia
 function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { state: QuestionDialogState; inline?: boolean; context?: { context: QuestionContext; retry(): void } | null }) {
   const state = props.state;
   const card = props.cardById(state.agentId);
+  const translationAgentId = card ? card.subagent ? card.parent?.id : card.id : undefined;
   // The dialog reads the note itself; the details pass theirs in.
   const ownContext = useQuestionContext(props.inline ? undefined : props.paseo, state.agentId, state.permission);
   const [index, setIndex] = useState(0);
@@ -112,8 +118,8 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
                 {card.location.branch ? <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99, backgroundColor: branch.background }}><Icon name="GitBranch" size={14} color={branch.icon} /><Text style={[meta, { color: branch.text }]}>{card.location.branch}</Text></View> : null}
               </View>
             </View> : null}
-            {props.inline ? props.context ? <QuestionContextNote read={props.context} theme={props.theme} language={props.language} compact={props.compact} /> : null
-              : <QuestionContextNote read={ownContext} theme={props.theme} language={props.language} compact={props.compact} />}
+            {props.inline ? props.context ? <QuestionContextNote read={props.context} theme={props.theme} language={props.language} compact={props.compact} translationAgentId={translationAgentId} /> : null
+              : <QuestionContextNote read={ownContext} theme={props.theme} language={props.language} compact={props.compact} translationAgentId={translationAgentId} />}
             {multiple ? <ScrollView horizontal showsHorizontalScrollIndicator={false}><View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border }}>
               {questions!.map((q, i) => <HoverControl base={colors.surface0} foreground={colors.foreground} key={i} testID={`task-question-tab-${i}`} accessibilityRole="tab" accessibilityState={{ selected: i === index }} onPress={() => selectQuestion(i)} style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: i === index ? colors.accent : "transparent" }}><Text style={[meta, { color: i === index ? colors.foreground : colors.foregroundMuted, fontWeight: "600" }]}>{words.question(i + 1)}{answered[i] ? " ✓" : ""}</Text></HoverControl>)}
             </View></ScrollView> : null}

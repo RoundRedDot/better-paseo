@@ -39,6 +39,7 @@ import { previewSampleCards } from "../../client/tasks/sample-cards";
 import { asExitPlan } from "./helpers/plan-request";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { SelectionTranslationScope } from "../../client/translation/ui";
+import { MessageTranslateButton } from "../../client/tasks/cards/message-translation";
 import { TasksTypography, TasksTypographyScale, HOST_FONT } from "../../client/tasks/typography";
 import { variantMetrics } from "../../client/components/markdown/render/styles";
 import { measureHostTree } from "./helpers/yoga-host-layout";
@@ -102,6 +103,12 @@ describe("details columns", () => {
     ]);
     expect(scopes[0]!.props.streaming).toBe(false);
     expect(scopes[1]!.props.streaming).toBe(false);
+    const buttons = renderer!.root.findAllByType(MessageTranslateButton);
+    expect(buttons.map((node) => [node.props.testID, node.props.kind, node.props.text])).toEqual([
+      ["detail-prompt-translate", "user_message", "First"],
+      ["detail-human-translate", "user_message", "Follow-up"],
+      ["detail-message-translate", "assistant_message", "Reply"],
+    ]);
   });
 
   it.each([["zh", "基本信息", "消息"], ["en", "Info", "Messages"]] as const)("keeps %s tab labels unchanged when search matches both pages", async (language, info, messages) => {

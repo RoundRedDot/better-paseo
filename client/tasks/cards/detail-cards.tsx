@@ -11,6 +11,7 @@ import { MarkdownView } from "../../components/markdown/markdown-view";
 import { useSelectionActions } from "../../components/selection-actions";
 import { SyncedLoader } from "../../ui/synced-loader";
 import { SelectionTranslationScope } from "../../translation/ui";
+import { MessageTranslateButton } from "./message-translation";
 import { variantMetrics } from "../../components/markdown/render/styles";
 import { mix, useThemeTokens } from "../../components/theme-tokens";
 import { getEnhancerPreferences, useEnhancerPreferences } from "../../preferences";
@@ -1253,6 +1254,9 @@ function Section(props: Inner & { section: DetailSection; replyStreaming: boolea
             </View>
             <Text style={{ flex: 1, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
             {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
+            {read?.prompt.state === "ready" && props.translationAgentId ? <MessageTranslateButton
+              agentId={props.translationAgentId} kind={section === "message" ? "assistant_message" : "user_message"}
+              text={read.prompt.text} streaming={section === "message" && props.replyStreaming} theme={props.theme} testID={`${testID}-translate`} /> : null}
             {read?.prompt.state === "ready" ? (
               <DetailCopyButton label={copyLabel} tokens={tokens} copied={copied} testID={`${testID}-copy`} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} />
             ) : null}

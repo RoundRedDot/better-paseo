@@ -14,6 +14,11 @@ vi.mock("react-native", async () => {
     return { remove: () => { keyboard[key] = undefined; } };
   } } };
 });
+vi.mock("@getpaseo/plugin/client", () => ({
+  useSettings: () => ({ status: "loading" }),
+  usePaseo: () => undefined,
+  useRpc: () => vi.fn(),
+}));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   const Input = React.forwardRef((_props: Record<string, unknown>, ref) => {
@@ -36,6 +41,8 @@ import { permissionButtons, respondToPermission } from "../../client/tasks/actio
 import { previewSampleCards } from "../../client/tasks/sample-cards";
 import { createFakePaseo } from "./helpers/fake-paseo";
 import type { TaskCard } from "../../client/tasks/model";
+import { MessageTranslateButton } from "../../client/tasks/cards/message-translation";
+import { SelectionTranslationScope } from "../../client/translation/ui";
 
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111", foregroundMuted: "#666", accent: "#36c", accentForeground: "#fff", statusWarning: "#960", statusDanger: "#c33", statusSuccess: "#393" } };
 const question = { header: "Original header", question: "Full question\nSecond line", options: [{ label: "Keep, unchanged", description: "Full explanation", preview: "Preview\nSecond line" }, { label: "Reject" }], multiSelect: false, isOther: true };
@@ -410,10 +417,34 @@ describe("agent note above the question", () => {
     expect(shown()).toContain("需要处理两项");
     expect(shown()).not.toContain("等待方案确认");
     expect(shown()).not.toContain("---");
+    const translate = tree!.root.findByType(MessageTranslateButton);
+    expect(translate.props).toMatchObject({ agentId: current.id, kind: "assistant_message", testID: "task-question-note-translate" });
+    expect(translate.props.text).toContain("需要处理两项");
+    expect(tree!.root.findByType(SelectionTranslationScope).props).toMatchObject({ agentId: current.id, kind: "assistant_message" });
     // The note sits between the task and the question.
     const order = ["task-question-context", "task-question-note", "task-question-field"].map((id) => shown().indexOf(`"testID":"${id}"`));
     expect(order[0]).toBeGreaterThanOrEqual(0);
     expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it("keeps the answer draft when translation settings closes the question dialog", async () => {
+    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+    try {
+      const { paseo } = timeline([{ error: null, entries: rows }]);
+      const store = createQuestionDialogStore();
+      const current = asked();
+      await act(async () => { store.open(current); tree = TestRenderer.create(<TaskQuestionDialog store={store} paseo={paseo as never} cardById={() => current} submit={vi.fn(async () => {})} theme={theme} language="zh" />); });
+      const draft = { selections: { 0: [0] }, texts: { 1: "draft answer" } };
+      await act(async () => store.change(draft));
+      await act(async () => host("task-question-note-translate").props.onPress({ stopPropagation() {} }));
+      const settings = tree!.root.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Translation settings");
+      await act(async () => settings.props.onPress());
+      expect(store.get()).toBeNull();
+      await act(async () => store.open(current));
+      expect(store.get()?.draft).toEqual(draft);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("shows placeholder lines while reading, nothing when the agent wrote nothing, and a retry after a failure", async () => {

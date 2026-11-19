@@ -3,6 +3,9 @@ import { Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { MarkdownView } from "../../components/markdown/markdown-view";
+import { useSelectionActions } from "../../components/selection-actions";
+import { SelectionTranslationScope } from "../../translation/ui";
+import { MessageTranslateButton } from "./message-translation";
 import { variantMetrics } from "../../components/markdown/render/styles";
 import { useThemeTokens } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
@@ -32,6 +35,7 @@ type NoteProps = {
   theme: PluginTheme;
   language: TasksLanguage;
   compact?: boolean;
+  translationAgentId?: string;
 };
 
 export function QuestionContextNote(props: NoteProps) {
@@ -64,6 +68,7 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
   const [expanded, setExpanded] = useState(false);
   const preferences = useEnhancerPreferences();
   const prose = useThemeTokens(props.theme, preferences);
+  useSelectionActions(prose, !!props.translationAgentId && preferences.selectionActions);
   const adjustment = useTasksFontAdjustment();
   const { copied, copy } = useCopy();
   const tokens = taskTokens(props.theme);
@@ -80,6 +85,8 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
       <Text style={[meta, { color: colors.foreground, fontWeight: "600" }]}>{words.context}</Text>
       {Number.isFinite(at) ? <Text numberOfLines={1} style={[meta, { flexShrink: 1 }]}>· {formatRelative(Date.now() - at, props.language)}</Text> : null}
       <View style={{ flex: 1 }} />
+      {ready && props.translationAgentId ? <MessageTranslateButton agentId={props.translationAgentId} kind="assistant_message" text={ready.text}
+        streaming={false} theme={props.theme} testID="task-question-note-translate" size={28} /> : null}
       {ready ? <HoverControl base={colors.surface0} foreground={colors.foreground} accessibilityRole="button" accessibilityLabel={words.copyContext} {...tipProps(words.copyContext)} onPress={() => { void copy(ready.text, { label: "Copy agent note" }); }}
         hitSlop={4} testID="task-question-note-copy" style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
         <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : colors.foregroundMuted} />
@@ -89,7 +96,9 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
       <FoldedText id="task-question-note" language={props.language} tokens={tokens} line={line} limit={props.compact ? NOTE_LINES.compact : NOTE_LINES.wide}
         expanded={expanded} fadeColor={colors.surface1} touch={props.compact} onToggle={() => setExpanded((open) => !open)}>
         <HoverPreviewContext.Provider value>
-          <MarkdownView text={ready.text} tokens={prose} variant={preferences.markdownVariant} compact={props.compact === true} size={font} />
+          {props.translationAgentId ? <SelectionTranslationScope agentId={props.translationAgentId} kind="assistant_message" streaming={false}>
+            <MarkdownView text={ready.text} tokens={prose} variant={preferences.markdownVariant} compact={props.compact === true} size={font} />
+          </SelectionTranslationScope> : <MarkdownView text={ready.text} tokens={prose} variant={preferences.markdownVariant} compact={props.compact === true} size={font} />}
         </HoverPreviewContext.Provider>
       </FoldedText>
     </View> : <View testID="task-question-note-loading" accessible accessibilityRole="progressbar" accessibilityLabel={words.contextLoading} style={box}>

@@ -138,6 +138,7 @@ vi.mock("../../client/host-row-gap", () => ({ useHostStacksRows: () => false }))
 import { LiveAssistantRenderer, LiveReasoningRenderer } from "../../client/live-renderers";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { SelectionTranslationScope } from "../../client/translation/ui";
+import { MessageTranslateButton } from "../../client/tasks/cards/message-translation";
 import * as pluginClient from "@getpaseo/plugin/client";
 
 const HostContext = (pluginClient as unknown as { HostContext: React.Context<{ api: PaseoApi; rpc: typeof mocks.rpc } | null> }).HostContext;
@@ -302,6 +303,65 @@ function doneState(translation: string, extra: Record<string, unknown> = {}) {
 }
 
 const translator = () => ({ call: mocks.rpc as never, watch: () => () => {} });
+
+describe.each(["web", "ios", "android"] as const)("%s whole-message translation", (platform) => {
+  it("hides the action when translation is disabled", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false }, "off");
+    await act(async () => { renderer = TestRenderer.create(React.createElement(MessageTranslateButton, {
+      agentId: "agent-1", kind: "assistant_message", text: "Hello", streaming: false, theme, testID: "whole-translate",
+    })); });
+    expect(renderer!.root.findAll((node) => String(node.type) === "Pressable" && node.props.testID === "whole-translate")).toHaveLength(0);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("sends the entire message only when pressed", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    mocks.rpc.mockResolvedValue(doneState("完整译文"));
+    const text = "First line.\n\nSecond **paragraph** with `file.ts`.";
+    await act(async () => { renderer = TestRenderer.create(React.createElement(MessageTranslateButton, {
+      agentId: "agent-1", kind: "user_message", text, streaming: false, theme, testID: "whole-translate",
+    })); });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    const stopPropagation = vi.fn();
+    await act(async () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "whole-translate").props.onPress({ stopPropagation }));
+    await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ agentId: "agent-1", sourceKind: "user_message", text });
+    expect(JSON.stringify(renderer!.toJSON())).toContain("完整译文");
+  });
+
+  it("keeps the pressed text while a reply streams and waits for completion", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    mocks.rpc.mockResolvedValue(doneState("译文"));
+    const props = { agentId: "agent-1", kind: "assistant_message" as const, text: "First chunk", streaming: true, theme, testID: "whole-translate" };
+    await act(async () => { renderer = TestRenderer.create(React.createElement(MessageTranslateButton, props)); });
+    await act(async () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "whole-translate").props.onPress({ stopPropagation() {} }));
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    await act(async () => renderer!.update(React.createElement(MessageTranslateButton, { ...props, text: "First chunk and more", streaming: false })));
+    await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
+    expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ text: "First chunk", sourceKind: "assistant_message" });
+  });
+});
+
+it("uses each message's own host for whole-message translation", async () => {
+  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "claude", model: "model" }, "custom");
+  const other = createMockAgentApi();
+  const firstRpc = vi.fn().mockResolvedValue(doneState("first"));
+  const secondRpc = vi.fn().mockResolvedValue(doneState("second"));
+  const message = { agentId: "same-agent", kind: "assistant_message" as const, text: "Same message", streaming: false, theme };
+  await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+    React.createElement(HostContext.Provider, { value: { api: agentApi.api, rpc: firstRpc } }, React.createElement(MessageTranslateButton, { ...message, testID: "first-translation" })),
+    React.createElement(HostContext.Provider, { value: { api: other.api, rpc: secondRpc } }, React.createElement(MessageTranslateButton, { ...message, testID: "second-translation" })))); });
+  const press = (id: string) => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === id).props.onPress({ stopPropagation() {} });
+  await act(async () => press("first-translation"));
+  await vi.waitFor(() => expect(firstRpc).toHaveBeenCalledOnce());
+  expect(secondRpc).not.toHaveBeenCalled();
+  await act(async () => renderer!.root.find((node) => String(node.type) === "Modal").props.onRequestClose());
+  await act(async () => press("second-translation"));
+  await vi.waitFor(() => expect(secondRpc).toHaveBeenCalledOnce());
+  expect(JSON.stringify(renderer!.toJSON())).toContain("second");
+});
 
 function selection(text: string, overrides: Partial<Parameters<typeof createSelectionTranslation>[0]> = {}) {
   return createSelectionTranslation({
