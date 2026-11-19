@@ -9,8 +9,29 @@ import {
 export const TRANSLATION_HELPER_LABEL = "better-paseo.purpose";
 export const TRANSLATION_HELPER_PURPOSE = "timeline-translation";
 
-export const DEFAULT_TRANSLATION_PROMPT =
-  "Translate the supplied text into the target language. Preserve Markdown, code blocks, inline code, commands, paths, links, and technical identifiers. Return only the translation, without explanations.";
+// Settings saves write the full value object, so a stored prompt keeps the
+// text it was saved with. When this changes, add the old text to
+// PREVIOUS_DEFAULT_TRANSLATION_PROMPTS so untouched defaults follow along.
+export const DEFAULT_TRANSLATION_PROMPT = [
+  "Translate the text into the target language.",
+  "Write natural, fluent prose for a native reader while keeping the original meaning, tone, and level of detail.",
+  "Keep code, inline code, commands, file names and extensions, paths, URLs, APIs, identifiers, and product or library names exactly as written;",
+  "use technical terms in the form developers commonly use in the target language, keeping the original term when that is the norm.",
+  "Preserve the Markdown structure. Return only the translation, without explanations.",
+].join(" ");
+
+/**
+ * Earlier default prompts, matched exactly after trimming. Reading settings
+ * maps them to the current default without writing the file; the next normal
+ * save persists the current text. Any other prompt is kept as written.
+ */
+export const PREVIOUS_DEFAULT_TRANSLATION_PROMPTS: readonly string[] = [
+  "Translate the supplied text into the target language. Preserve Markdown, code blocks, inline code, commands, paths, links, and technical identifiers. Return only the translation, without explanations.",
+];
+
+function currentDefaultPrompt(prompt: string): string {
+  return PREVIOUS_DEFAULT_TRANSLATION_PROMPTS.includes(prompt) ? DEFAULT_TRANSLATION_PROMPT : prompt;
+}
 
 /**
  * Only these option IDs represent genuinely disabling thinking on a model.
@@ -54,7 +75,7 @@ export const timelineTranslationSettingsSchema = z.object({
   model: z.string().catch(""),
   thinkingOptionId: z.string().catch(""),
   targetLanguage: z.string().refine(isTranslationLanguageCode).catch(FOLLOW_INTERFACE_LANGUAGE_CODE),
-  prompt: z.string().trim().min(1).max(8000).catch(DEFAULT_TRANSLATION_PROMPT),
+  prompt: z.string().trim().min(1).max(8000).catch(DEFAULT_TRANSLATION_PROMPT).transform(currentDefaultPrompt),
 });
 
 export type TimelineTranslationSettings = z.output<typeof timelineTranslationSettingsSchema>;

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_TRANSLATION_PROMPT,
+  PREVIOUS_DEFAULT_TRANSLATION_PROMPTS,
   resolveThinkingCapability,
   timelineTranslationSettingsSchema,
   translateTimelineItemRpc,
@@ -480,5 +481,46 @@ describe("timeline translation server service", () => {
     const prompt = buildTranslationPrompt("Translate", "Japanese (ja)", "ja", "reasoning", "Step 1");
     expect(prompt).toContain("Source kind: assistant reasoning");
     expect(prompt).toContain("Step 1");
+  });
+});
+
+describe("default timeline translation prompt", () => {
+  const legacyDefault =
+    "Translate the supplied text into the target language. Preserve Markdown, code blocks, inline code, commands, paths, links, and technical identifiers. Return only the translation, without explanations.";
+
+  it("reads an untouched earlier default as the current default and keeps every other prompt", () => {
+    expect(PREVIOUS_DEFAULT_TRANSLATION_PROMPTS).toEqual([legacyDefault]);
+    const promptOf = (values: unknown) => timelineTranslationSettingsSchema.parse(values).prompt;
+    expect(promptOf({})).toBe(DEFAULT_TRANSLATION_PROMPT);
+    expect(promptOf({ prompt: "   " })).toBe(DEFAULT_TRANSLATION_PROMPT);
+    expect(promptOf({ prompt: legacyDefault })).toBe(DEFAULT_TRANSLATION_PROMPT);
+    // The schema already trims every prompt, so surrounding whitespace is not an edit.
+    expect(promptOf({ prompt: `\n${legacyDefault}  ` })).toBe(DEFAULT_TRANSLATION_PROMPT);
+    expect(promptOf({ prompt: DEFAULT_TRANSLATION_PROMPT })).toBe(DEFAULT_TRANSLATION_PROMPT);
+    expect(promptOf({ prompt: "Keep it terse." })).toBe("Keep it terse.");
+    const extended = `${legacyDefault} Use a formal register.`;
+    expect(promptOf({ prompt: extended })).toBe(extended);
+    expect(promptOf({ prompt: legacyDefault.replace("Return only", "Return just") })).toBe(
+      legacyDefault.replace("Return only", "Return just"),
+    );
+  });
+
+  it("binds translations to the mapped prompt on both client and server", async () => {
+    const mapped = timelineTranslationSettingsSchema.parse({ prompt: legacyDefault });
+    const fresh = timelineTranslationSettingsSchema.parse({});
+    expect(translationConfigSignature(mapped, "en")).toBe(translationConfigSignature(fresh, "en"));
+    // A translation cached by a build that still used the earlier default no longer matches.
+    expect(translationConfigSignature({ ...mapped, prompt: legacyDefault }, "en")).not.toBe(
+      translationConfigSignature(mapped, "en"),
+    );
+
+    const { translator, paseo, captured, configSignature } = createMockEnv({ settings: { prompt: legacyDefault } });
+    await translator.request({
+      action: "start", jobId: "job-legacy-default", agentId: "source-agent-1", text: "Run `npm test`.",
+      sourceKind: "assistant_message", interfaceLanguage: "en", configSignature,
+    }, paseo);
+    expect((await waitForJob(translator, paseo, "job-legacy-default")).state).toBe("done");
+    expect(captured.prompts[0]!.startsWith(`${DEFAULT_TRANSLATION_PROMPT}\n\nTarget language:`)).toBe(true);
+    expect(captured.prompts[0]).not.toContain("Translate the supplied text");
   });
 });

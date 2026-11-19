@@ -333,6 +333,42 @@ describe("timeline translation settings", () => {
     );
   });
 
+  it("shows an untouched earlier default prompt as the default and saves the current text", async () => {
+    const legacyDefault =
+      "Translate the supplied text into the target language. Preserve Markdown, code blocks, inline code, commands, paths, links, and technical identifiers. Return only the translation, without explanations.";
+    const resetPromptButtons = () => renderer!.root.findAll(
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Reset prompt",
+    );
+
+    // The host hands the page values already parsed by the settings schema.
+    mocks.settingsState = makeReadySettings({ enabled: true, prompt: "Keep it terse." });
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() }));
+    });
+    expect(resetPromptButtons().length).toBeGreaterThan(0);
+    act(() => renderer!.unmount());
+
+    mocks.settingsState = makeReadySettings({ enabled: true, prompt: legacyDefault });
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() }));
+    });
+    expect(resetPromptButtons()).toHaveLength(0);
+    const texts = textValues(renderer!.root).join("\n");
+    expect(texts).toContain(DEFAULT_TRANSLATION_PROMPT);
+    expect(texts).not.toContain("Translate the supplied text");
+
+    const masterSwitch = renderer!.root.find(
+      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable inline translation",
+    );
+    await act(async () => {
+      masterSwitch.props.onPress();
+    });
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ enabled: false, prompt: DEFAULT_TRANSLATION_PROMPT }),
+      "rev-1",
+    );
+  });
+
   it("renders natively in Chinese and uses Modal for language picker on iOS", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     updateEnhancerPreferences({ language: "zh" });
