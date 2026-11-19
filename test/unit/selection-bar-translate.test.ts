@@ -15,6 +15,7 @@ const {
   DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests,
 } = await import("../../client/translation/settings-store");
 const { resetTranslationStoreForTests } = await import("../../client/translation/store");
+const { clearTranslationSettingsTarget, registerTranslationSettingsOpener, translationSettingsTarget } = await import("../../client/translation/navigation");
 const { bindSelectionScopeElement, selectionScopeDataSet } = await import("../../client/translation/selection");
 
 /**
@@ -116,7 +117,7 @@ function select(text: string, node: ElementMock) {
 const host = () => body.children.find((child) => "bcselectionbar" in child.dataset || child.getAttribute("data-bcselectionbar") !== null)!;
 const bar = () => host().all((node) => node.className === "bar")[0]!;
 const panel = () => host().all((node) => node.className === "panel")[0]!;
-const button = (label: string) => host().all((node) => node.className === "btn" && node.getAttribute("aria-label") === label)[0];
+const button = (label: string) => host().all((node) => node.className.split(" ").includes("btn") && node.getAttribute("aria-label") === label)[0];
 const display = () => host().style.getPropertyValue("display");
 async function flush() {
   await act(async () => { for (let i = 0; i < 6; i += 1) await Promise.resolve(); });
@@ -191,6 +192,7 @@ describe("selection bar Translate", () => {
     expect(call.mock.calls[0]![0]).toMatchObject({ action: "start", agentId: "agent-1", text: "the selected words", sourceKind: "reasoning" });
     expect(bar().classList.contains("translating")).toBe(true);
     expect(panel().textContent).toContain("Translating...");
+    expect(panel().textContent).toContain("Codex · gpt-5");
 
     const markup = '<img src=x onerror="alert(1)">';
     await act(async () => finish({ ...done(markup), thinkingMode: "unsupported_off", thinkingOptionId: "low" }));
@@ -210,6 +212,21 @@ describe("selection bar Translate", () => {
     const max = Number.parseInt(bar().style.getPropertyValue("--bc-panel-max"), 10);
     expect(max).toBeLessThanOrEqual(200 - 16);
     expect(Number.parseInt(host().style.getPropertyValue("top"), 10)).toBeGreaterThanOrEqual(8);
+  });
+
+  it("opens settings on the selected host", async () => {
+    const open = vi.fn();
+    const release = registerTranslationSettingsOpener(lent(call).paseo, open);
+    call.mockResolvedValue(done("好"));
+    select("words", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
+    button("Translate")!.click();
+    await flush();
+    expect(panel().textContent).toContain("Codex · gpt-5");
+    button("Translation settings")!.click();
+    expect(open).toHaveBeenCalledWith("chat-presentation");
+    expect(translationSettingsTarget()).toBe(true);
+    clearTranslationSettingsTarget();
+    release();
   });
 
   it("never shows one selection's result on another, and leaves with the bar", async () => {

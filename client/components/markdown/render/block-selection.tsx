@@ -8,7 +8,7 @@ import { useScrollDismiss } from "../../../ui/scroll-anchor";
 import { FLOAT, floatPressed } from "../../../ui/tokens/float";
 import { useEnhancerPreferences } from "../../../preferences";
 import { toolbarLabel } from "../../../i18n/toolbar-strings";
-import { AnchoredToolbarDetails } from "../../../ui/toolbar-button";
+import { CenteredToolbarDetails } from "../../../ui/toolbar-button";
 import { SelectionTranslationContext, useSelectionTranslation, type SelectionTranslationScopeValue } from "../../../translation/selection";
 import { SelectionTranslationPanel, TRANSLATE_ICON } from "../../../translation/ui";
 import { useTranslationSettingsState } from "../../../translation/settings-store";
@@ -141,57 +141,49 @@ function BlockCopyMenu({ text, tokens, dismiss }: { text: string; tokens: Extend
   const { copy } = useCopy();
   const { language } = useEnhancerPreferences();
   const mounted = useRef(true);
-  const frame = useRef<View>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const copyButton = <Pressable accessibilityRole="button" accessibilityLabel="Copy selected block"
+    style={({ pressed }) => [styles.item, pressed && { backgroundColor: floatPressed(tokens) }]}
+    onPress={() => { void copy(text, { feedback: "toast" }).then((ok) => { if (ok && mounted.current) dismiss(); }); }}>
+    <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+    <Text selectable={false} style={[styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+      {toolbarLabel("Copy selected", language)}
+    </Text>
+  </Pressable>;
+  const menuStyle = [styles.menu, tokens.v2.elevation.overlay, { backgroundColor: tokens.surface0, borderColor: tokens.v2.border }];
   return <View style={styles.slot} onTouchStart={(event) => event.stopPropagation()}>
-    <View ref={frame} collapsable={false} testID="markdown-block-menu"
-      style={[styles.menu, tokens.v2.elevation.overlay, { backgroundColor: tokens.surface0, borderColor: tokens.v2.border }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Copy selected block"
-        style={({ pressed }) => [styles.item, pressed && { backgroundColor: floatPressed(tokens) }]}
-        onPress={() => { void copy(text, { feedback: "toast" }).then((ok) => { if (ok && mounted.current) dismiss(); }); }}>
-        <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
-        <Text selectable={false} style={[styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-          {toolbarLabel("Copy selected", language)}
-        </Text>
-      </Pressable>
-      {translatable ? <>
-        <View testID="translation-menu-separator" accessible={false} style={[styles.separator, { backgroundColor: tokens.v2.border }]} />
-        <BlockTranslate scope={scope} text={text} tokens={tokens} anchor={frame} dismiss={dismiss} />
-      </> : null}
-    </View>
+    {translatable ? <BlockTranslate scope={scope} text={text} tokens={tokens} dismiss={dismiss} copyButton={copyButton} menuStyle={menuStyle} />
+      : <View testID="markdown-block-menu" style={menuStyle}>{copyButton}</View>}
   </View>;
 }
 
-/**
- * Translate for the selected block's text, and only that text. The result
- * opens in a popup anchored to the menu: a native modal, because a panel in
- * the row would be clipped by the timeline's next row. Closing the popup ends
- * the selection, as every other menu action does.
- */
-function BlockTranslate({ scope, text, tokens, anchor, dismiss }: {
+function BlockTranslate({ scope, text, tokens, dismiss, copyButton, menuStyle }: {
   scope: SelectionTranslationScopeValue;
   text: string;
   tokens: ExtendedThemeTokens;
-  anchor: React.RefObject<View | null>;
   dismiss(): void;
+  copyButton: React.ReactNode;
+  menuStyle: React.ComponentProps<typeof View>["style"];
 }) {
   const { language } = useEnhancerPreferences();
   const { view, start } = useSelectionTranslation(scope, text);
   const window = useWindowDimensions();
   return <>
-    <Pressable accessibilityRole="button" accessibilityLabel="Translate selected block"
-      style={({ pressed }) => [styles.item, pressed && { backgroundColor: floatPressed(tokens) }]}
-      onPress={start}>
-      <Icon icon={TRANSLATE_ICON} size={FLOAT.iconSize} color={view ? tokens.accent : tokens.foregroundMuted} />
-      <Text selectable={false} style={[styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-        {toolbarLabel("Translate", language)}
-      </Text>
-    </Pressable>
-    {view ? (
-      <AnchoredToolbarDetails anchor={anchor} close={dismiss} tokens={tokens} width={Math.min(360, window.width - 16)}>
-        <SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} />
-      </AnchoredToolbarDetails>
-    ) : null}
+    {!view ? <View testID="markdown-block-menu" style={menuStyle}>
+      {copyButton}
+      <View testID="translation-menu-separator" accessible={false} style={[styles.separator, { backgroundColor: tokens.v2.border }]} />
+      <Pressable accessibilityRole="button" accessibilityLabel="Translate selected block"
+        style={({ pressed }) => [styles.item, pressed && { backgroundColor: floatPressed(tokens) }]}
+        onPress={start}>
+        <Icon icon={TRANSLATE_ICON} size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+        <Text selectable={false} style={[styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+          {toolbarLabel("Translate", language)}
+        </Text>
+      </Pressable>
+    </View> : null}
+    {view ? <CenteredToolbarDetails close={dismiss} tokens={tokens} width={Math.min(360, window.width - 16)}>
+      <SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={dismiss} />
+    </CenteredToolbarDetails> : null}
   </>;
 }
 

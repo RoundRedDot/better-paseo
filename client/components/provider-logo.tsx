@@ -74,7 +74,7 @@ export const LOCAL_MARKS: Partial<Record<KnownProvider, string>> = {
  * same handful of marks render on every turn in the stream.
  */
 /** A local mark first, then the vendor table. Both ship as PNG rasters. */
-function markId(provider: KnownProvider): string | undefined {
+export function markId(provider: KnownProvider): string | undefined {
   for (const candidate of [`provider:${provider}`, `lobe:${provider}`]) {
     if (MARK_IDS.has(candidate)) return candidate;
   }

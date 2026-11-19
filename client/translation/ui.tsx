@@ -2,6 +2,9 @@ import React, { useMemo, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
+import { usePaseo } from "@getpaseo/plugin/client";
+import { ProviderLogo, providerBrand } from "../components/provider-logo";
+import { openTranslationSettings } from "./navigation";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { MarkdownView } from "../components/markdown/markdown-view";
 import { ToolbarCopyButton } from "../ui/toolbar-button";
@@ -51,12 +54,14 @@ export function SelectionTranslationScope({ agentId, kind, streaming, enabled = 
  * streams, Copy and Retry. The body scrolls within a
  * height bounded by the window. Prose in it is not itself translatable.
  */
-export function SelectionTranslationPanel({ view, tokens, onRetry }: {
+export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
   view: SelectionTranslationView;
   tokens: ExtendedThemeTokens;
   onRetry(): void;
+  onClose(): void;
 }) {
   const { language } = useEnhancerPreferences();
+  const paseo = usePaseo();
   const lang = resolveLanguage(language ?? "system");
   const window = useWindowDimensions();
   const message = selectionViewMessage(view);
@@ -73,7 +78,17 @@ export function SelectionTranslationPanel({ view, tokens, onRetry }: {
           {selectionViewTitle(view, lang)}
         </Text>
         {running ? <ActivityIndicator size="small" color={tokens.accent} /> : null}
+        <View style={{ flex: 1 }} />
+        <Pressable accessibilityRole="button" accessibilityLabel="Translation settings" onPress={() => { onClose(); openTranslationSettings(paseo); }} hitSlop={8}>
+          <Icon name="Settings" size={16} color={tokens.foregroundMuted} />
+        </Pressable>
       </View>
+      {view.modelInfo ? <View style={styles.model}>
+        <ProviderLogo provider={view.modelInfo.provider} size={14} neutralColor={tokens.foregroundMuted} />
+        <Text testID="translation-model" numberOfLines={1} selectable={false} style={[styles.title, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+          {providerBrand(view.modelInfo.provider).displayName} · {view.modelInfo.model}
+        </Text>
+      </View> : null}
       {message ? (
         <Text testID="selection-translation-message" selectable={false}
           style={[styles.message, { color: view.status === "error" ? danger : muted, fontFamily: tokens.fontUi }]}>
@@ -111,6 +126,7 @@ const styles = StyleSheet.create({
   panel: { paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
   header: { flexDirection: "row", alignItems: "center", gap: 6 },
   title: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontWeight: "500" },
+  model: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
   message: { fontSize: 12.5, lineHeight: 18 },
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 },
   textAction: { paddingHorizontal: 6, paddingVertical: 4 },

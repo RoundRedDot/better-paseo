@@ -17,6 +17,7 @@ import {
   resetTranslationStoreForTests,
   translationStore,
 } from "../../client/translation/store";
+import { clearTranslationSettingsTarget, registerTranslationSettingsOpener, translationSettingsTarget } from "../../client/translation/navigation";
 import {
   createSelectionTranslation,
   selectionScopeForElement,
@@ -587,11 +588,14 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ text: "Second paragraph.", agentId: "agent-1", sourceKind: "assistant_message" });
     expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(1);
+    expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "footer-details-center")).toHaveLength(1);
+    expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-block-menu")).toHaveLength(0);
     expect(panelText()).toContain("Translating...");
 
     await act(async () => reply.resolve(doneState("第二段。", { thinkingMode: "unsupported_off", thinkingOptionId: "low" })));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("第二段。"));
     expect(button("Copy translation")).toHaveLength(1);
+    expect(collectTexts(renderer!.root.findByProps({ testID: "translation-model" })).join(" ")).toContain("Claude · claude-sonnet-4-5");
     expect(panelText()).not.toContain("Thinking was NOT disabled");
     // Prose in the popup is not itself translatable.
     const popupScope = renderer!.root.find((node) => node.props.testID === "selection-translation-panel")
@@ -611,6 +615,25 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     await act(async () => button("Translate selected block")[0]!.props.onPress());
     expect(JSON.stringify(renderer!.toJSON())).toContain("第二段。");
     expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("opens translation settings and dismisses the selection", async () => {
+    const open = vi.fn();
+    const release = registerTranslationSettingsOpener(agentApi.api, open);
+    mocks.rpc.mockResolvedValue(doneState("好"));
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer,
+        assistantProps({ text: "Hello", phase: "complete" }, platform) as never));
+    });
+    select(0);
+    await act(async () => button("Translate selected block")[0]!.props.onPress());
+    await act(async () => button("Translation settings")[0]!.props.onPress());
+    expect(open).toHaveBeenCalledWith("chat-presentation");
+    expect(translationSettingsTarget()).toBe(true);
+    clearTranslationSettingsTarget();
+    expect(renderer!.root.findAllByProps({ testID: "markdown-block-highlight" })).toHaveLength(0);
+    expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(0);
+    release();
   });
 
   it("waits for a streaming reply and shows errors with retry", async () => {

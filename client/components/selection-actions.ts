@@ -23,6 +23,9 @@ import {
   type SelectionTranslationView,
 } from "../translation/selection";
 import { selectionViewTitle } from "../translation/view-text";
+import { openTranslationSettings } from "../translation/navigation";
+import { markId, normalizeProvider, providerBrand } from "./provider-logo";
+import { MONO_MARKS, readMark, requestMark, subscribeMarks } from "./marks";
 
 /**
  * A floating Copy / Add to chat bar for highlighted callout text.
@@ -98,6 +101,7 @@ const ICONS = {
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   add: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
+  settings: '<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>',
   translate: '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
 } as const;
 type IconName = keyof typeof ICONS;
@@ -300,6 +304,10 @@ const BAR_CSS = `
 }
 .panel-head[data-tone="error"] svg { color: var(--bc-bar-danger); }
 .panel-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-settings { margin-left: auto; padding: 3px; height: 24px; }
+.panel-model { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--bc-bar-icon); }
+.panel-model img, .panel-model .model-mark { width: 14px; height: 14px; flex: 0 0 auto; }
+.panel-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spinner {
   width: 10px;
   height: 10px;
@@ -369,7 +377,11 @@ const BAR_CSS = `
 .btn[data-done] svg { color: var(--bc-bar-done); }
 @media (prefers-reduced-motion: reduce) {
   .bar, .bar.leaving, .btn { transition: none; }
-  .spinner { animation: none; }
+  .panel-settings { margin-left: auto; padding: 3px; height: 24px; }
+.panel-model { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--bc-bar-icon); }
+.panel-model img, .panel-model .model-mark { width: 14px; height: 14px; flex: 0 0 auto; }
+.panel-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spinner { animation: none; }
 }
 `;
 
@@ -390,6 +402,7 @@ interface BarActions {
   done(): void;
   translate(): void;
   retry(): void;
+  settings(): void;
 }
 
 function readLanguage() {
@@ -553,7 +566,33 @@ function createBar(actions: BarActions): Bar {
     if (view.status === "running" || view.status === "config-loading" || view.status === "settings-loading") {
       head.appendChild(element("span", "spinner"));
     }
+    const settings = makeButton(head, "Translation settings", "settings", () => actions.settings());
+    settings.className += " panel-settings";
+    settings.replaceChildren();
+    settings.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.settings}</svg>`;
+    settings.title = toolbarLabel("Translation settings", language);
     panel.appendChild(head);
+    if (view.modelInfo) {
+      const model = element("div", "panel-model");
+      const id = markId(normalizeProvider(view.modelInfo.provider));
+      const uri = readMark(id);
+      if (id && uri === undefined) requestMark(id);
+      if (uri) {
+        if (id && MONO_MARKS.has(id)) {
+          const mark = element("div", "model-mark");
+          mark.style.backgroundColor = "var(--bc-bar-icon)";
+          mark.style.mask = `url("${uri}") center / contain no-repeat`;
+          model.appendChild(mark);
+        } else {
+          const image = element("img", "model-mark");
+          image.src = uri;
+          image.alt = "";
+          model.appendChild(image);
+        }
+      }
+      model.appendChild(element("span", "model-label", `${providerBrand(view.modelInfo.provider).displayName} · ${view.modelInfo.model}`));
+      panel.appendChild(model);
+    }
 
     const message = selectionViewMessage(view);
     if (message) {
@@ -626,6 +665,7 @@ function createBar(actions: BarActions): Bar {
   };
 
   const hidden = () => host.style.getPropertyValue("display") === "none";
+  const unsubscribeMarks = subscribeMarks(() => { if (view?.modelInfo) renderPanel(); });
 
   return {
     host,
@@ -693,6 +733,7 @@ function createBar(actions: BarActions): Bar {
       window.clearTimeout(doneTimer);
       window.clearTimeout(leaveTimer);
       window.clearTimeout(copiedTimer);
+      unsubscribeMarks();
       bar.removeEventListener("mousedown", holdSelection);
       host.remove();
     },
@@ -784,6 +825,12 @@ function startController(): Controller {
     translate,
     retry() {
       translation?.job.start();
+    },
+    settings() {
+      const paseo = translation?.snapshot.scope?.lent?.paseo;
+      dismissed = true;
+      hide();
+      openTranslationSettings(paseo);
     },
   });
   let pending = 0;

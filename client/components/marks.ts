@@ -350,7 +350,7 @@ function flush() {
     });
 }
 
-function request(id: string) {
+export function requestMark(id: string) {
   if (!loader || bitmaps()[id] || failed.has(id) || inFlight.has(id) || queued.has(id)) return;
   queued.add(id);
   if (flushScheduled) return;
@@ -370,7 +370,7 @@ export function readMark(id: string | undefined): string | null | undefined {
   return failed.has(id) ? null : undefined;
 }
 
-function subscribe(listener: () => void) {
+export function subscribeMarks(listener: () => void) {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
@@ -379,12 +379,12 @@ function subscribe(listener: () => void) {
 
 export function useMarkBitmap(id: string | undefined): string | null | undefined {
   const mark = useSyncExternalStore(
-    subscribe,
+    subscribeMarks,
     () => readMark(id),
     () => readMark(id),
   );
   useEffect(() => {
-    if (id && mark === undefined) request(id);
+    if (id && mark === undefined) requestMark(id);
   }, [id, mark]);
   return mark;
 }

@@ -133,7 +133,7 @@ export function selectionScopeForElement(element: object): SelectionTranslationS
 
 export type ResultNoticeInput = Extract<TranslationJobState, { state: "done" }>;
 
-export type SelectionTranslationView =
+export type SelectionTranslationView = (
   | { status: "settings-loading" }
   | { status: "settings-invalid"; error: string | null }
   | { status: "settings-error"; error: string | null }
@@ -146,7 +146,7 @@ export type SelectionTranslationView =
   | { status: "stale" }
   | { status: "running"; text?: string; targetCode: string }
   | { status: "done"; result: ResultNoticeInput; disableThinking: boolean }
-  | { status: "error"; error: string; targetCode: string };
+  | { status: "error"; error: string; targetCode: string }) & { modelInfo?: { provider: string; model: string } };
 
 export interface SelectionTranslationOptions {
   agentId: string;
@@ -179,6 +179,7 @@ function currentInterfaceLanguage(): "en" | "zh" {
 function sameView(a: SelectionTranslationView | null, b: SelectionTranslationView | null): boolean {
   if (a === b) return true;
   if (!a || !b || a.status !== b.status) return false;
+  if (a.modelInfo?.provider !== b.modelInfo?.provider || a.modelInfo?.model !== b.modelInfo?.model) return false;
   switch (a.status) {
     case "running": {
       const other = b as typeof a;
@@ -284,10 +285,10 @@ export function createSelectionTranslation(options: SelectionTranslationOptions)
       );
       const started = translationStore.readValid(sourceKey, options.text, settings, lang, agentConfig);
       startedJob = started?.jobId ?? null;
-      return viewOf(started, targetCode, settings);
+      return viewOf(started, targetCode, settings, agentConfig);
     }
     startedJob ??= entry.jobId;
-    return viewOf(entry, targetCode, settings);
+    return viewOf(entry, targetCode, settings, agentConfig);
   };
 
   // Starting a job notifies the cache, which calls back here; the outer pass
@@ -365,12 +366,16 @@ function viewOf(
   entry: TranslationEntry | undefined,
   targetCode: string,
   settings: TimelineTranslationSettings,
+  agentConfig: ConversationAgentModelConfig | null,
 ): SelectionTranslationView {
-  if (!entry || entry.state.state === "idle") return { status: "running", targetCode };
+  const provider = settings.customModel ? settings.provider : agentConfig?.provider;
+  const model = settings.customModel ? settings.model : agentConfig?.model;
+  const modelInfo = provider && model ? { provider, model } : undefined;
+  if (!entry || entry.state.state === "idle") return { status: "running", targetCode, modelInfo };
   switch (entry.state.state) {
-    case "running": return { status: "running", text: entry.state.text || undefined, targetCode };
-    case "done": return { status: "done", result: entry.state, disableThinking: settings.disableThinking };
-    case "error": return { status: "error", error: entry.state.error, targetCode };
+    case "running": return { status: "running", text: entry.state.text || undefined, targetCode, modelInfo };
+    case "done": return { status: "done", result: entry.state, disableThinking: settings.disableThinking, modelInfo: { provider: entry.state.provider, model: entry.state.model } };
+    case "error": return { status: "error", error: entry.state.error, targetCode, modelInfo };
   }
 }
 

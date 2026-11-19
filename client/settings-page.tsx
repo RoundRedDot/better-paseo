@@ -3,6 +3,7 @@ import { useRpc } from "@getpaseo/plugin/client";
 import { updateCheckRpc } from "../shared/update-check";
 import { hasAgentUpdate, type AgentUpdate } from "../shared/agent-updates";
 import { TimelineTranslationSettings } from "./translation/settings";
+import { clearTranslationSettingsTarget, translationSettingsTarget } from "./translation/navigation";
 import { useAgentUpdates } from "./agent-updates";
 import { recordPluginUpdate, useKnownPluginUpdate } from "./tasks/board/update-indicator";
 import { openTerminalRpc, updateCommand } from "../shared/open-terminal";
@@ -833,6 +834,8 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
   const preferences = useEnhancerPreferences();
   // The selected settings section persists across page mounts.
   const tab = useSettingsTab();
+  const [translationTarget] = useState(translationSettingsTarget);
+  useEffect(() => { if (translationTarget) clearTranslationSettingsTarget(); }, [translationTarget]);
   const version = useVersionCheck(host.id);
   const knownUpdate = useKnownPluginUpdate(host.id);
   const agents = useAgentUpdates(host.id);
@@ -963,7 +966,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           </View>} /> : null}
       </Section>
 
-      {chat ? <TimelineTranslationSettings look={look} /> : null}
+      {chat && !translationTarget ? <TimelineTranslationSettings look={look} /> : null}
 
       <Section title={t.sectionAppearance} look={look}>
         <SettingRow
@@ -1385,6 +1388,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         ) : null}
       </View>
 
+      {tab === "display" && chat && translationTarget ? <TimelineTranslationSettings look={look} /> : null}
       {tab === "version" ? (
         <VersionSection key={host.id} look={look} language={resolveLanguage(preferences.language)} version={version} autoUpdateCheck={preferences.autoUpdateCheck} native={native} agents={agents} host={host} knownUpdate={knownUpdate} />
       ) : tab === "tasks" ? (

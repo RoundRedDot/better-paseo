@@ -148,6 +148,7 @@ const ZH: Readonly<Record<string, string>> = {
   "Copy translation": "复制译文",
   "Translation": "译文",
   "Translation failed": "翻译失败",
+  "Translation settings": "翻译设置",
   "Retry": "重试",
   "Wait until the reply finishes streaming": "等待回复生成完成后翻译",
   "Wait until the thought finishes streaming": "等待思考完成后翻译",

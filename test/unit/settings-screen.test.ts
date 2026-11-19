@@ -18,6 +18,8 @@ function client() {
   return {
     active,
     value: {
+      paseo: {},
+      openSettings: vi.fn(),
       addSettingsScreen: (entry: Entry) => {
         active.push(entry);
         return () => void active.splice(active.indexOf(entry), 1);

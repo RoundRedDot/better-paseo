@@ -28,6 +28,7 @@ import { resetEnhancerPreferences } from "../../client/preferences";
 import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { StyleSheet } from "./helpers/rn-mock";
 import { setSettingsTab } from "../../client/settings-tab";
+import { openTranslationSettings, registerTranslationSettingsOpener } from "../../client/translation/navigation";
 import {
   RECHECK_MS,
   resetHostAppearanceForTests,
@@ -64,6 +65,25 @@ afterEach(() => {
 });
 
 describe("translation settings placement", () => {
+  it("opens at the translation section when requested from the popup", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    resetEnhancerPreferences();
+    const paseo = {};
+    const open = vi.fn();
+    const release = registerTranslationSettingsOpener(paseo, open);
+    openTranslationSettings(paseo as never);
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
+        theme: { colors }, layout: { platform: "ios", compact: true }, host: { id: "host" },
+      } as never));
+    });
+    const sections = renderer!.root.findAllByType(Section);
+    expect(sections[0]?.props.title).toBe("Timeline Translation");
+    expect(sections.filter((section) => section.props.title === "Timeline Translation")).toHaveLength(1);
+    expect(open).toHaveBeenCalledWith("chat-presentation");
+    release();
+  });
+
   it("places its own section immediately after the timeline mode", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     resetEnhancerPreferences();

@@ -1,3 +1,4 @@
+import { registerTranslationSettingsOpener } from "./translation/navigation";
 import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { SETTINGS_SCREEN_TITLES } from "./i18n/settings-strings";
 import { subscribeHostLanguage } from "./i18n/host-language";
@@ -15,6 +16,7 @@ import { onTasksLanguageChange, resolveTasksLanguage } from "./tasks/i18n";
  * connect loads leaves it out. Returns the cleanup.
  */
 export function contributeSettingsScreen(client: PluginClientContext): () => void {
+  const removeTranslationOpener = registerTranslationSettingsOpener(client.paseo, (id) => client.openSettings(id));
   let live = true;
   let language = resolveTasksLanguage();
   const register = () => {
@@ -39,6 +41,7 @@ export function contributeSettingsScreen(client: PluginClientContext): () => voi
   const unsubscribeHostLanguage = subscribeHostLanguage(relabel);
   return () => {
     live = false;
+    removeTranslationOpener();
     unsubscribeLanguage();
     unsubscribeHostLanguage();
     remove();
