@@ -336,7 +336,7 @@ describe("timeline translation settings", () => {
     expect(textValues(renderer!.root)).toContain("Catalog unavailable");
   });
 
-  it("loads custom provider/model catalog, warns honestly when off is missing, and edits/resets prompt", async () => {
+  it("loads the model catalog without an unsupported-thinking warning and edits/resets prompt", async () => {
     mocks.settingsState = makeReadySettings({
       enabled: true,
       customModel: true,
@@ -354,7 +354,8 @@ describe("timeline translation settings", () => {
 
     expect(mocks.modelsRpc).toHaveBeenCalledWith({ provider: "claude" });
     const allTexts = textValues(renderer!.root).join("\n");
-    expect(allTexts).toContain("does not expose an off, none, or disabled thinking option");
+    expect(allTexts).not.toContain("does not expose an off, none, or disabled thinking option");
+    expect(allTexts).toContain("Disable thinking when supported");
 
     // Open prompt modal, change prompt, save, then test 2-step reset.
     const editBtn = renderer!.root.find(

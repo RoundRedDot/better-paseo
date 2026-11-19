@@ -323,6 +323,7 @@ ${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${ind
   overflow-wrap: anywhere;
   overflow: auto;
   overscroll-behavior: contain;
+  padding-right: 16px;
   max-height: var(--bc-panel-max, ${PANEL_BODY_MAX}px);
 }
 .panel-actions { display: flex; justify-content: flex-end; gap: ${FLOAT.inset}px; }

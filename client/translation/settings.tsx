@@ -441,11 +441,11 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         disabled={controlsDisabled}
       />
 
-      <View
+      {thinkingStatus.tone !== "warning" ? <View
         style={[
           styles.thinkingNoticeBox,
           {
-            borderColor: thinkingStatus.tone === "warning" ? tokens.warning : tokens.v2.border,
+            borderColor: tokens.v2.border,
             backgroundColor: tokens.v2.surface2,
           },
         ]}
@@ -453,7 +453,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         <Text style={[styles.noticeText, settingsTextStyle(tokens, -1), { color: statusToneColor, fontFamily: tokens.fontUi }]}>
           {thinkingStatus.text}
         </Text>
-      </View>
+      </View> : null}
 
       {settings.customModel ? <>
         <ModelSettingsControls look={look} language={lang} provider={settings.provider} model={settings.model} thinkingOptionId={settings.thinkingOptionId}
