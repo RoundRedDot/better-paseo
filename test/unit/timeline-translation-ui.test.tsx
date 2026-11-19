@@ -110,6 +110,7 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
   };
 });
 vi.mock("../../client/ui/use-input-capabilities", () => ({
+  noteHover: vi.fn(),
   useInputCapabilities: (compact = false) => ({
     hover: mocks.hover,
     touch: !mocks.hover,
@@ -595,10 +596,44 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     await act(async () => reply.resolve(doneState("第二段。", { thinkingMode: "unsupported_off", thinkingOptionId: "low" })));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("第二段。"));
     expect(button("Copy translation")).toHaveLength(1);
+    const copyButton = button("Copy translation")[0]!;
+    const retryButton = button("Retry")[0]!;
+    const copyIcon = copyButton.find((node) => String(node.type) === "Icon");
+    const retryIcon = retryButton.find((node) => String(node.type) === "Icon");
+    const settingsIcon = button("Translation settings")[0]!.find((node) => String(node.type) === "Icon");
+    expect([copyIcon.props.size, retryIcon.props.size]).toEqual([settingsIcon.props.size, settingsIcon.props.size]);
+    expect(retryIcon.props.name).toBe("RefreshCw");
+    expect(collectTexts(retryButton)).not.toContain("Retry");
+    vi.useFakeTimers();
+    try {
+      act(() => copyButton.props.onHoverIn());
+      act(() => { vi.advanceTimersByTime(400); });
+      expect(collectTexts(renderer!.root)).toContain("Copy translation");
+      act(() => copyButton.props.onHoverOut());
+      act(() => retryButton.props.onHoverIn());
+      act(() => { vi.advanceTimersByTime(400); });
+      expect(collectTexts(renderer!.root)).toContain("Retry");
+      const retryTip = renderer!.root.find((node) => String(node.type) === "Text" && node.props.children === "Retry");
+      let tipSlot = retryTip.parent;
+      while (tipSlot && !JSON.stringify(tipSlot.props.style ?? null).includes('"bottom":"100%"')) tipSlot = tipSlot.parent;
+      expect(tipSlot?.props.style.flat(Infinity)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ bottom: "100%" }), expect.objectContaining({ right: 0 }),
+      ]));
+      act(() => retryButton.props.onHoverOut());
+      const settingsButton = button("Translation settings")[0]!;
+      act(() => settingsButton.props.onHoverIn());
+      act(() => { vi.advanceTimersByTime(400); });
+      expect(collectTexts(renderer!.root)).toContain("Translation settings");
+      act(() => settingsButton.props.onHoverOut());
+    } finally {
+      vi.useRealTimers();
+    }
     expect(collectTexts(renderer!.root.findByProps({ testID: "translation-model" })).join(" ")).toBe("claude-sonnet-4-5");
     const header = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header");
     expect(header.findAll((node) => node.props.testID === "translation-language").length).toBeGreaterThan(0);
     expect(header.findAll((node) => node.props.testID === "translation-model").length).toBeGreaterThan(0);
+    const divider = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header-divider");
+    expect(divider.props.style.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ height: 0.5 })]));
     expect(collectTexts(header).join(" ")).not.toContain("Translation ·");
     expect(collectTexts(header).join(" ")).not.toContain("Claude ·");
     expect(panelText()).not.toContain("Thinking was NOT disabled");

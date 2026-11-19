@@ -40,7 +40,7 @@ export const TooltipAlignContext = createContext<TooltipAlign>("center");
  * that paints over the one before it, so a name below would vanish under the
  * next row; `auto` opens it above unless the list's top edge leaves no room.
  */
-export const TooltipSideContext = createContext<"below" | "auto">("below");
+export const TooltipSideContext = createContext<"below" | "above" | "auto">("below");
 export const ToolbarHoverColorContext = createContext<string | null>(null);
 
 /**
@@ -227,7 +227,7 @@ export function ToolbarItem({
       return;
     }
     const timer = setTimeout(() => {
-      setSide(sideMode === "auto" ? placeTooltipNear(anchorRef.current, Platform.OS, details ? 320 : undefined) : "below");
+      setSide(sideMode === "above" ? "above" : sideMode === "auto" ? placeTooltipNear(anchorRef.current, Platform.OS, details ? 320 : undefined) : "below");
       setNamed(true);
     }, TOOLBAR_TOOLTIP_MS);
     return () => clearTimeout(timer);

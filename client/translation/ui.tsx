@@ -1,5 +1,5 @@
 import React, { useMemo, type ReactNode } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { usePaseo } from "@getpaseo/plugin/client";
@@ -7,7 +7,7 @@ import { ProviderLogo } from "../components/provider-logo";
 import { openTranslationSettings } from "./navigation";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { MarkdownView } from "../components/markdown/markdown-view";
-import { ToolbarCopyButton } from "../ui/toolbar-button";
+import { ToolbarButton, ToolbarCopyButton, ToolbarItem, ToolbarMetricsContext, TooltipAlignContext, TooltipSideContext } from "../ui/toolbar-button";
 import { useEnhancerPreferences } from "../preferences";
 import { resolveLanguage } from "../i18n/settings-strings";
 import { toolbarLabel } from "../i18n/toolbar-strings";
@@ -84,10 +84,15 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
             {view.modelInfo.model}
           </Text>
         </View> : <View style={{ flex: 1 }} />}
-        <Pressable accessibilityRole="button" accessibilityLabel="Translation settings" onPress={() => { onClose(); openTranslationSettings(paseo); }} hitSlop={8} style={styles.settings}>
-          <Icon name="Settings" size={16} color={tokens.foregroundMuted} />
-        </Pressable>
+        <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
+          <TooltipAlignContext.Provider value="end">
+            <ToolbarItem label="Translation settings" onPress={() => { onClose(); openTranslationSettings(paseo); }} tokens={tokens} hitSlop={8}>
+              <Icon name="Settings" size={16} color={tokens.foregroundMuted} />
+            </ToolbarItem>
+          </TooltipAlignContext.Provider>
+        </ToolbarMetricsContext.Provider>
       </View>
+      <View testID="translation-header-divider" style={[styles.divider, { backgroundColor: tokens.v2.border }]} />
       {message ? (
         <Text testID="selection-translation-message" selectable={false}
           style={[styles.message, { color: view.status === "error" ? danger : muted, fontFamily: tokens.fontUi }]}>
@@ -104,31 +109,30 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
       ) : null}
       {view.status === "done" || selectionViewRetryable(view) ? (
         <View style={styles.actions}>
-          {view.status === "done" ? (
-            <ToolbarCopyButton text={view.result.translation} tokens={tokens} label="Copy translation" />
-          ) : null}
-          {selectionViewRetryable(view) ? (
-            <Pressable accessibilityRole="button" accessibilityLabel="Retry" onPress={onRetry} hitSlop={6}
-              style={styles.textAction}>
-              <Text selectable={false} style={[styles.actionText, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-                {toolbarLabel("Retry", lang)}
-              </Text>
-            </Pressable>
-          ) : null}
+          <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
+            <TooltipSideContext.Provider value="above"><TooltipAlignContext.Provider value="end">
+            {view.status === "done" ? (
+              <ToolbarCopyButton text={view.result.translation} tokens={tokens} label="Copy translation" />
+            ) : null}
+            {selectionViewRetryable(view) ? (
+              <ToolbarButton icon="RefreshCw" label="Retry" onPress={onRetry} tokens={tokens} />
+            ) : null}
+            </TooltipAlignContext.Provider></TooltipSideContext.Provider>
+          </ToolbarMetricsContext.Provider>
         </View>
       ) : null}
     </View>
   );
 }
 
+const TRANSLATION_TOOLBAR_METRICS = { button: 28, icon: 16 };
+
 const styles = StyleSheet.create({
   panel: { paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
-  header: { flexDirection: "row", alignItems: "center", gap: 6 },
+  header: { flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 },
+  divider: { height: 0.5, marginHorizontal: -12 },
   title: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontWeight: "500", includeFontPadding: false, textAlignVertical: "center" },
-  model: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6, flexGrow: 1, flexShrink: 1, minWidth: 0 },
-  settings: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
+  model: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 6, flexGrow: 1, flexShrink: 1, minWidth: 0 },
   message: { fontSize: 12.5, lineHeight: 18 },
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 },
-  textAction: { paddingHorizontal: 6, paddingVertical: 4 },
-  actionText: { fontSize: 12.5, lineHeight: 16, fontWeight: "500" },
 });

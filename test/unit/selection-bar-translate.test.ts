@@ -226,8 +226,11 @@ describe("selection bar Translate", () => {
     expect(text.textContent).toBe(markup);
     expect(panel().textContent).not.toContain("Thinking was NOT disabled");
     expect(panel().all((node) => node.html.includes("img"))).toEqual([]);
-    expect(button("Copy translation")).toBeDefined();
+    expect(button("Copy translation")?.dataset.tip).toBe("Copy translation");
+    expect(button("Retry")?.dataset.tip).toBe("Retry");
+    expect(button("Retry")?.dataset.icon).toBe("retry");
     button("Copy translation")!.click();
+    expect(button("Copy translation")?.dataset.tip).toBe("Copied");
     expect(copy).toHaveBeenCalledWith(markup);
     // Still up after copying the translation.
     expect(display()).toBe("block");

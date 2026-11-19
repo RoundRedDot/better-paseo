@@ -100,6 +100,7 @@ const LEAVE_MS = 100;
 const ICONS = {
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  retry: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
   add: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
   settings: '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
   translate: '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
@@ -304,7 +305,7 @@ const BAR_CSS = `
 }
 .panel-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .panel-settings { margin-left: auto; padding: 0; width: 28px; height: 28px; justify-content: center; }
-.panel-model { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; color: var(--bc-bar-icon); }
+.panel-model { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--bc-bar-icon); }
 .panel-model img, .panel-model .model-mark { width: 14px; height: 14px; flex: 0 0 auto; }
 .panel-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spinner {
@@ -330,6 +331,16 @@ const BAR_CSS = `
   max-height: var(--bc-panel-max, ${PANEL_BODY_MAX}px);
 }
 .panel-actions { display: flex; justify-content: flex-end; gap: ${FLOAT.inset}px; }
+.panel-actions .btn { position: relative; width: 28px; height: 28px; padding: 0; justify-content: center; }
+.panel-actions .btn span { display: none; }
+.panel-actions .btn::after {
+  content: attr(data-tip); position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 1;
+  padding: 4px 6px; border: 0.5px solid var(--bc-bar-border); border-radius: 4px;
+  background: var(--bc-bar-bg); color: var(--bc-bar-text); box-shadow: var(--bc-bar-shadow);
+  font-size: 11.5px; line-height: 16px; white-space: nowrap; pointer-events: none;
+  visibility: hidden; opacity: 0;
+}
+.panel-actions .btn:hover::after, .panel-actions .btn:focus-visible::after { visibility: visible; opacity: 1; }
 .panel [hidden], .row [hidden] { display: none; }
 .bar.shown { opacity: 1; transform: none; }
 .bar.leaving {
@@ -464,6 +475,7 @@ function createBar(actions: BarActions): Bar {
   const paint = (button: HTMLButtonElement, label: string, icon: IconName) => {
     const text = document.createElement("span");
     text.textContent = toolbarLabel(label, readLanguage());
+    button.dataset.tip = text.textContent;
     button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[icon]}</svg>`;
     button.toggleAttribute("data-done", icon === "check");
     button.appendChild(text);
@@ -611,7 +623,7 @@ function createBar(actions: BarActions): Bar {
         });
       }
       if (selectionViewRetryable(view)) {
-        const retry = makeButton(buttons, "Retry", "translate", () => actions.retry());
+        const retry = makeButton(buttons, "Retry", "retry", () => actions.retry());
         retry.dataset.action = "retry";
       }
       panel.appendChild(buttons);
