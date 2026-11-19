@@ -592,6 +592,10 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "footer-details-center")).toHaveLength(1);
     expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-block-menu")).toHaveLength(0);
     expect(panelText()).toContain("Translating...");
+    const activity = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-loading");
+    expect(activity.children).toHaveLength(6);
+    const loadingHeader = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header");
+    expect(loadingHeader.findAll((node) => node.props.testID === "translation-loading")).toHaveLength(0);
 
     await act(async () => reply.resolve(doneState("第二段。", { thinkingMode: "unsupported_off", thinkingOptionId: "low" })));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("第二段。"));

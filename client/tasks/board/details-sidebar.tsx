@@ -1,3 +1,4 @@
+import { PreferenceSyncSlot } from "../../state/preference-sync-slot";
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -244,9 +245,11 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
     ? null
     : { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams((params) => ({ ...clearedParams(params), hideSubtasks: false })) } };
   const { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext } = useDetailReads(board, card);
-  return (
+  return (<>
+    <PreferenceSyncSlot />
     <TaskDetailCards
       key={props.tabs ? card.id : undefined}
+      translationAgentId={card.subagent ? card.parent?.id : card.id}
       {...detailActions(board, card)}
       searchQuery={board.params.query}
       theme={props.theme}
@@ -278,7 +281,7 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
       onTabChange={(tab) => dispatch({ type: "tab", tab })}
       scrollHeader={props.scrollHeader}
     />
-  );
+  </>);
 }
 
 function SidebarCardMenu(props: { board: BoardController; card: TaskCard; theme: PluginTheme; point: { x: number; y: number }; onClose(): void }) {

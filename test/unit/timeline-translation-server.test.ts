@@ -362,6 +362,19 @@ describe("timeline translation server service", () => {
     expect(captured.touchedSourceTimeline).toBe(false);
   });
 
+  it("translates a selected user message without reading the conversation", async () => {
+    const { translator, paseo, captured, configSignature } = createMockEnv();
+    const text = "Please check the logs.";
+    const request = translateTimelineItemRpc.input.parse({
+      action: "start", jobId: "user-selection", agentId: "source-agent-1", text,
+      sourceKind: "user_message", interfaceLanguage: "en", configSignature,
+    });
+    await translator.request(request, paseo);
+    expect((await waitForJob(translator, paseo, "user-selection")).state).toBe("done");
+    expect(captured.prompts[0]).toContain(`Source kind: user message\n\nText to translate:\n${text}`);
+    expect(captured.touchedSourceTimeline).toBe(false);
+  });
+
   it("recognizes only off, none, and disabled as genuine thinking-off options", () => {
     expect(resolveThinkingCapability([{ id: "off", label: "Off" }]).status).toBe("supported");
     expect(resolveThinkingCapability([{ id: "none", label: "None" }]).status).toBe("supported");

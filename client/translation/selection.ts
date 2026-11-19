@@ -83,7 +83,7 @@ export function selectionScopeDataSet(scope: SelectionTranslationScopeValue | nu
 export function selectionScopeFromDataset(dataset: Record<string, string | undefined> | undefined): SelectionTranslationScopeValue | null {
   const agentId = dataset?.[SELECTION_SCOPE_ATTRIBUTES.agent];
   const kind = dataset?.[SELECTION_SCOPE_ATTRIBUTES.kind];
-  if (!agentId || (kind !== "assistant_message" && kind !== "reasoning" && kind !== "tool_output")) return null;
+  if (!agentId || (kind !== "assistant_message" && kind !== "user_message" && kind !== "reasoning" && kind !== "tool_output")) return null;
   return { agentId, kind, streaming: dataset?.[SELECTION_SCOPE_ATTRIBUTES.streaming] === "1" };
 }
 
@@ -428,7 +428,7 @@ export function selectionViewMessage(view: SelectionTranslationView): string | n
     case "config-loading": return "Loading conversation model...";
     case "config-error": return "Could not load conversation model";
     case "stale": return "Settings or the conversation model changed. Translate again.";
-    case "running": return view.text ? null : "Translating...";
+    case "running": return "Translating...";
     case "error": return "Translation failed";
     case "done": return null;
   }

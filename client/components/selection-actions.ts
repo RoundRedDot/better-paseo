@@ -26,6 +26,7 @@ import { selectionViewTitle } from "../translation/view-text";
 import { openTranslationSettings } from "../translation/navigation";
 import { markId, normalizeProvider } from "./provider-logo";
 import { MONO_MARKS, readMark, requestMark, subscribeMarks } from "./marks";
+import { SYNCED_LOADER_FRAMES } from "../ui/synced-loader";
 
 /**
  * A floating Copy / Add to chat bar for highlighted callout text.
@@ -308,17 +309,11 @@ const BAR_CSS = `
 .panel-model { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--bc-bar-icon); }
 .panel-model img, .panel-model .model-mark { width: 14px; height: 14px; flex: 0 0 auto; }
 .panel-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.spinner {
-  width: 10px;
-  height: 10px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  border: 1.5px solid var(--bc-bar-border);
-  border-top-color: var(--bc-bar-accent);
-  animation: bc-spin 800ms linear infinite;
-}
-@keyframes bc-spin { to { transform: rotate(360deg); } }
-.panel-message { color: var(--bc-bar-icon); white-space: pre-wrap; overflow-wrap: anywhere; }
+.activity-grid { display: grid; grid-template-columns: repeat(2, ${10 / 3}px); grid-template-rows: repeat(3, ${10 / 3}px); gap: 2px; width: ${26 / 3}px; height: 14px; flex: 0 0 auto; }
+.activity-dot { width: ${10 / 3}px; height: ${10 / 3}px; border-radius: 50%; background: var(--bc-bar-text); animation-duration: 950ms; animation-timing-function: steps(1, end); animation-iteration-count: infinite; animation-delay: var(--bc-loader-phase); }
+${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${index + 1}) { opacity: ${opacity}; animation-name: bc-dot-${index}; } @keyframes bc-dot-${index} { ${SYNCED_LOADER_FRAMES.map((frame, step) => `${step * 100 / 6}% { opacity: ${frame[index]}; }`).join(" ")} 100% { opacity: ${opacity}; } }`).join("\n")}
+.panel-message { display: flex; align-items: center; gap: 6px; color: var(--bc-bar-icon); white-space: pre-wrap; overflow-wrap: anywhere; }
+.panel-message span:last-child { min-width: 0; }
 .panel-message[data-tone="error"] { color: var(--bc-bar-danger); }
 .panel-body {
   color: var(--bc-bar-text);
@@ -388,7 +383,7 @@ const BAR_CSS = `
 .btn[data-done] svg { color: var(--bc-bar-done); }
 @media (prefers-reduced-motion: reduce) {
   .bar, .bar.leaving, .btn { transition: none; }
-  .spinner { animation: none; }
+  .activity-dot { animation: none; }
 }
 `;
 
@@ -574,9 +569,6 @@ function createBar(actions: BarActions): Bar {
     const head = element("div", "panel-head");
     head.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.translate}</svg>`;
     head.appendChild(element("span", "panel-title", selectionViewTitle(view, lang)));
-    if (view.status === "running" || view.status === "config-loading" || view.status === "settings-loading") {
-      head.appendChild(element("span", "spinner"));
-    }
     if (view.modelInfo) {
       const model = element("div", "panel-model");
       const id = markId(normalizeProvider(view.modelInfo.provider));
@@ -602,8 +594,15 @@ function createBar(actions: BarActions): Bar {
 
     const message = selectionViewMessage(view);
     if (message) {
-      const line = element("div", "panel-message",
-        toolbarLabel(message, language) + (view.status === "error" ? `: ${view.error}` : ""));
+      const line = element("div", "panel-message");
+      if (view.status === "running" || view.status === "config-loading" || view.status === "settings-loading") {
+        const grid = element("span", "activity-grid");
+        grid.setAttribute("aria-hidden", "true");
+        grid.style.setProperty("--bc-loader-phase", `${-(Date.now() % 950)}ms`);
+        for (let index = 0; index < 6; index += 1) grid.appendChild(element("span", "activity-dot"));
+        line.appendChild(grid);
+      }
+      line.appendChild(element("span", "", toolbarLabel(message, language) + (view.status === "error" ? `: ${view.error}` : "")));
       line.setAttribute("role", view.status === "error" ? "alert" : "status");
       if (view.status === "error") line.dataset.tone = "error";
       panel.appendChild(line);

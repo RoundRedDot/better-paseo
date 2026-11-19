@@ -20,7 +20,11 @@ vi.mock("../../client/web", async (original) => ({
     return () => { if (id) hover.delete(id); };
   },
 }));
-vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => actions.reveal }));
+vi.mock("@getpaseo/plugin/client", () => ({
+  useRpc: () => actions.reveal,
+  usePaseo: () => ({}),
+  useSettings: () => ({ status: "loading" }),
+}));
 // Node has no matchMedia, which reads as touch and hides Open folder; these are mouse sidebars.
 vi.mock("../../client/ui/use-input-capabilities", async (original) => ({
   ...await original<object>(),

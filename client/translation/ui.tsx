@@ -1,10 +1,11 @@
 import React, { useMemo, type ReactNode } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { usePaseo } from "@getpaseo/plugin/client";
 import { ProviderLogo } from "../components/provider-logo";
 import { openTranslationSettings } from "./navigation";
+import { SyncedLoader } from "../ui/synced-loader";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { MarkdownView } from "../components/markdown/markdown-view";
 import { ToolbarButton, ToolbarCopyButton, ToolbarItem, ToolbarMetricsContext, TooltipAlignContext, TooltipSideContext } from "../ui/toolbar-button";
@@ -77,7 +78,6 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
           style={[styles.title, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
           {selectionViewTitle(view, lang)}
         </Text>
-        {running ? <ActivityIndicator size="small" color={tokens.accent} /> : null}
         {view.modelInfo ? <View style={styles.model}>
           <ProviderLogo provider={view.modelInfo.provider} size={14} neutralColor={tokens.foregroundMuted} />
           <Text testID="translation-model" numberOfLines={1} selectable={false} style={[styles.title, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
@@ -94,10 +94,13 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
       </View>
       <View testID="translation-header-divider" style={[styles.divider, { backgroundColor: tokens.v2.border }]} />
       {message ? (
-        <Text testID="selection-translation-message" selectable={false}
-          style={[styles.message, { color: view.status === "error" ? danger : muted, fontFamily: tokens.fontUi }]}>
-          {toolbarLabel(message, lang)}{view.status === "error" ? `: ${view.error}` : ""}
-        </Text>
+        <View style={styles.messageRow}>
+          {running ? <SyncedLoader color={tokens.foreground} gridTestID="translation-loading" /> : null}
+          <Text testID="selection-translation-message" selectable={false}
+            style={[styles.message, { color: view.status === "error" ? danger : muted, fontFamily: tokens.fontUi }]}>
+            {toolbarLabel(message, lang)}{view.status === "error" ? `: ${view.error}` : ""}
+          </Text>
+        </View>
       ) : null}
       {text ? (
         <ScrollView testID="selection-translation-body" nestedScrollEnabled
@@ -133,6 +136,7 @@ const styles = StyleSheet.create({
   divider: { height: 0.5, marginHorizontal: -12 },
   title: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontWeight: "500", includeFontPadding: false, textAlignVertical: "center" },
   model: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 6, flexGrow: 1, flexShrink: 1, minWidth: 0 },
-  message: { fontSize: 12.5, lineHeight: 18 },
+  messageRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  message: { flexShrink: 1, fontSize: 12.5, lineHeight: 18 },
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 },
 });

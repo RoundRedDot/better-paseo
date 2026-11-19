@@ -57,10 +57,15 @@ export function buildTranslationPrompt(
   prompt: string,
   targetPrompt: string,
   targetCode: string,
-  sourceKind: "assistant_message" | "reasoning" | "tool_output",
+  sourceKind: "assistant_message" | "user_message" | "reasoning" | "tool_output",
   text: string,
 ): string {
-  const kindLabel = sourceKind === "reasoning" ? "assistant reasoning" : sourceKind === "tool_output" ? "tool output" : "assistant reply";
+  const kindLabel = {
+    assistant_message: "assistant reply",
+    user_message: "user message",
+    reasoning: "assistant reasoning",
+    tool_output: "tool output",
+  }[sourceKind];
   return `${prompt}\n\nTarget language: ${targetPrompt} (${targetCode})\nSource kind: ${kindLabel}\n\nText to translate:\n${text}`;
 }
 

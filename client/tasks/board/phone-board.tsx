@@ -1,3 +1,4 @@
+import { PreferenceSyncSlot } from "../../state/preference-sync-slot";
 import { UPDATE_INDICATOR_COLOR } from "../../ui/update-indicator";
 import { HoverControl } from "../hover-control";
 import React, { memo, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
@@ -707,6 +708,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
   const noteEdge = useCallback((under: boolean) => props.edge.set({ headerUnderBar: under }), [props.edge]);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
+      <PreferenceSyncSlot />
       {index >= 0 && props.count > 1 ? (
         <View style={{ minHeight: 40, paddingHorizontal: 12, flexDirection: "row", alignItems: "center" }} testID="sheet-stepper">
           <SheetStep icon="ChevronLeft" label={board.strings.sidebar.previous} disabled={index <= 0} onPress={() => step(-1)} theme={theme} />
@@ -720,6 +722,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
       <View style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12 }}>
         <TaskDetailCards
           key={card.id}
+          translationAgentId={card.subagent ? card.parent?.id : card.id}
           searchQuery={board.params.query}
           card={card}
           theme={theme}

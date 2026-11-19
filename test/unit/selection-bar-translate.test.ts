@@ -91,7 +91,7 @@ let body: ElementMock;
 let selected: { text: string; node: ElementMock };
 const call = vi.fn();
 
-type Scope = { agentId: string; kind: "assistant_message" | "reasoning" | "tool_output"; streaming: boolean };
+type Scope = { agentId: string; kind: "assistant_message" | "user_message" | "reasoning" | "tool_output"; streaming: boolean };
 const hosts = new Map<typeof call, object>();
 /** One API object per translator: each stands for a host. */
 const lent = (fn: typeof call) => {
@@ -181,6 +181,17 @@ describe("selection bar Translate", () => {
     select("other output", node);
     expect(button("Translate")!.hidden).toBe(true);
   });
+  it("translates a selected user message through its own session", async () => {
+    call.mockResolvedValue(done("请检查日志"));
+    select("check logs", surface({ agentId: "session-1", kind: "user_message", streaming: false }));
+    expect(button("Translate")!.hidden).toBe(false);
+    button("Translate")!.click();
+    await flush();
+    expect(call).toHaveBeenCalledOnce();
+    expect(call.mock.calls[0]![0]).toMatchObject({ agentId: "session-1", sourceKind: "user_message", text: "check logs" });
+    expect(panel().textContent).toContain("请检查日志");
+  });
+
   it("offers Translate only for a reply or thought selection while translation is on", () => {
     select("tool output", surface(null));
     expect(display()).toBe("block");
@@ -210,7 +221,11 @@ describe("selection bar Translate", () => {
     expect(call.mock.calls[0]![0]).toMatchObject({ action: "start", agentId: "agent-1", text: "the selected words", sourceKind: "reasoning" });
     expect(bar().classList.contains("translating")).toBe(true);
     expect(panel().textContent).toContain("Translating...");
+    const loading = panel().querySelector(".activity-grid")!;
+    expect(loading.children).toHaveLength(6);
+    expect(loading.parentElement?.className).toBe("panel-message");
     const head = panel().querySelector(".panel-head")!;
+    expect(head.querySelector(".activity-grid")).toBeNull();
     expect(head.querySelector(".panel-model")?.textContent).toBe("gpt-5");
     expect(head.querySelector(".panel-title")?.textContent).toBe("English");
     expect(head.textContent).not.toContain("Translation ·");

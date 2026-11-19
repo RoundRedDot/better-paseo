@@ -8,6 +8,9 @@ import { revealPathRpc } from "../../../shared/file-rpc";
 import { fileOpenError } from "../../i18n/file-open-error";
 import { openLink } from "../../components/open-link";
 import { MarkdownView } from "../../components/markdown/markdown-view";
+import { useSelectionActions } from "../../components/selection-actions";
+import { SyncedLoader } from "../../ui/synced-loader";
+import { SelectionTranslationScope } from "../../translation/ui";
 import { variantMetrics } from "../../components/markdown/render/styles";
 import { mix, useThemeTokens } from "../../components/theme-tokens";
 import { getEnhancerPreferences, useEnhancerPreferences } from "../../preferences";
@@ -213,6 +216,8 @@ export interface TaskDetailCardsProps extends TimeSource {
   onJumpWithScroll?(agentId: string, offsets: DetailScrollOffsets): void;
   onSubtaskMenu?(agentId: string, point: { x: number; y: number }): void;
   titleUpdates?: TitleUpdateControl;
+  /** The real session whose settings and model translate this card's messages. */
+  translationAgentId?: string;
   /** The task's first prompt, read from its timeline; absent leaves the section out (the settings preview). */
   firstPrompt?: { prompt: FirstPrompt; load(): void } | null;
   /** The last message a person sent, read back from the timeline's tail; absent (or the first prompt again) leaves the section out. */
@@ -1869,6 +1874,7 @@ function TimelineTextBody(props: Inner & {
   const expanded = query ? searchFold.query === query ? !searchFold.closed : true : open;
   const preferences = useEnhancerPreferences();
   const prose = useThemeTokens(props.theme, preferences);
+  useSelectionActions(prose, !!props.translationAgentId && preferences.selectionActions);
   const adjustment = useTasksFontAdjustment();
   const first = props.read;
   const breathing = useBreathing(first?.prompt.state === "loading");
@@ -1918,6 +1924,7 @@ function TimelineTextBody(props: Inner & {
   const text = prompt.text;
   const lines = errorLines(text);
   const long = lines.length > PROMPT_LINES || text.length > 600;
+  const markdown = <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />;
   return (
     <View style={{ paddingHorizontal: 6, paddingTop: 4 }}>
       <View>
@@ -1938,7 +1945,11 @@ function TimelineTextBody(props: Inner & {
           onToggle={() => query ? setSearchFold({ query, closed: expanded }) : setOpen((was) => !was)}
         >
           <HoverPreviewContext.Provider value>
-            <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />
+            {props.translationAgentId ? (
+              <SelectionTranslationScope agentId={props.translationAgentId} kind={id === "detail-message" ? "assistant_message" : "user_message"} streaming={streaming}>
+                {markdown}
+              </SelectionTranslationScope>
+            ) : markdown}
           </HoverPreviewContext.Provider>
         </FoldedText>
       </View>
@@ -1948,26 +1959,11 @@ function TimelineTextBody(props: Inner & {
   );
 }
 
-const REPLY_LOADER_FRAMES = [
-  [1, 0, 0.78, 0, 0.56, 0.34], [0.78, 1, 0.56, 0, 0.34, 0],
-  [0.56, 0.78, 0.34, 1, 0, 0], [0.34, 0.56, 0, 0.78, 0, 1],
-  [0, 0.34, 0, 0.56, 1, 0.78], [0, 0, 1, 0.34, 0.78, 0.56],
-] as const;
-
 function ReplyLoading(props: { tokens: TaskTokens; language: TasksLanguage; waiting?: boolean; id?: string }) {
-  const reduced = useReducedMotion();
-  const [step, setStep] = useState(() => Math.floor((Date.now() % 950) * 6 / 950));
-  useEffect(() => {
-    if (reduced) return;
-    const timer = setInterval(() => setStep(Math.floor((Date.now() % 950) * 6 / 950)), 950 / 6);
-    return () => clearInterval(timer);
-  }, [reduced]);
   const label = props.language === "zh" ? (props.waiting ? "等待输出" : "正在回复") : (props.waiting ? "Waiting for reply" : "Replying");
   return (
     <View testID={props.id ?? "detail-message-working"} accessibilityRole="progressbar" accessibilityLabel={label} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingLeft: props.waiting ? 6 : 0, paddingTop: 8 }}>
-      <View style={{ width: 14, height: 14, alignItems: "center", justifyContent: "center" }}><View testID="detail-message-working-grid" style={{ width: 26 / 3, height: 14, flexDirection: "row", flexWrap: "wrap", columnGap: 2, rowGap: 2 }}>
-        {REPLY_LOADER_FRAMES[reduced ? 0 : step]!.map((opacity, index) => <View key={index} style={{ width: 10 / 3, height: 10 / 3, borderRadius: 2, backgroundColor: props.tokens.foreground, opacity }} />)}
-      </View></View>
+      <SyncedLoader color={props.tokens.foreground} gridTestID="detail-message-working-grid" />
       <Text style={{ fontSize: F.sm, color: props.tokens.foregroundMuted }}>{label}</Text>
     </View>
   );

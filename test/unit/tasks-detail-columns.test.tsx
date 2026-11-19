@@ -20,7 +20,7 @@ vi.mock("react-native", async () => {
     </rn.ScrollView>,
   };
 });
-vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => vi.fn() }));
+vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => vi.fn(), usePaseo: () => ({}) }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("react-native");
   return { Icon: () => null, ScrollView: (props: React.ComponentProps<typeof rn.ScrollView>) => <rn.ScrollView {...props} />, copyText: vi.fn(), useToast: () => ({ show() {}, error() {} }) };
@@ -38,6 +38,7 @@ import { cardStrings } from "../../client/tasks/cards/strings";
 import { previewSampleCards } from "../../client/tasks/sample-cards";
 import { asExitPlan } from "./helpers/plan-request";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
+import { SelectionTranslationScope } from "../../client/translation/ui";
 import { TasksTypography, TasksTypographyScale, HOST_FONT } from "../../client/tasks/typography";
 import { variantMetrics } from "../../client/components/markdown/render/styles";
 import { measureHostTree } from "./helpers/yoga-host-layout";
@@ -83,6 +84,26 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it("scopes first, human and reply text to the real session, keeping previews unscoped", async () => {
+    const base = props(false);
+    const messages = {
+      firstPrompt: { prompt: { state: "ready" as const, text: "First" }, load() {} },
+      humanMessage: { prompt: { state: "ready" as const, text: "Follow-up" }, load() {} },
+      lastMessage: { prompt: { state: "ready" as const, text: "Reply" }, load() {} },
+    };
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...base} {...messages} columns={false} tabs />); });
+    expect(renderer!.root.findAllByType(SelectionTranslationScope)).toHaveLength(0);
+    await act(async () => { renderer!.update(<TaskDetailCards {...base} {...messages} translationAgentId="session-1" columns={false} tabs />); });
+    const scopes = renderer!.root.findAllByType(SelectionTranslationScope);
+    expect(scopes.map((scope) => ({ agentId: scope.props.agentId, kind: scope.props.kind }))).toEqual([
+      { agentId: "session-1", kind: "user_message" },
+      { agentId: "session-1", kind: "user_message" },
+      { agentId: "session-1", kind: "assistant_message" },
+    ]);
+    expect(scopes[0]!.props.streaming).toBe(false);
+    expect(scopes[1]!.props.streaming).toBe(false);
+  });
+
   it.each([["zh", "基本信息", "消息"], ["en", "Info", "Messages"]] as const)("keeps %s tab labels unchanged when search matches both pages", async (language, info, messages) => {
     const base = props(false);
     await act(async () => {

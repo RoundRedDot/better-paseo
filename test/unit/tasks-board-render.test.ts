@@ -12,6 +12,11 @@ vi.mock("react-native", async () => {
   const AppState = { currentState: "active", addEventListener: () => ({ remove() {} }) };
   return { ...rn, AppState, findNodeHandle: (node: { nativeTag?: number } | null) => node?.nativeTag ?? null, default: { ...rn.default, AppState } };
 });
+// Board layout tests do not provide a DOM; the selection controller has its own DOM tests.
+vi.mock("../../client/components/selection-actions", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../../client/components/selection-actions")>(),
+  useSelectionActions() {},
+}));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   // The plugin imports all of these from `client/ui` now; where both mocks name a key, the UI one wins.
   const fromReactNative = await (async () => {
@@ -92,6 +97,7 @@ vi.mock("@getpaseo/plugin/client", () => ({
   usePaseo: () => paseo,
   useRpc: (contract: { name: string }) => (input: { agentIds?: string[] }) => Promise.resolve(contract.name === "tasks.availability" ? { entries: input.agentIds!.map((agentId) => ({ agentId, availability: { issue: null, blocked: {} } })) } : contract.name === "settings.agent-updates" ? host.agentUpdates : contract.name === "settings.update-check" ? host.updateState : { stop: host.canStop }),
   useSettings: (definition: { id: string }) => {
+    if (definition.id === "presentation" || definition.id === "timeline-translation") return { status: "loading" };
     const values = definition.id === "title-generation" ? host.titleSettings : host.settings;
     return values ? { status: "ready", values, revision: "1", saving: false, saveError: null, save: host.save, reload: host.reload } : { status: "loading" };
   },
