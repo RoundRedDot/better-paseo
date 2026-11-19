@@ -7,6 +7,7 @@ import {
   timelineTranslationSettingsSchema,
   type TimelineTranslationSettings,
 } from "../../shared/timeline-translation";
+import { ProviderLogo } from "../../client/components/provider-logo";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { DEFAULT_PREFERENCES, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
@@ -249,6 +250,22 @@ describe("timeline translation settings", () => {
       expect.objectContaining({ targetLanguage: "sr-Latn" }),
       "rev-1",
     );
+  });
+
+  it("shows provider logos in the shared menu and refreshes beside the model", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    const provider = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
+    expect(provider.findAllByType(ProviderLogo).length).toBe(1);
+    await act(async () => { provider.props.onPress(); });
+    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex");
+    expect(option.findAllByType(ProviderLogo).length).toBe(1);
+    await act(async () => { option.props.onPress(); });
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "codex", model: "" }), "rev-1");
+    const refresh = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models");
+    expect(refresh.findAll((n) => n.props.name === "RefreshCw").length).toBeGreaterThan(0);
+    await act(async () => { refresh.props.onPress(); });
+    expect(mocks.modelsRpc).toHaveBeenCalledWith({ provider: "claude" });
   });
 
   it("loads custom provider/model catalog, warns honestly when off is missing, and edits/resets prompt", async () => {

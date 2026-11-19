@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
-import { Modal } from "@getpaseo/plugin/client/ui";
+import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import {
   DEFAULT_TRANSLATION_PROMPT,
   resolveThinkingCapability,
@@ -10,7 +10,8 @@ import {
   type TimelineTranslationSettings,
   type ThinkingOptionInfo,
 } from "../../shared/timeline-translation";
-import { radiusV2 } from "../components/theme-tokens";
+import { ProviderLogo, providerBrand } from "../components/provider-logo";
+import { radiusV2, space } from "../components/theme-tokens";
 import { resolveLanguage } from "../i18n/settings-strings";
 import { useEnhancerPreferences } from "../preferences";
 import { ChoiceMenuSelect, type MenuChoice } from "../settings-choice-menu";
@@ -167,7 +168,7 @@ const STRINGS = {
     customModelDescription: "Off uses the current conversation's provider and model.",
     providerTitle: "Provider",
     providerPlaceholder: "Select provider",
-    refreshTitle: "Refresh",
+    refreshTitle: "Refresh models",
     modelTitle: "Model",
     modelPlaceholder: "Select model",
     disableThinkingTitle: "Disable thinking when supported",
@@ -213,7 +214,7 @@ const STRINGS = {
     customModelDescription: "关闭时复用当前会话正在使用的 Provider 与模型。",
     providerTitle: "Provider",
     providerPlaceholder: "选择 Provider",
-    refreshTitle: "刷新",
+    refreshTitle: "刷新模型",
     modelTitle: "模型",
     modelPlaceholder: "选择模型",
     disableThinkingTitle: "支持时关闭思考",
@@ -341,23 +342,17 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   const selectedModel = models.find((m) => m.id === settings.model);
   const thinkingStatus = describeThinkingStatus(settings, selectedModel, catalog.loading, lang);
 
-  const providerChoices: MenuChoice[] = [
-    ...(settings.provider ? [] : [{ value: "", name: t.providerPlaceholder, logo: null }]),
-    ...catalog.providers.map((id) => ({
+  const providerChoices: MenuChoice[] = [...new Set([...catalog.providers, ...(settings.provider ? [settings.provider] : [])])]
+    .sort((a, b) => Number(a === "cursor") - Number(b === "cursor"))
+    .map((id) => ({
       value: id,
-      name: catalog.providerLabels[id] ?? id,
-      logo: null,
-    })),
-  ];
+      name: `${catalog.providerLabels[id] || providerBrand(id).displayName}${id === "cursor" ? ` · ${lang === "zh" ? "不推荐" : "Not recommended"}` : ""}`,
+      logo: <ProviderLogo provider={id} size={20} color={providerBrand(id).monochrome ? look.tokens.foreground : undefined} />,
+    }));
 
-  const modelChoices: MenuChoice[] = [
-    ...(settings.model ? [] : [{ value: "", name: t.modelPlaceholder, logo: null }]),
-    ...models.map((m) => ({
-      value: m.id,
-      name: m.label || m.id,
-      logo: null,
-    })),
-  ];
+  const modelChoices: MenuChoice[] = models.map((model) => ({ value: model.id, name: model.label || model.id, logo: null }));
+  const selectedModelChoice = modelChoices.find((choice) => choice.value === settings.model)
+    ?? { value: settings.model, name: settings.model || t.modelPlaceholder, logo: null };
 
   const thinkingChoices: MenuChoice[] = [
     { value: "", name: t.thinkingDefaultOption, logo: null },
@@ -440,27 +435,18 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
           <SettingRow
             title={t.providerTitle}
             control={
-              <View style={styles.inlineControls}>
-                <ChoiceMenuSelect
-                  value={settings.provider}
-                  selected={providerChoices.find((c) => c.value === settings.provider) ?? null}
-                  choices={providerChoices}
-                  onChange={(provider) => {
-                    void savePatch({ provider, model: "", thinkingOptionId: "" });
-                    if (provider) void loadModels(provider);
-                  }}
-                  look={look}
-                  label={t.providerTitle}
-                  disabled={controlsDisabled}
-                />
-                <PlainButton
-                  label={t.refreshTitle}
-                  onPress={() => void loadModels(settings.provider)}
-                  look={look}
-                  disabled={controlsDisabled || catalog.loading}
-                  loading={catalog.loading}
-                />
-              </View>
+              <ChoiceMenuSelect
+                value={settings.provider}
+                selected={providerChoices.find((choice) => choice.value === settings.provider) ?? { value: "", name: t.providerPlaceholder, logo: null }}
+                choices={providerChoices}
+                onChange={(provider) => {
+                  void savePatch({ provider, model: "", thinkingOptionId: "" });
+                  if (provider) void loadModels(provider);
+                }}
+                look={look}
+                label={t.providerTitle}
+                disabled={controlsDisabled}
+              />
             }
             look={look}
             disabled={controlsDisabled}
@@ -469,15 +455,18 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
           <SettingRow
             title={t.modelTitle}
             control={
-              <ChoiceMenuSelect
-                value={settings.model}
-                selected={modelChoices.find((c) => c.value === settings.model) ?? null}
-                choices={modelChoices}
-                onChange={(model) => void savePatch({ model, thinkingOptionId: "" })}
-                look={look}
-                label={t.modelTitle}
-                disabled={controlsDisabled}
-              />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, maxWidth: "100%" }}>
+                <Pressable accessibilityRole="button" accessibilityLabel={t.refreshTitle} accessibilityState={{ disabled: controlsDisabled || catalog.loading }} disabled={controlsDisabled || catalog.loading} onPress={() => void loadModels(settings.provider)} style={{ width: 40, height: 44, alignItems: "center", justifyContent: "center", opacity: controlsDisabled || catalog.loading ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable>
+                <ChoiceMenuSelect
+                  value={settings.model}
+                  selected={selectedModelChoice}
+                  choices={modelChoices}
+                  onChange={(model) => void savePatch({ model, thinkingOptionId: "" })}
+                  look={look}
+                  label={t.modelTitle}
+                  disabled={controlsDisabled}
+                />
+              </View>
             }
             look={look}
             disabled={controlsDisabled}
