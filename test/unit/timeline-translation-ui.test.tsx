@@ -27,23 +27,53 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   toastError: vi.fn(),
   hover: true,
+  agent: {
+    provider: "claude",
+    model: "claude-sonnet-4-5",
+    thinkingOptionId: "high",
+    effectiveThinkingOptionId: "high",
+  } as {
+    provider?: string;
+    model?: string;
+    thinkingOptionId?: string | null;
+    effectiveThinkingOptionId?: string | null;
+    cwd?: string;
+  } | undefined,
+  agentListeners: new Set<() => void>(),
 }));
 
+function setMockAgent(next: typeof mocks.agent) {
+  mocks.agent = next;
+  for (const listener of mocks.agentListeners) listener();
+}
+
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client", () => ({
-  useAgent: () => undefined,
-  usePaseo: () => ({
-    agents: {
-      ref: () => ({
-        refresh: async () => null,
-        timeline: {
-          subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }),
+vi.mock("@getpaseo/plugin/client", async () => {
+  const ReactModule = await import("react");
+  return {
+    useAgent: (_id: string, selector: (agent: NonNullable<typeof mocks.agent>) => unknown) =>
+      ReactModule.useSyncExternalStore(
+        (listener) => {
+          mocks.agentListeners.add(listener);
+          return () => {
+            mocks.agentListeners.delete(listener);
+          };
         },
-      }),
-    },
-  }),
-  useRpc: () => mocks.rpc,
-}));
+        () => (mocks.agent ? selector(mocks.agent) : undefined),
+      ),
+    usePaseo: () => ({
+      agents: {
+        ref: () => ({
+          refresh: async () => null,
+          timeline: {
+            subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }),
+          },
+        }),
+      },
+    }),
+    useRpc: () => mocks.rpc,
+  };
+});
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const ReactModule = await import("react");
   return {
@@ -120,6 +150,12 @@ let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 beforeEach(() => {
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   mocks.hover = true;
+  mocks.agent = {
+    provider: "claude",
+    model: "claude-sonnet-4-5",
+    thinkingOptionId: "high",
+    effectiveThinkingOptionId: "high",
+  };
   mocks.rpc.mockReset();
   mocks.toastError.mockReset();
   resetEnhancerPreferences();
@@ -758,7 +794,32 @@ describe("timeline translation UI and source state", () => {
       expect(onBlockFrames[1]!.width).toBe(width);
     }
 
-    // 2. Long single-paragraph reply: measure non-overlap & concrete Yoga first-block width/height trade-off.
+    // 2. Short single-line reply + Long single-paragraph reply: measure non-overlap & concrete Yoga first-block width/height changes.
+    const shortSingleLine = "Short reply line.";
+    for (const width of [720, 390, 320]) {
+      const compact = width < 500;
+      await act(async () => {
+        publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false }, `short-off-${width}`);
+        renderer!.update(React.createElement(LiveAssistantRenderer, makeProps(shortSingleLine, compact) as never));
+      });
+      const baseRootView = renderer!.root.findByType("View" as never);
+      const baseFrames = measureHostTree(baseRootView, { width, wrapText: true, wordWrap: true });
+      const baseRoot = baseFrames.get(baseRootView)!;
+
+      await act(async () => {
+        publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, `short-on-${width}`);
+      });
+      const onRootView = renderer!.root.findByType("View" as never);
+      const onFrames = measureHostTree(onRootView, { width, wrapText: true, wordWrap: true });
+      const onRoot = onFrames.get(onRootView)!;
+      expect(onRoot.height).toBe(width === 720 ? 24 : baseRoot.height);
+    }
+
+    const expectedLongParagraph: Record<number, { baseHeight: number; onHeight: number; bodyWidth: number }> = {
+      720: { baseHeight: 66, onHeight: 88, bodyWidth: 692 },
+      390: { baseHeight: 168, onHeight: 168, bodyWidth: 362 },
+      320: { baseHeight: 192, onHeight: 216, bodyWidth: 292 },
+    };
     for (const width of [720, 390, 320]) {
       const compact = width < 500;
       await act(async () => {
@@ -781,9 +842,234 @@ describe("timeline translation UI and source state", () => {
         .filter((h): h is ReactTestInstance => h !== null);
       const bodyFrame = onFrames.get(directViews[0]!)!;
       const actionFrame = onFrames.get(directViews[1]!)!;
+      const expected = expectedLongParagraph[width]!;
       expect(bodyFrame.left + bodyFrame.width).toBeLessThanOrEqual(actionFrame.left + 0.01);
-      expect(bodyFrame.width).toBeLessThan(baseRoot.width);
-      expect(onRoot.height).toBeGreaterThanOrEqual(baseRoot.height);
+      expect(bodyFrame.width).toBe(expected.bodyWidth);
+      expect(baseRoot.height).toBe(expected.baseHeight);
+      expect(onRoot.height).toBe(expected.onHeight);
     }
+  });
+
+  it("invalidates cache when conversation agent provider, model, or thinking config changes before or during flight", async () => {
+    setTranslationPaseo({
+      agents: { ref: () => ({ timeline: { subscribe: () => Object.assign(() => {}, { ready: Promise.resolve() }) as never } }) },
+    });
+
+    let round = 0;
+    let statusOutcome: Record<string, unknown> | null = null;
+    mocks.rpc.mockImplementation(async (input: { action: string }) => {
+      if (input.action === "start") {
+        round += 1;
+        if (round === 3) {
+          return { state: "running", helperId: "helper-inflight" };
+        }
+        return {
+          state: "done",
+          translation: `译文 #${round}`,
+          targetLanguageCode: "zh-CN",
+          provider: String(mocks.agent?.provider ?? "claude"),
+          model: String(mocks.agent?.model ?? "claude-sonnet-4-5"),
+          thinkingMode: "disabled",
+          thinkingOptionId: "off",
+        };
+      }
+      return statusOutcome ?? { state: "running", helperId: "helper-inflight" };
+    });
+
+    const props = {
+      agentId: "agent-model-switch",
+      item: {
+        id: "row-model-switch",
+        type: "plugin" as const,
+        kind: "omp-assistant",
+        version: 1,
+        data: { text: "Check model switching", phase: "complete", sourceId: "msg-model-switch" },
+      },
+      theme,
+      layout: { compact: false, platform: "web" as const },
+      timestamp: new Date("2026-11-19T10:00:00Z"),
+    };
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, props as never));
+    });
+
+    // 1. Initial translation under claude / claude-sonnet-4-5 / high.
+    await act(async () => {
+      renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply").props.onPress();
+    });
+    expect(collectTexts(renderer!.root).join("\n")).toContain("译文 #1");
+
+    // 2. Switching agent model invalidates cache immediately.
+    await act(async () => {
+      setMockAgent({
+        provider: "claude",
+        model: "claude-opus-4-1",
+        thinkingOptionId: "high",
+        effectiveThinkingOptionId: "high",
+      });
+    });
+    expect(collectTexts(renderer!.root).join("\n")).not.toContain("译文 #1");
+
+    // Re-translate under new model -> #2.
+    await act(async () => {
+      renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply").props.onPress();
+    });
+    expect(collectTexts(renderer!.root).join("\n")).toContain("译文 #2");
+
+    // 3. Switching agent thinking config invalidates cache too.
+    await act(async () => {
+      setMockAgent({
+        provider: "claude",
+        model: "claude-opus-4-1",
+        thinkingOptionId: "low",
+        effectiveThinkingOptionId: "low",
+      });
+    });
+    expect(collectTexts(renderer!.root).join("\n")).not.toContain("译文 #2");
+
+    // 4. Start an in-flight request (round === 3 -> running), switch agent provider+model mid-flight, then finish stale request.
+    await act(async () => {
+      renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply").props.onPress();
+    });
+    expect(translationStore.read("agent-model-switch:assistant:msg-model-switch")?.state.state).toBe("running");
+
+    await act(async () => {
+      setMockAgent({
+        provider: "codex",
+        model: "gpt-5",
+        thinkingOptionId: "medium",
+        effectiveThinkingOptionId: "medium",
+      });
+    });
+    // Under new codex/gpt-5 config, the in-flight claude entry is no longer current.
+    expect(collectTexts(renderer!.root).join("\n")).not.toContain("Translating");
+
+    statusOutcome = {
+      state: "done",
+      translation: "过时的旧模型译文",
+      targetLanguageCode: "zh-CN",
+      provider: "claude",
+      model: "claude-opus-4-1",
+      thinkingMode: "inherited",
+      thinkingOptionId: "low",
+    };
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1150));
+    });
+    // Even after the old job finishes, it must NOT show under the switched codex/gpt-5 agent.
+    expect(collectTexts(renderer!.root).join("\n")).not.toContain("过时的旧模型译文");
+
+    // 5. With customModel=true, changing agent config leaves custom-model translation cache intact.
+    await act(async () => {
+      publishTranslationSettings(
+        { ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, customModel: true, provider: "claude", model: "claude-sonnet-4-5" },
+        "custom-on",
+      );
+    });
+    await act(async () => {
+      renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply").props.onPress();
+    });
+    expect(collectTexts(renderer!.root).join("\n")).toContain("译文 #4");
+
+    await act(async () => {
+      setMockAgent({
+        provider: "gemini",
+        model: "gemini-3",
+        thinkingOptionId: "high",
+        effectiveThinkingOptionId: "high",
+      });
+    });
+    expect(collectTexts(renderer!.root).join("\n")).toContain("译文 #4");
+  });
+
+  it("displays explicit result notice for unsupported_off and non-overclaiming note for none when disableThinking is enabled", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({
+        state: "done",
+        translation: "译文（未关闭思考）",
+        targetLanguageCode: "zh-CN",
+        provider: "claude",
+        model: "claude-sonnet-4-5",
+        thinkingMode: "unsupported_off",
+        thinkingOptionId: "high",
+      })
+      .mockResolvedValueOnce({
+        state: "done",
+        translation: "译文（无开关）",
+        targetLanguageCode: "zh-CN",
+        provider: "codex",
+        model: "gpt-4.1",
+        thinkingMode: "none",
+        thinkingOptionId: null,
+      })
+      .mockResolvedValueOnce({
+        state: "done",
+        translation: "译文（已关闭）",
+        targetLanguageCode: "zh-CN",
+        provider: "claude",
+        model: "claude-opus-4-1",
+        thinkingMode: "disabled",
+        thinkingOptionId: "off",
+      });
+
+    const props = {
+      agentId: "agent-thinking-notice",
+      item: {
+        id: "row-thinking-1",
+        type: "plugin" as const,
+        kind: "omp-assistant",
+        version: 1,
+        data: { text: "First reply", phase: "complete", sourceId: "msg-th-1" },
+      },
+      theme,
+      layout: { compact: false, platform: "web" as const },
+      timestamp: new Date("2026-11-19T10:00:00Z"),
+    };
+
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, props as never));
+    });
+    await act(async () => {
+      renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply").props.onPress();
+    });
+    const unsupportedTexts = collectTexts(renderer!.root).join("\n");
+    expect(unsupportedTexts).toContain("译文（未关闭思考）");
+    expect(unsupportedTexts).toContain("Thinking was NOT disabled");
+    expect(unsupportedTexts).toContain("high");
+
+    // Second message: thinkingMode === "none" with disableThinking=true -> no overclaim.
+    await act(async () => {
+      renderer!.update(
+        React.createElement(LiveAssistantRenderer, {
+          ...props,
+          item: { ...props.item, data: { text: "Second reply", phase: "complete", sourceId: "msg-th-2" } },
+        } as never),
+      );
+    });
+    await act(async () => {
+      renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply").props.onPress();
+    });
+    const noneTexts = collectTexts(renderer!.root).join("\n");
+    expect(noneTexts).toContain("译文（无开关）");
+    expect(noneTexts).toContain("exposes no thinking control");
+    expect(noneTexts).not.toContain("Thinking was NOT disabled");
+
+    // Third message: thinkingMode === "disabled" -> no failure/unsupported notice.
+    await act(async () => {
+      renderer!.update(
+        React.createElement(LiveAssistantRenderer, {
+          ...props,
+          item: { ...props.item, data: { text: "Third reply", phase: "complete", sourceId: "msg-th-3" } },
+        } as never),
+      );
+    });
+    await act(async () => {
+      renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translate reply").props.onPress();
+    });
+    const disabledTexts = collectTexts(renderer!.root).join("\n");
+    expect(disabledTexts).toContain("译文（已关闭）");
+    expect(disabledTexts).not.toContain("Thinking was NOT disabled");
+    expect(disabledTexts).not.toContain("exposes no thinking control");
   });
 });

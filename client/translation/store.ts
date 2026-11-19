@@ -4,6 +4,7 @@ import type { PaseoAgentTimelineHandle } from "@getpaseo/client";
 import {
   translateTimelineItemRpc,
   translationConfigSignature,
+  type ConversationAgentModelConfig,
   type TimelineTranslationSettings,
   type TranslationJobState,
 } from "../../shared/timeline-translation";
@@ -27,6 +28,7 @@ export interface TranslationRequestInput {
   text: string;
   interfaceLanguage: "en" | "zh";
   settings: TimelineTranslationSettings;
+  agentConfig?: ConversationAgentModelConfig | null;
 }
 
 type TranslateStartInput = {
@@ -139,11 +141,12 @@ export function isEntryCurrent(
   sourceText: string,
   settings: TimelineTranslationSettings,
   interfaceLanguage: "en" | "zh",
+  agentConfig?: ConversationAgentModelConfig | null,
 ): entry is TranslationEntry {
   if (!entry) return false;
   return (
     entry.sourceHash === hashTranslationText(sourceText) &&
-    entry.configSignature === translationConfigSignature(settings, interfaceLanguage)
+    entry.configSignature === translationConfigSignature(settings, interfaceLanguage, agentConfig)
   );
 }
 
@@ -195,9 +198,10 @@ export function createTranslationStore() {
       sourceText: string,
       settings: TimelineTranslationSettings,
       interfaceLanguage: "en" | "zh",
+      agentConfig?: ConversationAgentModelConfig | null,
     ): TranslationEntry | undefined {
       const entry = entries.get(sourceKey);
-      return isEntryCurrent(entry, sourceText, settings, interfaceLanguage) ? entry : undefined;
+      return isEntryCurrent(entry, sourceText, settings, interfaceLanguage, agentConfig) ? entry : undefined;
     },
 
     setVisible(sourceKey: string, visible: boolean): void {
@@ -218,7 +222,7 @@ export function createTranslationStore() {
       watch?: WatchHelper,
     ): void {
       const sourceHash = hashTranslationText(input.text);
-      const configSig = translationConfigSignature(input.settings, input.interfaceLanguage);
+      const configSig = translationConfigSignature(input.settings, input.interfaceLanguage, input.agentConfig);
       const jobId = `tl-${++jobSequence}-${Date.now().toString(36)}`;
       const seed: TranslationEntry = {
         jobId,
@@ -364,10 +368,11 @@ export function useTranslationEntry(
   sourceText: string,
   settings: TimelineTranslationSettings,
   interfaceLanguage: "en" | "zh",
+  agentConfig?: ConversationAgentModelConfig | null,
 ): TranslationEntry | undefined {
   const snapshot = useCallback(
-    () => translationStore.readValid(sourceKey, sourceText, settings, interfaceLanguage),
-    [sourceKey, sourceText, settings, interfaceLanguage],
+    () => translationStore.readValid(sourceKey, sourceText, settings, interfaceLanguage, agentConfig),
+    [sourceKey, sourceText, settings, interfaceLanguage, agentConfig],
   );
   return useSyncExternalStore(translationStore.subscribe, snapshot, snapshot);
 }

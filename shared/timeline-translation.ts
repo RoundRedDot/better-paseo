@@ -66,19 +66,32 @@ export const TIMELINE_TRANSLATION_SETTINGS = defineSettings({
   schema: timelineTranslationSettingsSchema,
 });
 
+export interface ConversationAgentModelConfig {
+  provider?: string | null;
+  model?: string | null;
+  thinkingOptionId?: string | null;
+  effectiveThinkingOptionId?: string | null;
+}
+
 export function translationConfigSignature(
   settings: TimelineTranslationSettings,
   interfaceLanguage: "en" | "zh",
+  agentConfig?: ConversationAgentModelConfig | null,
 ): string {
   const target = resolveTranslationTarget(settings.targetLanguage, interfaceLanguage);
+  const provider = settings.customModel ? settings.provider : (agentConfig?.provider ?? "");
+  const model = settings.customModel ? settings.model : (agentConfig?.model ?? "");
+  const thinkingOptionId = settings.customModel
+    ? settings.thinkingOptionId
+    : (agentConfig?.effectiveThinkingOptionId ?? agentConfig?.thinkingOptionId ?? "");
   return JSON.stringify({
     enabled: settings.enabled,
     targetCode: target.code,
     customModel: settings.customModel,
-    provider: settings.customModel ? settings.provider : "",
-    model: settings.customModel ? settings.model : "",
+    provider,
+    model,
     disableThinking: settings.disableThinking,
-    thinkingOptionId: settings.customModel ? settings.thinkingOptionId : "",
+    thinkingOptionId,
     prompt: settings.prompt,
   });
 }

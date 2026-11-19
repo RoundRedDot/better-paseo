@@ -132,8 +132,8 @@ export function describeThinkingStatus(
     return {
       tone: "neutral",
       text: lang === "zh"
-        ? `${modelName} 未暴露可选的思考挡位，将按模型默认方式执行。`
-        : `${modelName} does not expose selectable thinking options; it runs with model defaults.`,
+        ? `${modelName} 未提供可选的思考开关挡位，无法显式关闭或确认其是否关闭思考。`
+        : `${modelName} exposes no selectable thinking switch, so thinking cannot be explicitly toggled off or guaranteed off.`,
     };
   }
 

@@ -198,6 +198,8 @@ describe("timeline translation settings", () => {
       "en",
     );
     expect(none.tone).toBe("neutral");
+    expect(none.text).toContain("no selectable thinking switch");
+    expect(none.text).not.toContain("thinking is disabled");
   });
 
   it("toggles master switch, searches 119 languages, and saves selected target language", async () => {

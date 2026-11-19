@@ -1,7 +1,8 @@
 import React, { useCallback, useContext, useMemo, useRef } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { useAgent, type PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
-import type { PluginIcon } from "@getpaseo/plugin/client";
+import type { ConversationAgentModelConfig, TranslationThinkingMode } from "../../shared/timeline-translation";
 import { findTranslationLanguage, resolveTranslationTarget } from "../../shared/translation-languages";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2 } from "../components/theme-tokens";
@@ -48,8 +49,36 @@ function getInterfaceLanguage(languagePreference: SettingsLanguagePreference | u
   return resolveLanguage(languagePreference ?? "system");
 }
 
+export function describeResultThinkingNotice(
+  thinkingMode: TranslationThinkingMode,
+  model: string,
+  thinkingOptionId: string | null,
+  disableThinkingRequested: boolean,
+  lang: "en" | "zh",
+): { tone: "warning" | "neutral"; text: string } | null {
+  if (thinkingMode === "unsupported_off") {
+    const applied = thinkingOptionId ? thinkingOptionId : (lang === "zh" ? "模型默认" : "model default");
+    return {
+      tone: "warning",
+      text: lang === "zh"
+        ? `当前模型 ${model} 不支持 off / none / disabled 思考选项，本次翻译未能关闭思考（实际使用：${applied}）。`
+        : `Thinking was NOT disabled for ${model}: no off, none, or disabled option is available (used ${applied}).`,
+    };
+  }
+  if (disableThinkingRequested && thinkingMode === "none") {
+    return {
+      tone: "neutral",
+      text: lang === "zh"
+        ? `${model} 未暴露可选思考开关，无法强制关闭或确认思考状态。`
+        : `${model} exposes no thinking control; unable to force thinking off or confirm thinking state.`,
+    };
+  }
+  return null;
+}
+
 export interface TranslationController {
   enabled: boolean;
+  disableThinking: boolean;
   settingsStatus: "loading" | "ready" | "invalid" | "error";
   settingsError: string | null;
   sourceAvailable: boolean;
@@ -76,8 +105,19 @@ export function useItemTranslation(options: {
   const settings = settingsState.values;
   const preferences = useEnhancerPreferences();
   const interfaceLanguage = getInterfaceLanguage(preferences?.language);
+  const agentProvider = useAgent(options.agentId, (agent) => agent?.provider);
+  const agentModel = useAgent(options.agentId, (agent) => agent?.model);
+  const agentThinkingOptionId = useAgent(options.agentId, (agent) => agent?.thinkingOptionId);
+  const agentConfig = useMemo<ConversationAgentModelConfig>(
+    () => ({
+      provider: agentProvider ?? null,
+      model: agentModel ?? null,
+      thinkingOptionId: agentThinkingOptionId ?? null,
+    }),
+    [agentProvider, agentModel, agentThinkingOptionId],
+  );
   const caller = useTranslateCaller();
-  const entry = useTranslationEntry(options.sourceKey, options.text, settings, interfaceLanguage);
+  const entry = useTranslationEntry(options.sourceKey, options.text, settings, interfaceLanguage, agentConfig);
 
   const sourceAvailable = options.sourceAvailable ?? true;
   const enabled = settingsState.status === "ready" ? settings.enabled : true;
@@ -89,6 +129,7 @@ export function useItemTranslation(options: {
     options,
     settingsState,
     settings,
+    agentConfig,
     sourceAvailable,
     interfaceLanguage,
     caller,
@@ -98,6 +139,7 @@ export function useItemTranslation(options: {
     options,
     settingsState,
     settings,
+    agentConfig,
     sourceAvailable,
     interfaceLanguage,
     caller,
@@ -109,6 +151,7 @@ export function useItemTranslation(options: {
       options: opt,
       settingsState: st,
       settings: cfg,
+      agentConfig: currentAgentConfig,
       sourceAvailable: available,
       interfaceLanguage: lang,
       caller: rpc,
@@ -123,6 +166,7 @@ export function useItemTranslation(options: {
         text: opt.text,
         interfaceLanguage: lang,
         settings: cfg,
+        agentConfig: currentAgentConfig,
       },
       rpc.call,
       rpc.watch,
@@ -162,6 +206,7 @@ export function useItemTranslation(options: {
 
   return useMemo(() => ({
     enabled,
+    disableThinking: settings.disableThinking,
     settingsStatus: settingsState.status,
     settingsError: settingsState.error,
     sourceAvailable,
@@ -175,6 +220,7 @@ export function useItemTranslation(options: {
     onHide,
   }), [
     enabled,
+    settings.disableThinking,
     settingsState.status,
     settingsState.error,
     sourceAvailable,
@@ -337,6 +383,17 @@ export function TranslationBlock({
   const retryLabel = toolbarLabel("Retry", langPreference);
   const translatingLabel = toolbarLabel("Translating...", langPreference);
   const mutedText = tokens.foregroundSubtle ?? tokens.foregroundMuted;
+  const warningText = (tokens as ExtendedThemeTokens & { warning?: string }).warning ?? colors.danger;
+  const thinkingNotice =
+    entry.state.state === "done"
+      ? describeResultThinkingNotice(
+          entry.state.thinkingMode,
+          entry.state.model,
+          entry.state.thinkingOptionId,
+          controller.disableThinking,
+          lang,
+        )
+      : null;
 
   return (
     <ToolbarHoverColorContext.Provider value={colors.hover}>
@@ -413,15 +470,32 @@ export function TranslationBlock({
             </Text>
           </View>
         ) : (
-          <MarkdownView
-            text={entry.state.translation}
-            tokens={tokens}
-            variant={variant}
-            compact={compact}
-            quiet={quiet}
-            size={size}
-            onRevealPath={onRevealPath}
-          />
+          <>
+            {thinkingNotice ? (
+              <View style={styles.thinkingNoticeRow}>
+                <Text
+                  style={[
+                    styles.thinkingNoticeText,
+                    {
+                      color: thinkingNotice.tone === "warning" ? warningText : mutedText,
+                      fontFamily: tokens.fontUi,
+                    },
+                  ]}
+                >
+                  {thinkingNotice.text}
+                </Text>
+              </View>
+            ) : null}
+            <MarkdownView
+              text={entry.state.translation}
+              tokens={tokens}
+              variant={variant}
+              compact={compact}
+              quiet={quiet}
+              size={size}
+              onRevealPath={onRevealPath}
+            />
+          </>
         )}
       </View>
     </ToolbarHoverColorContext.Provider>
@@ -504,5 +578,12 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 12.5,
     lineHeight: 18,
+  },
+  thinkingNoticeRow: {
+    paddingVertical: 2,
+  },
+  thinkingNoticeText: {
+    fontSize: 11.5,
+    lineHeight: 16,
   },
 });
